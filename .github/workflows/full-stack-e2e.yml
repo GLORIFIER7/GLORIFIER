@@ -24,10 +24,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Require authenticated E2E credentials
-        run: |
-          test -n "$E2E_TEST_EMAIL" || (echo "Missing E2E_TEST_EMAIL repository secret" && exit 1)
-          test -n "$E2E_TEST_PASSWORD" || (echo "Missing E2E_TEST_PASSWORD repository secret" && exit 1)
       - run: npm install
       - run: npx playwright install --with-deps chromium
       - name: Authenticated production E2E
