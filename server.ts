@@ -233,7 +233,7 @@ app.post('/api/ai/compliance-scientist', async (req: Request, res: Response) => 
 });
 
 const integrationStatus = [
-  { id: 'github', name: 'GitHub', category: 'code', status: 'connected', detail: 'Repository control and CI source', publicUrl: 'https://github.com/GLORIFIER7/glorifier-artificial-intelligence' },
+  { id: 'github', name: 'GitHub', category: 'code', status: 'connected', detail: 'Repository control and CI source', publicUrl: 'https://github.com/GLORIFIER7/GLORIFIER' },
   { id: 'npm', name: 'npm', category: 'package', status: 'connected', detail: 'Dependency and package monitoring', publicUrl: 'https://www.npmjs.com/~glorifier' },
   { id: 'gravatar', name: 'Gravatar', category: 'identity', status: process.env.GLORIFIER_GRAVATAR_EMAIL ? 'configured' : 'ready', detail: process.env.GLORIFIER_GRAVATAR_EMAIL ? 'Server-side avatar configured' : 'Awaiting server-side profile email', publicUrl: 'https://gravatar.com/' },
   { id: 'railway', name: 'Railway', category: 'compute', status: process.env.RAILWAY_API_TOKEN ? 'configured' : 'connected-via-deployment', detail: 'Production backend/orchestrator', publicUrl: 'https://railway.app/' },
