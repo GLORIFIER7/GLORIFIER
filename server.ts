@@ -605,42 +605,56 @@ app.get('/api/health/ready', async (_req: Request, res: Response) => {
 });
 
 // Read-only runtime verification for the production audit.
+// This endpoint verifies infrastructure state without exposing user-scoped data.
+// AI availability is reported separately and only gates the result when probeAi=true.
 app.get('/api/runtime-verification', async (req: Request, res: Response) => {
   const startedAt = Date.now();
-  const checks: Record<string, unknown> = {};
-  try {
-    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not configured');
-    const pool = getPostgresPool();
-    const dbStarted = Date.now();
-    await pool.query('SELECT 1');
-    checks.database = { ok: true, latencyMs: Date.now() - dbStarted };
+  const checks: Record<string, any> = {};
+  const probeAi = String(req.query.probeAi || '').toLowerCase() === 'true';
 
-    await initializeAppState();
-    checks.appState = { ok: true, tablesInitialized: true };
-    await initializeVerifiedOutcomes();
-    checks.evidence = { ok: true, verificationStoreInitialized: true };
+  if (!process.env.DATABASE_URL) {
+    checks.database = { ok: false, error: 'DATABASE_URL is not configured' };
+  } else {
+    try {
+      const pool = getPostgresPool();
+      const dbStarted = Date.now();
+      await pool.query('SELECT 1');
+      checks.database = { ok: true, latencyMs: Date.now() - dbStarted, source: 'neon-postgresql' };
+    } catch (error) {
+      checks.database = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
 
-    const userReference = String(req.query.userReference || '').trim();
-    if (userReference) {
-      const state = await readAppState(userReference);
-      checks.persistence = {
-        ok: true,
-        userReferencePresent: true,
-        governanceEvents: Array.isArray((state as any)?.governanceEvents) ? (state as any).governanceEvents.length : 0,
-        source: 'neon-postgresql'
-      };
-    } else {
-      checks.persistence = {
-        ok: true,
-        userReferencePresent: false,
-        note: 'Pass userReference to inspect persisted app state.'
-      };
+  if (checks.database?.ok) {
+    try {
+      await initializeAppState();
+      checks.appState = { ok: true, tablesInitialized: true };
+    } catch (error) {
+      checks.appState = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
 
-    const probeAi = String(req.query.probeAi || '').toLowerCase() === 'true';
-    if (probeAi) {
+    try {
+      await initializeVerifiedOutcomes();
+      checks.evidence = { ok: true, verificationStoreInitialized: true };
+    } catch (error) {
+      checks.evidence = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+
+    checks.persistence = {
+      ok: true,
+      userReferenceAccepted: false,
+      note: 'User-scoped persistence is intentionally excluded from this public verification endpoint.'
+    };
+  } else {
+    checks.appState = { ok: false, skipped: true, reason: 'Database dependency unavailable' };
+    checks.evidence = { ok: false, skipped: true, reason: 'Database dependency unavailable' };
+    checks.persistence = { ok: false, skipped: true, reason: 'Database dependency unavailable' };
+  }
+
+  if (probeAi) {
+    try {
       const probe = await runModelExecution({
-        model: 'gemini-3.8-flash',
+        model: 'auto',
         systemPrompt: 'You are performing a GLORIFIER runtime verification. Return exactly: GLORIFIER_RUNTIME_PROBE_OK',
         userPrompt: 'Runtime probe. Do not provide analysis or claims.',
         temperature: 0
@@ -650,34 +664,35 @@ app.get('/api/runtime-verification', async (req: Request, res: Response) => {
         executed: Boolean(probe.text),
         provider: probe.provider,
         model: probe.modelUsed,
-        response: probe.text ? probe.text.slice(0, 200) : null
+        response: probe.text ? probe.text.slice(0, 200) : null,
+        providerErrors: probe.providerErrors || []
       };
-      if (!probe.text) {
-        throw new Error('No verified AI/provider/compute response was available for the runtime probe');
-      }
-    } else {
-      checks.ai = {
-        ok: false,
-        executed: false,
-        note: 'Pass probeAi=true to execute a real provider/compute probe; no synthetic response is used.'
-      };
+    } catch (error) {
+      checks.ai = { ok: false, executed: false, error: error instanceof Error ? error.message : String(error) };
     }
-
-    const overallVerified = checks.database && checks.appState && checks.evidence && (!probeAi || (checks.ai as any)?.ok);
-    res.status(overallVerified ? 200 : 503).json({
-      ok: overallVerified,
-      status: overallVerified ? 'verified' : 'degraded',
-      runtime: 'railway-backend',
-      persistence: 'neon-postgresql',
-      consequentialExecution: 'requires-authorized-integration-and-human-approval',
-      checks,
-      responseTimeMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    checks.failure = { message: error instanceof Error ? error.message : String(error) };
-    res.status(503).json({ ok: false, status: 'degraded', checks, responseTimeMs: Date.now() - startedAt, timestamp: new Date().toISOString() });
+  } else {
+    checks.ai = {
+      ok: null,
+      executed: false,
+      status: 'not-probed',
+      note: 'Pass probeAi=true to execute a real provider/compute probe; no synthetic response is used.'
+    };
   }
+
+  const infrastructureVerified = checks.database?.ok === true && checks.appState?.ok === true && checks.evidence?.ok === true;
+  const overallVerified = infrastructureVerified && (!probeAi || checks.ai?.ok === true);
+  const status = overallVerified ? 'verified' : (infrastructureVerified ? 'ai-degraded' : 'degraded');
+
+  return res.status(overallVerified ? 200 : 503).json({
+    ok: overallVerified,
+    status,
+    runtime: 'railway-backend',
+    persistence: 'neon-postgresql',
+    consequentialExecution: 'requires-authorized-integration-and-human-approval',
+    checks,
+    responseTimeMs: Date.now() - startedAt,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/api/ai/config', (req: Request, res: Response) => {
