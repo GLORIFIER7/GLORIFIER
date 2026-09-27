@@ -89,7 +89,7 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
-// All state-changing API operations require a verified Firebase ID token.
+// All state-changing API operations require a verified identity token.
 // Read-only public health/status surfaces remain reachable without login.
 // This keeps authentication and authorization separate while preventing
 // unauthenticated writes into orchestration, integrations, finance, evidence,
@@ -2307,6 +2307,42 @@ app.get('/api/assets/providers/binance-public/quote/:symbol', async (req: Reques
 // ============================================================================
 app.get('/api/auth/status', (_req: Request, res: Response) => res.json({ ok: true, authentication: authenticationStatus() }));
 
+// Authenticated session + database round-trip probe. The server derives identity
+// exclusively from the verified token; client-supplied userReference is never trusted.
+app.get('/api/auth/session', async (req: Request, res: Response) => {
+  const auth = (req as any).auth;
+  if (!auth?.uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+  try {
+    const db = getPostgresPool();
+    const result = await db.query('SELECT current_database() AS database_name, current_user AS database_role, NOW() AS database_time');
+    const row = result.rows[0] || {};
+    return res.json({
+      ok: true,
+      authenticated: true,
+      identity: {
+        uid: String(auth.uid),
+        email: auth.email || null,
+        emailVerified: auth.email_verified === true,
+        provider: Array.isArray(auth.firebase?.sign_in_provider) ? auth.firebase.sign_in_provider : (auth.firebase?.sign_in_provider || null)
+      },
+      database: {
+        connected: true,
+        databaseName: row.database_name || null,
+        databaseRole: row.database_role || null,
+        serverTime: row.database_time || null,
+        authority: 'Neon/PostgreSQL'
+      },
+      authorization: {
+        owner: isOwner(auth),
+        authenticationAndAuthorizationSeparate: true,
+        humanFinalAuthority: true
+      }
+    });
+  } catch (error) {
+    return apiError(res, 503, 'Authenticated but database session unavailable', error);
+  }
+});
+
 app.get('/api/control-plane/integrations', (_req: Request, res: Response) => {
   getIntegrationControlSnapshot().then(snapshot => res.json({ ok: true, snapshot })).catch(error => apiError(res, 503, 'Integration control plane unavailable', error));
 });
@@ -2492,9 +2528,11 @@ app.post('/api/governed-actions', requireOwner, async (req: Request, res: Respon
 
 app.get('/api/app-state', async (req: Request, res: Response) => {
   try {
+    const auth = (req as any).auth;
+    if (!auth?.uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
     await initializeAppState();
-    const state = await readAppState(String(req.query.userReference || 'anonymous'));
-    res.json({ ok: true, state });
+    const state = await readAppState(String(auth.uid));
+    res.json({ ok: true, state, identity: { uid: String(auth.uid) } });
   } catch (error) {
     apiError(res, 500, error instanceof Error ? error.message : 'Unable to read app state');
   }
@@ -2502,9 +2540,10 @@ app.get('/api/app-state', async (req: Request, res: Response) => {
 
 app.put('/api/app-state', async (req: Request, res: Response) => {
   try {
-    const userReference = String(req.body?.userReference || 'anonymous');
-    const state = await upsertState(userReference, req.body?.state || {});
-    res.json({ ok: true, state });
+    const auth = (req as any).auth;
+    if (!auth?.uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const state = await upsertState(String(auth.uid), req.body?.state || {});
+    res.json({ ok: true, state, identity: { uid: String(auth.uid) } });
   } catch (error) {
     apiError(res, 500, error instanceof Error ? error.message : 'Unable to persist app state');
   }
