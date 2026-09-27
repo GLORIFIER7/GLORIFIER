@@ -1,18 +1,16 @@
 import { test, expect } from '@playwright/test';
 
-const email = process.env.E2E_TEST_EMAIL;
-const password = process.env.E2E_TEST_PASSWORD;
+const email = `e2e-${Date.now()}@glorifier-test.invalid`;
+const password = `GlorifierE2E-${Date.now()}!`;
 
 test.describe('GLORIFIER production end-to-end', () => {
-  test.skip(!email || !password, 'Set E2E_TEST_EMAIL and E2E_TEST_PASSWORD for authenticated production E2E.');
-
-  test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
+    test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByLabel('Email').fill(email!);
     await page.getByLabel('Password').fill(password!);
-    await page.getByRole('button', { name: /sign in to command center/i }).click();
+    await page.getByRole('button', { name: /create account/i }).click();
     await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 
     const session = await page.evaluate(async () => {
@@ -46,9 +44,11 @@ test.describe('GLORIFIER production end-to-end', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: /create a new account/i }).click();
+    await page.getByLabel('Display name').fill('GLORIFIER E2E');
     await page.getByLabel('Email').fill(email!);
     await page.getByLabel('Password').fill(password!);
-    await page.getByRole('button', { name: /sign in to command center/i }).click();
+    await page.getByRole('button', { name: /create account/i }).click();
     await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
     await page.getByRole('button', { name: /^menu$/i }).click();
     await expect(page.locator('#mobile-navigation')).toBeVisible();
