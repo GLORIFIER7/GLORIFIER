@@ -105,6 +105,8 @@ export type OrchestrationFallbackMode = 'governed-only';
 export interface ProviderExecutionPolicy {
   fallbackMode: OrchestrationFallbackMode;
   allowImplicitSystemFallback: false;
+  allowImplicitProviderFallback: false;
+  allowImplicitModelFallback: false;
   refreshDiscoveryBeforeExhaustion: true;
   maxDiscoveryRefreshes: number;
   maxAttempts: number;
@@ -114,6 +116,8 @@ export interface ProviderExecutionPolicy {
 export const DEFAULT_PROVIDER_EXECUTION_POLICY: ProviderExecutionPolicy = {
   fallbackMode: 'governed-only',
   allowImplicitSystemFallback: false,
+  allowImplicitProviderFallback: false,
+  allowImplicitModelFallback: false,
   refreshDiscoveryBeforeExhaustion: true,
   maxDiscoveryRefreshes: 1,
   maxAttempts: Math.max(1, providers.length),
@@ -138,6 +142,11 @@ export async function executeThroughProviderRegistry(
   request: ProviderExecutionRequest
 ): Promise<ProviderExecutionResult> {
   const policy = { ...DEFAULT_PROVIDER_EXECUTION_POLICY, ...(request.policy || {}) };
+  // Anti-fallback invariant: provider/model substitution may only happen through
+  // this governed registry loop. SDK/gateway fallback is never delegated to.
+  if (policy.allowImplicitSystemFallback || policy.allowImplicitProviderFallback || policy.allowImplicitModelFallback) {
+    throw new Error('Implicit system/provider/model fallback is forbidden by GLORIFIER orchestration policy.');
+  }
   const connected = getConnectedProviders();
   const preferredProvider = request.preferredProvider
     || (request.model?.startsWith('gemini') ? 'gemini' : request.model?.startsWith('gpt') ? 'openai' : undefined);
@@ -197,11 +206,9 @@ export async function executeThroughProviderRegistry(
     try {
       const providerRequest = {
         ...request,
-        model: provider.id === 'gemini'
-          ? (request.model?.startsWith('gemini') ? request.model : undefined)
-          : provider.id === 'openai'
-            ? (request.model?.startsWith('gpt') ? request.model : undefined)
-            : request.model,
+        model: request.model && provider.models().includes(request.model)
+          ? request.model
+          : undefined,
       };
       const response = await provider.generate(providerRequest);
 
@@ -254,11 +261,9 @@ export async function executeThroughProviderRegistry(
         try {
           const providerRequest = {
             ...request,
-            model: provider.id === 'gemini'
-              ? (request.model?.startsWith('gemini') ? request.model : undefined)
-              : provider.id === 'openai'
-                ? (request.model?.startsWith('gpt') ? request.model : undefined)
-                : request.model,
+            model: request.model && provider.models().includes(request.model)
+              ? request.model
+              : undefined,
           };
           const response = await provider.generate(providerRequest);
           if (response.text?.trim()) {
