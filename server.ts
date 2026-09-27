@@ -725,120 +725,131 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
   });
 });
 
-// Dedicated All-AI Model Council Consultation endpoint
+// Provider-neutral AI-to-AI synthesis endpoint.
+// The council dynamically uses every currently executable provider/compute path.
+// No provider is hard-coded as the brain, and no synthetic response is created.
 app.post('/api/ai/council', async (req: Request, res: Response) => {
+  const { agenda, currentPolicy } = req.body || {};
+  const topic = String(agenda || 'Holistic Digital Sovereignty & Data Monetization Strategy');
+
+  const policyContext = `Policy floor: $\${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo. Epsilon: \${currentPolicy?.globalEpsilon || 0.35}.`;
+  const roles = [
+    {
+      id: 'commercial',
+      title: 'Commercial valuation and market perspective',
+      instruction: 'Analyze commercial value, market structure, pricing context, and negotiation considerations. Separate evidence, assumptions, and uncertainty.'
+    },
+    {
+      id: 'technical',
+      title: 'Technical integrity and systems perspective',
+      instruction: 'Analyze technical feasibility, data integrity, architecture, privacy/security implications, and measurable technical risks.'
+    },
+    {
+      id: 'sovereignty',
+      title: 'Provider-neutral sovereignty and resilience perspective',
+      instruction: 'Analyze provider neutrality, interoperability, portability, resilience, substitution, governance, and concentration risk.'
+    }
+  ];
+
   try {
-    const { agenda, currentPolicy, footprints } = req.body;
-    const topic = agenda || 'Holistic Digital Sovereignty & Data Monetization Strategy';
+    const roleResults = await Promise.allSettled(roles.map(async (role) => {
+      const execution = await runModelExecution({
+        model: 'auto' as any,
+        systemPrompt: [
+          'You are a specialist participating in the GLORIFIER AI-to-AI council.',
+          'Return factual, evidence-oriented analysis only.',
+          'Do not invent sources, prices, transactions, consensus, or verified outcomes.',
+          role.instruction,
+          policyContext
+        ].join('\\n'),
+        userPrompt: topic,
+        temperature: 0.2
+      });
+      return { ...role, ...execution };
+    }));
 
-    const systemPrompt = `You are participating in the Sovereign Personal Data Council on the topic: "${topic}".
-User policy floor: $${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo. Epsilon: ${currentPolicy?.globalEpsilon || 0.35}.
-Provide your specialized perspective.`;
+    const perspectives = roleResults
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && Boolean(r.value.text?.trim()))
+      .map(r => ({
+        id: r.value.id,
+        title: r.value.title,
+        provider: r.value.provider,
+        model: r.value.modelUsed,
+        output: r.value.text,
+        status: r.value.executionStatus
+      }));
 
-    const gptPromise = runModelExecution({
-      model: 'gpt-4o',
-      systemPrompt: `${systemPrompt} As OpenAI GPT-4o, provide the Commercial Valuation & Market Licensing perspective. Propose optimal pricing and counter-negotiation tactics.`,
-      userPrompt: topic,
-      temperature: 0.3
-    });
+    const failures = roleResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map(r => String(r.reason instanceof Error ? r.reason.message : r.reason));
 
-    const geminiPromise = runModelExecution({
-      model: 'gemini-3.8-flash',
-      systemPrompt: `${systemPrompt} As Google Gemini 3.8 Flash, provide the Mathematical Differential Privacy & Telemetry Integrity perspective. Analyze Laplacian noise and epsilon leakage bounds.`,
-      userPrompt: topic,
-      temperature: 0.3
-    });
-
-    const [gptRes, geminiRes] = await Promise.allSettled([gptPromise, geminiPromise]);
-
-    const gptText = gptRes.status === 'fulfilled' && gptRes.value.text ? gptRes.value.text : '';
-    const geminiText = geminiRes.status === 'fulfilled' && geminiRes.value.text ? geminiRes.value.text : '';
-    const llamaText = 'No live Meta/Llama provider was executed for this council request.';
-    if (!gptText && !geminiText) {
+    if (!perspectives.length) {
       return res.status(503).json({
-        error: 'No verified AI provider response is currently available.',
-        providerStatus: 'OpenAI and Gemini returned no verified response; no synthetic council output was generated.'
+        ok: false,
+        error: 'AI-to-AI synthesis unavailable: no verified provider or authenticated independent compute response is currently available.',
+        providerStatus: aiOrchestrator.registry(),
+        failures,
+        synthesis: null,
+        syntheticOutput: false
       });
     }
 
-    const councilResult = {
-      agenda: topic,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      participants: [
-        {
-          modelId: 'gpt-4o',
-          name: 'GPT-4o',
-          provider: 'OpenAI',
-          role: 'Commercial Valuation & Strategic Negotiation',
-          color: 'emerald',
-          badge: 'OpenAI Frontier',
-          status: gptText ? 'completed' as const : 'unavailable' as const,
-          output: gptText || 'No verified OpenAI response.',
-          perspective: 'Live OpenAI provider response only',
-          keyRecommendation: gptText ? 'See live provider output; no recommendation is independently asserted.' : 'Unavailable.'
-        },
-        {
-          modelId: 'gemini-3.8-flash',
-          name: 'Gemini 3.8 Flash',
-          provider: 'Google DeepMind',
-          role: 'Differential Privacy & Cryptographic Verification',
-          color: 'teal',
-          badge: 'Google Multimodal',
-          status: geminiText ? 'completed' as const : 'unavailable' as const,
-          output: geminiText || 'No verified Gemini response.',
-          perspective: 'Live Gemini provider response only',
-          keyRecommendation: geminiText ? 'See live provider output; no recommendation is independently asserted.' : 'Unavailable.'
-        },
-        {
-          modelId: 'llama-3.3',
-          name: 'LLaMA 3.3 (Open Weights)',
-          provider: 'Meta AI / Sovereign Enclave',
-          role: 'Decentralized Sovereignty & Anti-Monopoly Audit',
-          color: 'cyan',
-          badge: 'Open Weights',
-          status: 'unavailable' as const,
-          output: llamaText,
-          perspective: 'No live Meta/Llama execution was performed.',
-          keyRecommendation: 'Unavailable.'
-        },
-        {
-          modelId: 'patent-attorney-scientist',
-          name: 'A.I. Bot Patent Attorney Scientist',
-          provider: 'USPTO Bar & AI Research Core',
-          role: 'Patent Prosecution, Claim Engineering & Scientific Enablement',
-          color: 'purple',
-          badge: 'USPTO / AI Scientist',
-          status: 'unavailable' as const,
-          output: 'No live patent-attorney model execution was performed for this request.',
-          perspective: 'Requires a verified specialist provider response.',
-          keyRecommendation: 'Unavailable.'
-        },
-        {
-          modelId: 'compliance-scientist',
-          name: 'A.I. Bot Compliance Scientist',
-          provider: 'EU GDPR & FTC Regulatory Core',
-          role: 'Chief Compliance Officer & Regulatory Data Privacy Scientist',
-          color: 'amber',
-          badge: 'CIPP / Privacy Ph.D.',
-          status: 'unavailable' as const,
-          output: 'No live compliance-scientist model execution was performed for this request.',
-          perspective: 'Requires a verified specialist provider response.',
-          keyRecommendation: 'Unavailable.'
-        }
-      ],
-      unifiedConsensus: gptText && geminiText
-        ? 'Two live provider responses were received. GLORIFIER does not assert agreement or a unified directive without an explicit reconciliation step.'
-        : 'No consensus is asserted.',
-      consensusScore: null,
-      recommendedEpsilon: null,
-      recommendedFloorUsd: null,
-      actionDirectives: []
-    };
+    let synthesis: any = null;
+    if (perspectives.length >= 2) {
+      const evidencePacket = perspectives.map(p =>
+        `[\${p.title} | \${p.provider}:\${p.model}]\\n\${p.output}`
+      ).join('\\n\\n');
 
-    res.json(councilResult);
-  } catch (err: any) {
-    console.error('Council execution error:', err);
-    res.status(500).json({ error: 'Failed to convene AI models' });
+      const synthesisExecution = await runModelExecution({
+        model: 'auto' as any,
+        systemPrompt: [
+          'You are the GLORIFIER AI CEO synthesis layer.',
+          'Synthesize the supplied live specialist responses into one evidence-traceable synthesis.',
+          'Do not claim consensus merely because multiple models responded.',
+          'Identify agreement, disagreement, uncertainty, missing evidence, and next verification steps.',
+          'Do not invent facts, citations, financial outcomes, authorization, contracts, or payments.',
+          'The synthesis is advisory; humans retain final authority.'
+        ].join('\\n'),
+        userPrompt: `Objective: \${topic}\\n\\nLive specialist responses:\\n\${evidencePacket}`,
+        temperature: 0.1
+      });
+
+      if (synthesisExecution.text?.trim()) {
+        synthesis = {
+          provider: synthesisExecution.provider,
+          model: synthesisExecution.modelUsed,
+          output: synthesisExecution.text,
+          verifiedProviderResponse: true
+        };
+      }
+    }
+
+    return res.json({
+      ok: true,
+      agenda: topic,
+      timestamp: new Date().toISOString(),
+      participants: perspectives,
+      participantCount: perspectives.length,
+      providerDiversity: [...new Set(perspectives.map(p => p.provider))].length,
+      synthesis,
+      consensus: perspectives.length >= 2 && synthesis ? 'synthesized-from-live-responses' : 'single-live-response-no-cross-model-synthesis',
+      failures,
+      governance: {
+        providerNeutral: true,
+        noSyntheticOutput: true,
+        humanFinalAuthority: true,
+        evidenceFirst: true,
+        estimatedValuesNotVerifiedRevenue: true
+      }
+    });
+  } catch (error) {
+    console.error('[AI-to-AI] council execution error:', error);
+    return res.status(503).json({
+      ok: false,
+      error: 'AI-to-AI council execution unavailable',
+      details: error instanceof Error ? error.message : String(error),
+      syntheticOutput: false
+    });
   }
 });
 
