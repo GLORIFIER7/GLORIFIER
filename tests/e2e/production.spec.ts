@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const newTestCredentials = () => ({ email: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@glorifier-test.invalid`, password: `GlorifierE2E-${Date.now()}!` });
+const newTestCredentials = () => ({ email: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`, password: `GlorifierE2E-${Date.now()}!` });
 
 test.describe('GLORIFIER production end-to-end', () => {
     test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
@@ -8,6 +8,8 @@ test.describe('GLORIFIER production end-to-end', () => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: /create a new account/i }).click();
+    await page.getByLabel('Display name').fill('GLORIFIER E2E');
     await page.getByLabel('Email').fill(email!);
     await page.getByLabel('Password').fill(password!);
     await page.getByRole('button', { name: /create account/i }).click();
