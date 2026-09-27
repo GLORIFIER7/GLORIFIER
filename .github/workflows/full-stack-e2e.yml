@@ -1,0 +1,37 @@
+name: GLORIFIER Production E2E
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["GLORIFIER Full-Stack Verification"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FRONTEND_URL: https://glorifier-glorifier.vercel.app
+      E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Authenticated production E2E
+        run: npm exec playwright test
+      - name: Publish E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glorifier-production-e2e
+          path: test-results/
+          if-no-files-found: ignore
