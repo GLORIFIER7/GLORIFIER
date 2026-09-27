@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   ShieldCheck, Wallet, Sparkles, Zap, Database, Scale, Layers,
-  ShieldAlert, ArrowUpRight, Coins, Lock, Mail, HardDrive, Users,
+  ShieldAlert, ArrowUpRight, Coins, Lock, Users,
   Globe, Globe2, Cpu, Bot, FileText, BrainCircuit, Atom, Menu, X
 } from 'lucide-react';
 import { User } from 'firebase/auth';
@@ -45,9 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'connections', label: 'Connections', icon: Lock },
     { id: 'scientists', label: 'Scientists', icon: Atom },
     { id: 'control', label: 'Data Control', icon: ShieldCheck },
-    { id: 'gmail', label: 'Gmail', icon: Mail },
-    { id: 'drive', label: 'Drive', icon: HardDrive },
-    { id: 'privacy_lab', label: 'Privacy Lab', icon: Lock },
     { id: 'footprints', label: 'Data Footprints', icon: Database },
     { id: 'broker', label: 'AI Broker', icon: Scale },
     { id: 'gpt_cowork', label: 'GPT Co-Work', icon: BrainCircuit },
