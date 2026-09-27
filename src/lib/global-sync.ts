@@ -8,7 +8,7 @@ export interface InternetNode {
   name: string;
   category: 'production' | 'staging' | 'repository' | 'ecosystem' | 'telemetry';
   url: string;
-  status: 'configured' | 'reachable' | 'standby' | 'external' | 'configured';
+  status: 'configured' | 'reachable' | 'standby' | 'external';
   lastPingAt: string;
   metadata?: Record<string, unknown>;
 }
@@ -61,23 +61,16 @@ export const canonicalInternetNodes: InternetNode[] = [
     id: 'vercel-edge',
     name: 'Vercel Edge Deployment',
     category: 'production',
-    url: 'https://glorifier-artificial-intelligence.vercel.app',
+    url: 'https://glorifier-303lllgzc-glorifier.vercel.app',
     status: 'configured',
     lastPingAt: new Date().toISOString()
   },
   {
-    id: 'aistudio-preview',
-    name: 'Google AI Studio Active Run',
-    category: 'staging',
-    url: 'https://ais-dev-jp7xpsanaaoh3n6534u57c-688419001352.asia-east1.run.app',
-    status: 'configured',
-    lastPingAt: new Date().toISOString()
-  },
   {
     id: 'github-origin',
     name: 'GitHub Source & Actions Fleet',
     category: 'repository',
-    url: 'https://github.com/GLORIFIER7/glorifier-artificial-intelligence',
+    url: 'https://github.com/GLORIFIER7/GLORIFIER',
     status: 'configured',
     lastPingAt: new Date().toISOString()
   },
