@@ -2765,10 +2765,14 @@ async function initializeBackend() {
 async function startServer() {
   await initializeBackend();
   try { await reconcileIntegrationControlPlane('backend-startup'); } catch (error) { console.warn('[IntegrationControlPlane] startup reconciliation deferred:', error); }
+  try { await discoverGlobalProviders('backend-startup'); console.log('[ProviderDiscovery] global provider fabric synchronized.'); } catch (error) { console.warn('[ProviderDiscovery] startup discovery deferred:', error); }
   try { startGeasArchitectureScientistDaemon(); console.log('[GEASArchitectureScientist] read-only architecture scanner initialized.'); } catch (error) { console.warn('[GEASArchitectureScientist] daemon init deferred:', error); }
   setInterval(() => {
     void reconcileIntegrationControlPlane('scheduled-reconciliation').catch(error => console.warn('[IntegrationControlPlane] scheduled reconciliation deferred:', error));
   }, 5 * 60 * 1000);
+  setInterval(() => {
+    void discoverGlobalProviders('scheduled-provider-discovery').catch(error => console.warn('[ProviderDiscovery] scheduled discovery deferred:', error));
+  }, 10 * 60 * 1000);
   // Start the 24/7 autonomous scientist multi-agent daemon in the background
   try {
     start247ScientistDaemon(runIntelligenceModel);
