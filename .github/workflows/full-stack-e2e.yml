@@ -1,4 +1,4 @@
-name: GLORIFIER Production E2E
+name: GLORIFIER Full-Stack E2E
 
 on:
   workflow_dispatch:
@@ -9,17 +9,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: glorifier-production-e2e
-  cancel-in-progress: false
-
 jobs:
   e2e:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      FRONTEND_URL: https://glorifier-glorifier.vercel.app
+      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-303lllgzc-glorifier.vercel.app' }}
       CI: true
     steps:
       - name: Checkout
@@ -28,16 +24,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Install dependencies
-        run: npm install
-      - name: Install Playwright Chromium
+        run: npm ci
+      - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Authenticated production E2E
-        run: npm exec playwright test
-      - name: Publish E2E report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: glorifier-production-e2e
-          path: test-results/
-          if-no-files-found: ignore
+      - name: Run production E2E
+        run: npx playwright test tests/e2e/production.spec.ts
