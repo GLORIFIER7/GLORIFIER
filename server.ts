@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
+import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
@@ -2455,6 +2456,21 @@ app.post('/api/control-plane/integrations/reconcile', requireOwner, async (req: 
     return res.json({ ok: true, ...result });
   } catch (error) {
     return apiError(res, 503, 'Integration reconciliation unavailable', error);
+  }
+});
+
+app.get('/api/providers/discovery', (_req: Request, res: Response) => {
+  return res.json({ ok: true, fabric: getGlobalProviderDiscoveryPolicy(), providers: getGlobalProviderDiscoverySnapshot() });
+});
+
+app.post('/api/providers/discovery/refresh', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try {
+    const providers = await discoverGlobalProviders(String((req as any).auth?.uid || 'provider-discovery'));
+    const available = providers.filter((provider) => provider.availability === 'available').length;
+    const unavailable = providers.length - available;
+    return res.json({ ok: true, fabric: getGlobalProviderDiscoveryPolicy(), providers, summary: { total: providers.length, available, unavailable } });
+  } catch (error) {
+    return apiError(res, 503, 'Global provider discovery unavailable', error);
   }
 });
 
