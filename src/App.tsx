@@ -551,9 +551,6 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        stats={stats}
-        policy={policy}
-        onOpenWithdraw={() => setIsWithdrawOpen(true)}
         pendingOffersCount={pendingOffersCount}
         currentUser={currentUser}
       />
