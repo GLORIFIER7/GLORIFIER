@@ -1,0 +1,43 @@
+name: GLORIFIER Full-Stack Verification
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["GLORIFIER CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: \${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FRONTEND_URL: https://glorifier-glorifier.vercel.app/
+      FRONTEND_HEALTH_URL: https://glorifier-glorifier.vercel.app/api/health/ready
+      RAILWAY_URL: https://glorifier-artificial-intelligence-production.up.railway.app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Production smoke verification
+        run: node scripts/full-stack-smoke.mjs
+
+  report:
+    if: always()
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verification summary
+        run: |
+          if [ "\${{ needs.smoke.result }}" = "success" ]; then
+            echo "FULL-STACK VERIFICATION: smoke checks passed."
+          else
+            echo "FULL-STACK VERIFICATION: smoke checks require remediation."
+            exit 1
+          fi
