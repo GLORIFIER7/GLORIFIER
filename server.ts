@@ -34,6 +34,7 @@ import { initializeAppState, readAppState, upsertState } from './src/lib/db/app-
 import { initializeVerifiedOutcomes, recordVerifiedOutcome } from './src/lib/verified-outcomes';
 import { initializeMonetizationTables, createCheckout, captureCheckout, getSubscription } from './src/lib/revenue/monetization';
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
+import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
