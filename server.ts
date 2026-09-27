@@ -38,6 +38,7 @@ import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philos
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
+import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 
 import { 
   getScientistFleet, 
@@ -2318,7 +2319,12 @@ app.get('/api/assets/providers/binance-public/quote/:symbol', async (req: Reques
 // ============================================================================
 app.get('/api/auth/status', (_req: Request, res: Response) => res.json({ ok: true, authentication: authenticationStatus() }));
 
-// Authenticated session + database round-trip probe. The server derives identity
+
+app.get('/api/identity', (_req: Request, res: Response) => {
+  const identity = getGlorifierIdentity();
+  return res.json({ ok: true, identity });
+});
+\n// Authenticated session + database round-trip probe. The server derives identity
 // exclusively from the verified token; client-supplied userReference is never trusted.
 app.get('/api/auth/session', async (req: Request, res: Response) => {
   const auth = (req as any).auth;
