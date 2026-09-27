@@ -39,7 +39,7 @@ import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControl
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
-import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy } from './src/lib/asset-verification';
+import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
 
 import { 
   getScientistFleet, 
@@ -2339,6 +2339,18 @@ app.get('/api/assets/verification', requireAuthentication, async (req: Request, 
     return res.json(await verifyAllAssets({ assetAccountId, holdingId, freshnessHours }));
   } catch (error) {
     return apiError(res, 503, 'Asset verification unavailable', error);
+  }
+});
+
+app.get('/api/assets/verification/internet-coverage', (_req: Request, res: Response) => {
+  return res.json({ ok: true, coverage: getInternetAssetVerificationCoverage() });
+});
+
+app.get('/api/assets/verification/internet-sweep', requireAuthentication, async (_req: Request, res: Response) => {
+  try {
+    return res.json(await runInternetAssetVerificationSweep());
+  } catch (error) {
+    return apiError(res, 503, 'Internet asset verification sweep unavailable', error);
   }
 });
 
