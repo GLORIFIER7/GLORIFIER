@@ -16,10 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       # Override FRONTEND_URL/FRONTEND_HEALTH_URL in repository/environment variables
-      # when the production Vercel alias changes. This default is the verified
-      # production deployment attached to the current main commit.
-      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-303lllgzc-glorifier.vercel.app' }}
-      FRONTEND_HEALTH_URL: ${{ vars.GLORIFIER_FRONTEND_HEALTH_URL || 'https://glorifier-303lllgzc-glorifier.vercel.app/api/health/ready' }}
+      # when the production Vercel alias changes. This stable alias points at production.
+      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-glorifier.vercel.app' }}
+      FRONTEND_HEALTH_URL: ${{ vars.GLORIFIER_FRONTEND_HEALTH_URL || 'https://glorifier-glorifier.vercel.app/api/health/ready' }}
       RAILWAY_URL: ${{ vars.GLORIFIER_RAILWAY_URL || 'https://glorifier-artificial-intelligence-production.up.railway.app' }}
     steps:
       - name: Checkout
