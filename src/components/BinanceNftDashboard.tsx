@@ -128,6 +128,64 @@ export const BinanceNftDashboard: React.FC = () => {
         {permissionRows.length > 0 && <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">{permissionRows.map(([label, enabled]) => <div key={label as string} className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2"><div className="text-[11px] text-slate-500">{label as string}</div><div className="mt-1 text-xs font-semibold text-white">{enabled ? 'Enabled' : 'Disabled / unavailable'}</div></div>)}</div>}
       </div>
 
+      {authenticated && readEnabled && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-white font-semibold">
+              <WalletCards className="w-5 h-5 text-yellow-400" /> Authenticated Spot Account
+            </div>
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-[10px] font-bold text-emerald-300">
+              VERIFIED — READ DATA
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div className="text-xs text-slate-500">Account type</div>
+              <div className="mt-1 text-sm font-semibold text-white">{verification?.spotAccount?.accountType || 'Unknown'}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div className="text-xs text-slate-500">Can trade</div>
+              <div className="mt-1 text-sm font-semibold text-white">{verification?.spotAccount?.canTrade ? 'Enabled' : 'Disabled'}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div className="text-xs text-slate-500">Can withdraw</div>
+              <div className="mt-1 text-sm font-semibold text-white">{verification?.spotAccount?.canWithdraw ? 'Enabled' : 'Disabled'}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <div className="text-xs text-slate-500">Can deposit</div>
+              <div className="mt-1 text-sm font-semibold text-white">{verification?.spotAccount?.canDeposit ? 'Enabled' : 'Disabled'}</div>
+            </div>
+          </div>
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">Spot balances</div>
+            {Array.isArray(verification?.balances) && verification.balances.length > 0 ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 text-slate-500">
+                    <tr><th className="px-4 py-3">Asset</th><th className="px-4 py-3">Free</th><th className="px-4 py-3">Locked</th><th className="px-4 py-3">Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {verification.balances.map((item: any) => (
+                      <tr key={item.asset} className="border-t border-slate-800">
+                        <td className="px-4 py-3 font-semibold text-white">{item.asset}</td>
+                        <td className="px-4 py-3 text-slate-300">{item.free}</td>
+                        <td className="px-4 py-3 text-slate-400">{item.locked}</td>
+                        <td className="px-4 py-3 font-semibold text-emerald-300">{item.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs text-slate-500">No non-zero spot balances returned.</div>
+            )}
+          </div>
+          <div className="mt-3 text-[11px] text-slate-600">
+            Source: authenticated Binance USER_DATA account endpoint. Credentials and secrets remain server-side.
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
           <div className="flex items-center gap-2 text-white font-semibold">
