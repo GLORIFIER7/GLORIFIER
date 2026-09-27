@@ -22,15 +22,11 @@ import { UsageTelemetryEvent, DataCategoryType } from '../types';
 
 interface CompensationEngineProps {
   telemetryEvents: UsageTelemetryEvent[];
-  onPreviewUsage: (model: 'Per-Query' | 'Data Shapley' | 'Cohort Subscription' | 'Proof Attestation') => void;
-  onClearSettlement: () => void;
   totalPendingUsd: number;
 }
 
 export const CompensationEngine: React.FC<CompensationEngineProps> = ({
   telemetryEvents,
-  onPreviewUsage,
-  onClearSettlement,
   totalPendingUsd
 }) => {
   const [activeModelTab, setActiveModelTab] = useState<'shapley' | 'per_query' | 'subscription' | 'pipeline'>('shapley');
@@ -77,12 +73,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                 ${totalPendingUsd.toFixed(2)} USD
               </div>
             </div>
-            <button
-              onClick={onClearSettlement}
-              className="px-3 py-1.5 text-xs font-semibold rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors"
-            >
-              Batch Settle
-            </button>
+
           </div>
         </div>
       </div>
@@ -197,18 +188,13 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
             {/* Live Result Callout */}
             <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between">
               <div>
-                <div className="text-[10px] uppercase font-bold text-emerald-400">Your Calculated Shapley Dividend</div>
+                <div className="text-[10px] uppercase font-bold text-emerald-400">Illustrative Shapley Calculation</div>
                 <div className="text-2xl font-black font-mono text-emerald-300">
                   ${calculatedShapleyPayout}{' '}
                   <span className="text-xs font-normal text-slate-400">/ training run epoch</span>
                 </div>
               </div>
-              <button
-                onClick={() => onPreviewUsage('Data Shapley')}
-                className="px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors flex items-center gap-1.5"
-              >
-                <Play className="w-3.5 h-3.5" /> Preview Payout Calculation
-              </button>
+
             </div>
           </div>
 
@@ -239,11 +225,11 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
               <div className="text-slate-300 font-bold">Active Shapley Beneficiaries:</div>
               <div className="flex justify-between border-b border-slate-800 pb-1">
                 <span>Anthropic Claude Code Assist</span>
-                <span className="text-emerald-400">$43.68 accrued</span>
+                <span className="text-slate-500">Not verified</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-1">
                 <span>Meta OpenLLaMA Benchmark</span>
-                <span className="text-emerald-400">$29.10 accrued</span>
+                <span className="text-slate-500">Not verified</span>
               </div>
             </div>
           </div>
@@ -320,12 +306,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   <span className="text-xs font-normal text-slate-400">/ single query execution</span>
                 </div>
               </div>
-              <button
-                onClick={() => onPreviewUsage('Per-Query')}
-                className="px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors flex items-center gap-1.5"
-              >
-                <Play className="w-3.5 h-3.5" /> Preview Query Economics
-              </button>
+
             </div>
           </div>
 
@@ -369,29 +350,22 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800">
                 <div className="text-[10px] uppercase font-bold text-slate-500">Stanford Macro Economics</div>
-                <div className="text-lg font-bold font-mono text-emerald-400 mt-1">$45.00/mo</div>
+                <div className="text-lg font-bold font-mono text-slate-300 mt-1">No verified subscription</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">E-Commerce cohort stream</div>
               </div>
               <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800">
                 <div className="text-[10px] uppercase font-bold text-slate-500">MIT CSAIL AI Quality Cohort</div>
-                <div className="text-lg font-bold font-mono text-emerald-400 mt-1">$38.50/mo</div>
+                <div className="text-lg font-bold font-mono text-slate-300 mt-1">No verified subscription</div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Search & browsing intent stream</div>
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between">
               <div>
-                <div className="text-[10px] uppercase font-bold text-emerald-400">Total Passive Subscription Flow</div>
-                <div className="text-2xl font-black font-mono text-emerald-300">
-                  $83.50 <span className="text-xs font-normal text-slate-400">/ month guaranteed floor</span>
-                </div>
+                <div className="text-[10px] uppercase font-bold text-emerald-400">Illustrative Subscription Model</div>
+                <div className="text-sm font-semibold text-slate-300">No verified recurring revenue is recorded.</div>
               </div>
-              <button
-                onClick={() => onPreviewUsage('Cohort Subscription')}
-                className="px-3.5 py-2 text-xs font-bold rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors flex items-center gap-1.5"
-              >
-                <Play className="w-3.5 h-3.5" /> Preview Cohort Economics
-              </button>
+
             </div>
           </div>
 
