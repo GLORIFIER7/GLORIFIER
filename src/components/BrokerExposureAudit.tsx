@@ -18,13 +18,11 @@ import { DataBrokerExposure } from '../types';
 
 interface BrokerExposureAuditProps {
   exposures: DataBrokerExposure[];
-  onDispatchClawback: (id: string) => void;
   onOpenComplianceBot?: () => void;
 }
 
 export const BrokerExposureAudit: React.FC<BrokerExposureAuditProps> = ({
   exposures,
-  onDispatchClawback,
   onOpenComplianceBot
 }) => {
   const [activeNoticeModal, setActiveNoticeModal] = useState<{
@@ -179,16 +177,6 @@ export const BrokerExposureAudit: React.FC<BrokerExposureAuditProps> = ({
                     Draft Legal Notice
                   </button>
 
-                  {isDetected && (
-                    <button
-                      onClick={() => onDispatchClawback(exp.id)}
-                      id={`dispatch-btn-${exp.id}`}
-                      className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 shadow-md shadow-rose-500/20 flex items-center gap-1.5 transition-colors"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Dispatch Statutory Erasure
-                    </button>
-                  )}
 
                   {isClawbackSent && (
                     <span className="text-xs text-amber-400 font-semibold flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
