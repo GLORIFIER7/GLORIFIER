@@ -2,7 +2,7 @@
 
 Last automated baseline: 2026-09-27.
 
-Authenticated E2E gate: `.github/workflows/full-stack-e2e.yml` runs real Chromium against the production Vercel app using a dedicated Firebase email/password test account supplied only through GitHub Actions secrets `E2E_TEST_EMAIL` and `E2E_TEST_PASSWORD`. Secrets are never committed or displayed.
+Authenticated E2E gate: `.github/workflows/full-stack-e2e.yml` runs real Chromium against the production Vercel app using disposable Firebase email/password accounts generated at runtime by the browser test. No Firebase password or private credential is stored in GitHub Actions secrets or committed to the repository.
 
 Status meanings:
 - VERIFIED — qualifying checks passed for the scope stated.
@@ -16,8 +16,8 @@ Status meanings:
 | Railway backend | VERIFIED | Production backend deployment is SUCCESS. |
 | Permanent orchestrator | VERIFIED | Production orchestrator deployment is SUCCESS. |
 | Vercel deployment | VERIFIED | Current production deployment is READY. |
-| Browser → Railway API rewrites | PARTIALLY VERIFIED | Production health rewrite is covered by the smoke gate; authenticated browser rewrite is covered by the authenticated E2E gate once its dedicated test account is configured. |
-| Firebase authentication | PARTIALLY VERIFIED | Auth/session implementation exists and the E2E suite exercises email/password login, Firebase session propagation, refresh persistence, and protected API access once the dedicated test account is configured. |
+| Browser → Railway API rewrites | PARTIALLY VERIFIED | Production health rewrite is covered by the smoke gate; authenticated browser rewrite is covered by the authenticated E2E gate once the automated disposable-account E2E run passes. |
+| Firebase authentication | PARTIALLY VERIFIED | Auth/session implementation exists and the E2E suite exercises email/password login, Firebase session propagation, refresh persistence, and protected API access once the automated disposable-account E2E run passes. |
 | Neon persistence | VERIFIED | Runtime verification checks database connectivity plus app-state/evidence initialization; user-scoped persistence still needs authenticated E2E proof. |
 | Binance authenticated read-only | PARTIALLY VERIFIED | Server-side signed verification and Spot account display are implemented; a live authenticated private-account response is required before VERIFIED. |
 | Binance safety | VERIFIED | Read-only guard and server-side secret handling are implemented; no provider restriction bypass is attempted. |
