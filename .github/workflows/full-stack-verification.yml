@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   smoke:
-    if: \${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Verification summary
         run: |
-          if [ "\${{ needs.smoke.result }}" = "success" ]; then
+          if [ "${{ needs.smoke.result }}" = "success" ]; then
             echo "FULL-STACK VERIFICATION: smoke checks passed."
           else
             echo "FULL-STACK VERIFICATION: smoke checks require remediation."
