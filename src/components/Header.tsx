@@ -26,7 +26,8 @@ import {
   Bot,
   FileText,
   BrainCircuit,
-  Atom
+  Atom,
+  Image as ImageIcon
 } from 'lucide-react';
 import { SovereignStats, MonetizationPolicy } from '../types';
 import { User } from 'firebase/auth';
@@ -64,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
     { id: 'compute', label: 'Compute', icon: Cpu },
     { id: 'accounts', label: 'Accounts & Data', icon: Globe },
+    { id: 'binance', label: 'Binance / NFT', icon: Wallet },
     { id: 'marketplace', label: 'Marketplace', icon: Scale, badge: pendingOffersCount > 0 ? pendingOffersCount : undefined },
     { id: 'compensation', label: 'Compensation', icon: Coins },
     { id: 'monetization_sprint', label: 'Monetization', icon: ArrowUpRight },
@@ -82,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'gpt_cowork', label: 'GPT Co-Work', icon: BrainCircuit },
   ];
 
-  const handleTab = (tab: string) => { setActiveTab(tab); setMobileNavOpen(false); };
+  const handleTab = (tab: string) => { setActiveTab(tab); setMobileNavOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   return (
     <header className="sticky top-0 z-40 bg-[#080808]/95 backdrop-blur-sm border-b border-slate-800">
@@ -90,10 +92,8 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between min-h-16 py-2">
           {/* Logo & Platform Name */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-md border border-slate-700 bg-[#111] flex items-center justify-center">
-              <div className="w-full h-full bg-[#090909] rounded-sm flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              </div>
+            <div className="w-9 h-9 rounded-md border border-slate-700 bg-[#111] overflow-hidden flex items-center justify-center">
+              <img src={`${import.meta.env.BASE_URL}glorifier-app-icon.svg`} alt="GLORIFIER" className="h-full w-full object-cover" />
             </div>
             <div>
               <div className="flex items-center gap-2">
