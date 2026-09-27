@@ -1,1 +1,2 @@
-Native Vercel health and provider probes are part of the production deployment path.
+Production deployment trigger: provider-neutral circuit breakers, external health probes, and end-to-end verification.
+Updated: 2026-09-27T01:04:00Z
