@@ -153,11 +153,11 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
                 <button
                   key={id}
                   onClick={() => socialLogin(id)}
-                  disabled={busy || !config.enabled}
+                  disabled={busy}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-white px-4 py-3 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="font-bold">{config.label === 'Google' ? 'G' : config.label[0]}</span>
-                  {config.enabled ? `Continue with ${config.label}` : `${config.label} — coming soon`}
+                  `Continue with ${config.label}`
                 </button>
               ))}
             </div>

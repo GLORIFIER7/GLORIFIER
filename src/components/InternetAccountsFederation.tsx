@@ -30,17 +30,14 @@ interface InternetAccountsFederationProps {
   accounts: InternetAccount[];
   onUpdateAccount: (updatedAccount: InternetAccount) => void;
   onAuthenticateAll: () => void;
-  onBatchAction: (action: 'shield_all' | 'sync_all' | 'purge_all') => void;
 }
 
 export const InternetAccountsFederation: React.FC<InternetAccountsFederationProps> = ({
   accounts,
   onUpdateAccount,
   onAuthenticateAll,
-  onBatchAction
 }) => {
   const [selectedAccount, setSelectedAccount] = useState<InternetAccount | null>(accounts[0] || null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [actionState, setActionState] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,10 +64,6 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
     const updated: InternetAccount = { ...acc, approvalWeight: weight };
     onUpdateAccount(updated);
     if (selectedAccount?.id === acc.id) setSelectedAccount(updated);
-  };
-
-  const handleTriggerAuth = () => {
-    setActionState('Credential re-attestation is not executable until an authorized provider integration exists.');
   };
 
   const filteredAccounts = accounts.filter(acc => {
@@ -120,8 +113,8 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-bold text-white tracking-tight">Internet Accounts & Sovereign Data Hub</h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                    ALL INTERNET ACCOUNTS FEDERATED
+      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+                    ACCOUNT REGISTRY
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400">
@@ -156,37 +149,6 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
               <Fingerprint className="w-4 h-4" />
               <span>Authenticate All Accounts</span>
             </button>
-          </div>
-        </div>
-
-        {/* Batch Operations Bar */}
-        <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-400">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-slate-300">Batch Global Controls:</span>
-            <button
-              onClick={() => onBatchAction('shield_all')}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-semibold border border-slate-700 transition-colors"
-            >
-              Shield All with ε-Privacy
-            </button>
-            <button
-              onClick={() => onBatchAction('sync_all')}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-[11px] font-semibold border border-slate-700 transition-colors"
-            >
-              Sync All Telemetry
-            </button>
-            <button
-              onClick={() => onBatchAction('purge_all')}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-950/40 text-rose-400 text-[11px] font-semibold border border-slate-700 hover:border-rose-500/30 transition-colors"
-            >
-              Purge Shadow Broker Access
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-            <Lock className="w-3.5 h-3.5 text-emerald-400" />
-            <span>FIDO2 Passkeys & Web3 Multi-Sig Active ({authenticatedCount} Authenticated)</span>
           </div>
         </div>
       </div>
@@ -324,61 +286,7 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                   <span className="text-slate-200">{selectedAccount.lastSync}</span>
                 </div>
 
-                <div className="pt-2">
-                  <button
-                    onClick={handleTriggerAuth}
-                    className="w-full py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isAuthenticating ? 'animate-spin text-indigo-400' : ''}`} />
-                    <span>Re-Attest Credentials</span>
-                  </button>
-                </div>
-              </div>
 
-              {/* Cryptographic Approval Gatekeeper Setting */}
-              <div className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800/80">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Key className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-bold text-white">Approval Gatekeeper</span>
-                  </div>
-                  <button
-                    onClick={() => handleToggleGatekeeper(selectedAccount)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                      selectedAccount.isApprovalGatekeeper
-                        ? 'bg-emerald-500 text-slate-950'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {selectedAccount.isApprovalGatekeeper ? 'ENABLED' : 'DISABLED'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  When enabled, this internet account must cryptographically authorize high-value cashouts, sovereign data buyer contracts, and code sentinel hot-patches.
-                </p>
-
-                {/* Multi-Sig Weight Selector */}
-                <div className="pt-2 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Approval Voting Weight:</span>
-                    <span className="text-emerald-400 font-bold">{selectedAccount.approvalWeight} / 5</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => handleWeightChange(selectedAccount, star)}
-                        className={`p-1.5 rounded-lg border text-xs font-bold transition-all ${
-                          selectedAccount.approvalWeight >= star
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-slate-900 text-slate-600 border-slate-800'
-                        }`}
-                      >
-                        ★ {star}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Data Rights & Privacy Controls */}
@@ -418,23 +326,6 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                     {selectedAccount.autoSyncEnabled ? 'ACTIVE' : 'PAUSED'}
                   </button>
                 </div>
-              </div>
-
-              {/* Statutory Action Trigger */}
-              <div className="pt-2">
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-2">
-  <div className="flex items-center gap-2 text-amber-300 text-xs font-bold">
-    <ShieldAlert className="w-4 h-4" />
-    <span>Statutory Erasure: Not Executable</span>
-  </div>
-  <p className="text-[11px] text-slate-400 leading-relaxed">
-    No authorized provider integration is currently available to send or execute an external erasure demand for this account. GLORIFIER will not simulate deletion, claim delivery, or mark the request completed.
-  </p>
-  <button type="button" disabled aria-disabled="true" title="Not executable until an authorized integration exists" className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-slate-900 text-slate-500 border border-slate-800 flex items-center justify-center gap-2 cursor-not-allowed">
-    <ShieldAlert className="w-4 h-4" />
-    <span>Not Executable — Authorized Integration Required</span>
-  </button>
-</div>
               </div>
             </div>
           ) : (
