@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
+import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
@@ -2458,6 +2459,21 @@ app.post('/api/control-plane/integrations/reconcile', requireOwner, async (req: 
   }
 });
 
+app.get('/api/providers/discovery', (_req: Request, res: Response) => {
+  return res.json({ ok: true, fabric: getGlobalProviderDiscoveryPolicy(), providers: getGlobalProviderDiscoverySnapshot() });
+});
+
+app.post('/api/providers/discovery/refresh', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try {
+    const providers = await discoverGlobalProviders(String((req as any).auth?.uid || 'provider-discovery'));
+    const available = providers.filter((provider) => provider.availability === 'available').length;
+    const unavailable = providers.length - available;
+    return res.json({ ok: true, fabric: getGlobalProviderDiscoveryPolicy(), providers, summary: { total: providers.length, available, unavailable } });
+  } catch (error) {
+    return apiError(res, 503, 'Global provider discovery unavailable', error);
+  }
+});
+
 app.get('/api/governance/architecture', (_req: Request, res: Response) => {
   return res.json({ ok: true, version: 'GLORIFIER-ARCH-3.1', roleModel: LINUX_PHILOSOPHY_ARCHITECTURE, controlPlanes: [
     'human-authority','ai-ceo','geas-governance','agent-control','provider-control',
@@ -2749,10 +2765,14 @@ async function initializeBackend() {
 async function startServer() {
   await initializeBackend();
   try { await reconcileIntegrationControlPlane('backend-startup'); } catch (error) { console.warn('[IntegrationControlPlane] startup reconciliation deferred:', error); }
+  try { await discoverGlobalProviders('backend-startup'); console.log('[ProviderDiscovery] global provider fabric synchronized.'); } catch (error) { console.warn('[ProviderDiscovery] startup discovery deferred:', error); }
   try { startGeasArchitectureScientistDaemon(); console.log('[GEASArchitectureScientist] read-only architecture scanner initialized.'); } catch (error) { console.warn('[GEASArchitectureScientist] daemon init deferred:', error); }
   setInterval(() => {
     void reconcileIntegrationControlPlane('scheduled-reconciliation').catch(error => console.warn('[IntegrationControlPlane] scheduled reconciliation deferred:', error));
   }, 5 * 60 * 1000);
+  setInterval(() => {
+    void discoverGlobalProviders('scheduled-provider-discovery').catch(error => console.warn('[ProviderDiscovery] scheduled discovery deferred:', error));
+  }, 10 * 60 * 1000);
   // Start the 24/7 autonomous scientist multi-agent daemon in the background
   try {
     start247ScientistDaemon(runIntelligenceModel);
