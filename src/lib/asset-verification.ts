@@ -43,13 +43,13 @@ export function getAssetVerificationPolicy() {
   };
 }
 
-async function verifyOneAccount(account: any, evidence: any[]): Promise<VerificationResult> {
+async function verifyOneAccount(account: any, evidence: any[], freshnessHours = FRESHNESS_HOURS): Promise<VerificationResult> {
   const accountEvidence = evidence.filter(e => e.asset_account_id === account.id);
   const warnings: string[] = [];
   const reasons: string[] = [];
   const refs = accountEvidence.map(e => e.id);
   const authorized = account.status === 'authorized' && !!account.connectionId;
-  const fresh = accountEvidence.some(e => ageHours(e.observed_at) <= FRESHNESS_HOURS);
+  const fresh = accountEvidence.some(e => ageHours(e.observed_at) <= freshnessHours);
   const hashed = accountEvidence.filter(e => !!e.payload_hash).length > 0;
 
   if (!authorized) reasons.push('Account is not linked to an authorized connection.');
@@ -72,7 +72,7 @@ async function verifyOneAccount(account: any, evidence: any[]): Promise<Verifica
   };
 }
 
-async function verifyOneHolding(holding: any, account: any, evidence: any[]): Promise<VerificationResult> {
+async function verifyOneHolding(holding: any, account: any, evidence: any[], freshnessHours = FRESHNESS_HOURS): Promise<VerificationResult> {
   const holdingEvidence = evidence.filter(e => e.holding_id === holding.id || e.id === holding.evidence_ref);
   const warnings: string[] = [];
   const reasons: string[] = [];
@@ -128,10 +128,8 @@ export async function verifyAllAssets(options: { assetAccountId?: string; holdin
     (!options.holdingId || h.id === options.holdingId)
   );
 
-  const originalFreshness = FRESHNESS_HOURS;
-  void originalFreshness;
-  const accountResults = await Promise.all(selectedAccounts.map(a => verifyOneAccount(a, evidence)));
-  const holdingResults = await Promise.all(selectedHoldings.map(h => verifyOneHolding(h, selectedAccounts.find(a => a.id === h.asset_account_id), evidence)));
+  const accountResults = await Promise.all(selectedAccounts.map(a => verifyOneAccount(a, evidence, freshness)));
+  const holdingResults = await Promise.all(selectedHoldings.map(h => verifyOneHolding(h, selectedAccounts.find(a => a.id === h.asset_account_id), evidence, freshness)));
 
   const verifiedAccounts = accountResults.filter(r => r.status === 'verified').length;
   const verifiedHoldings = holdingResults.filter(r => r.status === 'verified').length;
