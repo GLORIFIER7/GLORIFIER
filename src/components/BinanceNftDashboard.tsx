@@ -37,6 +37,18 @@ export const BinanceNftDashboard: React.FC = () => {
   const connectionMode = loading ? 'Verification in progress' : authenticated && verification?.safeForReadOnly ? 'VERIFIED — read-only' : restricted ? 'DEGRADED — restricted' : 'NOT VERIFIED';
   const dataState = authenticated && readEnabled ? 'Available' : restricted ? 'Unavailable — provider restricted' : 'Unavailable — verification required';
   const evidenceState = authenticated ? 'Authenticated evidence available' : restricted ? 'Provider restriction recorded' : 'No qualifying private-account evidence';
+  const permissionRows = verification?.permissions ? [
+    ['Reading', verification.permissions.reading],
+    ['Withdrawals', verification.permissions.withdrawals],
+    ['Internal transfer', verification.permissions.internalTransfer],
+    ['Universal transfer', verification.permissions.universalTransfer],
+    ['Margin', verification.permissions.margin],
+    ['Futures', verification.permissions.futures],
+    ['Options', verification.permissions.options],
+    ['Spot & margin trading', verification.permissions.spotAndMarginTrading],
+    ['Portfolio margin', verification.permissions.portfolioMarginTrading],
+    ['API trading', verification.permissions.apiTrade],
+  ] : [];
   return (
     <section className="space-y-6">
       <div className="rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-slate-900 to-slate-950 p-6 shadow-xl">
@@ -100,6 +112,20 @@ export const BinanceNftDashboard: React.FC = () => {
         </div>
         {verification?.authenticationError && <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 text-xs text-yellow-200">{verification.authenticationError}</div>}
         {lastChecked && <div className="mt-3 text-[11px] text-slate-600">Last checked: {new Date(lastChecked).toLocaleString()}</div>}
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-white font-semibold"><ShieldCheck className="w-5 h-5 text-yellow-400" /> Live verification data</div>
+          <span className="text-[11px] text-slate-500">{verification?.checkedAt ? new Date(verification.checkedAt).toLocaleString() : 'Pending'}</span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-500">Configured</div><div className="mt-1 text-sm font-semibold text-white">{verification?.configured ? 'Yes' : 'No'}</div></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-500">Read-only flag</div><div className="mt-1 text-sm font-semibold text-white">{verification?.configuredReadOnlyFlag ? 'Yes' : 'No'}</div></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-500">Credentials exposed</div><div className="mt-1 text-sm font-semibold text-white">No</div></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-500">Safe read-only</div><div className="mt-1 text-sm font-semibold text-white">{verification?.safeForReadOnly ? 'Yes' : 'No'}</div></div>
+        </div>
+        {permissionRows.length > 0 && <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">{permissionRows.map(([label, enabled]) => <div key={label as string} className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2"><div className="text-[11px] text-slate-500">{label as string}</div><div className="mt-1 text-xs font-semibold text-white">{enabled ? 'Enabled' : 'Disabled / unavailable'}</div></div>)}</div>}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
