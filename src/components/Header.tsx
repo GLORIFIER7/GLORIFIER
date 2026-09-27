@@ -26,8 +26,7 @@ import {
   Bot,
   FileText,
   BrainCircuit,
-  Atom,
-  Image as ImageIcon
+  Atom
 } from 'lucide-react';
 import { SovereignStats, MonetizationPolicy } from '../types';
 import { User } from 'firebase/auth';
