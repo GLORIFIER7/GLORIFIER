@@ -31,9 +31,14 @@ test.describe('GLORIFIER production end-to-end', () => {
     expect(state.body.ok).toBe(true);
 
     const tabs = ['overview','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','gmail','drive','privacy_lab','footprints','broker','gpt_cowork'];
+    const primaryTabs = new Set(['overview','ai_ceo','integrations','global_collaboration','discovery','sentinel','binance','revenue_verified']);
     for (const tab of tabs) {
-      await expect(page.locator('#tab-btn-' + tab)).toBeVisible();
-      await page.locator('#tab-btn-' + tab).click();
+      if (!primaryTabs.has(tab)) {
+        await page.getByRole('button', { name: 'Modules' }).click();
+      }
+      const tabButton = page.locator('#tab-btn-' + tab);
+      await expect(tabButton).toBeVisible();
+      await tabButton.click();
       await expect(page.locator('body')).not.toContainText('The Command Center could not render.');
       await expect(page.locator('body')).not.toContainText('Application error');
     }
