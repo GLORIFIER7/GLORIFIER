@@ -16,8 +16,7 @@ jobs:
     timeout-minutes: 20
     env:
       FRONTEND_URL: https://glorifier-glorifier.vercel.app
-      E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
-      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+      CI: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
