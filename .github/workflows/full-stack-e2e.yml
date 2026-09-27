@@ -2,6 +2,8 @@ name: GLORIFIER Production E2E
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   workflow_run:
     workflows: ["GLORIFIER Full-Stack Verification"]
     types: [completed]
@@ -11,7 +13,7 @@ permissions:
 
 jobs:
   e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
