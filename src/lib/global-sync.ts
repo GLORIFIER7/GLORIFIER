@@ -66,7 +66,6 @@ export const canonicalInternetNodes: InternetNode[] = [
     lastPingAt: new Date().toISOString()
   },
   {
-  {
     id: 'github-origin',
     name: 'GitHub Source & Actions Fleet',
     category: 'repository',
