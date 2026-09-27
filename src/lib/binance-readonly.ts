@@ -16,6 +16,7 @@ type BinancePermissionResponse = {
 };
 
 type BinanceAccountStatus = { data?: string };
+type BinanceSpotAccount = { balances?: Array<{ asset: string; free: string; locked: string }>; accountType?: string; canTrade?: boolean; canWithdraw?: boolean; canDeposit?: boolean; };
 type BinanceApiError = { code?: number; msg?: string };
 
 function credentials() {
@@ -87,6 +88,8 @@ export async function verifyBinanceReadOnlyConnection() {
       apiFixReadOnly: false
     },
     accountStatus: 'not-tested' as string,
+    spotAccount: { accountType: null as string | null, canTrade: null as boolean | null, canWithdraw: null as boolean | null, canDeposit: null as boolean | null },
+    balances: [] as Array<{ asset: string; free: string; locked: string; total: string }>,
     safeForReadOnly: false,
     checkedAt: new Date().toISOString()
   };
@@ -96,6 +99,7 @@ export async function verifyBinanceReadOnlyConnection() {
   try {
     const permissions = await signedGet<BinancePermissionResponse>('/sapi/v1/account/apiRestrictions');
     const account = await signedGet<BinanceAccountStatus>('/sapi/v1/account/status');
+    const spotAccount = await signedGet<BinanceSpotAccount>('/api/v3/account');
 
     result.authentication = 'verified';
     result.permissions = {
@@ -112,6 +116,15 @@ export async function verifyBinanceReadOnlyConnection() {
       apiFixReadOnly: permissions.enableFixReadOnly === true
     };
     result.accountStatus = account.data || 'unknown';
+    result.spotAccount = {
+      accountType: spotAccount.accountType || null,
+      canTrade: spotAccount.canTrade ?? null,
+      canWithdraw: spotAccount.canWithdraw ?? null,
+      canDeposit: spotAccount.canDeposit ?? null
+    };
+    result.balances = (spotAccount.balances || [])
+      .map((item) => ({ asset: item.asset, free: item.free, locked: item.locked, total: String(Number(item.free || 0) + Number(item.locked || 0)) }))
+      .filter((item) => Number(item.total) > 0);
 
     result.safeForReadOnly =
       result.configuredReadOnlyFlag &&
