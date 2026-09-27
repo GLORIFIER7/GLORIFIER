@@ -59,6 +59,9 @@ export class OpenAICompatibleProvider implements AIProvider {
       body: JSON.stringify({
         model,
         messages: request.messages,
+        // OpenRouter must not perform hidden provider/model fallback. GLORIFIER
+        // owns fallback decisions and records each attempted provider itself.
+        ...(this.id === 'openrouter' ? { provider: { allow_fallbacks: false } } : {}),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
       }),
