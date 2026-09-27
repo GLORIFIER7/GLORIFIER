@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Header } from './components/Header';
 import { OverviewTab } from './components/OverviewTab';
 import { FootprintManager } from './components/FootprintManager';
@@ -761,6 +762,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      <SpeedInsights />
     </div>
   );
 }
