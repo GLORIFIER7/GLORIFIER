@@ -23,6 +23,7 @@ import { buildRevenueControlPlaneSnapshot, getRevenueControlPlanePolicy, listRev
 import { listEconomicOperatingSnapshot, getEconomicOperatingSystemPolicy } from './src/lib/economic-operating-system';
 import { calculateGlorifierValuation, getLatestGlorifierValuation } from './src/lib/valuation-engine';
 import { getBinancePublicQuote } from './src/lib/asset-provider-adapters';
+import { verifyBinanceReadOnlyConnection } from './src/lib/binance-readonly';
 import { initialize24x7OpportunityDiscovery, get24x7OpportunityDiscoveryStatus, run24x7OpportunityDiscoveryCycle, get24x7OpportunityDiscoveryPolicy } from './src/lib/24x7-opportunity-discovery';
 import { initializeGlorifierMediator, buildGlorifierMediatorSnapshot, getGlorifierMediatorPolicy } from './src/lib/glorifier-mediator';
 import { listMonetizationSprintOpportunities, FRACTIONAL_PAY_PER_TOKEN_OUTCOME_POLICY } from './src/lib/monetization-sprint';
@@ -599,6 +600,13 @@ app.get('/api/health', async (_req: Request, res: Response) => {
   }
   const status = database === 'error' ? 'degraded' : 'ok';
   res.status(status === 'ok' ? 200 : 503).json({ ok: status === 'ok', status, timestamp: new Date().toISOString(), uptimeSeconds: Math.round(process.uptime()), responseTimeMs: Date.now() - startedAt, database, databaseLatencyMs, providers: { openai: Boolean(process.env.OPENAI_API_KEY), gemini: Boolean(process.env.GEMINI_API_KEY) } });
+});
+
+// Safe Binance integration verification. Never returns API keys, secrets, balances, or revenue claims.
+app.get('/api/binance/health', async (_req: Request, res: Response) => {
+  const verification = await verifyBinanceReadOnlyConnection();
+  const httpStatus = verification.safeForReadOnly ? 200 : (verification.authentication === 'failed' ? 503 : 200);
+  return res.status(httpStatus).json({ ok: verification.safeForReadOnly, verification });
 });
 
 app.get('/api/health/ready', async (_req: Request, res: Response) => {
