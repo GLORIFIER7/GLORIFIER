@@ -40,6 +40,7 @@ import { requireAuthentication, requireOwner, requireOwnerOrInternalService, aut
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
+import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVerification, issueAssetCryptographicChallenge, verifyAssetCryptographicProof } from './src/lib/cryptographic-asset-verification';
 
 import { 
   getScientistFleet, 
@@ -57,6 +58,7 @@ dotenv.config();
 
 void initializeMonetizationTables().catch((error) => console.warn('[Monetization] initialization deferred:', error?.message));
 void initializePayoutRegistry().catch((error) => console.warn('[Payouts] initialization deferred:', error?.message));
+void initializeCryptographicAssetVerification().catch((error) => console.warn('[CryptoAssetVerification] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
@@ -2329,7 +2331,26 @@ app.get('/api/assets/providers/binance-public/quote/:symbol', async (req: Reques
 
 app.get('/api/assets/verification/policy', (_req: Request, res: Response) => {
   return res.json({ ok: true, policy: getAssetVerificationPolicy() });
+})
+
+app.get('/api/assets/verification/crypto/policy', (_req: Request, res: Response) => {
+  res.json({ ok: true, policy: getCryptographicAssetVerificationPolicy() });
 });
+
+app.post('/api/assets/verification/crypto/challenge', (req: Request, res: Response) => {
+  issueAssetCryptographicChallenge({
+    assetAccountId: typeof req.body?.assetAccountId === 'string' ? req.body.assetAccountId : undefined,
+    ttlSeconds: typeof req.body?.ttlSeconds === 'number' ? req.body.ttlSeconds : undefined
+  }).then(result => res.json({ ok: true, challenge: result }))
+    .catch(error => res.status(503).json({ ok: false, error: error?.message || 'Challenge issuance failed.' }));
+});
+
+app.post('/api/assets/verification/crypto/proof', (req: Request, res: Response) => {
+  verifyAssetCryptographicProof(req.body || {}).then(result => {
+    res.status(result.ok ? 200 : 400).json(result);
+  }).catch(error => res.status(503).json({ ok: false, error: error?.message || 'Cryptographic verification failed.' }));
+});
+;
 
 app.get('/api/assets/verification', requireAuthentication, async (req: Request, res: Response) => {
   try {
