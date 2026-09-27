@@ -28,6 +28,7 @@ import { RevenueVerifiedDashboard } from './components/RevenueVerifiedDashboard'
 import { ConnectionAuthorizationDashboard } from './components/ConnectionAuthorizationDashboard';
 import { GlobalCollaborationDashboard } from './components/GlobalCollaborationDashboard';
 import { MonetizationSprint } from './components/MonetizationSprint';
+import { BinanceNftDashboard } from './components/BinanceNftDashboard';
 
 import { 
   initialStats, 
@@ -73,6 +74,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
+  const validTabs = new Set(['overview','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','gmail','drive','privacy_lab','footprints','broker','gpt_cowork']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -336,23 +338,21 @@ export default function App() {
     });
   };
 
-  // Accept offer
+  // Accept offer. Use the state transition itself as the source of truth so a rapid click
+  // cannot read a stale `offers` closure or increment pacing twice.
   const handleAcceptOffer = (offerId: string) => {
     setOffers(prev => {
+      const accepted = prev.find(o => o.id === offerId);
+      if (!accepted || accepted.status !== 'PENDING') return prev;
       const next = prev.map(o => o.id === offerId ? { ...o, status: 'ACCEPTED' as const } : o);
       void persistAppState({ offers: next });
+      void recordGovernedAction('marketplace-offer-acceptance', {
+        offerId,
+        offeredCompUsd: accepted.offeredCompUsd,
+        settlementStatus: 'not-settled'
+      });
       return next;
     });
-
-    const accepted = offers.find(o => o.id === offerId);
-    if (accepted) {
-      // Acceptance is not settlement. Keep it in pipeline state until external acceptance
-      // and qualifying payment evidence are observed by the authoritative revenue system.
-      setStats(s => ({
-        ...s,
-        monthlyPacingUsd: s.monthlyPacingUsd + accepted.offeredCompUsd
-      }));
-    }
   };
 
   // Reject offer
@@ -541,6 +541,10 @@ export default function App() {
 
   const pendingOffersCount = offers.filter(o => o.status === 'PENDING').length;
 
+  useEffect(() => {
+    if (!validTabs.has(activeTab)) setActiveTab('overview');
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
       {/* Platform Navigation Header */}
@@ -595,6 +599,8 @@ export default function App() {
             onOpenCoWorkingStudio={() => setActiveTab('gpt_cowork')}
           />
         )}
+
+        {activeTab === 'binance' && <BinanceNftDashboard />}
 
         {activeTab === 'accounts' && (
           <InternetAccountsFederation
