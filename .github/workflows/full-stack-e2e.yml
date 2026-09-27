@@ -15,20 +15,24 @@ concurrency:
 
 jobs:
   e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       FRONTEND_URL: https://glorifier-glorifier.vercel.app
       CI: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm install
-      - run: npx playwright install --with-deps chromium
+      - name: Install dependencies
+        run: npm install
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Authenticated production E2E
         run: npm exec playwright test
       - name: Publish E2E report
