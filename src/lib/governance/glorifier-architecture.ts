@@ -1,5 +1,5 @@
 export const GLORIFIER_ARCHITECTURE_MODEL = {
-  version: 'GLORIFIER-ARCH-3.1',
+  version: 'GLORIFIER-ARCH-3.2',
   status: 'canonical',
   identity: 'Governed, provider-neutral intelligence orchestration layer.',
   authority: {
@@ -54,7 +54,7 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
       intelligence: 'Provider-neutral models and specialist scientists.',
       orchestration: 'Task routing, mediation, fallback and collaboration.',
       connections: 'Authenticated adapters for external systems and providers.',
-      execution: 'Workers and services operating only within granted capabilities.',
+      execution: 'Agent harness, workers and services operating only within granted capabilities; sessions, bounded subagents, context control, sandbox-aware execution and human checkpoints.',
       evidence: 'Telemetry, provenance, lineage and verification state.',
       'economic-truth': 'Verified revenue, settlement and financial state only.',
       'learning-and-recovery': 'Observability-driven improvement, remediation proposals and recovery.'
@@ -66,6 +66,11 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
     'Internet connectivity never implies trust or authorization.',
     'Authentication never implies authorization.',
     'Authorization is scoped by capability, tool, data scope, and risk.',
+    'Agent execution is provider-neutral; the harness must not become a hidden system brain.',
+    'High-risk and irreversible tool actions require explicit human approval.',
+    'Sandboxed execution is opt-in and capability-scoped; secrets remain outside agent-generated context where possible.',
+    'Subagents are bounded by explicit concurrency and capability limits.',
+    'Long-running sessions must expose state and context pressure rather than silently losing context.',
     'Provider or compute failure must produce a truthful degraded/unavailable state.',
     'Irreversible external actions require human authorization.',
     'Estimated value is never verified revenue.',
