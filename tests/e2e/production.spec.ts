@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const email = `e2e-${Date.now()}@glorifier-test.invalid`;
-const password = `GlorifierE2E-${Date.now()}!`;
+const newTestCredentials = () => ({ email: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@glorifier-test.invalid`, password: `GlorifierE2E-${Date.now()}!` });
 
 test.describe('GLORIFIER production end-to-end', () => {
     test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
+    const { email, password } = newTestCredentials();
     await page.goto('/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await page.getByRole('button', { name: /sign in/i }).click();
@@ -41,6 +41,7 @@ test.describe('GLORIFIER production end-to-end', () => {
   });
 
   test('mobile navigation remains usable', async ({ page }) => {
+    const { email, password } = newTestCredentials();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: /sign in/i }).click();
