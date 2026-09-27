@@ -1,12 +1,14 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * GLORIFIER Agent Harness
  *
- * A provider-neutral execution boundary informed by the useful parts of
- * TrueForge: sessions, tool approvals, subagents, context control and
- * sandbox-aware execution.
+ * Provider-neutral execution boundary inspired by useful TrueForge patterns:
+ * sessions, MCP/tool boundaries, approvals, bounded subagents, context
+ * management and sandbox-aware execution.
  *
- * This is intentionally an internal GLORIFIER abstraction. It does not make
- * GLORIFIER dependent on TrueForge or any single execution vendor.
+ * TrueForge remains an architectural reference only. No TrueForge runtime or
+ * provider is required by GLORIFIER.
  */
 
 export type AgentHarnessCapability =
@@ -16,7 +18,8 @@ export type AgentHarnessCapability =
   | 'sandbox'
   | 'approval'
   | 'subagent'
-  | 'session';
+  | 'session'
+  | 'streaming';
 
 export type ToolRisk = 'low' | 'medium' | 'high' | 'irreversible';
 
@@ -26,6 +29,7 @@ export interface AgentToolRequest {
   risk: ToolRisk;
   capability: string;
   requiresApproval?: boolean;
+  deferred?: boolean;
 }
 
 export interface AgentSession {
@@ -37,6 +41,7 @@ export interface AgentSession {
   contextTokens: number;
   maxContextTokens: number;
   status: 'active' | 'waiting-approval' | 'completed' | 'failed';
+  compactionRecommended: boolean;
 }
 
 export interface AgentHarnessPolicy {
@@ -45,8 +50,10 @@ export interface AgentHarnessPolicy {
   humanApprovalForIrreversibleActions: true;
   toolAccessIsCapabilityScoped: true;
   sandboxIsOptionalAndExplicit: true;
+  secretsStayOutsideAgentContext: true;
   subagentsAreBounded: true;
   contextCompactionIsAllowed: true;
+  deferredToolsAreSupported: true;
   sessionsAreStateful: true;
   noSyntheticSuccess: true;
 }
@@ -60,8 +67,10 @@ export function getAgentHarnessPolicy(): AgentHarnessPolicy {
     humanApprovalForIrreversibleActions: true,
     toolAccessIsCapabilityScoped: true,
     sandboxIsOptionalAndExplicit: true,
+    secretsStayOutsideAgentContext: true,
     subagentsAreBounded: true,
     contextCompactionIsAllowed: true,
+    deferredToolsAreSupported: true,
     sessionsAreStateful: true,
     noSyntheticSuccess: true,
   };
@@ -72,15 +81,20 @@ export function createAgentSession(
   options: { maxContextTokens?: number; sessionId?: string } = {},
 ): AgentSession {
   const now = new Date().toISOString();
+  const maxContextTokens = Number.isFinite(options.maxContextTokens)
+    ? Math.max(1_000, Math.floor(options.maxContextTokens as number))
+    : 32_000;
+
   const session: AgentSession = {
-    id: options.sessionId || `session-${crypto.randomUUID()}`,
+    id: options.sessionId || `session-${randomUUID()}`,
     agentId,
     createdAt: now,
     updatedAt: now,
     turnCount: 0,
     contextTokens: 0,
-    maxContextTokens: options.maxContextTokens || 32_000,
+    maxContextTokens,
     status: 'active',
+    compactionRecommended: false,
   };
   sessions.set(session.id, session);
   return session;
@@ -94,11 +108,13 @@ export function recordAgentTurn(sessionId: string, contextTokens: number): Agent
   const session = sessions.get(sessionId);
   if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
 
+  const nextContextTokens = Math.max(0, Math.floor(contextTokens));
   const updated: AgentSession = {
     ...session,
     updatedAt: new Date().toISOString(),
     turnCount: session.turnCount + 1,
-    contextTokens: Math.max(0, contextTokens),
+    contextTokens: nextContextTokens,
+    compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
   };
 
   sessions.set(sessionId, updated);
@@ -106,7 +122,7 @@ export function recordAgentTurn(sessionId: string, contextTokens: number): Agent
 }
 
 export function shouldCompactContext(session: AgentSession): boolean {
-  return session.contextTokens >= Math.floor(session.maxContextTokens * 0.8);
+  return session.compactionRecommended || session.contextTokens >= Math.floor(session.maxContextTokens * 0.8);
 }
 
 export function authorizeToolRequest(
@@ -135,9 +151,23 @@ export function authorizeToolRequest(
   };
 }
 
+export function filterDeferredTools(
+  tools: AgentToolRequest[],
+  includeDeferred = false,
+): AgentToolRequest[] {
+  return includeDeferred ? tools : tools.filter((tool) => !tool.deferred);
+}
+
 export function boundSubagentCount(requested: number, maximum = 4): number {
   if (!Number.isFinite(requested) || requested <= 0) return 0;
-  return Math.min(Math.floor(requested), Math.max(1, maximum));
+  return Math.min(Math.floor(requested), Math.max(1, Math.floor(maximum)));
+}
+
+export function sandboxRequired(
+  tools: AgentToolRequest[],
+  sandboxCapabilities = new Set(['sandbox', 'code-execution', 'filesystem']),
+): boolean {
+  return tools.some((tool) => sandboxCapabilities.has(tool.capability));
 }
 
 export async function executeAgentTurn<T>(options: {
@@ -148,7 +178,7 @@ export async function executeAgentTurn<T>(options: {
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
-  const toolRequests = options.tools || [];
+  const toolRequests = filterDeferredTools(options.tools || []);
 
   for (const tool of toolRequests) {
     const decision = authorizeToolRequest(tool, approvedCapabilities);
@@ -163,6 +193,8 @@ export async function executeAgentTurn<T>(options: {
     }
   }
 
+  // The harness never receives secrets as part of this interface. Provider
+  // credentials remain in the provider/connection layer.
   const result = await options.run();
   const session = recordAgentTurn(options.session.id, options.contextTokens);
   return { result, session };
