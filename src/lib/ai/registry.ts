@@ -2,7 +2,7 @@ import { GeminiProvider } from './providers/gemini';
 import { AnthropicProvider } from './providers/anthropic';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import type { AIProvider, AIProviderId, ProviderRegistryEntry } from './types';
-import { getGlobalProviderDiscoverySnapshot } from './provider-discovery';
+import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot } from './provider-discovery';
 
 const compatibleProviders = [
   { id: 'openai', name: 'OpenAI', apiKeyEnv: 'OPENAI_API_KEY', baseUrlEnv: 'OPENAI_BASE_URL', modelEnv: 'OPENAI_MODEL', defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
@@ -96,7 +96,29 @@ export interface ProviderExecutionRequest {
   temperature?: number;
   maxTokens?: number;
   preferredProvider?: AIProviderId;
+  capability?: string;
+  policy?: Partial<ProviderExecutionPolicy>;
 }
+
+export type OrchestrationFallbackMode = 'governed-only';
+
+export interface ProviderExecutionPolicy {
+  fallbackMode: OrchestrationFallbackMode;
+  allowImplicitSystemFallback: false;
+  refreshDiscoveryBeforeExhaustion: true;
+  maxDiscoveryRefreshes: number;
+  maxAttempts: number;
+  retryTransientFailures: boolean;
+}
+
+export const DEFAULT_PROVIDER_EXECUTION_POLICY: ProviderExecutionPolicy = {
+  fallbackMode: 'governed-only',
+  allowImplicitSystemFallback: false,
+  refreshDiscoveryBeforeExhaustion: true,
+  maxDiscoveryRefreshes: 1,
+  maxAttempts: Math.max(1, providers.length),
+  retryTransientFailures: true,
+};
 
 export interface ProviderExecutionResult {
   response?: import('./types').AIResponse;
@@ -115,12 +137,20 @@ export interface ProviderExecutionResult {
 export async function executeThroughProviderRegistry(
   request: ProviderExecutionRequest
 ): Promise<ProviderExecutionResult> {
+  const policy = { ...DEFAULT_PROVIDER_EXECUTION_POLICY, ...(request.policy || {}) };
   const connected = getConnectedProviders();
   const preferredProvider = request.preferredProvider
     || (request.model?.startsWith('gemini') ? 'gemini' : request.model?.startsWith('gpt') ? 'openai' : undefined);
 
-  const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
-  const ordered = [...connected].sort((a, b) => {
+  let discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
+  const refreshDiscovery = async () => {
+    const refreshed = await discoverGlobalProviders('provider-registry-pre-exhaustion');
+    discovery = new Map(refreshed.map((entry) => [entry.id, entry]));
+  };
+  const ordered = [...connected].filter((provider) => {
+    const discovered = discovery.get(provider.id);
+    return !request.capability || Boolean(discovered?.capabilities.includes(request.capability));
+  }).sort((a, b) => {
     const da = discovery.get(a.id);
     const db = discovery.get(b.id);
     const rank = (entry: typeof da) => entry?.availability === 'available' && entry.authenticated ? 0 : entry?.availability === 'rate_limited' ? 2 : 1;
@@ -140,7 +170,12 @@ export async function executeThroughProviderRegistry(
   const errors: string[] = [];
   const providerStatuses: Record<string, 'connected' | 'unavailable' | 'error'> = {};
 
+  let discoveryRefreshes = 0;
+  let attempts = 0;
+  let transientRetries = 0;
+
   for (const provider of ordered) {
+    if (attempts >= policy.maxAttempts) break;
     const discovered = discovery.get(provider.id);
     if (discovered && ['quota_exhausted','auth_failure','unreachable','unconfigured'].includes(discovered.availability)) {
       attemptedProviders.push(provider.id);
@@ -157,6 +192,7 @@ export async function executeThroughProviderRegistry(
 
     attemptedProviders.push(provider.id);
     providerStatuses[provider.id] = 'connected';
+    attempts += 1;
 
     try {
       const providerRequest = {
@@ -184,7 +220,63 @@ export async function executeThroughProviderRegistry(
 
       const cooldownMs = cooldownFor(error);
       providerCooldownUntil.set(provider.id, Date.now() + cooldownMs);
+
+      const transient = /429|408|425|500|502|503|504|timeout|temporar|overloaded|unavailable/i.test(message);
+      if (policy.retryTransientFailures && transient && transientRetries < 1) {
+        transientRetries += 1;
+        providerCooldownUntil.delete(provider.id);
+      }
       providerLastFailure.set(provider.id, message.slice(0, 1000));
+    }
+  }
+
+  if (
+    policy.refreshDiscoveryBeforeExhaustion &&
+    discoveryRefreshes < policy.maxDiscoveryRefreshes
+  ) {
+    discoveryRefreshes += 1;
+    try {
+      await refreshDiscovery();
+      const refreshedEligible = getConnectedProviders().filter((provider) => {
+        const discovered = discovery.get(provider.id);
+        return discovered?.availability === 'available' &&
+          discovered.authenticated &&
+          (!request.capability || discovered.capabilities.includes(request.capability)) &&
+          !isCoolingDown(provider.id) &&
+          !attemptedProviders.includes(provider.id);
+      });
+
+      for (const provider of refreshedEligible) {
+        if (attempts >= policy.maxAttempts) break;
+        attemptedProviders.push(provider.id);
+        providerStatuses[provider.id] = 'connected';
+        attempts += 1;
+        try {
+          const providerRequest = {
+            ...request,
+            model: provider.id === 'gemini'
+              ? (request.model?.startsWith('gemini') ? request.model : undefined)
+              : provider.id === 'openai'
+                ? (request.model?.startsWith('gpt') ? request.model : undefined)
+                : request.model,
+          };
+          const response = await provider.generate(providerRequest);
+          if (response.text?.trim()) {
+            providerCooldownUntil.delete(provider.id);
+            providerLastFailure.delete(provider.id);
+            return { response, provider: provider.id, attemptedProviders, errors, providerStatuses };
+          }
+          errors.push(`${provider.id}: empty response after discovery refresh`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          providerStatuses[provider.id] = 'error';
+          errors.push(`${provider.id}: ${message}`);
+          providerCooldownUntil.set(provider.id, Date.now() + cooldownFor(error));
+          providerLastFailure.set(provider.id, message.slice(0, 1000));
+        }
+      }
+    } catch (error) {
+      errors.push(`provider-discovery refresh failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
