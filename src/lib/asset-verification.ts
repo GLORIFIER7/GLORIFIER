@@ -2,10 +2,13 @@ import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 import { listAssetAccounts, listAssetHoldings, listAssetEvidence } from './asset-registry';
 
-export const GLORIFIER_ASSET_VERIFICATION_VERSION = 'GAV-1.0';
+export const GLORIFIER_ASSET_VERIFICATION_VERSION = 'GAV-1.1';
+
+export type VerificationLabel = 'VERIFIED' | 'FULLY VERIFIED' | 'PARTIALLY VERIFIED' | 'NOT VERIFIED' | 'DEGRADED' | 'NOT OBSERVABLE';
 
 type VerificationResult = {
   status: 'verified' | 'partially-verified' | 'not-verified' | 'degraded';
+  verificationLabel?: VerificationLabel;
   checks: Record<string, unknown>;
   evidenceRefs: string[];
   warnings: string[];
@@ -139,13 +142,23 @@ export async function verifyAllAssets(options: { assetAccountId?: string; holdin
 
   const estimatedMarketValue = selectedHoldings.reduce((sum, h) => sum + (Number(h.market_value) || 0), 0);
   const revenueVerified = false;
+  const allChecks = [...accountResults, ...holdingResults];
+  const fullyVerified = allChecks.length > 0 && allChecks.every(r => r.status === 'verified');
+  const anyVerified = allChecks.some(r => r.status === 'verified');
+  const verificationLabel: VerificationLabel =
+    fullyVerified ? 'FULLY VERIFIED' :
+    anyVerified ? 'PARTIALLY VERIFIED' :
+    selectedAccounts.length || selectedHoldings.length ? 'NOT VERIFIED' :
+    'NOT OBSERVABLE';
 
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
     policy: { ...getAssetVerificationPolicy(), freshnessHours: freshness },
     scope: { assetAccountId: options.assetAccountId || null, holdingId: options.holdingId || null },
+    verificationLabel,
     summary: {
+      verificationLabel,
       accountCount: selectedAccounts.length,
       holdingCount: selectedHoldings.length,
       evidenceCount: evidence.length,
@@ -157,8 +170,8 @@ export async function verifyAllAssets(options: { assetAccountId?: string; holdin
       estimatedMarketValueIsNotRevenue: true,
       verifiedRevenue: revenueVerified
     },
-    accounts: selectedAccounts.map((account, i) => ({ ...account, verification: accountResults[i] })),
-    holdings: selectedHoldings.map((holding, i) => ({ ...holding, verification: holdingResults[i] })),
+    accounts: selectedAccounts.map((account, i) => ({ ...account, verification: { ...accountResults[i], verificationLabel: accountResults[i].status === 'verified' ? 'VERIFIED' : accountResults[i].status === 'partially-verified' ? 'PARTIALLY VERIFIED' : accountResults[i].status === 'degraded' ? 'DEGRADED' : 'NOT VERIFIED' } })),
+    holdings: selectedHoldings.map((holding, i) => ({ ...holding, verification: { ...holdingResults[i], verificationLabel: holdingResults[i].status === 'verified' ? 'VERIFIED' : holdingResults[i].status === 'partially-verified' ? 'PARTIALLY VERIFIED' : holdingResults[i].status === 'degraded' ? 'DEGRADED' : 'NOT VERIFIED' } })),
     evidence: evidence.map(e => ({
       id: e.id,
       assetAccountId: e.asset_account_id,
@@ -176,7 +189,15 @@ export async function verifyAllAssets(options: { assetAccountId?: string; holdin
       ownership: 'Only explicit qualifying ownership/custody evidence can establish ownership.',
       valuation: 'Observed/estimated market value is not verified revenue.',
       revenue: 'No asset verification result by itself creates verified revenue.',
-      verifiedRevenue
+      verifiedRevenue,
+      verificationLabel: revenueVerified ? 'FULLY VERIFIED' : 'NOT VERIFIED',
+      rule: 'Revenue is independently verified only from qualifying economic and settlement evidence.'
+    },
+    completeLabeledData: {
+      accounts: selectedAccounts.map((a, i) => ({ id: a.id, provider: a.provider, label: accountResults[i].status === 'verified' ? 'VERIFIED' : accountResults[i].status === 'partially-verified' ? 'PARTIALLY VERIFIED' : 'NOT VERIFIED' })),
+      holdings: selectedHoldings.map((h, i) => ({ id: h.id, assetAccountId: h.asset_account_id, assetClass: h.asset_class, symbol: h.symbol, quantity: h.quantity, marketPrice: h.market_price, marketValue: h.market_value, label: holdingResults[i].status === 'verified' ? 'VERIFIED' : holdingResults[i].status === 'partially-verified' ? 'PARTIALLY VERIFIED' : 'NOT VERIFIED' })),
+      evidence: evidence.map(e => ({ id: e.id, assetAccountId: e.asset_account_id, holdingId: e.holding_id, source: e.source, evidenceType: e.evidence_type, observedAt: e.observed_at, label: e.payload_hash && e.source_ref && ageHours(e.observed_at) <= freshness ? 'VERIFIED' : 'NOT VERIFIED' })),
+      revenue: { label: 'NOT VERIFIED', verified: false }
     }
   };
 }
