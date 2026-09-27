@@ -37,7 +37,7 @@ import { initializeMonetizationTables, createCheckout, captureCheckout, getSubsc
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
 import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
-import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
+import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';\nimport { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
@@ -60,6 +60,7 @@ dotenv.config();
 void initializeMonetizationTables().catch((error) => console.warn('[Monetization] initialization deferred:', error?.message));
 void initializePayoutRegistry().catch((error) => console.warn('[Payouts] initialization deferred:', error?.message));
 void initializeCryptographicAssetVerification().catch((error) => console.warn('[CryptoAssetVerification] initialization deferred:', error?.message));
+void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
@@ -2597,6 +2598,71 @@ app.get('/api/governance/observability', (_req: Request, res: Response) => {
   return res.json({ok:true, snapshot:getAgentObservabilitySnapshot()});
 });
 
+
+// GEAS Enterprise Architecture Scientist: read-only architecture intelligence surfaces.
+// Scans are source reads plus evidence persistence only; no production mutation is performed.
+app.get('/api/governance/geas/architecture', async (_req: Request, res: Response) => {
+  try {
+    const latest = await getLatestGeasArchitectureScan();
+    return res.json({ ok: true, model: getGeasArchitectureModel(), latestScan: latest });
+  } catch (error) { return apiError(res, 503, 'GEAS architecture model unavailable', error); }
+});
+
+app.get('/api/governance/geas/architecture/sources', (_req: Request, res: Response) => {
+  return res.json({ ok: true, sources: getGeasArchitectureSources() });
+});
+
+app.get('/api/governance/geas/architecture/patterns', (_req: Request, res: Response) => {
+  return res.json({ ok: true, patterns: getGeasArchitecturePatterns() });
+});
+
+app.get('/api/governance/geas/architecture/controls', (_req: Request, res: Response) => {
+  return res.json({ ok: true, controls: getGeasArchitectureControls(), reliabilityContract: getGeasArchitectureReliabilityContract(), sovereigntyDefaults: getGeasSovereigntyDefaults() });
+});
+
+app.post('/api/governance/geas/architecture/scan', requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try {
+    const result = await runGeasArchitectureScan();
+    return res.status(201).json({ ok: true, scan: result });
+  } catch (error) { return apiError(res, 503, 'GEAS architecture scan failed', error); }
+});
+
+app.post('/api/governance/geas/architecture/ai-impact', requireOwner, (req: Request, res: Response) => {
+  try {
+    const input = req.body || {};
+    const assessment = createAIImpactAssessment({
+      lifecycleStage: input.lifecycleStage,
+      intendedPurpose: String(input.intendedPurpose || ''),
+      foreseeableUse: Array.isArray(input.foreseeableUse) ? input.foreseeableUse.map(String) : [],
+      affectedParties: Array.isArray(input.affectedParties) ? input.affectedParties.map(String) : [],
+      risks: Array.isArray(input.risks) ? input.risks.map(String) : [],
+      dataSources: Array.isArray(input.dataSources) ? input.dataSources.map(String) : [],
+      humanOversight: String(input.humanOversight || 'human-owner-final-authority'),
+      evidenceRefs: Array.isArray(input.evidenceRefs) ? input.evidenceRefs.map(String) : [],
+      reassessmentTrigger: String(input.reassessmentTrigger || 'material model, data, tool, provider or architecture change')
+    });
+    return res.status(201).json({ ok: true, assessment });
+  } catch (error) { return apiError(res, 400, 'Unable to create AI impact assessment', error); }
+});
+
+app.post('/api/governance/geas/architecture/finops-decision', requireOwner, (req: Request, res: Response) => {
+  try {
+    const input = req.body || {};
+    const decision = createFinOpsArchitectureDecision({
+      workload: String(input.workload || ''),
+      options: Array.isArray(input.options) ? input.options.map(String) : [],
+      unitMetric: input.unitMetric ? String(input.unitMetric) : undefined,
+      expectedCost: input.expectedCost && typeof input.expectedCost === 'object' ? input.expectedCost : undefined,
+      valueMetric: input.valueMetric ? String(input.valueMetric) : undefined,
+      constraints: Array.isArray(input.constraints) ? input.constraints.map(String) : [],
+      placementTradeoffs: Array.isArray(input.placementTradeoffs) ? input.placementTradeoffs.map(String) : [],
+      reversibility: ['high','medium','low'].includes(input.reversibility) ? input.reversibility : 'unknown',
+      approvalRequired: Boolean(input.approvalRequired)
+    });
+    return res.status(201).json({ ok: true, decision });
+  } catch (error) { return apiError(res, 400, 'Unable to create FinOps architecture decision', error); }
+});
+
 // Unknown API routes must remain JSON. This prevents the SPA fallback from masquerading as an API response.
 app.post('/api/governed-actions', requireOwner, async (req: Request, res: Response) => {
   try {
@@ -2682,6 +2748,7 @@ async function initializeBackend() {
 async function startServer() {
   await initializeBackend();
   try { await reconcileIntegrationControlPlane('backend-startup'); } catch (error) { console.warn('[IntegrationControlPlane] startup reconciliation deferred:', error); }
+  try { startGeasArchitectureScientistDaemon(); console.log('[GEASArchitectureScientist] read-only architecture scanner initialized.'); } catch (error) { console.warn('[GEASArchitectureScientist] daemon init deferred:', error); }
   setInterval(() => {
     void reconcileIntegrationControlPlane('scheduled-reconciliation').catch(error => console.warn('[IntegrationControlPlane] scheduled reconciliation deferred:', error));
   }, 5 * 60 * 1000);
