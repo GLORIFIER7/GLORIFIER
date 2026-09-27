@@ -25,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Layers },
+    { id: 'geas_architecture', label: 'GEAS Architecture', icon: BrainCircuit },
     { id: 'ai_ceo', label: 'AI CEO', icon: BrainCircuit },
     { id: 'mediator', label: 'Mediator', icon: ShieldCheck },
     { id: 'integrations', label: 'Intelligence', icon: Globe2 },
