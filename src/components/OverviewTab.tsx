@@ -50,6 +50,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [controlPlaneError, setControlPlaneError] = useState<string | null>(null);
 
   const [governanceBusy, setGovernanceBusy] = useState(false);
+  const [assetVerification, setAssetVerification] = useState<any>(null);
+  const [assetVerificationError, setAssetVerificationError] = useState<string | null>(null);
+
+  const loadAssetVerification = async () => {
+    try {
+      const response = await fetch('/api/assets/verification', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Asset verification unavailable');
+      setAssetVerification(payload);
+      setAssetVerificationError(null);
+    } catch (error: any) {
+      setAssetVerificationError(error?.message || 'Asset verification unavailable');
+    }
+  };
 
   const loadControlPlane = async () => {
     try {
@@ -83,6 +97,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    loadAssetVerification();
+    const timer = window.setInterval(loadAssetVerification, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const runGovernanceCheck = async () => {
     setGovernanceBusy(true);
     try {
@@ -112,6 +132,144 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl bg-slate-950 border border-slate-800 p-5 md:p-6 shadow-lg">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <h1 className="text-xl md:text-2xl font-bold text-white">GLORIFIER Overview</h1>
+            </div>
+            <p className="text-sm text-slate-400 mt-1">
+              Unified asset, evidence, custody, ownership, valuation, and revenue verification.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadAssetVerification}
+              className="text-xs px-3 py-1.5 rounded-md border border-slate-700 text-slate-300 hover:text-white"
+            >
+              Refresh
+            </button>
+            <span className="text-[10px] font-mono px-2.5 py-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+              GAV-1.1
+            </span>
+          </div>
+        </div>
+
+        {assetVerificationError && (
+          <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+            {assetVerificationError}
+          </div>
+        )}
+
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+            <div className="text-[10px] uppercase font-bold tracking-wide text-emerald-300">Overall Verification</div>
+            <div className="text-lg font-bold text-white mt-2">
+              {assetVerification?.summary?.verificationLabel || 'NOT OBSERVABLE'}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1">FULLY VERIFIED only when all required checks pass.</div>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Accounts</div>
+            <div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.accounts ?? '—'}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Source and authorization state</div>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Holdings</div>
+            <div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.holdings ?? '—'}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Ownership/custody evidence</div>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Evidence</div>
+            <div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.evidence ?? '—'}</div>
+            <div className="text-[11px] text-slate-400 mt-1">Source, hash, freshness</div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-white">Verification Labels</h2>
+              <p className="text-[11px] text-slate-400 mt-1">Every observable record is explicitly classified.</p>
+            </div>
+            <span className="text-[10px] font-mono text-slate-500">NO FABRICATED EVIDENCE</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {[
+              ['FULLY VERIFIED', 'All required checks pass.'],
+              ['VERIFIED', 'The individual asset/evidence item meets its applicable evidence requirements.'],
+              ['PARTIALLY VERIFIED', 'Some evidence exists, but a required ownership/custody or other check is incomplete.'],
+              ['NOT VERIFIED', 'Insufficient qualifying evidence.'],
+              ['DEGRADED', 'Verification infrastructure/source is impaired.'],
+              ['NOT OBSERVABLE', 'GLORIFIER has no observable authorized/source data for the item.']
+            ].map(([label, description]) => (
+              <div key={label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                <div className="text-[10px] font-bold text-emerald-300">{label}</div>
+                <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">{description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-white">All Labeled Data</h2>
+            <span className="text-[10px] text-slate-500">Source → Observation → Evidence → Verification Status</span>
+          </div>
+
+          {[
+            ...(assetVerification?.completeLabeledData?.accounts || []).map((item: any) => ({
+              kind: 'ACCOUNT',
+              id: item.id,
+              detail: item.provider || 'source account',
+              label: item.label
+            })),
+            ...(assetVerification?.completeLabeledData?.holdings || []).map((item: any) => ({
+              kind: item.assetClass?.toUpperCase() || 'HOLDING',
+              id: item.id,
+              detail: [item.symbol, item.quantity != null ? 'qty ' + item.quantity : null, item.marketValue != null ? 'value ' + item.marketValue : null].filter(Boolean).join(' • '),
+              label: item.label
+            })),
+            ...(assetVerification?.completeLabeledData?.evidence || []).map((item: any) => ({
+              kind: 'EVIDENCE',
+              id: item.id,
+              detail: [item.source, item.evidenceType, item.observedAt].filter(Boolean).join(' • '),
+              label: item.label
+            })),
+            {
+              kind: 'REVENUE',
+              id: 'verified-revenue',
+              detail: assetVerification?.completeLabeledData?.revenue?.verified ? 'Qualifying economic/settlement evidence present' : 'Requires qualifying economic/settlement evidence',
+              label: assetVerification?.completeLabeledData?.revenue?.label || 'NOT VERIFIED'
+            }
+          ].map((item: any) => (
+            <div key={item.kind + ':' + item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-slate-500">{item.kind}</span>
+                  <span className="text-xs font-semibold text-slate-200 truncate">{item.id}</span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 break-words">{item.detail}</div>
+              </div>
+              <span className="shrink-0 text-[10px] font-bold font-mono px-2 py-1 rounded border border-emerald-500/20 bg-emerald-500/5 text-emerald-300">
+                {item.label}
+              </span>
+            </div>
+          ))}
+
+          {!assetVerification?.completeLabeledData && !assetVerificationError && (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-500">
+              Waiting for the authoritative verification report.
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-[10px] text-slate-400">
+          Economic truth remains separate: market value and estimates are not revenue. Revenue becomes VERIFIED only from qualifying economic and settlement evidence.
+        </div>
+      </section>
+
       <LiveEconomicData />
       <BusinessModelPanel />
       <ValuationEnginePanel />
