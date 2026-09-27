@@ -520,7 +520,7 @@ async function runModelExecution({
   temperature = 0.4,
   jsonMode = false
 }: ModelExecutionParams): Promise<{ text: string; modelUsed: string; provider: string; executionStatus: 'success' | 'unavailable'; providerStatus: Record<string, 'connected' | 'unavailable' | 'error'>; providerErrors: string[]; computeError?: string }> {
-  const chosenModel = model || 'gpt-4o';
+  const chosenModel = model || 'auto';
 
   // AI CEO -> Provider Registry -> authenticated providers.
   // The registry is the single provider-selection boundary; it never fabricates output.
@@ -754,7 +754,7 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
   try {
     const roleResults = await Promise.allSettled(roles.map(async (role) => {
       const execution = await runModelExecution({
-        model: 'auto' as any,
+        model: undefined,
         systemPrompt: [
           'You are a specialist participating in the GLORIFIER AI-to-AI council.',
           'Return factual, evidence-oriented analysis only.',
