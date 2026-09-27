@@ -15,7 +15,6 @@ import {
 import {
   InternetIssue,
   ScientistAgent,
-  ScientistDomain,
   ScientistMonetizationState,
 } from '../lib/scientist-fleet';
 
