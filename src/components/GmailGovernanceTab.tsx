@@ -5,11 +5,8 @@ import {
   Lock, 
   RefreshCw, 
   Sparkles, 
-  Send, 
   AlertCircle, 
   CheckCircle2, 
-  ArrowRight,
-  TrendingUp,
   FileText,
   Sliders,
   EyeOff,
@@ -28,20 +25,18 @@ import { GmailAnalysisItem } from '../types';
 interface GmailGovernanceTabProps {
   currentUser: User | null;
   onLogin: () => void;
-  onAddEarnings: (amountUsd: number, description: string) => void;
 }
 
 export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
   currentUser,
   onLogin,
-  onAddEarnings,
 }) => {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<GmailAnalysisItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<GmailAnalysisItem | null>(null);
 
-  // Email composer with mandatory confirmation
+  // Gmail access is read-only in this dashboard view.
   const [composeOpen, setComposeOpen] = useState(false);
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('Data Governance Notice: Sovereign Privacy Rights');
@@ -79,11 +74,6 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
       const analyzed = validSummaries.map(analyzeEmailForSovereignMonetization);
       setMessages(analyzed);
 
-      // Add small telemetry compensation yield
-      const totalBatchYield = analyzed.reduce((acc, curr) => acc + curr.estimatedYieldUsd, 0);
-      if (totalBatchYield > 0) {
-        onAddEarnings(Number(totalBatchYield.toFixed(2)), 'Gmail Data Footprint Governance Index');
-      }
     } catch (err: any) {
       console.error('Failed to sync Gmail:', err);
       setError(err.message || 'Error connecting to Gmail. Please sign in again.');
@@ -98,21 +88,6 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
     }
   }, [currentUser, hasAccessToken]);
 
-  const handleSendEmailConfirmed = async () => {
-    setConfirmSendOpen(false);
-    setLoading(true);
-    try {
-      await sendGmailMessage(recipient, subject, body);
-      setSendSuccess(true);
-      setComposeOpen(false);
-      setRecipient('');
-    } catch (err: any) {
-      setError(`Failed to send email: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -126,14 +101,14 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                 <Mail className="w-5 h-5" />
               </span>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Gmail Footprint Governance & Monetization
+                Gmail Data Governance
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Live Workspace API
+                READ-ONLY WORKSPACE VIEW
               </span>
             </div>
             <p className="text-sm text-slate-400 max-w-2xl">
-              Extract micro-royalties from receipt telemetry, travel patterns, and research topics without exposing private message contents. All telemetry is sanitized with Zero-Knowledge proofs and Differential Privacy.
+              Review selected Gmail metadata and message excerpts only after explicit Google authorization. GLORIFIER does not treat access as proof of ownership, monetization, or guaranteed privacy transformation.
             </p>
           </div>
 
@@ -154,14 +129,7 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                   className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${loading ? 'animate-spin' : ''}`} />
-                  <span>{loading ? 'Scanning Inbox...' : 'Scan & Tokenize'}</span>
-                </button>
-                <button
-                  onClick={() => setComposeOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-2 shadow-md transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send Notice</span>
+                  <span>{loading ? 'Reading Gmail…' : 'Refresh Gmail'}</span>
                 </button>
               </div>
             )}
@@ -175,18 +143,18 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
             <div className="text-lg font-bold text-white font-mono mt-0.5">{messages.length}</div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <span className="text-[11px] text-slate-400 font-medium">Est. Yield Per Scan</span>
+            <span className="text-[11px] text-slate-400 font-medium">Records Loaded</span>
             <div className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
-              ${messages.reduce((a, b) => a + b.estimatedYieldUsd, 0).toFixed(2)}
+              {messages.length}
             </div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <span className="text-[11px] text-slate-400 font-medium">Privacy Defense</span>
-            <div className="text-lg font-bold text-cyan-400 font-mono mt-0.5">ε = 0.25 (Laplace)</div>
+            <span className="text-[11px] text-slate-400 font-medium">Authorization</span>
+            <div className="text-lg font-bold text-cyan-400 font-mono mt-0.5">Google OAuth</div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-            <span className="text-[11px] text-slate-400 font-medium">Raw Leaks Prevented</span>
-            <div className="text-lg font-bold text-amber-400 font-mono mt-0.5">100% Guaranteed</div>
+            <span className="text-[11px] text-slate-400 font-medium">Data Handling</span>
+            <div className="text-lg font-bold text-amber-400 font-mono mt-0.5">Governed</div>
           </div>
         </div>
       </div>
@@ -206,13 +174,6 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
         </div>
       )}
 
-      {sendSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>Email notice dispatched successfully through Gmail API with authenticated signature.</span>
-        </div>
-      )}
-
       {/* Main Content Area */}
       {!currentUser || !hasAccessToken ? (
         <div className="p-12 rounded-2xl bg-slate-900/50 border border-slate-800 text-center space-y-4">
@@ -220,9 +181,9 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
             <Lock className="w-7 h-7" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-white">Gmail Access Authorization Required</h3>
+            <h3 className="text-base font-bold text-white">Gmail Access Required</h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Connect your Google account with official Gmail scopes to inspect how your receipts, newsletters, and transit updates can be tokenized for personal data dividends.
+              Connect your Google account and grant only the Gmail scopes required by this feature. Access is used to display the authorized Gmail data available to GLORIFIER.
             </p>
           </div>
           <button
@@ -230,7 +191,7 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
             className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 inline-flex items-center gap-2"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Sign in with Google & Authorize Gmail</span>
+            <span>Connect Google & Authorize Gmail</span>
           </button>
         </div>
       ) : (
@@ -239,18 +200,18 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
           <div className="lg:col-span-2 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <span>Recent Inbox Streams Analyzed</span>
+                <span>Authorized Gmail Data</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
                   {messages.length} Records
                 </span>
               </h3>
-              <span className="text-[11px] text-slate-400">Differential Privacy Applied</span>
+              <span className="text-[11px] text-slate-400">Access controlled</span>
             </div>
 
             {loading && messages.length === 0 ? (
               <div className="p-8 rounded-xl bg-slate-900 border border-slate-800 text-center text-slate-400 text-xs">
                 <RefreshCw className="w-5 h-5 mx-auto animate-spin text-emerald-400 mb-2" />
-                Retrieving messages from Gmail and extracting zero-knowledge telemetry...
+                Reading authorized Gmail data...
               </div>
             ) : messages.length === 0 ? (
               <div className="p-8 rounded-xl bg-slate-900 border border-slate-800 text-center text-slate-400 text-xs space-y-2">
@@ -351,149 +312,29 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                       <span>Zero-Raw Leak Contract</span>
                     </div>
                     <p className="text-[10px] text-emerald-400/80">
-                      No raw names, addresses, or account numbers leave the secure enclave. Only statistical vectors are licensed to verified buyers.
+                      Only data explicitly authorized by the connected Google account is shown here. No claim of anonymization, licensing, or compensation is made unless separately verified.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="py-12 text-center text-slate-500 text-xs space-y-2">
                   <EyeOff className="w-6 h-6 mx-auto text-slate-600" />
-                  <p>Select any email stream on the left to inspect privacy transformation vectors.</p>
+                  <p>Select an item to inspect the data available to this dashboard.</p>
                 </div>
               )}
             </div>
 
             {/* Statutory Disclaimer */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 space-y-2">
-              <span className="font-semibold text-slate-300 block">Google Workspace Compliance</span>
+              <span className="font-semibold text-slate-300 block">Google Authorization</span>
               <p>
-                All Gmail API operations use scoped tokens directly acquired in the browser with explicit user authentication. Sending actions require user confirmation.
+                Gmail access requires explicit Google authentication and the scopes configured for this feature. Keep access limited to what you intend to authorize.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Compose Notice Modal */}
-      {composeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Send className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">Send Data Governance Notice via Gmail</h3>
-              </div>
-              <button
-                onClick={() => setComposeOpen(false)}
-                className="text-slate-400 hover:text-white text-xs"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Recipient Email Address</label>
-                <input
-                  type="email"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  placeholder="e.g. privacy@databroker.com or self"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Subject Line</label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Notice Body</label>
-                <textarea
-                  rows={5}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setComposeOpen(false)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (!recipient.trim()) {
-                    setError('Please enter a recipient email address.');
-                    return;
-                  }
-                  setConfirmSendOpen(true);
-                }}
-                disabled={!recipient}
-                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md disabled:opacity-50"
-              >
-                Review & Confirm Send
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MANDATORY Explicit Confirmation Dialog for Sending Email */}
-      {confirmSendOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-amber-500/30 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">Confirm Email Dispatch</h3>
-                <p className="text-xs text-slate-400">Explicit User Authorization Required</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-2">
-              <div>
-                <span className="text-slate-500 text-[10px] block uppercase font-bold">To</span>
-                <span className="text-slate-200 font-mono">{recipient}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-[10px] block uppercase font-bold">Subject</span>
-                <span className="text-slate-200">{subject}</span>
-              </div>
-              <p className="text-[11px] text-amber-300/80 pt-1">
-                Are you sure you want to send this email from your verified Gmail account? This action cannot be undone.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setConfirmSendOpen(false)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSendEmailConfirmed}
-                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md"
-              >
-                Yes, Send via Gmail
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
