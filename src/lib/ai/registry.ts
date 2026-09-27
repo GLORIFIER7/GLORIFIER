@@ -2,6 +2,7 @@ import { GeminiProvider } from './providers/gemini';
 import { AnthropicProvider } from './providers/anthropic';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import type { AIProvider, AIProviderId, ProviderRegistryEntry } from './types';
+import { getGlobalProviderDiscoverySnapshot } from './provider-discovery';
 
 const compatibleProviders = [
   { id: 'openai', name: 'OpenAI', apiKeyEnv: 'OPENAI_API_KEY', baseUrlEnv: 'OPENAI_BASE_URL', modelEnv: 'OPENAI_MODEL', defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
@@ -116,7 +117,12 @@ export async function executeThroughProviderRegistry(
   const preferredProvider = request.preferredProvider
     || (request.model?.startsWith('gemini') ? 'gemini' : request.model?.startsWith('gpt') ? 'openai' : undefined);
 
+  const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const ordered = [...connected].sort((a, b) => {
+    const da = discovery.get(a.id);
+    const db = discovery.get(b.id);
+    const rank = (entry: typeof da) => entry?.availability === 'available' && entry.authenticated ? 0 : entry?.availability === 'rate_limited' ? 2 : 1;
+    if (rank(da) !== rank(db)) return rank(da) - rank(db);
     if (preferredProvider) {
       if (a.id === preferredProvider && b.id !== preferredProvider) return -1;
       if (b.id === preferredProvider && a.id !== preferredProvider) return 1;
@@ -133,6 +139,13 @@ export async function executeThroughProviderRegistry(
   const providerStatuses: Record<string, 'connected' | 'unavailable' | 'error'> = {};
 
   for (const provider of ordered) {
+    const discovered = discovery.get(provider.id);
+    if (discovered && ['quota_exhausted','auth_failure','unreachable','unconfigured'].includes(discovered.availability)) {
+      attemptedProviders.push(provider.id);
+      providerStatuses[provider.id] = 'unavailable';
+      errors.push(`${provider.id}: discovery=${discovered.availability}`);
+      continue;
+    }
     if (isCoolingDown(provider.id)) {
       attemptedProviders.push(provider.id);
       providerStatuses[provider.id] = 'unavailable';
