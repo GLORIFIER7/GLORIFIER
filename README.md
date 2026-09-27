@@ -59,7 +59,24 @@ Agent Fleet Risk        Revocation
     LEARN → IMPROVE → REPEAT
 ```
 
-## Linux philosophy as the organizational and architectural role model
+## Internet + Linux as permanent role models
+
+**The Internet is GLORIFIER's ecosystem and network role model. Linux/Unix is GLORIFIER's system and architecture role model.**
+
+The Internet inspires how independent intelligence providers, agents, services, data sources, and connectors interoperate through open interfaces, discovery, routing, redundancy, and explicit trust boundaries. Linux inspires how those resources are organized into modular processes, stable interfaces, capabilities, isolation, observability, and truthful failure.
+
+### Internet-inspired design laws
+
+1. Prefer interoperable protocols and stable contracts.
+2. Treat providers, agents, services, and compute as replaceable network nodes.
+3. Discover resources without assuming trust or authorization.
+4. Route work dynamically according to capability, availability, cost, evidence, and governance.
+5. Build redundancy so one failed node does not stop the ecosystem.
+6. Keep trust boundaries explicit and end-to-end evidence attached to consequential state.
+7. Allow the ecosystem to evolve through substitution rather than hard-coded dependency.
+8. Keep humans as the final authority for consequential actions.
+
+### Linux philosophy as the organizational and architectural role model
 
 **Linux / Unix philosophy is GLORIFIER's architectural role model for intelligence orchestration.**
 
