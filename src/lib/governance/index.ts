@@ -6,3 +6,4 @@ export * from './agent-observability';
 export * from './provenance';
 export * from './linux-philosophy';
 export * from './internet-role-model';
+export * from './glorifier-architecture';
