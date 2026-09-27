@@ -39,6 +39,7 @@ import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControl
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
+import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy } from './src/lib/asset-verification';
 
 import { 
   getScientistFleet, 
@@ -2324,6 +2325,31 @@ app.get('/api/assets/providers/binance-public/quote/:symbol', async (req: Reques
     const quote = await getBinancePublicQuote(String(req.params.symbol));
     return res.json({ ok: true, ...quote });
   } catch (error) { return apiError(res, 502, 'Binance public quote unavailable', error); }
+});
+
+app.get('/api/assets/verification/policy', (_req: Request, res: Response) => {
+  return res.json({ ok: true, policy: getAssetVerificationPolicy() });
+});
+
+app.get('/api/assets/verification', requireAuthentication, async (req: Request, res: Response) => {
+  try {
+    const assetAccountId = String(req.query.assetAccountId || '').trim() || undefined;
+    const holdingId = String(req.query.holdingId || '').trim() || undefined;
+    const freshnessHours = Number(req.query.freshnessHours || 24);
+    return res.json(await verifyAllAssets({ assetAccountId, holdingId, freshnessHours }));
+  } catch (error) {
+    return apiError(res, 503, 'Asset verification unavailable', error);
+  }
+});
+
+app.get('/api/assets/verification/attestation', requireAuthentication, async (req: Request, res: Response) => {
+  try {
+    const assetAccountId = String(req.query.assetAccountId || '').trim() || undefined;
+    const holdingId = String(req.query.holdingId || '').trim() || undefined;
+    return res.json({ ok: true, ...await buildAssetVerificationAttestation({ assetAccountId, holdingId }) });
+  } catch (error) {
+    return apiError(res, 503, 'Asset verification attestation unavailable', error);
+  }
 });
 
 
