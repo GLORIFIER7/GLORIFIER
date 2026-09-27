@@ -96,7 +96,7 @@ export default function App() {
       await fetch('/api/app-state', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userReference: currentUser.uid, state })
+        body: JSON.stringify({ state })
       });
     } catch (error) {
       console.error('Command Center state persistence failed:', error);
@@ -120,13 +120,39 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Verify the complete authenticated frontend → API → Neon session path.
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    const verifySession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.authenticated || !payload?.database?.connected) {
+          throw new Error(payload?.error || 'Authenticated session verification failed');
+        }
+        if (!cancelled) {
+          console.info('[GLORIFIER Auth] frontend → API → Neon session verified', {
+            uid: payload.identity?.uid,
+            database: payload.database?.databaseName,
+            authority: payload.database?.authority
+          });
+        }
+      } catch (error) {
+        console.error('[GLORIFIER Auth] end-to-end session verification failed:', error);
+      }
+    };
+    void verifySession();
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
   // Load authoritative Command Center state from Railway/Neon after authentication.
   useEffect(() => {
     if (!currentUser) return;
     let cancelled = false;
     const loadCommandCenterState = async () => {
       try {
-        const response = await fetch(`/api/app-state?userReference=${encodeURIComponent(currentUser.uid)}`, { cache: 'no-store' });
+        const response = await fetch('/api/app-state', { cache: 'no-store' });
         if (!response.ok) throw new Error('Unable to load Command Center state');
         const payload = await response.json();
         const remote = payload.state;
