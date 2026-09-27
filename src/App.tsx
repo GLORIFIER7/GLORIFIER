@@ -217,15 +217,6 @@ export default function App() {
     }
   };
 
-  const recordEstimatedOpportunity = async (action: string, amountUsd: number, description: string) => {
-    const result = await recordGovernedAction(action, {
-      description,
-      estimatedAmountUsd: amountUsd,
-      economicTruth: { verified: false, estimatesAreNotRevenue: true }
-    });
-    return result;
-  };
-
   // Toggle footprint monetization
   const handleToggleFootprint = (id: string) => {
     setFootprints(prev => {
@@ -364,14 +355,7 @@ export default function App() {
   };
 
   // External clawback delivery requires an authorized provider integration.
-  const handleDispatchClawback = (expId: string) => {
-    void recordGovernedAction('statutory-clawback-request', {
-      exposureId: expId,
-      executionStatus: 'pending_authorized_integration'
-    });
-  };
-
-  // A payout success callback is only allowed to update state after an authoritative
+    // A payout success callback is only allowed to update state after an authoritative
   // payout provider has returned qualifying settlement evidence.
   const handleWithdrawSuccess = (amount: number, method: string, txHash: string) => {
     void recordGovernedAction('payout-settlement-callback', {
@@ -403,26 +387,15 @@ export default function App() {
   };
 
   // Telemetry must originate from an observed provider event, never from a UI simulator.
-  const handleTriggerSimulatedUsage = async (model: 'Per-Query' | 'Data Shapley' | 'Cohort Subscription' | 'Proof Attestation') => {
-    await recordGovernedAction('telemetry-simulation-blocked', {
-      model,
-      reason: 'Synthetic usage events cannot create earnings or settlement records.'
-    });
-  };
-
   // Settlement controls are evidence-first: UI actions never fabricate a payment.
-  const handleClearSettlement = async () => {
-    await recordGovernedAction('settlement-clear-request', {
-      requestedAmountUsd: stats.pendingSettlementUsd,
-      executionStatus: 'pending_authorized_settlement',
-      reason: 'Settlement can only be cleared after qualifying external payment evidence is recorded.'
-    });
-  };
+  // Settlement is evidence-first; no UI action is exposed until an authorized settlement provider exists.
 
   // Batch clear settlement
 
   // Accounts handlers
   const handleUpdateAccount = (updated: InternetAccount) => {
+    setAccounts(prev => prev.map(account => account.id === updated.id ? updated : account));
+    void persistAppState({ accounts: accounts.map(account => account.id === updated.id ? updated : account) });
     void recordGovernedAction('internet-account-local-change', { accountId: updated.id, requestedState: updated });
   };
 
@@ -437,13 +410,6 @@ export default function App() {
     } catch (error) {
       console.error('Account authentication sync failed:', error);
     }
-  };
-
-  const handleBatchAccountAction = (action: 'shield_all' | 'sync_all' | 'purge_all') => {
-    void recordGovernedAction('internet-account-batch-action', {
-      action,
-      executionStatus: action === 'purge_all' ? 'pending_authorized_integration' : 'recorded'
-    });
   };
 
   // Sentinel Bot handlers (CRUD on errors)
@@ -571,7 +537,6 @@ export default function App() {
 
         {activeTab === 'scientists' && (
           <AiScientistFleetConsole
-            onAddEarnings={(amount, desc) => { void recordEstimatedOpportunity('scientist-fleet-yield-observation', amount, desc); }}
           />
         )}
 
@@ -596,7 +561,6 @@ export default function App() {
             accounts={accounts}
             onUpdateAccount={handleUpdateAccount}
             onAuthenticateAll={handleAuthenticateAllAccounts}
-            onBatchAction={handleBatchAccountAction}
           />
         )}
 
@@ -611,8 +575,6 @@ export default function App() {
         {activeTab === 'compensation' && (
           <CompensationEngine
             telemetryEvents={telemetryEvents}
-            onPreviewUsage={handleTriggerSimulatedUsage}
-            onClearSettlement={handleClearSettlement}
             totalPendingUsd={stats.pendingSettlementUsd}
           />
         )}
@@ -695,7 +657,6 @@ export default function App() {
         {activeTab === 'exposures' && (
           <BrokerExposureAudit
             exposures={exposures}
-            onDispatchClawback={handleDispatchClawback}
             onOpenComplianceBot={() => setActiveTab('compliance')}
           />
         )}
