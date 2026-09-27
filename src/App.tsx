@@ -26,6 +26,7 @@ import { ConnectionAuthorizationDashboard } from './components/ConnectionAuthori
 import { GlobalCollaborationDashboard } from './components/GlobalCollaborationDashboard';
 import { MonetizationSprint } from './components/MonetizationSprint';
 import { BinanceNftDashboard } from './components/BinanceNftDashboard';
+import { GeasArchitectureScientistDashboard } from './components/GeasArchitectureScientistDashboard';
 
 import { 
   initialStats, 
@@ -71,7 +72,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','footprints','broker','gpt_cowork']);
+  const validTabs = new Set(['overview','geas_architecture','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','footprints','broker','gpt_cowork']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -552,6 +553,8 @@ export default function App() {
         {activeTab === 'monetization_sprint' && <MonetizationSprint onOpenWithdraw={() => setIsWithdrawOpen(true)} userReference={currentUser?.uid || 'anonymous'} />}
         {activeTab === 'connections' && <ConnectionAuthorizationDashboard />}
         {activeTab === 'global_collaboration' && <GlobalCollaborationDashboard />}
+
+        {activeTab === 'geas_architecture' && <GeasArchitectureScientistDashboard />}
 
         {activeTab === 'overview' && (
           <OverviewTab
