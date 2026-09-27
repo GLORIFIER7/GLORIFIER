@@ -8,10 +8,7 @@ import { BrokerExposureAudit } from './components/BrokerExposureAudit';
 import { WithdrawModal } from './components/WithdrawModal';
 import { DataSampleModal } from './components/DataSampleModal';
 import { CompensationEngine } from './components/CompensationEngine';
-import { PrivacyTechLab } from './components/PrivacyTechLab';
 import { DataControlDashboard } from './components/DataControlDashboard';
-import { GmailGovernanceTab } from './components/GmailGovernanceTab';
-import { DriveGovernanceTab } from './components/DriveGovernanceTab';
 import { AiModelsCollaborationManagement } from './components/AiModelsCollaborationManagement';
 import { AiCodeSentinelManagement } from './components/AiCodeSentinelManagement';
 import { InternetAccountsFederation } from './components/InternetAccountsFederation';
@@ -74,7 +71,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','gmail','drive','privacy_lab','footprints','broker','gpt_cowork']);
+  const validTabs = new Set(['overview','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','footprints','broker','gpt_cowork']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -616,22 +613,6 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'gmail' && (
-          <GmailGovernanceTab
-            currentUser={currentUser}
-            onLogin={handleLogin}
-            onAddEarnings={(amount, desc) => { void recordEstimatedOpportunity('gmail-governance-yield-observation', amount, desc); }}
-          />
-        )}
-
-        {activeTab === 'drive' && (
-          <DriveGovernanceTab
-            currentUser={currentUser}
-            onLogin={handleLogin}
-            onAddEarnings={(amount, desc) => { void recordEstimatedOpportunity('drive-governance-yield-observation', amount, desc); }}
-          />
-        )}
-
         {activeTab === 'compensation' && (
           <CompensationEngine
             telemetryEvents={telemetryEvents}
@@ -639,10 +620,6 @@ export default function App() {
             onClearSettlement={handleClearSettlement}
             totalPendingUsd={stats.pendingSettlementUsd}
           />
-        )}
-
-        {activeTab === 'privacy_lab' && (
-          <PrivacyTechLab />
         )}
 
         {activeTab === 'footprints' && (
@@ -716,7 +693,6 @@ export default function App() {
             footprints={footprints}
             exposures={exposures}
             onOpenClawbackTab={() => setActiveTab('exposures')}
-            onOpenPrivacyLabTab={() => setActiveTab('privacy_lab')}
             onOpenGptCoWorkTab={() => setActiveTab('gpt_cowork')}
           />
         )}
