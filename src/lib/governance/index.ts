@@ -7,3 +7,4 @@ export * from './provenance';
 export * from './linux-philosophy';
 export * from './internet-role-model';
 export * from './glorifier-architecture';
+export * from './geas-architecture-scientist';
