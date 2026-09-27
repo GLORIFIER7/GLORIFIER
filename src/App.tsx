@@ -186,14 +186,6 @@ export default function App() {
     return () => { unsubPolicy(); unsubGrants(); };
   }, [currentUser]);
 
-  const handleLogin = async () => {
-    try {
-      await loginWithGoogle();
-    } catch (err) {
-      console.error('Login error:', err);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
