@@ -72,7 +72,7 @@ import {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('revenue_verified');
+  const [activeTab, setActiveTab] = useState<string>('overview');
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
