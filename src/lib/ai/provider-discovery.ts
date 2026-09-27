@@ -1,4 +1,4 @@
-import { registerConnection, recordConnectionEvent } from './connection-registry';
+import { registerConnection, recordConnectionEvent } from '../connection-registry.ts';
 
 export type ProviderAvailability = 'available' | 'unconfigured' | 'quota_exhausted' | 'rate_limited' | 'auth_failure' | 'capability_mismatch' | 'unreachable' | 'error';
 export interface DiscoveredProvider { id:string; name:string; kind:'native'|'openai-compatible'|'router'|'self-hosted'; endpoint:string; configured:boolean; authenticated:boolean; availability:ProviderAvailability; capabilities:string[]; models:string[]; latencyMs:number|null; lastCheckedAt:string|null; cooldownUntil:string|null; reason:string|null; authorization:'configured'|'pending'|'not-configured'; }
