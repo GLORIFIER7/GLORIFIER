@@ -2324,7 +2324,8 @@ app.get('/api/identity', (_req: Request, res: Response) => {
   const identity = getGlorifierIdentity();
   return res.json({ ok: true, identity });
 });
-\n// Authenticated session + database round-trip probe. The server derives identity
+
+// Authenticated session + database round-trip probe. The server derives identity
 // exclusively from the verified token; client-supplied userReference is never trusted.
 app.get('/api/auth/session', async (req: Request, res: Response) => {
   const auth = (req as any).auth;
