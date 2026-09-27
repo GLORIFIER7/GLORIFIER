@@ -1,6 +1,8 @@
 export const LINUX_PHILOSOPHY_ARCHITECTURE = {
   roleModel: 'Linux / Unix philosophy',
+  ecosystemRoleModel: 'The Internet',
   application: 'intelligence orchestration',
+  ecosystemApplication: 'distributed interoperability, discovery, routing, redundancy, and substitution',
   identity: 'Human-governed, provider-neutral intelligence operating architecture.',
   principles: [
     'small, modular components',
