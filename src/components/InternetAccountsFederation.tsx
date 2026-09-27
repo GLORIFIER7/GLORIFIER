@@ -326,8 +326,7 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                   </button>
                 </div>
               </div>
-
-
+            </div>
           ) : (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
               <Globe className="w-8 h-8 text-slate-600 mx-auto mb-2" />
