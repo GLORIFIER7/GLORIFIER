@@ -189,7 +189,7 @@ export async function verifyAllAssets(options: { assetAccountId?: string; holdin
       ownership: 'Only explicit qualifying ownership/custody evidence can establish ownership.',
       valuation: 'Observed/estimated market value is not verified revenue.',
       revenue: 'No asset verification result by itself creates verified revenue.',
-      verifiedRevenue,
+      verifiedRevenue: revenueVerified,
       verificationLabel: revenueVerified ? 'FULLY VERIFIED' : 'NOT VERIFIED',
       rule: 'Revenue is independently verified only from qualifying economic and settlement evidence.'
     },
