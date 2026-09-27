@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BadgeDollarSign, ExternalLink, Image as ImageIcon, LockKeyhole, WalletCards,
   ShieldCheck, CircleDollarSign, Info
@@ -7,6 +7,13 @@ import {
 const BINANCE_NFT_URL = 'https://www.binance.com/en/nft/my-nfts/created/glorifier-a6421c3d3ef91a3ad3b740e80c3e1eb6';
 
 export const BinanceNftDashboard: React.FC = () => {
+  const [verification, setVerification] = useState<any>(null);
+  useEffect(() => {
+    fetch('/api/binance/health').then(r => r.json()).then(d => setVerification(d.verification)).catch(() => setVerification({ authentication: 'failed', authenticationError: 'Verification service unavailable' }));
+  }, []);
+  const restricted = verification?.authentication === 'failed' && String(verification?.authenticationError || '').toLowerCase().includes('restricted location');
+  const accountStatus = verification?.authentication === 'verified' ? (verification.accountStatus || 'Verified') : restricted ? 'Unavailable — jurisdiction restricted' : verification?.authentication === 'failed' ? 'Unavailable — authentication failed' : 'Checking…';
+  const readPermissions = verification?.authentication === 'verified' ? (verification.permissions?.reading ? 'Enabled' : 'Disabled') : restricted ? 'Unavailable — jurisdiction restricted' : verification?.authentication === 'failed' ? 'Unavailable — authentication failed' : 'Checking…';
   return (
     <section className="space-y-6">
       <div className="rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-slate-900 to-slate-950 p-6 shadow-xl">
@@ -36,8 +43,8 @@ export const BinanceNftDashboard: React.FC = () => {
             <span className="text-xs text-slate-400">Binance account</span>
             <WalletCards className="w-4 h-4 text-yellow-400" />
           </div>
-          <div className="mt-2 text-lg font-bold text-white">Not connected</div>
-          <p className="mt-1 text-xs text-slate-500">No API credentials are stored in the app.</p>
+          <div className="mt-2 text-lg font-bold text-white">{verification?.authentication === 'verified' ? 'Connected' : 'Not verified'}</div>
+          <p className="mt-1 text-xs text-slate-500">{restricted ? 'Provider access is restricted for this request location.' : 'No API credentials are exposed in the app.'}</p>
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
@@ -57,6 +64,15 @@ export const BinanceNftDashboard: React.FC = () => {
           <div className="mt-2 text-lg font-bold text-white">Ledger separate</div>
           <p className="mt-1 text-xs text-slate-500">Crypto assets are not counted as verified cash revenue automatically.</p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <div className="flex items-center gap-2 text-white font-semibold"><ShieldCheck className="w-5 h-5 text-yellow-400" /> Binance Verification Evidence</div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-400">Account status</div><div className="mt-2 text-sm font-semibold text-white">{accountStatus}</div></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4"><div className="text-xs text-slate-400">Read permissions</div><div className="mt-2 text-sm font-semibold text-white">{readPermissions}</div></div>
+        </div>
+        {verification?.authenticationError && <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 text-xs text-yellow-200">{verification.authenticationError}</div>}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
