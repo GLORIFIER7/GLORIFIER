@@ -151,6 +151,7 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
             </button>
           </div>
         </div>
+      </div>
 
       {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
