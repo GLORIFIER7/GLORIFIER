@@ -1,8 +1,13 @@
+/**
+ * Linux/Unix is GLORIFIER's system-organization and operating role model.
+ * The Internet is the complementary ecosystem/connectivity role model.
+ * GLORIFIER is the governed orchestration layer between them.
+ */
 export const LINUX_PHILOSOPHY_ARCHITECTURE = {
   roleModel: 'Linux / Unix philosophy',
-  ecosystemRoleModel: 'The Internet',
-  application: 'intelligence orchestration',
-  ecosystemApplication: 'distributed interoperability, discovery, routing, redundancy, and substitution',
+  complementaryEcosystemRoleModel: 'The Internet',
+  orchestrationLayer: 'GLORIFIER',
+  application: 'modular intelligence organization and operation',
   identity: 'Human-governed, provider-neutral intelligence operating architecture.',
   principles: [
     'small, modular components',
@@ -28,12 +33,13 @@ export const LINUX_PHILOSOPHY_ARCHITECTURE = {
     daemons: '24/7 monitoring, discovery, coding, and recovery workers',
     signals: 'event and evidence triggers',
     tracing: 'agent observability and cryptographic provenance',
-    hardwareAbstraction: 'compute registry',
+    hardwareAbstraction: 'replaceable compute resources',
     userAuthority: 'human owner final authority'
   },
   invariants: [
     'No single AI provider is the system brain.',
-    'Provider failure must produce a truthful unavailable state.',
+    'The Internet is connectivity and ecosystem inspiration, not a trust boundary bypass.',
+    'Provider failure must produce a truthful unavailable or degraded state.',
     'Authentication does not imply authorization.',
     'Authorization is scoped by capability, tool, data scope, and risk.',
     'Irreversible external actions require human authorization.',
