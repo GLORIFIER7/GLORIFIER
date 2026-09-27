@@ -208,7 +208,7 @@ export const AiScientistFleetConsole: React.FC<AiScientistFleetConsoleProps> = (
                 {scientist.currentTask && (
                   <div className="mt-3 border-t border-slate-800 pt-3">
                     <div className="text-[10px] uppercase tracking-wide text-slate-600">Current task</div>
-                    <div className="mt-1 line-clamp-2 text-[11px] text-slate-300">{scientist.currentTask}</div>
+                    <div className="mt-1 line-clamp-2 text-[11px] text-slate-300">{scientist.currentTask.issueType}</div>\n                    <div className="mt-1 truncate text-[10px] text-slate-500">{scientist.currentTask.targetUrlOrRepo}</div>\n                    <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">\n                      <span>{scientist.currentTask.status}</span>\n                      <span aria-hidden="true">·</span>\n                      <span>{scientist.currentTask.progress}%</span>\n                    </div>
                   </div>
                 )}
               </article>
