@@ -16,6 +16,7 @@ type BinancePermissionResponse = {
 };
 
 type BinanceAccountStatus = { data?: string };
+type BinanceApiError = { code?: number; msg?: string };
 
 function credentials() {
   const apiKey = process.env.BINANCE_API_KEY?.trim();
@@ -45,7 +46,16 @@ async function signedGet<T>(path: string): Promise<T> {
     }
   });
   const body = await response.text();
-  if (!response.ok) throw new Error(`Binance API ${response.status}`);
+
+  if (!response.ok) {
+    let apiError: BinanceApiError = {};
+    try { apiError = body ? JSON.parse(body) as BinanceApiError : {}; } catch {}
+    const error = new Error(apiError.msg || `Binance API ${response.status}`);
+    (error as Error & { status?: number; code?: number }).status = response.status;
+    (error as Error & { status?: number; code?: number }).code = apiError.code;
+    throw error;
+  }
+
   return body ? JSON.parse(body) as T : {} as T;
 }
 
@@ -61,6 +71,8 @@ export async function verifyBinanceReadOnlyConnection() {
     configuredReadOnlyFlag: configuredReadOnlyFlag(),
     credentialsExposed: false,
     authentication: 'not-tested' as 'not-tested' | 'verified' | 'failed',
+    authenticationErrorCode: null as number | null,
+    authenticationError: null as string | null,
     permissions: {
       reading: false,
       withdrawals: false,
@@ -113,8 +125,11 @@ export async function verifyBinanceReadOnlyConnection() {
       !result.permissions.spotAndMarginTrading &&
       !result.permissions.portfolioMarginTrading &&
       !result.permissions.apiTrade;
-  } catch {
+  } catch (error) {
     result.authentication = 'failed';
+    const safeError = error as Error & { code?: number };
+    result.authenticationErrorCode = typeof safeError.code === 'number' ? safeError.code : null;
+    result.authenticationError = safeError.message || 'Binance authentication failed';
   }
 
   return result;
