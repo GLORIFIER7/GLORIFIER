@@ -193,3 +193,61 @@ export async function buildAssetVerificationAttestation(options: { assetAccountI
     report
   };
 }
+
+
+export type InternetAssetVerificationSource = {
+  id: string;
+  category: 'crypto' | 'fiat' | 'securities' | 'gaming' | 'nft' | 'public-market-data' | 'other';
+  scope: string;
+  access: 'public' | 'authenticated';
+  ownershipProof: boolean;
+  currentBalanceProof: boolean;
+  valuation: boolean;
+  sourceClass: 'primary' | 'public-index' | 'market-data';
+};
+
+export const internetAssetVerificationSources: InternetAssetVerificationSource[] = [
+  { id: 'bitcoin-network', category: 'crypto', scope: 'Bitcoin public ledger', access: 'public', ownershipProof: false, currentBalanceProof: true, valuation: false, sourceClass: 'primary' },
+  { id: 'ethereum-network', category: 'crypto', scope: 'Ethereum public ledger', access: 'public', ownershipProof: false, currentBalanceProof: true, valuation: false, sourceClass: 'primary' },
+  { id: 'binance-public-market-data', category: 'crypto', scope: 'Public exchange market data', access: 'public', ownershipProof: false, currentBalanceProof: false, valuation: true, sourceClass: 'market-data' },
+  { id: 'alpaca-account-api', category: 'securities', scope: 'Authorized brokerage account and positions', access: 'authenticated', ownershipProof: true, currentBalanceProof: true, valuation: true, sourceClass: 'primary' },
+  { id: 'public-fx-markets', category: 'fiat', scope: 'Public foreign-exchange observations', access: 'public', ownershipProof: false, currentBalanceProof: false, valuation: true, sourceClass: 'market-data' },
+  { id: 'gaming-platform-connectors', category: 'gaming', scope: 'Authorized gaming-platform inventory', access: 'authenticated', ownershipProof: false, currentBalanceProof: true, valuation: false, sourceClass: 'primary' },
+  { id: 'nft-public-ledgers', category: 'nft', scope: 'Public NFT/token ledger observations', access: 'public', ownershipProof: false, currentBalanceProof: true, valuation: false, sourceClass: 'primary' }
+];
+
+export function getInternetAssetVerificationCoverage() {
+  return {
+    version: GLORIFIER_ASSET_VERIFICATION_VERSION,
+    scope: 'configured public and authenticated sources',
+    exhaustiveInternetClaim: false,
+    reason: 'The public Internet has no finite universal asset registry, and private assets require authorization. GLORIFIER verifies every asset it can observe through configured source connectors rather than claiming unverifiable global completeness.',
+    sources: internetAssetVerificationSources,
+    coverageRules: [
+      'Public ledgers can verify observable on-chain state, not the real-world identity of an owner.',
+      'Market-data sources verify observations/prices, not ownership or revenue.',
+      'Authenticated provider APIs can verify account-held assets when authorization and qualifying evidence exist.',
+      'Gaming/platform inventories require provider-supported authenticated evidence; public catalogs do not prove ownership.',
+      'Fiat/bank assets require authorized financial-institution evidence; public FX data only verifies market observations.',
+      'NFT/token metadata does not by itself establish ownership.',
+      'No asset becomes verified solely because an AI model found it on the Internet.'
+    ]
+  };
+}
+
+export async function runInternetAssetVerificationSweep() {
+  const report = await verifyAllAssets();
+  return {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    coverage: getInternetAssetVerificationCoverage(),
+    localRegistry: report.summary,
+    assetVerification: report,
+    nextActions: [
+      'Authorize supported connectors for private accounts requiring ownership verification.',
+      'Attach fresh source evidence and payload hashes to discovered holdings.',
+      'Resolve stale or conflicting observations before marking an asset verified.',
+      'Keep market valuation and verified revenue as separate economic states.'
+    ]
+  };
+}
