@@ -281,10 +281,32 @@ export function getAssetProviderAdapter(providerId: string) {
 }
 
 async function binancePublicGet<T>(path: string): Promise<T> {
-  const response = await fetch(`https://api.binance.com${path}`, { headers: { Accept: 'application/json' } });
-  const body = await response.text();
-  if (!response.ok) throw new Error(`Binance public API ${response.status}: ${body.slice(0, 500)}`);
-  return body ? JSON.parse(body) as T : {} as T;
+  // Binance documents multiple equivalent REST base endpoints. Try the
+  // primary endpoint first, then documented alternates so a transient
+  // hostname/edge issue does not make public market data unavailable.
+  const baseUrls = [
+    'https://api.binance.com',
+    'https://api1.binance.com',
+    'https://api2.binance.com',
+    'https://api3.binance.com',
+    'https://api4.binance.com',
+    'https://api-gcp.binance.com'
+  ];
+  let lastError = 'Binance public API unavailable';
+  for (const baseUrl of baseUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000)
+      });
+      const body = await response.text();
+      if (response.ok) return body ? JSON.parse(body) as T : {} as T;
+      lastError = `Binance public API ${response.status}: ${body.slice(0, 500)}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  throw new Error(lastError);
 }
 
 export async function getBinancePublicQuote(symbol: string) {
