@@ -67,11 +67,6 @@ export const Header: React.FC<HeaderProps> = ({
       >
         <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
         <span>{tab.label}</span>
-        {tab.badge && (
-          <span className="ml-auto px-1.5 py-0.5 rounded-sm text-[9px] border border-slate-800">
-            {tab.badge}
-          </span>
-        )}
       </button>
     );
   };
