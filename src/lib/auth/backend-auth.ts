@@ -111,6 +111,7 @@ export function requireOwner(req: AuthenticatedRequest, res: Response, next: Nex
 export function authenticationStatus() {
   return {
     backendVerification: adminReady,
+    providerConfigured: Boolean(process.env.FIREBASE_PROJECT_ID),
     provider: 'Firebase Authentication',
     mode: 'Firebase ID token + revocation check',
     ownerBindingConfigured: Boolean(process.env.GLORIFIER_OWNER_UID || process.env.GLORIFIER_OWNER_EMAIL),
