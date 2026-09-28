@@ -45,6 +45,23 @@ test.describe('GLORIFIER production end-to-end', () => {
 
     await page.reload({ waitUntil: 'networkidle' });
     await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
+
+    // Prove the persisted Firebase session still authenticates the protected API after reload.
+    const refreshedSession = await page.evaluate(async () => {
+      const r = await fetch('/api/auth/session', { cache: 'no-store' });
+      return { status: r.status, body: await r.json() };
+    });
+    expect(refreshedSession.status).toBe(200);
+    expect(refreshedSession.body.authenticated).toBe(true);
+
+    // Prove logout clears Firebase state and the protected API rejects the next request.
+    await page.getByRole('button', { name: /sign out/i }).click();
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    const postLogout = await page.evaluate(async () => {
+      const r = await fetch('/api/app-state', { cache: 'no-store' });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    expect([401, 403]).toContain(postLogout.status);
   });
 
   test('mobile navigation remains usable', async ({ page }) => {
