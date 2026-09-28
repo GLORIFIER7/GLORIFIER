@@ -37,5 +37,8 @@ jobs:
       - name: Architecture consolidation tests
         run: npm run test:architecture
 
+      - name: Permanent GLORIFIER stack invariants
+        run: npm run test:permanent-stack
+
       - name: Production build
         run: npm run build
