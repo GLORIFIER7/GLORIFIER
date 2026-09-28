@@ -1,6 +1,8 @@
 # GLORIFIER FULL-STACK VERIFICATION MATRIX
 
-Last automated baseline: 2026-09-27.
+Last automated baseline: 2026-09-28.
+
+Authentication remediation: the protected `/api/auth/session` route now requires verified Firebase ID-token authentication; the production E2E gate additionally verifies refresh persistence and logout rejection. Live production authentication remains PARTIALLY VERIFIED until the E2E browser run completes successfully.
 
 Authenticated E2E gate: `.github/workflows/full-stack-e2e.yml` runs real Chromium against the production Vercel app using disposable Firebase email/password accounts generated at runtime by the browser test. No Firebase password or private credential is stored in GitHub Actions secrets or committed to the repository.
 
