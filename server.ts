@@ -114,7 +114,8 @@ app.use('/api', (req: Request, res: Response, next) => {
     '/agents',
     '/governance',
     '/control-plane',
-    '/app-state'
+    '/app-state',
+    '/auth/session'
   ].some(prefix => pathName === prefix || pathName.startsWith(prefix + '/'));
   if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
   return requireAuthentication(req as any, res, next);
