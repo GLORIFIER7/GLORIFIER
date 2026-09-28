@@ -32,14 +32,14 @@ export class GeminiProvider implements AIProvider {
   }
 
   models() {
-    return [process.env.GEMINI_MODEL || 'gemini-3.8-flash'];
+    return [process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'];
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
     const client = this.getClient();
     if (!client) throw new Error('Gemini is not configured. Set GEMINI_API_KEY.');
 
-    const primaryModel = request.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const primaryModel = request.model || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
     const fallbackModels = [primaryModel, 'gemini-3.1-flash-lite', 'gemini-flash-latest'].filter(
       (m, idx, arr) => arr.indexOf(m) === idx
     );
