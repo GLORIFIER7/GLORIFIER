@@ -31,7 +31,6 @@ interface OverviewTabProps {
   policy: MonetizationPolicy;
   onUpdatePolicy: (newPolicy: Partial<MonetizationPolicy>) => void;
   onToggleFootprint: (id: string) => void;
-  onOpenWithdraw: () => void;
   onNavigateToTab: (tab: string) => void;
   transactions: CompensationTransaction[];
 }
@@ -42,7 +41,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   policy,
   onUpdatePolicy,
   onToggleFootprint,
-  onOpenWithdraw,
   onNavigateToTab,
   transactions
 }) => {

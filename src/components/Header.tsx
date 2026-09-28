@@ -25,36 +25,20 @@ export const Header: React.FC<HeaderProps> = ({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Layers },
-    { id: 'geas_architecture', label: 'GEAS Architecture', icon: BrainCircuit },
+    { id: 'geas_architecture', label: 'Architecture', icon: BrainCircuit },
     { id: 'ai_ceo', label: 'AI CEO', icon: BrainCircuit },
-    { id: 'mediator', label: 'Mediator', icon: ShieldCheck },
     { id: 'integrations', label: 'Intelligence', icon: Globe2 },
-    { id: 'global_collaboration', label: 'Collaboration', icon: Users },
     { id: 'discovery', label: '24/7 Discovery', icon: Zap },
-    { id: 'ai_collaboration', label: 'AI Models', icon: Sparkles },
     { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
-    { id: 'compute', label: 'Compute', icon: Cpu },
-    { id: 'accounts', label: 'Accounts & Data', icon: Globe },
-    { id: 'binance', label: 'Binance / NFT', icon: Wallet },
-    { id: 'marketplace', label: 'Marketplace', icon: Scale, badge: pendingOffersCount > 0 ? pendingOffersCount : undefined },
-    { id: 'compensation', label: 'Compensation', icon: Coins },
-    { id: 'monetization_sprint', label: 'Monetization', icon: ArrowUpRight },
-    { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
-    { id: 'patent', label: 'Patent / IP', icon: FileText },
-    { id: 'exposures', label: 'Clawback Audit', icon: ShieldAlert },
-    { id: 'revenue_verified', label: 'Verified Revenue', icon: Wallet },
     { id: 'connections', label: 'Connections', icon: Lock },
     { id: 'scientists', label: 'Scientists', icon: Atom },
+    { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
     { id: 'control', label: 'Data Control', icon: ShieldCheck },
     { id: 'footprints', label: 'Data Footprints', icon: Database },
     { id: 'broker', label: 'AI Broker', icon: Scale },
-    { id: 'gpt_cowork', label: 'GPT Co-Work', icon: BrainCircuit },
   ];
 
-  const primaryIds = new Set([
-    'overview', 'ai_ceo', 'integrations', 'global_collaboration',
-    'discovery', 'sentinel', 'binance', 'revenue_verified'
-  ]);
+  const primaryIds = new Set(['overview', 'ai_ceo', 'integrations', 'discovery', 'sentinel']);
   const primaryTabs = tabs.filter(tab => primaryIds.has(tab.id));
   const moreTabs = tabs.filter(tab => !primaryIds.has(tab.id));
 
@@ -83,11 +67,6 @@ export const Header: React.FC<HeaderProps> = ({
       >
         <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
         <span>{tab.label}</span>
-        {tab.badge && (
-          <span className="ml-auto px-1.5 py-0.5 rounded-sm text-[9px] border border-slate-800">
-            {tab.badge}
-          </span>
-        )}
       </button>
     );
   };
