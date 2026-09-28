@@ -31,5 +31,8 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: Agent harness approval tests
+        run: npm run test:harness
+
       - name: Production build
         run: npm run build
