@@ -75,6 +75,20 @@ function executiveProfile(providers: AIProvider[]) {
 export class AIOrchestrator {
   private providerCooldownUntil = new Map<AIProviderId, number>();
   private readonly quotaCooldownMs = 15 * 60_000;
+  private readonly maxFailoverAttempts = 3;
+
+  private isExplicitProviderRequest(request: OrchestratorRequest): boolean {
+    return Boolean(request.provider && request.provider !== 'auto');
+  }
+
+  private isFailoverEligible(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    // Never hide deterministic caller/configuration errors behind another provider.
+    if (/\b(400|401|403|404)\b|invalid.?request|invalid.?api.?key|authentication|permission|forbidden/i.test(message)) {
+      return false;
+    }
+    return /\b(408|409|425|429|500|502|503|504)\b|quota|rate.?limit|credit_balance_exhausted|insufficient_quota|timeout|timed out|temporar|overloaded|unavailable|network|ECONN|ENOTFOUND/i.test(message);
+  }
 
   private isProviderCoolingDown(providerId: AIProviderId): boolean {
     const until = this.providerCooldownUntil.get(providerId) || 0;
@@ -118,25 +132,50 @@ export class AIOrchestrator {
   }
 
   async generate(request: OrchestratorRequest): Promise<AIResponse> {
-    const connected = request.provider && request.provider !== 'auto' ? [getProvider(request.provider)] : getConnectedProviders();
-    const candidates = selectProviders(connected).filter((provider) => !this.isProviderCoolingDown(provider.id));
-    if (candidates.length === 0) throw new Error('No AI providers are currently available; all selected providers are disconnected or cooling down after quota/rate-limit failures.');
+    const explicitProvider = this.isExplicitProviderRequest(request);
+    const connected = explicitProvider ? [getProvider(request.provider as AIProviderId)] : getConnectedProviders();
+    const candidates = selectProviders(connected)
+      .filter((provider) => !this.isProviderCoolingDown(provider.id))
+      .filter((provider) => !request.model || provider.models().includes(request.model));
+
+    if (candidates.length === 0) {
+      throw new Error(
+        explicitProvider
+          ? `Requested AI provider ${request.provider} is unavailable, cooling down, or does not expose the requested model.`
+          : 'No eligible AI providers are currently available; execution is DEGRADED rather than silently substituted.'
+      );
+    }
 
     const errors: string[] = [];
-    for (const provider of candidates) {
+    const maxAttempts = explicitProvider ? 1 : Math.min(this.maxFailoverAttempts, candidates.length);
+
+    for (let index = 0; index < maxAttempts; index += 1) {
+      const provider = candidates[index];
       try {
         const result = await this.callProvider(provider, request);
         if (request.evaluate !== false && !result.evaluation?.passed) {
           errors.push(`${provider.id}: response quality check failed`);
-          continue;
+          // A quality failure is not an infrastructure failure; do not silently
+          // substitute another provider for a response that may require review.
+          break;
         }
         return result;
       } catch (error) {
         this.markProviderUnavailable(provider.id, error);
-        errors.push(`${provider.id}: ${error instanceof Error ? error.message : String(error)}`);
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`${provider.id}: ${message}`);
+
+        // Controlled failover: only auto-routing may move to another provider,
+        // and only for transient/capacity/quota/network failures.
+        if (explicitProvider || !this.isFailoverEligible(error)) break;
       }
     }
-    throw new Error(`All selected AI providers failed. ${errors.join(' | ')}`);
+
+    throw new Error(
+      explicitProvider
+        ? `Requested AI provider failed; no implicit provider fallback was performed. ${errors.join(' | ')}`
+        : `Controlled provider failover exhausted. No eligible provider produced a verified response. ${errors.join(' | ')}`
+    );
   }
 
   async collaborate(messages: AIMessage[], providerIds?: AIProviderId[]): Promise<AIResponse[]> {
@@ -146,15 +185,10 @@ export class AIOrchestrator {
   }
 
   async resilientGenerate(request: OrchestratorRequest): Promise<AIResponse> {
-    try {
-      return await this.generate(request);
-    } catch (primaryError) {
-      const fallback = getConnectedProviders().filter((provider) => request.provider === 'auto' || !request.provider || provider.id !== request.provider);
-      const results = await Promise.allSettled(selectProviders(fallback).slice(0, 3).map((provider) => this.callProvider(provider, request)));
-      const successful = results.filter((r): r is PromiseFulfilledResult<AIResponse> => r.status === 'fulfilled' && Boolean(r.value?.evaluation?.passed));
-      if (successful.length) return successful[0].value;
-      throw primaryError;
-    }
+    // Backward-compatible entry point. Failover is governed exclusively by
+    // generate(): explicit providers never fall through; auto-routing may make
+    // bounded, sequential failover attempts only for eligible failures.
+    return this.generate(request);
   }
 
   async consensus(request: OrchestratorRequest, maxProviders = 3) {
