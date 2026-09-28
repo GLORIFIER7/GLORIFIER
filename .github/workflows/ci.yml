@@ -34,5 +34,5 @@ jobs:
       - name: Agent harness approval tests
         run: npm run test:harness
 
-      - name: Production build
+      - name: Architecture consolidation tests\n        run: npm run test:architecture\n\n      - name: Production build
         run: npm run build
