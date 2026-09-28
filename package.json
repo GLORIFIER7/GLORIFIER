@@ -17,7 +17,8 @@
     "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "test:harness": "tsx src/lib/ai/agent-harness.test.ts",
     "test:architecture": "tsx src/lib/governance/architecture-core.test.ts",
-    "test:geas-reconciliation": "tsx src/lib/governance/geas-reconciliation.test.ts"
+    "test:geas-reconciliation": "tsx src/lib/governance/geas-reconciliation.test.ts",
+    "test:permanent-stack": "tsx src/lib/governance/permanent-stack.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
