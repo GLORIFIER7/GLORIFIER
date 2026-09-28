@@ -32,6 +32,13 @@ export interface AgentToolRequest {
   deferred?: boolean;
 }
 
+export interface HumanToolApproval {
+  toolId: string;
+  approved: true;
+  approvedBy: 'human';
+  approvedAt: string;
+}
+
 export interface AgentSession {
   id: string;
   agentId: string;
@@ -42,6 +49,7 @@ export interface AgentSession {
   maxContextTokens: number;
   status: 'active' | 'waiting-approval' | 'completed' | 'failed';
   compactionRecommended: boolean;
+  lastHumanApproval?: HumanToolApproval;
 }
 
 export interface AgentHarnessPolicy {
@@ -128,11 +136,12 @@ export function shouldCompactContext(session: AgentSession): boolean {
 export function authorizeToolRequest(
   request: AgentToolRequest,
   approvedCapabilities: Set<string>,
+  humanApproval?: HumanToolApproval,
 ): { allowed: boolean; requiresHumanApproval: boolean; reason: string } {
   if (!approvedCapabilities.has(request.capability)) {
     return {
       allowed: false,
-      requiresHumanApproval: true,
+      requiresHumanApproval: false,
       reason: `Capability not granted: ${request.capability}`,
     };
   }
@@ -142,12 +151,21 @@ export function authorizeToolRequest(
     request.risk === 'high' ||
     request.risk === 'irreversible';
 
+  const approvalMatches =
+    humanApproval?.toolId === request.id &&
+    humanApproval.approved === true &&
+    humanApproval.approvedBy === 'human' &&
+    Number.isFinite(Date.parse(humanApproval.approvedAt));
+
   return {
-    allowed: !requiresHumanApproval,
-    requiresHumanApproval,
-    reason: requiresHumanApproval
-      ? 'Human approval required before tool execution.'
-      : 'Capability-scoped tool execution permitted.',
+    allowed: !requiresHumanApproval || approvalMatches,
+    requiresHumanApproval: requiresHumanApproval && !approvalMatches,
+    reason:
+      !requiresHumanApproval
+        ? 'Capability-scoped tool execution permitted.'
+        : approvalMatches
+          ? 'Explicit human approval verified.'
+          : 'Human approval required before tool execution.',
   };
 }
 
@@ -175,13 +193,14 @@ export async function executeAgentTurn<T>(options: {
   contextTokens: number;
   tools?: AgentToolRequest[];
   approvedCapabilities?: Set<string>;
+  humanApproval?: HumanToolApproval;
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
   const toolRequests = filterDeferredTools(options.tools || []);
 
   for (const tool of toolRequests) {
-    const decision = authorizeToolRequest(tool, approvedCapabilities);
+    const decision = authorizeToolRequest(tool, approvedCapabilities, options.humanApproval);
     if (!decision.allowed) {
       const session = {
         ...options.session,
@@ -189,13 +208,20 @@ export async function executeAgentTurn<T>(options: {
         status: 'waiting-approval' as const,
       };
       sessions.set(session.id, session);
-      throw new Error(`Tool approval required: ${tool.name} — ${decision.reason}`);
+      throw new Error(`${decision.requiresHumanApproval ? 'Tool approval required' : 'Tool authorization denied'}: ${tool.name} — ${decision.reason}`);
     }
   }
 
   // The harness never receives secrets as part of this interface. Provider
   // credentials remain in the provider/connection layer.
   const result = await options.run();
+  if (options.humanApproval) {
+    const approvedSession = sessions.get(options.session.id) || options.session;
+    sessions.set(options.session.id, {
+      ...approvedSession,
+      lastHumanApproval: options.humanApproval,
+    });
+  }
   const session = recordAgentTurn(options.session.id, options.contextTokens);
   return { result, session };
 }
