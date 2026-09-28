@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, LogIn, LogOut, Mail, UserPlus, X } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { loginWithEmail, loginWithSocialProvider, registerWithEmail, resetPassword, logout, SOCIAL_PROVIDER_REGISTRY, SocialProviderId } from '../lib/firebase';
+import { getIdToken, loginWithEmail, loginWithSocialProvider, registerWithEmail, resetPassword, logout, SOCIAL_PROVIDER_REGISTRY, SocialProviderId } from '../lib/firebase';
 
 interface AuthPanelProps {
   currentUser: User | null;
@@ -60,11 +60,13 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
     try {
       if (mode === 'login') {
         await loginWithEmail(email, password);
-        setMessage({ type: 'success', text: 'Signed in successfully.' });
+        await verifyBackendSession();
+        setMessage({ type: 'success', text: 'Firebase sign-in, ID-token verification, protected API access, and Neon session check passed.' });
       } else {
         if (password.length < 6) throw new Error('Password must be at least 6 characters.');
         await registerWithEmail(email, password, name);
-        setMessage({ type: 'success', text: 'Account created and signed in.' });
+        await verifyBackendSession();
+        setMessage({ type: 'success', text: 'Account creation, Firebase ID-token verification, protected API access, and Neon session check passed.' });
       }
       setPassword('');
       setTimeout(() => setOpen(false), 500);
@@ -81,7 +83,9 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
     setMessage(null);
     try {
       await loginWithSocialProvider(provider);
-      setMessage({ type: 'success', text: `${SOCIAL_PROVIDER_REGISTRY[provider].label} sign-in successful.` });
+      if (provider === 'google' && !currentUser) return;
+      await verifyBackendSession();
+      setMessage({ type: 'success', text: `${SOCIAL_PROVIDER_REGISTRY[provider].label} Firebase sign-in, ID-token verification, protected API access, and Neon session check passed.` });
       setTimeout(() => setOpen(false), 500);
     } catch (error) {
       setMessage({ type: 'error', text: friendlyAuthError(error) });
@@ -107,6 +111,27 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
     }
   };
 
+  const verifyBackendSession = async () => {
+    const token = await getIdToken();
+    if (!token) throw new Error('Firebase sign-in completed, but no ID token is available.');
+    const response = await fetch('/api/auth/session', {
+      cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.authenticated || !payload?.database?.connected) {
+      throw new Error(payload?.error || 'Firebase ID token was not accepted by the protected API.');
+    }
+    return payload;
+  };
+
+  const verifyLogout = async () => {
+    const response = await fetch('/api/app-state', { cache: 'no-store' });
+    if (response.status !== 401) {
+      throw new Error('Logout verification failed: protected API did not reject the signed-out session.');
+    }
+  };
+
   const signedInLabel = currentUser?.displayName || currentUser?.email || 'Signed in';
 
   return (
@@ -117,7 +142,15 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
             {signedInLabel}
           </div>
           <button
-            onClick={() => logout().catch(error => setMessage({ type: 'error', text: friendlyAuthError(error) }))}
+            onClick={async () => {
+              try {
+                await logout();
+                await verifyLogout();
+                setMessage({ type: 'success', text: 'Logout verified: Firebase session cleared and protected API rejected the signed-out request.' });
+              } catch (error) {
+                setMessage({ type: 'error', text: friendlyAuthError(error) });
+              }
+            }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-rose-500/40 hover:text-rose-300"
             title="Sign out of the Command Center"
           >
@@ -157,7 +190,7 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-white px-4 py-3 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="font-bold">{config.label === 'Google' ? 'G' : config.label[0]}</span>
-                  `Continue with ${config.label}`
+                  Continue with ${config.label}
                 </button>
               ))}
             </div>
