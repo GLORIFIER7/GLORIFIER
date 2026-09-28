@@ -3,29 +3,14 @@ import { Header } from './components/Header';
 import { OverviewTab } from './components/OverviewTab';
 import { FootprintManager } from './components/FootprintManager';
 import { AiBrokerConsole } from './components/AiBrokerConsole';
-import { MarketplaceOffers } from './components/MarketplaceOffers';
-import { BrokerExposureAudit } from './components/BrokerExposureAudit';
-import { WithdrawModal } from './components/WithdrawModal';
-import { DataSampleModal } from './components/DataSampleModal';
-import { CompensationEngine } from './components/CompensationEngine';
 import { DataControlDashboard } from './components/DataControlDashboard';
-import { AiModelsCollaborationManagement } from './components/AiModelsCollaborationManagement';
 import { AiCodeSentinelManagement } from './components/AiCodeSentinelManagement';
-import { InternetAccountsFederation } from './components/InternetAccountsFederation';
-import { PatentDisclosureDossier } from './components/PatentDisclosureDossier';
 import { ComplianceScientistBot } from './components/ComplianceScientistBot';
-import { WorkTogetherWithGptStudio } from './components/WorkTogetherWithGptStudio';
-import { IndependentComputeLayer } from './components/IndependentComputeLayer';
 import { IntegrationControl } from './components/IntegrationControl';
 import { AICeoControl } from './components/AICeoControl';
 import { AiScientistFleetConsole } from './components/AiScientistFleetConsole';
-import { MediatorDashboard } from './components/MediatorDashboard';
 import { OpportunityDiscoveryDashboard } from './components/OpportunityDiscoveryDashboard';
-import { RevenueVerifiedDashboard } from './components/RevenueVerifiedDashboard';
 import { ConnectionAuthorizationDashboard } from './components/ConnectionAuthorizationDashboard';
-import { GlobalCollaborationDashboard } from './components/GlobalCollaborationDashboard';
-import { MonetizationSprint } from './components/MonetizationSprint';
-import { BinanceNftDashboard } from './components/BinanceNftDashboard';
 import { GeasArchitectureScientistDashboard } from './components/GeasArchitectureScientistDashboard';
 
 import { 
@@ -72,7 +57,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','geas_architecture','ai_ceo','mediator','integrations','global_collaboration','discovery','ai_collaboration','sentinel','compute','accounts','binance','marketplace','compensation','monetization_sprint','compliance','patent','exposures','revenue_verified','connections','scientists','control','footprints','broker','gpt_cowork']);
+  const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','discovery','sentinel','connections','scientists','compliance','control','footprints','broker']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -513,15 +498,6 @@ export default function App() {
 
       {/* Main View Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'mediator' && <MediatorDashboard />}
-        {activeTab === 'discovery' && <OpportunityDiscoveryDashboard />}
-        {activeTab === 'revenue_verified' && <RevenueVerifiedDashboard />}
-        {activeTab === 'monetization_sprint' && <MonetizationSprint onOpenWithdraw={() => setIsWithdrawOpen(true)} userReference={currentUser?.uid || 'anonymous'} />}
-        {activeTab === 'connections' && <ConnectionAuthorizationDashboard />}
-        {activeTab === 'global_collaboration' && <GlobalCollaborationDashboard />}
-
-        {activeTab === 'geas_architecture' && <GeasArchitectureScientistDashboard />}
-
         {activeTab === 'overview' && (
           <OverviewTab
             stats={stats}
@@ -529,17 +505,14 @@ export default function App() {
             policy={policy}
             onUpdatePolicy={handleUpdatePolicy}
             onToggleFootprint={handleToggleFootprint}
-            onOpenWithdraw={() => setIsWithdrawOpen(true)}
             onNavigateToTab={setActiveTab}
             transactions={transactions}
           />
         )}
-
-        {activeTab === 'scientists' && (
-          <AiScientistFleetConsole
-          />
-        )}
-
+        {activeTab === 'geas_architecture' && <GeasArchitectureScientistDashboard />}
+        {activeTab === 'ai_ceo' && <AICeoControl />}
+        {activeTab === 'integrations' && <IntegrationControl />}
+        {activeTab === 'discovery' && <OpportunityDiscoveryDashboard />}
         {activeTab === 'sentinel' && (
           <AiCodeSentinelManagement
             errors={sentinelErrors}
@@ -548,22 +521,21 @@ export default function App() {
             onDeleteError={handleDeleteSentinelError}
             onCreateError={handleCreateSentinelError}
             onAutoFixError={handleAutoFixSentinelError}
-            onToggleMonitoring={(enabled) => { setSentinelState(s => ({ ...s, isMonitoringActive: enabled })); void persistAppState({ sentinelState: { ...sentinelState, isMonitoringActive: enabled } }); }}
-            onToggleAutoHeal={(enabled) => { setSentinelState(s => ({ ...s, autoHealEnabled: enabled })); void persistAppState({ sentinelState: { ...sentinelState, autoHealEnabled: enabled } }); }}
-            onOpenCoWorkingStudio={() => setActiveTab('gpt_cowork')}
+            onToggleMonitoring={(enabled) => setSentinelState(s => ({ ...s, isMonitoringActive: enabled }))}
+            onToggleAutoHeal={(enabled) => setSentinelState(s => ({ ...s, autoHealEnabled: enabled }))}
           />
         )}
-
-        {activeTab === 'binance' && <BinanceNftDashboard />}
-
-        {activeTab === 'accounts' && (
-          <InternetAccountsFederation
-            accounts={accounts}
-            onUpdateAccount={handleUpdateAccount}
-            onAuthenticateAll={handleAuthenticateAllAccounts}
+        {activeTab === 'connections' && <ConnectionAuthorizationDashboard />}
+        {activeTab === 'scientists' && <AiScientistFleetConsole />}
+        {activeTab === 'compliance' && (
+          <ComplianceScientistBot
+            policy={policy}
+            footprints={footprints}
+            exposures={exposures}
+            onOpenClawbackTab={() => setActiveTab('broker')}
+            onOpenGptCoWorkTab={() => setActiveTab('ai_ceo')}
           />
         )}
-
         {activeTab === 'control' && (
           <DataControlDashboard
             grants={grants}
@@ -571,23 +543,14 @@ export default function App() {
             onUpdateGrantPermissions={handleUpdateGrantPermissions}
           />
         )}
-
-        {activeTab === 'compensation' && (
-          <CompensationEngine
-            telemetryEvents={telemetryEvents}
-            totalPendingUsd={stats.pendingSettlementUsd}
-          />
-        )}
-
         {activeTab === 'footprints' && (
           <FootprintManager
             footprints={footprints}
             onToggleMonetization={handleToggleFootprint}
             onUpdatePrivacyTier={handleUpdatePrivacyTier}
-            onInspectDataSamples={(fp) => setInspectingFootprint(fp)}
+            onInspectDataSamples={() => undefined}
           />
         )}
-
         {activeTab === 'broker' && (
           <AiBrokerConsole
             policy={policy}
@@ -595,93 +558,7 @@ export default function App() {
             footprints={footprints}
           />
         )}
-
-        {activeTab === 'gpt_cowork' && (
-          <WorkTogetherWithGptStudio
-            policy={policy}
-            onUpdatePolicy={handleUpdatePolicy}
-            footprints={footprints}
-            onOpenSentinelTab={() => setActiveTab('sentinel')}
-          />
-        )}
-
-        {activeTab === 'ai_collaboration' && (
-          <AiModelsCollaborationManagement
-            policy={policy}
-            onUpdatePolicy={handleUpdatePolicy}
-            footprints={footprints}
-            onOpenBrokerTab={() => setActiveTab('broker')}
-          />
-        )}
-
-        {activeTab === 'marketplace' && (
-          <MarketplaceOffers
-            offers={offers}
-            onAcceptOffer={handleAcceptOffer}
-            onRejectOffer={handleRejectOffer}
-            onCounterOffer={handleCounterOffer}
-            policy={policy}
-          />
-        )}
-
-        {activeTab === 'patent' && (
-          <PatentDisclosureDossier
-            onOpenBrokerTab={() => setActiveTab('broker')}
-            onOpenSentinelTab={() => setActiveTab('sentinel')}
-            onOpenGptCoWorkTab={() => setActiveTab('gpt_cowork')}
-          />
-        )}
-
-        {activeTab === 'compute' && (
-          <IndependentComputeLayer />
-        )}
-
-        {activeTab === 'ai_ceo' && (
-          <AICeoControl />
-        )}
-
-        {activeTab === 'integrations' && (
-          <IntegrationControl />
-        )}
-
-        {activeTab === 'compliance' && (
-          <ComplianceScientistBot
-            policy={policy}
-            footprints={footprints}
-            exposures={exposures}
-            onOpenClawbackTab={() => setActiveTab('exposures')}
-            onOpenGptCoWorkTab={() => setActiveTab('gpt_cowork')}
-          />
-        )}
-
-        {activeTab === 'exposures' && (
-          <BrokerExposureAudit
-            exposures={exposures}
-            onOpenComplianceBot={() => setActiveTab('compliance')}
-          />
-        )}
       </main>
-
-      {/* Withdraw Modal */}
-      {isWithdrawOpen && (
-        <WithdrawModal
-          stats={stats}
-          policy={policy}
-          onClose={() => setIsWithdrawOpen(false)}
-          onWithdrawSuccess={handleWithdrawSuccess}
-          onUpdatePolicy={handleUpdatePolicy}
-        />
-      )}
-
-      {/* Data Noise & Sample Inspector Modal */}
-      {inspectingFootprint && (
-        <DataSampleModal
-          footprint={inspectingFootprint}
-          onClose={() => setInspectingFootprint(null)}
-          onUpdateEpsilon={(id, eps) => handleUpdatePrivacyTier(id, inspectingFootprint.privacyTier, eps)}
-        />
-      )}
-
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950/60 py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
