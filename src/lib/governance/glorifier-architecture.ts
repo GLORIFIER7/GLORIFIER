@@ -1,7 +1,7 @@
 export const GLORIFIER_ARCHITECTURE_MODEL = {
-  version: 'GLORIFIER-ARCH-3.2',
-  status: 'canonical',
-  identity: 'Governed, provider-neutral intelligence orchestration layer.',
+  version: 'GLORIFIER-ARCH-4.0',
+  status: 'canonical-consolidated',
+  identity: 'GLORIFIER = a provider-neutral, governed operating system for orchestrating heterogeneous intelligence, computation and execution under human authority.',
   authority: {
     architectureAuthority: 'GEAS',
     executionAuthority: 'human-owner-controlled',
@@ -47,7 +47,7 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
   glorifier: {
     role: 'governed-intelligence-orchestration-layer',
     purpose: 'Mediate between open ecosystem resources and modular intelligence processes.',
-    planes: ['human-authority','governance','intelligence','orchestration','connections','execution','evidence','economic-truth','learning-and-recovery'],
+    planes: ['human-authority','governance-kernel','provider-registry','capability-registry','ai-ceo','specialist-council','orchestration','connections','execution','verification','audit-evidence','economic-truth','self-healing-cicd','learning-and-recovery'],
     planeResponsibilities: {
       'human-authority': 'Final approval for irreversible external actions.',
       governance: 'GEAS policy, architecture controls, risk and authorization boundaries.',
@@ -57,6 +57,7 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
       execution: 'Agent harness, workers and services operating only within granted capabilities; sessions, bounded subagents, context control, sandbox-aware execution and human checkpoints.',
       evidence: 'Telemetry, provenance, lineage and verification state.',
       'economic-truth': 'Verified revenue, settlement and financial state only.',
+      'self-healing-cicd': 'Governed diagnosis, test, approval, merge, deploy and production verification loops.',
       'learning-and-recovery': 'Observability-driven improvement, remediation proposals and recovery.'
     }
   },
@@ -78,7 +79,9 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
     'Blockchain is optional trust anchoring and never the foundation of private application state.',
     'GLORIFIER must remain operationally useful when individual providers disappear or change.',
     'Unknown evidence remains UNKNOWN; absence of evidence is not compliance.',
-    'Architecture observations are read-only unless a separately governed, human-approved change is executed.'
+    'Architecture observations are read-only unless a separately governed, human-approved change is executed.',
+    'Additional providers and scientists are plugins; they do not create new architectural control planes.',
+    'The governance kernel, provider registry, capability registry, AI CEO, execution boundary, verification plane, and audit/evidence plane are stable core interfaces.'
   ]
 } as const;
 
