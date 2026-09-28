@@ -37,6 +37,7 @@ import { initializeVerifiedOutcomes, recordVerifiedOutcome } from './src/lib/ver
 import { initializeMonetizationTables, createCheckout, captureCheckout, getSubscription } from './src/lib/revenue/monetization';
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
 import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
+import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
@@ -2678,6 +2679,19 @@ app.post('/api/governance/geas/architecture/finops-decision', requireOwner, (req
     });
     return res.status(201).json({ ok: true, decision });
   } catch (error) { return apiError(res, 400, 'Unable to create FinOps architecture decision', error); }
+});
+
+// Consolidated architecture control plane: read-only operational surface.
+app.get('/api/architecture', (_req: Request, res: Response) => {
+  return res.json({
+    ok: true,
+    architecture: getArchitectureConsolidationSnapshot(),
+    capabilities: listCapabilities(),
+    providers: listArchitectureProviders(),
+    specialistPlugins: listSpecialistPlugins(),
+    verification: listVerificationRecords(),
+    audit: listArchitectureAudit(50),
+  });
 });
 
 // Unknown API routes must remain JSON. This prevents the SPA fallback from masquerading as an API response.
