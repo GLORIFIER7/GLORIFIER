@@ -14,7 +14,8 @@
     "build:android": "cross-env CAPACITOR_BUILD=true vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:open": "npx cap open android",
-    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs"
+    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "test:harness": "tsx src/lib/ai/agent-harness.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
