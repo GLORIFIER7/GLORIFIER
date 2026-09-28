@@ -9,3 +9,5 @@ export * from './internet-role-model';
 export * from './glorifier-architecture';
 export * from './geas-architecture-scientist';
 export * from './architecture-core';
+
+export * from './geas-reconciliation';

@@ -40,6 +40,7 @@ import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philos
 import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
+import { getGeasArchitectureManifest, validateGeasArchitectureManifest, evaluateAuthorityChain, attenuateAuthority, createTelemetryEnvelope, getGeasDegradedModeContracts, reconcileGeasArchitecture, persistGeasManifest, persistGeasAuthorityEnvelope, persistGeasTelemetryEnvelope, persistGeasReconciliation, persistGeasFinOpsRecord, initializeGeasReconciliation } from './src/lib/governance/geas-reconciliation';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
@@ -113,7 +114,8 @@ app.use('/api', (req: Request, res: Response, next) => {
     '/agents',
     '/governance',
     '/control-plane',
-    '/app-state'
+    '/app-state',
+    '/auth/session'
   ].some(prefix => pathName === prefix || pathName.startsWith(prefix + '/'));
   if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
   return requireAuthentication(req as any, res, next);
@@ -2694,6 +2696,98 @@ app.get('/api/architecture', (_req: Request, res: Response) => {
   });
 });
 
+
+// GEAS Architecture Reconciliation v1: read-only reconciliation, delegated authority,
+// correlated telemetry, explicit degraded modes, and architecture-aware FinOps records.
+app.get('/api/governance/geas/reconciliation/manifest', (_req: Request, res: Response) => {
+  const manifest = getGeasArchitectureManifest();
+  return res.json({ ok: true, manifest, validation: validateGeasArchitectureManifest(manifest) });
+});
+
+app.post('/api/governance/geas/reconciliation/validate', requireAuthentication, (req: Request, res: Response) => {
+  try {
+    return res.json({ ok: true, validation: validateGeasArchitectureManifest(req.body?.manifest) });
+  } catch (error) { return apiError(res, 400, 'Invalid GEAS architecture manifest', error); }
+});
+
+app.get('/api/governance/geas/reconciliation/degraded-modes', (_req: Request, res: Response) => {
+  return res.json({ ok: true, contracts: getGeasDegradedModeContracts() });
+});
+
+app.post('/api/governance/geas/reconciliation/run', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try {
+    const manifest = req.body?.manifest || getGeasArchitectureManifest();
+    const deployed = new Map<string, Record<string, unknown>>(Array.isArray(req.body?.deployed) ? req.body.deployed.map((x: any) => [String(x.id), x.state || {}]) : []);
+    const observed = new Map<string, Record<string, unknown>>(Array.isArray(req.body?.observed) ? req.body.observed.map((x: any) => [String(x.id), x.state || {}]) : []);
+    const exceptions = new Map<string, Record<string, unknown>>(Array.isArray(req.body?.exceptions) ? req.body.exceptions.map((x: any) => [String(x.id), x.state || {}]) : []);
+    const result = reconcileGeasArchitecture(manifest, deployed, observed, exceptions);
+    await persistGeasReconciliation(result);
+    return res.status(201).json({ ok: true, reconciliation: result });
+  } catch (error) { return apiError(res, 503, 'GEAS reconciliation unavailable', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/authority/evaluate', requireAuthentication, (req: Request, res: Response) => {
+  try {
+    const evaluation = evaluateAuthorityChain(req.body?.envelope, req.body?.requested);
+    return res.status(evaluation.allowed ? 200 : 403).json({ ok: evaluation.allowed, evaluation });
+  } catch (error) { return apiError(res, 400, 'GEAS authority evaluation failed', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/authority/attenuate', requireAuthentication, (req: Request, res: Response) => {
+  try {
+    const envelope = attenuateAuthority(req.body?.parent, req.body?.child);
+    return res.status(201).json({ ok: true, envelope });
+  } catch (error) { return apiError(res, 400, 'GEAS authority attenuation failed', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/authority', requireOwner, async (req: Request, res: Response) => {
+  try {
+    const envelope = req.body?.envelope;
+    if (!envelope?.delegationId || !envelope?.contextId) return apiError(res, 400, 'delegationId and contextId are required');
+    await persistGeasAuthorityEnvelope(envelope);
+    return res.status(201).json({ ok: true, envelope });
+  } catch (error) { return apiError(res, 503, 'GEAS authority store unavailable', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/telemetry', requireAuthentication, async (req: Request, res: Response) => {
+  try {
+    const envelope = createTelemetryEnvelope(req.body);
+    await persistGeasTelemetryEnvelope(envelope);
+    return res.status(201).json({ ok: true, telemetry: envelope });
+  } catch (error) { return apiError(res, 503, 'GEAS telemetry store unavailable', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/manifest/persist', requireOwner, async (_req: Request, res: Response) => {
+  try {
+    const manifest = getGeasArchitectureManifest();
+    return res.status(201).json({ ok: true, manifest: await persistGeasManifest(manifest) });
+  } catch (error) { return apiError(res, 503, 'GEAS manifest store unavailable', error); }
+});
+
+app.post('/api/governance/geas/reconciliation/finops', requireOwner, async (req: Request, res: Response) => {
+  try {
+    const input = req.body || {};
+    const record = {
+      id: String(input.id || 'geas-finops-' + randomUUID()),
+      contextId: String(input.contextId || randomUUID()),
+      workload: String(input.workload || ''),
+      options: Array.isArray(input.options) ? input.options.map(String) : [],
+      unitMetric: input.unitMetric ? String(input.unitMetric) : undefined,
+      expectedCost: input.expectedCost && typeof input.expectedCost === 'object' ? input.expectedCost : undefined,
+      valueMetric: input.valueMetric ? String(input.valueMetric) : undefined,
+      reliabilityImpact: input.reliabilityImpact ? String(input.reliabilityImpact) : undefined,
+      sovereigntyImpact: input.sovereigntyImpact ? String(input.sovereigntyImpact) : undefined,
+      sustainabilityImpact: input.sustainabilityImpact ? String(input.sustainabilityImpact) : undefined,
+      reversibility: ['high','medium','low'].includes(input.reversibility) ? input.reversibility : 'unknown',
+      selectedOption: input.selectedOption ? String(input.selectedOption) : undefined,
+      outcomeEvidenceRefs: Array.isArray(input.outcomeEvidenceRefs) ? input.outcomeEvidenceRefs.map(String) : [],
+      approvalRequired: input.approvalRequired !== false,
+      status: 'proposed' as const
+    };
+    return res.status(201).json({ ok: true, record: await persistGeasFinOpsRecord(record) });
+  } catch (error) { return apiError(res, 503, 'GEAS FinOps record store unavailable', error); }
+});
+
 // Unknown API routes must remain JSON. This prevents the SPA fallback from masquerading as an API response.
 app.post('/api/governed-actions', requireOwner, async (req: Request, res: Response) => {
   try {
@@ -2770,6 +2864,7 @@ app.post('/api/evidence/outcomes', async (req: Request, res: Response) => {
 app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endpoint not found'); });
 
 async function initializeBackend() {
+  if (process.env.DATABASE_URL) { try { await initializeGeasReconciliation(); } catch (error) { console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (!process.env.DATABASE_URL) { console.warn('[BackendInit] DATABASE_URL is not configured; database-backed APIs will remain unavailable.'); return; }
   const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator]];
   for (const [name, initialize] of initializers) { try { await initialize(); console.log(`[BackendInit] ${name}: ready`); } catch (error) { console.warn(`[BackendInit] ${name}: deferred`, error instanceof Error ? error.message : error); } }
