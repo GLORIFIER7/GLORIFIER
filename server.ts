@@ -449,7 +449,7 @@ async function callGeminiSafe({
   systemInstruction,
   temperature = 0.4,
   responseMimeType,
-  preferredModel = 'gemini-3.8-flash'
+  preferredModel = 'gemini-3.1-flash-lite'
 }: {
   contents: string;
   systemInstruction?: string;
