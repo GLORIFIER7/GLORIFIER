@@ -1,0 +1,28 @@
+# GLORIFIER Ubuntu LTS runtime
+# Ubuntu 24.04 LTS (Noble) + Node.js 22
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    NPM_CONFIG_FUND=false
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl git build-essential \
+ && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && node --version \
+ && npm --version \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]
