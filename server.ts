@@ -40,6 +40,7 @@ import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philos
 import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
+import { getPermanentGlorifierStack, validatePermanentStack } from './src/lib/governance/permanent-stack';
 import { getGeasArchitectureManifest, validateGeasArchitectureManifest, evaluateAuthorityChain, attenuateAuthority, createTelemetryEnvelope, getGeasDegradedModeContracts, reconcileGeasArchitecture, persistGeasManifest, persistGeasAuthorityEnvelope, persistGeasTelemetryEnvelope, persistGeasReconciliation, persistGeasFinOpsRecord, initializeGeasReconciliation } from './src/lib/governance/geas-reconciliation';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
@@ -2696,6 +2697,13 @@ app.get('/api/architecture', (_req: Request, res: Response) => {
   });
 });
 
+
+// Permanent GLORIFIER Stack: MCP/A2A interoperability above provider-neutral orchestration,
+// with GEAS governance, evidence boundaries, economic truth and Human Authority retained.
+app.get('/api/architecture/permanent-stack', (_req: Request, res: Response) => {
+  const stack = getPermanentGlorifierStack();
+  return res.json({ ok: true, stack, validation: validatePermanentStack(stack) });
+});
 
 // GEAS Architecture Reconciliation v1: read-only reconciliation, delegated authority,
 // correlated telemetry, explicit degraded modes, and architecture-aware FinOps records.
