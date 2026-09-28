@@ -8,4 +8,4 @@ export * from './linux-philosophy';
 export * from './internet-role-model';
 export * from './glorifier-architecture';
 export * from './geas-architecture-scientist';
-\nexport * from './architecture-core';\n
+export * from './architecture-core';
