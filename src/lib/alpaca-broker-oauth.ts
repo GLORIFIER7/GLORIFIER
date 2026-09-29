@@ -113,13 +113,13 @@ export async function initializeAlpacaBrokerOAuth() {
   `);
 }
 
-export function buildAlpacaAuthorizationUrl(userId: string, env: BrokerEnv = 'live') {
+export async function buildAlpacaAuthorizationUrl(userId: string, env: BrokerEnv = 'live') {
   const clientId = required('ALPACA_OAUTH_CLIENT_ID');
   const redirectUri = callbackUrl();
   const state = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const db = getPostgresPool();
-  void db.query(
+  await db.query(
     'INSERT INTO broker_oauth_states(state_hash,provider,user_id,env,redirect_uri,expires_at) VALUES($1,$2,$3,$4,$5,$6)',
     [hashState(state), 'alpaca', userId, env, redirectUri, expiresAt]
   );
