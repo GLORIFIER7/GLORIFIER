@@ -28,11 +28,10 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export async function collectDeviceSnapshot(): Promise<GlorifierDeviceSnapshot> {
-  const [info, id, language, app] = await Promise.all([
+  const [info, id, language] = await Promise.all([
     Device.getInfo(),
     Device.getId(),
-    Device.getLanguageTag().catch(() => ({ value: undefined })),
-    Device.getAppInfo().catch(() => ({ version: undefined, build: undefined }))
+    Device.getLanguageTag().catch(() => ({ value: undefined }))
   ]);
 
   return {
@@ -43,8 +42,8 @@ export async function collectDeviceSnapshot(): Promise<GlorifierDeviceSnapshot> 
     osName: info.operatingSystem || undefined,
     osVersion: info.osVersion || undefined,
     webViewVersion: info.webViewVersion || undefined,
-    appVersion: app.version || undefined,
-    appBuild: app.build || undefined,
+    appVersion: info.appVersion || undefined,
+    appBuild: info.appBuild || undefined,
     language: language.value || undefined,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
     isVirtual: info.isVirtual,
