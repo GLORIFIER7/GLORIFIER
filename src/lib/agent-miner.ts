@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { getProviderCircuitStatus } from './ai/registry';
 
 export type MinerMode = 'intelligence' | 'authorized-compute';
 export type MinerStatus = 'RUNNING' | 'PAUSED' | 'DEGRADED' | 'STOPPED';
@@ -80,8 +81,16 @@ export function setComputeWorkerAuthorization(enabled: boolean) {
 export async function runAgentMinerCycle(): Promise<MinerCycle> {
   const startedAt = new Date().toISOString();
   const id = randomUUID();
+  // Provider Registry is authoritative for AI-provider availability. The miner never
+  // claims a provider is healthy merely because a configuration entry exists.
+  const registry = new Map(getProviderCircuitStatus().map((p) => [p.id, p]));
   const enabledProviders = providers.filter((p) => p.enabled && (p.kind !== 'compute-worker' || mode === 'authorized-compute'));
-  const healthyProviders = enabledProviders.filter((p) => p.healthy || p.kind === 'market-data');
+  const healthyProviders = enabledProviders.filter((p) => {
+    if (p.kind === 'market-data') return p.healthy;
+    if (p.kind !== 'ai-model') return p.healthy;
+    const state = registry.get(p.id);
+    return state?.configured === true && state.circuit === 'available';
+  });
 
   const cycle: MinerCycle = {
     id,
@@ -106,14 +115,17 @@ export async function runAgentMinerCycle(): Promise<MinerCycle> {
   return cycle;
 }
 
+let daemonTimer: ReturnType<typeof setInterval> | null = null;
+
 export function startAgentMinerDaemon() {
-  if (process.env.AGENT_MINER_DAEMON !== 'true') return;
+  if (process.env.AGENT_MINER_DAEMON !== 'true' || daemonTimer) return;
   if (status === 'STOPPED') return;
   status = 'RUNNING';
   const intervalMs = Math.max(60_000, Number(process.env.AGENT_MINER_INTERVAL_MS) || 300_000);
   void runAgentMinerCycle().catch(() => { status = 'DEGRADED'; });
-  setInterval(() => {
+  daemonTimer = setInterval(() => {
     if (status !== 'RUNNING') return;
     void runAgentMinerCycle().catch(() => { status = 'DEGRADED'; });
   }, intervalMs);
 }
+
