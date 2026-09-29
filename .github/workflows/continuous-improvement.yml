@@ -20,15 +20,12 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
-
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-
+          cache-dependency-path: package.json
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - name: AI improvement analysis
         id: improve
         continue-on-error: true
@@ -44,14 +41,11 @@ jobs:
           META_MODEL: ${{ vars.META_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/continuous-improvement-agent.mjs
-
       - name: Governed result
         if: always()
         run: |
           if [ "${{ steps.improve.outcome }}" = "success" ]; then
-            echo "Improvement analysis completed."
-            echo "No direct push to main is permitted; changes require review and passing CI."
+            echo "Improvement analysis completed. No direct push to main is permitted."
           else
-            echo "Improvement analysis failed or provider was unavailable."
-            echo "No repository mutation was attempted."
+            echo "Improvement analysis failed or provider was unavailable; no repository mutation was attempted."
           fi
