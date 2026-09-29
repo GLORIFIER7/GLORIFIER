@@ -19,7 +19,9 @@
     "test:architecture": "tsx src/lib/governance/architecture-core.test.ts",
     "test:geas-reconciliation": "tsx src/lib/governance/geas-reconciliation.test.ts",
     "test:permanent-stack": "tsx src/lib/governance/permanent-stack.test.ts",
-    "test:agent-miner": "tsx src/lib/agent-miner.test.ts"
+    "test:agent-miner": "tsx src/lib/agent-miner.test.ts",
+    "test:geas-enterprise-controls": "tsx src/lib/governance/geas-enterprise-controls.test.ts",
+    "test:geas-all": "npm run test:geas-reconciliation && npm run test:geas-enterprise-controls"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
