@@ -140,19 +140,6 @@ export async function verifyBinanceReadOnlyConnection() {
     result.authentication = 'verified';
 
     const account = await signedGet<BinanceAccountStatus>('/sapi/v1/account/status');
-    result.permissions = {
-      reading: permissions.enableReading === true,
-      withdrawals: permissions.enableWithdrawals === true,
-      internalTransfer: permissions.enableInternalTransfer === true,
-      universalTransfer: permissions.permitsUniversalTransfer === true,
-      margin: permissions.enableMargin === true,
-      futures: permissions.enableFutures === true,
-      options: permissions.enableVanillaOptions === true,
-      spotAndMarginTrading: permissions.enableSpotAndMarginTrading === true,
-      portfolioMarginTrading: permissions.enablePortfolioMarginTrading === true,
-      apiTrade: permissions.enableFixApiTrade === true,
-      apiFixReadOnly: permissions.enableFixReadOnly === true
-    };
     result.accountStatus = account.data || 'unknown';
     if (result.safeForReadOnly) {
       const spotAccount = await signedGet<BinanceSpotAccount>('/api/v3/account');
@@ -189,18 +176,6 @@ export async function verifyBinanceReadOnlyConnection() {
       }
     }
 
-    result.safeForReadOnly =
-      result.configuredReadOnlyFlag &&
-      result.permissions.reading &&
-      !result.permissions.withdrawals &&
-      !result.permissions.internalTransfer &&
-      !result.permissions.universalTransfer &&
-      !result.permissions.margin &&
-      !result.permissions.futures &&
-      !result.permissions.options &&
-      !result.permissions.spotAndMarginTrading &&
-      !result.permissions.portfolioMarginTrading &&
-      !result.permissions.apiTrade;
   } catch (error) {
     result.authentication = 'failed';
     const safeError = error as Error & { code?: number };
