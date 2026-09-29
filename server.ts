@@ -254,6 +254,7 @@ const integrationStatus = [
   { id: 'netlify', name: 'Netlify', category: 'frontend', status: 'available', detail: 'Existing public frontend deployment surface', publicUrl: 'https://www.netlify.com/' },
   { id: 'neon', name: 'Neon', category: 'data', status: process.env.DATABASE_URL ? 'configured' : 'needs-config', detail: process.env.DATABASE_URL ? 'PostgreSQL ledger configured' : 'DATABASE_URL required for authoritative ledger', publicUrl: 'https://neon.tech/' },
   { id: 'binance', name: 'Binance', category: 'digital-assets', status: 'public-monitoring', detail: 'Public NFT/market surface; private keys excluded', publicUrl: 'https://www.binance.com/' },
+  { id: 'alpaca', name: 'Alpaca / GoTrade Broker', category: 'brokerage', status: process.env.ALPACA_OAUTH_CLIENT_ID ? 'configured' : 'needs-config', detail: 'OAuth read-only brokerage connector; trading and fund movement disabled', publicUrl: 'https://alpaca.markets/' },
   { id: 'web', name: 'Public Web', category: 'monitoring', status: 'connected', detail: 'Public-source intelligence aggregation and evidence tracking', publicUrl: 'https://news.google.com/' },
   { id: 'google-cloud', name: 'Google Cloud', category: 'optional-ai', status: 'optional', detail: 'Optional intelligence layer; not required by core infrastructure', publicUrl: 'https://cloud.google.com/' },
   { id: 'hugging-face', name: 'Hugging Face', category: 'ai-ecosystem', status: 'connected', detail: 'Authenticated model, dataset, paper, Space and compute collaboration surface', publicUrl: 'https://huggingface.co/' },
@@ -597,8 +598,7 @@ async function runModelExecution({
 
   // AI CEO -> Provider Registry -> authenticated providers.
   // The registry is the single provider-selection boundary; it never fabricates output.
-  const registryResult = await executeThroughProviderRegistry({
-    model: chosenModel,
+  const registryResult = await executeThroughProviderRegistry({    model: chosenModel,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -1198,7 +1198,6 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
     });
 
     let replyText = execution.text;
-
     if (!replyText) {
       return res.status(503).json({ ok: false, error: 'No verified AI/provider response is currently available.', providerStatus: 'No live broker response was returned; no synthetic answer was generated.' });
       /* replyText = `[Autonomous Broker via ${chosenModel}]: I have analyzed your command "${message}". Under your configured threshold ($${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo floor, \u03b5=${currentPolicy?.globalEpsilon || 0.35}), your active data streams are securely shielded. Academic research and sovereign frontier AI pre-training licensing remain enabled, while ad-targeting and shadow brokers are quarantined.`;
@@ -1797,8 +1796,7 @@ app.post('/api/sentinel/crud', async (req: Request, res: Response) => {
         action: 'DELETE',
         details: `Error [${errorId}] deleted from active alert registry and quarantined to audit archive.`,
         errorId,
-        model: 'GPT-Sentinel'
-      };
+        model: 'GPT-Sentinel'      };
       serverSentinelLogs.unshift(deleteLog);
       return res.json({ success: true, message: 'Error log purged from active monitoring registry', log: deleteLog });
     }
@@ -2397,8 +2395,7 @@ app.get('/api/valuation', async (_req: Request, res: Response) => {
 
 app.get('/api/assets/providers/binance-public/quote/:symbol', async (req: Request, res: Response) => {
   try {
-    const quote = await getBinancePublicQuote(String(req.params.symbol));
-    return res.json({ ok: true, ...quote });
+    const quote = await getBinancePublicQuote(String(req.params.symbol));    return res.json({ ok: true, ...quote });
   } catch (error) { return apiError(res, 502, 'Binance public quote unavailable', error); }
 });
 
