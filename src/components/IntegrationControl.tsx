@@ -78,6 +78,8 @@ export const IntegrationControl: React.FC = () => {
   const [bountyPrograms, setBountyPrograms] = useState<any[]>([]);
   const [bountyFindings, setBountyFindings] = useState<any[]>([]);
   const [bountyRevenue, setBountyRevenue] = useState<any[]>([]);
+  const [brokerStatus, setBrokerStatus] = useState<any[]>([]);
+  const [brokerMessage, setBrokerMessage] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -104,6 +106,9 @@ export const IntegrationControl: React.FC = () => {
 
       const revenueResponse = await fetch('/api/bounties/revenue', { cache: 'no-store' });
       if (revenueResponse.ok) setBountyRevenue((await revenueResponse.json()).summary || []);
+
+      const brokerResponse = await fetch('/api/broker/alpaca/status', { cache: 'no-store' });
+      if (brokerResponse.ok) setBrokerStatus((await brokerResponse.json()).status || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load integration registry');
     } finally {
@@ -197,6 +202,55 @@ export const IntegrationControl: React.FC = () => {
         <button onClick={() => void load()} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Broker asset connector</div>
+            <h3 className="text-lg font-semibold text-white mt-1">Alpaca / GoTrade authorization</h3>
+            <p className="text-xs text-slate-400 mt-1">OAuth authorization only. GLORIFIER stores tokens encrypted and permits account, cash, positions, activities/transfers and portfolio-history reads. Trading and fund movement are disabled.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={async () => {
+              try {
+                setBrokerMessage('Opening official Alpaca authorization…');
+                const response = await fetch('/api/broker/alpaca/connect?env=live', { cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'OAuth configuration unavailable');
+                window.location.assign(data.authorizationUrl);
+              } catch (err) { setBrokerMessage(err instanceof Error ? err.message : 'Unable to start broker authorization'); }
+            }} className="px-3 py-2 bg-white text-slate-950 text-xs font-semibold rounded-lg hover:bg-slate-200">
+              Connect live account
+            </button>
+            <button onClick={async () => {
+              try {
+                setBrokerMessage('Opening official Alpaca paper authorization…');
+                const response = await fetch('/api/broker/alpaca/connect?env=paper', { cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'OAuth configuration unavailable');
+                window.location.assign(data.authorizationUrl);
+              } catch (err) { setBrokerMessage(err instanceof Error ? err.message : 'Unable to start paper authorization'); }
+            }} className="px-3 py-2 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg hover:bg-slate-900">
+              Connect paper account
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+          {[
+            ['Account / cash', 'Read only'],
+            ['Positions', 'Read only'],
+            ['Activities / transfers', 'Read only'],
+            ['Trading / fund movement', 'Disabled']
+          ].map(([label,value]) => <div key={label} className="border border-slate-800 p-3"><div className="text-[10px] uppercase text-slate-500">{label}</div><div className="text-xs text-slate-200 mt-1">{value}</div></div>)}
+        </div>
+        {brokerStatus.length > 0 && <div className="mt-4 space-y-2">
+          {brokerStatus.map((item:any) => <div key={item.id} className="border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-emerald-300 font-semibold">Authorized · {item.environment}</span><span className="text-slate-500">{item.accountRef || 'account id unavailable'}</span></div>
+            <div className="text-slate-400 mt-1">Read-only: yes · Trading: disabled · Fund movement: disabled</div>
+          </div>)}
+        </div>}
+        {brokerMessage && <div className="mt-3 text-xs text-slate-400">{brokerMessage}</div>}
       </div>
 
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
