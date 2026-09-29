@@ -44,6 +44,7 @@ import { getPermanentGlorifierStack, validatePermanentStack } from './src/lib/go
 import { getGeasArchitectureManifest, validateGeasArchitectureManifest, evaluateAuthorityChain, attenuateAuthority, createTelemetryEnvelope, getGeasDegradedModeContracts, reconcileGeasArchitecture, persistGeasManifest, persistGeasAuthorityEnvelope, persistGeasTelemetryEnvelope, persistGeasReconciliation, persistGeasFinOpsRecord, initializeGeasReconciliation } from './src/lib/governance/geas-reconciliation';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest } from './src/lib/auth/backend-auth';
 import { startAutonomousAuthenticationVerificationDaemon, getAutonomousAuthenticationVerificationSnapshot, runAutonomousAuthenticationVerification } from './src/lib/autonomous-auth-verification';
+import { startGlobalVerificationFabric, getGlobalVerificationFabricSnapshot, runGlobalVerificationFabricNow } from './src/lib/global-verification-fabric';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
@@ -2960,6 +2961,19 @@ app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
 });
 
 // 24x7 Agent Miner: public status, authenticated controls, and evidence-first cycles.
+app.get('/api/global-verification/status', (_req: Request, res: Response) => {
+  return res.json(getGlobalVerificationFabricSnapshot());
+});
+
+app.post('/api/global-verification/run', requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try {
+    const verification = await runGlobalVerificationFabricNow('authorized-request');
+    return res.status(201).json({ ok: true, verification });
+  } catch (error) {
+    return apiError(res, 503, 'Global verification cycle failed', error);
+  }
+});
+
 app.get('/api/autonomous-verification/status', (_req: Request, res: Response) => {
   return res.json(getAutonomousAuthenticationVerificationSnapshot());
 });
@@ -3030,6 +3044,7 @@ async function startServer() {
   }
   try { startAgentMinerDaemon(); console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.'); } catch (error) { console.warn('[AgentMiner] daemon init deferred:', error); }
   try { startAutonomousAuthenticationVerificationDaemon(); } catch (error) { console.warn('[AutonomousVerification] daemon init deferred:', error); }
+  try { startGlobalVerificationFabric(); } catch (error) { console.warn('[GlobalVerificationFabric] daemon init deferred:', error); }
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
