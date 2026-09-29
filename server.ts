@@ -331,7 +331,7 @@ app.get('/api/broker/alpaca/connect', requireAuthentication, async (req: Request
   try {
     const uid = String((req as any).auth?.uid || '').trim();
     const env = req.query.env === 'paper' ? 'paper' : 'live';
-    const result = buildAlpacaAuthorizationUrl(uid, env);
+    const result = await buildAlpacaAuthorizationUrl(uid, env);
     return res.json({ ok: true, ...result, provider: 'alpaca', permissions: { readOnly: true, trading: false, fundMovement: false } });
   } catch (error) { return apiError(res, 503, 'Alpaca OAuth is not configured', error); }
 });
@@ -697,8 +697,7 @@ app.get('/api/runtime-verification', async (req: Request, res: Response) => {
       const pool = getPostgresPool();
       const dbStarted = Date.now();
       await pool.query('SELECT 1');
-      checks.database = { ok: true, latencyMs: Date.now() - dbStarted, source: 'neon-postgresql' };
-    } catch (error) {
+      checks.database = { ok: true, latencyMs: Date.now() - dbStarted, source: 'neon-postgresql' };    } catch (error) {
       checks.database = { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
@@ -1397,8 +1396,7 @@ Return JSON with { documentTitle: string, legalNotice: string }`;
     /* res.json({
       documentTitle: `STATUTORY NOTICE OF DATA ERASURE & ACCOUNTING OF PROFITS`,
       legalNotice: `DEMAND FOR IMMEDIATE EXPUNGEMENT AND STATUTORY ACCOUNTING\n\nTo: Compliance Officer, ${brokerName}\n\nPursuant to ${complianceStatute || 'CCPA § 1798.105, GDPR Art. 17, and the California Delete Act'}:\n\n1. You are hereby formally notified to immediately purge, delete, and cease commercial syndication of all consumer profiles, device telemetry, and identity graphs associated with the undersigned (estimated ${recordCount || 350} records held).\n2. Provide a cryptographic Certificate of Deletion within thirty (30) calendar days.\n3. Disclose all third-party downstream licensees who received telemetry for financial gain.`,
-      modelUsed: chosenModel,
-      provider: 'GPT Legal Synthesis'
+      modelUsed: chosenModel,      provider: 'GPT Legal Synthesis'
     }); */
   } catch (err: any) {
     console.error('Clawback error:', err);
@@ -2098,7 +2096,6 @@ app.post('/api/sync/global', requireOwnerOrInternalService, async (req: Request,
     res.status(500).json({ ok: false, error: 'Global synchronization failed', details: error?.message });
   }
 });
-
 // ============================================================================
 // AGENT REGISTRY & SYNCHRONIZATION
 // Required by IntegrationControl and cross-platform multi-agent protocols.
@@ -2797,8 +2794,7 @@ app.post('/api/governance/geas/reconciliation/authority/evaluate', requireAuthen
 
 app.post('/api/governance/geas/reconciliation/authority/attenuate', requireAuthentication, (req: Request, res: Response) => {
   try {
-    const envelope = attenuateAuthority(req.body?.parent, req.body?.child);
-    return res.status(201).json({ ok: true, envelope });
+    const envelope = attenuateAuthority(req.body?.parent, req.body?.child);    return res.status(201).json({ ok: true, envelope });
   } catch (error) { return apiError(res, 400, 'GEAS authority attenuation failed', error); }
 });
 
