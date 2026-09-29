@@ -47,6 +47,7 @@ import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from 
 import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVerification, issueAssetCryptographicChallenge, verifyAssetCryptographicProof } from './src/lib/cryptographic-asset-verification';
+import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 
 import { 
   getScientistFleet, 
@@ -65,6 +66,7 @@ dotenv.config();
 void initializeMonetizationTables().catch((error) => console.warn('[Monetization] initialization deferred:', error?.message));
 void initializePayoutRegistry().catch((error) => console.warn('[Payouts] initialization deferred:', error?.message));
 void initializeCryptographicAssetVerification().catch((error) => console.warn('[CryptoAssetVerification] initialization deferred:', error?.message));
+void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
@@ -2866,6 +2868,85 @@ app.post('/api/evidence/outcomes', async (req: Request, res: Response) => {
     res.status(201).json({ ok: true, outcome });
   } catch (error) {
     apiError(res, 400, error instanceof Error ? error.message : 'Unable to record evidence');
+  }
+});
+
+// Governed Android/mobile device integration. Device data is user-scoped and requires Firebase ID-token authentication.
+app.post('/api/mobile/device/register', async (req: Request, res: Response) => {
+  try {
+    const uid = String((req as any).auth?.uid || '').trim();
+    if (!uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const input = req.body || {};
+    const device = await registerMobileDevice(uid, {
+      deviceId: String(input.deviceId || '').trim(),
+      platform: String(input.platform || '').trim(),
+      manufacturer: input.manufacturer ? String(input.manufacturer) : undefined,
+      model: input.model ? String(input.model) : undefined,
+      osName: input.osName ? String(input.osName) : undefined,
+      osVersion: input.osVersion ? String(input.osVersion) : undefined,
+      webViewVersion: input.webViewVersion ? String(input.webViewVersion) : undefined,
+      appVersion: input.appVersion ? String(input.appVersion) : undefined,
+      appBuild: input.appBuild ? String(input.appBuild) : undefined,
+      language: input.language ? String(input.language) : undefined,
+      timezone: input.timezone ? String(input.timezone) : undefined,
+      isVirtual: typeof input.isVirtual === 'boolean' ? input.isVirtual : undefined
+    });
+    return res.status(201).json({
+      ok: true,
+      device,
+      governance: {
+        scope: 'authenticated-user',
+        rawAppData: false,
+        locationCollection: false,
+        contactsCollection: false,
+        messageContentCollection: false
+      },
+      registeredAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return apiError(res, 400, 'Unable to register mobile device', error);
+  }
+});
+
+app.get('/api/mobile/device/me', async (req: Request, res: Response) => {
+  try {
+    const uid = String((req as any).auth?.uid || '').trim();
+    if (!uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const device = await getMobileDevice(uid);
+    return res.json({ ok: true, device, scope: 'authenticated-user' });
+  } catch (error) {
+    return apiError(res, 503, 'Unable to read mobile device registry', error);
+  }
+});
+
+app.post('/api/mobile/device/telemetry', async (req: Request, res: Response) => {
+  try {
+    const uid = String((req as any).auth?.uid || '').trim();
+    if (!uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const eventType = String(req.body?.eventType || '').trim();
+    const deviceId = String(req.body?.deviceId || '').trim();
+    if (!eventType || !deviceId) return apiError(res, 400, 'deviceId and eventType are required');
+    await recordMobileTelemetry(uid, {
+      deviceId,
+      eventType,
+      properties: req.body?.properties && typeof req.body.properties === 'object' ? req.body.properties : {},
+      occurredAt: req.body?.occurredAt ? String(req.body.occurredAt) : undefined
+    });
+    return res.status(201).json({ ok: true, recorded: true, truth: 'observed-mobile-telemetry' });
+  } catch (error) {
+    return apiError(res, 400, 'Unable to record mobile telemetry', error);
+  }
+});
+
+app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
+  try {
+    const uid = String((req as any).auth?.uid || '').trim();
+    if (!uid) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const deviceId = req.body?.deviceId ? String(req.body.deviceId).trim() : undefined;
+    const revoked = await revokeMobileDevice(uid, deviceId);
+    return res.json({ ok: true, revokedCount: revoked.length, governance: { futureRegistrationRequiresAuthenticatedUser: true } });
+  } catch (error) {
+    return apiError(res, 503, 'Unable to revoke mobile device', error);
   }
 });
 
