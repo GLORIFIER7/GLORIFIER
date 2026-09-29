@@ -51,6 +51,7 @@ const TABLES = {
   grants: 'app_grants',
   telemetry: 'app_telemetry',
   transactions: 'app_transactions',
+  telemetryEvents: 'app_telemetry',
   footprints: 'app_footprints',
   exposures: 'app_exposures',
 } as const;

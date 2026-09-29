@@ -48,7 +48,8 @@ import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVerification, issueAssetCryptographicChallenge, verifyAssetCryptographicProof } from './src/lib/cryptographic-asset-verification';
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
-import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon } from './src/lib/agent-miner';
+import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
+import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 
 import { 
   getScientistFleet, 
@@ -2981,6 +2982,7 @@ app.post('/api/agent-miner/run', requireOwner, async (_req: Request, res: Respon
 app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endpoint not found'); });
 
 async function initializeBackend() {
+  if (process.env.DATABASE_URL) { try { await initializeAgentMinerState(); await restoreAgentMinerState(); } catch (error) { console.warn('[AgentMinerState] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (process.env.DATABASE_URL) { try { await initializeGeasReconciliation(); } catch (error) { console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (!process.env.DATABASE_URL) { console.warn('[BackendInit] DATABASE_URL is not configured; database-backed APIs will remain unavailable.'); return; }
   const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator]];

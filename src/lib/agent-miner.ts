@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { getProviderCircuitStatus } from './ai/registry';
+import { loadAgentMinerState, persistAgentMinerCycle, persistAgentMinerState } from './agent-miner-state';
 
 export type MinerMode = 'intelligence' | 'authorized-compute';
 export type MinerStatus = 'RUNNING' | 'PAUSED' | 'DEGRADED' | 'STOPPED';
@@ -40,6 +42,25 @@ let status: MinerStatus = 'PAUSED';
 let mode: MinerMode = 'intelligence';
 let lastCycle: MinerCycle | null = null;
 let cyclesCompleted = 0;
+let computeAuthorized = false;
+
+export async function restoreAgentMinerState() {
+  try {
+    const saved = await loadAgentMinerState();
+    if (!saved) return getAgentMinerSnapshot();
+    status = saved.status as MinerStatus;
+    mode = saved.mode as MinerMode;
+    computeAuthorized = Boolean(saved.compute_authorized);
+    const worker = providers.find((p) => p.id === 'compute-worker');
+    if (worker) worker.enabled = computeAuthorized;
+  } catch {
+    // Persistence is advisory; the daemon remains fail-safe and never enables compute by default.
+    computeAuthorized = false;
+    const worker = providers.find((p) => p.id === 'compute-worker');
+    if (worker) worker.enabled = false;
+  }
+  return getAgentMinerSnapshot();
+}
 
 export function getAgentMinerSnapshot() {
   return {
@@ -64,6 +85,7 @@ export function getAgentMinerSnapshot() {
 export function setAgentMinerRunning(running: boolean, requestedMode?: MinerMode) {
   if (requestedMode) mode = requestedMode;
   status = running ? 'RUNNING' : 'PAUSED';
+  void persistAgentMinerState(status, mode, computeAuthorized).catch(() => undefined);
   return getAgentMinerSnapshot();
 }
 
@@ -72,16 +94,27 @@ export function setComputeWorkerAuthorization(enabled: boolean) {
   if (worker) {
     worker.enabled = enabled;
     if (!enabled) worker.healthy = false;
+    computeAuthorized = enabled;
   }
   if (enabled && mode === 'intelligence') mode = 'authorized-compute';
+  if (!enabled && mode === 'authorized-compute') mode = 'intelligence';
+  void persistAgentMinerState(status, mode, computeAuthorized).catch(() => undefined);
   return getAgentMinerSnapshot();
 }
 
 export async function runAgentMinerCycle(): Promise<MinerCycle> {
   const startedAt = new Date().toISOString();
   const id = randomUUID();
+  // Provider Registry is authoritative for AI-provider availability. The miner never
+  // claims a provider is healthy merely because a configuration entry exists.
+  const registry = new Map(getProviderCircuitStatus().map((p) => [p.id, p]));
   const enabledProviders = providers.filter((p) => p.enabled && (p.kind !== 'compute-worker' || mode === 'authorized-compute'));
-  const healthyProviders = enabledProviders.filter((p) => p.healthy || p.kind === 'market-data');
+  const healthyProviders = enabledProviders.filter((p) => {
+    if (p.kind === 'market-data') return p.healthy;
+    if (p.kind !== 'ai-model') return p.healthy;
+    const state = registry.get(p.id);
+    return state?.configured === true && state.circuit === 'available';
+  });
 
   const cycle: MinerCycle = {
     id,
@@ -103,17 +136,22 @@ export async function runAgentMinerCycle(): Promise<MinerCycle> {
   lastCycle = cycle;
   cyclesCompleted += 1;
   if (!healthyProviders.length) status = 'DEGRADED';
+  void persistAgentMinerCycle(cycle).catch(() => undefined);
+  void persistAgentMinerState(status, mode, computeAuthorized).catch(() => undefined);
   return cycle;
 }
 
+let daemonTimer: ReturnType<typeof setInterval> | null = null;
+
 export function startAgentMinerDaemon() {
-  if (process.env.AGENT_MINER_DAEMON !== 'true') return;
+  if (process.env.AGENT_MINER_DAEMON !== 'true' || daemonTimer) return;
   if (status === 'STOPPED') return;
   status = 'RUNNING';
   const intervalMs = Math.max(60_000, Number(process.env.AGENT_MINER_INTERVAL_MS) || 300_000);
   void runAgentMinerCycle().catch(() => { status = 'DEGRADED'; });
-  setInterval(() => {
+  daemonTimer = setInterval(() => {
     if (status !== 'RUNNING') return;
     void runAgentMinerCycle().catch(() => { status = 'DEGRADED'; });
   }, intervalMs);
 }
+
