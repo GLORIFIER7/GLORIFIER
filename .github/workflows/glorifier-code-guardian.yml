@@ -22,17 +22,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
-
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Run governed guardian analysis
-        id: guardian
+          cache-dependency-path: package.json
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - id: guardian
         continue-on-error: true
         env:
           GUARDIAN_PROVIDER: ${{ vars.GUARDIAN_PROVIDER }}
@@ -43,12 +39,11 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/code-guardian.mjs
-
       - name: Report guardian result
         if: always()
         run: |
           if [ "${{ steps.guardian.outcome }}" = "success" ]; then
-            echo "Guardian completed. Any proposed repair remains subject to normal review/CI."
+            echo "Guardian completed. Proposed repairs remain subject to normal review and CI."
           else
-            echo "Guardian analysis failed or was unavailable; no repository mutation was attempted."
+            echo "Guardian analysis failed or provider was unavailable; no repository mutation was attempted."
           fi
