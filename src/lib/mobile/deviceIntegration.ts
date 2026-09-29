@@ -42,8 +42,6 @@ export async function collectDeviceSnapshot(): Promise<GlorifierDeviceSnapshot> 
     osName: info.operatingSystem || undefined,
     osVersion: info.osVersion || undefined,
     webViewVersion: info.webViewVersion || undefined,
-    appVersion: info.appVersion || undefined,
-    appBuild: info.appBuild || undefined,
     language: language.value || undefined,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
     isVirtual: info.isVirtual,
