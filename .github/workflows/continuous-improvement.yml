@@ -1,16 +1,12 @@
-name: GLORIFIER AI 24/7 Autonomous Development Bot
+name: GLORIFIER AI 24/7 Governed Improvement
 
 on:
-  push:
-    branches:
-      - main
   schedule:
     - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 concurrency:
   group: glorifier-autonomous-improvement
@@ -28,11 +24,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: AI autonomous development cycle
+      - name: AI improvement analysis
         id: improve
         continue-on-error: true
         env:
@@ -48,28 +45,13 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/continuous-improvement-agent.mjs
 
-      - name: Auto-commit verified improvement
-        if: steps.improve.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Governed result
+        if: always()
         run: |
-          if git diff --quiet; then
-            echo "No improvement produced."
-            exit 0
+          if [ "${{ steps.improve.outcome }}" = "success" ]; then
+            echo "Improvement analysis completed."
+            echo "No direct push to main is permitted; changes require review and passing CI."
+          else
+            echo "Improvement analysis failed or provider was unavailable."
+            echo "No repository mutation was attempted."
           fi
-          git config user.name "Glorifier AI Autonomous Agent"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: autonomous Glorifier AI improvement"
-          git push origin HEAD:main
-
-      - name: Self-heal failed development cycle
-        if: steps.improve.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/self-healing-agent.mjs
-
-      - name: Fail only after self-healing attempt
-        if: steps.improve.outcome == 'failure'
-        run: exit 1
