@@ -1,28 +1,38 @@
-name: GLORIFIER AI Autonomous Code Guardian
+name: GLORIFIER AI Code Guardian
+
 on:
   push:
     branches: [main]
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
 concurrency:
   group: glorifier-code-guardian
   cancel-in-progress: true
+
 jobs:
   guardian:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
-      - id: guardian
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run governed guardian analysis
+        id: guardian
         continue-on-error: true
         env:
           GUARDIAN_PROVIDER: ${{ vars.GUARDIAN_PROVIDER }}
@@ -33,13 +43,12 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/code-guardian.mjs
-      - if: steps.guardian.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+      - name: Report guardian result
+        if: always()
         run: |
-          if git diff --quiet; then exit 0; fi
-          git config user.name "Glorifier AI Guardian"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: automated Glorifier AI guardian repair"
-          git push origin HEAD:main
+          if [ "${{ steps.guardian.outcome }}" = "success" ]; then
+            echo "Guardian completed. Any proposed repair remains subject to normal review/CI."
+          else
+            echo "Guardian analysis failed or was unavailable; no repository mutation was attempted."
+          fi
