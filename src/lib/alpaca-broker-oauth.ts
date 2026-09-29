@@ -217,7 +217,7 @@ export async function handleAlpacaCallback(code: string, state: string) {
     provider: 'alpaca',
     displayName: row.env === 'live' ? 'Alpaca Brokerage (Live, read-only)' : 'Alpaca Brokerage (Paper, read-only)',
     authType: 'oauth2',
-    status: 'connected',
+    status: 'authorized',
     scopes: token.scope ? token.scope.split(/\s+/).filter(Boolean) : ['read-only'],
     risk: 'high',
     accountRef: null,
