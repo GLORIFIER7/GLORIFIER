@@ -48,6 +48,7 @@ import { getGlorifierIdentity } from './src/lib/identity/glorifier-identity';
 import { verifyAllAssets, buildAssetVerificationAttestation, getAssetVerificationPolicy, getInternetAssetVerificationCoverage, runInternetAssetVerificationSweep } from './src/lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVerification, issueAssetCryptographicChallenge, verifyAssetCryptographicProof } from './src/lib/cryptographic-asset-verification';
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
+import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon } from './src/lib/agent-miner';
 
 import { 
   getScientistFleet, 
@@ -2950,6 +2951,33 @@ app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
   }
 });
 
+// 24x7 Agent Miner: public status, authenticated controls, and evidence-first cycles.
+app.get('/api/agent-miner/status', (_req: Request, res: Response) => {
+  return res.json(getAgentMinerSnapshot());
+});
+
+app.post('/api/agent-miner/control', requireOwner, (req: Request, res: Response) => {
+  try {
+    const running = Boolean(req.body?.running);
+    const mode = req.body?.mode === 'authorized-compute' ? 'authorized-compute' : 'intelligence';
+    return res.json({ ok: true, miner: setAgentMinerRunning(running, mode) });
+  } catch (error) { return apiError(res, 400, 'Unable to change Agent Miner state', error); }
+});
+
+app.post('/api/agent-miner/compute-authorization', requireOwner, (req: Request, res: Response) => {
+  try {
+    const enabled = Boolean(req.body?.enabled);
+    return res.json({ ok: true, miner: setComputeWorkerAuthorization(enabled) });
+  } catch (error) { return apiError(res, 400, 'Unable to change compute authorization', error); }
+});
+
+app.post('/api/agent-miner/run', requireOwner, async (_req: Request, res: Response) => {
+  try {
+    const cycle = await runAgentMinerCycle();
+    return res.status(201).json({ ok: true, cycle, miner: getAgentMinerSnapshot() });
+  } catch (error) { return apiError(res, 503, 'Agent Miner cycle failed', error); }
+});
+
 app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endpoint not found'); });
 
 async function initializeBackend() {
@@ -2978,6 +3006,7 @@ async function startServer() {
   } catch (daemonErr) {
     console.warn('[ScientistFleet] Daemon init error (deferred):', daemonErr);
   }
+  try { startAgentMinerDaemon(); console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.'); } catch (error) { console.warn('[AgentMiner] daemon init deferred:', error); }
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
