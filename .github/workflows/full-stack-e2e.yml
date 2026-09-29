@@ -3,8 +3,7 @@ name: GLORIFIER Full-Stack E2E
 on:
   workflow_dispatch:
   push:
-    branches:
-      - geas-architecture-reconciliation-v1
+    branches: [main]
   workflow_run:
     workflows: ["GLORIFIER Full-Stack Verification"]
     types: [completed]
@@ -18,18 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-303lllgzc-glorifier.vercel.app' }}
+      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-glorifier.vercel.app' }}
       CI: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
       - name: Run production E2E
         run: npx playwright test tests/e2e/production.spec.ts
