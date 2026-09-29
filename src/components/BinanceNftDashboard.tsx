@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getIdToken } from '../lib/firebase';
 import {
   BadgeDollarSign, ExternalLink, Image as ImageIcon, LockKeyhole, WalletCards,
   ShieldCheck, CircleDollarSign, Info
@@ -14,7 +15,9 @@ export const BinanceNftDashboard: React.FC = () => {
   const checkConnection = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/binance/health', { cache: 'no-store' });
+      const token = await getIdToken();
+      if (!token) throw new Error('Authentication required for private Binance verification');
+      const response = await fetch('/api/binance/health', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       setVerification(data?.verification ?? { authentication: 'failed', authenticationError: 'Invalid verification response' });
       setLastChecked(new Date().toISOString());
