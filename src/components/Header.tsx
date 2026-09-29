@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ShieldCheck, Wallet, Sparkles, Zap, Database, Scale, Layers,
   ShieldAlert, ArrowUpRight, Coins, Lock, Users,
-  Globe, Globe2, Cpu, Bot, FileText, BrainCircuit, Atom, Menu, X
+  Globe, Globe2, Cpu, Bot, FileText, BrainCircuit, Atom, Smartphone, Menu, X
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { AuthPanel } from './AuthPanel';
@@ -31,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'discovery', label: '24/7 Discovery', icon: Zap },
     { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
     { id: 'connections', label: 'Connections', icon: Lock },
+    { id: 'mobile', label: 'Android Device', icon: Smartphone },
     { id: 'scientists', label: 'Scientists', icon: Atom },
     { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
     { id: 'control', label: 'Data Control', icon: ShieldCheck },
