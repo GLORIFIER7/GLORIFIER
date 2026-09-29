@@ -614,10 +614,16 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 });
 
 // Safe Binance integration verification. Never returns API keys, secrets, balances, or revenue claims.
-app.get('/api/binance/health', async (_req: Request, res: Response) => {
+app.get('/api/binance/health', requireOwner, async (_req: Request, res: Response) => {
   const verification = await verifyBinanceReadOnlyConnection();
-  const httpStatus = verification.safeForReadOnly ? 200 : (verification.authentication === 'failed' ? 503 : 200);
-  return res.status(httpStatus).json({ ok: verification.safeForReadOnly, verification });
+  // A live authenticated account response is only considered verified when the
+  // key is explicitly configured as read-only and Binance reports no write-capable permissions.
+  const httpStatus = verification.safeForReadOnly && verification.evidenceRecorded
+    ? 200
+    : verification.authentication === 'failed'
+      ? 503
+      : 403;
+  return res.status(httpStatus).json({ ok: verification.safeForReadOnly && verification.evidenceRecorded, verification });
 });
 
 app.get('/api/health/ready', async (_req: Request, res: Response) => {
