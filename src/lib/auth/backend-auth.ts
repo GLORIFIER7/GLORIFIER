@@ -26,6 +26,16 @@ function getAdminAuth() {
   return getAuth();
 }
 
+export async function initializeAuthenticationBackend() {
+  try {
+    getAdminAuth();
+    return authenticationStatus();
+  } catch (error) {
+    adminReady = false;
+    throw error;
+  }
+}
+
 export interface AuthenticatedRequest extends Request {
   auth?: DecodedIdToken;
 }
