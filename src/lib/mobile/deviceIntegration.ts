@@ -31,7 +31,6 @@ export async function collectDeviceSnapshot(): Promise<GlorifierDeviceSnapshot> 
   const [info, id, language, app] = await Promise.all([
     Device.getInfo(),
     Device.getId(),
-    Device.getBatteryInfo().catch(() => ({ batteryLevel: undefined, isCharging: undefined })),
     Device.getLanguageTag().catch(() => ({ value: undefined })),
     Device.getAppInfo().catch(() => ({ version: undefined, build: undefined }))
   ]);
