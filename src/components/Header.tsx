@@ -33,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'connections', label: 'Connections', icon: Lock },
     { id: 'mobile', label: 'Android Device', icon: Smartphone },
     { id: 'scientists', label: 'Scientists', icon: Atom },
+    { id: 'agent_miner', label: 'Agent Miner', icon: Cpu },
     { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
     { id: 'control', label: 'Data Control', icon: ShieldCheck },
     { id: 'footprints', label: 'Data Footprints', icon: Database },
