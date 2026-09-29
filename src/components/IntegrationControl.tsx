@@ -208,8 +208,8 @@ export const IntegrationControl: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Broker asset connector</div>
-            <h3 className="text-lg font-semibold text-white mt-1">Alpaca / GoTrade authorization</h3>
-            <p className="text-xs text-slate-400 mt-1">OAuth authorization only. GLORIFIER stores tokens encrypted and permits account, cash, positions, activities/transfers and portfolio-history reads. Trading and fund movement are disabled.</p>
+            <h3 className="text-lg font-semibold text-white mt-1">Alpaca brokerage authorization</h3>
+            <p className="text-xs text-slate-400 mt-1">OAuth authorization only. GLORIFIER stores tokens encrypted and permits account, cash, positions, activities/transfers and portfolio-history reads. Trading and fund movement are disabled. GoTrade uses an Alpaca-backed custody structure; direct GoTrade user-account OAuth is only shown as connected when an official authorization path actually returns an Alpaca account.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={async () => {
