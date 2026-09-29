@@ -28,7 +28,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export async function collectDeviceSnapshot(): Promise<GlorifierDeviceSnapshot> {
-  const [info, id, battery, language, app] = await Promise.all([
+  const [info, id, language, app] = await Promise.all([
     Device.getInfo(),
     Device.getId(),
     Device.getBatteryInfo().catch(() => ({ batteryLevel: undefined, isCharging: undefined })),
@@ -85,6 +85,7 @@ export async function sendDeviceTelemetry(event: {
     headers: await authHeaders(),
     body: JSON.stringify({
       ...event,
+      deviceId: (await collectDeviceSnapshot()).deviceId,
       occurredAt: new Date().toISOString()
     })
   });
