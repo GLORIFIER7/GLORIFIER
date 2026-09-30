@@ -24,6 +24,7 @@ import { buildRevenueControlPlaneSnapshot, getRevenueControlPlanePolicy, listRev
 import { listEconomicOperatingSnapshot, getEconomicOperatingSystemPolicy } from './src/lib/economic-operating-system';
 import { calculateGlorifierValuation, getLatestGlorifierValuation } from './src/lib/valuation-engine';
 import { getBinancePublicQuote } from './src/lib/asset-provider-adapters';
+import { getAlpacaBrokerStatus, buildAlpacaAuthorizationUrl, handleAlpacaCallback, verifyAlpacaBrokerAccount, revokeAlpacaBrokerConnection, initializeAlpacaBrokerOAuth, brokerCallbackSuccessUrl } from './src/lib/alpaca-broker-oauth';
 import { verifyBinanceReadOnlyConnection } from './src/lib/binance-readonly';
 import { initialize24x7OpportunityDiscovery, get24x7OpportunityDiscoveryStatus, run24x7OpportunityDiscoveryCycle, get24x7OpportunityDiscoveryPolicy } from './src/lib/24x7-opportunity-discovery';
 import { initializeGlorifierMediator, buildGlorifierMediatorSnapshot, getGlorifierMediatorPolicy } from './src/lib/glorifier-mediator';
@@ -73,6 +74,7 @@ dotenv.config();
 void initializeMonetizationTables().catch((error) => console.warn('[Monetization] initialization deferred:', error?.message));
 void initializePayoutRegistry().catch((error) => console.warn('[Payouts] initialization deferred:', error?.message));
 void initializeCryptographicAssetVerification().catch((error) => console.warn('[CryptoAssetVerification] initialization deferred:', error?.message));
+void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerOAuth] initialization deferred:', error?.message));
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 initializeA2ARuntime();
@@ -433,6 +435,31 @@ app.post('/api/connections/:id/approval', requireOwner, async (req: Request, res
     );
     res.status(201).json({ ok: true, approval, humanApprovalRequired: true });
   } catch (error: any) { res.status(400).json({ error: 'Unable to request approval', details: error?.message }); }
+});
+
+// ============================================================================
+// ALPACA READ-ONLY BROKER CONNECTOR
+// OAuth tokens are encrypted at rest; trading and fund movement remain disabled.
+// ============================================================================
+app.get('/api/broker/alpaca/status', requireAuthentication, async (req: Request, res: Response) => {
+  try { const uid = String((req as any).auth?.uid || '').trim(); return res.json({ ok: true, provider: 'alpaca', status: await getAlpacaBrokerStatus(uid), permissions: { readOnly: true, trading: false, fundMovement: false } }); }
+  catch (error) { return apiError(res, 503, 'Alpaca broker status unavailable', error); }
+});
+app.get('/api/broker/alpaca/connect', requireAuthentication, async (req: Request, res: Response) => {
+  try { const uid = String((req as any).auth?.uid || '').trim(); const env = req.query.env === 'paper' ? 'paper' : 'live'; return res.json({ ok: true, ...(await buildAlpacaAuthorizationUrl(uid, env)), provider: 'alpaca', permissions: { readOnly: true, trading: false, fundMovement: false } }); }
+  catch (error) { return apiError(res, 503, 'Alpaca OAuth is not configured', error); }
+});
+app.post('/api/broker/alpaca/verify', requireAuthentication, async (req: Request, res: Response) => {
+  try { const uid = String((req as any).auth?.uid || '').trim(); const env = req.body?.env === 'paper' ? 'paper' : 'live'; return res.status(201).json({ ok: true, provider: 'alpaca', verification: 'verified', readOnly: true, snapshot: await verifyAlpacaBrokerAccount(uid, env) }); }
+  catch (error) { return apiError(res, 503, 'Alpaca account verification unavailable', error); }
+});
+app.post('/api/broker/alpaca/revoke', requireAuthentication, async (req: Request, res: Response) => {
+  try { const uid = String((req as any).auth?.uid || '').trim(); const env = req.body?.env === 'paper' ? 'paper' : 'live'; return res.json({ ok: true, ...(await revokeAlpacaBrokerConnection(uid, env)), readOnly: true }); }
+  catch (error) { return apiError(res, 503, 'Alpaca connection revocation unavailable', error); }
+});
+app.get('/auth/broker/callback', async (req: Request, res: Response) => {
+  try { const code = String(req.query.code || '').trim(); const state = String(req.query.state || '').trim(); if (req.query.error || !code || !state) return res.status(400).send('Broker authorization was not completed.'); const result = await handleAlpacaCallback(code, state); return res.redirect(brokerCallbackSuccessUrl({ env: result.env, connectionId: result.connectionId })); }
+  catch (error) { console.error('[AlpacaBrokerOAuth] callback failed:', error); return res.status(502).send('Broker authorization failed. Return to GLORIFIER and try again.'); }
 });
 
 // Global Synthesis & Collaboration Fabric
