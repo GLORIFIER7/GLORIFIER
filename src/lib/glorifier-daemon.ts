@@ -79,7 +79,7 @@ export function stopGlorifierDaemon() {
 export function getGlorifierDaemonSnapshot() {
   return { ok: true, name: 'GLORIFIER System Daemon', state, mode: 'continuous-governed-orchestration', cadenceMs: getIntervalMs(), cycleCount, lastRunAt, lastSuccessAt, nextRunAt, inFlight: Boolean(inFlight),
     components: [...components.values()].map(item => ({ ...item })),
-    safety: { humanAuthorityRemainsHighest: true, automaticIrreversibleProductionChanges: false, automaticFinancialTransfers: false, automaticCredentialRotation: false, externalSystemScope: 'authorized integrations only', truthRule: 'No qualifying external evidence means UNKNOWN or NOT VERIFIED.', degradedMode: 'Fail independently by component, preserve service and surface evidence gaps.' },
+    safety: { humanAuthorityRemainsHighest: true, automaticIrreversibleProductionChanges: false, automaticFinancialTransfers: false, automaticCredentialRotation: 'LOW_RISK_PREAUTHORIZED_ONLY', highRiskCredentialRotationRequiresHumanApproval: true, externalSystemScope: 'authorized integrations only', truthRule: 'No qualifying external evidence means UNKNOWN or NOT VERIFIED.', degradedMode: 'Fail independently by component, preserve service and surface evidence gaps.' },
     architecture: ['Governance Kernel / GEAS', 'AI CEO', 'Permanent Orchestrator', 'Provider Registry', 'AI Agent / A2A Network', 'Execution Fabric', 'Verification and Evidence Spine', 'Revenue Control Plane', 'Audit and Economic Truth']
   };
 }
