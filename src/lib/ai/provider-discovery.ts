@@ -2,12 +2,12 @@ import { registerConnection, recordConnectionEvent } from '../connection-registr
 
 export type ProviderAvailability = 'available' | 'unconfigured' | 'quota_exhausted' | 'rate_limited' | 'auth_failure' | 'capability_mismatch' | 'unreachable' | 'error';
 export interface DiscoveredProvider { id:string; name:string; kind:'native'|'openai-compatible'|'router'|'self-hosted'; endpoint:string; configured:boolean; authenticated:boolean; availability:ProviderAvailability; capabilities:string[]; models:string[]; latencyMs:number|null; lastCheckedAt:string|null; cooldownUntil:string|null; reason:string|null; authorization:'configured'|'pending'|'not-configured'; }
-interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['kind']; endpoint:string; keyEnv?:string; baseUrlEnv?:string; modelEnv?:string; defaultModel?:string; capabilities:string[]; }
+interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['kind']; endpoint:string; keyEnv?:string; baseUrlEnv?:string; modelEnv?:string; workspaceIdEnv?:string; defaultModel?:string; capabilities:string[]; }
 
 const definitions: ProviderDefinition[] = [
  {id:'openai',name:'OpenAI',kind:'openai-compatible',endpoint:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',baseUrlEnv:'OPENAI_BASE_URL',modelEnv:'OPENAI_MODEL',defaultModel:'gpt-4o',capabilities:['chat','reasoning','code']},
  {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
- {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
+ {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',workspaceIdEnv:'ANTHROPIC_WORKSPACE_ID',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
  {id:'xai',name:'xAI',kind:'openai-compatible',endpoint:'https://api.x.ai/v1',keyEnv:'XAI_API_KEY',baseUrlEnv:'XAI_BASE_URL',modelEnv:'XAI_MODEL',defaultModel:'grok-4',capabilities:['chat','reasoning','code']},
  {id:'mistral',name:'Mistral AI',kind:'openai-compatible',endpoint:'https://api.mistral.ai/v1',keyEnv:'MISTRAL_API_KEY',baseUrlEnv:'MISTRAL_BASE_URL',modelEnv:'MISTRAL_MODEL',defaultModel:'mistral-large-latest',capabilities:['chat','reasoning','code']},
@@ -31,7 +31,7 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  try {
   let result:{response:Response;text:string;body:any};
   if(d.id==='gemini') result=await fetchJson(endpoint+'/models?key='+encodeURIComponent(env(d.keyEnv)),{accept:'application/json'});
-  else if(d.id==='anthropic') result=await fetchJson(endpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01'});
+  else if(d.id==='anthropic') result=await fetchJson(endpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
   else if(d.id==='ollama') result=await fetchJson(endpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(endpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   const availability=classify(result.response.status,result.text);
