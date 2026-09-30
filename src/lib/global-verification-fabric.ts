@@ -1,6 +1,7 @@
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot } from './ai/provider-discovery';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './integration-control-plane';
 import { getAutonomousAuthenticationVerificationSnapshot, runAutonomousAuthenticationVerification } from './autonomous-auth-verification';
+import { getAIFactoryOperationsSnapshot, getAIFactoryOperationsPolicy } from './ai-factory-operations';
 
 const INTERVAL_MS = 10 * 60 * 1000;
 let timer: NodeJS.Timeout | null = null;
@@ -67,6 +68,7 @@ export function getGlobalVerificationFabricSnapshot() {
     authenticationVerification: getAutonomousAuthenticationVerificationSnapshot(),
     providerDiscovery: getGlobalProviderDiscoverySnapshot(),
     integrationControl: getIntegrationControlSnapshot(),
+    aiFactoryOperations: getAIFactoryOperationsSnapshot(),
     lastErrors,
     policy: {
       automatic: [
@@ -82,6 +84,7 @@ export function getGlobalVerificationFabricSnapshot() {
         'trade, withdraw, transfer, or move funds',
         'declare verification without external evidence'
       ],
+      aiFactoryOperations: getAIFactoryOperationsPolicy(),
       humanRequired: [
         'new OAuth consent or account linking',
         'invalid or missing credentials',
