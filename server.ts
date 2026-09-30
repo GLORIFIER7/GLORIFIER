@@ -54,6 +54,7 @@ import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setCom
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
+import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 
 import { 
   getScientistFleet, 
@@ -3151,6 +3152,19 @@ app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
 });
 
 // 24x7 Agent Miner: public status, authenticated controls, and evidence-first cycles.
+app.get('/api/system/daemon', (_req: Request, res: Response) => {
+  return res.json(getGlorifierDaemonSnapshot());
+});
+
+app.post('/api/system/daemon/run', requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try { return res.status(201).json({ ok: true, daemon: await runGlorifierDaemonCycle('authorized-request') }); }
+  catch (error) { return apiError(res, 503, 'Daemon cycle failed', error); }
+});
+
+app.post('/api/system/daemon/stop', requireOwner, (_req: Request, res: Response) => {
+  return res.json({ ok: true, daemon: stopGlorifierDaemon() });
+});
+
 app.get('/api/global-verification/status', (_req: Request, res: Response) => {
   return res.json(getGlobalVerificationFabricSnapshot());
 });
@@ -3235,6 +3249,7 @@ async function startServer() {
   try { startAgentMinerDaemon(); console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.'); } catch (error) { console.warn('[AgentMiner] daemon init deferred:', error); }
   try { startAutonomousAuthenticationVerificationDaemon(); } catch (error) { console.warn('[AutonomousVerification] daemon init deferred:', error); }
   try { startGlobalVerificationFabric(); } catch (error) { console.warn('[GlobalVerificationFabric] daemon init deferred:', error); }
+  try { startGlorifierDaemon(); } catch (error) { console.warn('[GLORIFIERDaemon] daemon init deferred:', error); }
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
