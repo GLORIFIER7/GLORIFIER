@@ -24,7 +24,7 @@ const snapshot = new Map<string, DiscoveredProvider>();
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 function classify(status:number, body:string):ProviderAvailability { if(status===401||status===403)return 'auth_failure'; if(status===402)return 'quota_exhausted'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'unreachable'; return status>=400?'error':'available'; }
-async function fetchJson(url:string,headers:Record<string,string>) { const response=await fetch(url,{headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
+async function fetchJson(url:string,headers:Record<string,string>,init:RequestInit={}) { const response=await fetch(url,{...init,headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
 async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const configured=Boolean(d.keyEnv ? env(d.keyEnv) : true), endpoint=endpointFor(d), checked=new Date().toISOString();
  if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:'No server-side credential configured.',authorization:'not-configured'};
@@ -35,8 +35,26 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   else if(d.id==='anthropic') result=await fetchJson(endpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01'});
   else if(d.id==='ollama') result=await fetchJson(endpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(endpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
-  const availability=classify(result.response.status,result.text);
+  let availability=classify(result.response.status,result.text);
   const models=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
+
+  // NVIDIA authentication is not considered proven by /models alone. NVIDIA's hosted API
+  // requires a real chat-completions inference request against the configured model.
+  if(d.id==='nvidia' && availability==='available') {
+   const model=env(d.modelEnv)||d.defaultModel||models[0];
+   if(!model) {
+    availability='capability_mismatch';
+    return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:'No NVIDIA inference model configured or advertised.',authorization:'pending'};
+   }
+   const inference=await fetchJson(endpoint.replace(/\/$/,'')+'/chat/completions',
+    {accept:'application/json','content-type':'application/json',authorization:'Bearer '+env(d.keyEnv)},
+    {method:'POST',body:JSON.stringify({model,messages:[{role:'user',content:'GLORIFIER NVIDIA connectivity test. Reply OK.'}],max_tokens:8,stream:false,temperature:0})});
+   availability=classify(inference.response.status,inference.text);
+   const authenticated=inference.response.status!==401&&inference.response.status!==403;
+   const inferenceOk=inference.response.status>=200&&inference.response.status<300;
+   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:inferenceOk&&authenticated,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:inferenceOk?null:inference.text.slice(0,300),authorization:inferenceOk&&process.env.NVIDIA_AUTHORIZED==='true'?'configured':'pending'};
+  }
+
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?null:result.text.slice(0,300),authorization:process.env[d.id.toUpperCase()+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
