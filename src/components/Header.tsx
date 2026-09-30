@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ShieldCheck, Wallet, Sparkles, Zap, Database, Scale, Layers,
   ShieldAlert, ArrowUpRight, Coins, Lock, Users,
-  Globe, Globe2, Cpu, Bot, FileText, BrainCircuit, Atom, Smartphone, Menu, X
+  Globe, Globe2, Cpu, Bot, Network, FileText, BrainCircuit, Atom, Smartphone, Menu, X
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { AuthPanel } from './AuthPanel';
@@ -28,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'geas_architecture', label: 'Architecture', icon: BrainCircuit },
     { id: 'ai_ceo', label: 'AI CEO', icon: BrainCircuit },
     { id: 'integrations', label: 'Intelligence', icon: Globe2 },
+    { id: 'agent_network', label: 'AI Agent Network', icon: Network },
     { id: 'discovery', label: '24/7 Discovery', icon: Zap },
     { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
     { id: 'connections', label: 'Connections', icon: Lock },
