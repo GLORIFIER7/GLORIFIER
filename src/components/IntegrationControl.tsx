@@ -78,6 +78,8 @@ export const IntegrationControl: React.FC = () => {
   const [bountyPrograms, setBountyPrograms] = useState<any[]>([]);
   const [bountyFindings, setBountyFindings] = useState<any[]>([]);
   const [bountyRevenue, setBountyRevenue] = useState<any[]>([]);
+  const [alpacaStatus, setAlpacaStatus] = useState<any[]>([]);
+  const [alpacaMessage, setAlpacaMessage] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -197,6 +199,52 @@ export const IntegrationControl: React.FC = () => {
         <button onClick={() => void load()} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-white">Alpaca brokerage — read-only</div>
+            <p className="text-xs text-slate-400 mt-1">Official OAuth authorization only. GLORIFIER does not enable trading or fund movement.</p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">Human authorization</span>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button onClick={async () => {
+            try {
+              setAlpacaMessage('Opening official Alpaca authorization…');
+              const r = await fetch('/api/broker/alpaca/connect?env=live', { cache: 'no-store' });
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || 'OAuth configuration unavailable');
+              window.location.assign(d.authorizationUrl);
+            } catch (e) { setAlpacaMessage(e instanceof Error ? e.message : 'Unable to start authorization'); }
+          }} className="px-3 py-2 rounded-lg bg-white text-slate-950 text-xs font-semibold">Connect live account</button>
+          <button onClick={async () => {
+            try {
+              setAlpacaMessage('Opening official Alpaca paper authorization…');
+              const r = await fetch('/api/broker/alpaca/connect?env=paper', { cache: 'no-store' });
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || 'OAuth configuration unavailable');
+              window.location.assign(d.authorizationUrl);
+            } catch (e) { setAlpacaMessage(e instanceof Error ? e.message : 'Unable to start authorization'); }
+          }} className="px-3 py-2 rounded-lg border border-slate-700 text-slate-200 text-xs font-semibold">Connect paper account</button>
+          <button onClick={async () => {
+            try {
+              const r = await fetch('/api/broker/alpaca/status', { cache: 'no-store' });
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || 'Status unavailable');
+              setAlpacaStatus(d.status || []);
+              setAlpacaMessage('Status refreshed from the authenticated backend.');
+            } catch (e) { setAlpacaMessage(e instanceof Error ? e.message : 'Unable to read broker status'); }
+          }} className="px-3 py-2 rounded-lg border border-slate-800 text-slate-400 text-xs font-semibold">Refresh status</button>
+        </div>
+        {alpacaStatus.length > 0 && <div className="mt-3 space-y-2">
+          {alpacaStatus.map((item: any) => <div key={item.id} className="border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs">
+            <div className="text-emerald-300 font-semibold">Authorized · {item.environment}</div>
+            <div className="text-slate-400 mt-1">Read-only: yes · Trading: disabled · Fund movement: disabled · Account: {item.accountRef || 'not observed'}</div>
+          </div>)}
+        </div>}
+        {alpacaMessage && <div className="mt-3 text-xs text-slate-500">{alpacaMessage}</div>}
       </div>
 
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
