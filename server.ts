@@ -84,6 +84,35 @@ const PORT = Number(process.env.PORT) || 3000;
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
 app.use((req: Request, res: Response, next) => {
+  const windowMs = 60_000;
+  const maxRequests = 60;
+  const now = Date.now();
+  const key = `${req.ip}:${req.method}:${req.path}`;
+  const store = (globalThis as typeof globalThis & { __glorifierRateLimits?: Map<string, { start: number; count: number }> }).__glorifierRateLimits
+    ?? ((globalThis as typeof globalThis & { __glorifierRateLimits?: Map<string, { start: number; count: number }> }).__glorifierRateLimits = new Map());
+  const current = store.get(key);
+  if (!current || now - current.start >= windowMs) {
+    store.set(key, { start: now, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > maxRequests) {
+    const retryAfter = Math.max(1, Math.ceil((windowMs - (now - current.start)) / 1000));
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json(problemDetails({
+      title: 'Rate limit exceeded',
+      status: 429,
+      detail: 'Too many requests for this endpoint.',
+      code: 'rate-limit-exceeded',
+      instance: req.originalUrl,
+      retryable: true,
+    }));
+  }
+  next();
+});
+
+
+app.use((req: Request, res: Response, next) => {
   const configured = String(process.env.GLORIFIER_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
   const allowedOrigins = configured.length ? configured : [
     'https://glorifier-glorifier.vercel.app',
