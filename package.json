@@ -20,7 +20,8 @@
     "test:geas-reconciliation": "tsx src/lib/governance/geas-reconciliation.test.ts",
     "test:permanent-stack": "tsx src/lib/governance/permanent-stack.test.ts",
     "test:agent-miner": "tsx src/lib/agent-miner.test.ts",
-    "test:geas-controls": "tsx src/lib/governance/geas-architecture-controls.test.ts"
+    "test:geas-controls": "tsx src/lib/governance/geas-architecture-controls.test.ts",
+    "daemon:run": "tsx src/lib/glorifier-daemon.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
