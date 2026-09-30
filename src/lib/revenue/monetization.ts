@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { capturePayPalOrder, createPayPalOrder } from '../payments/paypal';
 import { getPostgresPool } from '../db/postgres';
+import { recordRevenueEvent } from './engine';
 
 export type PlanId = 'pro' | 'business';
 
@@ -107,7 +108,42 @@ export async function captureCheckout(customerReference: string, orderId: string
       [customerReference, plan.id, plan.monthlyAiCredits],
     );
     await client.query('COMMIT');
-    return { active: true, orderId, plan, currency: row.rows[0].currency, amountMinor: Number(row.rows[0].amount_minor) };
+
+    // PayPal's completed capture is authoritative payment evidence. Only after
+    // PayPal confirms the capture do we write verified revenue to the GLORIFIER
+    // ledger. Checkout creation and AI estimates never create verified revenue.
+    const captureId = String(capture?.id || orderId);
+    const revenueEvent = await recordRevenueEvent({
+      eventId: "paypal:capture:" + captureId,
+      provider: 'paypal',
+      providerTransactionId: captureId,
+      customerReference,
+      userReference: customerReference,
+      currency,
+      amountMinor: Math.round(Number(amount) * 100),
+      status: 'paid',
+      occurredAt: new Date().toISOString(),
+      metadata: {
+        orderId,
+        planId: plan.id,
+        evidence: 'paypal-completed-capture',
+        verified: true,
+      },
+    });
+
+    return {
+      active: true,
+      orderId,
+      plan,
+      currency,
+      amountMinor: Math.round(Number(amount) * 100),
+      verifiedRevenue: true,
+      revenueEvent: {
+        eventId: "paypal:capture:" + captureId,
+        inserted: revenueEvent.inserted,
+        ledgerId: revenueEvent.id ?? null,
+      },
+    };
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch {}
     throw error;
