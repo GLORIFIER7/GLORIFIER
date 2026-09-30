@@ -52,7 +52,7 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
-import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';\nimport { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 
 import { 
   getScientistFleet, 
@@ -130,7 +130,7 @@ app.use('/api', (req: Request, res: Response, next) => {
   return requireAuthentication(req as any, res, next);
 });
 
-\n// GEAS architecture-control surfaces: evidence, canonical action identity, and API inventory.\napp.get('/api/governance/geas/architecture/api-assets', requireOwnerOrInternalService, (_req: Request, res: Response) => {\n  res.json({ ok: true, assets: listApiAssets() });\n});\n\napp.post('/api/governance/geas/architecture/canonical-action-hash', requireOwnerOrInternalService, (req: Request, res: Response) => {\n  try {\n    const action = req.body?.action;\n    if (!action || typeof action !== 'object') return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: 'action is required', code: 'invalid-action', instance: req.originalUrl }));\n    res.json({ ok: true, canonicalActionHash: canonicalActionHash(action) });\n  } catch (error) {\n    return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: error instanceof Error ? error.message : 'Invalid action', code: 'invalid-action', instance: req.originalUrl }));\n  }\n});\n\napp.post('/api/governance/geas/evidence/record', requireOwnerOrInternalService, (req: Request, res: Response) => {\n  try {\n    const record = buildEvidenceRecord(req.body);\n    res.status(201).json({ ok: true, evidence: record });\n  } catch (error) {\n    return res.status(400).json(problemDetails({ title: 'Invalid evidence record', status: 400, detail: error instanceof Error ? error.message : 'Invalid evidence', code: 'invalid-evidence', instance: req.originalUrl }));\n  }\n});\nfunction apiError(res: Response, status: number, error: string, details?: unknown) {
+function apiError(res: Response, status: number, error: string, details?: unknown) {
   const payload: Record<string, unknown> = { ok: false, error };
   if (process.env.NODE_ENV !== 'production' && details) payload.details = details instanceof Error ? details.message : details;
   return res.status(status).json(payload);
@@ -809,7 +809,8 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
           'Do not invent sources, prices, transactions, consensus, or verified outcomes.',
           role.instruction,
           policyContext
-        ].join('\\n'),
+        ].join('
+'),
         userPrompt: topic,
         temperature: 0.2
       });
@@ -845,8 +846,11 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
     let synthesis: any = null;
     if (perspectives.length >= 2) {
       const evidencePacket = perspectives.map(p =>
-        `[\${p.title} | \${p.provider}:\${p.model}]\\n\${p.output}`
-      ).join('\\n\\n');
+        `[\${p.title} | \${p.provider}:\${p.model}]
+\${p.output}`
+      ).join('
+
+');
 
       const synthesisExecution = await runModelExecution({
         model: 'auto' as any,
@@ -857,8 +861,12 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
           'Identify agreement, disagreement, uncertainty, missing evidence, and next verification steps.',
           'Do not invent facts, citations, financial outcomes, authorization, contracts, or payments.',
           'The synthesis is advisory; humans retain final authority.'
-        ].join('\\n'),
-        userPrompt: `Objective: \${topic}\\n\\nLive specialist responses:\\n\${evidencePacket}`,
+        ].join('
+'),
+        userPrompt: `Objective: \${topic}
+
+Live specialist responses:
+\${evidencePacket}`,
         temperature: 0.1
       });
 
@@ -1865,8 +1873,13 @@ async function runIntelligenceModel(
 
   const preferredProvider = provider === 'openai' ? 'openai' : 'gemini';
   const requestPrompt = jsonMode
-    ? systemInstruction + '\\nReturn valid JSON only.\\n\\n' + prompt
-    : systemInstruction + '\\n\\n' + prompt;
+    ? systemInstruction + '
+Return valid JSON only.
+
+' + prompt
+    : systemInstruction + '
+
+' + prompt;
 
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
