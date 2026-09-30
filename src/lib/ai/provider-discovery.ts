@@ -17,6 +17,7 @@ const definitions: ProviderDefinition[] = [
  {id:'fireworks',name:'Fireworks AI',kind:'openai-compatible',endpoint:'',keyEnv:'FIREWORKS_API_KEY',baseUrlEnv:'FIREWORKS_BASE_URL',modelEnv:'FIREWORKS_MODEL',capabilities:['chat','reasoning','code']},
  {id:'openrouter',name:'OpenRouter',kind:'router',endpoint:'https://openrouter.ai/api/v1',keyEnv:'OPENROUTER_API_KEY',baseUrlEnv:'OPENROUTER_BASE_URL',modelEnv:'OPENROUTER_MODEL',capabilities:['chat','reasoning','code','multimodal','provider-failover']},
  {id:'llmsrelay',name:'LLMsRelay',kind:'router',endpoint:'https://api.llmsrelay.com/v1',keyEnv:'LLMSRELAY_API_KEY',baseUrlEnv:'LLMSRELAY_BASE_URL',modelEnv:'LLMSRELAY_MODEL',defaultModel:'claude-sonnet-4.6',capabilities:['chat','reasoning','code','provider-gateway']},
+ {id:'nvidia',name:'NVIDIA NIM / Nemotron',kind:'openai-compatible',endpoint:'https://integrate.api.nvidia.com/v1',keyEnv:'NVIDIA_API_KEY',baseUrlEnv:'NVIDIA_BASE_URL',modelEnv:'NVIDIA_MODEL',defaultModel:'nvidia/nemotron-3.5-lightning-30b-a3b',capabilities:['chat','reasoning','code','agent','tool-calling','long-context']},
  {id:'ollama',name:'Ollama / self-hosted',kind:'self-hosted',endpoint:'http://localhost:11434',keyEnv:'OLLAMA_AUTH_TOKEN',baseUrlEnv:'OLLAMA_BASE_URL',modelEnv:'OLLAMA_MODELS',capabilities:['chat','reasoning','code','self-hosted']}
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
