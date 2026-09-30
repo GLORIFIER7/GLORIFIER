@@ -5,18 +5,18 @@ export class AnthropicProvider implements AIProvider {
   name = 'Anthropic Claude';
 
   status() {
-    return process.env.ANTHROPIC_API_KEY ? 'connected' as const : 'disconnected' as const;
+    return process.env.ANTHROPIC_API_KEY?.trim() ? 'connected' as const : 'disconnected' as const;
   }
 
   models() {
-    return [process.env.ANTHROPIC_MODEL || 'claude-opus-4-1'];
+    return [process.env.ANTHROPIC_MODEL || 'claude-opus-5'];
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('Anthropic is not configured. Set ANTHROPIC_API_KEY.');
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (!apiKey) { const error: any = new Error('Anthropic is not configured. Set ANTHROPIC_API_KEY.'); error.providerAvailability = 'unavailable'; error.unavailableReason = 'not_configured'; throw error; }
 
-    const model = request.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-1';
+    const model = request.model || process.env.ANTHROPIC_MODEL || 'claude-opus-5';
     const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
     const system = request.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     const messages = request.messages
@@ -36,13 +36,11 @@ export class AnthropicProvider implements AIProvider {
         max_tokens: request.maxTokens || 4096,
         ...(system ? { system } : {}),
         messages,
-        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       }),
     });
 
     if (!response.ok) {
-      const details = await response.text();
-      throw new Error(`Anthropic request failed (${response.status}): ${details.slice(0, 500)}`);
+      const details = (await response.text()).slice(0, 1000); const unavailable = response.status === 401 || response.status === 403 || response.status === 402 || response.status === 429 || /quota|credit|billing|spend.?limit/i.test(details); const error: any = new Error(`Anthropic request failed (${response.status}): ${details}`); error.providerAvailability = unavailable ? 'unavailable' : 'error'; error.unavailableReason = response.status === 429 ? 'rate_limited' : response.status === 402 || /quota|credit|billing|spend.?limit/i.test(details) ? 'quota_exhausted' : 'provider_error'; error.status = response.status; throw error;
     }
 
     const data = await response.json() as any;
