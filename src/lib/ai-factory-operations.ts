@@ -1,4 +1,5 @@
 import { getGlobalProviderDiscoverySnapshot } from './ai/provider-discovery';
+import { getNVIDIAArchitectureSnapshot, getNVIDIAArchitecturePolicy } from './nvidia-architecture';
 
 export type FactorySignalStatus = 'verified' | 'configured' | 'unavailable' | 'not-configured';
 
@@ -18,6 +19,7 @@ export interface FactoryOperationsSnapshot {
   mode: 'read-only';
   governed: true;
   auditable: true;
+  nvidiaArchitecture: ReturnType<typeof getNVIDIAArchitectureSnapshot>;
   agentRuntime: {
     provider: string | null;
     model: string | null;
@@ -70,6 +72,7 @@ export function getAIFactoryOperationsSnapshot(): FactoryOperationsSnapshot {
     mode: 'read-only',
     governed: true,
     auditable: true,
+    nvidiaArchitecture: getNVIDIAArchitectureSnapshot(),
     agentRuntime: {
       provider: preferred?.name || null,
       model: preferred?.models?.[0] || null,
@@ -93,6 +96,10 @@ export function getAIFactoryOperationsSnapshot(): FactoryOperationsSnapshot {
       'runbook-assisted-root-cause-analysis',
       'governed-agent-chat',
       'auditable-evidence-correlation',
+      'nvidia-nim-inference',
+      'nemotron-reasoning',
+      'optional-dynamo-inference-scaling',
+      'optional-runai-gpu-scheduling',
     ],
     safety: {
       noClusterMutation: true,
@@ -109,10 +116,11 @@ export function getAIFactoryOperationsPolicy() {
     architecture: 'NVIDIA_BLUEPRINT_ADAPTED_TO_GLORIFIER_GOVERNANCE',
     sourceBlueprint: 'NVIDIA AI Factory Operations Agent',
     providerNeutral: true,
-    supportedInference: 'NVIDIA Nemotron or another authorized OpenAI-compatible/provider-neutral model',
+    supportedInference: 'NVIDIA Nemotron/NIM or another authorized provider-neutral model endpoint',
     executionBoundary: 'Only explicitly configured, authorized, read-only factory endpoints may be inspected.',
     evidenceRule: 'Configuration is not evidence. A signal becomes verified only after a successful authenticated read-only observation is recorded.',
     mutationRule: 'Cluster changes, workload changes, credential changes, or infrastructure mutations require an explicitly authorized execution path and human approval.',
     failClosed: true,
+    nvidiaArchitecture: getNVIDIAArchitecturePolicy(),
   } as const;
 }
