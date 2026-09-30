@@ -53,7 +53,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
-import { canonicalActionHash, buildEvidenceRecord, listApiAssets, problemDetails } from './src/lib/governance/geas-architecture-controls';
+import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 
 import { 
   getScientistFleet, 
@@ -212,6 +212,40 @@ app.post('/api/governance/geas/evidence/record', geasRateLimit, requireOwnerOrIn
   } catch (error) {
     return res.status(400).json(problemDetails({ title: 'Invalid evidence record', status: 400, detail: error instanceof Error ? error.message : 'Invalid evidence', code: 'invalid-evidence', instance: req.originalUrl }));
   }
+});
+
+registerApiAsset({
+  id: 'geas.api-assets',
+  method: 'GET',
+  path: '/api/governance/geas/architecture/api-assets',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:architecture',
+  exposure: 'internal',
+  evidenceRefs: [],
+});
+registerApiAsset({
+  id: 'geas.canonical-action-hash',
+  method: 'POST',
+  path: '/api/governance/geas/architecture/canonical-action-hash',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:architecture',
+  exposure: 'internal',
+  evidenceRefs: [],
+});
+registerApiAsset({
+  id: 'geas.evidence-record',
+  method: 'POST',
+  path: '/api/governance/geas/evidence/record',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:evidence',
+  exposure: 'internal',
+  evidenceRefs: [],
 });
 
 function apiError(res: Response, status: number, error: string, details?: unknown) {
