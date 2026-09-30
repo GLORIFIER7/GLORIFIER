@@ -377,6 +377,7 @@ const integrationStatus = [
   { id: 'netlify', name: 'Netlify', category: 'frontend', status: 'available', detail: 'Existing public frontend deployment surface', publicUrl: 'https://www.netlify.com/' },
   { id: 'neon', name: 'Neon', category: 'data', status: process.env.DATABASE_URL ? 'configured' : 'needs-config', detail: process.env.DATABASE_URL ? 'PostgreSQL ledger configured' : 'DATABASE_URL required for authoritative ledger', publicUrl: 'https://neon.tech/' },
   { id: 'binance', name: 'Binance', category: 'digital-assets', status: 'public-monitoring', detail: 'Public NFT/market surface; private keys excluded', publicUrl: 'https://www.binance.com/' },
+  { id: 'alpaca', name: 'Alpaca / GoTrade Broker', category: 'brokerage', status: process.env.ALPACA_OAUTH_CLIENT_ID ? 'configured' : 'needs-config', detail: 'OAuth read-only brokerage connector; trading and fund movement disabled', publicUrl: 'https://alpaca.markets/' },
   { id: 'web', name: 'Public Web', category: 'monitoring', status: 'connected', detail: 'Public-source intelligence aggregation and evidence tracking', publicUrl: 'https://news.google.com/' },
   { id: 'google-cloud', name: 'Google Cloud', category: 'optional-ai', status: 'optional', detail: 'Optional intelligence layer; not required by core infrastructure', publicUrl: 'https://cloud.google.com/' },
   { id: 'hugging-face', name: 'Hugging Face', category: 'ai-ecosystem', status: 'connected', detail: 'Authenticated model, dataset, paper, Space and compute collaboration surface', publicUrl: 'https://huggingface.co/' },
