@@ -16,6 +16,7 @@ const compatibleProviders = [
   { id: 'together', name: 'Together AI', apiKeyEnv: 'TOGETHER_API_KEY', baseUrlEnv: 'TOGETHER_BASE_URL', modelEnv: 'TOGETHER_MODEL' },
   { id: 'fireworks', name: 'Fireworks AI', apiKeyEnv: 'FIREWORKS_API_KEY', baseUrlEnv: 'FIREWORKS_BASE_URL', modelEnv: 'FIREWORKS_MODEL' },
   { id: 'openrouter', name: 'OpenRouter', apiKeyEnv: 'OPENROUTER_API_KEY', baseUrlEnv: 'OPENROUTER_BASE_URL', modelEnv: 'OPENROUTER_MODEL', defaultBaseUrl: 'https://openrouter.ai/api/v1', defaultModel: 'openai/gpt-4o-mini' },
+  { id: 'llmsrelay', name: 'LLMsRelay', apiKeyEnv: 'LLMSRELAY_API_KEY', baseUrlEnv: 'LLMSRELAY_BASE_URL', modelEnv: 'LLMSRELAY_MODEL', defaultBaseUrl: 'https://api.llmsrelay.com/v1', defaultModel: 'claude-sonnet-4.6' },
   { id: 'ollama', name: 'Ollama', apiKeyEnv: 'OLLAMA_AUTH_TOKEN', baseUrlEnv: 'OLLAMA_BASE_URL', modelEnv: 'OLLAMA_MODEL' },
 ];
 
@@ -25,8 +26,6 @@ const providers: AIProvider[] = [
   ...compatibleProviders.map((config) => new OpenAICompatibleProvider(config)),
 ];
 
-// Provider-neutral circuit breaker state. Cooldowns prevent repeated calls against
-// known-exhausted providers while preserving automatic recovery after the window.
 const providerCooldownUntil = new Map<string, number>();
 const providerLastFailure = new Map<string, string>();
 
@@ -132,18 +131,10 @@ export interface ProviderExecutionResult {
   providerStatuses: Record<string, 'connected' | 'unavailable' | 'error'>;
 }
 
-/**
- * GLORIFIER AI CEO provider-routing boundary.
- * The registry is authoritative for provider selection; provider failures are
- * recorded and execution continues to another authenticated provider.
- * No synthetic response is ever produced here.
- */
 export async function executeThroughProviderRegistry(
   request: ProviderExecutionRequest
 ): Promise<ProviderExecutionResult> {
   const policy = { ...DEFAULT_PROVIDER_EXECUTION_POLICY, ...(request.policy || {}) };
-  // Anti-fallback invariant: provider/model substitution may only happen through
-  // this governed registry loop. SDK/gateway fallback is never delegated to.
   if (policy.allowImplicitSystemFallback || policy.allowImplicitProviderFallback || policy.allowImplicitModelFallback) {
     throw new Error('Implicit system/provider/model fallback is forbidden by GLORIFIER orchestration policy.');
   }
@@ -168,17 +159,12 @@ export async function executeThroughProviderRegistry(
       if (a.id === preferredProvider && b.id !== preferredProvider) return -1;
       if (b.id === preferredProvider && a.id !== preferredProvider) return 1;
     }
-    if (a.id === 'gemini' && b.id !== 'gemini') return -1;
-    if (b.id === 'gemini' && a.id !== 'gemini') return 1;
-    if (a.id === 'openai' && b.id !== 'openai') return -1;
-    if (b.id === 'openai' && a.id !== 'openai') return 1;
     return 0;
   });
 
   const attemptedProviders: string[] = [];
   const errors: string[] = [];
   const providerStatuses: Record<string, 'connected' | 'unavailable' | 'error'> = {};
-
   let discoveryRefreshes = 0;
   let attempts = 0;
   let transientRetries = 0;
@@ -198,36 +184,24 @@ export async function executeThroughProviderRegistry(
       errors.push(`${provider.id}: circuit cooldown active until ${providerCooldownUntil.get(provider.id)}`);
       continue;
     }
-
     attemptedProviders.push(provider.id);
     providerStatuses[provider.id] = 'connected';
     attempts += 1;
-
     try {
-      const providerRequest = {
-        ...request,
-        model: request.model && provider.models().includes(request.model)
-          ? request.model
-          : undefined,
-      };
+      const providerRequest = { ...request, model: request.model && provider.models().includes(request.model) ? request.model : undefined };
       const response = await provider.generate(providerRequest);
-
       if (response.text?.trim()) {
         providerCooldownUntil.delete(provider.id);
         providerLastFailure.delete(provider.id);
         return { response, provider: provider.id, attemptedProviders, errors, providerStatuses };
       }
-
       errors.push(`${provider.id}: empty response`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const availability = (error as any)?.providerAvailability;
       providerStatuses[provider.id] = availability === 'unavailable' ? 'unavailable' : 'error';
       errors.push(`${provider.id}: ${message}`);
-
-      const cooldownMs = cooldownFor(error);
-      providerCooldownUntil.set(provider.id, Date.now() + cooldownMs);
-
+      providerCooldownUntil.set(provider.id, Date.now() + cooldownFor(error));
       const transient = /429|408|425|500|502|503|504|timeout|temporar|overloaded|unavailable/i.test(message);
       if (policy.retryTransientFailures && transient && transientRetries < 1) {
         transientRetries += 1;
@@ -237,34 +211,21 @@ export async function executeThroughProviderRegistry(
     }
   }
 
-  if (
-    policy.refreshDiscoveryBeforeExhaustion &&
-    discoveryRefreshes < policy.maxDiscoveryRefreshes
-  ) {
+  if (policy.refreshDiscoveryBeforeExhaustion && discoveryRefreshes < policy.maxDiscoveryRefreshes) {
     discoveryRefreshes += 1;
     try {
       await refreshDiscovery();
       const refreshedEligible = getConnectedProviders().filter((provider) => {
         const discovered = discovery.get(provider.id);
-        return discovered?.availability === 'available' &&
-          discovered.authenticated &&
-          (!request.capability || discovered.capabilities.includes(request.capability)) &&
-          !isCoolingDown(provider.id) &&
-          !attemptedProviders.includes(provider.id);
+        return discovered?.availability === 'available' && discovered.authenticated && (!request.capability || discovered.capabilities.includes(request.capability)) && !isCoolingDown(provider.id) && !attemptedProviders.includes(provider.id);
       });
-
       for (const provider of refreshedEligible) {
         if (attempts >= policy.maxAttempts) break;
         attemptedProviders.push(provider.id);
         providerStatuses[provider.id] = 'connected';
         attempts += 1;
         try {
-          const providerRequest = {
-            ...request,
-            model: request.model && provider.models().includes(request.model)
-              ? request.model
-              : undefined,
-          };
+          const providerRequest = { ...request, model: request.model && provider.models().includes(request.model) ? request.model : undefined };
           const response = await provider.generate(providerRequest);
           if (response.text?.trim()) {
             providerCooldownUntil.delete(provider.id);
@@ -285,10 +246,5 @@ export async function executeThroughProviderRegistry(
     }
   }
 
-  return {
-    provider: 'provider-registry-exhausted',
-    attemptedProviders,
-    errors,
-    providerStatuses,
-  };
+  return { provider: 'provider-registry-exhausted', attemptedProviders, errors, providerStatuses };
 }
