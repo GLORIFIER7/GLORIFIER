@@ -34,6 +34,9 @@ jobs:
       - name: Agent harness approval tests
         run: npm run test:harness
 
+      - name: Anthropic provider integration tests
+        run: npm run test:anthropic
+
       - name: Architecture consolidation tests
         run: npm run test:architecture
 
