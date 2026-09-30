@@ -40,5 +40,8 @@ jobs:
       - name: Permanent GLORIFIER stack invariants
         run: npm run test:permanent-stack
 
+      - name: GEAS architecture controls
+        run: npm run test:geas-controls
+
       - name: Production build
         run: npm run build

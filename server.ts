@@ -53,6 +53,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 
 import { 
   getScientistFleet, 
@@ -79,9 +80,68 @@ void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const geasRateLimit = (req: Request, res: Response, next: express.NextFunction) => {
+  const windowMs = 60_000;
+  const maxRequests = 30;
+  const key = `geas:${req.ip}:${req.method}:${req.path}`;
+  const now = Date.now();
+  const store = (globalThis as typeof globalThis & { __geasRateLimits?: Map<string, { start: number; count: number }> }).__geasRateLimits
+    ?? ((globalThis as typeof globalThis & { __geasRateLimits?: Map<string, { start: number; count: number }> }).__geasRateLimits = new Map());
+  const current = store.get(key);
+  if (!current || now - current.start >= windowMs) {
+    store.set(key, { start: now, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > maxRequests) {
+    const retryAfter = Math.max(1, Math.ceil((windowMs - (now - current.start)) / 1000));
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json(problemDetails({
+      type: 'urn:glorifier:problem:rate-limit-exceeded',
+      title: 'Rate limit exceeded',
+      status: 429,
+      detail: 'Too many requests for this GEAS endpoint.',
+      code: 'rate-limit-exceeded',
+      instance: req.originalUrl,
+      retryable: true,
+    }));
+  }
+  return next();
+};
+
+
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
+app.use((req: Request, res: Response, next) => {
+  const windowMs = 60_000;
+  const maxRequests = 60;
+  const now = Date.now();
+  const key = `${req.ip}:${req.method}:${req.path}`;
+  const store = (globalThis as typeof globalThis & { __glorifierRateLimits?: Map<string, { start: number; count: number }> }).__glorifierRateLimits
+    ?? ((globalThis as typeof globalThis & { __glorifierRateLimits?: Map<string, { start: number; count: number }> }).__glorifierRateLimits = new Map());
+  const current = store.get(key);
+  if (!current || now - current.start >= windowMs) {
+    store.set(key, { start: now, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > maxRequests) {
+    const retryAfter = Math.max(1, Math.ceil((windowMs - (now - current.start)) / 1000));
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json(problemDetails({
+      title: 'Rate limit exceeded',
+      status: 429,
+      detail: 'Too many requests for this endpoint.',
+      code: 'rate-limit-exceeded',
+      instance: req.originalUrl,
+      retryable: true,
+    }));
+  }
+  next();
+});
+
+
 app.use((req: Request, res: Response, next) => {
   const configured = String(process.env.GLORIFIER_ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
   const allowedOrigins = configured.length ? configured : [
@@ -128,6 +188,64 @@ app.use('/api', (req: Request, res: Response, next) => {
   ].some(prefix => pathName === prefix || pathName.startsWith(prefix + '/'));
   if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
   return requireAuthentication(req as any, res, next);
+});
+
+// GEAS architecture-control surfaces: evidence, canonical action identity, and API inventory.
+app.get('/api/governance/geas/architecture/api-assets', geasRateLimit, requireOwnerOrInternalService, (_req: Request, res: Response) => {
+  res.json({ ok: true, assets: listApiAssets() });
+});
+
+app.post('/api/governance/geas/architecture/canonical-action-hash', geasRateLimit, requireOwnerOrInternalService, (req: Request, res: Response) => {
+  try {
+    const action = req.body?.action;
+    if (!action || typeof action !== 'object') return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: 'action is required', code: 'invalid-action', instance: req.originalUrl }));
+    res.json({ ok: true, canonicalActionHash: canonicalActionHash(action) });
+  } catch (error) {
+    return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: error instanceof Error ? error.message : 'Invalid action', code: 'invalid-action', instance: req.originalUrl }));
+  }
+});
+
+app.post('/api/governance/geas/evidence/record', geasRateLimit, requireOwnerOrInternalService, (req: Request, res: Response) => {
+  try {
+    const record = buildEvidenceRecord(req.body);
+    res.status(201).json({ ok: true, evidence: record });
+  } catch (error) {
+    return res.status(400).json(problemDetails({ title: 'Invalid evidence record', status: 400, detail: error instanceof Error ? error.message : 'Invalid evidence', code: 'invalid-evidence', instance: req.originalUrl }));
+  }
+});
+
+registerApiAsset({
+  id: 'geas.api-assets',
+  method: 'GET',
+  path: '/api/governance/geas/architecture/api-assets',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:architecture',
+  exposure: 'internal',
+  evidenceRefs: [],
+});
+registerApiAsset({
+  id: 'geas.canonical-action-hash',
+  method: 'POST',
+  path: '/api/governance/geas/architecture/canonical-action-hash',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:architecture',
+  exposure: 'internal',
+  evidenceRefs: [],
+});
+registerApiAsset({
+  id: 'geas.evidence-record',
+  method: 'POST',
+  path: '/api/governance/geas/evidence/record',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:evidence',
+  exposure: 'internal',
+  evidenceRefs: [],
 });
 
 function apiError(res: Response, status: number, error: string, details?: unknown) {
@@ -1991,7 +2109,14 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
-  const completed = await executeA2ATask(task, runIntelligenceModel);
+  const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
+    'gemini',
+    prompt,
+    {
+      systemInstruction: typeof options?.systemInstruction === 'string' ? options.systemInstruction : undefined,
+      jsonMode: options?.jsonMode === true,
+    }
+  ));
   return res.status(completed.status === 'completed' ? 200 : 503).json({ ok: completed.status === 'completed', task: completed });
 });
 
