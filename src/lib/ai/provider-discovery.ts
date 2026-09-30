@@ -7,7 +7,7 @@ interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['
 const definitions: ProviderDefinition[] = [
  {id:'openai',name:'OpenAI',kind:'openai-compatible',endpoint:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',baseUrlEnv:'OPENAI_BASE_URL',modelEnv:'OPENAI_MODEL',defaultModel:'gpt-4o',capabilities:['chat','reasoning','code']},
  {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
- {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',defaultModel:'claude-sonnet-4-5',capabilities:['chat','reasoning','code']},
+ {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
  {id:'xai',name:'xAI',kind:'openai-compatible',endpoint:'https://api.x.ai/v1',keyEnv:'XAI_API_KEY',baseUrlEnv:'XAI_BASE_URL',modelEnv:'XAI_MODEL',defaultModel:'grok-4',capabilities:['chat','reasoning','code']},
  {id:'mistral',name:'Mistral AI',kind:'openai-compatible',endpoint:'https://api.mistral.ai/v1',keyEnv:'MISTRAL_API_KEY',baseUrlEnv:'MISTRAL_BASE_URL',modelEnv:'MISTRAL_MODEL',defaultModel:'mistral-large-latest',capabilities:['chat','reasoning','code']},
