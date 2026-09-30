@@ -5,11 +5,11 @@ export class AnthropicProvider implements AIProvider {
   name = 'Anthropic Claude';
 
   status() {
-    return process.env.ANTHROPIC_API_KEY ? 'connected' as const : 'disconnected' as const;
+    return process.env.ANTHROPIC_API_KEY?.trim() ? 'connected' as const : 'disconnected' as const;
   }
 
   models() {
-    return [process.env.ANTHROPIC_MODEL || 'claude-opus-4-1'];
+    return [process.env.ANTHROPIC_MODEL || 'claude-opus-5'];
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
