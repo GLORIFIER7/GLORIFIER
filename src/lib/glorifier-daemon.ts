@@ -83,3 +83,5 @@ export function getGlorifierDaemonSnapshot() {
     architecture: ['Governance Kernel / GEAS', 'AI CEO', 'Permanent Orchestrator', 'Provider Registry', 'AI Agent / A2A Network', 'Execution Fabric', 'Verification and Evidence Spine', 'Revenue Control Plane', 'Audit and Economic Truth']
   };
 }
+
+if (process.argv[1]?.endsWith('glorifier-daemon.ts')) startGlorifierDaemon();
