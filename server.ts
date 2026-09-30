@@ -53,6 +53,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { canonicalActionHash, buildEvidenceRecord, listApiAssets, problemDetails } from './src/lib/governance/geas-architecture-controls';
 
 import { 
   getScientistFleet, 
@@ -128,6 +129,30 @@ app.use('/api', (req: Request, res: Response, next) => {
   ].some(prefix => pathName === prefix || pathName.startsWith(prefix + '/'));
   if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
   return requireAuthentication(req as any, res, next);
+});
+
+// GEAS architecture-control surfaces: evidence, canonical action identity, and API inventory.
+app.get('/api/governance/geas/architecture/api-assets', requireOwnerOrInternalService, (_req: Request, res: Response) => {
+  res.json({ ok: true, assets: listApiAssets() });
+});
+
+app.post('/api/governance/geas/architecture/canonical-action-hash', requireOwnerOrInternalService, (req: Request, res: Response) => {
+  try {
+    const action = req.body?.action;
+    if (!action || typeof action !== 'object') return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: 'action is required', code: 'invalid-action', instance: req.originalUrl }));
+    res.json({ ok: true, canonicalActionHash: canonicalActionHash(action) });
+  } catch (error) {
+    return res.status(400).json(problemDetails({ title: 'Invalid action', status: 400, detail: error instanceof Error ? error.message : 'Invalid action', code: 'invalid-action', instance: req.originalUrl }));
+  }
+});
+
+app.post('/api/governance/geas/evidence/record', requireOwnerOrInternalService, (req: Request, res: Response) => {
+  try {
+    const record = buildEvidenceRecord(req.body);
+    res.status(201).json({ ok: true, evidence: record });
+  } catch (error) {
+    return res.status(400).json(problemDetails({ title: 'Invalid evidence record', status: 400, detail: error instanceof Error ? error.message : 'Invalid evidence', code: 'invalid-evidence', instance: req.originalUrl }));
+  }
 });
 
 function apiError(res: Response, status: number, error: string, details?: unknown) {
@@ -809,8 +834,7 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
           'Do not invent sources, prices, transactions, consensus, or verified outcomes.',
           role.instruction,
           policyContext
-        ].join('
-'),
+        ].join('\\n'),
         userPrompt: topic,
         temperature: 0.2
       });
@@ -846,11 +870,8 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
     let synthesis: any = null;
     if (perspectives.length >= 2) {
       const evidencePacket = perspectives.map(p =>
-        `[\${p.title} | \${p.provider}:\${p.model}]
-\${p.output}`
-      ).join('
-
-');
+        `[\${p.title} | \${p.provider}:\${p.model}]\\n\${p.output}`
+      ).join('\\n\\n');
 
       const synthesisExecution = await runModelExecution({
         model: 'auto' as any,
@@ -861,12 +882,8 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
           'Identify agreement, disagreement, uncertainty, missing evidence, and next verification steps.',
           'Do not invent facts, citations, financial outcomes, authorization, contracts, or payments.',
           'The synthesis is advisory; humans retain final authority.'
-        ].join('
-'),
-        userPrompt: `Objective: \${topic}
-
-Live specialist responses:
-\${evidencePacket}`,
+        ].join('\\n'),
+        userPrompt: `Objective: \${topic}\\n\\nLive specialist responses:\\n\${evidencePacket}`,
         temperature: 0.1
       });
 
@@ -1873,13 +1890,8 @@ async function runIntelligenceModel(
 
   const preferredProvider = provider === 'openai' ? 'openai' : 'gemini';
   const requestPrompt = jsonMode
-    ? systemInstruction + '
-Return valid JSON only.
-
-' + prompt
-    : systemInstruction + '
-
-' + prompt;
+    ? systemInstruction + '\\nReturn valid JSON only.\\n\\n' + prompt
+    : systemInstruction + '\\n\\n' + prompt;
 
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
