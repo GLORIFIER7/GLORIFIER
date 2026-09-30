@@ -2109,7 +2109,14 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
-  const completed = await executeA2ATask(task, runIntelligenceModel);
+  const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
+    'gemini',
+    prompt,
+    {
+      systemInstruction: typeof options?.systemInstruction === 'string' ? options.systemInstruction : undefined,
+      jsonMode: options?.jsonMode === true,
+    }
+  ));
   return res.status(completed.status === 'completed' ? 200 : 503).json({ ok: completed.status === 'completed', task: completed });
 });
 

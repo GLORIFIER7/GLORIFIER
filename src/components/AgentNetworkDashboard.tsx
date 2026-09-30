@@ -117,13 +117,12 @@ export const AgentNetworkDashboard: React.FC = () => {
       {!loading && !visible.length && <div className="rounded-lg border border-dashed border-slate-800 p-10 text-center text-sm text-slate-500">No matching agents discovered yet.</div>}
 
       <div className="grid md:grid-cols-3 gap-3">
-        {[
+        {([
           ['Capability graph', 'Find agents by what they can actually do.', Search],
           ['Evidence reputation', 'Verification events strengthen discoverability without creating fake trust.', FileCheck2],
           ['Governed handoff', 'A discovery match becomes an A2A task only through policy and authority controls.', ShieldCheck]
-        ].map(([title, body, Icon]) => {
-          const I = Icon as React.ComponentType<{className?: string}>;
-          return <div key={String(title)} className="rounded-lg border border-slate-800 bg-slate-950 p-4"><I className="h-4 w-4 text-emerald-400" /><h4 className="mt-3 text-xs font-semibold text-white">{title}</h4><p className="mt-1 text-[11px] leading-5 text-slate-500">{body}</p></div>;
+        ] as Array<[string, string, React.ComponentType<{className?: string}>]>).map(([title, body, Icon]) => {
+          return <div key={title} className="rounded-lg border border-slate-800 bg-slate-950 p-4"><Icon className="h-4 w-4 text-emerald-400" /><h4 className="mt-3 text-xs font-semibold text-white">{title}</h4><p className="mt-1 text-[11px] leading-5 text-slate-500">{body}</p></div>;
         })}
       </div>
     </section>
