@@ -30,16 +30,16 @@ export interface GovernedActionIdentity {
 }
 
 export function canonicalActionHash(action: GovernedActionIdentity): string {
-  const canonical = [
-    action.contextId,
-    action.capability,
-    action.resourceScope || '',
-    action.payloadHash,
-    action.authorityEnvelopeId,
-    action.policyVersion,
-    action.risk,
-    action.irreversible ? '1' : '0',
-  ].join('|');
+  const canonical = stableSerialize({
+    contextId: action.contextId,
+    capability: action.capability,
+    resourceScope: action.resourceScope || '',
+    payloadHash: action.payloadHash,
+    authorityEnvelopeId: action.authorityEnvelopeId,
+    policyVersion: action.policyVersion,
+    risk: action.risk,
+    irreversible: action.irreversible,
+  });
   return createHash('sha256').update(canonical).digest('hex');
 }
 
@@ -110,7 +110,7 @@ export interface ProblemDetails {
 
 export function problemDetails(input: Omit<ProblemDetails, 'type'> & { type?: string }): ProblemDetails {
   return {
-    type: input.type || 'https://glorifier.local/problems/' + input.code,
+    type: input.type || 'urn:glorifier:problem:' + input.code,
     ...input,
   };
 }
