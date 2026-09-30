@@ -14,6 +14,7 @@ import { ConnectionAuthorizationDashboard } from './components/ConnectionAuthori
 import { GeasArchitectureScientistDashboard } from './components/GeasArchitectureScientistDashboard';
 import { MobileDeviceControl } from './components/MobileDeviceControl';
 import { AgentMinerDashboard } from './components/AgentMinerDashboard';
+import { AgentNetworkDashboard } from './components/AgentNetworkDashboard';
 
 import { 
   initialStats, 
@@ -59,7 +60,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
+  const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -514,6 +515,7 @@ export default function App() {
         {activeTab === 'geas_architecture' && <GeasArchitectureScientistDashboard />}
         {activeTab === 'ai_ceo' && <AICeoControl />}
         {activeTab === 'integrations' && <IntegrationControl />}
+        {activeTab === 'agent_network' && <AgentNetworkDashboard />}
         {activeTab === 'discovery' && <OpportunityDiscoveryDashboard />}
         {activeTab === 'sentinel' && (
           <AiCodeSentinelManagement
