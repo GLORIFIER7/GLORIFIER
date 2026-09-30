@@ -17,6 +17,7 @@ export class AnthropicProvider implements AIProvider {
     if (!apiKey) throw new Error('Anthropic is not configured. Set ANTHROPIC_API_KEY.');
 
     const model = request.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-1';
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
     const system = request.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     const messages = request.messages
       .filter((m) => m.role !== 'system')
@@ -28,6 +29,7 @@ export class AnthropicProvider implements AIProvider {
         'content-type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        ...(workspaceId ? { 'anthropic-workspace-id': workspaceId } : {}),
       },
       body: JSON.stringify({
         model,
