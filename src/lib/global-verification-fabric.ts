@@ -19,18 +19,29 @@ async function runCycle(reason: string) {
     lastRunAt = new Date().toISOString();
     const errors: string[] = [];
 
-    try { await reconcileIntegrationControlPlane('autonomous-global-verification'); }
-    catch (error) { errors.push(`integration-control: ${error instanceof Error ? error.message : String(error)}`); }
+    try {
+      await reconcileIntegrationControlPlane('autonomous-global-verification');
+    } catch (error) {
+      errors.push(`integration-control: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
-    try { await discoverGlobalProviders('autonomous-global-verification'); }
-    catch (error) { errors.push(`provider-discovery: ${error instanceof Error ? error.message : String(error)}`); }
+    try {
+      await discoverGlobalProviders('autonomous-global-verification');
+    } catch (error) {
+      errors.push(`provider-discovery: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
-    try { await runAutonomousAuthenticationVerification('global-fabric'); }
-    catch (error) { errors.push(`authentication-verification: ${error instanceof Error ? error.message : String(error)}`); }
+    try {
+      await runAutonomousAuthenticationVerification('global-fabric');
+    } catch (error) {
+      errors.push(`authentication-verification: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     lastErrors = errors;
     nextRunAt = new Date(Date.now() + INTERVAL_MS).toISOString();
-    console.log('[GlobalVerificationFabric] cycle complete', { reason, cycleCount, errors: errors.length, lastRunAt, nextRunAt });
+    console.log('[GlobalVerificationFabric] cycle complete', {
+      reason, cycleCount, errors: errors.length, lastRunAt, nextRunAt
+    });
   })().finally(() => { inFlight = null; });
   return inFlight;
 }
@@ -64,21 +75,20 @@ export function getGlobalVerificationFabricSnapshot() {
         'retry transient provider and integration reconciliation',
         're-run authenticated read-only verification',
         'refresh provider capability discovery',
-        'evaluate pre-authorized LOW-risk credential rotations only when the provider-native rotation path preserves permissions and rollback safety',
         'preserve evidence and truthful degraded states'
       ],
       prohibited: [
         'scan or modify unrelated third-party systems',
         'bypass authentication, MFA, OAuth consent, IP restrictions, or access controls',
-        'create credentials or rotate credentials outside a pre-authorized LOW-risk rotation policy',
+        'create or rotate credentials without authorization',
         'trade, withdraw, transfer, or move funds',
         'declare verification without external evidence'
       ],
       aiFactoryOperations: getAIFactoryOperationsPolicy(),
       humanRequired: [
         'new OAuth consent or account linking',
-        'new or missing credentials',
-        'high-risk credential rotation or permission changes',
+        'invalid or missing credentials',
+        'permission changes and API-key rotation',
         'financial actions',
         'production code changes that require review or deployment approval'
       ]

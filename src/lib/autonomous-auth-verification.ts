@@ -144,12 +144,10 @@ export function getAutonomousAuthenticationVerificationSnapshot(): AutonomousVer
         'retry Firebase Admin initialization when configuration is available',
         'retry signed Binance read-only authentication',
         're-record qualifying Binance evidence after successful verification',
-        'evaluate and execute only pre-authorized LOW-risk credential rotations when an authorized provider-native rotation operation exists',
         'never enable withdrawals, transfers, margin, futures, options, or trading permissions'
       ],
       humanRequired: [
-        'provide or create missing credentials',
-        'high-risk credential rotation or any permission-scope change',
+        'provide or rotate missing/invalid provider credentials',
         'change Binance API permissions or IP restrictions',
         'approve account ownership or OAuth authorization',
         'execute financial transactions or move funds'
