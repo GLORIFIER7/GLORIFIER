@@ -7,7 +7,7 @@ interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['
 const definitions: ProviderDefinition[] = [
  {id:'openai',name:'OpenAI',kind:'openai-compatible',endpoint:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',baseUrlEnv:'OPENAI_BASE_URL',modelEnv:'OPENAI_MODEL',defaultModel:'gpt-4o',capabilities:['chat','reasoning','code']},
  {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
- {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',defaultModel:'claude-sonnet-4-5',capabilities:['chat','reasoning','code']},
+ {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
  {id:'xai',name:'xAI',kind:'openai-compatible',endpoint:'https://api.x.ai/v1',keyEnv:'XAI_API_KEY',baseUrlEnv:'XAI_BASE_URL',modelEnv:'XAI_MODEL',defaultModel:'grok-4',capabilities:['chat','reasoning','code']},
  {id:'mistral',name:'Mistral AI',kind:'openai-compatible',endpoint:'https://api.mistral.ai/v1',keyEnv:'MISTRAL_API_KEY',baseUrlEnv:'MISTRAL_BASE_URL',modelEnv:'MISTRAL_MODEL',defaultModel:'mistral-large-latest',capabilities:['chat','reasoning','code']},
@@ -15,7 +15,8 @@ const definitions: ProviderDefinition[] = [
  {id:'groq',name:'Groq',kind:'openai-compatible',endpoint:'https://api.groq.com/openai/v1',keyEnv:'GROQ_API_KEY',baseUrlEnv:'GROQ_BASE_URL',modelEnv:'GROQ_MODEL',defaultModel:'llama-4-scout',capabilities:['chat','reasoning','code']},
  {id:'together',name:'Together AI',kind:'openai-compatible',endpoint:'',keyEnv:'TOGETHER_API_KEY',baseUrlEnv:'TOGETHER_BASE_URL',modelEnv:'TOGETHER_MODEL',capabilities:['chat','reasoning','code']},
  {id:'fireworks',name:'Fireworks AI',kind:'openai-compatible',endpoint:'',keyEnv:'FIREWORKS_API_KEY',baseUrlEnv:'FIREWORKS_BASE_URL',modelEnv:'FIREWORKS_MODEL',capabilities:['chat','reasoning','code']},
- {id:'openrouter',name:'OpenRouter',kind:'router',endpoint:'https://openrouter.ai/api/v1',keyEnv:'OPENROUTER_API_KEY',capabilities:['chat','reasoning','code','multimodal','provider-failover']},
+ {id:'openrouter',name:'OpenRouter',kind:'router',endpoint:'https://openrouter.ai/api/v1',keyEnv:'OPENROUTER_API_KEY',baseUrlEnv:'OPENROUTER_BASE_URL',modelEnv:'OPENROUTER_MODEL',capabilities:['chat','reasoning','code','multimodal','provider-failover']},
+ {id:'llmsrelay',name:'LLMsRelay',kind:'router',endpoint:'https://api.llmsrelay.com/v1',keyEnv:'LLMSRELAY_API_KEY',baseUrlEnv:'LLMSRELAY_BASE_URL',modelEnv:'LLMSRELAY_MODEL',defaultModel:'claude-sonnet-4.6',capabilities:['chat','reasoning','code','provider-gateway']},
  {id:'ollama',name:'Ollama / self-hosted',kind:'self-hosted',endpoint:'http://localhost:11434',keyEnv:'OLLAMA_AUTH_TOKEN',baseUrlEnv:'OLLAMA_BASE_URL',modelEnv:'OLLAMA_MODELS',capabilities:['chat','reasoning','code','self-hosted']}
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
