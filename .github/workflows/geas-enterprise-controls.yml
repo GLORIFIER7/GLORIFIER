@@ -1,0 +1,34 @@
+name: GEAS Enterprise Architecture Controls
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/governance/**'
+      - 'scripts/**'
+      - 'docs/GEAS-ENTERPRISE-ARCHITECTURE-CONTROLS.md'
+      - 'package.json'
+      - '.github/workflows/geas-enterprise-controls.yml'
+  push:
+    branches: [main, geas-enterprise-architecture-hardening]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck
+        run: npm run lint
+      - name: GEAS enterprise control tests
+        run: npm run test:geas-enterprise-controls
+      - name: GEAS reconciliation tests
+        run: npm run test:geas-reconciliation
+      - name: Frontend build
+        run: npm run build
