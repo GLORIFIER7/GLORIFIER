@@ -52,6 +52,7 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 
 import { 
   getScientistFleet, 
@@ -72,6 +73,7 @@ void initializePayoutRegistry().catch((error) => console.warn('[Payouts] initial
 void initializeCryptographicAssetVerification().catch((error) => console.warn('[CryptoAssetVerification] initialization deferred:', error?.message));
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
+initializeA2ARuntime();
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
@@ -1942,6 +1944,69 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
 // ============================================================================
 app.get('/api/agents', (_req: Request, res: Response) => {
   res.json(agentManifest());
+});
+
+app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
+  res.json({ ok: true, manifest: getA2AProtocolManifest() });
+});
+
+app.get('/.well-known/a2a-agent-card.json', (_req: Request, res: Response) => {
+  res.json({
+    ...agentManifest(),
+    protocol: 'A2A',
+    glOrifierProtocol: getA2AProtocolManifest(),
+    capabilities: discoverA2ACapabilities()
+  });
+});
+
+app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
+  res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
+});
+
+app.get('/api/a2a/tasks', (_req: Request, res: Response) => {
+  res.json({ ok: true, tasks: listA2ATasks(), protocol: getA2AProtocolManifest() });
+});
+
+app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
+  const task = getA2ATask(String(req.params.id));
+  if (!task) return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  return res.json({ ok: true, task });
+});
+
+app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
+  const body = req.body || {};
+  if (!body.capability || !body.objective) {
+    return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  }
+  const task = createA2ATask({
+    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
+    capability: String(body.capability),
+    objective: String(body.objective),
+    input: body.input,
+    parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
+    maxAttempts: body.maxAttempts
+  });
+  const approvalRequired = true;
+  if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
+  }
+  const completed = await executeA2ATask(task, runIntelligenceModel);
+  return res.status(completed.status === 'completed' ? 200 : 503).json({ ok: completed.status === 'completed', task: completed });
+});
+
+app.post('/api/a2a/handoffs/verify', (req: Request, res: Response) => {
+  const result = verifySignedHandoff(req.body);
+  return res.status(result.valid ? 200 : 400).json({ ok: result.valid, verification: result });
+});
+
+app.post('/api/a2a/e2e-test', requireOwner, async (_req: Request, res: Response) => {
+  try {
+    const result = await runA2AE2ETest(runIntelligenceModel);
+    return res.status(result.ok ? 200 : 503).json(result);
+  } catch (error) {
+    return apiError(res, 503, 'A2A E2E test unavailable', error);
+  }
 });
 
 app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
