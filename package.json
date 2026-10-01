@@ -84,5 +84,10 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/GLORIFIER7/GLORIFIER.git"
-  }
+  },
+  "homepage": "https://github.com/GLORIFIER7/GLORIFIER",
+  "bugs": {
+    "url": "https://github.com/GLORIFIER7/GLORIFIER/issues"
+  },
+  "license": "Apache-2.0"
 }
