@@ -1,0 +1,62 @@
+name: GLORIFIER Testnet Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      initial_holder:
+        description: "GLR initial holder address"
+        required: true
+        type: string
+      verify:
+        description: "Verify contract on explorer"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: testnet
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: |
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
+
+      - name: Test
+        working-directory: contracts
+        run: forge test -vv
+
+      - name: Deploy
+        working-directory: contracts
+        env:
+          PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          GLORIFIER_INITIAL_HOLDER: ${{ inputs.initial_holder }}
+        run: |
+          test -n "$PRIVATE_KEY"
+          test -n "$RPC_URL"
+          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER             --rpc-url "$RPC_URL"             --broadcast             --slow | tee deployment-output.txt
+
+      - name: Verify deployment evidence
+        working-directory: contracts
+        env:
+          INITIAL_HOLDER: ${{ inputs.initial_holder }}
+        run: |
+          test -s deployment-output.txt
+          grep -E "Deployed|GLORIFIER|transaction|contract" deployment-output.txt || true
+
+      - name: Upload deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: glorifier-testnet-deployment
+          path: contracts/deployment-output.txt
