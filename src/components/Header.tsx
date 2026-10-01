@@ -91,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-[15px] font-semibold tracking-[-0.03em] text-white flex items-center gap-1.5">
                 GLORIFIER
                 <span className="text-[10px] px-1.5 py-0.5 rounded-sm text-emerald-300 border border-slate-700 font-mono">
-                  AI CONTROL PLANE
+                  GPT CONTROL PLANE
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
