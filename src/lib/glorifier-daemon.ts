@@ -4,6 +4,7 @@ import { runAutonomousAuthenticationVerification } from './autonomous-auth-verif
 import { runGlobalVerificationFabricNow } from './global-verification-fabric';
 import { runGeasArchitectureScan } from './governance/geas-architecture-scientist';
 import { runAgentMinerCycle } from './agent-miner';
+import { runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
 
 type DaemonState = 'STOPPED' | 'RUNNING' | 'DEGRADED';
 type ComponentStatus = { name: string; lastRunAt: string | null; lastSuccessAt: string | null; failures: number; lastError: string | null };
@@ -46,7 +47,8 @@ export async function runGlorifierDaemonCycle(reason = 'scheduled') {
       ['authentication-verification', () => runAutonomousAuthenticationVerification('glorifier-daemon')],
       ['global-verification', () => runGlobalVerificationFabricNow('glorifier-daemon')],
       ['architecture-scientist', () => runGeasArchitectureScan()],
-      ['agent-miner-observation', () => runAgentMinerCycle()]
+      ['agent-miner-observation', () => runAgentMinerCycle()],
+      ['internet-discovery-world-graph', () => runInternetDiscoveryFabricCycle('glorifier-daemon')]
     ];
     for (const [name, operation] of stages) { try { await runComponent(name, operation); } catch (error) { errors.push(name + ': ' + (error instanceof Error ? error.message : String(error))); } }
     lastErrors = errors;
