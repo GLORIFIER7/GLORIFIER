@@ -140,7 +140,7 @@ export async function executeThroughProviderRegistry(
   }
   const connected = getConnectedProviders();
   const preferredProvider = request.preferredProvider
-    || (request.model?.startsWith('gemini') ? 'gemini' : request.model?.startsWith('gpt') ? 'openai' : undefined);
+    || (request.model?.startsWith('gpt') ? 'openai' : undefined);
 
   let discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const refreshDiscovery = async () => {
