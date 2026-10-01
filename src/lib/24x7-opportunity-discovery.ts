@@ -3,7 +3,11 @@ import { getPostgresPool } from './db/postgres';
 import { MONETIZATION_SCIENTISTS, createMonetizationOpportunity } from './monetization-sprint';
 import { listAgentCards } from './agent-runtime';
 
-export const GLORIFIER_24X7_DISCOVERY_VERSION = 'G24D-1.0';
+export const GLORIFIER_24X7_DISCOVERY_VERSION = 'G24D-1.1';
+
+let discoveryTimer: NodeJS.Timeout | null = null;
+let discoveryRunning = false;
+let lastDiscoveryError: string | null = null;
 type DiscoverySource = { id: string; name: string; url: string; category: string; enabled: boolean };
 type DiscoveryFinding = { sourceId: string; title: string; url: string; description: string; category: string; observedAt: string };
 
@@ -99,11 +103,40 @@ export async function run24x7OpportunityDiscoveryCycle(actor = 'ai-ceo-autonomou
   return { runId, completedAt: new Date().toISOString(), actor, sourcesScanned: sources.length, findingsObserved, opportunitiesCreated, errors, policy: get24x7OpportunityDiscoveryPolicy() };
 }
 
+export function start24x7OpportunityDiscoveryDaemon() {
+  if (discoveryTimer) return { running: true, intervalMs: get24x7OpportunityDiscoveryPolicy().defaultIntervalMs };
+  const intervalMs = get24x7OpportunityDiscoveryPolicy().defaultIntervalMs;
+  const tick = async () => {
+    if (discoveryRunning) return;
+    discoveryRunning = true;
+    try {
+      await run24x7OpportunityDiscoveryCycle('ai-ceo-autonomous-discovery');
+      lastDiscoveryError = null;
+    } catch (error) {
+      lastDiscoveryError = error instanceof Error ? error.message : String(error);
+    } finally {
+      discoveryRunning = false;
+    }
+  };
+  void tick();
+  discoveryTimer = setInterval(() => { void tick(); }, intervalMs);
+  discoveryTimer.unref?.();
+  return { running: true, intervalMs };
+}
+
+export function stop24x7OpportunityDiscoveryDaemon() {
+  if (discoveryTimer) clearInterval(discoveryTimer);
+  discoveryTimer = null;
+  discoveryRunning = false;
+  return { running: false };
+}
+
 export async function get24x7OpportunityDiscoveryStatus() {
   await initialize24x7OpportunityDiscovery();
   const db = getPostgresPool();
   const runs = await db.query('SELECT * FROM glorifier_discovery_runs ORDER BY created_at DESC LIMIT 20');
   const findings = await db.query('SELECT status, scientist_id, COUNT(*)::int AS count FROM glorifier_discovery_findings GROUP BY status, scientist_id ORDER BY count DESC');
   const assignments = await db.query('SELECT assignee_type, status, COUNT(*)::int AS count FROM glorifier_discovery_assignments GROUP BY assignee_type, status ORDER BY assignee_type, status');
-  return { policy: get24x7OpportunityDiscoveryPolicy(), recentRuns: runs.rows, queueByScientist: findings.rows, assignmentQueue: assignments.rows, modelAndScientistDelegation: 'ALL_REGISTERED_MODELS_AND_ALL_MONETIZATION_SCIENTISTS' };
+  const latestRun = runs.rows[0] || null;
+  return { policy: get24x7OpportunityDiscoveryPolicy(), daemon: { running: Boolean(discoveryTimer), cycleRunning: discoveryRunning, lastError: lastDiscoveryError }, freshness: { latestRunAt: latestRun?.created_at || null, stale: !latestRun || (Date.now() - new Date(latestRun.created_at).getTime()) > get24x7OpportunityDiscoveryPolicy().defaultIntervalMs * 2 }, recentRuns: runs.rows, queueByScientist: findings.rows, assignmentQueue: assignments.rows, modelAndScientistDelegation: 'ALL_REGISTERED_MODELS_AND_ALL_MONETIZATION_SCIENTISTS' };
 }

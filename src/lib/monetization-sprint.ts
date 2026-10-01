@@ -329,8 +329,32 @@ export async function advanceMonetizationOpportunity(input: {
   if (needsEvidence && refs.length === 0) throw new Error('Evidence references are required for this stage');
 
   if (input.stage === 'accepted' && !input.buyerReference && !current.buyerReference) throw new Error('Buyer reference is required for acceptance');
-  if (input.stage === 'revenue_verified' && !input.revenueEventRef) throw new Error('Verified revenue event reference is required');
-  if (input.stage === 'settlement_confirmed' && !input.settlementRef) throw new Error('Settlement reference is required');
+
+  if (['accepted','revenue_verified','settlement_confirmed','payout_ready'].includes(input.stage)) {
+    const evidenceRows = await getPostgresPool().query(
+      'SELECT evidence_type,status,source_ref FROM monetization_evidence WHERE opportunity_id=$1 AND status=\'verified\' ORDER BY created_at DESC',
+      [input.opportunityId]
+    );
+    if (!evidenceRows.rowCount) throw new Error('Verified evidence is required for this stage');
+    if (input.stage === 'accepted' && !evidenceRows.rows.some((x:any) => ['acceptance','contract','offer'].includes(String(x.evidence_type)))) {
+      throw new Error('Verified buyer acceptance or contract evidence is required');
+    }
+    if (input.stage === 'revenue_verified') {
+      if (!input.revenueEventRef) throw new Error('Verified revenue event reference is required');
+      await getPostgresPool().query('SELECT 1 FROM revenue_ledger WHERE event_id=$1 AND status=\'paid\' LIMIT 1', [input.revenueEventRef]).then((r:any) => {
+        if (!r.rowCount) throw new Error('Revenue event reference is not a paid event in the authoritative revenue ledger');
+      });
+      if (!evidenceRows.rows.some((x:any) => ['payment','revenue','settlement'].includes(String(x.evidence_type)))) {
+        throw new Error('Verified payment/revenue evidence is required');
+      }
+    }
+    if (input.stage === 'settlement_confirmed') {
+      if (!input.settlementRef) throw new Error('Settlement reference is required');
+      if (!evidenceRows.rows.some((x:any) => ['settlement','payment'].includes(String(x.evidence_type)) && String(x.source_ref) === String(input.settlementRef))) {
+        throw new Error('Verified settlement evidence must match the settlement reference');
+      }
+    }
+  }
   if (input.stage === 'payout_ready' && !current.settlementRef && !input.settlementRef) throw new Error('Settlement confirmation is required before payout readiness');
 
   const governance = await governRevenueAction({
