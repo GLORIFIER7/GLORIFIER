@@ -1,13 +1,13 @@
 import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
-import { listRegisteredAgents, type RegisteredAgent } from './agent-registry';
+import { listRegisteredAgents } from './agent-registry';
 import { getModelNetworkSnapshot, runModelNetworkDiscovery } from './model-network';
 import { getInternetDiscoveryFabricSnapshot, runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
 import { discoverA2ACapabilities } from './a2a-runtime';
 import { get24x7OpportunityDiscoveryStatus, run24x7OpportunityDiscoveryCycle } from './24x7-opportunity-discovery';
 import { listVerifiedOutcomes } from './verified-outcomes';
 
-export const GLORIFIER_AI_WEB_NETWORK_VERSION = 'G-AI-WEB-1.0';
+export const GLORIFIER_AI_WEB_NETWORK_VERSION = 'G-AI-WEB-2.0';
 
 export type AIWebNodeType = 'agent' | 'model' | 'provider' | 'endpoint';
 export type AIWebEdgeType = 'capability' | 'protocol' | 'provider' | 'evidence' | 'execution';
@@ -26,6 +26,7 @@ export interface AIWebNetworkNode {
 
 const NODE_TABLE = 'glorifier_ai_web_nodes';
 const EDGE_TABLE = 'glorifier_ai_web_edges';
+const SYNC_TABLE = 'glorifier_ai_web_sync_runs';
 
 export async function initializeAIWebNetwork() {
   const db = getPostgresPool();
@@ -57,6 +58,8 @@ export async function initializeAIWebNetwork() {
     );
     CREATE INDEX IF NOT EXISTS idx_ai_web_edges_from ON ${EDGE_TABLE}(from_node, observed_at DESC);
     CREATE INDEX IF NOT EXISTS idx_ai_web_edges_capability ON ${EDGE_TABLE}(capability, observed_at DESC);
+    CREATE TABLE IF NOT EXISTS ${SYNC_TABLE} (id TEXT PRIMARY KEY, actor TEXT NOT NULL, status TEXT NOT NULL, node_count INTEGER NOT NULL, edge_count INTEGER NOT NULL, errors JSONB NOT NULL DEFAULT '[]'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+    CREATE INDEX IF NOT EXISTS idx_ai_web_sync_runs_created ON ${SYNC_TABLE}(created_at DESC);
   `);
 }
 
@@ -95,6 +98,7 @@ export async function synchronizeAIWebNetwork(actor = 'glorifier-daemon') {
   const edges: Array<{fromNode:string;toNode:string;edgeType:AIWebEdgeType;capability:string|null;evidenceRefs:string[]}> = [];
 
   const agents = await listRegisteredAgents();
+  const errors: string[] = [];
   for (const agent of agents) {
     const node: AIWebNetworkNode = {
       id: `agent:${agent.id}`, type: 'agent', name: agent.name, provider: agent.provider,
@@ -129,14 +133,17 @@ export async function synchronizeAIWebNetwork(actor = 'glorifier-daemon') {
     await upsertEdge(`agent:${capability.agentId}`, `protocol:${capability.protocol}`, 'protocol', null, [], observedAt);
   }
 
-  return {
-    ok: true, version: GLORIFIER_AI_WEB_NETWORK_VERSION, actor, observedAt,
+  const result = {
+    ok: errors.length === 0, version: GLORIFIER_AI_WEB_NETWORK_VERSION, actor, observedAt,
     nodeCount: nodes.length, edgeCount: edges.length,
     nodes,
     protocolSurface: ['/\.well-known/glorifier-agent.json','/api/a2a/manifest','/api/a2a/capabilities'],
     truthBoundary: 'Network presence, discovery, or registration does not prove authorization, reachability, execution, settlement, ownership, or revenue.',
-    executionRule: 'Only explicitly authorized capabilities and connections may execute; high-risk and irreversible actions remain human-governed.'
+    executionRule: 'Only explicitly authorized capabilities and connections may execute; high-risk and irreversible actions remain human-governed.',
+    errors
   };
+  await getPostgresPool().query(`INSERT INTO ${SYNC_TABLE}(id,actor,status,node_count,edge_count,errors) VALUES($1,$2,$3,$4,$5,$6::jsonb)`, ['sync-' + crypto.randomUUID(), actor, result.ok ? 'completed' : 'degraded', result.nodeCount, result.edgeCount, JSON.stringify(errors)]);
+  return result;
 }
 
 export async function runAIWebNetworkCycle(actor = 'glorifier-daemon') {
