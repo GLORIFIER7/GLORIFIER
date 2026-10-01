@@ -58,6 +58,7 @@ import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
+import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 
 import { 
   getScientistFleet, 
@@ -3185,6 +3186,25 @@ app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
 });
 
 // 24x7 Agent Miner: public status, authenticated controls, and evidence-first cycles.
+app.get('/api/ai-web-network/status', async (_req: Request, res: Response) => {
+  try { return res.json({ ok: true, policy: getAIWebNetworkPolicy(), network: await getAIWebNetworkSnapshot(250) }); }
+  catch (error) { return apiError(res, 503, 'AI Web Network unavailable', error); }
+});
+
+app.get('/api/ai-web-network/policy', (_req: Request, res: Response) => {
+  return res.json({ ok: true, policy: getAIWebNetworkPolicy() });
+});
+
+app.post('/api/ai-web-network/sync', geasRateLimit, requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try { return res.status(201).json(await synchronizeAIWebNetwork('authorized-request')); }
+  catch (error) { return apiError(res, 503, 'AI Web Network synchronization failed', error); }
+});
+
+app.post('/api/ai-web-network/cycle', geasRateLimit, requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try { return res.status(201).json(await runAIWebNetworkCycle('authorized-request')); }
+  catch (error) { return apiError(res, 503, 'AI Web Network cycle failed', error); }
+});
+
 app.get('/api/model-network/status', async (_req: Request, res: Response) => {
   try { return res.json({ ok: true, policy: getModelNetworkPolicy(), nodes: await getModelNetworkSnapshot(200) }); }
   catch (error) { return apiError(res, 503, 'Model Network unavailable', error); }
@@ -3276,7 +3296,7 @@ async function initializeBackend() {
   if (process.env.DATABASE_URL) { try { await initializeAgentMinerState(); await restoreAgentMinerState(); } catch (error) { console.warn('[AgentMinerState] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (process.env.DATABASE_URL) { try { await initializeGeasReconciliation(); } catch (error) { console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (!process.env.DATABASE_URL) { console.warn('[BackendInit] DATABASE_URL is not configured; database-backed APIs will remain unavailable.'); return; }
-  const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['internet discovery fabric', initializeInternetDiscoveryFabric],['model network', initializeModelNetwork],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator]];
+  const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['internet discovery fabric', initializeInternetDiscoveryFabric],['model network', initializeModelNetwork],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator],['AI Web Network', initializeAIWebNetwork]];
   for (const [name, initialize] of initializers) { try { await initialize(); console.log(`[BackendInit] ${name}: ready`); } catch (error) { console.warn(`[BackendInit] ${name}: deferred`, error instanceof Error ? error.message : error); } }
 }
 
