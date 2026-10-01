@@ -66,7 +66,8 @@ test.describe('GLORIFIER production end-to-end', () => {
   });
 
   test('mobile navigation remains usable', async ({ page }) => {
-    const { email, password } = newTestCredentials();
+    test.skip(!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD, 'Authenticated production E2E requires E2E_TEST_EMAIL and E2E_TEST_PASSWORD secrets.');
+    const { email, password } = testCredentials();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: /sign in/i }).click();
