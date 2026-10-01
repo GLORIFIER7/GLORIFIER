@@ -6,6 +6,7 @@ import { runGeasArchitectureScan } from './governance/geas-architecture-scientis
 import { runAgentMinerCycle } from './agent-miner';
 import { runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
 import { runModelNetworkDiscovery } from './model-network';
+import { synchronizeAIWebNetwork } from './ai-web-network';
 
 type DaemonState = 'STOPPED' | 'RUNNING' | 'DEGRADED';
 type ComponentStatus = { name: string; lastRunAt: string | null; lastSuccessAt: string | null; failures: number; lastError: string | null };
@@ -50,7 +51,8 @@ export async function runGlorifierDaemonCycle(reason = 'scheduled') {
       ['architecture-scientist', () => runGeasArchitectureScan()],
       ['agent-miner-observation', () => runAgentMinerCycle()],
       ['internet-discovery-world-graph', () => runInternetDiscoveryFabricCycle('glorifier-daemon')],
-      ['model-network-discovery', () => runModelNetworkDiscovery('glorifier-daemon')]
+      ['model-network-discovery', () => runModelNetworkDiscovery('glorifier-daemon')],
+      ['ai-web-network-index', () => synchronizeAIWebNetwork('glorifier-daemon')]
     ];
     for (const [name, operation] of stages) { try { await runComponent(name, operation); } catch (error) { errors.push(name + ': ' + (error instanceof Error ? error.message : String(error))); } }
     lastErrors = errors;
