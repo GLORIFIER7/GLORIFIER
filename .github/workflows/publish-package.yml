@@ -1,6 +1,12 @@
 name: Publish GLORIFIER to GitHub Packages
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/publish-package.yml
   release:
     types: [published]
   workflow_dispatch:
@@ -13,7 +19,7 @@ jobs:
   publish:
     name: Publish npm package
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
