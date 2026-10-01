@@ -28,11 +28,13 @@ jobs:
           cache-dependency-path: package.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Audit npm dependencies
-        continue-on-error: true
         run: npm audit --audit-level=high
 
-      - name: Check dependency health
-        run: npm outdated || true
+      - name: TypeScript static check
+        run: npm run lint
+
+      - name: Production frontend build
+        run: npm run build:frontend
