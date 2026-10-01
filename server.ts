@@ -26,7 +26,7 @@ import { calculateGlorifierValuation, getLatestGlorifierValuation } from './src/
 import { getBinancePublicQuote } from './src/lib/asset-provider-adapters';
 import { getAlpacaBrokerStatus, buildAlpacaAuthorizationUrl, handleAlpacaCallback, verifyAlpacaBrokerAccount, revokeAlpacaBrokerConnection, initializeAlpacaBrokerOAuth, brokerCallbackSuccessUrl } from './src/lib/alpaca-broker-oauth';
 import { verifyBinanceReadOnlyConnection } from './src/lib/binance-readonly';
-import { initialize24x7OpportunityDiscovery, get24x7OpportunityDiscoveryStatus, run24x7OpportunityDiscoveryCycle, get24x7OpportunityDiscoveryPolicy } from './src/lib/24x7-opportunity-discovery';
+import { initialize24x7OpportunityDiscovery, get24x7OpportunityDiscoveryStatus, run24x7OpportunityDiscoveryCycle, get24x7OpportunityDiscoveryPolicy, start24x7OpportunityDiscoveryDaemon } from './src/lib/24x7-opportunity-discovery';
 import { initializeGlorifierMediator, buildGlorifierMediatorSnapshot, getGlorifierMediatorPolicy } from './src/lib/glorifier-mediator';
 import { listMonetizationSprintOpportunities, FRACTIONAL_PAY_PER_TOKEN_OUTCOME_POLICY } from './src/lib/monetization-sprint';
 import { listGithubBountyOpportunities, discoverGithubBounties, getGithubBountyPipelinePolicy } from './src/lib/github-bounty-pipeline';
@@ -2495,7 +2495,7 @@ app.get('/api/opportunities/24x7/status', async (_req: Request, res: Response) =
   catch (error) { return apiError(res,503,'24/7 discovery status unavailable',error); }
 });
 
-app.post('/api/opportunities/24x7/run', async (req: Request, res: Response) => {
+app.post('/api/opportunities/24x7/run', requireOwnerOrInternalService, async (req: Request, res: Response) => {
   try { return res.json({ok:true,result:await run24x7OpportunityDiscoveryCycle(String(req.body?.actor || 'human-owner'))}); }
   catch (error) { return apiError(res,503,'24/7 discovery cycle unavailable',error); }
 });
@@ -3274,6 +3274,7 @@ async function startServer() {
   } catch (daemonErr) {
     console.warn('[ScientistFleet] Daemon init error (deferred):', daemonErr);
   }
+  try { start24x7OpportunityDiscoveryDaemon(); console.log('[OpportunityDiscovery] 24/7 monetization discovery daemon initialized.'); } catch (error) { console.warn('[OpportunityDiscovery] daemon init deferred:', error); }
   try { startAgentMinerDaemon(); console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.'); } catch (error) { console.warn('[AgentMiner] daemon init deferred:', error); }
   try { startAutonomousAuthenticationVerificationDaemon(); } catch (error) { console.warn('[AutonomousVerification] daemon init deferred:', error); }
   try { startGlobalVerificationFabric(); } catch (error) { console.warn('[GlobalVerificationFabric] daemon init deferred:', error); }
