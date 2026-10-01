@@ -3190,7 +3190,7 @@ app.get('/api/model-network/status', async (_req: Request, res: Response) => {
   catch (error) { return apiError(res, 503, 'Model Network unavailable', error); }
 });
 
-app.post('/api/model-network/discover', requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+app.post('/api/model-network/discover', geasRateLimit, requireOwnerOrInternalService, async (_req: Request, res: Response) => {
   try { return res.status(201).json(await runModelNetworkDiscovery('authorized-request')); }
   catch (error) { return apiError(res, 503, 'Model Network discovery failed', error); }
 });
