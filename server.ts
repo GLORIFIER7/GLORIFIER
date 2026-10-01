@@ -59,6 +59,7 @@ import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, 
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
+import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
   getScientistFleet, 
@@ -81,6 +82,7 @@ void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerO
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 initializeA2ARuntime();
+void initializeFederatedA2AV3().catch((error) => console.warn('[FederatedA2A v3] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
@@ -2094,6 +2096,72 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
 // ============================================================================
 app.get('/api/agents', (_req: Request, res: Response) => {
   res.json(agentManifest());
+});
+
+app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {
+  res.json({ ok: true, policy: getFederatedA2AV3Policy() });
+});
+
+app.get('/api/federated-a2a/v3/tasks', (_req: Request, res: Response) => {
+  res.json({ ok: true, tasks: listFederatedA2ATasks(), policy: getFederatedA2AV3Policy() });
+});
+
+app.get('/api/federated-a2a/v3/tasks/:id', (req: Request, res: Response) => {
+  const task = getFederatedA2ATask(String(req.params.id));
+  if (!task) return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+  return res.json({ ok: true, task });
+});
+
+app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
+  const body = req.body || {};
+  if (!body.capability || !body.objective) return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  const task = createFederatedA2ATask({
+    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
+    capability: String(body.capability), objective: String(body.objective), input: body.input,
+    parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
+  });
+  return res.status(201).json({ ok: true, task, next: 'AUTHORIZED' });
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/authorize', requireOwner, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await authorizeFederatedA2ATask(String(req.params.id), String((req as any).auth?.uid || 'human-owner'), req.body?.approved === true) }); }
+  catch (error) { return apiError(res, 403, 'Federated A2A authorization rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/assign', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await assignFederatedA2ATask(String(req.params.id), String((req as any).auth?.uid || 'glorifier-daemon')) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A assignment rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/envelope', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, envelope: await createFederatedA2AEnvelope(String(req.params.id), 'glorifier-daemon', Number(req.body?.ttlSeconds) || 300) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A envelope creation rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/handoffs/verify', requireOwnerOrInternalService, (req: Request, res: Response) => {
+  const verification = verifyFederatedA2AEnvelope(req.body);
+  return res.status(verification.valid ? 200 : 400).json({ ok: verification.valid, verification });
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/evidence', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await markFederatedA2AEvidence(String(req.params.id), String(req.body?.evidenceRef || ''), String((req as any).auth?.uid || 'system')) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A evidence rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/verify', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await verifyFederatedA2ATask(String(req.params.id), req.body?.qualifyingEvidence !== false, String((req as any).auth?.uid || 'verifier')) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A verification rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/settle', requireOwner, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await settleFederatedA2ATask(String(req.params.id), String((req as any).auth?.uid || 'human-owner')) }); }
+  catch (error) { return apiError(res, 403, 'Federated A2A settlement rejected', error); }
+});
+
+app.post('/api/federated-a2a/v3/tasks/:id/fail', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await failFederatedA2ATask(String(req.params.id), String(req.body?.error || 'Task failed')) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A failure transition rejected', error); }
 });
 
 app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
