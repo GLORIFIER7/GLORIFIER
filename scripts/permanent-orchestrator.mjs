@@ -173,36 +173,27 @@ async function standingGlobalSyncMission() {
 async function autonomousCycle() {
   if (running || stopping) return;
   running = true;
-  log('AUTONOMOUS_CYCLE_START');
+  log('AUTONOMOUS_CYCLE_START', {
+    mode: 'headless-supervisor',
+    mutationPolicy: 'observe-orchestrate-verify; repository mutation stays CI-gated'
+  });
 
   try {
-    const status = run('git', ['status', '--short']);
-    if (!status.ok) {
-      log('GIT_METADATA_UNAVAILABLE', {
-        action: 'continue_cycle',
-        reason: status.output.slice(-1000),
-      });
-    } else if (status.output.trim()) {
-      log('DIRTY_WORKTREE', { action: 'skip_cycle' });
-      return;
-    }
-
     await standingGlobalSyncMission();
     await standingAgentRuntimeMission();
     await standingGptCoWorkingMission();
     await standingSpecialistMission();
 
-    const agent = run('node', ['scripts/continuous-improvement-agent.mjs']);
-    log(agent.ok ? 'AUTONOMOUS_CYCLE_OK' : 'AUTONOMOUS_CYCLE_FAILED', {
-      output: agent.output.slice(-8000),
+    log('AUTONOMOUS_CYCLE_OK', {
+      mode: 'headless-supervisor',
+      nextAction: 'continue_next_cycle',
+      truthRule: 'No evidence means UNKNOWN or NOT VERIFIED'
     });
-
-    if (!agent.ok) {
-      const healer = run('node', ['scripts/self-healing-agent.mjs']);
-      log(healer.ok ? 'SELF_HEAL_OK' : 'SELF_HEAL_FAILED', {
-        output: healer.output.slice(-8000),
-      });
-    }
+  } catch (error) {
+    log('AUTONOMOUS_CYCLE_FAILED', {
+      error: error instanceof Error ? error.message : String(error),
+      action: 'continue_next_cycle'
+    });
   } finally {
     running = false;
   }
