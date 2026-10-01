@@ -1,0 +1,31 @@
+name: GLORIFIER Contracts
+
+on:
+  push:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/glorifier-contracts.yml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/glorifier-contracts.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Install dependencies
+        run: |
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
+      - name: Build
+        run: forge build
+      - name: Test
+        run: forge test -vv
