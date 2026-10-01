@@ -4,7 +4,7 @@ const checks = [
   { name: 'railway-health', url: process.env.RAILWAY_URL + '/api/health' },
   { name: 'railway-ready', url: process.env.RAILWAY_URL + '/api/health/ready' },
   { name: 'railway-runtime-verification', url: process.env.RAILWAY_URL + '/api/runtime-verification' },
-  { name: 'railway-binance-health', url: process.env.RAILWAY_URL + '/api/binance/health' },
+  { name: 'railway-binance-auth-boundary', url: process.env.RAILWAY_URL + '/api/binance/health', expectAuth: true },
   { name: 'unauthenticated-app-state', url: process.env.RAILWAY_URL + '/api/app-state', expectAuth: true },
   { name: 'unauthenticated-connections', url: process.env.RAILWAY_URL + '/api/connections', expectAuth: true }
 ];
