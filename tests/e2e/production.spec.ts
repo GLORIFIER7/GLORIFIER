@@ -10,8 +10,8 @@ test.describe('GLORIFIER production end-to-end', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('button', { name: /create a new account/i }).click();
     await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
-    await page.getByLabel('Email').fill(email!);
-    await page.getByLabel('Password').fill(password!);
+    await page.locator('input[autocomplete="email"]').fill(email!);
+    await page.locator('input[autocomplete="new-password"]').fill(password!);
     await page.getByRole('button', { name: /create account/i }).click();
     await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
 
@@ -71,8 +71,8 @@ test.describe('GLORIFIER production end-to-end', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('button', { name: /create a new account/i }).click();
     await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
-    await page.getByLabel('Email').fill(email!);
-    await page.getByLabel('Password').fill(password!);
+    await page.locator('input[autocomplete="email"]').fill(email!);
+    await page.locator('input[autocomplete="new-password"]').fill(password!);
     await page.getByRole('button', { name: /create account/i }).click();
     await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
     await page.getByRole('button', { name: /^menu$/i }).click();
