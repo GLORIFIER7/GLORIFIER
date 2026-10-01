@@ -1,10 +1,17 @@
 import { test, expect } from '@playwright/test';
 
-const newTestCredentials = () => ({ email: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`, password: `GlorifierE2E-${Date.now()}!` });
+const testCredentials = () => ({ email: process.env.E2E_TEST_EMAIL, password: process.env.E2E_TEST_PASSWORD });
+const requireAuthenticatedE2E = () => {
+  const { email, password } = testCredentials();
+  if (!email || !password) {
+    throw new Error('Authenticated production E2E requires E2E_TEST_EMAIL and E2E_TEST_PASSWORD repository secrets. The unauthenticated production checks remain executable without them.');
+  }
+  return { email, password };
+};
 
 test.describe('GLORIFIER production end-to-end', () => {
     test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
-    const { email, password } = newTestCredentials();
+    const { email, password } = requireAuthenticatedE2E();
     await page.goto('/');
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await page.getByRole('button', { name: /sign in/i }).click();
