@@ -221,6 +221,7 @@ export async function handleAlpacaCallback(code: string, state: string) {
     scopes: token.scope ? token.scope.split(/\s+/).filter(Boolean) : ['read-only'],
     risk: 'high',
     accountRef: null,
+    requiresHumanApproval: true,
     metadata: { environment: row.env, tradingEnabled: false, fundMovementEnabled: false, tokenVault: 'encrypted' }
   });
   const vaultId = await saveToken(row.user_id, row.env, token, connection.id);
