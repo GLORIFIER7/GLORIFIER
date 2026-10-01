@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/GLORIFIER7/GLORIFIER/security
+    about: Report security vulnerabilities privately. Do not publish exploitable details in a public issue.
+  - name: Documentation
+    url: https://github.com/GLORIFIER7/GLORIFIER/tree/main/docs
+    about: Check the project documentation before opening a support or feature issue.
