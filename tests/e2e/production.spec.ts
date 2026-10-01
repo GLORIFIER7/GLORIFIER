@@ -9,7 +9,7 @@ test.describe('GLORIFIER production end-to-end', () => {
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('button', { name: /create a new account/i }).click();
-    await page.getByLabel('Display name').fill('GLORIFIER E2E');
+    await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
     await page.getByLabel('Email').fill(email!);
     await page.getByLabel('Password').fill(password!);
     await page.getByRole('button', { name: /create account/i }).click();
@@ -70,7 +70,7 @@ test.describe('GLORIFIER production end-to-end', () => {
     await page.goto('/');
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByRole('button', { name: /create a new account/i }).click();
-    await page.getByLabel('Display name').fill('GLORIFIER E2E');
+    await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
     await page.getByLabel('Email').fill(email!);
     await page.getByLabel('Password').fill(password!);
     await page.getByRole('button', { name: /create account/i }).click();
