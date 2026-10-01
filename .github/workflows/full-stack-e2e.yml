@@ -1,27 +1,25 @@
 name: GLORIFIER Full-Stack E2E
-
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
   workflow_run:
     workflows: ["GLORIFIER Full-Stack Verification"]
     types: [completed]
-
+    branches: [main]
 permissions:
   contents: read
-
 jobs:
   e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-glorifier.vercel.app' }}
       CI: true
     steps:
-      - name: Checkout
+      - name: Checkout verified commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
