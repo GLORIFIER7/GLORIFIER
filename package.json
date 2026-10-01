@@ -25,7 +25,8 @@
     "test:anthropic": "tsx src/lib/ai/providers/anthropic.test.ts",
     "test:geas-enterprise-controls": "tsx src/lib/governance/geas-enterprise-controls.test.ts",
     "test:geas-all": "npm run test:geas-reconciliation && npm run test:geas-enterprise-controls",
-    "test:internet-discovery": "tsx src/lib/internet-discovery-fabric.test.ts"
+    "test:internet-discovery": "tsx src/lib/internet-discovery-fabric.test.ts",
+    "test:model-network": "tsx src/lib/model-network.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
