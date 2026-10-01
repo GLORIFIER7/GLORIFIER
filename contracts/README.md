@@ -26,7 +26,14 @@ forge test
 
 ## Testnet deployment
 
-Set a funded testnet deployer key and a separate initial-holder address. Never commit either value.
+The repository includes an authorized GitHub Actions workflow at `.github/workflows/glorifier-testnet-deploy.yml`. It requires repository/environment secrets:
+
+- `GLORIFIER_DEPLOYER_PRIVATE_KEY`
+- `GLORIFIER_TESTNET_RPC_URL`
+
+The private key must belong to a wallet you control and must be funded with testnet gas. Never commit the key. The initial holder is supplied manually when dispatching the workflow.
+
+The workflow runs the full test suite before broadcasting and stores deployment output as a GitHub Actions artifact. A deployment is not considered verified until the resulting transaction and contract address are independently confirmed on the selected testnet.
 
 ```bash
 export PRIVATE_KEY=...
