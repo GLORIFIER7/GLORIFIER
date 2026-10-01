@@ -2035,7 +2035,10 @@ let intelligenceRefreshPromise: Promise<any> | null = null;
 async function refreshIntelligenceReport() {
   if (!intelligenceRefreshPromise) {
     intelligenceRefreshPromise = generateIntelligenceReport({
-      runModel: runIntelligenceModel,
+      runModel: (prompt, options) => runIntelligenceModel('gemini', prompt, {
+        systemInstruction: options?.systemInstruction,
+        jsonMode: options?.jsonMode,
+      }),
       windowHours: 24
     }).finally(() => {
       intelligenceRefreshPromise = null;
