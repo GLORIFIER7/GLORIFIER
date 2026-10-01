@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { getPostgresPool } from './db/postgres';
 import { listConnections, registerConnection, recordConnectionEvent } from './connection-registry';
 
 export type AgentProtocol = 'GLORIFIER-A2A-v1' | 'MCP' | 'A2A' | 'HTTP';
@@ -55,9 +56,12 @@ const seedAgents: Omit<RegisteredAgent, 'connectionId' | 'lastVerifiedAt'>[] = [
   }
 ];
 
+const AGENT_TABLE = 'glorifier_registered_agents';
 function connectionId(agentId: string) { return `agent-${agentId}`; }
+async function ensureAgentTable() { await getPostgresPool().query(`CREATE TABLE IF NOT EXISTS ${AGENT_TABLE} (id TEXT PRIMARY KEY, name TEXT NOT NULL, provider TEXT NOT NULL, role TEXT NOT NULL, protocol TEXT NOT NULL, capabilities JSONB NOT NULL DEFAULT '[]'::jsonb, endpoint TEXT NOT NULL, auth_type TEXT NOT NULL, risk TEXT NOT NULL, scopes JSONB NOT NULL DEFAULT '[]'::jsonb, requires_human_approval BOOLEAN NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`); }
 
 export async function initializeAgentRegistry() {
+  await ensureAgentTable();
   for (const agent of seedAgents) {
     await registerConnection({
       id: connectionId(agent.id),
@@ -79,7 +83,9 @@ export async function initializeAgentRegistry() {
 export async function listRegisteredAgents(): Promise<RegisteredAgent[]> {
   await initializeAgentRegistry();
   const connections = await listConnections();
-  return seedAgents.map(agent => {
+  const stored = await getPostgresPool().query(`SELECT * FROM ${AGENT_TABLE} ORDER BY created_at ASC`);
+  const dynamicAgents: Omit<RegisteredAgent, 'connectionId' | 'lastVerifiedAt'>[] = stored.rows.map((row: any) => ({ id: row.id, name: row.name, provider: row.provider, role: row.role, protocol: row.protocol, capabilities: row.capabilities || [], endpoint: row.endpoint, authType: row.auth_type, status: 'discovered', risk: row.risk, scopes: row.scopes || [], requiresHumanApproval: row.requires_human_approval, metadata: row.metadata || {} }));
+  return [...seedAgents, ...dynamicAgents].map(agent => {
     const c = connections.find(x => x.id === connectionId(agent.id));
     return {
       ...agent,
@@ -109,6 +115,7 @@ export async function registerExternalAgent(input: {
     status: 'discovered', scopes: agent.scopes, risk: agent.risk, accountRef: null, expiresAt: null,
     lastVerifiedAt: null, requiresHumanApproval: true, metadata: agent.metadata
   });
+  await getPostgresPool().query(`INSERT INTO ${AGENT_TABLE}(id,name,provider,role,protocol,capabilities,endpoint,auth_type,risk,scopes,requires_human_approval,metadata) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11,$12::jsonb) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,provider=EXCLUDED.provider,role=EXCLUDED.role,protocol=EXCLUDED.protocol,capabilities=EXCLUDED.capabilities,endpoint=EXCLUDED.endpoint,auth_type=EXCLUDED.auth_type,risk=EXCLUDED.risk,scopes=EXCLUDED.scopes,requires_human_approval=EXCLUDED.requires_human_approval,metadata=EXCLUDED.metadata`, [id,agent.name,agent.provider,agent.role,agent.protocol,JSON.stringify(agent.capabilities),agent.endpoint,agent.authType,agent.risk,JSON.stringify(agent.scopes),agent.requiresHumanApproval,JSON.stringify(agent.metadata)]);
   await recordConnectionEvent(id, 'agent_registered', 'human-owner', { protocol: agent.protocol, endpoint: agent.endpoint, scopes: agent.scopes });
   return agent;
 }
