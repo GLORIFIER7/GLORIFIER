@@ -25,7 +25,7 @@ jobs:
       - run: npm install
       - name: Request GitHub OIDC identity
         if: ${{ env.GITHUB_ACTIONS_OIDC == 'true' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             core.info('GitHub Actions OIDC is enabled for this job. External federation must validate repository, workflow, ref, and actor claims before issuing short-lived credentials.');
