@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* GLORIFIER — Modern Minimalist Product System
+/* GLORIFIER — GPT-inspired workspace shell / provider-neutral product system
    Principles: hierarchy over decoration, generous spacing, neutral surfaces,
    restrained accent color, crisp borders, accessible interaction states. */
 
@@ -14,8 +14,8 @@
   --g-text-muted: #77766f;
   --g-border: #272727;
   --g-border-soft: #1d1d1d;
-  --g-accent: #c8ff38;
-  --g-accent-soft: rgba(200, 255, 56, 0.10);
+  --g-accent: #10a37f;
+  --g-accent-soft: rgba(16, 163, 127, 0.10);
   --g-danger: #ff6b61;
 }
 
