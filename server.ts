@@ -17,6 +17,7 @@ import { ensureGlobalProviderConnections, getGlobalCollaborationStatus, recordGl
 import { performGlobalGlorifierSync, getLatestGlobalSyncManifest } from './src/lib/global-sync';
 import { listRegisteredAgents, synchronizeRegisteredAgents } from './src/lib/agent-registry';
 import { initializeRevenueLedger, getRevenueSummary, listRevenueEvents } from './src/lib/revenue/engine';
+import { initializeInternetDiscoveryFabric, runInternetDiscoveryFabricCycle, getInternetDiscoveryFabricSnapshot, getInternetDiscoveryFabricPolicy } from './src/lib/internet-discovery-fabric';
 import { initializeEconomicOperatingSystem } from './src/lib/economic-operating-system';
 import { initializeBusinessModel, getBusinessModel, getWorkUnitSummary } from './src/lib/business-model';
 import { buildMonetizationDashboard } from './src/lib/monetization-engine';
@@ -3183,6 +3184,16 @@ app.delete('/api/mobile/device/me', async (req: Request, res: Response) => {
 });
 
 // 24x7 Agent Miner: public status, authenticated controls, and evidence-first cycles.
+app.get('/api/internet-discovery/status', async (_req: Request, res: Response) => {
+  try { return res.json({ ok: true, policy: getInternetDiscoveryFabricPolicy(), observations: await getInternetDiscoveryFabricSnapshot(100) }); }
+  catch (error) { return apiError(res, 503, 'Internet Discovery Fabric unavailable', error); }
+});
+
+app.post('/api/internet-discovery/run', requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try { return res.status(201).json(await runInternetDiscoveryFabricCycle('authorized-request')); }
+  catch (error) { return apiError(res, 503, 'Internet Discovery Fabric cycle failed', error); }
+});
+
 app.get('/api/system/daemon', (_req: Request, res: Response) => {
   return res.json(getGlorifierDaemonSnapshot());
 });
@@ -3254,7 +3265,7 @@ async function initializeBackend() {
   if (process.env.DATABASE_URL) { try { await initializeAgentMinerState(); await restoreAgentMinerState(); } catch (error) { console.warn('[AgentMinerState] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (process.env.DATABASE_URL) { try { await initializeGeasReconciliation(); } catch (error) { console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error); } }
   if (!process.env.DATABASE_URL) { console.warn('[BackendInit] DATABASE_URL is not configured; database-backed APIs will remain unavailable.'); return; }
-  const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator]];
+  const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['internet discovery fabric', initializeInternetDiscoveryFabric],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator]];
   for (const [name, initialize] of initializers) { try { await initialize(); console.log(`[BackendInit] ${name}: ready`); } catch (error) { console.warn(`[BackendInit] ${name}: deferred`, error instanceof Error ? error.message : error); } }
 }
 
