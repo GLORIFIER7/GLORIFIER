@@ -356,7 +356,6 @@ export async function advanceMonetizationOpportunity(input: {
     }
   }
   if (input.stage === 'payout_ready' && !current.settlementRef && !input.settlementRef) throw new Error('Settlement confirmation is required before payout readiness');
-  if (input.stage === 'payout_ready' && !current.settlementRef && !input.settlementRef) throw new Error('Settlement confirmation is required before payout readiness');
 
   const governance = await governRevenueAction({
     machine: 'opportunity-engine',
