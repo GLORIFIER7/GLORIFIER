@@ -1,35 +1,32 @@
 name: GLORIFIER Full-Stack Verification
-
 on:
   workflow_dispatch:
   workflow_run:
     workflows: ["GLORIFIER CI"]
     types: [completed]
-
+    branches: [main]
 permissions:
   contents: read
-
 jobs:
   smoke:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # Override FRONTEND_URL/FRONTEND_HEALTH_URL in repository/environment variables
-      # when the production Vercel alias changes. This stable alias points at production.
       FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier-glorifier.vercel.app' }}
       FRONTEND_HEALTH_URL: ${{ vars.GLORIFIER_FRONTEND_HEALTH_URL || 'https://glorifier-glorifier.vercel.app/api/health/ready' }}
       RAILWAY_URL: ${{ vars.GLORIFIER_RAILWAY_URL || 'https://glorifier-artificial-intelligence-production.up.railway.app' }}
     steps:
-      - name: Checkout
+      - name: Checkout triggering commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Production smoke verification
         run: node scripts/full-stack-smoke.mjs
-
   report:
     if: always()
     needs: smoke
