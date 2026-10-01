@@ -1,19 +1,13 @@
-name: Publish GLORIFIER to GitHub Packages
+name: Publish GLORIFIER to npmjs.com
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - package.json
-      - package-lock.json
-      - .github/workflows/publish-package.yml
   release:
     types: [published]
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
+  id-token: write
 
 jobs:
   publish:
@@ -22,21 +16,26 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          registry-url: https://npm.pkg.github.com
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build:frontend
 
-      - name: Publish package
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+      - name: Publish to npmjs.com
+        run: npm publish --access public
