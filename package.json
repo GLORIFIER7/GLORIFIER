@@ -67,7 +67,8 @@
     "@playwright/test": "^1.55.0"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "files": [
     "dist",
@@ -79,5 +80,9 @@
     "index.html",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GLORIFIER7/GLORIFIER.git"
+  }
 }
