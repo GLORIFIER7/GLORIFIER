@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  actions: read
 
 jobs:
   analyze:
@@ -26,9 +27,9 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          build-mode: none
 
       - name: Analyze
         uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
