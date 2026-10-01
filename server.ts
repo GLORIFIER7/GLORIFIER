@@ -2035,10 +2035,7 @@ let intelligenceRefreshPromise: Promise<any> | null = null;
 async function refreshIntelligenceReport() {
   if (!intelligenceRefreshPromise) {
     intelligenceRefreshPromise = generateIntelligenceReport({
-      runModel: (prompt, options) => runIntelligenceModel('gemini', prompt, {
-        systemInstruction: options?.systemInstruction,
-        jsonMode: options?.jsonMode,
-      }),
+      runModel: (provider, prompt, options) => runIntelligenceModel(provider, prompt, options),
       windowHours: 24
     }).finally(() => {
       intelligenceRefreshPromise = null;
@@ -2159,7 +2156,10 @@ app.post('/api/a2a/handoffs/verify', (req: Request, res: Response) => {
 
 app.post('/api/a2a/e2e-test', requireOwner, async (_req: Request, res: Response) => {
   try {
-    const result = await runA2AE2ETest(runIntelligenceModel);
+    const result = await runA2AE2ETest((prompt, options) => runIntelligenceModel('gemini', prompt, {
+      systemInstruction: typeof options?.systemInstruction === 'string' ? options.systemInstruction : undefined,
+      jsonMode: options?.jsonMode === true,
+    }));
     return res.status(result.ok ? 200 : 503).json(result);
   } catch (error) {
     return apiError(res, 503, 'A2A E2E test unavailable', error);
