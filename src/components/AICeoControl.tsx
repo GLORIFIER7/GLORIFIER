@@ -64,7 +64,7 @@ export const AICeoControl: React.FC = () => {
       const data = await res.json();
       if (data.ok && data.manifest) {
         setManifest(data.manifest);
-        setSyncFeedback('All GLORIFIER endpoints across the internet and all AI agents successfully synthesized and synchronized.');
+        setSyncFeedback('Governed synchronization completed for the connected GLORIFIER registry.');
       } else {
         throw new Error(data.error || 'Synchronization returned non-ok status');
       }
@@ -92,11 +92,11 @@ export const AICeoControl: React.FC = () => {
               <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-black tracking-tight text-white">GLORIFIER AI CEO</h2>
                 <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/20">
-                  Global Orchestration Layer
+                  GPT Orchestration • Provider-Neutral
                 </span>
               </div>
               <p className="text-sm text-slate-400">
-                Highest computational orchestration capacity • Governing multi-agent synthesis & internet telemetry
+                GPT-led orchestration with governed provider routing • Evidence before execution
               </p>
             </div>
           </div>
@@ -107,7 +107,7 @@ export const AICeoControl: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 transition disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Synthesizing & Synchronizing...' : 'Synthesize & Synchronize All'}
+              {isSyncing ? 'Running Governed GPT Sync...' : 'Run Governed GPT Sync'}
             </button>
             <button
               onClick={loadStatus}
