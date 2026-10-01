@@ -5,6 +5,7 @@ import { runGlobalVerificationFabricNow } from './global-verification-fabric';
 import { runGeasArchitectureScan } from './governance/geas-architecture-scientist';
 import { runAgentMinerCycle } from './agent-miner';
 import { runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
+import { runModelNetworkDiscovery } from './model-network';
 
 type DaemonState = 'STOPPED' | 'RUNNING' | 'DEGRADED';
 type ComponentStatus = { name: string; lastRunAt: string | null; lastSuccessAt: string | null; failures: number; lastError: string | null };
@@ -48,7 +49,8 @@ export async function runGlorifierDaemonCycle(reason = 'scheduled') {
       ['global-verification', () => runGlobalVerificationFabricNow('glorifier-daemon')],
       ['architecture-scientist', () => runGeasArchitectureScan()],
       ['agent-miner-observation', () => runAgentMinerCycle()],
-      ['internet-discovery-world-graph', () => runInternetDiscoveryFabricCycle('glorifier-daemon')]
+      ['internet-discovery-world-graph', () => runInternetDiscoveryFabricCycle('glorifier-daemon')],
+      ['model-network-discovery', () => runModelNetworkDiscovery('glorifier-daemon')]
     ];
     for (const [name, operation] of stages) { try { await runComponent(name, operation); } catch (error) { errors.push(name + ': ' + (error instanceof Error ? error.message : String(error))); } }
     lastErrors = errors;
