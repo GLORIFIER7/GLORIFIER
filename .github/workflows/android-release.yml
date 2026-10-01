@@ -87,7 +87,7 @@ jobs:
           echo "Android App Bundle created successfully."
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-ai-android-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
