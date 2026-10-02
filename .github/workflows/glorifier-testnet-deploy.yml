@@ -235,8 +235,7 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        if: env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != ''
-        continue-on-error: true
+        if: env.CONTRACT_ADDRESS != ''
         working-directory: contracts
         env:
           INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
