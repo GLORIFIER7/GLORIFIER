@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: testnet
     permissions:
@@ -25,7 +25,7 @@ jobs:
       ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
       INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -113,6 +113,17 @@ jobs:
 
           RPC_URL=""
           RPC_PROVIDER=""
+          echo "Validating configured Sepolia RPC providers..."
+          if [[ -n "$ALCHEMY_RPC_URL" ]]; then
+            echo "Checking Alchemy Sepolia endpoint..."
+          else
+            echo "Alchemy Sepolia endpoint: NOT CONFIGURED"
+          fi
+          if [[ -n "$INFURA_RPC_URL" ]]; then
+            echo "Checking Infura Sepolia endpoint..."
+          else
+            echo "Infura Sepolia endpoint: NOT CONFIGURED"
+          fi
           if is_valid_sepolia_rpc "$ALCHEMY_RPC_URL"; then
             RPC_URL="$ALCHEMY_RPC_URL"
             RPC_PROVIDER="Alchemy"
@@ -121,6 +132,9 @@ jobs:
             RPC_PROVIDER="Infura"
           else
             echo "ERROR: no healthy Ethereum Sepolia RPC provider is configured."
+            echo "Expected Alchemy: https://eth-sepolia.g.alchemy.com/v2/<API_KEY>"
+            echo "Expected Infura:  https://sepolia.infura.io/v3/<PROJECT_ID>"
+            echo "The Infura Gas API endpoint https://gas.api.infura.io/... is invalid here."
             echo "Configure GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL and/or GLORIFIER_TESTNET_RPC_URL."
             exit 1
           fi
@@ -249,7 +263,7 @@ jobs:
 
       - name: Upload deployment evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-testnet-deployment
           if-no-files-found: ignore
