@@ -1,0 +1,34 @@
+name: GLORIFIER Sepolia RPC Health Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rpc-check:
+    name: Validate Ethereum Sepolia RPC
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: testnet
+    steps:
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Validate RPC
+        env:
+          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RPC_URL" || { echo "Missing GLORIFIER_TESTNET_RPC_URL"; exit 1; }
+          CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
+          echo "Detected chain ID: $CHAIN_ID"
+          test "$CHAIN_ID" = "11155111"
+          BLOCK="$(cast block-number --rpc-url "$RPC_URL")"
+          echo "Current Sepolia block: $BLOCK"
+          test "$BLOCK" -gt 0
+          echo "Sepolia RPC health check: PASSED"
