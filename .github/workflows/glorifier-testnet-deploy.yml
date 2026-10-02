@@ -39,9 +39,9 @@ jobs:
       - name: Validate Sepolia RPC and deployer
         working-directory: contracts
         env:
-          PRIVATE_KEY: ${'{'}{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
-          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
-          INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
+          PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
           test -n "$PRIVATE_KEY"
@@ -59,9 +59,9 @@ jobs:
       - name: Deploy
         working-directory: contracts
         env:
-          PRIVATE_KEY: ${'{'}{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
-          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
-          GLORIFIER_INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
+          PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          GLORIFIER_INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
           rm -rf broadcast
@@ -70,8 +70,8 @@ jobs:
       - name: Extract and verify deployment evidence
         working-directory: contracts
         env:
-          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
-          INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
+          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
@@ -132,7 +132,7 @@ jobs:
             echo "- Network: Ethereum Sepolia"
             echo "- Contract: `$CONTRACT_ADDRESS`"
             echo "- Transaction: `$DEPLOYMENT_TX_HASH`"
-            echo "- Initial holder: ${'{'}{ inputs.initial_holder }}"
+            echo "- Initial holder: ${{ inputs.initial_holder }}"
             echo "- On-chain verification: **PASSED**"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -140,4 +140,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: glorifier-testnet-deployment
-          path: contracts/deployment-output.txt
+          path: |
+            contracts/broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
+            contracts/deployment-evidence.json
