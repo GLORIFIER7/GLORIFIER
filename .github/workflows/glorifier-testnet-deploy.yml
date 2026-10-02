@@ -199,7 +199,7 @@ jobs:
             echo "ERROR: unable to obtain GLORIFIER creation bytecode for gas estimation."
             exit 1
           fi
-          GAS_ESTIMATE="$(cast estimate --create "$CREATION_BYTECODE" "constructor(address)" "$INITIAL_HOLDER" --from "$DEPLOYER" --rpc-url "$RPC_URL")"
+          GAS_ESTIMATE="$(cast estimate --create "$CREATION_BYTECODE" "constructor(address)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
           GAS_PRICE_WEI="$(cast gas-price --rpc-url "$RPC_URL")"
           # Add a 25% fee/gas safety margin.
           REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
