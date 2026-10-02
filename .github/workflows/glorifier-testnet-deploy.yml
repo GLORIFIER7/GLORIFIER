@@ -28,6 +28,7 @@ jobs:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
       ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
       INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+      PUBLIC_SEPOLIA_RPC_URL: https://ethereum-sepolia-rpc.publicnode.com
     steps:
       - uses: actions/checkout@v7
 
@@ -65,6 +66,7 @@ jobs:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
           ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
           INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          PUBLIC_SEPOLIA_RPC_URL: https://ethereum-sepolia-rpc.publicnode.com
           INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
@@ -160,12 +162,16 @@ jobs:
           elif validate_sepolia_rpc "Infura" "$INFURA_RPC_URL"; then
             RPC_URL="$INFURA_RPC_URL"
             RPC_PROVIDER="Infura"
+          elif validate_sepolia_rpc "PublicNode fallback" "$PUBLIC_SEPOLIA_RPC_URL"; then
+            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL"
+            RPC_PROVIDER="PublicNode fallback"
+            echo "Using public Sepolia RPC fallback because configured provider secrets are unavailable/unhealthy."
           else
-            echo "ERROR: no healthy Ethereum Sepolia RPC provider is configured."
+            echo "ERROR: no healthy Ethereum Sepolia RPC provider is available."
             echo "Expected Alchemy: https://eth-sepolia.g.alchemy.com/v2/<API_KEY>"
             echo "Expected Infura:  https://sepolia.infura.io/v3/<PROJECT_ID>"
-            echo "The Infura Gas API endpoint https://gas.api.infura.io/... is invalid here."
-            echo "Configure GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL and/or GLORIFIER_TESTNET_RPC_URL."
+            echo "Public fallback: https://ethereum-sepolia-rpc.publicnode.com"
+            echo "The Infura Gas API endpoint is invalid here."
             exit 1
           fi
 
