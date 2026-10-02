@@ -248,11 +248,7 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        if: \${{ env.CONTRACT_ADDRESS != '' }}
         working-directory: contracts
-        env:
-          INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
-          CONTRACT_ADDRESS: ${{ env.CONTRACT_ADDRESS }}
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
