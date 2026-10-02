@@ -26,12 +26,20 @@ jobs:
           package-manager-cache: false
 
       - name: Verify npm trusted-publishing prerequisites
+        shell: bash
         run: |
           set -euo pipefail
           node --version
           npm --version
-          node -e "const [M,n,p]=process.versions.node.split('.').map(Number); if (M < 22 || (M === 22 && n < 14)) process.exit(1)"
-          npm --version
+          node -e "const [M,n]=process.versions.node.split('.').map(Number); if (M < 22 || (M === 22 && n < 14)) process.exit(1)"
+          NPM_VERSION="$(npm --version)"
+          node -e "const [M,n,p]=process.argv[1].split('.').map(Number); if (M < 11 || (M === 11 && n < 5) || (M === 11 && n === 5 && p < 1)) { console.error('npm 11.5.1+ is required for trusted publishing'); process.exit(1) }" "$NPM_VERSION"
+
+      - name: Validate package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const p=require('./package.json'); if(p.name!=='@glorifier7/glorifier') process.exit(1); if(!p.repository?.url?.endsWith('GLORIFIER7/GLORIFIER.git')) process.exit(1); if(p.publishConfig?.access!=='public') process.exit(1)"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
