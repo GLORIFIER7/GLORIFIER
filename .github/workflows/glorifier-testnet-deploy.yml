@@ -1,4 +1,4 @@
-name: GLORIFIER Testnet Deployment
+name: GLORIFIER Testnet Deploy
 
 on:
   workflow_dispatch:
@@ -7,11 +7,6 @@ on:
         description: "GLR initial holder address"
         required: true
         type: string
-      verify:
-        description: "Verify contract on explorer"
-        required: true
-        default: false
-        type: boolean
 
 jobs:
   deploy:
@@ -52,9 +47,11 @@ jobs:
           test "$CHAIN_ID" = "11155111"
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
           echo "Deployer: $DEPLOYER"
-          cast balance "$DEPLOYER" --rpc-url "$RPC_URL" --ether
+          BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
+          echo "Deployer balance: $BALANCE_WEI wei"
+          test "$BALANCE_WEI" != "0"
+          cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL" | grep -q "^0x$"
           HOLDER_CODE="$(cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
-          test "$HOLDER_CODE" = "0x"
 
       - name: Deploy
         working-directory: contracts
@@ -104,7 +101,9 @@ jobs:
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
 
-          jq -n             --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             '{
+          jq -n \
+            --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER" \
+            --arg block "$BLOCK_NUMBER"             '{
               evidence_type:"GLORIFIER ERC-20 deployment",
               network:$network,
               chain_id:11155111,
