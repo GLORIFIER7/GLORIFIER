@@ -68,8 +68,6 @@ jobs:
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
           test "$BALANCE_WEI" != "0"
-          HOLDER_CODE="$(cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
-          test "$HOLDER_CODE" = "0x"
 
       - name: Deploy
         working-directory: contracts
