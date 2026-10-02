@@ -26,7 +26,7 @@ Never put private keys or API secrets in repository files, issues, commits, or c
 
 ## Deployment safety gates
 
-The workflow refuses to deploy unless the RPC exists, the holder is a valid non-zero address, chain ID is exactly `11155111`, the deployer key exists, the deployer has Sepolia ETH, the holder is an EOA, and Foundry tests pass.
+The workflow refuses to deploy unless the RPC exists, the holder is a valid non-zero address, chain ID is exactly `11155111`, the deployer key exists, the deployer has Sepolia ETH, the holder is a valid non-zero Ethereum address (EOA, multisig, or contract), and Foundry tests pass.
 
 After deployment it verifies name `GLORIFIER`, symbol `GLR`, decimals `18`, total supply `1,000,000,000 GLR`, complete initial-holder balance, and successful transaction receipt. No mainnet deployment is performed.
 
