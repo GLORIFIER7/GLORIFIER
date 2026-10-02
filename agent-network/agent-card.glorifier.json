@@ -1,0 +1,34 @@
+{
+  "name": "GLORIFIER Federation Coordinator",
+  "description": "Provider-neutral governed AI-agent federation and execution coordinator.",
+  "version": "1.0.0",
+  "protocol": "A2A",
+  "url": "https://github.com/GLORIFIER7/GLORIFIER",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "skills": [
+    {
+      "id": "agent-discovery",
+      "name": "Agent Discovery",
+      "description": "Discover agents by declared capabilities and governed policy."
+    },
+    {
+      "id": "collaboration-broker",
+      "name": "Collaboration Broker",
+      "description": "Delegate and coordinate multi-agent tasks."
+    },
+    {
+      "id": "crypto-release-governance",
+      "name": "Crypto Release Governance",
+      "description": "Coordinate GLR build, test, deployment evidence and verification."
+    }
+  ],
+  "security": {
+    "humanAuthorityRequiredForMainnet": true,
+    "automaticFinancialTransfers": false,
+    "automaticIrreversibleProductionChanges": false
+  }
+}
