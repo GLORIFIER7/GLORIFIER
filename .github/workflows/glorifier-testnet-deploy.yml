@@ -84,6 +84,7 @@ jobs:
         working-directory: contracts
         env:
           RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
           INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
@@ -130,7 +131,8 @@ jobs:
               contract_address:$contract,
               transaction_hash:$tx,
               block_number:($block|tonumber),
-              transaction_status:1,\n              deployer_address:$deployer,
+              transaction_status:1,
+              deployer_address:$deployer,
               initial_holder:$holder,
               on_chain_assertions:{
                 name:"GLORIFIER",
