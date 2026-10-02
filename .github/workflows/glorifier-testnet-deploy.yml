@@ -251,7 +251,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
           forge verify-contract             "$CONTRACT_ADDRESS"             src/GLORIFIER.sol:GLORIFIER             --chain sepolia             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch
           echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
 
