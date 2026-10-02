@@ -65,6 +65,7 @@ jobs:
             exit 1
           fi
           # Persist only the normalized value for later steps. The raw secret is never printed.
+          echo "::add-mask::$PRIVATE_KEY"
           echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
 
           # Accept either a raw address or the common pasted form "initial_holder0x...".
