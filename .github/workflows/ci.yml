@@ -44,6 +44,9 @@ jobs:
       - name: Permanent GLORIFIER stack invariants
         run: npm run test:permanent-stack
 
+      - name: Interoperability controls
+        run: npx tsx src/lib/governance/interoperability-controls.test.ts
+
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 

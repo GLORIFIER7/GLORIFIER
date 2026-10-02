@@ -39,7 +39,7 @@
     "dotenv": "^18.0.4",
     "express": "^4.21.2",
     "firebase": "^12.19.0",
-    "firebase-admin": "^13.5.0",
+    "firebase-admin": "^14.5.0",
     "lucide-react": "^0.546.0",
     "mongodb": "^7.6.0",
     "motion": "^12.23.24",
@@ -89,5 +89,9 @@
   "bugs": {
     "url": "https://github.com/GLORIFIER7/GLORIFIER/issues"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.5",
+    "uuid": "^11.1.1"
+  }
 }
