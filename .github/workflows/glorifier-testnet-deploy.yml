@@ -297,3 +297,5 @@ jobs:
           path: |
             broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
             deployment-evidence.json
+
+# Controlled testnet deployment trigger: [deploy-testnet] commits only.
