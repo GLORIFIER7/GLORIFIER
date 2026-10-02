@@ -25,8 +25,16 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
+      - name: Verify npm trusted-publishing prerequisites
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          node -e "const [M,n,p]=process.versions.node.split('.').map(Number); if (M < 22 || (M === 22 && n < 14)) process.exit(1)"
+          npm --version
+
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Lint
         run: npm run lint
