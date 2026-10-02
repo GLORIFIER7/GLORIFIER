@@ -10,7 +10,7 @@ on:
       verify:
         description: "Verify contract on explorer"
         required: true
-        default: true
+        default: false
         type: boolean
 
 jobs:
@@ -36,24 +36,105 @@ jobs:
         working-directory: contracts
         run: forge test -vv
 
+      - name: Validate Sepolia RPC and deployer
+        working-directory: contracts
+        env:
+          PRIVATE_KEY: ${'{'}{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
+        run: |
+          set -euo pipefail
+          test -n "$PRIVATE_KEY"
+          test -n "$RPC_URL"
+          test -n "$INITIAL_HOLDER"
+          CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
+          echo "Detected chain ID: $CHAIN_ID"
+          test "$CHAIN_ID" = "11155111"
+          DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          echo "Deployer: $DEPLOYER"
+          cast balance "$DEPLOYER" --rpc-url "$RPC_URL" --ether
+          HOLDER_CODE="$(cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          test "$HOLDER_CODE" = "0x"
+
       - name: Deploy
         working-directory: contracts
         env:
-          PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
-          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
-          GLORIFIER_INITIAL_HOLDER: ${{ inputs.initial_holder }}
+          PRIVATE_KEY: ${'{'}{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          GLORIFIER_INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
         run: |
-          test -n "$PRIVATE_KEY"
-          test -n "$RPC_URL"
-          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER             --rpc-url "$RPC_URL"             --broadcast             --slow | tee deployment-output.txt
+          set -euo pipefail
+          rm -rf broadcast
+          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
 
-      - name: Verify deployment evidence
+      - name: Extract and verify deployment evidence
         working-directory: contracts
         env:
-          INITIAL_HOLDER: ${{ inputs.initial_holder }}
+          RPC_URL: ${'{'}{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          INITIAL_HOLDER: ${'{'}{ inputs.initial_holder }}
         run: |
-          test -s deployment-output.txt
-          grep -E "Deployed|GLORIFIER|transaction|contract" deployment-output.txt || true
+          set -euo pipefail
+          RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
+          test -s "$RUN_FILE"
+
+          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
+          TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
+          test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
+          test -n "$TX_HASH" && test "$TX_HASH" != "null"
+
+          CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
+          test "$CODE" != "0x"
+          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+
+          test "$NAME" = "GLORIFIER"
+          test "$SYMBOL" = "GLR"
+          test "$DECIMALS" = "18"
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
+          test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
+
+          RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
+          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
+          STATUS="$(echo "$RECEIPT" | jq -r '.status')"
+          test "$STATUS" = "1"
+
+          echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+
+          jq -n             --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             '{
+              evidence_type:"GLORIFIER ERC-20 deployment",
+              network:$network,
+              chain_id:11155111,
+              contract_address:$contract,
+              transaction_hash:$tx,
+              block_number:($block|tonumber),
+              transaction_status:1,
+              initial_holder:$holder,
+              on_chain_assertions:{
+                name:"GLORIFIER",
+                symbol:"GLR",
+                decimals:18,
+                total_supply_wei:"1000000000000000000000000000"
+              }
+            }' > deployment-evidence.json
+
+          echo "Contract address: $CONTRACT_ADDRESS"
+          echo "Transaction hash: $TX_HASH"
+          cat deployment-evidence.json
+
+      - name: Publish deployment summary
+        run: |
+          {
+            echo "## GLORIFIER GLR Testnet Deployment"
+            echo "- Network: Ethereum Sepolia"
+            echo "- Contract: `$CONTRACT_ADDRESS`"
+            echo "- Transaction: `$DEPLOYMENT_TX_HASH`"
+            echo "- Initial holder: ${'{'}{ inputs.initial_holder }}"
+            echo "- On-chain verification: **PASSED**"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload deployment evidence
         uses: actions/upload-artifact@v4
