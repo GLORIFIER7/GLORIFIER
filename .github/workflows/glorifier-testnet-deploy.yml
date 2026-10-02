@@ -132,6 +132,8 @@ jobs:
                 ;;
               https://sepolia.infura.io/v3/*)
                 ;;
+              https://ethereum-sepolia-rpc.publicnode.com)
+                ;;
               https://*)
                 echo "$provider: INVALID HOST/PATH. Use the provider's Ethereum Sepolia JSON-RPC URL."
                 return 1
