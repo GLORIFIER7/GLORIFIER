@@ -91,7 +91,8 @@ jobs:
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
           test -s "$RUN_FILE"
 
-          DEPLOYER_ADDRESS="$(cast wallet address --private-key "${PRIVATE_KEY:-0x0}" 2>/dev/null || true)"\n          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
+          DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
           TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
           test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
           test -n "$TX_HASH" && test "$TX_HASH" != "null"
@@ -124,6 +125,7 @@ jobs:
             --arg tx "$TX_HASH" \
             --arg holder "$INITIAL_HOLDER" \
             --arg block "$BLOCK_NUMBER" \
+            --arg deployer "$DEPLOYER_ADDRESS" \
             '{
               evidence_type:"GLORIFIER ERC-20 deployment",
               network:$network,
