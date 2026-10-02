@@ -20,6 +20,8 @@ jobs:
       contents: read
     env:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
+      ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+      INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,31 +40,57 @@ jobs:
         working-directory: contracts
         run: forge test -vv
 
-      - name: Validate Sepolia RPC and deployer
+      - name: Select and validate Sepolia RPC provider
         working-directory: contracts
         env:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
-          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+          INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
           INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
           test -n "$PRIVATE_KEY"
-          test -n "$RPC_URL"
-          # Guard against accidentally supplying Infura's Gas API endpoint instead of JSON-RPC.
-          case "$RPC_URL" in
-            https://gas.api.infura.io/*|https://gas.api.infura.io) echo "ERROR: GLORIFIER_TESTNET_RPC_URL must be an Ethereum JSON-RPC endpoint, not Infura Gas API"; exit 1 ;;
-          esac
-          case "$RPC_URL" in
-            https://sepolia.infura.io/v3/*) : ;;
-            *) echo "ERROR: unexpected Sepolia RPC endpoint"; exit 1 ;;
-          esac
           test -n "$INITIAL_HOLDER"
           [[ "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]
           HOLDER_LOWER="$(printf '%s' "$INITIAL_HOLDER" | tr '[:upper:]' '[:lower:]')"
           test "$HOLDER_LOWER" != "0x0000000000000000000000000000000000000000"
-          CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
-          echo "Detected chain ID: $CHAIN_ID"
-          test "$CHAIN_ID" = "11155111"
+
+          is_valid_sepolia_rpc() {
+            local url="$1"
+            test -n "$url" || return 1
+            case "$url" in
+              https://gas.api.infura.io/*|https://gas.api.infura.io)
+                return 1
+                ;;
+              https://eth-sepolia.g.alchemy.com/v2/*|https://sepolia.infura.io/v3/*)
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+            local chain_id
+            chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)" || return 1
+            test "$chain_id" = "11155111"
+          }
+
+          RPC_URL=""
+          RPC_PROVIDER=""
+          if is_valid_sepolia_rpc "$ALCHEMY_RPC_URL"; then
+            RPC_URL="$ALCHEMY_RPC_URL"
+            RPC_PROVIDER="Alchemy"
+          elif is_valid_sepolia_rpc "$INFURA_RPC_URL"; then
+            RPC_URL="$INFURA_RPC_URL"
+            RPC_PROVIDER="Infura"
+          else
+            echo "ERROR: no healthy Ethereum Sepolia RPC provider is configured."
+            echo "Configure GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL and/or GLORIFIER_TESTNET_RPC_URL."
+            exit 1
+          fi
+
+          echo "Selected RPC provider: $RPC_PROVIDER"
+          echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
+          echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
+
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
           echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
@@ -171,6 +199,7 @@ jobs:
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
+            echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
