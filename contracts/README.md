@@ -29,11 +29,12 @@ forge test
 The repository includes an authorized GitHub Actions workflow at `.github/workflows/glorifier-testnet-deploy.yml`. It requires repository/environment secrets:
 
 - `GLORIFIER_DEPLOYER_PRIVATE_KEY`
-- `GLORIFIER_TESTNET_RPC_URL`
+- `GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL` (recommended primary)
+- `GLORIFIER_TESTNET_RPC_URL` (Infura fallback)
 
 The private key must belong to a wallet you control and must be funded with testnet gas. Never commit the key. The initial holder is supplied manually when dispatching the workflow.
 
-The workflow runs the full test suite before broadcasting and stores deployment output as a GitHub Actions artifact. It validates that the configured RPC is the Ethereum Sepolia JSON-RPC endpoint (chain ID `11155111`) before deployment. The initial holder may be an EOA, multisig, or other contract address; only the zero address is rejected. A deployment is not considered verified until the resulting transaction receipt, contract address, deployed bytecode, token metadata, total supply, and holder balance are independently confirmed on Sepolia.
+The workflow runs the full test suite before broadcasting and stores deployment output as a GitHub Actions artifact. It health-checks Alchemy first and falls back to Infura when Alchemy is unavailable. Both providers must resolve to Ethereum Sepolia (chain ID `11155111`). The selected provider is recorded in the workflow summary. The initial holder may be an EOA, multisig, or other contract address; only the zero address is rejected. A deployment is not considered verified until the resulting transaction receipt, contract address, deployed bytecode, token metadata, total supply, and holder balance are independently confirmed on Sepolia.
 
 ```bash
 export PRIVATE_KEY=...
@@ -55,4 +56,4 @@ A deployment is considered **VERIFIED** only when the chain, contract address, t
 
 Optional Etherscan source verification is performed by the GitHub Actions workflow only when `GLORIFIER_ETHERSCAN_API_KEY` is configured in the `testnet` environment. Source verification is separate from on-chain deployment verification: the contract can be deployed and on-chain verified even when explorer source verification is not configured.
 
-Do not use an Infura Gas API URL as `GLORIFIER_TESTNET_RPC_URL`; it must be an Ethereum JSON-RPC endpoint such as `https://sepolia.infura.io/v3/<PROJECT_ID>`.
+Do not use an Infura Gas API URL as either RPC secret. Alchemy Sepolia uses `https://eth-sepolia.g.alchemy.com/v2/<API_KEY>`; Infura Sepolia uses `https://sepolia.infura.io/v3/<PROJECT_ID>`. Never commit API keys or private keys.
