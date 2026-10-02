@@ -92,42 +92,51 @@ jobs:
           test "$HOLDER_LOWER" != "0x0000000000000000000000000000000000000000"
           echo "GLORIFIER_INITIAL_HOLDER=$INITIAL_HOLDER" >> "$GITHUB_ENV"
 
-          is_valid_sepolia_rpc() {
-            local url="$1"
-            test -n "$url" || return 1
+          validate_sepolia_rpc() {
+            local provider="$1"
+            local url="$2"
+            local chain_id=""
+            if [[ -z "$url" ]]; then
+              echo "$provider: NOT CONFIGURED"
+              return 1
+            fi
             case "$url" in
               https://gas.api.infura.io/*|https://gas.api.infura.io)
-                echo "ERROR: Infura Gas API is not an Ethereum JSON-RPC endpoint; use https://sepolia.infura.io/v3/<PROJECT_ID>." >&2
+                echo "$provider: INVALID ENDPOINT TYPE (Infura Gas API is not Ethereum JSON-RPC)."
                 return 1
                 ;;
-              https://eth-sepolia.g.alchemy.com/v2/*|https://sepolia.infura.io/v3/*)
+              https://eth-sepolia.g.alchemy.com/v2/*)
+                ;;
+              https://sepolia.infura.io/v3/*)
+                ;;
+              https://*)
+                echo "$provider: INVALID HOST/PATH. Use the provider's Ethereum Sepolia JSON-RPC URL."
+                return 1
                 ;;
               *)
+                echo "$provider: INVALID URL SCHEME. Endpoint must start with https://."
                 return 1
                 ;;
             esac
-            local chain_id
-            chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)" || return 1
-            test "$chain_id" = "11155111"
+            if ! chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)"; then
+              echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED (URL/key redacted)."
+              return 1
+            fi
+            if [[ "$chain_id" != "11155111" ]]; then
+              echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."
+              return 1
+            fi
+            echo "$provider: HEALTHY (Sepolia chain ID 11155111)."
+            return 0
           }
 
           RPC_URL=""
           RPC_PROVIDER=""
-          echo "Validating configured Sepolia RPC providers..."
-          if [[ -n "$ALCHEMY_RPC_URL" ]]; then
-            echo "Checking Alchemy Sepolia endpoint..."
-          else
-            echo "Alchemy Sepolia endpoint: NOT CONFIGURED"
-          fi
-          if [[ -n "$INFURA_RPC_URL" ]]; then
-            echo "Checking Infura Sepolia endpoint..."
-          else
-            echo "Infura Sepolia endpoint: NOT CONFIGURED"
-          fi
-          if is_valid_sepolia_rpc "$ALCHEMY_RPC_URL"; then
+          echo "Validating configured Sepolia RPC providers (credentials are never printed)..."
+          if validate_sepolia_rpc "Alchemy" "$ALCHEMY_RPC_URL"; then
             RPC_URL="$ALCHEMY_RPC_URL"
             RPC_PROVIDER="Alchemy"
-          elif is_valid_sepolia_rpc "$INFURA_RPC_URL"; then
+          elif validate_sepolia_rpc "Infura" "$INFURA_RPC_URL"; then
             RPC_URL="$INFURA_RPC_URL"
             RPC_PROVIDER="Infura"
           else
@@ -268,5 +277,5 @@ jobs:
           name: glorifier-testnet-deployment
           if-no-files-found: ignore
           path: |
-            contracts/broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
-            contracts/deployment-evidence.json
+            broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
+            deployment-evidence.json
