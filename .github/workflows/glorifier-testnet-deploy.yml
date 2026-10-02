@@ -87,6 +87,7 @@ jobs:
             test -n "$url" || return 1
             case "$url" in
               https://gas.api.infura.io/*|https://gas.api.infura.io)
+                echo "ERROR: Infura Gas API is not an Ethereum JSON-RPC endpoint; use https://sepolia.infura.io/v3/<PROJECT_ID>." >&2
                 return 1
                 ;;
               https://eth-sepolia.g.alchemy.com/v2/*|https://sepolia.infura.io/v3/*)
