@@ -1,6 +1,9 @@
 name: GLORIFIER Testnet Deploy
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       initial_holder:
@@ -15,6 +18,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, '[deploy-testnet]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: testnet
