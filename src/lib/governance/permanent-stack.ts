@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { GLORIFIER_INTEROPERABILITY_POLICY } from './interoperability-controls';
 
 export type Protocol = 'mcp' | 'a2a';
 export type TruthStatus = 'estimated' | 'observed' | 'verified' | 'not-verified' | 'degraded';
@@ -66,6 +67,7 @@ export interface PermanentGlorifierStack {
   protocols: ProtocolBoundary[];
   providers: ProviderRecord[];
   capabilities: CapabilityRecord[];
+  interoperability: typeof GLORIFIER_INTEROPERABILITY_POLICY;
   orchestration: {
     providerRegistry: true;
     capabilityRegistry: true;
@@ -147,6 +149,7 @@ export function getPermanentGlorifierStack(): PermanentGlorifierStack {
     protocols: DEFAULT_PROTOCOLS.map(x => ({ ...x })),
     providers: DEFAULT_PROVIDERS.map(x => ({ ...x, capabilities: [...x.capabilities] })),
     capabilities: DEFAULT_CAPABILITIES.map(x => ({ ...x })),
+    interoperability: GLORIFIER_INTEROPERABILITY_POLICY,
     orchestration: {
       providerRegistry: true,
       capabilityRegistry: true,
@@ -195,6 +198,9 @@ export function getPermanentGlorifierStack(): PermanentGlorifierStack {
 export function validatePermanentStack(stack: PermanentGlorifierStack = getPermanentGlorifierStack()) {
   const errors: string[] = [];
   if (stack.schemaVersion !== 'GLORIFIER-STACK-1.0') errors.push('unsupported stack schema');
+  if (stack.interoperability.skillsNeverGrantAuthority !== true) errors.push('skills must never grant authority');
+  if (stack.interoperability.mcp.sessionStateOwnedByGlorifier !== true) errors.push('MCP session/task state must remain governed by GLORIFIER');
+  if (stack.interoperability.a2a.signedHandoffs !== true) errors.push('A2A handoffs must be signed');
   if (!stack.orchestration.providerRegistry || !stack.orchestration.capabilityRegistry || !stack.orchestration.aiCeo || !stack.orchestration.permanentOrchestrator) errors.push('orchestration layers incomplete');
   if (stack.orchestration.implicitFallback) errors.push('implicit fallback is forbidden');
   if (!stack.governance.geas || !stack.governance.policy || !stack.governance.identity || !stack.governance.authorityAttenuation || !stack.governance.humanApproval) errors.push('governance boundary incomplete');
