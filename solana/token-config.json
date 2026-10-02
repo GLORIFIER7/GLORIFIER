@@ -1,0 +1,15 @@
+{
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "totalSupply": "1000000000",
+  "transferFeeBasisPoints": 0,
+  "permanentDelegate": null,
+  "initialMintAuthority": "DEPLOYER_WALLET",
+  "initialFreezeAuthority": "DEPLOYER_WALLET",
+  "finalMintAuthority": null,
+  "finalFreezeAuthority": null,
+  "devnetFirst": true,
+  "mainnetRequiresHumanApproval": true,
+  "existingMintExcluded": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+}
