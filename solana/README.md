@@ -32,6 +32,10 @@ does not retain an administrative freeze switch.
 Solana documents mint creation, minting, and authority management in its SPL
 Token documentation.
 
+## Deployment automation
+
+The repository includes `.github/workflows/glorifier-solana-devnet.yml` for a controlled Devnet deployment. It is manual (`workflow_dispatch`) and requires a dedicated deployment keypair supplied by the repository owner as a GitHub Actions secret. The private key must never be committed or pasted into ChatGPT. The workflow refuses non-Devnet RPC endpoints and uploads deployment output as an evidence artifact.
+
 ## Safest deployment sequence
 
 1. Create a dedicated wallet you control.
@@ -56,6 +60,7 @@ does not need custody of the wallet's private key.
 ## Verification boundary
 
 - Source/configuration: PUBLISHED when merged.
+- Deployment automation: CONFIGURED; execution still requires the owner's authorized wallet secret and a successful workflow run.
 - Devnet deployment: NOT VERIFIED until a real Solana transaction signature
   and mint address are recorded.
 - Mainnet deployment: NOT VERIFIED until a real mainnet mint and transaction
