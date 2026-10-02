@@ -101,7 +101,7 @@ jobs:
         working-directory: contracts
         env:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
-          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+
           GLORIFIER_INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
@@ -111,7 +111,7 @@ jobs:
       - name: Extract and verify deployment evidence
         working-directory: contracts
         env:
-          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+
           DEPLOYER_PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
           INITIAL_HOLDER: ${{ inputs.initial_holder }}
         run: |
