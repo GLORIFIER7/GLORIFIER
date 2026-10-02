@@ -56,8 +56,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$ALCHEMY_RPC_URL" && -z "$INFURA_RPC_URL" ]]; then
-            echo "ERROR: Configure GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL and/or GLORIFIER_TESTNET_RPC_URL."
-            exit 1
+            echo "INFO: No private Sepolia RPC secret configured; PublicNode fallback will be used if healthy."
           fi
 
       - name: Select and validate Sepolia RPC provider
