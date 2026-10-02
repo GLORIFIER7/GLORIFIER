@@ -1,0 +1,15 @@
+{
+  "evidence_type": "GLORIFIER SPL token deployment",
+  "network": "Solana Devnet",
+  "mint_address": null,
+  "creation_transaction": null,
+  "mint_transaction": null,
+  "authority_revocation_transaction": null,
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "total_supply": "1000000000",
+  "mint_authority": null,
+  "freeze_authority": null,
+  "status": "NOT VERIFIED"
+}
