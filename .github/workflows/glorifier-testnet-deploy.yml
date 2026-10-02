@@ -48,6 +48,14 @@ jobs:
           set -euo pipefail
           test -n "$PRIVATE_KEY"
           test -n "$RPC_URL"
+          # Guard against accidentally supplying Infura's Gas API endpoint instead of JSON-RPC.
+          case "$RPC_URL" in
+            https://gas.api.infura.io/*|https://gas.api.infura.io) echo "ERROR: GLORIFIER_TESTNET_RPC_URL must be an Ethereum JSON-RPC endpoint, not Infura Gas API"; exit 1 ;;
+          esac
+          case "$RPC_URL" in
+            https://sepolia.infura.io/v3/*) : ;;
+            *) echo "ERROR: unexpected Sepolia RPC endpoint"; exit 1 ;;
+          esac
           test -n "$INITIAL_HOLDER"
           [[ "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]
           HOLDER_LOWER="$(printf '%s' "$INITIAL_HOLDER" | tr '[:upper:]' '[:lower:]')"
@@ -84,7 +92,7 @@ jobs:
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
           test -s "$RUN_FILE"
 
-          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
+          DEPLOYER_ADDRESS="$(cast wallet address --private-key "${PRIVATE_KEY:-0x0}" 2>/dev/null || true)"\n          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
           TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
           test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
           test -n "$TX_HASH" && test "$TX_HASH" != "null"
@@ -112,6 +120,7 @@ jobs:
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
 
           jq -n \
+            --arg deployer "$DEPLOYER_ADDRESS" \
             --arg network "Ethereum Sepolia" \
             --arg contract "$CONTRACT_ADDRESS" \
             --arg tx "$TX_HASH" \
@@ -124,7 +133,7 @@ jobs:
               contract_address:$contract,
               transaction_hash:$tx,
               block_number:($block|tonumber),
-              transaction_status:1,
+              transaction_status:1,\n              deployer_address:$deployer,
               initial_holder:$holder,
               on_chain_assertions:{
                 name:"GLORIFIER",
