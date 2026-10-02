@@ -1,6 +1,11 @@
 name: GLORIFIER Testnet Deploy
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - ".github/workflows/glorifier-testnet-deploy.yml"
   workflow_run:
     workflows: ["GLORIFIER Full-Stack E2E"]
     types: [completed]
@@ -18,7 +23,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-testnet]')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: testnet
@@ -42,6 +47,10 @@ jobs:
           set -euo pipefail
           forge install OpenZeppelin/openzeppelin-contracts --no-commit
           forge install foundry-rs/forge-std --no-commit
+
+      - name: Build
+        working-directory: contracts
+        run: forge build --sizes
 
       - name: Test
         working-directory: contracts
@@ -182,9 +191,16 @@ jobs:
           echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
+          MIN_BALANCE_WEI=5000000000000000
           if [[ "$BALANCE_WEI" == "0" ]]; then
             echo "ERROR: deployer has zero Sepolia ETH. Fund this exact Sepolia address before broadcasting: $DEPLOYER"
             echo "Use a Sepolia faucet; do not fund this address with mainnet ETH."
+            exit 1
+          fi
+          if (( BALANCE_WEI < MIN_BALANCE_WEI )); then
+            echo "ERROR: deployer has insufficient Sepolia ETH for a safe deployment buffer."
+            echo "Current balance: $BALANCE_WEI wei; recommended minimum: $MIN_BALANCE_WEI wei (0.005 ETH)."
+            echo "Fund this exact Sepolia address: $DEPLOYER"
             exit 1
           fi
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
@@ -261,6 +277,7 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
+        continue-on-error: true
         if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
         working-directory: contracts
         run: |
