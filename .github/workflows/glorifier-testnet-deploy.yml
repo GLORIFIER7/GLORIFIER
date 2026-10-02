@@ -157,7 +157,7 @@ jobs:
             echo "- Network: Ethereum Sepolia"
             echo "- Contract: $CONTRACT_ADDRESS"
             echo "- Transaction: $DEPLOYMENT_TX_HASH"
-            echo "- Initial holder: ${{ inputs.initial_holder }}
+            echo "- Initial holder: ${{ inputs.initial_holder }}"
             echo "- On-chain verification: **PASSED**"
             if [ -n "${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}" ]; then
               echo "- Etherscan source verification: **REQUESTED**"
