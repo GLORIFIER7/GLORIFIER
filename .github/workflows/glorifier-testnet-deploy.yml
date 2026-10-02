@@ -64,6 +64,8 @@ jobs:
             echo "Update the GitHub testnet environment secret with a fresh Sepolia-only deployer private key."
             exit 1
           fi
+          # Persist only the normalized value for later steps. The raw secret is never printed.
+          echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
 
           # Accept either a raw address or the common pasted form "initial_holder0x...".
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
@@ -124,7 +126,7 @@ jobs:
       - name: Deploy
         working-directory: contracts
         env:
-          PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          PRIVATE_KEY: ${{ env.GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED }}
           GLORIFIER_INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
         run: |
           set -euo pipefail
@@ -134,7 +136,7 @@ jobs:
       - name: Extract and verify deployment evidence
         working-directory: contracts
         env:
-          DEPLOYER_PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          DEPLOYER_PRIVATE_KEY: ${{ env.GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED }}
           INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
         run: |
           set -euo pipefail
