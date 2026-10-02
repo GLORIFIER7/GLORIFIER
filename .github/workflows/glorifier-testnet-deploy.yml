@@ -125,21 +125,19 @@ jobs:
 
       - name: Deploy
         working-directory: contracts
-        env:
-          PRIVATE_KEY: ${{ env.GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED }}
-          GLORIFIER_INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
         run: |
           set -euo pipefail
+          export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           rm -rf broadcast
           forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
 
       - name: Extract and verify deployment evidence
         working-directory: contracts
-        env:
-          DEPLOYER_PRIVATE_KEY: ${{ env.GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED }}
-          INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
         run: |
           set -euo pipefail
+          export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
           test -s "$RUN_FILE"
 
