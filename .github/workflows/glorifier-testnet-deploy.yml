@@ -323,7 +323,11 @@ jobs:
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
-            echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
+            if [ -n "${RPC_PROVIDER:-}" ]; then
+              echo "- RPC provider: $RPC_PROVIDER"
+            else
+              echo "- RPC provider: NOT SELECTED (deployment preflight failed before provider selection completed)"
+            fi
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
