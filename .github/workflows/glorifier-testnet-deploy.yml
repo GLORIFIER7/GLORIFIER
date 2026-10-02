@@ -5,7 +5,8 @@ on:
     inputs:
       initial_holder:
         description: "GLR initial holder address"
-        required: true
+        required: false
+        default: ""
         type: string
 
 concurrency:
@@ -15,6 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: testnet
     permissions:
       contents: read
@@ -49,8 +51,11 @@ jobs:
           INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
-          test -n "$PRIVATE_KEY"
-          test -n "$INITIAL_HOLDER_INPUT"
+          if [[ -z "$PRIVATE_KEY" ]]; then
+            echo "ERROR: GLORIFIER_DEPLOYER_PRIVATE_KEY is missing from the GitHub testnet environment."
+            echo "Add a dedicated Sepolia-only deployment key to the testnet environment; never paste it into chat or commit it."
+            exit 1
+          fi
 
           # Normalize common secret formatting mistakes without ever printing the key.
           PRIVATE_KEY="$(printf '%s' "$PRIVATE_KEY" | tr -d '[:space:]')"
@@ -72,6 +77,11 @@ jobs:
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
           INITIAL_HOLDER="${INITIAL_HOLDER#initial_holder}"
           INITIAL_HOLDER="${INITIAL_HOLDER#INITIAL_HOLDER}"
+
+          if [[ -z "$INITIAL_HOLDER" ]]; then
+            INITIAL_HOLDER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+            echo "No initial_holder supplied; using the deployer address as initial holder."
+          fi
 
           if [[ ! "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
             echo "ERROR: initial_holder must be a 40-hex Ethereum address beginning with 0x."
@@ -123,7 +133,15 @@ jobs:
           echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
-          test "$BALANCE_WEI" != "0"
+          if [[ "$BALANCE_WEI" == "0" ]]; then
+            echo "ERROR: deployer has zero Sepolia ETH. Fund this exact Sepolia address before broadcasting: $DEPLOYER"
+            echo "Use a Sepolia faucet; do not fund this address with mainnet ETH."
+            exit 1
+          fi
+          CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
+          test "$CHAIN_ID" = "11155111"
+          NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$RPC_URL")"
+          echo "Deployer nonce: $NONCE"
 
       - name: Deploy
         working-directory: contracts
