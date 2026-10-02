@@ -1,0 +1,37 @@
+{
+  "project": "GLORIFIER GLR",
+  "network_strategy": {
+    "first": "solana-devnet",
+    "production": "solana-mainnet-beta",
+    "evm": "sepolia-before-mainnet"
+  },
+  "agents": [
+    "GLORIFIER Federation Coordinator",
+    "Crypto Audit Agent",
+    "Build/Test Agent",
+    "Solana Deployment Agent",
+    "npm Release Agent",
+    "Independent Verification Agent"
+  ],
+  "required_evidence": [
+    "repository_commit",
+    "successful_tests",
+    "deployment_transaction",
+    "mint_address",
+    "token_name",
+    "token_symbol",
+    "decimals",
+    "total_supply",
+    "mint_authority_state",
+    "freeze_authority_state",
+    "holder_balance",
+    "npm_package_version",
+    "npm_registry_publication"
+  ],
+  "gates": {
+    "devnet": "automated_after_authorized_secret",
+    "mainnet": "explicit_human_approval",
+    "npm": "npm_trusted_publisher_oidc"
+  },
+  "status": "NOT VERIFIED"
+}
