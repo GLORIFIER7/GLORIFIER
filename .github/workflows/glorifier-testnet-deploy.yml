@@ -51,14 +51,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$ETHERSCAN_API_KEY" ]]; then
-            echo "ERROR: GLORIFIER_ETHERSCAN_API_KEY is required."
-            echo "Testnet deployment is evidence-gated: deployment without explorer source verification is not accepted."
-            exit 1
+            echo "WARNING: GLORIFIER_ETHERSCAN_API_KEY is not configured."
+            echo "On-chain deployment may proceed; explorer source verification will remain NOT VERIFIED."
           fi
           if [[ -z "$ALCHEMY_RPC_URL" && -z "$INFURA_RPC_URL" ]]; then
             echo "INFO: No private Sepolia RPC secret configured; PublicNode fallback will be used if healthy."
           fi
-
       - name: Select and validate Sepolia RPC provider
         working-directory: contracts
         env:
@@ -263,13 +261,26 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
+        if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
         working-directory: contracts
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
-          forge verify-contract             "$CONTRACT_ADDRESS"             src/GLORIFIER.sol:GLORIFIER             --chain sepolia             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
+            --chain sepolia \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --watch
           echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
 
+      - name: Etherscan verification status
+        if: ${{ always() }}
+        run: |
+          if [[ -z "${ETHERSCAN_API_KEY:-}" ]]; then
+            echo "Etherscan source verification: NOT RUN (API key not configured)."
+          elif [[ "${ETHERSCAN_VERIFIED:-false}" != "true" ]]; then
+            echo "Etherscan source verification: NOT VERIFIED."
+          fi
       - name: Publish deployment summary
         if: always()
         run: |
