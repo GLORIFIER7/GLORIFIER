@@ -1,6 +1,9 @@
 name: Publish GLORIFIER to npmjs
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
