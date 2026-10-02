@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GLORIFIER Governed A2A Task Envelope",
+  "type": "object",
+  "required": [
+    "task_id",
+    "lifecycle",
+    "requester",
+    "assignee",
+    "authorization",
+    "evidence_policy"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": [
+        "DISCOVERED",
+        "AUTHORIZED",
+        "ASSIGNED",
+        "RUNNING",
+        "EVIDENCE",
+        "VERIFIED",
+        "SETTLED",
+        "FAILED"
+      ]
+    },
+    "requester": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assignee": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authorization": {
+      "type": "object",
+      "required": [
+        "authorized"
+      ],
+      "properties": {
+        "authorized": {
+          "type": "boolean"
+        },
+        "human_approval_required": {
+          "type": "boolean"
+        },
+        "human_approval_record": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evidence_policy": {
+      "type": "object",
+      "required": [
+        "required",
+        "verification_status"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "verification_status": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN",
+            "NOT VERIFIED",
+            "PARTIALLY VERIFIED",
+            "VERIFIED",
+            "FULLY VERIFIED"
+          ]
+        }
+      }
+    }
+  }
+}
