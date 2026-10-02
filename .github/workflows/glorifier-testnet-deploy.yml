@@ -42,6 +42,19 @@ jobs:
         working-directory: contracts
         run: forge test -vv
 
+      - name: Validate deployment credentials
+        run: |
+          set -euo pipefail
+          if [[ -z "$ETHERSCAN_API_KEY" ]]; then
+            echo "ERROR: GLORIFIER_ETHERSCAN_API_KEY is required."
+            echo "Testnet deployment is evidence-gated: deployment without explorer source verification is not accepted."
+            exit 1
+          fi
+          if [[ -z "$ALCHEMY_RPC_URL" && -z "$INFURA_RPC_URL" ]]; then
+            echo "ERROR: Configure GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL and/or GLORIFIER_TESTNET_RPC_URL."
+            exit 1
+          fi
+
       - name: Select and validate Sepolia RPC provider
         working-directory: contracts
         env:
@@ -235,7 +248,7 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        if: env.CONTRACT_ADDRESS != ''
+        if: \${{ env.CONTRACT_ADDRESS != '' }}
         working-directory: contracts
         env:
           INITIAL_HOLDER: ${{ env.GLORIFIER_INITIAL_HOLDER }}
@@ -244,6 +257,7 @@ jobs:
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
           forge verify-contract             "$CONTRACT_ADDRESS"             src/GLORIFIER.sol:GLORIFIER             --chain sepolia             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch
+          echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
 
       - name: Publish deployment summary
         if: always()
@@ -257,15 +271,20 @@ jobs:
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
               echo "- Initial holder: ${GLORIFIER_INITIAL_HOLDER:-NOT AVAILABLE}"
               echo "- On-chain verification: **PASSED**"
-              if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
-                echo "- Etherscan source verification: **REQUESTED**"
+              if [ "${ETHERSCAN_VERIFIED:-false}" = "true" ]; then
+                echo "- Etherscan source verification: **PASSED**"
               else
-                echo "- Etherscan source verification: **NOT RUN — GLORIFIER_ETHERSCAN_API_KEY not configured**"
+                echo "- Etherscan source verification: **FAILED / NOT VERIFIED**"
               fi
+              echo "- Sepolia contract URL: https://sepolia.etherscan.io/address/$CONTRACT_ADDRESS"
+              echo "- Sepolia transaction URL: https://sepolia.etherscan.io/tx/$DEPLOYMENT_TX_HASH"
             else
               echo "- Deployment: **NOT COMPLETED**"
               echo "- Contract/transaction evidence: **NOT AVAILABLE**"
               echo "- On-chain verification: **NOT VERIFIED**"
+              echo "- Sepolia transaction: **NOT BROADCAST**"
+              echo "- Contract address: **NOT AVAILABLE**"
+              echo "- Etherscan source verification: **NOT VERIFIED**"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
