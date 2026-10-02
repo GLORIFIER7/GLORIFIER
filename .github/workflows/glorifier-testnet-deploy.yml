@@ -338,3 +338,4 @@ jobs:
             deployment-evidence.json
 
 # Controlled testnet deployment trigger: [deploy-testnet] commits only.
+# Sepolia deployment preflight: funding is the only external dependency.
