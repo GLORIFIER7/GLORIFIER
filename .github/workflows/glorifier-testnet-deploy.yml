@@ -50,8 +50,8 @@ jobs:
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
           test "$BALANCE_WEI" != "0"
-          cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL" | grep -q "^0x$"
           HOLDER_CODE="$(cast code "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          test "$HOLDER_CODE" = "0x"
 
       - name: Deploy
         working-directory: contracts
@@ -102,8 +102,12 @@ jobs:
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
 
           jq -n \
-            --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER" \
-            --arg block "$BLOCK_NUMBER"             '{
+            --arg network "Ethereum Sepolia" \
+            --arg contract "$CONTRACT_ADDRESS" \
+            --arg tx "$TX_HASH" \
+            --arg holder "$INITIAL_HOLDER" \
+            --arg block "$BLOCK_NUMBER" \
+            '{
               evidence_type:"GLORIFIER ERC-20 deployment",
               network:$network,
               chain_id:11155111,
