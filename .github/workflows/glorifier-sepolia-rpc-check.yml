@@ -20,12 +20,31 @@ jobs:
 
       - name: Validate RPC
         env:
-          RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+          ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+          INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$RPC_URL" || { echo "Missing GLORIFIER_TESTNET_RPC_URL"; exit 1; }
+          is_valid_sepolia_rpc() {
+            local url="$1"
+            test -n "$url" || return 1
+            case "$url" in
+              https://eth-sepolia.g.alchemy.com/v2/*|https://sepolia.infura.io/v3/*) ;;
+              *) return 1 ;;
+            esac
+            test "$(cast chain-id --rpc-url "$url" 2>/dev/null)" = "11155111"
+          }
+          RPC_URL=""
+          RPC_PROVIDER=""
+          if is_valid_sepolia_rpc "$ALCHEMY_RPC_URL"; then
+            RPC_URL="$ALCHEMY_RPC_URL"; RPC_PROVIDER="Alchemy"
+          elif is_valid_sepolia_rpc "$INFURA_RPC_URL"; then
+            RPC_URL="$INFURA_RPC_URL"; RPC_PROVIDER="Infura"
+          else
+            echo "No healthy Sepolia RPC configured"; exit 1
+          fi
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
+          echo "Selected provider: $RPC_PROVIDER"
           echo "Detected chain ID: $CHAIN_ID"
           test "$CHAIN_ID" = "11155111"
           BLOCK="$(cast block-number --rpc-url "$RPC_URL")"
