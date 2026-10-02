@@ -50,7 +50,7 @@ For production, use a dedicated deployment wallet and move treasury/control asse
 
 ## Evidence required
 
-A deployment is considered **VERIFIED** only when the chain, contract address, transaction hash, and explorer verification are recorded. Repository code alone does not constitute an on-chain deployment.
+A deployment is considered **VERIFIED** only when the chain, contract address, transaction hash, successful receipt, deployed bytecode, token metadata, total supply, and initial-holder balance are confirmed on Sepolia. Explorer source verification is a separate optional evidence layer. Repository code alone does not constitute an on-chain deployment.
 
 ## Verification
 
