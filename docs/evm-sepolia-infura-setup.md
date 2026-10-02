@@ -6,13 +6,17 @@ GLORIFIER's ERC-20 testnet deployment uses a GitHub Actions secret for the Ether
 
 ## Infura endpoint
 
-Ethereum Sepolia RPC format:
+GLORIFIER needs an **Ethereum JSON-RPC endpoint**, not Infura's separate Gas API.
 
-`https://sepolia.infura.io/v3/<INFURA_API_KEY>`
+Ethereum Sepolia JSON-RPC format:
 
-Do not commit the API key to Git. Store the complete endpoint as the GitHub Actions secret `GLORIFIER_TESTNET_RPC_URL`.
+`https://sepolia.infura.io/v3/<INFURA_PROJECT_ID>`
 
-The deployment workflow validates chain ID `11155111` before deployment.
+The Infura Gas API endpoint (`https://gas.api.infura.io/...`) is **not** accepted by the deployment workflow. Gas API methods such as gas-fee suggestions are separate from the Ethereum JSON-RPC interface. Ethereum JSON-RPC is what Foundry/`cast` uses for `eth_chainId`, balance reads, contract calls, transaction submission, and deployment.
+
+Do not commit the API key to Git. Store the complete Sepolia RPC endpoint as the GitHub Actions secret `GLORIFIER_TESTNET_RPC_URL`.
+
+The deployment workflow validates chain ID `11155111` before deployment and rejects known Gas API URLs.
 
 ## Required GitHub Actions secrets
 
