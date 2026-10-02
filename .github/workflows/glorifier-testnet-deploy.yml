@@ -191,15 +191,34 @@ jobs:
           echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
-          MIN_BALANCE_WEI=5000000000000000
-          if [[ "$BALANCE_WEI" == "0" ]]; then
-            echo "ERROR: deployer has zero Sepolia ETH. Fund this exact Sepolia address before broadcasting: $DEPLOYER"
-            echo "Use a Sepolia faucet; do not fund this address with mainnet ETH."
+
+          # Estimate the real contract-creation gas and current Sepolia fee instead
+          # of enforcing an arbitrary fixed ETH threshold.
+          CREATION_BYTECODE="$(forge inspect GLORIFIER bytecode)"
+          if [[ -z "$CREATION_BYTECODE" || "$CREATION_BYTECODE" == "0x" ]]; then
+            echo "ERROR: unable to obtain GLORIFIER creation bytecode for gas estimation."
             exit 1
           fi
-          if (( BALANCE_WEI < MIN_BALANCE_WEI )); then
-            echo "ERROR: deployer has insufficient Sepolia ETH for a safe deployment buffer."
-            echo "Current balance: $BALANCE_WEI wei; recommended minimum: $MIN_BALANCE_WEI wei (0.005 ETH)."
+          GAS_ESTIMATE="$(cast estimate --create "$CREATION_BYTECODE" "constructor(address)" "$INITIAL_HOLDER" --from "$DEPLOYER" --rpc-url "$RPC_URL")"
+          GAS_PRICE_WEI="$(cast gas-price --rpc-url "$RPC_URL")"
+          # Add a 25% fee/gas safety margin.
+          REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
+          echo "Estimated deployment gas: $GAS_ESTIMATE"
+          echo "Current Sepolia gas price: $GAS_PRICE_WEI wei"
+          echo "Estimated deployment cost + 25% buffer: $REQUIRED_WEI wei"
+
+          if [[ "$BALANCE_WEI" == "0" ]]; then
+            echo "ERROR: deployer has zero Sepolia ETH."
+            echo "Fund this exact Sepolia address before broadcasting: $DEPLOYER"
+            echo "Use a Sepolia faucet; never fund this testnet deployment with mainnet ETH."
+            exit 1
+          fi
+          if (( BALANCE_WEI < REQUIRED_WEI )); then
+            SHORTFALL_WEI="$((REQUIRED_WEI - BALANCE_WEI))"
+            echo "ERROR: insufficient Sepolia ETH for the current estimated deployment cost."
+            echo "Current balance: $BALANCE_WEI wei"
+            echo "Required with safety buffer: $REQUIRED_WEI wei"
+            echo "Additional funding required: $SHORTFALL_WEI wei"
             echo "Fund this exact Sepolia address: $DEPLOYER"
             exit 1
           fi
