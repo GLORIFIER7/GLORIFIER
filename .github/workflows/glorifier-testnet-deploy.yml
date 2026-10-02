@@ -42,6 +42,9 @@ jobs:
           test -n "$PRIVATE_KEY"
           test -n "$RPC_URL"
           test -n "$INITIAL_HOLDER"
+          [[ "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]
+          HOLDER_LOWER="$(printf '%s' "$INITIAL_HOLDER" | tr '[:upper:]' '[:lower:]')"
+          test "$HOLDER_LOWER" != "0x0000000000000000000000000000000000000000"
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
           echo "Detected chain ID: $CHAIN_ID"
           test "$CHAIN_ID" = "11155111"
@@ -128,18 +131,43 @@ jobs:
           echo "Transaction hash: $TX_HASH"
           cat deployment-evidence.json
 
+      - name: Verify contract on Etherscan
+        if: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY != '' }}
+        working-directory: contracts
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
+          INITIAL_HOLDER: ${{ inputs.initial_holder }}
+          CONTRACT_ADDRESS: ${{ env.CONTRACT_ADDRESS }}
+        run: |
+          set -euo pipefail
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
+          forge verify-contract \
+            "$CONTRACT_ADDRESS" \
+            src/GLORIFIER.sol:GLORIFIER \
+            --chain sepolia \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --watch
+
       - name: Publish deployment summary
+        if: always()
         run: |
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
-            echo "- Contract: `$CONTRACT_ADDRESS`"
-            echo "- Transaction: `$DEPLOYMENT_TX_HASH`"
-            echo "- Initial holder: ${{ inputs.initial_holder }}"
+            echo "- Contract: $CONTRACT_ADDRESS"
+            echo "- Transaction: $DEPLOYMENT_TX_HASH"
+            echo "- Initial holder: ${{ inputs.initial_holder }}
             echo "- On-chain verification: **PASSED**"
+            if [ -n "${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}" ]; then
+              echo "- Etherscan source verification: **REQUESTED**"
+            else
+              echo "- Etherscan source verification: **NOT RUN — GLORIFIER_ETHERSCAN_API_KEY not configured**"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload deployment evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: glorifier-testnet-deployment
