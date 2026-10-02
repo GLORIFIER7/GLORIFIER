@@ -8,6 +8,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: glorifier-testnet-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,6 +30,7 @@ jobs:
       - name: Install dependencies
         working-directory: contracts
         run: |
+          set -euo pipefail
           forge install OpenZeppelin/openzeppelin-contracts --no-commit
           forge install foundry-rs/forge-std --no-commit
 
@@ -134,7 +139,7 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        if: env.ETHERSCAN_API_KEY != ''
+        if: env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != ''
         working-directory: contracts
         env:
           INITIAL_HOLDER: ${{ inputs.initial_holder }}
@@ -156,14 +161,20 @@ jobs:
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
-            echo "- Contract: $CONTRACT_ADDRESS"
-            echo "- Transaction: $DEPLOYMENT_TX_HASH"
-            echo "- Initial holder: ${{ inputs.initial_holder }}"
-            echo "- On-chain verification: **PASSED**"
-            if [ -n "$ETHERSCAN_API_KEY" ]; then
-              echo "- Etherscan source verification: **REQUESTED**"
+            if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
+              echo "- Contract: $CONTRACT_ADDRESS"
+              echo "- Transaction: $DEPLOYMENT_TX_HASH"
+              echo "- Initial holder: ${{ inputs.initial_holder }}"
+              echo "- On-chain verification: **PASSED**"
+              if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
+                echo "- Etherscan source verification: **REQUESTED**"
+              else
+                echo "- Etherscan source verification: **NOT RUN — GLORIFIER_ETHERSCAN_API_KEY not configured**"
+              fi
             else
-              echo "- Etherscan source verification: **NOT RUN — GLORIFIER_ETHERSCAN_API_KEY not configured**"
+              echo "- Deployment: **NOT COMPLETED**"
+              echo "- Contract/transaction evidence: **NOT AVAILABLE**"
+              echo "- On-chain verification: **NOT VERIFIED**"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -172,6 +183,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: glorifier-testnet-deployment
+          if-no-files-found: ignore
           path: |
             contracts/broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
             contracts/deployment-evidence.json
