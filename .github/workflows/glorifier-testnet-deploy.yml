@@ -258,10 +258,20 @@ jobs:
             fi
           fi
 
-          # Blockscout V2 fallback: recover the earliest contract-creation transaction
-          # associated with this address. This is recovery-only and never broadcasts.
+          # Blockscout V2 fallback: first use the address record's authoritative creation_tx_hash.
+          # If that field is unavailable, query the address transaction history without the
+          # invalid combined "from | to" filter and select a transaction with no recipient.
           if [[ -z "$TX_HASH" ]]; then
-            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions?filter=from%20%7C%20to" || true)"
+            BLOCKSCOUT_ADDRESS_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT" || true)"
+            BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_ADDRESS_RESPONSE" | jq -r '.creation_tx_hash // empty')"
+            if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+              TX_HASH="$BLOCKSCOUT_CANDIDATE"
+              echo "Recovered deployment transaction from Blockscout V2 address metadata."
+            fi
+          fi
+
+          if [[ -z "$TX_HASH" ]]; then
+            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions" || true)"
             BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '
               [.items[]?
                | select((.to // null) == null)
@@ -270,7 +280,7 @@ jobs:
               | first // empty')"
             if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
               TX_HASH="$BLOCKSCOUT_CANDIDATE"
-              echo "Recovered deployment transaction from Blockscout V2."
+              echo "Recovered deployment transaction from Blockscout V2 transaction history."
             else
               echo "Blockscout V2 did not return a usable contract-creation transaction."
             fi
