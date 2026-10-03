@@ -61,7 +61,7 @@
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "@capacitor/cli": "^8.0.0",
+    "@capacitor/cli": "^8.5.2",
     "cross-env": "^10.1.0",
     "playwright": "^1.63.0",
     "@playwright/test": "^1.55.0"
