@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "binance-agentic-mcp",
+  "version": "0.1.0",
+  "description": "Connect GLORIFIER to Binance Agentic MCP with governed, evidence-first access.",
+  "author": {"name": "GLORIFIER"},
+  "extensions": {"com.openai": {"interface": {
+    "displayName": "GLORIFIER Binance MCP",
+    "shortDescription": "Governed Binance MCP access",
+    "longDescription": "Connect to Binance Agentic MCP using Binance OAuth. Start with market and account reads; keep trading and transfers behind explicit authorization and confirmation.",
+    "developerName": "GLORIFIER",
+    "category": "Finance",
+    "capabilities": ["Interactive"],
+    "defaultPrompt": [
+      "Check my Binance Agentic account status using read-only access.",
+      "Show current Binance market data and cite the source of each result.",
+      "Review a proposed Binance action through GLORIFIER governance before execution."
+    ]
+  }}}
+}
