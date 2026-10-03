@@ -29,15 +29,33 @@ forge test
 The repository includes an authorized GitHub Actions workflow at `.github/workflows/glorifier-testnet-deploy.yml`. It requires GitHub `testnet` environment secrets:
 
 - `GLORIFIER_DEPLOYER_PRIVATE_KEY`
-- `GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL` (recommended primary)
+- `GLORIFIER_CHAINSTACK_SEPOLIA_RPC_URL` (primary)
+- `GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL` (fallback)
+- `GLORIFIER_ALCHEMY_API_KEY` (fallback credential alternative)
 - `GLORIFIER_TESTNET_RPC_URL` (Infura fallback)
+- `GLORIFIER_INFURA_PROJECT_ID` (Infura credential alternative)
 - `GLORIFIER_ETHERSCAN_API_KEY` (optional explorer source verification)
 
-The private key must belong to a wallet you control and must be funded with Sepolia ETH for gas. Never commit or paste the key into source control. The initial holder is supplied manually when dispatching the workflow.
+The Chainstack secret must contain the Ethereum Sepolia HTTPS JSON-RPC endpoint from your Chainstack endpoint configuration. Do not paste the endpoint or any credential into source control. The private key must belong to a wallet you control and must be funded with Sepolia ETH for gas. Never commit or paste the key into source control. The initial holder is supplied manually when dispatching the workflow; if omitted, the deployer address is used.
 
-The workflow runs the full test suite before broadcasting, validates that the selected RPC resolves to Ethereum Sepolia (chain ID `11155111`), and stores deployment output as a GitHub Actions artifact. It health-checks Alchemy first and falls back to Infura when Alchemy is unavailable. The selected provider is recorded in the workflow summary.
+### RPC provider failover
 
-### Correct RPC endpoints
+The workflow validates providers by calling Ethereum JSON-RPC `eth_chainId` and requires Sepolia chain ID `11155111`. Provider selection order is:
+
+1. Chainstack
+2. Alchemy
+3. Infura
+4. PublicNode Sepolia
+
+Only a healthy provider is selected. Credentials are never printed. If Chainstack is configured and healthy, it is the selected transport for the deployment and subsequent on-chain evidence checks.
+
+### Correct RPC endpoint types
+
+Chainstack:
+
+```text
+<your Chainstack Ethereum Sepolia HTTPS JSON-RPC endpoint>
+```
 
 Alchemy Sepolia JSON-RPC:
 
@@ -51,6 +69,12 @@ Infura Sepolia JSON-RPC:
 https://sepolia.infura.io/v3/<PROJECT_ID>
 ```
 
+PublicNode fallback:
+
+```text
+https://ethereum-sepolia-rpc.publicnode.com
+```
+
 Do **not** use an Infura Gas API endpoint such as `https://gas.api.infura.io/...`. Gas API and Ethereum JSON-RPC are separate services.
 
 ### Alchemy Agent Wallet
@@ -61,11 +85,11 @@ For GLORIFIER, keep the separation:
 
 ```text
 Alchemy Agent Wallet = authorized/session-based agent actions
-Alchemy Sepolia RPC = blockchain JSON-RPC transport
+Chainstack/Alchemy/Infura = blockchain JSON-RPC transport
 Foundry deployer key = explicit deployment signer
 ```
 
-If an Agent Wallet deployment path is added later, it must use Alchemy's supported smart-wallet call model and produce the same independent on-chain evidence. It must not weaken the Human Authority, authorization, or evidence requirements.
+If an Agent Wallet deployment path is added later, it must use the provider's supported smart-wallet call model and produce the same independent on-chain evidence. It must not weaken the Human Authority, authorization, or evidence requirements.
 
 ## Manual deployment
 
@@ -74,7 +98,7 @@ For an explicitly authorized local deployment:
 ```bash
 export PRIVATE_KEY=...
 export GLORIFIER_INITIAL_HOLDER=0x...
-export RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<API_KEY>
+export RPC_URL=<your Chainstack Ethereum Sepolia HTTPS JSON-RPC endpoint>
 
 forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER \
   --rpc-url "$RPC_URL" \
