@@ -94,8 +94,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "$PRIVATE_KEY" ]]; then
-            echo "ERROR: GLORIFIER_DEPLOYER_PRIVATE_KEY is missing from the GitHub testnet environment."
+          if [[ -z "$PRIVATE_KEY" && "${{ inputs.mode }}" == "deploy_new" ]]; then
+            echo "ERROR: GLORIFIER_DEPLOYER_PRIVATE_KEY is required only for deploy_new mode."
             exit 1
           fi
 
@@ -114,12 +114,14 @@ jobs:
             exit 1
           fi
 
-          echo "::add-mask::$PRIVATE_KEY"
-          echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
-          echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY=0x$PRIVATE_KEY" >> "$GITHUB_ENV"
+          if [[ -n "$PRIVATE_KEY" ]]; then
+            echo "::add-mask::$PRIVATE_KEY"
+            echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
+            echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY=0x$PRIVATE_KEY" >> "$GITHUB_ENV"
+          fi
 
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
-          if [[ -z "$INITIAL_HOLDER" ]]; then
+          if [[ -z "$INITIAL_HOLDER" && "${{ inputs.mode }}" == "deploy_new" ]]; then
             INITIAL_HOLDER="$(cast wallet address --private-key "0x$PRIVATE_KEY")"
             echo "No initial_holder supplied; using the deployer address as initial holder."
           fi
@@ -254,7 +256,6 @@ jobs:
             exit 1
           fi
 
-          HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
@@ -262,7 +263,23 @@ jobs:
           test -z "$RECEIPT_CONTRACT" || test "$RECEIPT_CONTRACT" = "$CONTRACT"
           test -n "$BLOCK_NUMBER"
 
+          TRANSFER_TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+          HOLDER_TOPIC="$(echo "$RECEIPT" | jq -r --arg topic "$TRANSFER_TOPIC" '[.logs[]? | select((.topics[0] // "" | ascii_downcase) == ($topic | ascii_downcase)) | select((.topics[1] // "" | ascii_downcase) == ("0x" + ("00" * 32))) | .topics[2]] | first // empty')"
+          if [[ "$HOLDER_TOPIC" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+            HOLDER="0x${HOLDER_TOPIC: -40}"
+          elif [[ -n "$GLORIFIER_INITIAL_HOLDER" ]]; then
+            HOLDER="$GLORIFIER_INITIAL_HOLDER"
+          else
+            echo "ERROR: could not recover the GLR initial holder from the deployment receipt."
+            exit 1
+          fi
+          HOLDER_BALANCE="$(cast call "$CONTRACT" "balanceOf(address)(uint256)" "$HOLDER" --rpc-url "$RPC_URL")"
+          test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
+
           echo "CONTRACT_ADDRESS=$CONTRACT" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+          echo "GLORIFIER_EVIDENCE_HOLDER=$HOLDER" >> "$GITHUB_ENV"
+          echo "GLORIFIER_INITIAL_HOLDER=$HOLDER" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
           jq -n --arg network "Ethereum Sepolia" --arg contract "$CONTRACT" --arg tx "$TX_HASH" --arg holder "$HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$(echo "$RECEIPT" | jq -r '.from // empty')"             '{evidence_type:"GLORIFIER ERC-20 existing deployment verification",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000",holder_balance_equals_total_supply:true}}' > deployment-evidence.json
 
@@ -330,7 +347,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "${GLORIFIER_EVIDENCE_HOLDER:-$GLORIFIER_INITIAL_HOLDER}")"
           if forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain sepolia --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch; then
             echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
           else
@@ -358,11 +375,14 @@ jobs:
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
-              echo "- On-chain verification: **PASSED**"
               if [ "${ETHERSCAN_VERIFIED:-false}" = "true" ]; then
+                echo "- On-chain verification: **PASSED**"
                 echo "- Etherscan source verification: **PASSED**"
+                echo "- GLR status: **FULLY VERIFIED**"
               else
+                echo "- On-chain verification: **PASSED**"
                 echo "- Etherscan source verification: **NOT VERIFIED**"
+                echo "- GLR status: **PARTIALLY VERIFIED**"
               fi
             else
               echo "- Deployment: **NOT COMPLETED**"
