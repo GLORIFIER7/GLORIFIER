@@ -28,6 +28,8 @@ jobs:
       INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
       INFURA_PROJECT_ID: ${{ secrets.GLORIFIER_INFURA_PROJECT_ID }}
       PUBLIC_SEPOLIA_RPC_URL: https://ethereum-sepolia-rpc.publicnode.com
+      PUBLIC_SEPOLIA_RPC_URL_2: https://rpc.sepolia.org
+      PUBLIC_SEPOLIA_RPC_URL_3: https://1rpc.io/sepolia
 
     steps:
       - uses: actions/checkout@v7
@@ -55,8 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$ETHERSCAN_API_KEY" ]]; then
-            echo "WARNING: GLORIFIER_ETHERSCAN_API_KEY is not configured."
-            echo "On-chain deployment may proceed; explorer source verification will remain NOT VERIFIED."
+            echo "ERROR: GLORIFIER_ETHERSCAN_API_KEY is required before deployment can be marked verified."
           fi
           if [[ -z "$CHAINSTACK_RPC_URL" && -z "$ALCHEMY_RPC_URL" && -z "$ALCHEMY_API_KEY" && -z "$INFURA_RPC_URL" && -z "$INFURA_PROJECT_ID" ]]; then
             echo "INFO: No private Sepolia RPC credential configured; PublicNode Sepolia endpoint will be used as fallback."
@@ -72,6 +73,8 @@ jobs:
           INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
           INFURA_PROJECT_ID: ${{ secrets.GLORIFIER_INFURA_PROJECT_ID }}
           PUBLIC_SEPOLIA_RPC_URL: https://ethereum-sepolia-rpc.publicnode.com
+          PUBLIC_SEPOLIA_RPC_URL_2: https://rpc.sepolia.org
+          PUBLIC_SEPOLIA_RPC_URL_3: https://1rpc.io/sepolia
           INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
@@ -132,6 +135,7 @@ jobs:
             local provider="$1"
             local url="$2"
             local chain_id=""
+            local attempt=1
 
             if [[ -z "$url" ]]; then
               echo "$provider: NOT CONFIGURED"
@@ -151,18 +155,22 @@ jobs:
                 ;;
             esac
 
-            if ! chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)"; then
-              echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED (credential redacted)."
-              return 1
-            fi
+            while (( attempt <= 3 )); do
+              if chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)"; then
+                if [[ "$chain_id" == "11155111" ]]; then
+                  echo "$provider: HEALTHY (Sepolia chain ID 11155111)."
+                  return 0
+                fi
+                echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."
+                return 1
+              fi
+              echo "$provider: RPC probe failed (attempt $attempt/3); retrying..."
+              sleep $((attempt * 2))
+              attempt=$((attempt + 1))
+            done
 
-            if [[ "$chain_id" != "11155111" ]]; then
-              echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."
-              return 1
-            fi
-
-            echo "$provider: HEALTHY (Sepolia chain ID 11155111)."
-            return 0
+            echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED (credential redacted)."
+            return 1
           }
 
           RPC_URL=""
@@ -182,6 +190,12 @@ jobs:
             RPC_URL="$PUBLIC_SEPOLIA_RPC_URL"
             RPC_PROVIDER="PublicNode Sepolia"
             echo "Using PublicNode Sepolia endpoint because private provider credentials are unavailable/unhealthy."
+          elif validate_sepolia_rpc "Sepolia.org" "$PUBLIC_SEPOLIA_RPC_URL_2"; then
+            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_2"
+            RPC_PROVIDER="Sepolia.org"
+          elif validate_sepolia_rpc "1RPC Sepolia" "$PUBLIC_SEPOLIA_RPC_URL_3"; then
+            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_3"
+            RPC_PROVIDER="1RPC Sepolia"
           else
             echo "ERROR: no healthy Ethereum Sepolia RPC provider is available."
             exit 1
@@ -288,7 +302,6 @@ jobs:
           cat deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        continue-on-error: true
         if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
         working-directory: contracts
         run: |
@@ -300,11 +313,11 @@ jobs:
       - name: Etherscan verification status
         if: ${{ always() }}
         run: |
-          if [[ -z "${ETHERSCAN_API_KEY:-}" ]]; then
-            echo "Etherscan source verification: NOT RUN (API key not configured)."
-          elif [[ "${ETHERSCAN_VERIFIED:-false}" != "true" ]]; then
+          if [[ "${ETHERSCAN_VERIFIED:-false}" != "true" ]]; then
             echo "Etherscan source verification: NOT VERIFIED."
+            exit 1
           fi
+          echo "Etherscan source verification: VERIFIED."
 
       - name: Publish deployment summary
         if: always()
