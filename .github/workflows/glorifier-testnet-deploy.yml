@@ -1,14 +1,6 @@
 name: GLORIFIER Testnet Deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "contracts/**"
-      - ".github/workflows/glorifier-testnet-deploy.yml"
-  workflow_run:
-    workflows: ["GLORIFIER Full-Stack E2E"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       initial_holder:
@@ -23,7 +15,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-testnet]')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: testnet
@@ -321,7 +312,7 @@ jobs:
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
-            if [ -f deployment-preflight.env ]; then . deployment-preflight.env; fi
+            if [ -f contracts/deployment-preflight.env ]; then . contracts/deployment-preflight.env; fi
             echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
             if [ "${DEPLOYMENT_STATUS:-}" = "BLOCKED_FUNDING" ]; then
               echo "- Deployment preflight: **BLOCKED — Sepolia ETH funding required**"
