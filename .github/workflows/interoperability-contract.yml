@@ -1,0 +1,43 @@
+name: Interoperability Contract Validation
+
+on:
+  pull_request:
+    paths:
+      - 'agent-network/**'
+      - 'docs/INTEROPERABILITY-*.md'
+      - 'docs/INFERENCE-RUNTIME-CAPABILITY.md'
+      - '.github/workflows/interoperability-contract.yml'
+  push:
+    branches:
+      - main
+      - 'chore/**'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate JSON contracts
+        run: |
+          python -m json.tool agent-network/agent-card.glorifier.json >/dev/null
+          python -m json.tool agent-network/task-envelope.schema.json >/dev/null
+          python - <<'PY'
+          import json
+          card=json.load(open("agent-network/agent-card.glorifier.json"))
+          schema=json.load(open("agent-network/task-envelope.schema.json"))
+          assert card["protocol"]["name"] == "A2A"
+          assert card["protocol"]["target_version"] == "1.0"
+          assert card["protocol"]["conformance_status"] == "NOT_VERIFIED"
+          assert card["interoperability"]["mcp_target"] == "2026-07-28"
+          required=set(schema["required"])
+          expected={"task_id","lifecycle","requester","assignee","authorization","evidence_policy","idempotency_key"}
+          assert expected <= required
+          assert schema["properties"]["authorization"]["required"] == ["authorized","reference"]
+          print("GLORIFIER interoperability contracts validated")
+          PY
+      - name: Assert no secret-shaped literals
+        run: |
+          ! grep -RniE 'BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9]{20,}' agent-network docs/INTEROPERABILITY-*.md docs/INFERENCE-RUNTIME-CAPABILITY.md

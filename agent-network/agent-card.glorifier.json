@@ -1,34 +1,12 @@
 {
   "name": "GLORIFIER Federation Coordinator",
   "description": "Provider-neutral governed AI-agent federation and execution coordinator.",
-  "version": "1.0.0",
-  "protocol": "A2A",
+  "version": "1.1.0",
+  "protocol": {"name": "A2A", "target_version": "1.0", "conformance_status": "NOT_VERIFIED"},
   "url": "https://github.com/GLORIFIER7/GLORIFIER",
-  "capabilities": {
-    "streaming": true,
-    "pushNotifications": false,
-    "stateTransitionHistory": true
-  },
-  "skills": [
-    {
-      "id": "agent-discovery",
-      "name": "Agent Discovery",
-      "description": "Discover agents by declared capabilities and governed policy."
-    },
-    {
-      "id": "collaboration-broker",
-      "name": "Collaboration Broker",
-      "description": "Delegate and coordinate multi-agent tasks."
-    },
-    {
-      "id": "crypto-release-governance",
-      "name": "Crypto Release Governance",
-      "description": "Coordinate GLR build, test, deployment evidence and verification."
-    }
-  ],
-  "security": {
-    "humanAuthorityRequiredForMainnet": true,
-    "automaticFinancialTransfers": false,
-    "automaticIrreversibleProductionChanges": false
-  }
+  "capabilities": {"streaming": true, "pushNotifications": false, "stateTransitionHistory": true},
+  "skills": [{"id":"agent-discovery","name":"Agent Discovery","description":"Discover agents by declared capabilities and governed policy."},{"id":"collaboration-broker","name":"Collaboration Broker","description":"Delegate and coordinate multi-agent tasks."},{"id":"crypto-release-governance","name":"Crypto Release Governance","description":"Coordinate GLR build, test, deployment evidence and verification."}],
+  "interoperability": {"a2a_target":"1.0","mcp_target":"2026-07-28","mcp_role":"agent-to-tool-context","a2a_role":"agent-to-agent"},
+  "governance": {"skillsDoNotGrantAuthority":true,"providerIdentityDoesNotGrantAuthority":true,"modelIdentityDoesNotGrantAuthority":true,"authorizationReferenceRequired":true,"idempotencyRequiredForRetryableTasks":true,"evidenceRequiredForVerification":true},
+  "security": {"humanAuthorityRequiredForMainnet":true,"automaticFinancialTransfers":false,"automaticIrreversibleProductionChanges":false,"automaticCredentialRotation":false,"secretsInAgentCard":false}
 }
