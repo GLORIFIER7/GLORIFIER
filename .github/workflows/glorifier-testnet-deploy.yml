@@ -271,19 +271,38 @@ jobs:
           fi
 
           if [[ -z "$TX_HASH" ]]; then
-            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions" || true)"
-            BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '
-              [.items[]?
-               | select((.to // null) == null)
-               | (.hash // empty)
-               | select(test("^0x[0-9a-fA-F]{64}$"))]
-              | first // empty')"
-            if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-              TX_HASH="$BLOCKSCOUT_CANDIDATE"
-              echo "Recovered deployment transaction from Blockscout V2 transaction history."
-            else
-              echo "Blockscout V2 did not return a usable contract-creation transaction."
-            fi
+            # Blockscout V2 address history is paginated. The creation transaction can be
+            # older than the first page, so walk pages until creation is found.
+            BLOCKSCOUT_URL="https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions"
+            for page in $(seq 1 20); do
+              BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "$BLOCKSCOUT_URL" || true)"
+              BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r --arg contract "$CONTRACT" '
+                [.items[]?
+                 | select(
+                     ((.to // null) == null)
+                     or ((.created_contract.address_hash // "" | ascii_downcase) == ($contract | ascii_downcase))
+                     or ((.created_contract.address // "" | ascii_downcase) == ($contract | ascii_downcase))
+                   )
+                 | (.hash // empty)
+                 | select(test("^0x[0-9a-fA-F]{64}$"))]
+                | first // empty')"
+              if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+                TX_HASH="$BLOCKSCOUT_CANDIDATE"
+                echo "Recovered deployment transaction from Blockscout V2 transaction history (page $page)."
+                break
+              fi
+
+              NEXT_PARAMS="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '
+                .next_page_params // {} |
+                to_entries |
+                map("\(.key)=\(.value|tostring)") |
+                join("&")')"
+              if [[ -z "$NEXT_PARAMS" || "$NEXT_PARAMS" == "" ]]; then
+                echo "Blockscout V2 transaction history exhausted after $page page(s)."
+                break
+              fi
+              BLOCKSCOUT_URL="https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions?$NEXT_PARAMS"
+            done
           fi
 
           if [[ ! "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
