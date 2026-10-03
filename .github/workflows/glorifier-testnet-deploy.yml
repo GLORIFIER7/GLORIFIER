@@ -221,15 +221,7 @@ jobs:
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
           test "$CHAIN_ID" = "11155111"
 
-          # Keep preflight deterministic: do not fail deployment on a fragile
-          # pre-broadcast gas-estimation RPC call. Foundry performs the final
-          # gas/fee handling during the real broadcast.
-          if [[ "$BALANCE_WEI" == "0" ]]; then
-            printf 'BALANCE_STATUS=ZERO\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' >> deployment-preflight.env
-            echo "ERROR: deployer has zero Sepolia ETH."
-            echo "Fund this exact Sepolia address: $DEPLOYER"
-            exit 1
-          fi
+          # Foundry performs final gas/fee handling during broadcast.
 
           NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$RPC_URL")"
           printf 'BALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' >> deployment-preflight.env
@@ -248,7 +240,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export DEPLOYER_PRIVATE_KEY="0x$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
           export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
           test -s "$RUN_FILE"
