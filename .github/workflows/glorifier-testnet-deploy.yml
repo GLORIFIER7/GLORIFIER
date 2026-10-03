@@ -102,6 +102,7 @@ jobs:
 
           echo "::add-mask::$PRIVATE_KEY"
           echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
+          echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY=0x$PRIVATE_KEY" >> "$GITHUB_ENV"
 
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
           if [[ -z "$INITIAL_HOLDER" ]]; then
@@ -229,7 +230,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export PRIVATE_KEY="0x$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
           export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
 
           # Foundry's vm.envUint requires a 0x-prefixed hexadecimal uint256.
@@ -246,7 +247,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export DEPLOYER_PRIVATE_KEY="0x$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
           export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
           test -s "$RUN_FILE"
