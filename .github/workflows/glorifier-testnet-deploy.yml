@@ -110,9 +110,6 @@ jobs:
           echo "GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
 
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
-          INITIAL_HOLDER="${INITIAL_HOLDER#initial_holder}"
-          INITIAL_HOLDER="${INITIAL_HOLDER#INITIAL_HOLDER}"
-
           if [[ -z "$INITIAL_HOLDER" ]]; then
             INITIAL_HOLDER="$(cast wallet address --private-key "$PRIVATE_KEY")"
             echo "No initial_holder supplied; using the deployer address as initial holder."
@@ -124,7 +121,10 @@ jobs:
           fi
 
           HOLDER_LOWER="$(printf '%s' "$INITIAL_HOLDER" | tr '[:upper:]' '[:lower:]')"
-          test "$HOLDER_LOWER" != "0x0000000000000000000000000000000000000000"
+          if [[ "$HOLDER_LOWER" == "0x0000000000000000000000000000000000000000" ]]; then
+            echo "ERROR: initial_holder cannot be the zero address."
+            exit 1
+          fi
           echo "GLORIFIER_INITIAL_HOLDER=$INITIAL_HOLDER" >> "$GITHUB_ENV"
 
           if [[ -n "$ALCHEMY_API_KEY" ]]; then
@@ -141,43 +141,39 @@ jobs:
             local provider="$1"
             local url="$2"
             local chain_id=""
+
             if [[ -z "$url" ]]; then
               echo "$provider: NOT CONFIGURED"
               return 1
             fi
+
             case "$url" in
               https://gas.api.infura.io/*|https://gas.api.infura.io)
                 echo "$provider: INVALID ENDPOINT TYPE (Infura Gas API is not Ethereum JSON-RPC)."
                 return 1
                 ;;
-              https://eth-sepolia.g.alchemy.com/v2/*)
-                ;;
-              https://sepolia.infura.io/v3/*)
-                ;;
-              https://ethereum-sepolia-rpc.publicnode.com)
-                ;;
               https://*)
-                echo "$provider: INVALID HOST/PATH. Use Ethereum Sepolia JSON-RPC."
-                return 1
                 ;;
               *)
-                echo "$provider: INVALID URL SCHEME."
+                echo "$provider: INVALID URL SCHEME. HTTPS JSON-RPC is required."
                 return 1
                 ;;
             esac
+
             if ! chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)"; then
               echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED (credential redacted)."
               return 1
             fi
+
             if [[ "$chain_id" != "11155111" ]]; then
               echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."
               return 1
             fi
+
             echo "$provider: HEALTHY (Sepolia chain ID 11155111)."
             return 0
           }
 
-          # Chainstack is primary when configured; authenticated fallbacks remain available.
           RPC_URL=""
           RPC_PROVIDER=""
 
@@ -338,7 +334,7 @@ jobs:
               if [ "${ETHERSCAN_VERIFIED:-false}" = "true" ]; then
                 echo "- Etherscan source verification: **PASSED**"
               else
-                echo "- Etherscan source verification: **FAILED / NOT VERIFIED**"
+                echo "- Etherscan source verification: **NOT VERIFIED**"
               fi
             else
               echo "- Deployment: **NOT COMPLETED**"
