@@ -287,9 +287,7 @@ jobs:
           fi
 
           if [[ -z "$TX_HASH" ]]; then
-            # Blockscout also exposes a global transaction endpoint with an explicit
-            # contract_creation type filter. This avoids depending on the contract
-            # address history containing the creation transaction on its first pages.
+            # Blockscout V2 global contract-creation index.
             BLOCKSCOUT_BASE="https://eth-sepolia.blockscout.com/api/v2"
             BLOCKSCOUT_URL="$BLOCKSCOUT_BASE/transactions?type=contract_creation"
             for page in $(seq 1 100); do
@@ -304,7 +302,6 @@ jobs:
                  | select(
                      ((.created_contract.address_hash // "" | ascii_downcase) == ($contract | ascii_downcase))
                      or ((.created_contract.address // "" | ascii_downcase) == ($contract | ascii_downcase))
-                     or ((.to // "" | ascii_downcase) == ($contract | ascii_downcase))
                    )
                  | (.hash // empty)
                  | select(test("^0x[0-9a-fA-F]{64}$"))]
@@ -322,8 +319,20 @@ jobs:
               fi
 
               BLOCKSCOUT_URL="$BLOCKSCOUT_BASE/transactions?type=contract_creation"
-              while IFS=
-            # with --data-urlencode so cursor values are encoded exactly as query params.
+              while IFS=$'\t' read -r key value; do
+                [[ -n "$key" ]] || continue
+                if [[ "$BLOCKSCOUT_URL" == *"?"* ]]; then
+                  BLOCKSCOUT_URL+="&"
+                else
+                  BLOCKSCOUT_URL+="?"
+                fi
+                BLOCKSCOUT_URL+="$(printf '%s' "$key" | jq -sRr @uri)=$(printf '%s' "$value" | jq -sRr @uri)"
+              done < <(printf '%s' "$NEXT_PARAMS" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+            done
+          fi
+
+          if [[ -z "$TX_HASH" ]]; then
+            # Fallback: paginate the target contract's transaction history.
             BLOCKSCOUT_BASE="https://eth-sepolia.blockscout.com/api/v2"
             BLOCKSCOUT_URL="$BLOCKSCOUT_BASE/addresses/$CONTRACT/transactions"
             for page in $(seq 1 100); do
@@ -356,7 +365,17 @@ jobs:
               fi
 
               BLOCKSCOUT_URL="$BLOCKSCOUT_BASE/addresses/$CONTRACT/transactions"
-              while IFS=
+              while IFS=$'\t' read -r key value; do
+                [[ -n "$key" ]] || continue
+                if [[ "$BLOCKSCOUT_URL" == *"?"* ]]; then
+                  BLOCKSCOUT_URL+="&"
+                else
+                  BLOCKSCOUT_URL+="?"
+                fi
+                BLOCKSCOUT_URL+="$(printf '%s' "$key" | jq -sRr @uri)=$(printf '%s' "$value" | jq -sRr @uri)"
+              done < <(printf '%s' "$NEXT_PARAMS" | jq -r 'to_entries[] | [.key, (.value | tostring)] | @tsv')
+            done
+          fi
 
           if [[ ! "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
             echo "ERROR: existing GLR contract is valid, but the deployment transaction hash could not be recovered."
