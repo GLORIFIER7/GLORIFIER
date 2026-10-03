@@ -200,6 +200,20 @@ jobs:
             echo "Recovery mode: skipping private-key-derived deployer, balance, and nonce checks."
           fi
 
+      - name: Guard against duplicate GLR deployment
+        if: ${{ inputs.mode == 'deploy_new' }}
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          EXISTING="${{ inputs.contract_address }}"
+          CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
+          if [[ "$CODE" != "0x" ]]; then
+            echo "ERROR: deploy_new requested, but GLR already exists at $EXISTING."
+            echo "Select mode=recover_existing and provide transaction_hash if known."
+            echo "No transaction was broadcast."
+            exit 1
+          fi
+
       - name: Recover existing GLR evidence
         if: ${{ inputs.mode == 'recover_existing' }}
         working-directory: contracts
