@@ -41,7 +41,7 @@
     "firebase": "^12.19.0",
     "firebase-admin": "^14.5.0",
     "lucide-react": "^0.546.0",
-    "mongodb": "^7.6.0",
+    "mongodb": "^7.7.0",
     "motion": "^12.23.24",
     "openai": "^7.25.0",
     "pg": "^8.16.3",
