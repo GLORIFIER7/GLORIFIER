@@ -250,7 +250,25 @@ jobs:
             echo "Attempting Etherscan creation-transaction recovery for $CONTRACT."
             RESPONSE="$(curl -fsS --max-time 20 "https://api.etherscan.io/v2/api?chainid=11155111&module=contract&action=getcontractcreation&contractaddresses=$CONTRACT&apikey=$ETHERSCAN_API_KEY" || true)"
             CANDIDATE="$(printf '%s' "$RESPONSE" | jq -r '.result[0].txHash // empty')"
-            if [[ "$CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then TX_HASH="$CANDIDATE"; fi
+            if [[ "$CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+              TX_HASH="$CANDIDATE"
+              echo "Recovered deployment transaction from Etherscan."
+            else
+              echo "Etherscan did not return a usable creation transaction; trying Blockscout."
+            fi
+          fi
+
+          # Blockscout's Ethereum Sepolia explorer exposes the same creation-tx lookup
+          # without requiring an Etherscan API key. This is recovery-only; it never broadcasts.
+          if [[ -z "$TX_HASH" ]]; then
+            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api?module=contract&action=getcontractcreation&contractaddresses=$CONTRACT" || true)"
+            BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '.result[0].txHash // empty')"
+            if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+              TX_HASH="$BLOCKSCOUT_CANDIDATE"
+              echo "Recovered deployment transaction from Blockscout."
+            else
+              echo "Blockscout did not return a usable creation transaction."
+            fi
           fi
 
           if [[ ! "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
