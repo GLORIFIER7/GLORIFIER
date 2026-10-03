@@ -3,6 +3,24 @@ name: GLORIFIER Testnet Deploy
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Evidence recovery is the safe default. Choose deploy_new only when no existing GLR contract exists."
+        required: true
+        default: "recover_existing"
+        type: choice
+        options:
+          - recover_existing
+          - deploy_new
+      contract_address:
+        description: "Existing GLR contract address for evidence recovery"
+        required: false
+        default: "0x5594b516Afa4bf78E5Bb6874D578430dA6632268"
+        type: string
+      transaction_hash:
+        description: "Existing deployment transaction hash, if already known"
+        required: false
+        default: ""
+        type: string
       initial_holder:
         description: "GLR initial holder address"
         required: false
@@ -57,10 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$ETHERSCAN_API_KEY" ]]; then
-            echo "INFO: GLORIFIER_ETHERSCAN_API_KEY is not configured; deployment can proceed, but source verification will remain NOT VERIFIED."
-          fi
-          if [[ -z "$CHAINSTACK_RPC_URL" && -z "$ALCHEMY_RPC_URL" && -z "$ALCHEMY_API_KEY" && -z "$INFURA_RPC_URL" && -z "$INFURA_PROJECT_ID" ]]; then
-            echo "INFO: No private Sepolia RPC credential configured; PublicNode Sepolia endpoint will be used as fallback."
+            echo "INFO: GLORIFIER_ETHERSCAN_API_KEY is not configured; explorer creation-tx recovery and source verification may be unavailable."
           fi
 
       - name: Select and validate Sepolia RPC provider
@@ -81,7 +96,6 @@ jobs:
 
           if [[ -z "$PRIVATE_KEY" ]]; then
             echo "ERROR: GLORIFIER_DEPLOYER_PRIVATE_KEY is missing from the GitHub testnet environment."
-            echo "Add a dedicated Sepolia-only deployment key to the testnet environment; never paste it into chat or commit it."
             exit 1
           fi
 
@@ -137,134 +151,75 @@ jobs:
             local url="$2"
             local chain_id=""
             local attempt=1
-
-            if [[ -z "$url" ]]; then
-              echo "$provider: NOT CONFIGURED"
-              return 1
-            fi
-
+            if [[ -z "$url" ]]; then echo "$provider: NOT CONFIGURED"; return 1; fi
             case "$url" in
-              https://gas.api.infura.io/*|https://gas.api.infura.io)
-                echo "$provider: INVALID ENDPOINT TYPE (Infura Gas API is not Ethereum JSON-RPC)."
-                return 1
-                ;;
-              https://*)
-                ;;
-              *)
-                echo "$provider: INVALID URL SCHEME. HTTPS JSON-RPC is required."
-                return 1
-                ;;
+              https://gas.api.infura.io/*|https://gas.api.infura.io) echo "$provider: INVALID ENDPOINT TYPE"; return 1 ;;
+              https://*) ;;
+              *) echo "$provider: INVALID URL SCHEME"; return 1 ;;
             esac
-
             while (( attempt <= 3 )); do
               if chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)"; then
-                if [[ "$chain_id" == "11155111" ]]; then
-                  echo "$provider: HEALTHY (Sepolia chain ID 11155111)."
-                  return 0
-                fi
-                echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."
-                return 1
+                if [[ "$chain_id" == "11155111" ]]; then echo "$provider: HEALTHY (Sepolia chain ID 11155111)."; return 0; fi
+                echo "$provider: WRONG NETWORK (chain ID $chain_id; expected 11155111)."; return 1
               fi
-              echo "$provider: RPC probe failed (attempt $attempt/3); retrying..."
               sleep $((attempt * 2))
               attempt=$((attempt + 1))
             done
-
-            echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED (credential redacted)."
+            echo "$provider: UNREACHABLE OR AUTHENTICATION FAILED"
             return 1
           }
 
           RPC_URL=""
           RPC_PROVIDER=""
+          if validate_sepolia_rpc "Chainstack" "$CHAINSTACK_RPC_URL"; then RPC_URL="$CHAINSTACK_RPC_URL"; RPC_PROVIDER="Chainstack"
+          elif validate_sepolia_rpc "Alchemy" "$ALCHEMY_RPC_URL"; then RPC_URL="$ALCHEMY_RPC_URL"; RPC_PROVIDER="Alchemy"
+          elif validate_sepolia_rpc "Infura" "$INFURA_RPC_URL"; then RPC_URL="$INFURA_RPC_URL"; RPC_PROVIDER="Infura"
+          elif validate_sepolia_rpc "PublicNode Sepolia" "$PUBLIC_SEPOLIA_RPC_URL"; then RPC_URL="$PUBLIC_SEPOLIA_RPC_URL"; RPC_PROVIDER="PublicNode Sepolia"
+          elif validate_sepolia_rpc "Sepolia.org" "$PUBLIC_SEPOLIA_RPC_URL_2"; then RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_2"; RPC_PROVIDER="Sepolia.org"
+          elif validate_sepolia_rpc "1RPC Sepolia" "$PUBLIC_SEPOLIA_RPC_URL_3"; then RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_3"; RPC_PROVIDER="1RPC Sepolia"
+          else echo "ERROR: no healthy Ethereum Sepolia RPC provider is available."; exit 1; fi
 
-          echo "Validating configured Sepolia RPC providers (credentials are never printed)..."
-          if validate_sepolia_rpc "Chainstack" "$CHAINSTACK_RPC_URL"; then
-            RPC_URL="$CHAINSTACK_RPC_URL"
-            RPC_PROVIDER="Chainstack"
-          elif validate_sepolia_rpc "Alchemy" "$ALCHEMY_RPC_URL"; then
-            RPC_URL="$ALCHEMY_RPC_URL"
-            RPC_PROVIDER="Alchemy"
-          elif validate_sepolia_rpc "Infura" "$INFURA_RPC_URL"; then
-            RPC_URL="$INFURA_RPC_URL"
-            RPC_PROVIDER="Infura"
-          elif validate_sepolia_rpc "PublicNode Sepolia" "$PUBLIC_SEPOLIA_RPC_URL"; then
-            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL"
-            RPC_PROVIDER="PublicNode Sepolia"
-            echo "Using PublicNode Sepolia endpoint because private provider credentials are unavailable/unhealthy."
-          elif validate_sepolia_rpc "Sepolia.org" "$PUBLIC_SEPOLIA_RPC_URL_2"; then
-            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_2"
-            RPC_PROVIDER="Sepolia.org"
-          elif validate_sepolia_rpc "1RPC Sepolia" "$PUBLIC_SEPOLIA_RPC_URL_3"; then
-            RPC_URL="$PUBLIC_SEPOLIA_RPC_URL_3"
-            RPC_PROVIDER="1RPC Sepolia"
-          else
-            echo "ERROR: no healthy Ethereum Sepolia RPC provider is available."
-            exit 1
-          fi
-
-          echo "Selected RPC provider: $RPC_PROVIDER"
           echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
           echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
           printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\n' "$RPC_PROVIDER" > deployment-preflight.env
 
           DEPLOYER="$(cast wallet address --private-key "0x$PRIVATE_KEY")"
-          echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
+          echo "Deployer: $DEPLOYER"
           echo "Deployer balance: $BALANCE_WEI wei"
-
-          if [[ "$BALANCE_WEI" == "0" ]]; then
-            printf 'BALANCE_STATUS=ZERO\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' >> deployment-preflight.env
-            echo "ERROR: deployer has zero Sepolia ETH."
-            echo "Fund this exact Sepolia address before broadcasting: $DEPLOYER"
-            exit 1
-          fi
-
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
           test "$CHAIN_ID" = "11155111"
-
           NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$RPC_URL")"
-          printf 'BALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' >> deployment-preflight.env
           echo "Deployer nonce: $NONCE"
 
-      - name: Deploy
+      - name: Recover existing GLR evidence
+        if: ${{ inputs.mode == 'recover_existing' }}
         working-directory: contracts
+        env:
+          CONTRACT_INPUT: ${{ inputs.contract_address }}
+          TX_INPUT: ${{ inputs.transaction_hash }}
         run: |
           set -euo pipefail
-          export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
-          export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
-
-          # Foundry's vm.envUint requires a 0x-prefixed hexadecimal uint256.
-          if [[ ! "$PRIVATE_KEY" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-            echo "ERROR: deployment PRIVATE_KEY is not 0x-prefixed 64-hex format."
+          CONTRACT="$CONTRACT_INPUT"
+          TX_HASH="$TX_INPUT"
+          if [[ ! "$CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+            echo "ERROR: contract_address must be a 0x-prefixed 40-hex address."
             exit 1
           fi
-          cast wallet address --private-key "$PRIVATE_KEY" >/dev/null
+          CODE="$(cast code "$CONTRACT" --rpc-url "$RPC_URL")"
+          if [[ "$CODE" == "0x" ]]; then
+            echo "ERROR: no contract bytecode at $CONTRACT on Sepolia."
+            echo "No deployment will be created in recovery mode."
+            exit 1
+          fi
+          echo "Existing contract bytecode confirmed at $CONTRACT."
 
-          rm -rf broadcast
-          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
-
-      - name: Extract and verify deployment evidence
-        working-directory: contracts
-        run: |
-          set -euo pipefail
-          export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
-          export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
-          RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
-          test -s "$RUN_FILE"
-
-          DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
-          CONTRACT_ADDRESS="$(jq -r '[.transactions[] | select(.contractAddress != null and .contractAddress != "")][0].contractAddress // empty' "$RUN_FILE")"
-          TX_HASH="$(jq -r '[.transactions[] | select(.hash != null and .hash != "")][0].hash // empty' "$RUN_FILE")"
-          test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
-          test -n "$TX_HASH" && test "$TX_HASH" != "null"
-
-          CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
-          test "$CODE" != "0x"
-          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
-          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
-          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
-          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
-          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          NAME="$(cast call "$CONTRACT" "name()(string)" --rpc-url "$RPC_URL")"
+          SYMBOL="$(cast call "$CONTRACT" "symbol()(string)" --rpc-url "$RPC_URL")"
+          DECIMALS="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          HOLDER="$GLORIFIER_INITIAL_HOLDER"
+          HOLDER_BALANCE="$(cast call "$CONTRACT" "balanceOf(address)(uint256)" "$HOLDER" --rpc-url "$RPC_URL")"
 
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
@@ -272,57 +227,101 @@ jobs:
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
 
-          # RPC providers can accept a broadcast before the receipt is immediately queryable.
-          # Retry receipt retrieval so a successful deployment is not marked failed due to propagation delay.
-          # A broadcast can be mined while a particular RPC provider is temporarily
-          # behind on receipt indexing. Try the selected provider first, then independent
-          # Sepolia providers without ever broadcasting a second deployment.
+          if [[ -z "$TX_HASH" && -n "$ETHERSCAN_API_KEY" ]]; then
+            echo "Attempting Etherscan creation-transaction recovery for $CONTRACT."
+            RESPONSE="$(curl -fsS --max-time 20 "https://api.etherscan.io/v2/api?chainid=11155111&module=contract&action=getcontractcreation&contractaddresses=$CONTRACT&apikey=$ETHERSCAN_API_KEY" || true)"
+            CANDIDATE="$(printf '%s' "$RESPONSE" | jq -r '.result[0].txHash // empty')"
+            if [[ "$CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then TX_HASH="$CANDIDATE"; fi
+          fi
+
+          if [[ ! "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: existing GLR contract is valid, but the deployment transaction hash could not be recovered."
+            echo "No redeployment will occur."
+            echo "Provide the original transaction hash or configure GLORIFIER_ETHERSCAN_API_KEY for automatic creation-tx recovery."
+            exit 1
+          fi
+
           RECEIPT=""
-          RECEIPT_RPC=""
-          RECEIPT_PROVIDERS=(
-            "$RPC_URL"
-            "https://ethereum-sepolia-rpc.publicnode.com"
-            "https://rpc.sepolia.org"
-            "https://1rpc.io/sepolia"
-          )
-
-          for provider in "${RECEIPT_PROVIDERS[@]}"; do
+          for provider in "$RPC_URL" "$PUBLIC_SEPOLIA_RPC_URL" "$PUBLIC_SEPOLIA_RPC_URL_2" "$PUBLIC_SEPOLIA_RPC_URL_3"; do
             [[ -n "$provider" ]] || continue
-            for attempt in {1..6}; do
-              if RECEIPT="$(timeout 20s cast receipt "$TX_HASH" --rpc-url "$provider" --json 2>/dev/null)"; then
-                if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
-                  RECEIPT_RPC="$provider"
-                  break 2
-                fi
-              fi
-              echo "Receipt not yet confirmed via provider; retrying in 5s (attempt $attempt/6)..."
-              sleep 5
-            done
+            if RECEIPT="$(timeout 20s cast receipt "$TX_HASH" --rpc-url "$provider" --json 2>/dev/null)"; then
+              if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then break; fi
+              RECEIPT=""
+            fi
           done
-
-          if [[ -z "$RECEIPT" || -z "$RECEIPT_RPC" ]]; then
-            echo "ERROR: transaction was broadcast, but no successful receipt could be retrieved from the available Sepolia RPC providers."
-            echo "Transaction hash: $TX_HASH"
+          if [[ -z "$RECEIPT" ]]; then
+            echo "ERROR: deployment transaction was not confirmed with a successful Sepolia receipt."
             exit 1
           fi
 
+          RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
+          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
-          if ! echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
-            echo "ERROR: deployment receipt status is not successful (status=$STATUS)."
+          test "$STATUS" = "0x1" || test "$STATUS" = "1"
+          test -z "$RECEIPT_CONTRACT" || test "$RECEIPT_CONTRACT" = "$CONTRACT"
+          test -n "$BLOCK_NUMBER"
+
+          echo "CONTRACT_ADDRESS=$CONTRACT" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+          jq -n --arg network "Ethereum Sepolia" --arg contract "$CONTRACT" --arg tx "$TX_HASH" --arg holder "$HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$(echo "$RECEIPT" | jq -r '.from // empty')"             '{evidence_type:"GLORIFIER ERC-20 existing deployment verification",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000",holder_balance_equals_total_supply:true}}' > deployment-evidence.json
+
+          echo "EXISTING GLR EVIDENCE RECOVERED"
+          cat deployment-evidence.json
+
+      - name: Deploy new GLR
+        if: ${{ inputs.mode == 'deploy_new' }}
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          # Explicit opt-in only. This mode is blocked if the known existing GLR address already has code.
+          EXISTING="0x5594b516Afa4bf78E5Bb6874D578430dA6632268"
+          EXISTING_CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
+          if [[ "$EXISTING_CODE" != "0x" ]]; then
+            echo "ERROR: known GLR deployment already exists at $EXISTING."
+            echo "Refusing to create a second GLR contract."
+            echo "Use mode=recover_existing to recover/verify evidence."
             exit 1
           fi
+
+          export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
+          export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
+          cast wallet address --private-key "$PRIVATE_KEY" >/dev/null
+          rm -rf broadcast
+          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
+
+      - name: Extract and verify new deployment evidence
+        if: ${{ inputs.mode == 'deploy_new' }}
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
+          export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
+          RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
+          test -s "$RUN_FILE"
+          DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+          CONTRACT_ADDRESS="$(jq -r '[.transactions[] | select(.contractAddress != null and .contractAddress != "")][0].contractAddress // empty' "$RUN_FILE")"
+          TX_HASH="$(jq -r '[.transactions[] | select(.hash != null and .hash != "")][0].hash // empty' "$RUN_FILE")"
+          test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
+          test -n "$TX_HASH" && test "$TX_HASH" != "null"
+          CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
+          test "$CODE" != "0x"
+          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          test "$NAME" = "GLORIFIER"
+          test "$SYMBOL" = "GLR"
+          test "$DECIMALS" = "18"
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
+          test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
+          RECEIPT="$(timeout 20s cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
+          echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           test -n "$BLOCK_NUMBER"
-          echo "Receipt confirmed via: $RECEIPT_RPC"
-
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
-
-          jq -n             --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}'             > deployment-evidence.json
-
-          echo "Contract address: $CONTRACT_ADDRESS"
-          echo "Transaction hash: $TX_HASH"
-          cat deployment-evidence.json
+          jq -n --arg network "Ethereum Sepolia" --arg contract "$CONTRACT_ADDRESS" --arg tx "$TX_HASH" --arg holder "$INITIAL_HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}' > deployment-evidence.json
 
       - name: Verify contract on Etherscan
         if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
@@ -331,11 +330,11 @@ jobs:
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
-          if forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain sepolia             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch; then
+          if forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain sepolia --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch; then
             echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
           else
             echo "ETHERSCAN_VERIFIED=false" >> "$GITHUB_ENV"
-            echo "WARNING: Etherscan verification failed; deployment evidence remains valid."
+            echo "WARNING: Etherscan verification failed; on-chain deployment evidence remains valid."
           fi
 
       - name: Etherscan verification status
@@ -344,7 +343,7 @@ jobs:
           if [[ "${ETHERSCAN_VERIFIED:-false}" == "true" ]]; then
             echo "Etherscan source verification: VERIFIED."
           else
-            echo "Etherscan source verification: NOT VERIFIED (deployment remains valid; source verification is a separate evidence step)."
+            echo "Etherscan source verification: NOT VERIFIED."
           fi
 
       - name: Publish deployment summary
@@ -353,15 +352,11 @@ jobs:
           {
             echo "## GLORIFIER GLR Testnet Deployment"
             echo "- Network: Ethereum Sepolia"
-            if [ -f contracts/deployment-preflight.env ]; then . contracts/deployment-preflight.env; fi
+            echo "- Mode: ${{ inputs.mode }}"
             echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
-            if [ "${DEPLOYMENT_STATUS:-}" = "BLOCKED_FUNDING" ]; then
-              echo "- Deployment preflight: **BLOCKED — Sepolia ETH funding required**"
-            fi
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
-              echo "- Initial holder: ${GLORIFIER_INITIAL_HOLDER:-NOT AVAILABLE}"
               echo "- On-chain verification: **PASSED**"
               if [ "${ETHERSCAN_VERIFIED:-false}" = "true" ]; then
                 echo "- Etherscan source verification: **PASSED**"
@@ -372,9 +367,6 @@ jobs:
               echo "- Deployment: **NOT COMPLETED**"
               echo "- Contract/transaction evidence: **NOT AVAILABLE**"
               echo "- On-chain verification: **NOT VERIFIED**"
-              echo "- Sepolia transaction: **NOT BROADCAST**"
-              echo "- Contract address: **NOT AVAILABLE**"
-              echo "- Etherscan source verification: **NOT VERIFIED**"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
