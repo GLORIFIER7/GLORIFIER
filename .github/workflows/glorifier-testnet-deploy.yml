@@ -58,6 +58,7 @@ jobs:
           set -euo pipefail
           if [[ -z "$ETHERSCAN_API_KEY" ]]; then
             echo "ERROR: GLORIFIER_ETHERSCAN_API_KEY is required before deployment can be marked verified."
+            exit 1
           fi
           if [[ -z "$CHAINSTACK_RPC_URL" && -z "$ALCHEMY_RPC_URL" && -z "$ALCHEMY_API_KEY" && -z "$INFURA_RPC_URL" && -z "$INFURA_PROJECT_ID" ]]; then
             echo "INFO: No private Sepolia RPC credential configured; PublicNode Sepolia endpoint will be used as fallback."
