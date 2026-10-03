@@ -258,16 +258,21 @@ jobs:
             fi
           fi
 
-          # Blockscout's Ethereum Sepolia explorer exposes the same creation-tx lookup
-          # without requiring an Etherscan API key. This is recovery-only; it never broadcasts.
+          # Blockscout V2 fallback: recover the earliest contract-creation transaction
+          # associated with this address. This is recovery-only and never broadcasts.
           if [[ -z "$TX_HASH" ]]; then
-            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api?module=contract&action=getcontractcreation&contractaddresses=$CONTRACT" || true)"
-            BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '.result[0].txHash // empty')"
+            BLOCKSCOUT_RESPONSE="$(curl -fsS --max-time 20 "https://eth-sepolia.blockscout.com/api/v2/addresses/$CONTRACT/transactions?filter=from%20%7C%20to" || true)"
+            BLOCKSCOUT_CANDIDATE="$(printf '%s' "$BLOCKSCOUT_RESPONSE" | jq -r '
+              [.items[]?
+               | select((.to // null) == null)
+               | (.hash // empty)
+               | select(test("^0x[0-9a-fA-F]{64}$"))]
+              | first // empty')"
             if [[ "$BLOCKSCOUT_CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
               TX_HASH="$BLOCKSCOUT_CANDIDATE"
-              echo "Recovered deployment transaction from Blockscout."
+              echo "Recovered deployment transaction from Blockscout V2."
             else
-              echo "Blockscout did not return a usable creation transaction."
+              echo "Blockscout V2 did not return a usable contract-creation transaction."
             fi
           fi
 
