@@ -31,6 +31,7 @@ jobs:
       contents: read
     env:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
+      CHAINSTACK_RPC_URL: ${{ secrets.GLORIFIER_CHAINSTACK_SEPOLIA_RPC_URL }}
       ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
       ALCHEMY_API_KEY: ${{ secrets.GLORIFIER_ALCHEMY_API_KEY }}
       INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
@@ -66,7 +67,7 @@ jobs:
             echo "WARNING: GLORIFIER_ETHERSCAN_API_KEY is not configured."
             echo "On-chain deployment may proceed; explorer source verification will remain NOT VERIFIED."
           fi
-          if [[ -z "$ALCHEMY_RPC_URL" && -z "$ALCHEMY_API_KEY" && -z "$INFURA_RPC_URL" && -z "$INFURA_PROJECT_ID" ]]; then
+          if [[ -z "$CHAINSTACK_RPC_URL" && -z "$ALCHEMY_RPC_URL" && -z "$ALCHEMY_API_KEY" && -z "$INFURA_RPC_URL" && -z "$INFURA_PROJECT_ID" ]]; then
             echo "INFO: No private Sepolia RPC credential configured; PublicNode Sepolia endpoint will be used as fallback."
           fi
 
@@ -74,6 +75,7 @@ jobs:
         working-directory: contracts
         env:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_DEPLOYER_PRIVATE_KEY }}
+          CHAINSTACK_RPC_URL: ${{ secrets.GLORIFIER_CHAINSTACK_SEPOLIA_RPC_URL }}
           ALCHEMY_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
           ALCHEMY_API_KEY: ${{ secrets.GLORIFIER_ALCHEMY_API_KEY }}
           INFURA_RPC_URL: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
@@ -125,7 +127,6 @@ jobs:
           test "$HOLDER_LOWER" != "0x0000000000000000000000000000000000000000"
           echo "GLORIFIER_INITIAL_HOLDER=$INITIAL_HOLDER" >> "$GITHUB_ENV"
 
-          # Accept either a complete provider URL or a raw provider credential.
           if [[ -n "$ALCHEMY_API_KEY" ]]; then
             ALCHEMY_API_KEY="$(printf '%s' "$ALCHEMY_API_KEY" | tr -d '[:space:]')"
             ALCHEMY_RPC_URL="https://eth-sepolia.g.alchemy.com/v2/$ALCHEMY_API_KEY"
@@ -176,11 +177,15 @@ jobs:
             return 0
           }
 
+          # Chainstack is primary when configured; authenticated fallbacks remain available.
           RPC_URL=""
           RPC_PROVIDER=""
 
           echo "Validating configured Sepolia RPC providers (credentials are never printed)..."
-          if validate_sepolia_rpc "Alchemy" "$ALCHEMY_RPC_URL"; then
+          if validate_sepolia_rpc "Chainstack" "$CHAINSTACK_RPC_URL"; then
+            RPC_URL="$CHAINSTACK_RPC_URL"
+            RPC_PROVIDER="Chainstack"
+          elif validate_sepolia_rpc "Alchemy" "$ALCHEMY_RPC_URL"; then
             RPC_URL="$ALCHEMY_RPC_URL"
             RPC_PROVIDER="Alchemy"
           elif validate_sepolia_rpc "Infura" "$INFURA_RPC_URL"; then
