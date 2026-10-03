@@ -239,7 +239,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export PRIVATE_KEY="0x$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
           export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           rm -rf broadcast
           forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
