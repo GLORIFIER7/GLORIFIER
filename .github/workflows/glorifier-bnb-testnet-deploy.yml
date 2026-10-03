@@ -23,7 +23,7 @@ jobs:
     env:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
       BNB_TESTNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_TESTNET_RPC_URL }}
-      PUBLIC_BNB_TESTNET_RPC_URL: https://bsc-testnet.bnbchain.org
+      PUBLIC_BNB_TESTNET_RPC_URL: https://data-seed-prebsc-1-s1.bnbchain.org:8545
       INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
 
     steps:
