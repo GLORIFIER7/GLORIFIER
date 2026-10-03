@@ -272,13 +272,27 @@ jobs:
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
 
-          RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
-          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
-          STATUS="$(echo "$RECEIPT" | jq -r '.status')"
-          if [[ "$STATUS" != "0x1" && "$STATUS" != "1" ]]; then
+          # RPC providers can accept a broadcast before the receipt is immediately queryable.
+          # Retry receipt retrieval so a successful deployment is not marked failed due to propagation delay.
+          RECEIPT=""
+          for attempt in {1..12}; do
+            if RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json 2>/dev/null)"; then
+              if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
+                break
+              fi
+            fi
+            echo "Receipt not yet confirmed; retrying in 5s (attempt $attempt/12)..."
+            sleep 5
+          done
+
+          test -n "$RECEIPT"
+          STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
+          if ! echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
             echo "ERROR: deployment receipt status is not successful (status=$STATUS)."
             exit 1
           fi
+          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
+          test -n "$BLOCK_NUMBER"
 
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
