@@ -113,7 +113,19 @@ jobs:
             exit 1
           fi
 
+          if ! block_number="$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null)"; then
+            echo "ERROR: BNB Testnet RPC accepted chain-id but failed a live block query."
+            exit 1
+          fi
+
+          if [[ ! "$block_number" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: RPC returned an invalid block number: $block_number"
+            exit 1
+          fi
+
           echo "Selected RPC provider: $RPC_PROVIDER"
+          echo "BNB Testnet chain ID: $chain_id"
+          echo "Latest BNB Testnet block: $block_number"
           echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
           echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
 
@@ -121,6 +133,11 @@ jobs:
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer: $DEPLOYER"
           echo "Deployer balance: $BALANCE_WEI wei"
+
+          if [[ ! "$BALANCE_WEI" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: RPC returned a non-numeric native balance: $BALANCE_WEI"
+            exit 1
+          fi
 
           if [[ "$BALANCE_WEI" == "0" ]]; then
             echo "ERROR: deployer has zero BNB Testnet tBNB."
