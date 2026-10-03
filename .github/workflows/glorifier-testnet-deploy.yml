@@ -254,6 +254,7 @@ jobs:
             exit 1
           fi
 
+          HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
