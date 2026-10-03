@@ -289,7 +289,7 @@ jobs:
           for provider in "${RECEIPT_PROVIDERS[@]}"; do
             [[ -n "$provider" ]] || continue
             for attempt in {1..6}; do
-              if RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$provider" --json 2>/dev/null)"; then
+              if RECEIPT="$(timeout 20s cast receipt "$TX_HASH" --rpc-url "$provider" --json 2>/dev/null)"; then
                 if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
                   RECEIPT_RPC="$provider"
                   break 2
