@@ -206,7 +206,7 @@ jobs:
           echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
           printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\n' "$RPC_PROVIDER" > deployment-preflight.env
 
-          DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          DEPLOYER="$(cast wallet address --private-key "0x$PRIVATE_KEY")"
           echo "Deployer: $DEPLOYER"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
           echo "Deployer balance: $BALANCE_WEI wei"
@@ -246,8 +246,8 @@ jobs:
           test -s "$RUN_FILE"
 
           DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
-          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
-          TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
+          CONTRACT_ADDRESS="$(jq -r '[.transactions[] | select(.contractAddress != null and .contractAddress != "")][0].contractAddress // empty' "$RUN_FILE")"
+          TX_HASH="$(jq -r '[.transactions[] | select(.hash != null and .hash != "")][0].hash // empty' "$RUN_FILE")"
           test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
           test -n "$TX_HASH" && test "$TX_HASH" != "null"
 
@@ -268,12 +268,15 @@ jobs:
           RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status')"
-          test "$STATUS" = "1"
+          if [[ "$STATUS" != "0x1" && "$STATUS" != "1" ]]; then
+            echo "ERROR: deployment receipt status is not successful (status=$STATUS)."
+            exit 1
+          fi
 
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
 
-          jq -n             --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number:($block|tonumber),transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}'             > deployment-evidence.json
+          jq -n             --arg network "Ethereum Sepolia"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}'             > deployment-evidence.json
 
           echo "Contract address: $CONTRACT_ADDRESS"
           echo "Transaction hash: $TX_HASH"
