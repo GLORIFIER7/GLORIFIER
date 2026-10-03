@@ -274,18 +274,38 @@ jobs:
 
           # RPC providers can accept a broadcast before the receipt is immediately queryable.
           # Retry receipt retrieval so a successful deployment is not marked failed due to propagation delay.
+          # A broadcast can be mined while a particular RPC provider is temporarily
+          # behind on receipt indexing. Try the selected provider first, then independent
+          # Sepolia providers without ever broadcasting a second deployment.
           RECEIPT=""
-          for attempt in {1..12}; do
-            if RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json 2>/dev/null)"; then
-              if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
-                break
+          RECEIPT_RPC=""
+          RECEIPT_PROVIDERS=(
+            "$RPC_URL"
+            "https://ethereum-sepolia-rpc.publicnode.com"
+            "https://rpc.sepolia.org"
+            "https://1rpc.io/sepolia"
+          )
+
+          for provider in "${RECEIPT_PROVIDERS[@]}"; do
+            [[ -n "$provider" ]] || continue
+            for attempt in {1..6}; do
+              if RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$provider" --json 2>/dev/null)"; then
+                if echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
+                  RECEIPT_RPC="$provider"
+                  break 2
+                fi
               fi
-            fi
-            echo "Receipt not yet confirmed; retrying in 5s (attempt $attempt/12)..."
-            sleep 5
+              echo "Receipt not yet confirmed via provider; retrying in 5s (attempt $attempt/6)..."
+              sleep 5
+            done
           done
 
-          test -n "$RECEIPT"
+          if [[ -z "$RECEIPT" || -z "$RECEIPT_RPC" ]]; then
+            echo "ERROR: transaction was broadcast, but no successful receipt could be retrieved from the available Sepolia RPC providers."
+            echo "Transaction hash: $TX_HASH"
+            exit 1
+          fi
+
           STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
           if ! echo "$RECEIPT" | jq -e '(.status == "0x1") or (.status == "1") or (.status == 1)' >/dev/null; then
             echo "ERROR: deployment receipt status is not successful (status=$STATUS)."
@@ -293,6 +313,7 @@ jobs:
           fi
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           test -n "$BLOCK_NUMBER"
+          echo "Receipt confirmed via: $RECEIPT_RPC"
 
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
