@@ -344,6 +344,6 @@ jobs:
           name: glorifier-testnet-deployment
           if-no-files-found: ignore
           path: |
-            broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
-            deployment-evidence.json
-            deployment-preflight.env
+            contracts/broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json
+            contracts/deployment-evidence.json
+            contracts/deployment-preflight.env
