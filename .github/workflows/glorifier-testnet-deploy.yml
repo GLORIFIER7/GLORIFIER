@@ -221,8 +221,6 @@ jobs:
           CHAIN_ID="$(cast chain-id --rpc-url "$RPC_URL")"
           test "$CHAIN_ID" = "11155111"
 
-          # Foundry performs final gas/fee handling during broadcast.
-
           NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$RPC_URL")"
           printf 'BALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' >> deployment-preflight.env
           echo "Deployer nonce: $NONCE"
@@ -233,6 +231,14 @@ jobs:
           set -euo pipefail
           export PRIVATE_KEY="0x$GLORIFIER_DEPLOYER_PRIVATE_KEY_NORMALIZED"
           export GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
+
+          # Foundry's vm.envUint requires a 0x-prefixed hexadecimal uint256.
+          if [[ ! "$PRIVATE_KEY" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: deployment PRIVATE_KEY is not 0x-prefixed 64-hex format."
+            exit 1
+          fi
+          cast wallet address --private-key "$PRIVATE_KEY" >/dev/null
+
           rm -rf broadcast
           forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
 
