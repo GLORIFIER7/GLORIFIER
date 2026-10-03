@@ -1,0 +1,251 @@
+name: GLORIFIER BNB Testnet Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      initial_holder:
+        description: "GLR initial holder address (defaults to deployer)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: glorifier-bnb-testnet-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: bnb-testnet
+    permissions:
+      contents: read
+    env:
+      ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+      BNB_TESTNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_TESTNET_RPC_URL }}
+      PUBLIC_BNB_TESTNET_RPC_URL: https://bsc-testnet.bnbchain.org
+      INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install dependencies
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
+
+      - name: Build and test
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          forge build --sizes
+          forge test -vv
+
+      - name: Select and validate BNB Testnet RPC
+        working-directory: contracts
+        env:
+          PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$PRIVATE_KEY" ]]; then
+            echo "ERROR: GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY is missing."
+            echo "Add a dedicated BNB Testnet-only deployment key to the bnb-testnet environment."
+            exit 1
+          fi
+
+          PRIVATE_KEY="$(printf '%s' "$PRIVATE_KEY" | tr -d '[:space:]')"
+          PRIVATE_KEY="${PRIVATE_KEY#\"}"
+          PRIVATE_KEY="${PRIVATE_KEY%\"}"
+          PRIVATE_KEY="${PRIVATE_KEY#\'}"
+          PRIVATE_KEY="${PRIVATE_KEY%\'}"
+          PRIVATE_KEY="${PRIVATE_KEY#GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#0x}"
+          PRIVATE_KEY="${PRIVATE_KEY#0X}"
+
+          if [[ ! "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: deployment key is not a valid 64-hex-character private key."
+            exit 1
+          fi
+
+          echo "::add-mask::$PRIVATE_KEY"
+          echo "GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
+
+          INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
+          if [[ -z "$INITIAL_HOLDER" ]]; then
+            INITIAL_HOLDER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          fi
+
+          if [[ ! "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+            echo "ERROR: initial_holder must be a 40-hex Ethereum-compatible address."
+            exit 1
+          fi
+
+          if [[ "$(printf '%s' "$INITIAL_HOLDER" | tr '[:upper:]' '[:lower:]')" == "0x0000000000000000000000000000000000000000" ]]; then
+            echo "ERROR: initial_holder cannot be the zero address."
+            exit 1
+          fi
+
+          echo "GLORIFIER_INITIAL_HOLDER=$INITIAL_HOLDER" >> "$GITHUB_ENV"
+
+          RPC_URL="$BNB_TESTNET_RPC_URL"
+          RPC_PROVIDER="Configured BNB Testnet RPC"
+
+          if [[ -z "$RPC_URL" ]]; then
+            RPC_URL="$PUBLIC_BNB_TESTNET_RPC_URL"
+            RPC_PROVIDER="BNB Chain public Testnet RPC"
+          fi
+
+          if ! chain_id="$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null)"; then
+            echo "ERROR: BNB Testnet RPC is unreachable or authentication failed."
+            exit 1
+          fi
+
+          if [[ "$chain_id" != "97" ]]; then
+            echo "ERROR: wrong network. RPC returned chain ID $chain_id; expected BNB Testnet chain ID 97."
+            exit 1
+          fi
+
+          echo "Selected RPC provider: $RPC_PROVIDER"
+          echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
+          echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
+
+          DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
+          echo "Deployer: $DEPLOYER"
+          echo "Deployer balance: $BALANCE_WEI wei"
+
+          if [[ "$BALANCE_WEI" == "0" ]]; then
+            echo "ERROR: deployer has zero BNB Testnet tBNB."
+            echo "Fund this exact BNB Testnet address before broadcasting: $DEPLOYER"
+            exit 1
+          fi
+
+          CREATION_BYTECODE="$(forge inspect GLORIFIER bytecode)"
+          if [[ -z "$CREATION_BYTECODE" || "$CREATION_BYTECODE" == "0x" ]]; then
+            echo "ERROR: unable to obtain GLORIFIER creation bytecode."
+            exit 1
+          fi
+
+          GAS_ESTIMATE="$(cast estimate --create "$CREATION_BYTECODE" "constructor(address)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          GAS_PRICE_WEI="$(cast gas-price --rpc-url "$RPC_URL")"
+          REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
+
+          echo "Estimated deployment gas: $GAS_ESTIMATE"
+          echo "Current BNB Testnet gas price: $GAS_PRICE_WEI wei"
+          echo "Estimated deployment cost + 25% buffer: $REQUIRED_WEI wei"
+
+          if (( BALANCE_WEI < REQUIRED_WEI )); then
+            echo "ERROR: insufficient BNB Testnet tBNB for deployment."
+            echo "Current balance: $BALANCE_WEI wei"
+            echo "Required with safety buffer: $REQUIRED_WEI wei"
+            echo "Fund this exact BNB Testnet address: $DEPLOYER"
+            exit 1
+          fi
+
+          printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nBALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' "$RPC_PROVIDER" > deployment-preflight.env
+
+      - name: Deploy GLR
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          export PRIVATE_KEY="$GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
+
+      - name: Extract and verify deployment evidence
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+
+          RUN_FILE="broadcast/DeployGLORIFIER.s.sol/97/run-latest.json"
+          test -s "$RUN_FILE"
+
+          DEPLOYER_ADDRESS="$(cast wallet address --private-key "$GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED")"
+          CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
+          TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
+
+          test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
+          test -n "$TX_HASH" && test "$TX_HASH" != "null"
+
+          CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
+          test "$CODE" != "0x"
+
+          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+
+          test "$NAME" = "GLORIFIER"
+          test "$SYMBOL" = "GLR"
+          test "$DECIMALS" = "18"
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
+          test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
+
+          RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
+          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
+          STATUS="$(echo "$RECEIPT" | jq -r '.status')"
+          test "$STATUS" = "1"
+
+          echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+
+          jq -n             --arg network "BNB Smart Chain Testnet"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$GLORIFIER_INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:97,contract_address:$contract,transaction_hash:$tx,block_number:($block|tonumber),transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}'             > deployment-evidence.json
+
+          echo "Contract address: $CONTRACT_ADDRESS"
+          echo "Transaction hash: $TX_HASH"
+          cat deployment-evidence.json
+
+      - name: Verify contract on BscScan
+        if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
+        continue-on-error: true
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain-id 97             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch
+          echo "BSCSCAN_VERIFIED=true" >> "$GITHUB_ENV"
+
+      - name: Publish deployment summary
+        if: always()
+        run: |
+          {
+            echo "## GLORIFIER GLR BNB Testnet Deployment"
+            echo "- Network: BNB Smart Chain Testnet"
+            echo "- Chain ID: 97"
+            echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
+            if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
+              echo "- Contract: $CONTRACT_ADDRESS"
+              echo "- Transaction: $DEPLOYMENT_TX_HASH"
+              echo "- On-chain verification: **PASSED**"
+              if [ "${BSCSCAN_VERIFIED:-false}" = "true" ]; then
+                echo "- BscScan source verification: **PASSED**"
+              else
+                echo "- BscScan source verification: **NOT VERIFIED**"
+              fi
+            else
+              echo "- Deployment: **NOT COMPLETED**"
+              echo "- Contract/transaction evidence: **NOT AVAILABLE**"
+              echo "- On-chain verification: **NOT VERIFIED**"
+              echo "- BNB Testnet transaction: **NOT BROADCAST**"
+              echo "- Contract address: **NOT AVAILABLE**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: glorifier-bnb-testnet-deployment
+          if-no-files-found: ignore
+          path: |
+            contracts/broadcast/DeployGLORIFIER.s.sol/97/run-latest.json
+            contracts/deployment-evidence.json
+            contracts/deployment-preflight.env
