@@ -628,18 +628,28 @@ jobs:
           jq -n --arg network "Ethereum Sepolia" --arg contract "$CONTRACT_ADDRESS" --arg tx "$TX_HASH" --arg holder "$INITIAL_HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:11155111,contract_address:$contract,transaction_hash:$tx,block_number_hex:$block,transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}' > deployment-evidence.json
 
       - name: Verify contract on Etherscan
-        if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' && env.GLORIFIER_EVIDENCE_HOLDER != '' }}
-        continue-on-error: false
+        if: ${{ env.CONTRACT_ADDRESS != '' && env.GLORIFIER_EVIDENCE_HOLDER != '' }}
         working-directory: contracts
         run: |
           set -euo pipefail
-          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "${GLORIFIER_EVIDENCE_HOLDER:-$GLORIFIER_INITIAL_HOLDER}")"
-          if forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain sepolia --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch; then
-            echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
-          else
-            echo "ETHERSCAN_VERIFIED=false" >> "$GITHUB_ENV"
-            echo "WARNING: Etherscan verification failed; on-chain deployment evidence remains valid."
-          fi
+
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_EVIDENCE_HOLDER")"
+
+          echo "Submitting GLORIFIER source for Etherscan verification on Ethereum Sepolia."
+          echo "Contract: $CONTRACT_ADDRESS"
+          echo "Constructor: constructor(address)"
+
+          forge verify-contract \
+            "$CONTRACT_ADDRESS" \
+            src/GLORIFIER.sol:GLORIFIER \
+            --chain sepolia \
+            --verifier etherscan \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --watch
+
+          echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
+          echo "Etherscan source verification: VERIFIED."
 
       - name: Etherscan verification status
         if: ${{ always() }}
