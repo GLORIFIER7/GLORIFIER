@@ -35,7 +35,28 @@ jobs:
           cargo install spl-token-cli --locked --version 5.0.2
           spl-token --version
 
+      - name: Preflight deployment configuration
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GLORIFIER_SOLANA_KEYPAIR_JSON}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            cat > solana/deployment-status.txt <<'EOF'
+STATUS=BLOCKED_CONFIG
+REASON=Missing GLORIFIER_SOLANA_KEYPAIR_JSON GitHub Actions environment secret
+DEPLOYMENT_BROADCAST=false
+EOF
+            echo "::warning::Solana deployment blocked: GLORIFIER_SOLANA_KEYPAIR_JSON is not configured."
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          cat > solana/deployment-status.txt <<'EOF'
+STATUS=CONFIGURED
+EOF
+
       - name: Configure dedicated deployment wallet
+        if: steps.preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -47,6 +68,7 @@ jobs:
           solana address
 
       - name: Verify Devnet and funding
+        if: steps.preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -58,6 +80,7 @@ jobs:
           solana balance
 
       - name: Deploy Token-2022 GLORIFIER
+        if: steps.preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -66,6 +89,7 @@ jobs:
           ./solana/deploy-token2022-devnet.sh | tee solana/deployment-output.txt
 
       - name: Verify final mint state
+        if: steps.preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -79,10 +103,12 @@ jobs:
           grep -q 'GLR' solana/final-mint-state.txt
 
       - name: Upload deployment evidence
+        if: always()
         uses: actions/upload-artifact@v5
         with:
           name: glorifier-solana-devnet-evidence
           path: |
+            solana/deployment-status.txt
             solana/deployment-output.txt
             solana/final-supply.txt
             solana/final-mint-state.txt
