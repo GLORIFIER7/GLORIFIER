@@ -20,11 +20,18 @@ spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADAT
 spl-token --program-2022 create-account "$MINT"
 spl-token --program-2022 mint "$MINT" "$SUPPLY"
 
-test "$(spl-token --program-2022 supply "$MINT" | tr -d '[:space:]')" = "$SUPPLY"
+ACTUAL_SUPPLY="$(spl-token --program-2022 supply "$MINT" | awk 'NR==1 {print $1}' | tr -d '\r')"
+test "$ACTUAL_SUPPLY" = "$SUPPLY"
+
 
 # Permanently remove authorities after the exact supply is minted.
 spl-token --program-2022 authorize "$MINT" mint --disable
 spl-token --program-2022 authorize "$MINT" freeze --disable
+
+BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
+printf '%s\n' "$BALANCE_OUTPUT"
+HOLDER_BALANCE="$(printf '%s\n' "$BALANCE_OUTPUT" | awk 'NR==1 {print $1}' | tr -d '\r')"
+test "$HOLDER_BALANCE" = "$SUPPLY"
 
 echo "Final mint state:"
 spl-token --program-2022 display "$MINT"
