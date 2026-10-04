@@ -2,16 +2,156 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "GLORIFIER Governed A2A Task Envelope",
   "type": "object",
-  "required": ["task_id","lifecycle","requester","assignee","authorization","evidence_policy","idempotency_key"],
+  "required": [
+    "task_id",
+    "lifecycle",
+    "requester",
+    "assignee",
+    "authorization",
+    "evidence_policy",
+    "idempotency_key"
+  ],
   "properties": {
-    "task_id": {"type":"string","minLength":1},
-    "protocol": {"type":"object","properties":{"name":{"type":"string","const":"A2A"},"target_version":{"type":"string","const":"1.0"},"conformance_status":{"type":"string","enum":["VERIFIED","PARTIALLY_VERIFIED","NOT_VERIFIED","DEGRADED","NOT_OBSERVABLE"]}},"additionalProperties":false},
-    "lifecycle": {"type":"string","enum":["DISCOVERED","AUTHORIZED","ASSIGNED","RUNNING","EVIDENCE","VERIFIED","SETTLED","FAILED"]},
-    "requester": {"type":"string","minLength":1},
-    "assignee": {"type":"string","minLength":1},
-    "authorization": {"type":"object","required":["authorized","reference"],"properties":{"authorized":{"type":"boolean"},"reference":{"type":"string","minLength":1},"human_approval_required":{"type":"boolean"},"human_approval_record":{"type":["string","null"]}},"additionalProperties":false},
-    "idempotency_key": {"type":"string","minLength":1},
-    "evidence_policy": {"type":"object","required":["required","verification_status"],"properties":{"required":{"type":"boolean"},"verification_status":{"type":"string","enum":["UNKNOWN","NOT VERIFIED","PARTIALLY VERIFIED","VERIFIED","FULLY VERIFIED"]}},"additionalProperties":false}
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "A2A"
+        },
+        "target_version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "conformance_status": {
+          "type": "string",
+          "enum": [
+            "VERIFIED",
+            "PARTIALLY_VERIFIED",
+            "NOT_VERIFIED",
+            "DEGRADED",
+            "NOT_OBSERVABLE"
+          ]
+        },
+        "mcp_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": [
+        "DISCOVERED",
+        "AUTHORIZED",
+        "ASSIGNED",
+        "RUNNING",
+        "EVIDENCE",
+        "VERIFIED",
+        "SETTLED",
+        "FAILED"
+      ]
+    },
+    "requester": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assignee": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authorization": {
+      "type": "object",
+      "required": [
+        "authorized",
+        "reference"
+      ],
+      "properties": {
+        "authorized": {
+          "type": "boolean"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "human_approval_required": {
+          "type": "boolean"
+        },
+        "human_approval_record": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_policy": {
+      "type": "object",
+      "required": [
+        "required",
+        "verification_status"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "verification_status": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN",
+            "NOT VERIFIED",
+            "PARTIALLY VERIFIED",
+            "VERIFIED",
+            "FULLY VERIFIED"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "correlation": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delegation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "execution_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_call_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
