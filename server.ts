@@ -397,7 +397,7 @@ app.get('/api/connections', async (req: Request, res: Response) => {
 
 app.get('/api/connections/:id', async (req: Request, res: Response) => {
   try {
-    const connection = await getConnection(req.params.id);
+    const connection = await getConnection(String(req.params.id));
     if (!connection) return res.status(404).json({ error: 'Connection not found' });
     res.json({ ok: true, connection });
   } catch (error: any) { res.status(503).json({ error: 'Connection lookup failed', details: error?.message }); }
@@ -425,7 +425,7 @@ app.post('/api/connections', requireOwner, async (req: Request, res: Response) =
 
 app.post('/api/connections/:id/verify', requireOwner, async (req: Request, res: Response) => {
   try {
-    const connection = await verifyConnection(req.params.id, String(req.body?.actor || 'connection-manager'));
+    const connection = await verifyConnection(String(req.params.id), String(req.body?.actor || 'connection-manager'));
     if (!connection) return res.status(404).json({ error: 'Connection not found' });
     res.json({ ok: true, connection });
   } catch (error: any) { res.status(503).json({ error: 'Connection verification failed', details: error?.message }); }
@@ -434,7 +434,7 @@ app.post('/api/connections/:id/verify', requireOwner, async (req: Request, res: 
 app.post('/api/connections/:id/approval', requireOwner, async (req: Request, res: Response) => {
   try {
     const approval = await requestConnectionApproval(
-      req.params.id,
+      String(req.params.id),
       String(req.body?.requestedBy || 'ai-ceo'),
       String(req.body?.action || 'use-connection'),
       Array.isArray(req.body?.scope) ? req.body.scope.map(String) : []
@@ -2246,7 +2246,7 @@ app.get('/api/agents/tasks', (_req: Request, res: Response) => {
 });
 
 app.get('/api/agents/tasks/:id', (req: Request, res: Response) => {
-  const task = getAgentTask(req.params.id);
+  const task = getAgentTask(String(req.params.id));
   if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
   res.json({ ok: true, task });
 });
@@ -2816,13 +2816,13 @@ app.post('/api/agents/control-plane/register', requireOwner, (req: Request, res:
 });
 
 app.get('/api/agents/control-plane/:agentId', (req: Request, res: Response) => {
-  const agent = getAgent(req.params.agentId);
+  const agent = getAgent(String(req.params.agentId));
   if (!agent) return res.status(404).json({ ok:false, error:'Agent not found' });
   return res.json({ ok:true, agent });
 });
 
 app.post('/api/agents/control-plane/:agentId/authorize', requireAuthentication, (req: Request, res: Response) => {
-  const result = authorizeAgentAction(req.params.agentId, {
+  const result = authorizeAgentAction(String(req.params.agentId), {
     capability: String(req.body?.capability || ''),
     tool: req.body?.tool ? String(req.body.tool) : undefined,
     dataScope: req.body?.dataScope ? String(req.body.dataScope) : undefined,
@@ -2832,7 +2832,7 @@ app.post('/api/agents/control-plane/:agentId/authorize', requireAuthentication, 
   });
   recordAgentTrace({
     traceId: String(req.body?.traceId || randomUUID()),
-    agentId: req.params.agentId,
+    agentId: String(req.params.agentId),
     event: 'authorization-check',
     status: result.allowed ? 'completed' : 'denied',
     metadata: result
@@ -2841,7 +2841,7 @@ app.post('/api/agents/control-plane/:agentId/authorize', requireAuthentication, 
 });
 
 app.post('/api/agents/control-plane/:agentId/quarantine', requireOwner, (req: Request, res: Response) => {
-  const agent = quarantineAgent(req.params.agentId);
+  const agent = quarantineAgent(String(req.params.agentId));
   if (!agent) return res.status(404).json({ ok:false, error:'Agent not found' });
   recordAgentTrace({ traceId: randomUUID(), agentId: agent.agentId, event:'quarantine', status:'completed', metadata:{actor:String(req.body?.actor || 'human-owner')} });
   return res.json({ ok:true, agent });
