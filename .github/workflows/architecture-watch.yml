@@ -1,0 +1,63 @@
+name: GLORIFIER Architecture Watch Contract
+
+on:
+  pull_request:
+    paths:
+      - 'agent-network/**'
+      - 'docs/ARCHITECTURE-WATCH-*.md'
+      - 'docs/INTEROPERABILITY-A2A-MCP.md'
+      - 'docs/INFERENCE-RUNTIME-CAPABILITY.md'
+      - '.github/workflows/architecture-watch.yml'
+  push:
+    branches:
+      - main
+      - 'chore/**'
+    paths:
+      - 'agent-network/**'
+      - 'docs/ARCHITECTURE-WATCH-*.md'
+      - 'docs/INTEROPERABILITY-A2A-MCP.md'
+      - 'docs/INFERENCE-RUNTIME-CAPABILITY.md'
+      - '.github/workflows/architecture-watch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  architecture-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate governance contracts
+        run: |
+          python -m json.tool agent-network/agent-card.glorifier.json >/dev/null
+          python -m json.tool agent-network/task-envelope.schema.json >/dev/null
+
+      - name: Enforce provider-neutral governance invariants
+        run: |
+          python - <<'PY'
+          import json
+          card=json.load(open("agent-network/agent-card.glorifier.json"))
+          schema=json.load(open("agent-network/task-envelope.schema.json"))
+
+          assert card["protocol"]["name"] == "A2A"
+          assert card["protocol"]["target_version"] == "1.0"
+          assert card["interoperability"]["mcp_target"] == "2026-07-28"
+          assert card["governance"]["skillsDoNotGrantAuthority"] is True
+          assert card["governance"]["providerIdentityDoesNotGrantAuthority"] is True
+          assert card["governance"]["modelIdentityDoesNotGrantAuthority"] is True
+          assert card["governance"]["authorizationReferenceRequired"] is True
+          assert card["security"]["automaticFinancialTransfers"] is False
+          assert card["security"]["automaticIrreversibleProductionChanges"] is False
+          assert card["security"]["automaticCredentialRotation"] is False
+
+          required=set(schema["required"])
+          assert {"task_id","lifecycle","requester","assignee","authorization","evidence_policy","idempotency_key"} <= required
+
+          print("Architecture governance invariants: PASS")
+          PY
+
+      - name: Reject secret-shaped literals in interoperability docs
+        run: |
+          ! grep -RniE 'BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9]{20,}' agent-network docs/ARCHITECTURE-WATCH-*.md docs/INTEROPERABILITY-A2A-MCP.md docs/INFERENCE-RUNTIME-CAPABILITY.md
