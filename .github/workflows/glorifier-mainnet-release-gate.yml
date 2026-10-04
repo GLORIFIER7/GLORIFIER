@@ -132,9 +132,16 @@ jobs:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          test "$(cast chain-id --rpc-url "$MAINNET_RPC_URL")" = "1" || { echo "ERROR: MAINNET_RPC_URL is not Ethereum mainnet (chain ID 1)."; exit 1; }
+          # Validate the protected mainnet RPC with an explicit timeout and JSON-RPC retry.
+          MAINNET_CHAIN_ID="$(timeout 20s cast chain-id --rpc-url "$MAINNET_RPC_URL" 2>/dev/null || true)"
+          if [[ "$MAINNET_CHAIN_ID" != "1" ]]; then
+            echo "ERROR: GLORIFIER_MAINNET_RPC_URL did not return Ethereum mainnet chain ID 1."
+            echo "The configured endpoint must be an authenticated Ethereum Mainnet RPC."
+            exit 1
+          fi
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
-          BALANCE="$(cast balance "$DEPLOYER" --rpc-url "$MAINNET_RPC_URL")"
+          BALANCE="$(timeout 20s cast balance "$DEPLOYER" --rpc-url "$MAINNET_RPC_URL" 2>/dev/null || true)"
+          [[ "$BALANCE" =~ ^[0-9]+ ]] || { echo "ERROR: could not read mainnet deployer balance from GLORIFIER_MAINNET_RPC_URL."; exit 1; }
           echo "Mainnet deployer: $DEPLOYER"
           echo "Mainnet balance: $BALANCE wei"
           test "$BALANCE" != "0" || { echo 'ERROR: deployer has zero mainnet ETH.'; exit 1; }
