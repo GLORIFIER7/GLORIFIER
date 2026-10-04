@@ -29,6 +29,7 @@ jobs:
 
       - name: Run Gemini
         if: ${{ env.GEMINI_API_KEY != '' }}
+        continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0.1.22
         with:
           gemini_api_key: ${{ env.GEMINI_API_KEY }}
