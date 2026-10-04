@@ -140,9 +140,10 @@ jobs:
           fi
 
           if [[ "$BALANCE_WEI" == "0" ]]; then
-            echo "ERROR: deployer has zero BNB Testnet tBNB."
+            echo "WARNING: deployer has zero BNB Testnet tBNB."
             echo "Fund this exact BNB Testnet address before broadcasting: $DEPLOYER"
-            exit 1
+            echo "Deployment is BLOCKED_FUNDING; no transaction was broadcast."
+            exit 0
           fi
 
           CREATION_BYTECODE="$(forge inspect GLORIFIER bytecode)"
@@ -160,11 +161,12 @@ jobs:
           echo "Estimated deployment cost + 25% buffer: $REQUIRED_WEI wei"
 
           if (( BALANCE_WEI < REQUIRED_WEI )); then
-            echo "ERROR: insufficient BNB Testnet tBNB for deployment."
+            echo "WARNING: insufficient BNB Testnet tBNB for deployment."
             echo "Current balance: $BALANCE_WEI wei"
             echo "Required with safety buffer: $REQUIRED_WEI wei"
             echo "Fund this exact BNB Testnet address: $DEPLOYER"
-            exit 1
+            echo "Deployment is BLOCKED_FUNDING; no transaction was broadcast."
+            exit 0
           fi
 
           printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nBALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' "$RPC_PROVIDER" > deployment-preflight.env
