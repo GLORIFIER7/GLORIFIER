@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Choose recover_existing to verify an existing GLR contract; choose deploy_new only when no existing GLR contract exists."
+        description: "SAFE DEFAULT: recover_existing verifies the existing GLR deployment. Use deploy_new only for a deliberately new GLR deployment."
         required: true
-        default: "deploy_new"
+        default: "recover_existing"
         type: choice
         options:
           - recover_existing
@@ -14,12 +14,12 @@ on:
       contract_address:
         description: "Existing GLR contract address for evidence recovery"
         required: false
-        default: ""
+        default: "0x5594b516Afa4bf78E5Bb6874D578430dA6632268"
         type: string
       transaction_hash:
         description: "Existing deployment transaction hash, if already known"
         required: false
-        default: ""
+        default: "0xa561f3ae89c0234266a529d4b7d6e5bfd714c48d47d5c20918764a604c104ed2"
         type: string
       initial_holder:
         description: "GLR initial holder address"
@@ -71,12 +71,15 @@ jobs:
         working-directory: contracts
         run: forge test -vv
 
-      - name: Validate deployment credentials
+      - name: Validate Etherscan verification credential
         run: |
           set -euo pipefail
           if [[ -z "$ETHERSCAN_API_KEY" ]]; then
-            echo "INFO: GLORIFIER_ETHERSCAN_API_KEY is not configured; explorer creation-tx recovery and source verification may be unavailable."
+            echo "ERROR: GLORIFIER_ETHERSCAN_API_KEY is not configured in the testnet environment."
+            echo "Add the Etherscan API key at Settings -> Environments -> testnet -> Environment secrets."
+            exit 1
           fi
+          echo "Etherscan API credential: PRESENT (value masked)."
 
       - name: Select and validate Sepolia RPC provider
         working-directory: contracts
@@ -626,7 +629,7 @@ jobs:
 
       - name: Verify contract on Etherscan
         if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' && env.GLORIFIER_EVIDENCE_HOLDER != '' }}
-        continue-on-error: true
+        continue-on-error: false
         working-directory: contracts
         run: |
           set -euo pipefail
