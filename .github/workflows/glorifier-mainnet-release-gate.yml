@@ -167,6 +167,12 @@ jobs:
           INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
         run: |
           set -euo pipefail
+          PRIVATE_KEY="$(printf '%s' "$PRIVATE_KEY" | tr -d '[:space:]')"
+          if [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            PRIVATE_KEY="0x$PRIVATE_KEY"
+          fi
+          [[ "$PRIVATE_KEY" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "ERROR: GLORIFIER_MAINNET_PRIVATE_KEY must be exactly 32 bytes of hexadecimal data."; exit 1; }
+          export PRIVATE_KEY
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
           if [[ -z "$INITIAL_HOLDER" ]]; then INITIAL_HOLDER="$(cast wallet address --private-key "$PRIVATE_KEY")"; fi
           [[ "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]]
