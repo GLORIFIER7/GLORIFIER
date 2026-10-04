@@ -114,6 +114,37 @@ jobs:
           printf '%s\n' "$CONSTRUCTOR_ARGS" > verification-constructor-args.txt
           printf '%s\n' "$CONTRACT_ADDRESS" > verification-contract-address.txt
 
+      - name: Preflight Etherscan V2 API
+        env:
+          CONTRACT_ADDRESS: ${{ inputs.contract_address }}
+        run: |
+          set -euo pipefail
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 \
+            -o "$RESPONSE_FILE" -w '%{http_code}' \
+            "https://api.etherscan.io/v2/api?chainid=1&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$ETHERSCAN_API_KEY" || true)"
+
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "ERROR: Etherscan V2 API preflight returned HTTP $HTTP_STATUS."
+            sed -n '1,80p' "$RESPONSE_FILE"
+            exit 1
+          fi
+
+          API_STATUS="$(jq -r '.status // empty' "$RESPONSE_FILE")"
+          API_MESSAGE="$(jq -r '.message // empty' "$RESPONSE_FILE")"
+          API_RESULT="$(jq -r '.result // empty' "$RESPONSE_FILE")"
+
+          if [[ "$API_STATUS" != "1" ]]; then
+            echo "ERROR: Etherscan V2 API rejected the request."
+            echo "Etherscan message: $API_MESSAGE"
+            echo "Etherscan result: $API_RESULT"
+            exit 1
+          fi
+
+          echo "Etherscan V2 API: reachable and API key accepted."
+
       - name: Verify source on Etherscan
         working-directory: contracts
         env:
@@ -124,16 +155,24 @@ jobs:
           VERIFY_LOG="$(mktemp)"
           trap 'rm -f "$VERIFY_LOG"' EXIT
 
-          if ! forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain mainnet             --verifier etherscan             --etherscan-api-key "$ETHERSCAN_API_KEY"             --etherscan-api-version v2             --constructor-args "$CONSTRUCTOR_ARGS"             --retries 10             --delay 10             --watch 2>&1 | tee "$VERIFY_LOG"; then
+          if ! forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
+            --chain mainnet \
+            --verifier etherscan \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --etherscan-api-version v2 \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --retries 10 \
+            --delay 10 \
+            --watch 2>&1 | tee "$VERIFY_LOG"; then
             echo "ERROR: Etherscan source verification failed."
             echo "Verification diagnostics:"
-            sed -n '1,200p' "$VERIFY_LOG"
+            sed -n '1,240p' "$VERIFY_LOG"
             exit 1
           fi
 
           grep -Eiq 'successfully verified|already verified|contract successfully verified' "$VERIFY_LOG" || {
             echo "ERROR: verification command exited successfully but no positive verification confirmation was observed."
-            sed -n '1,200p' "$VERIFY_LOG"
+            sed -n '1,240p' "$VERIFY_LOG"
             exit 1
           }
 
