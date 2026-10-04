@@ -183,6 +183,7 @@ jobs:
           echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
 
       - name: Deploy GLR
+        if: ${{ env.DEPLOYMENT_STATUS == 'READY_TO_BROADCAST' }}
         working-directory: contracts
         run: |
           set -euo pipefail
@@ -190,6 +191,7 @@ jobs:
           forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
 
       - name: Extract and verify deployment evidence
+        if: ${{ env.DEPLOYMENT_STATUS == 'DEPLOYED_AND_ONCHAIN_VERIFIED' }}
         working-directory: contracts
         run: |
           set -euo pipefail
@@ -273,7 +275,11 @@ jobs:
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
-          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain-id 97             --constructor-args "$CONSTRUCTOR_ARGS"             --etherscan-api-key "$ETHERSCAN_API_KEY"             --watch
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
+            --chain-id 97 \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --watch
           echo "BSCSCAN_VERIFIED=true" >> "$GITHUB_ENV"
 
       - name: Publish deployment summary
