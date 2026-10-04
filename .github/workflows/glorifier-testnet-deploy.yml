@@ -285,7 +285,9 @@ jobs:
             ETHERSCAN_API_KEY="$(printf '%s' "$ETHERSCAN_API_KEY" | tr -d '[:space:]')"
             echo "Attempting Etherscan creation-transaction recovery for $CONTRACT."
             RESPONSE="$(curl -fsS --max-time 20 "https://api.etherscan.io/v2/api?chainid=11155111&module=contract&action=getcontractcreation&contractaddresses=$CONTRACT&apikey=$ETHERSCAN_API_KEY" || true)"
-            CANDIDATE="$(printf '%s' "$RESPONSE" | jq -r '.result[0].txHash // empty')"
+            # Etherscan may return a normal result array or an error message string.
+            # Never let jq abort recovery when the API response shape is not an array.
+            CANDIDATE="$(printf '%s' "$RESPONSE" | jq -r 'if (.result | type) == "array" then (.result[0].txHash // empty) else empty end' 2>/dev/null || true)"
             if [[ "$CANDIDATE" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
               TX_HASH="$CANDIDATE"
               echo "Recovered deployment transaction from Etherscan."
