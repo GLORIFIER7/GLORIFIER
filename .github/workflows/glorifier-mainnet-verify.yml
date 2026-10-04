@@ -153,28 +153,53 @@ jobs:
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cat verification-constructor-args.txt)"
           VERIFY_LOG="$(mktemp)"
-          trap 'rm -f "$VERIFY_LOG"' EXIT
+          POSTCHECK_FILE="$(mktemp)"
+          trap 'rm -f "$VERIFY_LOG" "$POSTCHECK_FILE"' EXIT
 
-          if ! forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
-            --chain mainnet \
+          set +e
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
+            --chain 1 \
             --verifier etherscan \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --etherscan-api-version v2 \
+            --compiler-version 0.8.24 \
+            --num-of-optimizations 200 \
             --constructor-args "$CONSTRUCTOR_ARGS" \
             --retries 10 \
             --delay 10 \
-            --watch 2>&1 | tee "$VERIFY_LOG"; then
-            echo "ERROR: Etherscan source verification failed."
+            --watch 2>&1 | tee "$VERIFY_LOG"
+          VERIFY_EXIT="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "$VERIFY_EXIT" != "0" ]]; then
+            echo "ERROR: Etherscan source verification failed (forge exit=$VERIFY_EXIT)."
             echo "Verification diagnostics:"
             sed -n '1,240p' "$VERIFY_LOG"
             exit 1
           fi
 
-          grep -Eiq 'successfully verified|already verified|contract successfully verified' "$VERIFY_LOG" || {
-            echo "ERROR: verification command exited successfully but no positive verification confirmation was observed."
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 \
+            -o "$POSTCHECK_FILE" -w '%{http_code}' \
+            "https://api.etherscan.io/v2/api?chainid=1&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$ETHERSCAN_API_KEY" || true)"
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "ERROR: Etherscan post-verification check returned HTTP $HTTP_STATUS."
+            sed -n '1,80p' "$POSTCHECK_FILE"
+            exit 1
+          fi
+
+          POST_STATUS="$(jq -r '.status // empty' "$POSTCHECK_FILE")"
+          POST_SOURCE="$(jq -r '(.result[0].SourceCode // "")' "$POSTCHECK_FILE")"
+          if [[ "$POST_STATUS" != "1" || -z "$POST_SOURCE" ]]; then
+            echo "ERROR: Etherscan did not report verified source code after submission."
+            echo "Etherscan status: $POST_STATUS"
+            echo "Etherscan message: $(jq -r '.message // empty' "$POSTCHECK_FILE")"
+            echo "Etherscan result: $(jq -c '.result // empty' "$POSTCHECK_FILE")"
+            echo "Verification diagnostics:"
             sed -n '1,240p' "$VERIFY_LOG"
             exit 1
-          }
+          fi
+
+          echo "Etherscan source verification: CONFIRMED"
 
           echo "GLR_STATUS=FULLY_VERIFIED" > mainnet-verification-evidence.env
           echo "CHAIN=ethereum-mainnet" >> mainnet-verification-evidence.env
