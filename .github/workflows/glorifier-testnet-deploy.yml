@@ -6,7 +6,7 @@ on:
       mode:
         description: "Evidence recovery is the safe default. Choose deploy_new only when no existing GLR contract exists."
         required: true
-        default: "recover_existing"
+        default: "deploy_new"
         type: choice
         options:
           - recover_existing
@@ -14,7 +14,7 @@ on:
       contract_address:
         description: "Existing GLR contract address for evidence recovery"
         required: false
-        default: "0x5594b516Afa4bf78E5Bb6874D578430dA6632268"
+        default: ""
         type: string
       transaction_hash:
         description: "Existing deployment transaction hash, if already known"
@@ -206,12 +206,18 @@ jobs:
         run: |
           set -euo pipefail
           EXISTING="${{ inputs.contract_address }}"
-          CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
-          if [[ "$CODE" != "0x" ]]; then
-            echo "ERROR: deploy_new requested, but GLR already exists at $EXISTING."
-            echo "Select mode=recover_existing and provide transaction_hash if known."
-            echo "No transaction was broadcast."
-            exit 1
+          if [[ -n "$EXISTING" ]]; then
+            if [[ ! "$EXISTING" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+              echo "ERROR: contract_address must be a 0x-prefixed 40-hex address when supplied."
+              exit 1
+            fi
+            CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
+            if [[ "$CODE" != "0x" ]]; then
+              echo "ERROR: deploy_new requested, but contract_address already has bytecode at $EXISTING."
+              echo "Use mode=recover_existing to verify that existing deployment."
+              echo "No transaction was broadcast."
+              exit 1
+            fi
           fi
 
       - name: Recover existing GLR evidence
@@ -236,15 +242,27 @@ jobs:
           fi
           echo "Existing contract bytecode confirmed at $CONTRACT."
 
-          NAME="$(cast call "$CONTRACT" "name()(string)" --rpc-url "$RPC_URL")"
-          SYMBOL="$(cast call "$CONTRACT" "symbol()(string)" --rpc-url "$RPC_URL")"
-          DECIMALS="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"
-          TOTAL_SUPPLY="$(cast call "$CONTRACT" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          if ! NAME="$(cast call "$CONTRACT" "name()(string)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT does not expose ERC-20 name()."
+            exit 1
+          fi
+          if ! SYMBOL="$(cast call "$CONTRACT" "symbol()(string)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT does not expose ERC-20 symbol()."
+            exit 1
+          fi
+          if ! DECIMALS="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT does not expose ERC-20 decimals()."
+            exit 1
+          fi
+          if ! TOTAL_SUPPLY="$(cast call "$CONTRACT" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT does not expose ERC-20 totalSupply()."
+            exit 1
+          fi
 
-          test "$NAME" = "GLORIFIER"
-          test "$SYMBOL" = "GLR"
-          test "$DECIMALS" = "18"
-          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
+          test "$NAME" = "GLORIFIER" || { echo "ERROR: token name is '$NAME', expected GLORIFIER."; exit 1; }
+          test "$SYMBOL" = "GLR" || { echo "ERROR: token symbol is '$SYMBOL', expected GLR."; exit 1; }
+          test "$DECIMALS" = "18" || { echo "ERROR: token decimals are '$DECIMALS', expected 18."; exit 1; }
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000" || { echo "ERROR: totalSupply is '$TOTAL_SUPPLY', expected 1000000000000000000000000000."; exit 1; }
 
           if [[ -z "$TX_HASH" && -n "$ETHERSCAN_API_KEY" ]]; then
             echo "Attempting Etherscan creation-transaction recovery for $CONTRACT."
@@ -432,13 +450,15 @@ jobs:
         run: |
           set -euo pipefail
           # Explicit opt-in only. This mode is blocked if the known existing GLR address already has code.
-          EXISTING="0x5594b516Afa4bf78E5Bb6874D578430dA6632268"
-          EXISTING_CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
-          if [[ "$EXISTING_CODE" != "0x" ]]; then
-            echo "ERROR: known GLR deployment already exists at $EXISTING."
-            echo "Refusing to create a second GLR contract."
-            echo "Use mode=recover_existing to recover/verify evidence."
-            exit 1
+          EXISTING="${{ inputs.contract_address }}"
+          if [[ -n "$EXISTING" ]]; then
+            EXISTING_CODE="$(cast code "$EXISTING" --rpc-url "$RPC_URL")"
+            if [[ "$EXISTING_CODE" != "0x" ]]; then
+              echo "ERROR: contract_address already has bytecode at $EXISTING."
+              echo "Refusing to create a second GLR contract at a known address."
+              echo "Use mode=recover_existing to verify the existing deployment."
+              exit 1
+            fi
           fi
 
           export PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
