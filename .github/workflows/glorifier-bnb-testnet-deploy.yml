@@ -156,7 +156,9 @@ jobs:
             exit 1
           fi
 
-          GAS_ESTIMATE="$(cast estimate --create "$CREATION_BYTECODE" "constructor(address)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
+          DEPLOY_DATA="${CREATION_BYTECODE}${CONSTRUCTOR_ARGS#0x}"
+          GAS_ESTIMATE="$(cast estimate --create "$DEPLOY_DATA" --rpc-url "$RPC_URL")"
           GAS_PRICE_WEI="$(cast gas-price --rpc-url "$RPC_URL")"
           REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
 
@@ -233,8 +235,33 @@ jobs:
 
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_STATUS=DEPLOYED_AND_ONCHAIN_VERIFIED" >> "$GITHUB_ENV"
 
-          jq -n             --arg network "BNB Smart Chain Testnet"             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$GLORIFIER_INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:97,contract_address:$contract,transaction_hash:$tx,block_number:($block|tonumber),transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000"}}'             > deployment-evidence.json
+          jq -n \
+            --arg network "BNB Smart Chain Testnet" \
+            --arg contract "$CONTRACT_ADDRESS" \
+            --arg tx "$TX_HASH" \
+            --arg holder "$GLORIFIER_INITIAL_HOLDER" \
+            --arg block "$BLOCK_NUMBER" \
+            --arg deployer "$DEPLOYER_ADDRESS" \
+            '{
+              evidence_type:"GLORIFIER ERC-20 deployment",
+              network:$network,
+              chain_id:97,
+              contract_address:$contract,
+              transaction_hash:$tx,
+              block_number:($block|tonumber),
+              transaction_status:1,
+              deployer_address:$deployer,
+              initial_holder:$holder,
+              on_chain_assertions:{
+                name:"GLORIFIER",
+                symbol:"GLR",
+                decimals:18,
+                total_supply_wei:"1000000000000000000000000000",
+                initial_holder_balance_wei:"1000000000000000000000000000"
+              }
+            }' > deployment-evidence.json
 
           echo "Contract address: $CONTRACT_ADDRESS"
           echo "Transaction hash: $TX_HASH"
