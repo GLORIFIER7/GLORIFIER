@@ -36,6 +36,7 @@ jobs:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
       MAINNET_RPC_URL: ${{ secrets.GLORIFIER_MAINNET_RPC_URL }}
       SEPOLIA_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+      MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}
     steps:
       - name: Require explicit release authorization
         run: |
@@ -43,7 +44,7 @@ jobs:
           test '${{ inputs.confirm }}' = 'DEPLOY_GLORIFIER_MAINNET' || { echo 'ERROR: explicit mainnet confirmation required.'; exit 1; }
           test -n "$MAINNET_RPC_URL" || { echo 'ERROR: GLORIFIER_MAINNET_RPC_URL is missing.'; exit 1; }
           test -n "$ETHERSCAN_API_KEY" || { echo 'ERROR: GLORIFIER_ETHERSCAN_API_KEY is missing.'; exit 1; }
-          test -n '${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}' || { echo 'ERROR: GLORIFIER_MAINNET_PRIVATE_KEY is missing from the protected mainnet environment.'; exit 1; }
+          test -n "$MAINNET_PRIVATE_KEY" || { echo 'ERROR: GLORIFIER_MAINNET_PRIVATE_KEY is missing from the protected mainnet environment.'; exit 1; }
 
       - uses: actions/checkout@v7
       - uses: foundry-rs/foundry-toolchain@v1
@@ -64,14 +65,10 @@ jobs:
           test "$(cast code "$SEPOLIA_CONTRACT" --rpc-url "$SEPOLIA_RPC_URL")" != "0x"
           RECEIPT="$(cast receipt "$SEPOLIA_TX" --rpc-url "$SEPOLIA_RPC_URL" --json)"
           test "$(echo "$RECEIPT" | jq -r '.status')" = "1"
-          NAME="$(cast call "$SEPOLIA_CONTRACT" 'name()(string)' --rpc-url "$SEPOLIA_RPC_URL" | jq -er 'if type == "string" then . else tostring end')"
-          SYMBOL="$(cast call "$SEPOLIA_CONTRACT" 'symbol()(string)' --rpc-url "$SEPOLIA_RPC_URL" | jq -er 'if type == "string" then . else tostring end')"
-          DECIMALS_RAW="$(cast call "$SEPOLIA_CONTRACT" 'decimals()(uint8)' --rpc-url "$SEPOLIA_RPC_URL")"
-          TOTAL_SUPPLY_RAW="$(cast call "$SEPOLIA_CONTRACT" 'totalSupply()(uint256)' --rpc-url "$SEPOLIA_RPC_URL")"
-          DECIMALS="$(printf "%s" "$DECIMALS_RAW" | awk '{print $1}' | tr -d "\r\n")"
-          TOTAL_SUPPLY="$(printf "%s" "$TOTAL_SUPPLY_RAW" | awk '{print $1}' | tr -d "\r\n")"
-          NAME="$(printf "%s" "$NAME" | tr -d "\r\n")"
-          SYMBOL="$(printf "%s" "$SYMBOL" | tr -d "\r\n")"
+          NAME="$(cast call "$SEPOLIA_CONTRACT" 'name()(string)' --rpc-url "$SEPOLIA_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          SYMBOL="$(cast call "$SEPOLIA_CONTRACT" 'symbol()(string)' --rpc-url "$SEPOLIA_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          DECIMALS="$(cast call "$SEPOLIA_CONTRACT" 'decimals()(uint8)' --rpc-url "$SEPOLIA_RPC_URL" | awk '{print $1}' | tr -d "\r\n")"
+          TOTAL_SUPPLY="$(cast call "$SEPOLIA_CONTRACT" 'totalSupply()(uint256)' --rpc-url "$SEPOLIA_RPC_URL" | awk '{print $1}' | tr -d "\r\n")"
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
           test "$DECIMALS" = "18"
@@ -92,10 +89,10 @@ jobs:
       - name: Validate mainnet RPC
         working-directory: contracts
         env:
-          PRIVATE_KEY: ${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}
+          PRIVATE_KEY: $MAINNET_PRIVATE_KEY
         run: |
           set -euo pipefail
-          test "$(cast chain-id --rpc-url "$MAINNET_RPC_URL")" = "1"
+          test "$(cast chain-id --rpc-url "$MAINNET_RPC_URL")" = "1" || { echo "ERROR: MAINNET_RPC_URL is not Ethereum mainnet (chain ID 1)."; exit 1; }
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
           BALANCE="$(cast balance "$DEPLOYER" --rpc-url "$MAINNET_RPC_URL")"
           echo "Mainnet deployer: $DEPLOYER"
@@ -128,10 +125,14 @@ jobs:
           test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != null
           test -n "$TX_HASH" && test "$TX_HASH" != null
           test "$(cast code "$CONTRACT_ADDRESS" --rpc-url "$MAINNET_RPC_URL")" != 0x
-          test "$(cast call "$CONTRACT_ADDRESS" 'name()(string)' --rpc-url "$MAINNET_RPC_URL")" = GLORIFIER
-          test "$(cast call "$CONTRACT_ADDRESS" 'symbol()(string)' --rpc-url "$MAINNET_RPC_URL")" = GLR
-          test "$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$MAINNET_RPC_URL")" = 18
-          test "$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$MAINNET_RPC_URL")" = 1000000000000000000000000000
+          NAME="$(cast call "$CONTRACT_ADDRESS" 'name()(string)' --rpc-url "$MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" 'symbol()(string)' --rpc-url "$MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$MAINNET_RPC_URL" | awk '{print $1}' | tr -d "\r\n")"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$MAINNET_RPC_URL" | awk '{print $1}' | tr -d "\r\n")"
+          test "$NAME" = "GLORIFIER"
+          test "$SYMBOL" = "GLR"
+          test "$DECIMALS" = "18"
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$(cast receipt "$TX_HASH" --rpc-url "$MAINNET_RPC_URL" --json | jq -r '.status')" = 1
           CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
           forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain mainnet --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch
@@ -139,3 +140,18 @@ jobs:
           echo "Mainnet transaction: $TX_HASH"
           echo "Etherscan: https://etherscan.io/address/$CONTRACT_ADDRESS"
           echo "Transaction: https://etherscan.io/tx/$TX_HASH"
+          {
+            echo "GLR_STATUS=FULLY_VERIFIED"
+            echo "CHAIN=ethereum-mainnet"
+            echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS"
+            echo "DEPLOYMENT_TX=$TX_HASH"
+            echo "ETHERSCAN_VERIFIED=true"
+          } > mainnet-release-evidence.env
+
+
+      - name: Publish mainnet release evidence
+        uses: actions/upload-artifact@v5
+        with:
+          name: glorifier-mainnet-release-evidence
+          path: contracts/mainnet-release-evidence.env
+          if-no-files-found: error
