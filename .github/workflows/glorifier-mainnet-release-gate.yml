@@ -201,7 +201,27 @@ jobs:
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$(cast receipt "$TX_HASH" --rpc-url "$MAINNET_RPC_URL" --json | jq -r '.status')" = 1
           CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
-          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain mainnet --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch
+          VERIFY_LOG="$(mktemp)"
+          trap 'rm -f "$VERIFY_LOG"' EXIT
+          if ! forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
+            --chain mainnet \
+            --verifier etherscan \
+            --etherscan-api-key "$ETHERSCAN_API_KEY" \
+            --etherscan-api-version v2 \
+            --constructor-args "$CONSTRUCTOR_ARGS" \
+            --retries 10 \
+            --delay 10 \
+            --watch 2>&1 | tee "$VERIFY_LOG"; then
+            echo "ERROR: Etherscan source verification failed."
+            echo "Verification diagnostics:"
+            sed -n '1,160p' "$VERIFY_LOG"
+            exit 1
+          fi
+          grep -Eiq 'successfully verified|already verified|contract successfully verified' "$VERIFY_LOG" || {
+            echo "ERROR: verification command exited successfully but no positive verification confirmation was observed."
+            sed -n '1,160p' "$VERIFY_LOG"
+            exit 1
+          }
           echo "Mainnet contract: $CONTRACT_ADDRESS"
           echo "Mainnet transaction: $TX_HASH"
           echo "Etherscan: https://etherscan.io/address/$CONTRACT_ADDRESS"
