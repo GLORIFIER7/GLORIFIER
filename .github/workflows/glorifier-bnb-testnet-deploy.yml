@@ -140,6 +140,10 @@ jobs:
           fi
 
           if [[ "$BALANCE_WEI" == "0" ]]; then
+            printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nBALANCE_STATUS=INSUFFICIENT\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" > deployment-preflight.env
+            echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING" >> "$GITHUB_ENV"
+            echo "BALANCE_STATUS=INSUFFICIENT" >> "$GITHUB_ENV"
+            echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
             echo "WARNING: deployer has zero BNB Testnet tBNB."
             echo "Fund this exact BNB Testnet address before broadcasting: $DEPLOYER"
             echo "Deployment is BLOCKED_FUNDING; no transaction was broadcast."
@@ -161,7 +165,11 @@ jobs:
           echo "Estimated deployment cost + 25% buffer: $REQUIRED_WEI wei"
 
           if (( BALANCE_WEI < REQUIRED_WEI )); then
-            echo "WARNING: insufficient BNB Testnet tBNB for deployment."
+            printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nREQUIRED_WEI=%s\nBALANCE_STATUS=INSUFFICIENT\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" "$REQUIRED_WEI" > deployment-preflight.env
+            echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING" >> "$GITHUB_ENV"
+            echo "BALANCE_STATUS=INSUFFICIENT" >> "$GITHUB_ENV"
+            echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
+            echo "WARNING: insufficient BNB Testnet tBNB."
             echo "Current balance: $BALANCE_WEI wei"
             echo "Required with safety buffer: $REQUIRED_WEI wei"
             echo "Fund this exact BNB Testnet address: $DEPLOYER"
@@ -169,7 +177,8 @@ jobs:
             exit 0
           fi
 
-          printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nBALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' "$RPC_PROVIDER" > deployment-preflight.env
+          printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nREQUIRED_WEI=%s\nBALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" "$REQUIRED_WEI" > deployment-preflight.env
+          echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
 
       - name: Deploy GLR
         working-directory: contracts
@@ -248,6 +257,11 @@ jobs:
             echo "- Network: BNB Smart Chain Testnet"
             echo "- Chain ID: 97"
             echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
+            echo "- Deployment status: ${DEPLOYMENT_STATUS:-NOT COMPLETED}"
+            echo "- Balance status: ${BALANCE_STATUS:-UNKNOWN}"
+            if [ -n "${DEPLOYER_ADDRESS:-}" ]; then
+              echo "- Deployer: $DEPLOYER_ADDRESS"
+            fi
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
@@ -263,6 +277,9 @@ jobs:
               echo "- On-chain verification: **NOT VERIFIED**"
               echo "- BNB Testnet transaction: **NOT BROADCAST**"
               echo "- Contract address: **NOT AVAILABLE**"
+              if [ "${DEPLOYMENT_STATUS:-}" = "BLOCKED_FUNDING" ]; then
+                echo "- Required action: fund the BNB Testnet deployer, then rerun this workflow."
+              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
