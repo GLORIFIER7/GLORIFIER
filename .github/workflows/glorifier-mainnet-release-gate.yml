@@ -63,8 +63,6 @@ jobs:
           set -euo pipefail
           [[ "$SEPOLIA_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "ERROR: sepolia_contract must be a valid Ethereum address."; exit 1; }
           [[ "$SEPOLIA_TX" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "ERROR: sepolia_transaction must be a valid transaction hash."; exit 1; }
-          # Select a healthy Sepolia RPC for read-only prerequisite verification.
-          # This step never broadcasts a transaction.
           select_sepolia_rpc() {
             local provider url chain_id entry
             for entry in \
@@ -132,16 +130,32 @@ jobs:
           PRIVATE_KEY: ${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          # Validate the protected mainnet RPC with an explicit timeout and JSON-RPC retry.
-          MAINNET_CHAIN_ID="$(timeout 20s cast chain-id --rpc-url "$MAINNET_RPC_URL" 2>/dev/null || true)"
-          if [[ "$MAINNET_CHAIN_ID" != "1" ]]; then
-            echo "ERROR: GLORIFIER_MAINNET_RPC_URL did not return Ethereum mainnet chain ID 1."
-            echo "The configured endpoint must be an authenticated Ethereum Mainnet RPC."
+          # Probe JSON-RPC directly so authentication/HTTP failures are distinguishable
+          # from a wrong-chain response, without ever printing the secret URL.
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 \
+            -o "$RESPONSE_FILE" -w '%{http_code}' \
+            -H 'content-type: application/json' \
+            --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+            "$MAINNET_RPC_URL" || true)"
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            case "$HTTP_STATUS" in
+              401|403) echo "ERROR: GLORIFIER_MAINNET_RPC_URL rejected the request with HTTP $HTTP_STATUS (authentication/authorization failure). Replace the protected secret with a valid Ethereum Mainnet RPC URL."; ;;
+              000|'') echo "ERROR: GLORIFIER_MAINNET_RPC_URL could not be reached within the timeout."; ;;
+              *) echo "ERROR: GLORIFIER_MAINNET_RPC_URL returned HTTP $HTTP_STATUS instead of 200."; ;;
+            esac
             exit 1
           fi
+          MAINNET_CHAIN_ID_HEX="$(jq -r '.result // empty' "$RESPONSE_FILE")"
+          case "${MAINNET_CHAIN_ID_HEX,,}" in
+            0x1|0x01|1) ;;
+            *) echo "ERROR: GLORIFIER_MAINNET_RPC_URL responded successfully but did not report Ethereum mainnet chain ID 1."; exit 1 ;;
+          esac
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
           BALANCE="$(timeout 20s cast balance "$DEPLOYER" --rpc-url "$MAINNET_RPC_URL" 2>/dev/null || true)"
           [[ "$BALANCE" =~ ^[0-9]+ ]] || { echo "ERROR: could not read mainnet deployer balance from GLORIFIER_MAINNET_RPC_URL."; exit 1; }
+          echo "Mainnet RPC: authenticated and chain ID 1"
           echo "Mainnet deployer: $DEPLOYER"
           echo "Mainnet balance: $BALANCE wei"
           test "$BALANCE" != "0" || { echo 'ERROR: deployer has zero mainnet ETH.'; exit 1; }
@@ -194,7 +208,6 @@ jobs:
             echo "DEPLOYMENT_TX=$TX_HASH"
             echo "ETHERSCAN_VERIFIED=true"
           } > mainnet-release-evidence.env
-
 
       - name: Publish mainnet release evidence
         uses: actions/upload-artifact@v5
