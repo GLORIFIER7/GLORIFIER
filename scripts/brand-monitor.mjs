@@ -13,7 +13,14 @@ async function api(url, options={}) {
 async function main(){
   const root=base.replace(/\/$/,'');
   const termsResponse=await fetch(root+'/api/brand-monitor/terms');
-  if (!termsResponse.ok) throw new Error(`Unable to load brand terms: HTTP ${termsResponse.status}`);
+  if (!termsResponse.ok) {
+    if ((termsResponse.status === 401 || termsResponse.status === 403) && !secret) {
+      console.warn(`Brand monitor is NOT OBSERVABLE: ${root} requires authentication and BRAND_MONITOR_WEBHOOK_SECRET is not configured.`);
+      console.warn('No scan was recorded; configure the webhook secret to enable authenticated monitoring.');
+      return;
+    }
+    throw new Error(`Unable to load brand terms: HTTP ${termsResponse.status}`);
+  }
   const terms=await termsResponse.json();
   if (!Array.isArray(terms)) throw new Error('Brand terms response is not an array');
   const observations=[];
@@ -38,7 +45,13 @@ async function main(){
   if(secret) headers['x-brand-monitor-secret']=secret;
   const r=await fetch(root+'/api/brand-monitor/scan',{method:'POST',headers,body:JSON.stringify({source:'github-public',timestamp:new Date().toISOString(),observations})});
   const body=await r.text();
-  if(!r.ok) throw new Error(`Brand monitor scan failed: HTTP ${r.status} ${body}`);
+  if(!r.ok) {
+    if ((r.status === 401 || r.status === 403) && !secret) {
+      console.warn(`Brand monitor is NOT OBSERVABLE: ${root}/api/brand-monitor/scan requires authentication and no webhook secret is configured.`);
+      return;
+    }
+    throw new Error(`Brand monitor scan failed: HTTP ${r.status} ${body}`);
+  }
   console.log(body);
 }
 main().catch(e=>{console.error(e);process.exit(1)});
