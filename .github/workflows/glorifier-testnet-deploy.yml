@@ -233,6 +233,11 @@ jobs:
           TX_INPUT: ${{ inputs.transaction_hash }}
         run: |
           set -euo pipefail
+          
+          normalize_cast_uint() {
+            printf '%s' "${1:-}" | awk '{print $1}' | tr -d '\r\n'
+          }
+
           CONTRACT="$CONTRACT_INPUT"
           TX_HASH="$TX_INPUT"
           if [[ ! "$CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
@@ -259,14 +264,17 @@ jobs:
           fi
           NAME="$(printf '%s' "$NAME" | tr -d '\r\n')"
           SYMBOL="$(printf '%s' "$SYMBOL" | tr -d '\r\n')"
-          if ! DECIMALS="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"; then
+          if ! DECIMALS_RAW="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"; then
             echo "ERROR: contract at $CONTRACT does not expose ERC-20 decimals()."
             exit 1
           fi
-          if ! TOTAL_SUPPLY="$(cast call "$CONTRACT" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"; then
+          DECIMALS="$(normalize_cast_uint "$DECIMALS_RAW")"
+
+          if ! TOTAL_SUPPLY_RAW="$(cast call "$CONTRACT" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"; then
             echo "ERROR: contract at $CONTRACT does not expose ERC-20 totalSupply()."
             exit 1
           fi
+          TOTAL_SUPPLY="$(normalize_cast_uint "$TOTAL_SUPPLY_RAW")"
 
           test "$NAME" = "GLORIFIER" || { echo "ERROR: token name is '$NAME', expected GLORIFIER."; exit 1; }
           test "$SYMBOL" = "GLR" || { echo "ERROR: token symbol is '$SYMBOL', expected GLR."; exit 1; }
@@ -446,7 +454,11 @@ jobs:
             echo "ERROR: could not recover the GLR initial holder from the deployment receipt."
             exit 1
           fi
-          HOLDER_BALANCE="$(cast call "$CONTRACT" "balanceOf(address)(uint256)" "$HOLDER" --rpc-url "$RPC_URL")"
+          if ! HOLDER_BALANCE_RAW="$(cast call "$CONTRACT" "balanceOf(address)(uint256)" "$HOLDER" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT does not expose ERC-20 balanceOf()."
+            exit 1
+          fi
+          HOLDER_BALANCE="$(normalize_cast_uint "$HOLDER_BALANCE_RAW")"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
 
           echo "CONTRACT_ADDRESS=$CONTRACT" >> "$GITHUB_ENV"
@@ -486,6 +498,11 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
+
+          normalize_cast_uint() {
+            printf '%s' "${1:-}" | awk '{print $1}' | tr -d '\r\n'
+          }
+
           export DEPLOYER_PRIVATE_KEY="$GLORIFIER_DEPLOYER_PRIVATE_KEY_FOUNDRY"
           export INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER"
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/11155111/run-latest.json"
@@ -497,11 +514,23 @@ jobs:
           test -n "$TX_HASH" && test "$TX_HASH" != "null"
           CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
           test "$CODE" != "0x"
-          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
-          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
-          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
-          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
-          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL" | jq -er 'if type == "string" then . else tostring end')"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL" | jq -er 'if type == "string" then . else tostring end')"
+          if ! DECIMALS_RAW="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT_ADDRESS does not expose ERC-20 decimals()."
+            exit 1
+          fi
+          DECIMALS="$(normalize_cast_uint "$DECIMALS_RAW")"
+          if ! TOTAL_SUPPLY_RAW="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT_ADDRESS does not expose ERC-20 totalSupply()."
+            exit 1
+          fi
+          TOTAL_SUPPLY="$(normalize_cast_uint "$TOTAL_SUPPLY_RAW")"
+          if ! HOLDER_BALANCE_RAW="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$INITIAL_HOLDER" --rpc-url "$RPC_URL")"; then
+            echo "ERROR: contract at $CONTRACT_ADDRESS does not expose ERC-20 balanceOf()."
+            exit 1
+          fi
+          HOLDER_BALANCE="$(normalize_cast_uint "$HOLDER_BALANCE_RAW")"
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
           test "$DECIMALS" = "18"
