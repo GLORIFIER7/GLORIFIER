@@ -81,6 +81,30 @@ jobs:
           fi
           echo "Etherscan API credential: PRESENT (value masked)."
 
+      - name: Validate Etherscan API V2 credential
+        working-directory: contracts
+        env:
+          VERIFY_CONTRACT_ADDRESS: ${{ inputs.contract_address }}
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl -fsS --max-time 20 --get "https://api.etherscan.io/v2/api" \
+            --data-urlencode "chainid=11155111" \
+            --data-urlencode "module=contract" \
+            --data-urlencode "action=getsourcecode" \
+            --data-urlencode "address=$VERIFY_CONTRACT_ADDRESS" \
+            --data-urlencode "apikey=$ETHERSCAN_API_KEY")"
+
+          if printf "%s" "$RESPONSE" | jq -e '.result | type == "string" and test("Invalid API Key"; "i")' >/dev/null 2>&1; then
+            echo "ERROR: Etherscan API key was rejected by Etherscan V2."
+            exit 1
+          fi
+
+          if ! printf "%s" "$RESPONSE" | jq -e '.status == "1" or (.result | type == "array")' >/dev/null 2>&1; then
+            echo "ERROR: Etherscan V2 credential/network preflight returned an unexpected response."
+            printf "%s\n" "$RESPONSE" | jq -c '{status,message,result_type:(.result|type)}' 2>/dev/null || true
+            exit 1
+          fi
+          echo "Etherscan API V2 credential: ACCEPTED for Sepolia (chain 11155111)."
       - name: Select and validate Sepolia RPC provider
         working-directory: contracts
         env:
