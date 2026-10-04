@@ -35,7 +35,10 @@ jobs:
     env:
       ETHERSCAN_API_KEY: ${{ secrets.GLORIFIER_ETHERSCAN_API_KEY }}
       MAINNET_RPC_URL: ${{ secrets.GLORIFIER_MAINNET_RPC_URL }}
-      SEPOLIA_RPC_URL: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+      SEPOLIA_RPC_URL: ${{ secrets.GLORIFIER_CHAINSTACK_SEPOLIA_RPC_URL }}
+      SEPOLIA_RPC_ALCHEMY: ${{ secrets.GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL }}
+      SEPOLIA_RPC_INFURA: ${{ secrets.GLORIFIER_TESTNET_RPC_URL }}
+      SEPOLIA_PUBLIC_RPC: https://ethereum-sepolia-rpc.publicnode.com
       MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_MAINNET_PRIVATE_KEY }}
     steps:
       - name: Require explicit release authorization
@@ -60,7 +63,30 @@ jobs:
           set -euo pipefail
           [[ "$SEPOLIA_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "ERROR: sepolia_contract must be a valid Ethereum address."; exit 1; }
           [[ "$SEPOLIA_TX" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "ERROR: sepolia_transaction must be a valid transaction hash."; exit 1; }
-          test -n "$SEPOLIA_RPC_URL" || { echo "ERROR: GLORIFIER_ALCHEMY_SEPOLIA_RPC_URL is required for the mainnet prerequisite check."; exit 1; }
+          # Select a healthy Sepolia RPC for read-only prerequisite verification.
+          # This step never broadcasts a transaction.
+          select_sepolia_rpc() {
+            local provider url chain_id entry
+            for entry in \
+              "Chainstack|$SEPOLIA_RPC_URL" \
+              "Alchemy|$SEPOLIA_RPC_ALCHEMY" \
+              "Infura|$SEPOLIA_RPC_INFURA" \
+              "PublicNode|$SEPOLIA_PUBLIC_RPC"
+            do
+              provider="${entry%%|*}"
+              url="${entry#*|}"
+              [[ -n "$url" ]] || continue
+              if chain_id="$(cast chain-id --rpc-url "$url" 2>/dev/null)" && [[ "$chain_id" == "11155111" ]]; then
+                SEPOLIA_RPC_URL="$url"
+                echo "Sepolia prerequisite RPC: $provider"
+                return 0
+              fi
+            done
+            echo "ERROR: no healthy Ethereum Sepolia RPC provider is available."
+            exit 1
+          }
+          select_sepolia_rpc
+          echo "::add-mask::$SEPOLIA_RPC_URL"
           test "$(cast chain-id --rpc-url "$SEPOLIA_RPC_URL")" = "11155111"
           test "$(cast code "$SEPOLIA_CONTRACT" --rpc-url "$SEPOLIA_RPC_URL")" != "0x"
           RECEIPT="$(cast receipt "$SEPOLIA_TX" --rpc-url "$SEPOLIA_RPC_URL" --json)"
