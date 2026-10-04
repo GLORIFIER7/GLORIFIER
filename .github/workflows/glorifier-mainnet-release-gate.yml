@@ -89,8 +89,22 @@ jobs:
           echo "::add-mask::$SEPOLIA_RPC_URL"
           test "$(cast chain-id --rpc-url "$SEPOLIA_RPC_URL")" = "11155111"
           test "$(cast code "$SEPOLIA_CONTRACT" --rpc-url "$SEPOLIA_RPC_URL")" != "0x"
-          RECEIPT="$(cast receipt "$SEPOLIA_TX" --rpc-url "$SEPOLIA_RPC_URL" --json)"
-          test "$(echo "$RECEIPT" | jq -r '.status')" = "1"
+          if ! RECEIPT="$(timeout 20s cast receipt "$SEPOLIA_TX" --rpc-url "$SEPOLIA_RPC_URL" --json)"; then
+            echo "ERROR: could not retrieve the Sepolia deployment receipt."
+            exit 1
+          fi
+          RECEIPT_STATUS="$(echo "$RECEIPT" | jq -r '.status // empty')"
+          case "$RECEIPT_STATUS" in
+            0x1|0X1|1) ;;
+            *) echo "ERROR: Sepolia deployment transaction receipt is not successful (status=$RECEIPT_STATUS)."; exit 1 ;;
+          esac
+          RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
+          if [[ -n "$RECEIPT_CONTRACT" ]]; then
+            [[ "$(printf '%s' "$RECEIPT_CONTRACT" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$SEPOLIA_CONTRACT" | tr '[:upper:]' '[:lower:]')" ]] || {
+              echo "ERROR: Sepolia receipt contractAddress does not match the supplied contract."
+              exit 1
+            }
+          fi
           NAME="$(cast call "$SEPOLIA_CONTRACT" 'name()(string)' --rpc-url "$SEPOLIA_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
           SYMBOL="$(cast call "$SEPOLIA_CONTRACT" 'symbol()(string)' --rpc-url "$SEPOLIA_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
           DECIMALS="$(cast call "$SEPOLIA_CONTRACT" 'decimals()(uint8)' --rpc-url "$SEPOLIA_RPC_URL" | awk '{print $1}' | tr -d "\r\n")"
