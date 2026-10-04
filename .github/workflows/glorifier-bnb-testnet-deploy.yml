@@ -194,11 +194,20 @@ jobs:
           CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
           test "$CODE" != "0x"
 
-          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL")"
-          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL")"
-          DECIMALS="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
-          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
-          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          normalize_cast_uint() {
+            printf "%s" "${1:-}" | awk "{print $1}" | tr -d "\r\n"
+          }
+
+          NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL" | jq -er "if type == \"string\" then . else tostring end")"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL" | jq -er "if type == \"string\" then . else tostring end")"
+          DECIMALS_RAW="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
+          TOTAL_SUPPLY_RAW="$(cast call "$CONTRACT_ADDRESS" "totalSupply()(uint256)" --rpc-url "$RPC_URL")"
+          HOLDER_BALANCE_RAW="$(cast call "$CONTRACT_ADDRESS" "balanceOf(address)(uint256)" "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$RPC_URL")"
+          DECIMALS="$(normalize_cast_uint "$DECIMALS_RAW")"
+          TOTAL_SUPPLY="$(normalize_cast_uint "$TOTAL_SUPPLY_RAW")"
+          HOLDER_BALANCE="$(normalize_cast_uint "$HOLDER_BALANCE_RAW")"
+          NAME="$(printf "%s" "$NAME" | tr -d "\r\n")"
+          SYMBOL="$(printf "%s" "$SYMBOL" | tr -d "\r\n")"
 
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
@@ -222,7 +231,6 @@ jobs:
 
       - name: Verify contract on BscScan
         if: ${{ env.ETHERSCAN_API_KEY != '' && env.CONTRACT_ADDRESS != '' }}
-        continue-on-error: true
         working-directory: contracts
         run: |
           set -euo pipefail
