@@ -104,7 +104,7 @@ EOF
 
       - name: Upload deployment evidence
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-solana-devnet-evidence
           path: |
