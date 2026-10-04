@@ -247,14 +247,18 @@ jobs:
           fi
           echo "Existing contract bytecode confirmed at $CONTRACT."
 
-          if ! NAME="$(cast call "$CONTRACT" "name()(string)" --rpc-url "$RPC_URL")"; then
-            echo "ERROR: contract at $CONTRACT does not expose ERC-20 name()."
+          # cast returns ABI string values JSON-encoded (for example, "GLORIFIER").
+          # Normalize both name() and symbol() to plain text before asserting them.
+          if ! NAME="$(cast call "$CONTRACT" "name()(string)" --rpc-url "$RPC_URL" | jq -er 'if type == "string" then . else tostring end')"; then
+            echo "ERROR: contract at $CONTRACT does not expose a parseable ERC-20 name()."
             exit 1
           fi
-          if ! SYMBOL="$(cast call "$CONTRACT" "symbol()(string)" --rpc-url "$RPC_URL")"; then
-            echo "ERROR: contract at $CONTRACT does not expose ERC-20 symbol()."
+          if ! SYMBOL="$(cast call "$CONTRACT" "symbol()(string)" --rpc-url "$RPC_URL" | jq -er 'if type == "string" then . else tostring end')"; then
+            echo "ERROR: contract at $CONTRACT does not expose a parseable ERC-20 symbol()."
             exit 1
           fi
+          NAME="$(printf '%s' "$NAME" | tr -d '\r\n')"
+          SYMBOL="$(printf '%s' "$SYMBOL" | tr -d '\r\n')"
           if ! DECIMALS="$(cast call "$CONTRACT" "decimals()(uint8)" --rpc-url "$RPC_URL")"; then
             echo "ERROR: contract at $CONTRACT does not expose ERC-20 decimals()."
             exit 1
