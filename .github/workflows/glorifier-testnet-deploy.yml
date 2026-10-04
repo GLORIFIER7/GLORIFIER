@@ -684,6 +684,34 @@ jobs:
           echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
           echo "Etherscan source verification: VERIFIED."
 
+      - name: Independently confirm Etherscan source verification
+        if: ${{ success() && env.ETHERSCAN_VERIFIED == 'true' }}
+        working-directory: contracts
+        env:
+          VERIFY_CONTRACT_ADDRESS: ${{ env.CONTRACT_ADDRESS }}
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl -fsS --max-time 20 --get "https://api.etherscan.io/v2/api" \
+            --data-urlencode "chainid=11155111" \
+            --data-urlencode "module=contract" \
+            --data-urlencode "action=getsourcecode" \
+            --data-urlencode "address=$VERIFY_CONTRACT_ADDRESS" \
+            --data-urlencode "apikey=$ETHERSCAN_API_KEY")"
+
+          SOURCE_NAME="$(printf '%s' "$RESPONSE" | jq -r 'if (.result | type) == "array" then (.result[0].SourceCode // "") else "" end')"
+          ABI="$(printf '%s' "$RESPONSE" | jq -r 'if (.result | type) == "array" then (.result[0].ABI // "") else "" end')"
+          CONTRACT_NAME="$(printf '%s' "$RESPONSE" | jq -r 'if (.result | type) == "array" then (.result[0].ContractName // "") else "" end')"
+
+          if [[ -z "$SOURCE_NAME" || "$SOURCE_NAME" == "Contract source code not verified" || -z "$ABI" || -z "$CONTRACT_NAME" ]]; then
+            echo "ERROR: Etherscan V2 did not independently confirm verified source for $VERIFY_CONTRACT_ADDRESS."
+            printf '%s' "$RESPONSE" | jq -c '{status,message,result_type:(.result|type)}' 2>/dev/null || true
+            echo "ETHERSCAN_VERIFIED=false" >> "$GITHUB_ENV"
+            exit 1
+          fi
+
+          echo "Etherscan V2 independently confirms verified source: $CONTRACT_NAME"
+          echo "ETHERSCAN_VERIFIED=true" >> "$GITHUB_ENV"
+
       - name: Etherscan verification status
         if: ${{ always() }}
         run: |
