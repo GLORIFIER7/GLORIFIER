@@ -223,7 +223,12 @@ jobs:
           test "$SYMBOL" = "GLR"
           test "$DECIMALS" = "18"
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
-          test "$(cast receipt "$TX_HASH" --rpc-url "$MAINNET_RPC_URL" --json | jq -r '.status')" = 1
+          RECEIPT_STATUS="$(timeout 20s cast receipt "$TX_HASH" --rpc-url "$MAINNET_RPC_URL" --json | jq -r '.status // empty')"
+          case "$RECEIPT_STATUS" in
+            0x1|0X1|1) ;;
+            *) echo "ERROR: Mainnet deployment transaction receipt is not successful (status=$RECEIPT_STATUS)."; exit 1 ;;
+          esac
+
           # Etherscan can briefly lag a fresh Mainnet deployment. Wait until its V2
           # contract endpoint recognizes the address before submitting source verification.
           INDEXED=false
@@ -245,7 +250,7 @@ jobs:
             exit 1
           fi
 
-CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
+          CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
           VERIFY_LOG="$(mktemp)"
           POSTCHECK_FILE="$(mktemp)"
           trap 'rm -f "$VERIFY_LOG" "$POSTCHECK_FILE"' EXIT
