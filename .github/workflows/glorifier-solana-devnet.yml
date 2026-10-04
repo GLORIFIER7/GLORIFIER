@@ -32,7 +32,8 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y libudev-dev pkg-config
-          cargo install spl-token-cli --locked
+          cargo install spl-token-cli --locked --version 5.0.2
+          spl-token --version
 
       - name: Configure dedicated deployment wallet
         shell: bash
