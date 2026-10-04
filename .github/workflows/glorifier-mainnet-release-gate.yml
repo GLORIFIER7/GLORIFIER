@@ -224,7 +224,28 @@ jobs:
           test "$DECIMALS" = "18"
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$(cast receipt "$TX_HASH" --rpc-url "$MAINNET_RPC_URL" --json | jq -r '.status')" = 1
-          CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
+          # Etherscan can briefly lag a fresh Mainnet deployment. Wait until its V2
+# contract endpoint recognizes the address before submitting source verification.
+INDEXED=false
+for attempt in {1..12}; do
+  INDEX_RESPONSE="$(curl -sS --max-time 20 --connect-timeout 10 \
+    "https://api.etherscan.io/v2/api?chainid=1&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$ETHERSCAN_API_KEY" || true)"
+  INDEX_STATUS="$(printf '%s' "$INDEX_RESPONSE" | jq -r '.status // empty')"
+  INDEX_RESULT="$(printf '%s' "$INDEX_RESPONSE" | jq -r 'if (.result|type) == "array" then (.result[0].SourceCode // "") else "" end')"
+  if [[ "$INDEX_STATUS" == "1" || -n "$INDEX_RESULT" ]]; then
+    INDEXED=true
+    echo "Etherscan contract endpoint recognizes $CONTRACT_ADDRESS."
+    break
+  fi
+  echo "Waiting for Etherscan to index $CONTRACT_ADDRESS (attempt $attempt/12)..."
+  sleep 10
+done
+if [[ "$INDEXED" != "true" ]]; then
+  echo "ERROR: Etherscan did not recognize the deployed contract after 120 seconds."
+  exit 1
+fi
+
+CONSTRUCTOR_ARGS="$(cast abi-encode 'constructor(address)' "$GLORIFIER_INITIAL_HOLDER")"
           VERIFY_LOG="$(mktemp)"
           POSTCHECK_FILE="$(mktemp)"
           trap 'rm -f "$VERIFY_LOG" "$POSTCHECK_FILE"' EXIT
