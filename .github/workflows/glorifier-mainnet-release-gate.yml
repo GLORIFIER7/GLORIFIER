@@ -233,7 +233,7 @@ jobs:
             --chain-id 1 \
             --verifier etherscan \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
-            --etherscan-api-version v2 \
+            --verifier-url "https://api.etherscan.io/v2/api?chainid=1" \
             --compiler-version v0.8.24+commit.e11b9ed9 \
             --num-of-optimizations 200 \
             --constructor-args "$CONSTRUCTOR_ARGS" \
