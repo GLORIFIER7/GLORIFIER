@@ -76,6 +76,16 @@ jobs:
               exit 1
             }
 
+            jq -e '
+              (.network == "solana-devnet")
+              and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH")
+              and (.status == "DEPLOYED" or .status == "READY_FOR_VERIFICATION" or .status == "FULLY_VERIFIED")
+              and (.mint | type == "string" and length >= 32 and length <= 44)
+            ' "${EVIDENCE_FILE}" >/dev/null || {
+              echo "::error::Recovered deployment evidence is not valid GLORIFIER Solana Devnet evidence."
+              exit 1
+            }
+
             MINT_ADDRESS="$(jq -r '.mint // empty' "${EVIDENCE_FILE}")"
             test -n "${MINT_ADDRESS}" || {
               echo "::error::deployment-evidence.json does not contain a mint address."
