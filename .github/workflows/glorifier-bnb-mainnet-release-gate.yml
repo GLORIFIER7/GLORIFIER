@@ -25,14 +25,15 @@ jobs:
     permissions:
       contents: read
     env:
-      BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
-      BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
-      BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
       INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
       CONFIRM_INPUT: ${{ inputs.confirm }}
 
     steps:
       - name: Require explicit mainnet authorization
+        env:
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+          BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           test "$CONFIRM_INPUT" = "DEPLOY_GLORIFIER_BNB_MAINNET" || {
@@ -77,6 +78,7 @@ jobs:
       - name: Validate BNB Mainnet RPC and funding
         working-directory: contracts
         env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
           BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
@@ -143,6 +145,8 @@ jobs:
 
       - name: Estimate deployment funding
         working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
         run: |
           set -euo pipefail
           CREATION_BYTECODE="$(forge inspect GLORIFIER bytecode)"
@@ -168,6 +172,7 @@ jobs:
       - name: Deploy GLR to BNB Mainnet
         working-directory: contracts
         env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
           BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
@@ -187,6 +192,8 @@ jobs:
 
       - name: Verify deployment, receipt, and on-chain assertions
         working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
         run: |
           set -euo pipefail
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/56/run-latest.json"
@@ -262,6 +269,8 @@ jobs:
 
       - name: Verify GLR source on BscScan
         working-directory: contracts
+        env:
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
@@ -283,6 +292,8 @@ jobs:
 
       - name: Confirm authoritative BscScan verification
         working-directory: contracts
+        env:
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
         run: |
           set -euo pipefail
           RESPONSE_FILE="$(mktemp)"
@@ -308,6 +319,7 @@ jobs:
       - name: Publish FULLY VERIFIED evidence
         run: |
           set -euo pipefail
+          test "${BSC_MAINNET_SOURCE_VERIFIED:-}" = "true" || { echo "ERROR: authoritative BscScan verification flag is missing."; exit 1; }
           {
             echo "GLR_STATUS=FULLY_VERIFIED"
             echo "CHAIN=bnb-mainnet"
