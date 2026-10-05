@@ -41,6 +41,9 @@ jobs:
             exit 1
           }
 
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Resolve existing Devnet mint
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,7 +57,7 @@ jobs:
           else
             echo "No mint address supplied; recovering it from existing deployment evidence."
             ARTIFACT_ID="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=glorifier-solana-devnet-evidence&per_page=100" |
-              jq -r '.artifacts[]? | select(.expired == false) | .id' | tail -n1)"
+              jq -r '[.artifacts[]? | select(.expired == false)] | sort_by(.created_at) | last | .id // empty')"
 
             test -n "${ARTIFACT_ID}" || {
               echo "::error::No unexpired GLORIFIER Solana Devnet deployment evidence artifact exists."
@@ -62,12 +65,12 @@ jobs:
               exit 1
             }
 
-            rm -rf solana/recovered-evidence
-            mkdir -p solana/recovered-evidence
+            rm -rf /tmp/glorifier-solana-recovered-evidence
+            mkdir -p /tmp/glorifier-solana-recovered-evidence
             gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-solana-devnet-evidence.zip
-            unzip -oq /tmp/glorifier-solana-devnet-evidence.zip -d solana/recovered-evidence
+            unzip -oq /tmp/glorifier-solana-devnet-evidence.zip -d /tmp/glorifier-solana-recovered-evidence
 
-            EVIDENCE_FILE="$(find solana/recovered-evidence -type f -name "deployment-evidence.json" -print -quit)"
+            EVIDENCE_FILE="$(find /tmp/glorifier-solana-recovered-evidence -type f -name "deployment-evidence.json" -print -quit)"
             test -n "${EVIDENCE_FILE}" || {
               echo "::error::Deployment evidence artifact does not contain deployment-evidence.json."
               exit 1
@@ -101,9 +104,6 @@ jobs:
           set -euo pipefail
           test -n "${MINT_ADDRESS}"
           echo "Resolved GLORIFIER Token-2022 Devnet mint: ${MINT_ADDRESS}"
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Solana CLI
         shell: bash
