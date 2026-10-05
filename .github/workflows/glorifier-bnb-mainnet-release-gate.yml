@@ -27,14 +27,14 @@ jobs:
     env:
       BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
       BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
-      BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
       INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
+      CONFIRM_INPUT: ${{ inputs.confirm }}
 
     steps:
       - name: Require explicit mainnet authorization
         run: |
           set -euo pipefail
-          test "${{ inputs.confirm }}" = "DEPLOY_GLORIFIER_BNB_MAINNET" || {
+          test "$CONFIRM_INPUT" = "DEPLOY_GLORIFIER_BNB_MAINNET" || {
             echo "ERROR: explicit BNB Mainnet confirmation required."
             exit 1
           }
@@ -75,6 +75,8 @@ jobs:
 
       - name: Validate BNB Mainnet RPC and funding
         working-directory: contracts
+        env:
+          BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
@@ -162,6 +164,8 @@ jobs:
 
       - name: Deploy GLR to BNB Mainnet
         working-directory: contracts
+        env:
+          BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
