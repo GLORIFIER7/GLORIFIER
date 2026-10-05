@@ -155,24 +155,25 @@ EOF
           test "$ACTUAL_SUPPLY" = "1000000000"
 
           grep -Fq "Owner: $TOKEN_2022_PROGRAM" solana/mint-account.txt
-          grep -Eq '^[[:space:]]*Name:[[:space:]]*GLORIFIER[[:space:]]*
-          grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/final-mint-state.txt
+          grep -Fq "Name: GLORIFIER" solana/final-mint-state.txt
+          grep -Fq "Symbol: GLR" solana/final-mint-state.txt
+          grep -Fq "Decimals: 9" solana/final-mint-state.txt
           grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
           grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
 
           test -s solana/deployment-evidence.json
-          jq -e             --arg mint "$MINT"             --arg program "$TOKEN_2022_PROGRAM" '
-              .status == "READY_FOR_VERIFICATION"
-              and .network == "solana-devnet"
-              and .mint == $mint
-              and .programId == $program
-              and .name == "GLORIFIER"
-              and .symbol == "GLR"
-              and .decimals == 9
-              and .totalSupply == "1000000000"
-              and .mintAuthority == null
-              and .freezeAuthority == null
-            ' solana/deployment-evidence.json >/dev/null
+          jq -e --arg mint "$MINT" --arg program "$TOKEN_2022_PROGRAM" '
+            .status == "READY_FOR_VERIFICATION"
+            and .network == "solana-devnet"
+            and .mint == $mint
+            and .programId == $program
+            and .name == "GLORIFIER"
+            and .symbol == "GLR"
+            and .decimals == 9
+            and .totalSupply == "1000000000"
+            and .mintAuthority == null
+            and .freezeAuthority == null
+          ' solana/deployment-evidence.json >/dev/null
 
           jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "FULLY_VERIFIED" |
              .verification = {
@@ -184,97 +185,6 @@ EOF
 
           cp solana/deployment-evidence.json solana/deployment-record.json
           echo "GLR_STATUS=FULLY_VERIFIED" | tee solana/deployment-status.txt
-
-      - name: Upload deployment evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: glorifier-solana-devnet-evidence
-          retention-days: 90
-          if-no-files-found: warn
-          path: |
-            solana/deployment-status.txt
-            solana/deployment-output.txt
-            solana/mint-account.txt
-            solana/final-supply.txt
-            solana/final-mint-state.txt
-            solana/deployment-evidence.json
-            solana/deployment-record.json
- solana/final-mint-state.txt
-          grep -Eq '^[[:space:]]*Symbol:[[:space:]]*GLR[[:space:]]*
-          grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/final-mint-state.txt
-          grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
-          grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
-
-          test -s solana/deployment-evidence.json
-          jq -e             --arg mint "$MINT"             --arg program "$TOKEN_2022_PROGRAM" '
-              .status == "READY_FOR_VERIFICATION"
-              and .network == "solana-devnet"
-              and .mint == $mint
-              and .programId == $program
-              and .name == "GLORIFIER"
-              and .symbol == "GLR"
-              and .decimals == 9
-              and .totalSupply == "1000000000"
-              and .mintAuthority == null
-              and .freezeAuthority == null
-            ' solana/deployment-evidence.json >/dev/null
-
-          jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "VERIFIED" |
-             .verification = {
-               "runId": $run_id,
-               "runUrl": $run_url,
-               "verifiedAt": $verified_at
-             }'             solana/deployment-evidence.json > solana/deployment-evidence.tmp.json
-          mv solana/deployment-evidence.tmp.json solana/deployment-evidence.json
-
-          cp solana/deployment-evidence.json solana/deployment-record.json
-          echo "GLR_STATUS=VERIFIED" | tee solana/deployment-status.txt
-
-      - name: Upload deployment evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: glorifier-solana-devnet-evidence
-          retention-days: 90
-          if-no-files-found: warn
-          path: |
-            solana/deployment-status.txt
-            solana/deployment-output.txt
-            solana/mint-account.txt
-            solana/final-supply.txt
-            solana/final-mint-state.txt
-            solana/deployment-evidence.json
-            solana/deployment-record.json
- solana/final-mint-state.txt
-          grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/final-mint-state.txt
-          grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
-          grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
-
-          test -s solana/deployment-evidence.json
-          jq -e             --arg mint "$MINT"             --arg program "$TOKEN_2022_PROGRAM" '
-              .status == "READY_FOR_VERIFICATION"
-              and .network == "solana-devnet"
-              and .mint == $mint
-              and .programId == $program
-              and .name == "GLORIFIER"
-              and .symbol == "GLR"
-              and .decimals == 9
-              and .totalSupply == "1000000000"
-              and .mintAuthority == null
-              and .freezeAuthority == null
-            ' solana/deployment-evidence.json >/dev/null
-
-          jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "VERIFIED" |
-             .verification = {
-               "runId": $run_id,
-               "runUrl": $run_url,
-               "verifiedAt": $verified_at
-             }'             solana/deployment-evidence.json > solana/deployment-evidence.tmp.json
-          mv solana/deployment-evidence.tmp.json solana/deployment-evidence.json
-
-          cp solana/deployment-evidence.json solana/deployment-record.json
-          echo "GLR_STATUS=VERIFIED" | tee solana/deployment-status.txt
 
       - name: Upload deployment evidence
         if: always()
