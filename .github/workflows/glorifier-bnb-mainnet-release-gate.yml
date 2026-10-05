@@ -27,6 +27,7 @@ jobs:
     env:
       BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
       BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+      BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
       INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
       CONFIRM_INPUT: ${{ inputs.confirm }}
 
@@ -107,7 +108,7 @@ jobs:
           }
 
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
-          BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$BNB_MAINNET_RPC_URL")"
+          BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
           [[ "$BALANCE_WEI" =~ ^[0-9]+$ ]] || {
             echo "ERROR: invalid deployer balance: $BALANCE_WEI"
             exit 1
@@ -148,8 +149,10 @@ jobs:
           test -n "$CREATION_BYTECODE" && test "$CREATION_BYTECODE" != "0x"
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
           DEPLOY_DATA="${CREATION_BYTECODE}${CONSTRUCTOR_ARGS#0x}"
-          GAS_ESTIMATE="$(cast estimate --rpc-url "$BNB_MAINNET_RPC_URL" --create "$DEPLOY_DATA")"
-          GAS_PRICE_WEI="$(cast gas-price --rpc-url "$BNB_MAINNET_RPC_URL")"
+          GAS_ESTIMATE="$(cast estimate --rpc-url "$BNB_MAINNET_RPC_URL" --create "$DEPLOY_DATA" | awk '{print $1}' | tr -d '\r\n')"
+          GAS_PRICE_WEI="$(cast gas-price --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+          [[ "$GAS_ESTIMATE" =~ ^[0-9]+$ ]] || { echo "ERROR: invalid gas estimate: $GAS_ESTIMATE"; exit 1; }
+          [[ "$GAS_PRICE_WEI" =~ ^[0-9]+$ ]] || { echo "ERROR: invalid gas price: $GAS_PRICE_WEI"; exit 1; }
           REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
           echo "Estimated gas: $GAS_ESTIMATE"
           echo "Gas price: $GAS_PRICE_WEI wei"
