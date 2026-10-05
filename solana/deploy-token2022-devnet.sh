@@ -34,7 +34,10 @@ EOF
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
 MINT="$(printf '%s\n' "$MINT_OUTPUT" | grep -Eo '[1-9A-HJ-NP-Za-km-z]{32,44}' | tail -n1)"
-test -n "$MINT"
+[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
+  echo "::error::spl-token returned an invalid Solana mint address."
+  exit 1
+}
 
 echo "MINT=$MINT"
 
