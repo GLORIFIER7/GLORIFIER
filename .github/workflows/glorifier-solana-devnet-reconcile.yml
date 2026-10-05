@@ -1,0 +1,103 @@
+name: GLORIFIER Solana Devnet Reconciliation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type VERIFY_GLORIFIER_SOLANA_DEVNET to authorize read-only reconciliation"
+        required: true
+        type: string
+      mint_address:
+        description: "Existing GLORIFIER Token-2022 Devnet mint address to verify"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    name: Reconcile GLORIFIER GLR on Solana Devnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: glorifier-solana-devnet-reconcile
+      cancel-in-progress: false
+    env:
+      SOLANA_RPC_URL: https://api.devnet.solana.com
+      AGAVE_VERSION: v4.2.2
+      CONFIRMATION: ${{ inputs.confirm }}
+      MINT_ADDRESS: ${{ inputs.mint_address }}
+
+    steps:
+      - name: Validate reconciliation authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "VERIFY_GLORIFIER_SOLANA_DEVNET" || {
+            echo "::error::Refusing reconciliation: exact confirmation required."
+            exit 1
+          }
+
+      - name: Validate mint address
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$MINT_ADDRESS" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
+            echo "::error::Invalid Solana mint address format."
+            exit 1
+          }
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Solana CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
+
+      - name: Install SPL Token CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+          cargo install spl-token-cli --locked --version 5.0.2
+          spl-token --version
+
+      - name: Configure canonical Devnet RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana config set --url "$SOLANA_RPC_URL"
+          RPC_URL="$(solana config get | awk -F': ' '/RPC URL/ {print $2}')"
+          test "$RPC_URL" = "$SOLANA_RPC_URL" || {
+            echo "::error::Refusing reconciliation: non-canonical Solana Devnet RPC: $RPC_URL"
+            exit 1
+          }
+          solana cluster-version
+
+      - name: Reconcile existing Token-2022 mint
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x solana/reconcile-token2022-devnet.sh
+          solana config set --commitment confirmed
+          ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
+
+      - name: Upload reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: glorifier-solana-devnet-reconciliation-evidence
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            solana/reconciliation-status.txt
+            solana/reconciliation-account.txt
+            solana/reconciliation-supply.txt
+            solana/reconciliation-mint-state.txt
+            solana/reconciliation-evidence.json
