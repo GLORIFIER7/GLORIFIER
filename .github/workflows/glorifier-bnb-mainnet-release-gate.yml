@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type DEPLOY_GLORIFIER_BNB_MAINNET to authorize the release"
+        description: "BROADCASTS to BNB Mainnet. Type DEPLOY_GLORIFIER_BNB_MAINNET only for a new authorized deployment; do not use for an already-mined deployment."
         required: true
         type: string
       initial_holder:
