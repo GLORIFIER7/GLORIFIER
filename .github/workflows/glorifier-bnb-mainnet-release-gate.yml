@@ -177,7 +177,7 @@ jobs:
             exit 1
           }
 
-          EXPECTED_CONTRACT_ADDRESS="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_DEPLOYER_NONCE" | awk '{print $1}' | tr -d '\r\n')"
+          EXPECTED_CONTRACT_ADDRESS="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_DEPLOYER_NONCE" | grep -Eo '0x[0-9a-fA-F]{40}' | tail -n1 | tr -d '\r\n')"
           [[ "$EXPECTED_CONTRACT_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
             echo "ERROR: failed to compute deterministic CREATE contract address."
             exit 1
