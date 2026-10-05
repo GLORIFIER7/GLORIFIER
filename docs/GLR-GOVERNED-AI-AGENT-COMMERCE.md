@@ -3,7 +3,7 @@
 ## Canonical positioning
 
 **GLORIFIER (GLR)**  
-NaN
+**The native economic unit for governed AI-agent commerce.**
 
 GLORIFIER is building economic infrastructure for the machine-to-machine economy:
 
@@ -64,7 +64,6 @@ Truth labels:
 - `EVIDENCE-BACKED`
 - `VERIFIED`
 
-NaN
 
 ## Authority boundary
 
