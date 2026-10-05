@@ -11,6 +11,8 @@ export type AgentCard = {
 };
 
 export type AgentTask = {
+  economicIntentId?: string;
+  economicStatus?: 'NONE' | 'PROPOSED' | 'AUTHORIZED' | 'COMMITTED' | 'EVIDENCE_PENDING' | 'SETTLED' | 'REJECTED' | 'EXPIRED';
   id: string;
   capability: string;
   objective: string;
@@ -25,7 +27,7 @@ export type AgentTask = {
 };
 
 const agents: AgentCard[] = [
-  { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
+  { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern', 'governed-agent-commerce', 'economic-routing'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
   { id: 'gpt', name: 'GPT', role: 'reasoning', capabilities: ['reason', 'code-review', 'synthesis'], endpoint: '/api/agents/gpt', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
   { id: 'gemini', name: 'Gemini', role: 'engineering-collaborator', capabilities: ['research', 'code-analysis', 'recovery'], endpoint: '/api/agents/gemini', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
   { id: 'specialists', name: 'Specialist Council', role: 'domain-agents', capabilities: ['security', 'data', 'revenue-analysis', 'operations', 'research'], endpoint: '/api/agents/specialists', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
@@ -88,6 +90,7 @@ export function orchestrationPolicy() {
     resilience: 'provider-fallback',
     disagreement: 'surface-for-reconciliation',
     evidence: 'required-for-verification',
+    economicModel: 'GLR-native governed agent commerce',
     economicSettlement: 'GLR-intent-first; verified external evidence required before SETTLED',
     humanAuthority: true,
     irreversibleActions: 'approval-gated',
