@@ -34,4 +34,20 @@ HOLDER_BALANCE="$(printf '%s\n' "$BALANCE_OUTPUT" | awk 'NR==1 {print $1}' | tr 
 test "$HOLDER_BALANCE" = "$SUPPLY"
 
 echo "Final mint state:"
-spl-token --program-2022 display "$MINT"
+FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
+printf '%s\n' "$FINAL_MINT_STATE"
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
+cat > solana/deployment-evidence.json <<EOF
+{
+  "network": "solana-devnet",
+  "status": "VERIFIED",
+  "mint": "$MINT",
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": $DECIMALS,
+  "totalSupply": "$SUPPLY",
+  "mintAuthority": null,
+  "freezeAuthority": null
+}
+EOF
