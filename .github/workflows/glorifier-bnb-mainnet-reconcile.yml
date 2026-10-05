@@ -171,15 +171,14 @@ jobs:
           TX_HASH="$(printf '%s' "$EXPECTED_TX_HASH" | tr -d '[:space:]')"
           [[ "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]] || { echo "ERROR: invalid deployment transaction hash."; exit 1; }
 
-          TX_JSON="$(cast tx "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
-          RECEIPT="$(timeout 30s cast receipt "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
-          TX_NONCE="$(printf '%s' "$TX_JSON" | jq -r '.nonce // empty' | tr -d '[:space:]')"
-          TX_FROM="$(printf '%s' "$TX_JSON" | jq -r '.from // empty')"
-          TX_TO="$(printf '%s' "$TX_JSON" | jq -r '.to // empty')"
-          RECEIPT_FROM="$(printf '%s' "$RECEIPT" | jq -r '.from // empty')"
-          RECEIPT_CONTRACT="$(printf '%s' "$RECEIPT" | jq -r '.contractAddress // empty')"
-          RECEIPT_STATUS="$(printf '%s' "$RECEIPT" | jq -r '.status // empty' | tr '[:upper:]' '[:lower:]')"
-          BLOCK_RAW="$(printf '%s' "$RECEIPT" | jq -r '.blockNumber // empty')"
+          # Use Foundry scalar field mode instead of parsing cast --json.
+          # This is deliberately read-only: no transaction is signed or broadcast.
+          TX_NONCE="$(cast tx "$TX_HASH" nonce --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
+          TX_FROM="$(cast tx "$TX_HASH" from --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
+          TX_TO="$(cast tx "$TX_HASH" to --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
+          RECEIPT_CONTRACT="$(cast receipt "$TX_HASH" contractAddress --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
+          RECEIPT_STATUS="$(cast receipt "$TX_HASH" status --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          BLOCK_RAW="$(cast receipt "$TX_HASH" blockNumber --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
           if [[ "$TX_NONCE" =~ ^0x[0-9a-fA-F]+$ ]]; then
             TX_NONCE_DEC="$((16#${TX_NONCE#0x}))"
           elif [[ "$TX_NONCE" =~ ^[0-9]+$ ]]; then
@@ -191,8 +190,16 @@ jobs:
 
           [[ "$TX_NONCE_DEC" = "$DEPLOYER_NONCE" ]] || { echo "ERROR: deployment transaction nonce mismatch."; exit 1; }
           [[ "$(printf '%s' "$TX_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || { echo "ERROR: deployment transaction sender mismatch."; exit 1; }
-          [[ "$(printf '%s' "$RECEIPT_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || { echo "ERROR: deployment receipt sender mismatch."; exit 1; }
-          [[ -z "$TX_TO" || "$TX_TO" = "null" ]] || { echo "ERROR: supplied transaction is not contract creation."; exit 1; }
+          # Contract-creation transactions have a null/empty destination.
+          # cast scalar field output may be empty or a textual null variant.
+          case "$TX_TO" in
+            ""|"null"|"None"|"none") ;;
+            *)
+              echo "ERROR: supplied transaction is not contract creation."
+              echo "Transaction to: $TX_TO"
+              exit 1
+              ;;
+          esac
           [[ "$RECEIPT_STATUS" = "1" || "$RECEIPT_STATUS" = "0x1" ]] || { echo "ERROR: deployment transaction did not succeed."; exit 1; }
           [[ "$(printf '%s' "$RECEIPT_CONTRACT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || { echo "ERROR: deployment receipt contract address mismatch."; exit 1; }
 
