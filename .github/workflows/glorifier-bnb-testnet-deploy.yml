@@ -213,7 +213,7 @@ jobs:
           test "$CODE" != "0x"
 
           normalize_cast_uint() {
-            printf "%s" "${1:-}" | awk "{print $1}" | tr -d "\r\n"
+            printf "%s\n" "${1:-}" | awk '{print $1}' | tr -d "\r\n"
           }
 
           NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL" | jq -er "if type == \"string\" then . else tostring end")"
