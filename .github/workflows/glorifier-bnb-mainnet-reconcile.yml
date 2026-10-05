@@ -176,9 +176,11 @@ jobs:
           TX_NONCE="$(cast tx "$TX_HASH" nonce --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
           TX_FROM="$(cast tx "$TX_HASH" from --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
           TX_TO="$(cast tx "$TX_HASH" to --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
-          RECEIPT_CONTRACT="$(cast receipt "$TX_HASH" contractAddress --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
-          RECEIPT_STATUS="$(cast receipt "$TX_HASH" status --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-          BLOCK_RAW="$(cast receipt "$TX_HASH" blockNumber --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '[:space:]')"
+          # Receipt JSON is used only for read-only mined-state fields.
+          RECEIPT_JSON="$(cast receipt "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
+          RECEIPT_CONTRACT="$(printf '%s' "$RECEIPT_JSON" | jq -r '.contractAddress // empty' | tr -d '[:space:]')"
+          RECEIPT_STATUS="$(printf '%s' "$RECEIPT_JSON" | jq -r '.status // empty' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          BLOCK_RAW="$(printf '%s' "$RECEIPT_JSON" | jq -r '.blockNumber // empty' | tr -d '[:space:]')"
           if [[ "$TX_NONCE" =~ ^0x[0-9a-fA-F]+$ ]]; then
             TX_NONCE_DEC="$((16#${TX_NONCE#0x}))"
           elif [[ "$TX_NONCE" =~ ^[0-9]+$ ]]; then
@@ -200,11 +202,25 @@ jobs:
               exit 1
               ;;
           esac
-          [[ "$RECEIPT_STATUS" = "1" || "$RECEIPT_STATUS" = "0x1" ]] || { echo "ERROR: deployment transaction did not succeed."; exit 1; }
+          case "$RECEIPT_STATUS" in
+            "1"|"0x1") ;;
+            *)
+              echo "ERROR: deployment transaction did not succeed."
+              echo "Receipt status: $RECEIPT_STATUS"
+              exit 1
+              ;;
+          esac
           [[ "$(printf '%s' "$RECEIPT_CONTRACT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || { echo "ERROR: deployment receipt contract address mismatch."; exit 1; }
 
-          DEPLOYMENT_BLOCK="$(cast to-dec "$BLOCK_RAW" | tr -d '\r\n')"
-          [[ "$DEPLOYMENT_BLOCK" =~ ^[0-9]+$ && "$DEPLOYMENT_BLOCK" != "0" ]] || { echo "ERROR: deployment receipt is not mined."; exit 1; }
+          if [[ "$BLOCK_RAW" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            DEPLOYMENT_BLOCK="$((16#${BLOCK_RAW#0x}))"
+          elif [[ "$BLOCK_RAW" =~ ^[0-9]+$ ]]; then
+            DEPLOYMENT_BLOCK="$BLOCK_RAW"
+          else
+            echo "ERROR: RPC returned an invalid deployment block number: $BLOCK_RAW"
+            exit 1
+          fi
+          [[ "$DEPLOYMENT_BLOCK" != "0" ]] || { echo "ERROR: deployment receipt is not mined."; exit 1; }
 
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_BLOCK=$DEPLOYMENT_BLOCK" >> "$GITHUB_ENV"
