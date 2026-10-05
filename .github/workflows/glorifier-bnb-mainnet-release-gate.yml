@@ -365,12 +365,12 @@ jobs:
 
           NAME="$(cast call "$CONTRACT_ADDRESS" 'name()(string)' --rpc-url "$BNB_MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
           SYMBOL="$(cast call "$CONTRACT_ADDRESS" 'symbol()(string)' --rpc-url "$BNB_MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
-          DECIMALS="$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '
-')"
-          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '
-')"
-          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" 'balanceOf(address)(uint256)' "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '
-')"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" 'balanceOf(address)(uint256)' "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+
 
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
@@ -406,6 +406,7 @@ jobs:
           echo "DEPLOYMENT_BLOCK=$BLOCK_NUMBER" >> "$GITHUB_ENV"
 
           RUNTIME_CODE_HASH="$(cast keccak "$ONCHAIN_RUNTIME")"
+          echo "RUNTIME_CODE_HASH=$RUNTIME_CODE_HASH" >> "$GITHUB_ENV"
           jq -n             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$TX_HASH"             --arg holder "$GLORIFIER_INITIAL_HOLDER"             --arg block "$BLOCK_NUMBER"             --arg deployer "$DEPLOYER_ADDRESS"             --arg nonce "$DEPLOYER_NONCE"             --arg runtime_hash "$RUNTIME_CODE_HASH"             --arg source_commit "${{ github.sha }}"             '{
               evidence_type:"GLORIFIER BEP-20 deployment",
               network:"BNB Smart Chain Mainnet",
@@ -439,7 +440,7 @@ jobs:
           trap 'rm -f "$VERIFY_LOG"' EXIT
 
           set +e
-          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain-id 56             --verifier etherscan             --etherscan-api-key "$BSCSCAN_API_KEY"             --constructor-args "$CONSTRUCTOR_ARGS"             --compiler-version v0.8.24+commit.e11b9ed9             --num-of-optimizations 200             --retries 12             --delay 10             --watch 2>&1 | tee "$VERIFY_LOG"
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain-id 56             --verifier etherscan             --verifier-url "https://api.etherscan.io/v2/api?chainid=56"             --etherscan-api-key "$BSCSCAN_API_KEY"             --constructor-args "$CONSTRUCTOR_ARGS"             --compiler-version v0.8.24+commit.e11b9ed9             --num-of-optimizations 200             --retries 12             --delay 10             --watch 2>&1 | tee "$VERIFY_LOG"
           VERIFY_EXIT="${PIPESTATUS[0]}"
           set -e
 
