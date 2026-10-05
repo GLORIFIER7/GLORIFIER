@@ -180,7 +180,14 @@ jobs:
           RECEIPT_CONTRACT="$(printf '%s' "$RECEIPT" | jq -r '.contractAddress // empty')"
           RECEIPT_STATUS="$(printf '%s' "$RECEIPT" | jq -r '.status // empty' | tr '[:upper:]' '[:lower:]')"
           BLOCK_RAW="$(printf '%s' "$RECEIPT" | jq -r '.blockNumber // empty')"
-          TX_NONCE_DEC="$(cast to-dec "$TX_NONCE" | tr -d '\r\n')"
+          if [[ "$TX_NONCE" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            TX_NONCE_DEC="$((16#${TX_NONCE#0x}))"
+          elif [[ "$TX_NONCE" =~ ^[0-9]+$ ]]; then
+            TX_NONCE_DEC="$TX_NONCE"
+          else
+            echo "ERROR: RPC returned an invalid transaction nonce: $TX_NONCE"
+            exit 1
+          fi
 
           [[ "$TX_NONCE_DEC" = "$DEPLOYER_NONCE" ]] || { echo "ERROR: deployment transaction nonce mismatch."; exit 1; }
           [[ "$(printf '%s' "$TX_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || { echo "ERROR: deployment transaction sender mismatch."; exit 1; }
