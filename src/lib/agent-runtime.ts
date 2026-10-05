@@ -88,6 +88,7 @@ export function orchestrationPolicy() {
     resilience: 'provider-fallback',
     disagreement: 'surface-for-reconciliation',
     evidence: 'required-for-verification',
+    economicSettlement: 'GLR-intent-first; verified external evidence required before SETTLED',
     humanAuthority: true,
     irreversibleActions: 'approval-gated',
     capabilityAuthorization: 'default-deny-for-privileged-actions',
@@ -140,6 +141,7 @@ export function agentManifest() {
       autonomousProductionDeploy: false,
       autonomousMerge: false,
       autonomousFinancialCommitment: false,
+      glrSettlement: 'human-authorized-and-evidence-gated',
       autonomousLegalCommitment: false
     },
     agents
