@@ -84,6 +84,7 @@ void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDevi
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 initializeA2ARuntime();
 void initializeFederatedA2AV3().catch((error) => console.warn('[FederatedA2A v3] initialization deferred:', error?.message));
+void initializeGLREconomicLayer().catch((error) => console.warn('[GLR Economic Layer] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
