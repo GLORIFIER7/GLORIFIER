@@ -191,7 +191,7 @@ jobs:
         run: |
           set -euo pipefail
           export PRIVATE_KEY="0x${GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED}"
-          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
+          forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow --legacy
           echo "DEPLOYMENT_STATUS=DEPLOYED_PENDING_VERIFICATION" >> "$GITHUB_ENV"
 
       - name: Extract and verify deployment evidence
