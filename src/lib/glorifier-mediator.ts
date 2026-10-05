@@ -59,6 +59,12 @@ export function getGlorifierMediatorPolicy() {
       settlementMustHaveQualifyingExternalEvidence: true,
       estimatesNeverBecomeRevenueAutomatically: true
     },
+    economicArchitecture: {
+      nativeEconomicUnit: 'GLR',
+      positioning: 'The native economic unit for governed AI-agent commerce.',
+      flow: ['agent-identity','capability-policy','task','GLR-intent','human-authority','execution','external-evidence','settlement','reconciliation'],
+      authorityBoundary: 'GLR ownership never grants agent authority or policy bypass.'
+    },
     economicTruth: {
       estimatedValue: 'NOT VERIFIED',
       pipelineValue: 'NOT VERIFIED',
@@ -67,7 +73,7 @@ export function getGlorifierMediatorPolicy() {
       verifiedRevenue: 'Qualifying external settlement evidence only'
     },
     safety: ['no unauthorized access', 'no credential abuse', 'no exploitation', 'no spam', 'no impersonation', 'no evasion', 'no irreversible financial action without authorization'],
-    glr: { nativeEconomicUnit: 'GLR', settlementEvidenceRequired: true, tokenContractDoesNotGrantAgentAuthority: true },
+    glr: { nativeEconomicUnit: 'GLR', settlementEvidenceRequired: true, tokenContractDoesNotGrantAgentAuthority: true, positioning: 'The native economic unit for governed AI-agent commerce.', truthStates: ['NOT VERIFIED','EVIDENCE-BACKED','VERIFIED'] },
     providerNeutrality: true
   };
 }
