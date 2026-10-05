@@ -227,7 +227,15 @@ jobs:
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
           RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
-          BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
+          BLOCK_NUMBER_RAW="$(echo "$RECEIPT" | jq -r '.blockNumber')"
+          if [[ "$BLOCK_NUMBER_RAW" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            BLOCK_NUMBER="$((16#${BLOCK_NUMBER_RAW#0x}))"
+          elif [[ "$BLOCK_NUMBER_RAW" =~ ^[0-9]+$ ]]; then
+            BLOCK_NUMBER="$BLOCK_NUMBER_RAW"
+          else
+            echo "ERROR: invalid receipt blockNumber: $BLOCK_NUMBER_RAW"
+            exit 1
+          fi
           STATUS="$(echo "$RECEIPT" | jq -r '.status')"
           STATUS_NORMALIZED="$(printf "%s" "$STATUS" | tr "[:upper:]" "[:lower:]")"
           test "$STATUS_NORMALIZED" = "1" || test "$STATUS_NORMALIZED" = "0x1"
