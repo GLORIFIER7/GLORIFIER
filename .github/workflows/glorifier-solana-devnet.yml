@@ -158,7 +158,10 @@ EOF
           test "$ACTUAL_SUPPLY" = "1000000000"
 
           grep -Fq "Owner: $TOKEN_2022_PROGRAM" solana/mint-account.txt
-          grep -Eiq '^[[:space:]]*Name:[[:space:]]*GLORIFIER[[:space:]]*          grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
+          grep -Eiq '^[[:space:]]*Name:[[:space:]]*GLORIFIER[[:space:]]*$' solana/final-mint-state.txt
+          grep -Eiq '^[[:space:]]*Symbol:[[:space:]]*GLR[[:space:]]*$' solana/final-mint-state.txt
+          grep -Eiq '^[[:space:]]*Decimals:[[:space:]]*9[[:space:]]*$' solana/final-mint-state.txt
+          grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
           grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
 
           test -s solana/deployment-evidence.json
