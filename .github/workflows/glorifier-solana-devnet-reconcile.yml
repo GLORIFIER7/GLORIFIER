@@ -10,6 +10,7 @@ on:
       mint_address:
         description: "Existing GLORIFIER Token-2022 Devnet mint address to verify (leave blank to recover it from deployment evidence)"
         required: false
+        default: ""
         type: string
 
 permissions:
