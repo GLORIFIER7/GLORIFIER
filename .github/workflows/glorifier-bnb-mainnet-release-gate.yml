@@ -76,6 +76,12 @@ jobs:
         run: |
           set -euo pipefail
           PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
+          PRIVATE_KEY="${PRIVATE_KEY#\"}"
+          PRIVATE_KEY="${PRIVATE_KEY%\"}"
+          PRIVATE_KEY="${PRIVATE_KEY#\'}"
+          PRIVATE_KEY="${PRIVATE_KEY%\'}"
+          PRIVATE_KEY="${PRIVATE_KEY#GLORIFIER_BNB_MAINNET_PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#PRIVATE_KEY=}"
           PRIVATE_KEY="${PRIVATE_KEY#0x}"
           PRIVATE_KEY="${PRIVATE_KEY#0X}"
           [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]] || {
@@ -83,6 +89,7 @@ jobs:
             exit 1
           }
           echo "::add-mask::$PRIVATE_KEY"
+          echo "BNB_MAINNET_PRIVATE_KEY_NORMALIZED=$PRIVATE_KEY" >> "$GITHUB_ENV"
 
           CHAIN_ID="$(cast chain-id --rpc-url "$BNB_MAINNET_RPC_URL")"
           test "$CHAIN_ID" = "56" || {
@@ -156,7 +163,17 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export PRIVATE_KEY="0x${BNB_MAINNET_PRIVATE_KEY#0x}"
+          PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
+          PRIVATE_KEY="${PRIVATE_KEY#\"}"
+          PRIVATE_KEY="${PRIVATE_KEY%\"}"
+          PRIVATE_KEY="${PRIVATE_KEY#\'}"
+          PRIVATE_KEY="${PRIVATE_KEY%\'}"
+          PRIVATE_KEY="${PRIVATE_KEY#GLORIFIER_BNB_MAINNET_PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#0x}"
+          PRIVATE_KEY="${PRIVATE_KEY#0X}"
+          [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "ERROR: normalized deployer key is invalid."; exit 1; }
+          export PRIVATE_KEY="0x$PRIVATE_KEY"
           rm -rf broadcast
           GLORIFIER_INITIAL_HOLDER="$GLORIFIER_INITIAL_HOLDER" forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER             --rpc-url "$BNB_MAINNET_RPC_URL" --broadcast --slow --legacy
 
@@ -189,12 +206,18 @@ jobs:
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
 
-          RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
+          RECEIPT="$(timeout 30s cast receipt "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
           STATUS="$(echo "$RECEIPT" | jq -r '.status // empty' | tr '[:upper:]' '[:lower:]')"
           [[ "$STATUS" = "1" || "$STATUS" = "0x1" ]] || {
             echo "ERROR: mainnet deployment receipt failed: $STATUS"
             exit 1
           }
+
+          RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
+          if [[ -n "$RECEIPT_CONTRACT" && "$RECEIPT_CONTRACT" != "$CONTRACT_ADDRESS" ]]; then
+            echo "ERROR: receipt contractAddress does not match extracted deployment address."
+            exit 1
+          fi
 
           BLOCK_RAW="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
           if [[ "$BLOCK_RAW" =~ ^0x[0-9a-fA-F]+$ ]]; then
@@ -254,7 +277,16 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          RESPONSE="$(curl -sS --max-time 20 --connect-timeout 10             "https://api.etherscan.io/v2/api?chainid=56&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$BSCSCAN_API_KEY")"
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 -o "$RESPONSE_FILE" -w '%{http_code}' \
+            "https://api.etherscan.io/v2/api?chainid=56&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$BSCSCAN_API_KEY" || true)"
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "ERROR: BscScan/Etherscan V2 source verification API returned HTTP $HTTP_STATUS."
+            sed -n '1,80p' "$RESPONSE_FILE"
+            exit 1
+          fi
+          RESPONSE="$(cat "$RESPONSE_FILE")"
           STATUS="$(printf '%s' "$RESPONSE" | jq -r '.status // empty')"
           SOURCE="$(printf '%s' "$RESPONSE" | jq -r 'if (.result|type) == "array" then (.result[0].SourceCode // "") else "" end')"
           [[ "$STATUS" = "1" && -n "$SOURCE" ]] || {
