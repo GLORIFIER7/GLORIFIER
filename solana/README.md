@@ -34,7 +34,7 @@ Token documentation.
 
 ## Deployment automation
 
-The repository includes `.github/workflows/glorifier-solana-devnet.yml` for a controlled Devnet deployment. It is manual (`workflow_dispatch`) and requires a dedicated deployment keypair supplied by the repository owner as a GitHub Actions secret. The private key must never be committed or pasted into ChatGPT. The workflow refuses non-Devnet RPC endpoints and uploads deployment output as an evidence artifact.
+The repository includes `.github/workflows/glorifier-solana-devnet.yml` for a controlled Devnet deployment and `.github/workflows/glorifier-solana-devnet-reconcile.yml` for read-only verification of an existing mint. The deployment workflow is manual (`workflow_dispatch`), requires the exact authorization string, requires a dedicated deployment keypair supplied by the repository owner as a GitHub Actions secret, and has a replay lock that refuses a new mint after a prior successful deployment or unexpired deployment evidence is found. The private key must never be committed or pasted into ChatGPT. The workflows refuse non-Devnet RPC endpoints and upload evidence artifacts.
 
 ## Safest deployment sequence
 
@@ -45,8 +45,9 @@ The repository includes `.github/workflows/glorifier-solana-devnet.yml` for a co
 5. Mint exactly 1,000,000,000 GLR.
 6. Verify name/symbol/decimals/supply and holder balance.
 7. Revoke mint and freeze authorities.
-8. Record the mint address and transaction signatures as evidence.
-9. Only then consider a separate Mainnet-Beta deployment.
+8. Record the mint address and transaction evidence.
+9. Use `glorifier-solana-devnet-reconcile.yml` for later verification; it never creates or changes the mint.
+10. Only then consider a separate Mainnet-Beta deployment.
 
 Do not paste a seed phrase or private key into GLORIFIER, GitHub, ChatGPT,
 or a web form.
@@ -60,8 +61,8 @@ does not need custody of the wallet's private key.
 ## Verification boundary
 
 - Source/configuration: PUBLISHED when merged.
-- Deployment automation: CONFIGURED; execution still requires the owner's authorized wallet secret and a successful workflow run.
-- Devnet deployment: NOT VERIFIED until a real Solana transaction signature
-  and mint address are recorded.
+- Deployment automation: CONFIGURED with a replay lock; execution still requires the owner's authorized wallet secret and a successful workflow run.
+- Devnet deployment: NOT VERIFIED until a real Solana mint address and on-chain evidence are recorded.
+- Devnet reconciliation: READ-ONLY; it cannot create a new mint or mutate an existing mint.
 - Mainnet deployment: NOT VERIFIED until a real mainnet mint and transaction
   evidence are recorded.
