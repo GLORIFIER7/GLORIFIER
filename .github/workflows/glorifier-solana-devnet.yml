@@ -16,9 +16,11 @@ jobs:
     name: Deploy GLORIFIER GLR to Solana Devnet
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency: glorifier-solana-devnet-deploy
     environment: glorifier-solana-devnet
     env:
       SOLANA_RPC_URL: ${{ secrets.GLORIFIER_SOLANA_DEVNET_RPC_URL }}
+      AGAVE_VERSION: v4.2.2
       GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_KEYPAIR_JSON }}
     steps:
       - name: Validate deployment authorization
@@ -31,14 +33,15 @@ jobs:
           }
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Solana CLI
         shell: bash
         run: |
           set -euo pipefail
-          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
 
       - name: Install SPL Token CLI
         shell: bash
@@ -57,6 +60,10 @@ jobs:
             echo "::error::Missing GLORIFIER_SOLANA_KEYPAIR_JSON in the glorifier-solana-devnet environment."
             exit 1
           fi
+          if [[ -z "${SOLANA_RPC_URL}" ]]; then
+            echo "::error::Missing GLORIFIER_SOLANA_DEVNET_RPC_URL in the glorifier-solana-devnet environment."
+            exit 1
+          fi
           cat > solana/deployment-status.txt <<'EOF'
 STATUS=CONFIGURED
 EOF
@@ -69,7 +76,7 @@ EOF
           mkdir -p "$HOME/.config/solana"
           printf '%s' "${GLORIFIER_SOLANA_KEYPAIR_JSON}" > "$HOME/.config/solana/glorifier-devnet-keypair.json"
           chmod 600 "$HOME/.config/solana/glorifier-devnet-keypair.json"
-          solana config set --url "${SOLANA_RPC_URL:-https://api.devnet.solana.com}" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
+          solana config set --url "${SOLANA_RPC_URL}" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
           solana address
 
       - name: Verify Devnet RPC and funding
@@ -115,9 +122,10 @@ EOF
 
       - name: Upload deployment evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: glorifier-solana-devnet-evidence
+          retention-days: 90
           if-no-files-found: warn
           path: |
             solana/deployment-status.txt
