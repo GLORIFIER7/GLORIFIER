@@ -17,6 +17,11 @@ on:
         required: true
         default: "0xd2778f492EE8ee5060ba2eC3f2705EdFd00EA65B"
         type: string
+      expected_initial_holder:
+        description: "Initial GLR holder address (defaults to the authorized deployer)"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: glorifier-bnb-mainnet-reconcile
@@ -74,6 +79,7 @@ jobs:
           BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
           EXPECTED_NONCE_INPUT: ${{ inputs.expected_deployer_nonce }}
           EXPECTED_CONTRACT_INPUT: ${{ inputs.expected_contract_address }}
+          EXPECTED_HOLDER_INPUT: ${{ inputs.expected_initial_holder }}
         run: |
           set -euo pipefail
           PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
@@ -88,8 +94,20 @@ jobs:
           [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]]
 
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          if [[ -z "$EXPECTED_HOLDER" ]]; then
+            EXPECTED_HOLDER="$DEPLOYER"
+          fi
+          [[ "$EXPECTED_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
+            echo "ERROR: expected_initial_holder must be a valid EVM address."
+            exit 1
+          }
+          [[ "$EXPECTED_HOLDER" != "0x0000000000000000000000000000000000000000" ]] || {
+            echo "ERROR: expected_initial_holder cannot be the zero address."
+            exit 1
+          }
           EXPECTED_NONCE="$(printf '%s' "$EXPECTED_NONCE_INPUT" | tr -d '[:space:]')"
           EXPECTED_CONTRACT="$(printf '%s' "$EXPECTED_CONTRACT_INPUT" | tr -d '[:space:]')"
+          EXPECTED_HOLDER="$(printf '%s' "$EXPECTED_HOLDER_INPUT" | tr -d '[:space:]')"
           [[ "$EXPECTED_NONCE" =~ ^[0-9]+$ ]]
           [[ "$EXPECTED_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]
 
@@ -125,6 +143,7 @@ jobs:
             echo "DEPLOYER_ADDRESS=$DEPLOYER"
             echo "DEPLOYER_NONCE=$EXPECTED_NONCE"
             echo "CONTRACT_ADDRESS=$EXPECTED_CONTRACT"
+            echo "GLORIFIER_INITIAL_HOLDER=$EXPECTED_HOLDER"
           } >> "$GITHUB_ENV"
 
           echo "BNB verification target validated."
@@ -132,6 +151,7 @@ jobs:
           echo "Deployer: $DEPLOYER"
           echo "Deployment nonce: $EXPECTED_NONCE"
           echo "Contract: $EXPECTED_CONTRACT"
+          echo "Initial holder: $EXPECTED_HOLDER"
 
       - name: Reconcile mined deployment transaction from BscScan
         working-directory: contracts
@@ -236,7 +256,7 @@ jobs:
           SYMBOL="$(cast call "$CONTRACT_ADDRESS" 'symbol()(string)' --rpc-url "$BNB_MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
           DECIMALS="$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
           TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
-          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" 'balanceOf(address)(uint256)' "$DEPLOYER_ADDRESS" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" 'balanceOf(address)(uint256)' "$GLORIFIER_INITIAL_HOLDER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
 
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
@@ -259,7 +279,7 @@ jobs:
               deployer_nonce:($nonce|tonumber),
               initial_holder:$holder,
               expected_contract_address:$contract,
-              source_commit:$source_commit,
+              verification_workflow_commit:$source_commit,
               runtime_bytecode_keccak256:$runtime_hash,
               verification_mode:"verify_existing",
               on_chain_assertions:{
@@ -277,7 +297,7 @@ jobs:
           BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
         run: |
           set -euo pipefail
-          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$DEPLOYER_ADDRESS")"
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
           VERIFY_LOG="$(mktemp)"
           trap 'rm -f "$VERIFY_LOG"' EXIT
 
@@ -311,6 +331,7 @@ jobs:
           OPTIMIZATION_USED="$(jq -r 'if (.result|type) == "array" then (.result[0].OptimizationUsed // "") else "" end' "$RESPONSE_FILE")"
           OPTIMIZATION_RUNS="$(jq -r 'if (.result|type) == "array" then (.result[0].Runs // "") else "" end' "$RESPONSE_FILE")"
           VERIFIED_CONSTRUCTOR_ARGS="$(jq -r 'if (.result|type) == "array" then (.result[0].ConstructorArguments // "") else "" end' "$RESPONSE_FILE")"
+          PROXY_FLAG="$(jq -r 'if (.result|type) == "array" then (.result[0].Proxy // "") else "" end' "$RESPONSE_FILE")"
           EXPECTED_CONSTRUCTOR_ARGS="${CONSTRUCTOR_ARGS#0x}"
 
           [[ "$STATUS" = "1" && -n "$SOURCE" ]]
@@ -319,6 +340,10 @@ jobs:
           test "$OPTIMIZATION_USED" = "1"
           test "$OPTIMIZATION_RUNS" = "200"
           test "$(printf '%s' "$VERIFIED_CONSTRUCTOR_ARGS" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$EXPECTED_CONSTRUCTOR_ARGS" | tr '[:upper:]' '[:lower:]')"
+          [[ -z "$PROXY_FLAG" || "$PROXY_FLAG" = "0" ]] || {
+            echo "ERROR: GLR must not be reported as a proxy."
+            exit 1
+          }
 
           echo "BscScan source verification: CONFIRMED"
           echo "BSC_MAINNET_SOURCE_VERIFIED=true" >> "$GITHUB_ENV"
@@ -338,7 +363,7 @@ jobs:
             echo "DEPLOYMENT_BLOCK=$DEPLOYMENT_BLOCK"
             echo "DEPLOYER_ADDRESS=$DEPLOYER_ADDRESS"
             echo "DEPLOYER_NONCE=$DEPLOYER_NONCE"
-            echo "INITIAL_HOLDER=$DEPLOYER_ADDRESS"
+            echo "INITIAL_HOLDER=$GLORIFIER_INITIAL_HOLDER"
             echo "RUNTIME_BYTECODE_KECCAK256=$RUNTIME_CODE_HASH"
             echo "BSCSCAN_VERIFIED=true"
           } > contracts/bnb-mainnet-reconciliation-evidence.env
@@ -355,8 +380,9 @@ jobs:
             echo "- BscScan source verification: **PASSED**"
             echo "- Deployer: $DEPLOYER_ADDRESS"
             echo "- Deployer nonce: $DEPLOYER_NONCE"
+            echo "- Initial holder: $GLORIFIER_INITIAL_HOLDER"
             echo "- Verification mode: verify-existing (no blockchain transaction broadcast)"
-            echo "- Source commit: ${{ github.sha }}"
+            echo "- Verification workflow commit: ${{ github.sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reconciliation evidence
