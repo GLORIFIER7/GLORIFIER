@@ -8,7 +8,9 @@ contract DeployGLORIFIER is Script {
     function run() external returns (GLORIFIER token) {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address initialHolder = vm.envAddress("GLORIFIER_INITIAL_HOLDER");
+        uint256 gasPrice = vm.envUint("GLORIFIER_GAS_PRICE_WEI");
 
+        vm.txGasPrice(gasPrice);
         vm.startBroadcast(deployerPrivateKey);
         token = new GLORIFIER(initialHolder);
         vm.stopBroadcast();
