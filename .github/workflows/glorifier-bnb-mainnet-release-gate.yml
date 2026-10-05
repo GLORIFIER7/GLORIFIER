@@ -8,9 +8,8 @@ on:
         required: true
         type: string
       initial_holder:
-        description: "GLR initial holder address (defaults to deployer)"
-        required: false
-        default: ""
+        description: "Exact GLR initial holder address authorized for this release"
+        required: true
         type: string
       expected_deployer_nonce:
         description: "Exact BNB Mainnet deployer nonce authorized for this release"
@@ -258,9 +257,6 @@ jobs:
           }
 
           INITIAL_HOLDER="$(printf '%s' "$INITIAL_HOLDER_INPUT" | tr -d '[:space:]')"
-          if [[ -z "$INITIAL_HOLDER" ]]; then
-            INITIAL_HOLDER="$DEPLOYER"
-          fi
           [[ "$INITIAL_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
             echo "ERROR: initial holder must be a valid EVM address."
             exit 1
@@ -494,9 +490,13 @@ jobs:
           }
 
           RECEIPT_CONTRACT="$(echo "$RECEIPT" | jq -r '.contractAddress // empty')"
-          if [[ -n "$RECEIPT_CONTRACT" && "$RECEIPT_CONTRACT" != "$CONTRACT_ADDRESS" ]]; then
-            echo "ERROR: receipt contractAddress does not match extracted deployment address."
-            exit 1
+          if [[ -n "$RECEIPT_CONTRACT" ]]; then
+            [[ "$(printf '%s' "$RECEIPT_CONTRACT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || {
+              echo "ERROR: receipt contractAddress does not match extracted deployment address."
+              echo "Receipt: $RECEIPT_CONTRACT"
+              echo "Extracted: $CONTRACT_ADDRESS"
+              exit 1
+            }
           fi
 
           BLOCK_RAW="$(echo "$RECEIPT" | jq -r '.blockNumber // empty')"
@@ -525,6 +525,7 @@ jobs:
               transaction_status:1,
               deployer_address:$deployer,
               deployer_nonce:($nonce|tonumber),
+              initial_holder:$holder,
               expected_contract_address:$contract,
               source_commit:$source_commit,
               runtime_bytecode_keccak256:$runtime_hash,
