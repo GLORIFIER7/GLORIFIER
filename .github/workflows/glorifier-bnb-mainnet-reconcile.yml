@@ -10,12 +10,12 @@ on:
       expected_deployer_nonce:
         description: "Already-mined GLR deployment nonce (default: 2)"
         required: true
-        default: "2"
+        default: "3"
         type: string
       expected_contract_address:
         description: "Existing GLR contract address"
         required: true
-        default: "0xd2778f492EE8ee5060ba2eC3f2705EdFd00EA65B"
+        default: "0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804"
         type: string
       expected_initial_holder:
         description: "Initial GLR holder address (defaults to the authorized deployer)"
@@ -321,6 +321,8 @@ jobs:
           BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
         run: |
           set -euo pipefail
+          # Recompute this in the same shell step; GITHUB_ENV does not persist local shell variables.
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
           RESPONSE_FILE="$(mktemp)"
           trap 'rm -f "$RESPONSE_FILE"' EXIT
           HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10             -o "$RESPONSE_FILE" -w '%{http_code}'             "https://api.etherscan.io/v2/api?chainid=56&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$BSCSCAN_API_KEY" || true)"
