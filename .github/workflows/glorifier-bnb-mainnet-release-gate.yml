@@ -492,6 +492,7 @@ jobs:
           BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
         run: |
           set -euo pipefail
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
           RESPONSE_FILE="$(mktemp)"
           trap 'rm -f "$RESPONSE_FILE"' EXIT
           HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 -o "$RESPONSE_FILE" -w '%{http_code}' \
