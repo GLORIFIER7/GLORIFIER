@@ -236,7 +236,8 @@ jobs:
           RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status')"
-          test "$STATUS" = "1"
+          STATUS_NORMALIZED="$(printf "%s" "$STATUS" | tr "[:upper:]" "[:lower:]")"
+          test "$STATUS_NORMALIZED" = "1" || test "$STATUS_NORMALIZED" = "0x1"
 
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
