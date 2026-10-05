@@ -164,8 +164,8 @@ jobs:
       - name: Reconcile exact mined deployment transaction through BNB RPC
         working-directory: contracts
         env:
-          BNB_MAINNET_RPC_URL: \${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
-          EXPECTED_TX_HASH: \${{ inputs.expected_deployment_tx_hash }}
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+          EXPECTED_TX_HASH: ${{ inputs.expected_deployment_tx_hash }}
         run: |
           set -euo pipefail
           TX_HASH="$(printf '%s' "$EXPECTED_TX_HASH" | tr -d '[:space:]')"
