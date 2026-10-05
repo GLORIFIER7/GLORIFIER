@@ -12,6 +12,14 @@ on:
         required: false
         default: ""
         type: string
+      expected_deployer_nonce:
+        description: "Exact BNB Mainnet deployer nonce authorized for this release"
+        required: true
+        type: string
+      expected_contract_address:
+        description: "Exact deterministic GLR contract address authorized for this release"
+        required: true
+        type: string
 concurrency:
   group: glorifier-bnb-mainnet-release
   cancel-in-progress: false
@@ -192,9 +200,30 @@ jobs:
             exit 1
           }
 
-          EXPECTED_DEPLOYER_NONCE="$CURRENT_NONCE"
+          EXPECTED_DEPLOYER_NONCE="$(printf '%s' "${{ inputs.expected_deployer_nonce }}" | tr -d '[:space:]')"
+          AUTHORIZED_CONTRACT_INPUT="$(printf '%s' "${{ inputs.expected_contract_address }}" | tr -d '[:space:]')"
+          [[ "$EXPECTED_DEPLOYER_NONCE" =~ ^[0-9]+$ ]] || {
+            echo "ERROR: expected_deployer_nonce must be a decimal integer."
+            exit 1
+          }
+          [[ "$AUTHORIZED_CONTRACT_INPUT" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
+            echo "ERROR: expected_contract_address must be a valid EVM address."
+            exit 1
+          }
+          [[ "$CURRENT_NONCE" = "$EXPECTED_DEPLOYER_NONCE" ]] || {
+            echo "ERROR: live deployer nonce does not match the explicitly authorized release nonce."
+            echo "Authorized nonce: $EXPECTED_DEPLOYER_NONCE"
+            echo "Live latest nonce: $CURRENT_NONCE"
+            exit 1
+          }
 
           EXPECTED_CONTRACT_ADDRESS="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_DEPLOYER_NONCE" | grep -Eo '0x[0-9a-fA-F]{40}' | tail -n1 | tr -d '\r\n')"
+          [[ "$(printf '%s' "$AUTHORIZED_CONTRACT_INPUT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$EXPECTED_CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || {
+            echo "ERROR: supplied contract address is not the deterministic CREATE address for the authorized deployer and nonce."
+            echo "Computed: $EXPECTED_CONTRACT_ADDRESS"
+            echo "Supplied: $AUTHORIZED_CONTRACT_INPUT"
+            exit 1
+          }
           [[ "$EXPECTED_CONTRACT_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
             echo "ERROR: failed to compute deterministic CREATE contract address."
             exit 1
@@ -241,10 +270,44 @@ jobs:
           echo "BNB Mainnet RPC: healthy"
           echo "Chain ID: $CHAIN_ID"
           echo "Deployer: $DEPLOYER"
-          echo "Expected deployment nonce: $EXPECTED_DEPLOYER_NONCE"
-          echo "Expected contract address: $EXPECTED_CONTRACT_ADDRESS"
+          echo "Explicitly authorized deployment nonce: $EXPECTED_DEPLOYER_NONCE"
+          echo "Explicitly authorized contract address: $AUTHORIZED_CONTRACT_INPUT"
           echo "Balance: $BALANCE_WEI wei"
 
+      - name: Prevent duplicate GLR redeployment
+        working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+        run: |
+          set -euo pipefail
+          LOCAL_RUNTIME="$(forge inspect GLORIFIER deployedBytecode | tr -d '\r\n')"
+          test -n "$LOCAL_RUNTIME" && test "$LOCAL_RUNTIME" != "0x"
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10 \
+            -o "$RESPONSE_FILE" -w '%{http_code}' \
+            "https://api.etherscan.io/v2/api?chainid=56&module=account&action=txlist&address=$DEPLOYER_ADDRESS&startblock=0&endblock=99999999&page=1&offset=200&sort=desc&apikey=$BSCSCAN_API_KEY" || true)"
+          [[ "$HTTP_STATUS" = "200" ]] || {
+            echo "ERROR: duplicate-release history lookup returned HTTP $HTTP_STATUS."
+            exit 1
+          }
+          [[ "$(jq -r '.status // empty' "$RESPONSE_FILE")" = "1" ]] || {
+            echo "ERROR: duplicate-release history lookup failed."
+            jq -c '{status,message,result}' "$RESPONSE_FILE"
+            exit 1
+          }
+          while IFS= read -r CANDIDATE; do
+            [[ "$CANDIDATE" =~ ^0x[0-9a-fA-F]{40}$ ]] || continue
+            CODE="$(cast code "$CANDIDATE" --rpc-url "$BNB_MAINNET_RPC_URL" 2>/dev/null || true)"
+            if [[ "$CODE" != "0x" && "$CODE" = "$LOCAL_RUNTIME" ]]; then
+              echo "ERROR: an existing BNB Mainnet contract has the exact reviewed GLORIFIER runtime bytecode."
+              echo "Existing contract: $CANDIDATE"
+              echo "This release gate will not create another identical GLR deployment; use the verification-only reconciliation workflow."
+              exit 1
+            fi
+          done < <(jq -r '.result[]? | select(.contractAddress? != null and .contractAddress? != "") | .contractAddress' "$RESPONSE_FILE" | sort -fu)
+          echo "Duplicate GLR runtime guard: PASSED — no recent identical deployed runtime found."
       - name: Estimate deployment funding
         working-directory: contracts
         env:
