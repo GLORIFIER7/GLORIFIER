@@ -2,9 +2,14 @@ name: GLORIFIER Solana Devnet Deployment
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY_GLORIFIER_SOLANA_DEVNET to authorize a new Solana Devnet mint"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   deploy:
@@ -16,6 +21,15 @@ jobs:
       SOLANA_RPC_URL: ${{ secrets.GLORIFIER_SOLANA_DEVNET_RPC_URL }}
       GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_KEYPAIR_JSON }}
     steps:
+      - name: Validate deployment authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm }}" = "DEPLOY_GLORIFIER_SOLANA_DEVNET" || {
+            echo "::error::Refusing Solana Devnet deployment: exact confirmation required."
+            exit 1
+          }
+
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -95,8 +109,9 @@ EOF
           test "$ACTUAL_SUPPLY" = "1000000000"
           grep -q 'GLORIFIER' solana/final-mint-state.txt
           grep -q 'GLR' solana/final-mint-state.txt
-          grep -Eq 'Mint Authority.*None|Mint Authority.*none' solana/final-mint-state.txt
-          grep -Eq 'Freeze Authority.*None|Freeze Authority.*none' solana/final-mint-state.txt
+          grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
+          grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
+          test -s solana/deployment-evidence.json
 
       - name: Upload deployment evidence
         if: always()
