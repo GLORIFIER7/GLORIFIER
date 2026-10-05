@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type VERIFY_GLORIFIER_BNB_MAINNET to authorize verification-only reconciliation"
+        description: "NO blockchain transaction is broadcast. Type VERIFY_GLORIFIER_BNB_MAINNET only to reconcile the already-mined GLR deployment."
         required: true
         type: string
       expected_deployer_nonce:
