@@ -94,9 +94,14 @@ jobs:
           [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]]
 
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          EXPECTED_NONCE="$(printf "%s" "$EXPECTED_NONCE_INPUT" | tr -d "[:space:]")"
+          EXPECTED_CONTRACT="$(printf "%s" "$EXPECTED_CONTRACT_INPUT" | tr -d "[:space:]")"
+          EXPECTED_HOLDER="$(printf "%s" "$EXPECTED_HOLDER_INPUT" | tr -d "[:space:]")"
           if [[ -z "$EXPECTED_HOLDER" ]]; then
             EXPECTED_HOLDER="$DEPLOYER"
           fi
+          [[ "$EXPECTED_NONCE" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]
           [[ "$EXPECTED_HOLDER" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
             echo "ERROR: expected_initial_holder must be a valid EVM address."
             exit 1
@@ -105,11 +110,6 @@ jobs:
             echo "ERROR: expected_initial_holder cannot be the zero address."
             exit 1
           }
-          EXPECTED_NONCE="$(printf '%s' "$EXPECTED_NONCE_INPUT" | tr -d '[:space:]')"
-          EXPECTED_CONTRACT="$(printf '%s' "$EXPECTED_CONTRACT_INPUT" | tr -d '[:space:]')"
-          EXPECTED_HOLDER="$(printf '%s' "$EXPECTED_HOLDER_INPUT" | tr -d '[:space:]')"
-          [[ "$EXPECTED_NONCE" =~ ^[0-9]+$ ]]
-          [[ "$EXPECTED_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]
 
           CHAIN_ID="$(cast chain-id --rpc-url "$BNB_MAINNET_RPC_URL")"
           test "$CHAIN_ID" = "56"
@@ -267,7 +267,7 @@ jobs:
           RUNTIME_HASH="$(cast keccak "$ONCHAIN_RUNTIME")"
           echo "RUNTIME_CODE_HASH=$RUNTIME_HASH" >> "$GITHUB_ENV"
 
-          jq -n             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$DEPLOYMENT_TX_HASH"             --arg holder "$DEPLOYER_ADDRESS"             --arg block "$DEPLOYMENT_BLOCK"             --arg deployer "$DEPLOYER_ADDRESS"             --arg nonce "$DEPLOYER_NONCE"             --arg runtime_hash "$RUNTIME_HASH"             --arg source_commit "${{ github.sha }}"             '{
+          jq -n             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$DEPLOYMENT_TX_HASH"             --arg holder "$GLORIFIER_INITIAL_HOLDER"             --arg block "$DEPLOYMENT_BLOCK"             --arg deployer "$DEPLOYER_ADDRESS"             --arg nonce "$DEPLOYER_NONCE"             --arg runtime_hash "$RUNTIME_HASH"             --arg source_commit "${{ github.sha }}"             '{
               evidence_type:"GLORIFIER BEP-20 deployment reconciliation",
               network:"BNB Smart Chain Mainnet",
               chain_id:56,
