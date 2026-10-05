@@ -189,7 +189,7 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-          export PRIVATE_KEY="$GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED"
+          export PRIVATE_KEY="0x${GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED}"
           forge script script/DeployGLORIFIER.s.sol:DeployGLORIFIER --rpc-url "$RPC_URL" --broadcast --slow
           echo "DEPLOYMENT_STATUS=DEPLOYED_PENDING_VERIFICATION" >> "$GITHUB_ENV"
 
