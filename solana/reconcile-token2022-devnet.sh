@@ -35,22 +35,19 @@ spl-token --program-2022 display "$MINT" | tee solana/reconciliation-mint-state.
 ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/reconciliation-supply.txt | tr -d '\r')"
 test "$ACTUAL_SUPPLY" = "$EXPECTED_SUPPLY"
 
-grep -Fq "$EXPECTED_NAME" solana/reconciliation-mint-state.txt
-grep -Fq "$EXPECTED_SYMBOL" solana/reconciliation-mint-state.txt
+grep -Eq "^[[:space:]]*Name:[[:space:]]*${EXPECTED_NAME}[[:space:]]*$" solana/reconciliation-mint-state.txt
+grep -Eq "^[[:space:]]*Symbol:[[:space:]]*${EXPECTED_SYMBOL}[[:space:]]*$" solana/reconciliation-mint-state.txt
 grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt
 grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt
 grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt
 
-if grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt; then
-  METADATA_URI_VERIFIED=true
-else
-  METADATA_URI_VERIFIED=false
-fi
+grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt
+METADATA_URI_VERIFIED=true
 
 cat > solana/reconciliation-evidence.json <<EOF
 {
   "network": "solana-devnet",
-  "status": "VERIFIED",
+  "status": "FULLY_VERIFIED",
   "mode": "RECONCILIATION_READ_ONLY",
   "mint": "${MINT}",
   "programId": "${EXPECTED_PROGRAM}",
@@ -66,7 +63,7 @@ cat > solana/reconciliation-evidence.json <<EOF
 EOF
 
 jq -e '
-  .status == "VERIFIED"
+  .status == "FULLY_VERIFIED"
   and .mode == "RECONCILIATION_READ_ONLY"
   and .network == "solana-devnet"
   and .mint
