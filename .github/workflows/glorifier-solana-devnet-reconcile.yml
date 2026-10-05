@@ -8,12 +8,13 @@ on:
         required: true
         type: string
       mint_address:
-        description: "Existing GLORIFIER Token-2022 Devnet mint address to verify"
-        required: true
+        description: "Existing GLORIFIER Token-2022 Devnet mint address to verify (leave blank to recover it from deployment evidence)"
+        required: false
         type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   reconcile:
@@ -27,7 +28,7 @@ jobs:
       SOLANA_RPC_URL: https://api.devnet.solana.com
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ inputs.confirm }}
-      MINT_ADDRESS: ${{ inputs.mint_address }}
+      MINT_ADDRESS_INPUT: ${{ inputs.mint_address }}
 
     steps:
       - name: Validate reconciliation authorization
@@ -39,14 +40,66 @@ jobs:
             exit 1
           }
 
-      - name: Validate mint address
+      - name: Resolve existing Devnet mint
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$MINT_ADDRESS" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
+
+          if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
+            MINT_ADDRESS="${MINT_ADDRESS_INPUT}"
+            echo "Using explicitly supplied existing mint address."
+          else
+            echo "No mint address supplied; recovering it from existing deployment evidence."
+            ARTIFACT_ID="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=glorifier-solana-devnet-evidence&per_page=100" |
+              jq -r '.artifacts[]? | select(.expired == false) | .id' | tail -n1)"
+
+            test -n "${ARTIFACT_ID}" || {
+              echo "::error::No unexpired GLORIFIER Solana Devnet deployment evidence artifact exists."
+              echo "::error::Deploy GLORIFIER to Solana Devnet once with explicit authorization first."
+              exit 1
+            }
+
+            rm -rf solana/recovered-evidence
+            mkdir -p solana/recovered-evidence
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-solana-devnet-evidence.zip
+            unzip -oq /tmp/glorifier-solana-devnet-evidence.zip -d solana/recovered-evidence
+
+            EVIDENCE_FILE="$(find solana/recovered-evidence -type f -name "deployment-evidence.json" -print -quit)"
+            test -n "${EVIDENCE_FILE}" || {
+              echo "::error::Deployment evidence artifact does not contain deployment-evidence.json."
+              exit 1
+            }
+
+            MINT_ADDRESS="$(jq -r '.mint // empty' "${EVIDENCE_FILE}")"
+            test -n "${MINT_ADDRESS}" || {
+              echo "::error::deployment-evidence.json does not contain a mint address."
+              exit 1
+            }
+
+            echo "Recovered mint from deployment evidence artifact ${ARTIFACT_ID}."
+          fi
+
+          [[ "${MINT_ADDRESS}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
             echo "::error::Invalid Solana mint address format."
             exit 1
           }
+
+          readonly EXCLUDED_EXISTING_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+          [[ "${MINT_ADDRESS}" != "${EXCLUDED_EXISTING_MINT}" ]] || {
+            echo "::error::Refusing the excluded pre-existing GLR mint."
+            exit 1
+          }
+
+          echo "MINT_ADDRESS=${MINT_ADDRESS}" >> "${GITHUB_ENV}"
+
+      - name: Validate resolved mint address
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${MINT_ADDRESS}"
+          echo "Resolved GLORIFIER Token-2022 Devnet mint: ${MINT_ADDRESS}"
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
