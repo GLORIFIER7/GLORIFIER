@@ -5,8 +5,8 @@ on:
     types: [opened, reopened]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   codex-review:
@@ -37,25 +37,11 @@ jobs:
             Read AGENTS.md and GEMINI.md first.
             Inspect the PR branch and identify concrete reliability, security,
             type-safety, testing, build, or maintainability problems.
-            If there is a small, safe, verifiable fix, apply it directly to this
-            PR branch. Do not expose or modify secrets, credentials, or deployment
-            configuration. Do not make cosmetic or speculative changes.
-            Run npm run lint and npm run build when applicable.
-            If the Gemini change is already sound, make no code changes.
-
-      - name: Push Codex fixes
-        if: ${{ env.OPENAI_API_KEY != '' && success() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
-            exit 0
-          fi
-          git config user.name "GLORIFIER Codex Reviewer"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "ai(codex): review Gemini change"
-          git push "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "HEAD:${{ github.event.pull_request.head.ref }}"
+            Do not modify files, secrets, credentials, deployment configuration,
+            branches, or pull requests. Produce review findings only.
+            Do not make cosmetic or speculative changes.
+            Run npm run lint and npm run build when applicable if needed for analysis.
+            If the Gemini change is already sound, report that no issues were found.
 
       - name: Report missing Codex credential
         if: ${{ env.OPENAI_API_KEY == '' }}
