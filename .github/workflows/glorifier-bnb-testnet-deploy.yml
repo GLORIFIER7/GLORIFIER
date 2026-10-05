@@ -183,6 +183,7 @@ jobs:
           echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
           echo "BALANCE_STATUS=SUFFICIENT" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_STATUS=READY_TO_BROADCAST" >> "$GITHUB_ENV"
+          echo "GLORIFIER_GAS_PRICE_WEI=$GAS_PRICE_WEI" >> "$GITHUB_ENV"
 
       - name: Deploy GLR
         if: ${{ env.DEPLOYMENT_STATUS == 'READY_TO_BROADCAST' }}
@@ -198,24 +199,18 @@ jobs:
         working-directory: contracts
         run: |
           set -euo pipefail
-
           RUN_FILE="broadcast/DeployGLORIFIER.s.sol/97/run-latest.json"
           test -s "$RUN_FILE"
-
           DEPLOYER_ADDRESS="$(cast wallet address --private-key "$GLORIFIER_BNB_TESTNET_DEPLOYER_PRIVATE_KEY_NORMALIZED")"
           CONTRACT_ADDRESS="$(jq -r '.transactions[] | select(.contractAddress != null and .contractAddress != "") | .contractAddress' "$RUN_FILE" | head -n1)"
           TX_HASH="$(jq -r '.transactions[] | select(.hash != null and .hash != "") | .hash' "$RUN_FILE" | head -n1)"
-
           test -n "$CONTRACT_ADDRESS" && test "$CONTRACT_ADDRESS" != "null"
           test -n "$TX_HASH" && test "$TX_HASH" != "null"
-
           CODE="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$RPC_URL")"
           test "$CODE" != "0x"
-
           normalize_cast_uint() {
             printf "%s\n" "${1:-}" | awk '{print $1}' | tr -d "\r\n"
           }
-
           NAME="$(cast call "$CONTRACT_ADDRESS" "name()(string)" --rpc-url "$RPC_URL" | jq -er "if type == \"string\" then . else tostring end")"
           SYMBOL="$(cast call "$CONTRACT_ADDRESS" "symbol()(string)" --rpc-url "$RPC_URL" | jq -er "if type == \"string\" then . else tostring end")"
           DECIMALS_RAW="$(cast call "$CONTRACT_ADDRESS" "decimals()(uint8)" --rpc-url "$RPC_URL")"
@@ -226,49 +221,20 @@ jobs:
           HOLDER_BALANCE="$(normalize_cast_uint "$HOLDER_BALANCE_RAW")"
           NAME="$(printf "%s" "$NAME" | tr -d "\r\n")"
           SYMBOL="$(printf "%s" "$SYMBOL" | tr -d "\r\n")"
-
           test "$NAME" = "GLORIFIER"
           test "$SYMBOL" = "GLR"
           test "$DECIMALS" = "18"
           test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
           test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
-
           RECEIPT="$(cast receipt "$TX_HASH" --rpc-url "$RPC_URL" --json)"
           BLOCK_NUMBER="$(echo "$RECEIPT" | jq -r '.blockNumber')"
           STATUS="$(echo "$RECEIPT" | jq -r '.status')"
           STATUS_NORMALIZED="$(printf "%s" "$STATUS" | tr "[:upper:]" "[:lower:]")"
           test "$STATUS_NORMALIZED" = "1" || test "$STATUS_NORMALIZED" = "0x1"
-
           echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_STATUS=DEPLOYED_AND_ONCHAIN_VERIFIED" >> "$GITHUB_ENV"
-
-          jq -n \
-            --arg network "BNB Smart Chain Testnet" \
-            --arg contract "$CONTRACT_ADDRESS" \
-            --arg tx "$TX_HASH" \
-            --arg holder "$GLORIFIER_INITIAL_HOLDER" \
-            --arg block "$BLOCK_NUMBER" \
-            --arg deployer "$DEPLOYER_ADDRESS" \
-            '{
-              evidence_type:"GLORIFIER ERC-20 deployment",
-              network:$network,
-              chain_id:97,
-              contract_address:$contract,
-              transaction_hash:$tx,
-              block_number:($block|tonumber),
-              transaction_status:1,
-              deployer_address:$deployer,
-              initial_holder:$holder,
-              on_chain_assertions:{
-                name:"GLORIFIER",
-                symbol:"GLR",
-                decimals:18,
-                total_supply_wei:"1000000000000000000000000000",
-                initial_holder_balance_wei:"1000000000000000000000000000"
-              }
-            }' > deployment-evidence.json
-
+          jq -n --arg network "BNB Smart Chain Testnet" --arg contract "$CONTRACT_ADDRESS" --arg tx "$TX_HASH" --arg holder "$GLORIFIER_INITIAL_HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$DEPLOYER_ADDRESS" '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:97,contract_address:$contract,transaction_hash:$tx,block_number:($block|tonumber),transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000",initial_holder_balance_wei:"1000000000000000000000000000"}}' > deployment-evidence.json
           echo "Contract address: $CONTRACT_ADDRESS"
           echo "Transaction hash: $TX_HASH"
           cat deployment-evidence.json
@@ -279,11 +245,7 @@ jobs:
         run: |
           set -euo pipefail
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$GLORIFIER_INITIAL_HOLDER")"
-          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER \
-            --chain-id 97 \
-            --constructor-args "$CONSTRUCTOR_ARGS" \
-            --etherscan-api-key "$ETHERSCAN_API_KEY" \
-            --watch
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER --chain-id 97 --constructor-args "$CONSTRUCTOR_ARGS" --etherscan-api-key "$ETHERSCAN_API_KEY" --watch
           echo "BSCSCAN_VERIFIED=true" >> "$GITHUB_ENV"
 
       - name: Publish deployment summary
@@ -296,27 +258,18 @@ jobs:
             echo "- RPC provider: ${RPC_PROVIDER:-NOT SELECTED}"
             echo "- Deployment status: ${DEPLOYMENT_STATUS:-NOT COMPLETED}"
             echo "- Balance status: ${BALANCE_STATUS:-UNKNOWN}"
-            if [ -n "${DEPLOYER_ADDRESS:-}" ]; then
-              echo "- Deployer: $DEPLOYER_ADDRESS"
-            fi
+            if [ -n "${DEPLOYER_ADDRESS:-}" ]; then echo "- Deployer: $DEPLOYER_ADDRESS"; fi
             if [ -n "${CONTRACT_ADDRESS:-}" ] && [ -n "${DEPLOYMENT_TX_HASH:-}" ]; then
               echo "- Contract: $CONTRACT_ADDRESS"
               echo "- Transaction: $DEPLOYMENT_TX_HASH"
               echo "- On-chain verification: **PASSED**"
-              if [ "${BSCSCAN_VERIFIED:-false}" = "true" ]; then
-                echo "- BscScan source verification: **PASSED**"
-              else
-                echo "- BscScan source verification: **NOT VERIFIED**"
-              fi
+              if [ "${BSCSCAN_VERIFIED:-false}" = "true" ]; then echo "- BscScan source verification: **PASSED**"; else echo "- BscScan source verification: **NOT VERIFIED**"; fi
             else
               echo "- Deployment: **NOT COMPLETED**"
               echo "- Contract/transaction evidence: **NOT AVAILABLE**"
               echo "- On-chain verification: **NOT VERIFIED**"
               echo "- BNB Testnet transaction: **NOT BROADCAST**"
               echo "- Contract address: **NOT AVAILABLE**"
-              if [ "${DEPLOYMENT_STATUS:-}" = "BLOCKED_FUNDING" ]; then
-                echo "- Required action: fund the BNB Testnet deployer, then rerun this workflow."
-              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
