@@ -11,6 +11,7 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalP
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
+import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
 import { ensureGlobalProviderConnections, getGlobalCollaborationStatus, recordGlobalCollaboration } from './src/lib/global-collaboration';
@@ -2096,6 +2097,51 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
 // ============================================================================
 app.get('/api/agents', (_req: Request, res: Response) => {
   res.json(agentManifest());
+});
+
+app.get('/api/economy/glr/policy', (_req: Request, res: Response) => {
+  res.json({ ok: true, policy: glrEconomicPolicy() });
+});
+
+app.get('/api/economy/glr/intents', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+    res.json({ ok: true, intents: await listGLRPaymentIntents(limit), truth: 'NOT VERIFIED unless settlement evidence is present' });
+  } catch (error) { return apiError(res, 503, 'GLR economic layer unavailable', error); }
+});
+
+app.get('/api/economy/glr/intents/:id', async (req: Request, res: Response) => {
+  try {
+    const intent = await getGLRPaymentIntent(String(req.params.id));
+    if (!intent) return res.status(404).json({ ok: false, error: 'GLR payment intent not found' });
+    res.json({ ok: true, intent });
+  } catch (error) { return apiError(res, 503, 'GLR payment intent unavailable', error); }
+});
+
+app.post('/api/economy/glr/intents', async (req: Request, res: Response) => {
+  try {
+    const intent = await createGLRPaymentIntent(req.body || {});
+    res.status(201).json({ ok: true, intent, truth: 'NOT VERIFIED' });
+  } catch (error) { return apiError(res, 400, 'Invalid GLR payment intent', error); }
+});
+
+app.post('/api/economy/glr/intents/:id/authorize', async (req: Request, res: Response) => {
+  try {
+    const intent = await authorizeGLRPaymentIntent(String(req.params.id), Boolean(req.body?.humanAuthorized));
+    res.json({ ok: true, intent, truth: 'AUTHORIZED — not settled' });
+  } catch (error) { return apiError(res, 403, 'GLR authorization denied', error); }
+});
+
+app.post('/api/economy/glr/intents/:id/settlement-evidence', async (req: Request, res: Response) => {
+  try {
+    const intent = await recordGLRSettlementEvidence({
+      intentId: String(req.params.id),
+      settlementTxRef: String(req.body?.settlementTxRef || ''),
+      evidenceRef: String(req.body?.evidenceRef || ''),
+      network: req.body?.network ? String(req.body.network) : null
+    });
+    res.json({ ok: true, intent, truth: 'VERIFIED' });
+  } catch (error) { return apiError(res, 400, 'GLR settlement evidence rejected', error); }
 });
 
 app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {
