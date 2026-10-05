@@ -210,12 +210,23 @@ jobs:
             echo "ERROR: expected_contract_address must be a valid EVM address."
             exit 1
           }
-          [[ "$CURRENT_NONCE" = "$EXPECTED_DEPLOYER_NONCE" ]] || {
-            echo "ERROR: live deployer nonce does not match the explicitly authorized release nonce."
+          if (( CURRENT_NONCE > EXPECTED_DEPLOYER_NONCE )); then
+            echo "::error::The authorized deployment nonce has already been consumed on BNB Mainnet."
             echo "Authorized nonce: $EXPECTED_DEPLOYER_NONCE"
             echo "Live latest nonce: $CURRENT_NONCE"
+            echo "This is NOT a pending-transaction problem."
+            echo "Do NOT increment the release nonce or calculate a new contract address."
+            echo "Use .github/workflows/glorifier-bnb-mainnet-reconcile.yml to verify the already-mined deployment without broadcasting."
             exit 1
-          }
+          fi
+          if (( CURRENT_NONCE < EXPECTED_DEPLOYER_NONCE )); then
+            echo "::error::Live deployer nonce is behind the explicitly authorized release nonce."
+            echo "Authorized nonce: $EXPECTED_DEPLOYER_NONCE"
+            echo "Live latest nonce: $CURRENT_NONCE"
+            echo "No transaction will be broadcast."
+            exit 1
+          fi
+          echo "Authorized release nonce is the current unused deployer nonce: $EXPECTED_DEPLOYER_NONCE"
 
           EXPECTED_CONTRACT_ADDRESS="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_DEPLOYER_NONCE" | grep -Eo '0x[0-9a-fA-F]{40}' | tail -n1 | tr -d '\r\n')"
           [[ "$(printf '%s' "$AUTHORIZED_CONTRACT_INPUT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$EXPECTED_CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || {
