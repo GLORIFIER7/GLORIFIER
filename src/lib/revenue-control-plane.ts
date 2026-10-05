@@ -6,6 +6,7 @@ import { scanClaimableFocus } from './claimable-assets';
 import { listSaasOverview } from './saas-registry';
 import { getWorkUnitSummary } from './business-model';
 import { listConnections } from './connection-registry';
+import { getGLREconomicSnapshot } from './glr-economic-layer';
 
 export const GLORIFIER_REVENUE_CONTROL_PLANE_VERSION = 'GRCP-1.0';
 
@@ -78,6 +79,12 @@ export function getRevenueControlPlanePolicy() {
       'saas','work-units','business-intelligence','data-products','integrations',
       'iot','social-intelligence','claimable-assets','marketplace','opportunity-engine'
     ],
+    glr: {
+      nativeEconomicUnit: 'GLR',
+      positioning: 'The native economic unit for governed AI-agent commerce.',
+      settlementIsEvidenceGated: true,
+      verifiedSettlementIsNotTheSameAsEstimatedValue: true
+    },
     economicTruth: {
       estimatedValue: 'NOT VERIFIED',
       expectedValue: 'NOT VERIFIED',
@@ -178,14 +185,15 @@ export async function listRevenueGovernanceEvents(limit = 100) {
 }
 
 export async function buildRevenueControlPlaneSnapshot() {
-  const [monetization, opportunities, claimable, saas, workUnits, connections, events] = await Promise.all([
+  const [monetization, opportunities, claimable, saas, workUnits, connections, events, glr] = await Promise.all([
     buildMonetizationDashboard(),
     listMonetizationOpportunities(),
     scanClaimableFocus(),
     listSaasOverview(),
     getWorkUnitSummary(),
     listConnections(),
-    listRevenueGovernanceEvents(50)
+    listRevenueGovernanceEvents(50),
+    getGLREconomicSnapshot()
   ]);
   const verifiedRevenue = monetization.verifiedPaid.reduce((sum, x) => sum + Number(x.amount || 0), 0);
   const pendingApprovals = events.filter(x => x.status === 'approval-required').length;
@@ -205,6 +213,7 @@ export async function buildRevenueControlPlaneSnapshot() {
         pendingAuthorization: connections.filter((x: any) => x.status === 'pending_authorization').length
       }
     },
+    glr,
     governance: {
       pendingApprovals,
       blockedActions,
