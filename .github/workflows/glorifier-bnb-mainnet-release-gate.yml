@@ -375,12 +375,13 @@ jobs:
             exit 1
           }
 
-          TX_JSON="$(cast tx "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
-          TX_FROM="$(printf '%s' "$TX_JSON" | jq -r '.from // empty')"
-          TX_NONCE_RAW="$(printf '%s' "$TX_JSON" | jq -r '.nonce // empty')"
-          TX_TO="$(printf '%s' "$TX_JSON" | jq -r '.to // empty')"
+          TX_FROM="$(cast tx "$TX_HASH" from --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
+          TX_NONCE_RAW="$(cast tx "$TX_HASH" nonce --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
+          TX_TO="$(cast tx "$TX_HASH" to --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
           [[ "$(printf '%s' "$TX_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] || {
             echo "ERROR: deployment transaction sender does not match authorized deployer."
+            echo "Observed sender: $TX_FROM"
+            echo "Authorized deployer: $DEPLOYER_ADDRESS"
             exit 1
           }
           TX_NONCE_DEC="$TX_NONCE_RAW"
