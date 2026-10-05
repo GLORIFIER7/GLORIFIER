@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       expected_deployer_nonce:
-        description: "Already-mined GLR deployment nonce (default: 2)"
+        description: "Already-mined GLR deployment nonce (default: 3)"
         required: true
         default: "3"
         type: string
