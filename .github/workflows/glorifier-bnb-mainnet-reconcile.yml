@@ -1,0 +1,370 @@
+name: GLORIFIER BNB Mainnet Existing Deployment Reconciliation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type VERIFY_GLORIFIER_BNB_MAINNET to authorize verification-only reconciliation"
+        required: true
+        type: string
+      expected_deployer_nonce:
+        description: "Already-mined GLR deployment nonce (default: 2)"
+        required: true
+        default: "2"
+        type: string
+      expected_contract_address:
+        description: "Existing GLR contract address"
+        required: true
+        default: "0xd2778f492EE8ee5060ba2eC3f2705EdFd00EA65B"
+        type: string
+
+concurrency:
+  group: glorifier-bnb-mainnet-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: bnb-mainnet
+    permissions:
+      contents: read
+
+    steps:
+      - name: Require production branch and verification-only authorization
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CONFIRM_INPUT" = "VERIFY_GLORIFIER_BNB_MAINNET" || {
+            echo "ERROR: exact verification-only authorization required."
+            exit 1
+          }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: foundry-rs/foundry-toolchain@efe890f034d5dae7b46cba68d2c7afba603e5e4f
+        with:
+          version: v1.8.4
+
+      - name: Install pinned dependencies
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          forge install OpenZeppelin/openzeppelin-contracts@c64a1edb67b6e3f4a15cca8909c9482ad33a02b0 --no-commit
+          forge install foundry-rs/forge-std@bf647bd6046f2f7da30d0c2bf435e5c76a780c1b --no-commit
+          test "$(git -C lib/openzeppelin-contracts rev-parse HEAD)" = "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+          test "$(git -C lib/forge-std rev-parse HEAD)" = "bf647bd6046f2f7da30d0c2bf435e5c76a780c1b"
+
+      - name: Build and test reviewed source
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          forge build --sizes
+          forge test -vv
+
+      - name: Validate live BNB deployment target without broadcasting
+        working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+          BNB_MAINNET_PRIVATE_KEY: ${{ secrets.GLORIFIER_BNB_MAINNET_PRIVATE_KEY }}
+          EXPECTED_NONCE_INPUT: ${{ inputs.expected_deployer_nonce }}
+          EXPECTED_CONTRACT_INPUT: ${{ inputs.expected_contract_address }}
+        run: |
+          set -euo pipefail
+          PRIVATE_KEY="$(printf '%s' "$BNB_MAINNET_PRIVATE_KEY" | tr -d '[:space:]')"
+          PRIVATE_KEY="${PRIVATE_KEY#\"}"
+          PRIVATE_KEY="${PRIVATE_KEY%\"}"
+          PRIVATE_KEY="${PRIVATE_KEY#\'}"
+          PRIVATE_KEY="${PRIVATE_KEY%\'}"
+          PRIVATE_KEY="${PRIVATE_KEY#GLORIFIER_BNB_MAINNET_PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#PRIVATE_KEY=}"
+          PRIVATE_KEY="${PRIVATE_KEY#0x}"
+          PRIVATE_KEY="${PRIVATE_KEY#0X}"
+          [[ "$PRIVATE_KEY" =~ ^[0-9a-fA-F]{64}$ ]]
+
+          DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+          EXPECTED_NONCE="$(printf '%s' "$EXPECTED_NONCE_INPUT" | tr -d '[:space:]')"
+          EXPECTED_CONTRACT="$(printf '%s' "$EXPECTED_CONTRACT_INPUT" | tr -d '[:space:]')"
+          [[ "$EXPECTED_NONCE" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]]
+
+          CHAIN_ID="$(cast chain-id --rpc-url "$BNB_MAINNET_RPC_URL")"
+          test "$CHAIN_ID" = "56"
+
+          LIVE_LATEST_JSON="$(curl -sS --fail --max-time 20 --connect-timeout 10             -H 'Content-Type: application/json'             --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionCount\",\"params\":[\"$DEPLOYER\",\"latest\"],\"id\":1}"             "$BNB_MAINNET_RPC_URL")"
+          LIVE_PENDING_JSON="$(curl -sS --fail --max-time 20 --connect-timeout 10             -H 'Content-Type: application/json'             --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionCount\",\"params\":[\"$DEPLOYER\",\"pending\"],\"id\":1}"             "$BNB_MAINNET_RPC_URL")"
+          LIVE_LATEST_HEX="$(printf '%s' "$LIVE_LATEST_JSON" | jq -r '.result // empty')"
+          LIVE_PENDING_HEX="$(printf '%s' "$LIVE_PENDING_JSON" | jq -r '.result // empty')"
+          [[ "$LIVE_LATEST_HEX" =~ ^0x[0-9a-fA-F]+$ ]]
+          [[ "$LIVE_PENDING_HEX" =~ ^0x[0-9a-fA-F]+$ ]]
+          LIVE_LATEST="$((16#${LIVE_LATEST_HEX#0x}))"
+          LIVE_PENDING="$((16#${LIVE_PENDING_HEX#0x}))"
+          (( LIVE_LATEST > EXPECTED_NONCE ))
+          [[ "$LIVE_PENDING" = "$LIVE_LATEST" ]]
+
+          CODE="$(cast code "$EXPECTED_CONTRACT" --rpc-url "$BNB_MAINNET_RPC_URL")"
+          test "$CODE" != "0x" || {
+            echo "ERROR: expected existing contract has no runtime bytecode."
+            exit 1
+          }
+
+          COMPUTED="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_NONCE" | grep -Eo '0x[0-9a-fA-F]{40}' | tail -n1 | tr -d '\r\n')"
+          [[ "$(printf '%s' "$COMPUTED" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$EXPECTED_CONTRACT" | tr '[:upper:]' '[:lower:]')" ]] || {
+            echo "ERROR: supplied existing contract is not the deterministic CREATE address for the authorized deployer and nonce."
+            echo "Computed: $COMPUTED"
+            echo "Supplied: $EXPECTED_CONTRACT"
+            exit 1
+          }
+
+          {
+            echo "DEPLOYER_ADDRESS=$DEPLOYER"
+            echo "DEPLOYER_NONCE=$EXPECTED_NONCE"
+            echo "CONTRACT_ADDRESS=$EXPECTED_CONTRACT"
+          } >> "$GITHUB_ENV"
+
+          echo "BNB verification target validated."
+          echo "Chain ID: $CHAIN_ID"
+          echo "Deployer: $DEPLOYER"
+          echo "Deployment nonce: $EXPECTED_NONCE"
+          echo "Contract: $EXPECTED_CONTRACT"
+
+      - name: Reconcile mined deployment transaction from BscScan
+        working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+        run: |
+          set -euo pipefail
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10             -o "$RESPONSE_FILE" -w '%{http_code}'             "https://api.etherscan.io/v2/api?chainid=56&module=account&action=txlist&address=$DEPLOYER_ADDRESS&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc&apikey=$BSCSCAN_API_KEY" || true)"
+          [[ "$HTTP_STATUS" = "200" ]] || {
+            echo "ERROR: BscScan transaction-history lookup returned HTTP $HTTP_STATUS."
+            exit 1
+          }
+          [[ "$(jq -r '.status // empty' "$RESPONSE_FILE")" = "1" ]] || {
+            echo "ERROR: BscScan transaction-history lookup failed."
+            jq -c '{status,message,result}' "$RESPONSE_FILE"
+            exit 1
+          }
+
+          TX_HASH=""
+          while IFS= read -r CANDIDATE_HASH; do
+            [[ "$CANDIDATE_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]] || continue
+            CANDIDATE_RECEIPT="$(timeout 30s cast receipt "$CANDIDATE_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json 2>/dev/null || true)"
+            [[ -n "$CANDIDATE_RECEIPT" ]] || continue
+            CANDIDATE_FROM="$(printf '%s' "$CANDIDATE_RECEIPT" | jq -r '.from // empty')"
+            CANDIDATE_CONTRACT="$(printf '%s' "$CANDIDATE_RECEIPT" | jq -r '.contractAddress // empty')"
+            CANDIDATE_STATUS="$(printf '%s' "$CANDIDATE_RECEIPT" | jq -r '.status // empty' | tr '[:upper:]' '[:lower:]')"
+            if [[ "$CANDIDATE_STATUS" = "1" || "$CANDIDATE_STATUS" = "0x1" ]]               && [[ "$(printf '%s' "$CANDIDATE_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]               && [[ "$(printf '%s' "$CANDIDATE_CONTRACT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+              TX_HASH="$CANDIDATE_HASH"
+              break
+            fi
+          done < <(
+            jq -r --arg nonce "$DEPLOYER_NONCE" --arg deployer "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" '
+              .result[]?
+              | select((.nonce // "") == $nonce)
+              | select((.from // "" | ascii_downcase) == $deployer)
+              | select((.to // "") == "" or (.to // "") == "0x0000000000000000000000000000000000000000")
+              | .hash
+            ' "$RESPONSE_FILE"
+          )
+
+          [[ "$TX_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]] || {
+            echo "ERROR: no successful contract-creation transaction matched deployer, nonce, and contract address."
+            exit 1
+          }
+
+          TX_NONCE="$(cast tx "$TX_HASH" nonce --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
+          TX_FROM="$(cast tx "$TX_HASH" from --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
+          TX_TO="$(cast tx "$TX_HASH" to --rpc-url "$BNB_MAINNET_RPC_URL" | tr -d '\r\n')"
+          RECEIPT="$(timeout 30s cast receipt "$TX_HASH" --rpc-url "$BNB_MAINNET_RPC_URL" --json)"
+          RECEIPT_FROM="$(printf '%s' "$RECEIPT" | jq -r '.from // empty')"
+          RECEIPT_CONTRACT="$(printf '%s' "$RECEIPT" | jq -r '.contractAddress // empty')"
+          RECEIPT_STATUS="$(printf '%s' "$RECEIPT" | jq -r '.status // empty' | tr '[:upper:]' '[:lower:]')"
+          BLOCK_RAW="$(printf '%s' "$RECEIPT" | jq -r '.blockNumber // empty')"
+
+          if [[ "$TX_NONCE" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            TX_NONCE_DEC="$((16#${TX_NONCE#0x}))"
+          else
+            TX_NONCE_DEC="$TX_NONCE"
+          fi
+
+          [[ "$TX_NONCE_DEC" = "$DEPLOYER_NONCE" ]]
+          [[ "$(printf '%s' "$TX_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]
+          [[ "$(printf '%s' "$RECEIPT_FROM" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$DEPLOYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]
+          [[ -z "$TX_TO" || "$TX_TO" = "null" ]]
+          [[ "$RECEIPT_STATUS" = "1" || "$RECEIPT_STATUS" = "0x1" ]]
+          [[ "$(printf '%s' "$RECEIPT_CONTRACT" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]
+
+          if [[ "$BLOCK_RAW" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            DEPLOYMENT_BLOCK="$((16#${BLOCK_RAW#0x}))"
+          else
+            DEPLOYMENT_BLOCK="$BLOCK_RAW"
+          fi
+
+          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
+          echo "DEPLOYMENT_BLOCK=$DEPLOYMENT_BLOCK" >> "$GITHUB_ENV"
+
+          echo "Deployment transaction reconciled."
+          echo "Transaction: $TX_HASH"
+          echo "Sender: $TX_FROM"
+          echo "Nonce: $TX_NONCE_DEC"
+          echo "Block: $DEPLOYMENT_BLOCK"
+
+      - name: Verify on-chain GLR assertions
+        working-directory: contracts
+        env:
+          BNB_MAINNET_RPC_URL: ${{ secrets.GLORIFIER_BNB_MAINNET_RPC_URL }}
+        run: |
+          set -euo pipefail
+          ONCHAIN_RUNTIME="$(cast code "$CONTRACT_ADDRESS" --rpc-url "$BNB_MAINNET_RPC_URL")"
+          LOCAL_RUNTIME="$(forge inspect GLORIFIER deployedBytecode | tr -d '\r\n')"
+          test "$ONCHAIN_RUNTIME" != "0x"
+          test "$ONCHAIN_RUNTIME" = "$LOCAL_RUNTIME" || {
+            echo "ERROR: on-chain runtime bytecode does not exactly match reviewed main-branch build."
+            exit 1
+          }
+
+          NAME="$(cast call "$CONTRACT_ADDRESS" 'name()(string)' --rpc-url "$BNB_MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          SYMBOL="$(cast call "$CONTRACT_ADDRESS" 'symbol()(string)' --rpc-url "$BNB_MAINNET_RPC_URL" | sed -E 's/^"//; s/"$//; s/[[:space:]]+$//')"
+          DECIMALS="$(cast call "$CONTRACT_ADDRESS" 'decimals()(uint8)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+          TOTAL_SUPPLY="$(cast call "$CONTRACT_ADDRESS" 'totalSupply()(uint256)' --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+          HOLDER_BALANCE="$(cast call "$CONTRACT_ADDRESS" 'balanceOf(address)(uint256)' "$DEPLOYER_ADDRESS" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
+
+          test "$NAME" = "GLORIFIER"
+          test "$SYMBOL" = "GLR"
+          test "$DECIMALS" = "18"
+          test "$TOTAL_SUPPLY" = "1000000000000000000000000000"
+          test "$HOLDER_BALANCE" = "$TOTAL_SUPPLY"
+
+          RUNTIME_HASH="$(cast keccak "$ONCHAIN_RUNTIME")"
+          echo "RUNTIME_CODE_HASH=$RUNTIME_HASH" >> "$GITHUB_ENV"
+
+          jq -n             --arg contract "$CONTRACT_ADDRESS"             --arg tx "$DEPLOYMENT_TX_HASH"             --arg holder "$DEPLOYER_ADDRESS"             --arg block "$DEPLOYMENT_BLOCK"             --arg deployer "$DEPLOYER_ADDRESS"             --arg nonce "$DEPLOYER_NONCE"             --arg runtime_hash "$RUNTIME_HASH"             --arg source_commit "${{ github.sha }}"             '{
+              evidence_type:"GLORIFIER BEP-20 deployment reconciliation",
+              network:"BNB Smart Chain Mainnet",
+              chain_id:56,
+              contract_address:$contract,
+              transaction_hash:$tx,
+              block_number:($block|tonumber),
+              transaction_status:1,
+              deployer_address:$deployer,
+              deployer_nonce:($nonce|tonumber),
+              initial_holder:$holder,
+              expected_contract_address:$contract,
+              source_commit:$source_commit,
+              runtime_bytecode_keccak256:$runtime_hash,
+              verification_mode:"verify_existing",
+              on_chain_assertions:{
+                name:"GLORIFIER",
+                symbol:"GLR",
+                decimals:18,
+                total_supply_wei:"1000000000000000000000000000",
+                initial_holder_balance_wei:"1000000000000000000000000000"
+              }
+            }' > bnb-mainnet-reconciliation-evidence.json
+
+      - name: Verify GLR source on BscScan
+        working-directory: contracts
+        env:
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+        run: |
+          set -euo pipefail
+          CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$DEPLOYER_ADDRESS")"
+          VERIFY_LOG="$(mktemp)"
+          trap 'rm -f "$VERIFY_LOG"' EXIT
+
+          set +e
+          forge verify-contract "$CONTRACT_ADDRESS" src/GLORIFIER.sol:GLORIFIER             --chain-id 56             --verifier etherscan             --verifier-url "https://api.etherscan.io/v2/api?chainid=56"             --etherscan-api-key "$BSCSCAN_API_KEY"             --constructor-args "$CONSTRUCTOR_ARGS"             --compiler-version v0.8.24+commit.e11b9ed9             --num-of-optimizations 200             --retries 12             --delay 10             --watch 2>&1 | tee "$VERIFY_LOG"
+          VERIFY_EXIT="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "$VERIFY_EXIT" != "0" ]]; then
+            echo "ERROR: BscScan source verification failed."
+            sed -n '1,240p' "$VERIFY_LOG"
+            exit 1
+          fi
+
+          echo "BSC_MAINNET_SOURCE_VERIFIED=true" >> "$GITHUB_ENV"
+
+      - name: Confirm authoritative BscScan verification
+        working-directory: contracts
+        env:
+          BSCSCAN_API_KEY: ${{ secrets.GLORIFIER_BSCSCAN_API_KEY }}
+        run: |
+          set -euo pipefail
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+          HTTP_STATUS="$(curl -sS --max-time 20 --connect-timeout 10             -o "$RESPONSE_FILE" -w '%{http_code}'             "https://api.etherscan.io/v2/api?chainid=56&module=contract&action=getsourcecode&address=$CONTRACT_ADDRESS&apikey=$BSCSCAN_API_KEY" || true)"
+          [[ "$HTTP_STATUS" = "200" ]]
+          STATUS="$(jq -r '.status // empty' "$RESPONSE_FILE")"
+          SOURCE="$(jq -r 'if (.result|type) == "array" then (.result[0].SourceCode // "") else "" end' "$RESPONSE_FILE")"
+          CONTRACT_NAME="$(jq -r 'if (.result|type) == "array" then (.result[0].ContractName // "") else "" end' "$RESPONSE_FILE")"
+          COMPILER_VERSION="$(jq -r 'if (.result|type) == "array" then (.result[0].CompilerVersion // "") else "" end' "$RESPONSE_FILE")"
+          OPTIMIZATION_USED="$(jq -r 'if (.result|type) == "array" then (.result[0].OptimizationUsed // "") else "" end' "$RESPONSE_FILE")"
+          OPTIMIZATION_RUNS="$(jq -r 'if (.result|type) == "array" then (.result[0].Runs // "") else "" end' "$RESPONSE_FILE")"
+          VERIFIED_CONSTRUCTOR_ARGS="$(jq -r 'if (.result|type) == "array" then (.result[0].ConstructorArguments // "") else "" end' "$RESPONSE_FILE")"
+          EXPECTED_CONSTRUCTOR_ARGS="${CONSTRUCTOR_ARGS#0x}"
+
+          [[ "$STATUS" = "1" && -n "$SOURCE" ]]
+          test "$CONTRACT_NAME" = "GLORIFIER"
+          test "$COMPILER_VERSION" = "v0.8.24+commit.e11b9ed9"
+          test "$OPTIMIZATION_USED" = "1"
+          test "$OPTIMIZATION_RUNS" = "200"
+          test "$(printf '%s' "$VERIFIED_CONSTRUCTOR_ARGS" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$EXPECTED_CONSTRUCTOR_ARGS" | tr '[:upper:]' '[:lower:]')"
+
+          echo "BscScan source verification: CONFIRMED"
+          echo "BSC_MAINNET_SOURCE_VERIFIED=true" >> "$GITHUB_ENV"
+          echo "BSC_MAINNET_COMPILER_VERSION=$COMPILER_VERSION" >> "$GITHUB_ENV"
+          echo "BSC_MAINNET_OPTIMIZER_RUNS=$OPTIMIZATION_RUNS" >> "$GITHUB_ENV"
+
+      - name: Publish FULLY VERIFIED evidence
+        run: |
+          set -euo pipefail
+          test "${BSC_MAINNET_SOURCE_VERIFIED:-}" = "true"
+          {
+            echo "GLR_STATUS=FULLY_VERIFIED"
+            echo "CHAIN=bnb-mainnet"
+            echo "CHAIN_ID=56"
+            echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS"
+            echo "DEPLOYMENT_TX=$DEPLOYMENT_TX_HASH"
+            echo "DEPLOYMENT_BLOCK=$DEPLOYMENT_BLOCK"
+            echo "DEPLOYER_ADDRESS=$DEPLOYER_ADDRESS"
+            echo "DEPLOYER_NONCE=$DEPLOYER_NONCE"
+            echo "INITIAL_HOLDER=$DEPLOYER_ADDRESS"
+            echo "RUNTIME_BYTECODE_KECCAK256=$RUNTIME_CODE_HASH"
+            echo "BSCSCAN_VERIFIED=true"
+          } > contracts/bnb-mainnet-reconciliation-evidence.env
+
+          {
+            echo "## GLORIFIER GLR BNB Mainnet Reconciliation"
+            echo "- Network: BNB Smart Chain Mainnet"
+            echo "- Chain ID: 56"
+            echo "- Status: **FULLY VERIFIED**"
+            echo "- Contract: $CONTRACT_ADDRESS"
+            echo "- Deployment transaction: $DEPLOYMENT_TX_HASH"
+            echo "- Deployment block: $DEPLOYMENT_BLOCK"
+            echo "- On-chain assertions: **PASSED**"
+            echo "- BscScan source verification: **PASSED**"
+            echo "- Deployer: $DEPLOYER_ADDRESS"
+            echo "- Deployer nonce: $DEPLOYER_NONCE"
+            echo "- Verification mode: verify-existing (no blockchain transaction broadcast)"
+            echo "- Source commit: ${{ github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reconciliation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: glorifier-bnb-mainnet-reconciliation-evidence-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            contracts/bnb-mainnet-reconciliation-evidence.env
+            contracts/bnb-mainnet-reconciliation-evidence.json
