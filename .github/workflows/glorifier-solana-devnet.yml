@@ -10,24 +10,29 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
     name: Deploy GLORIFIER GLR to Solana Devnet
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    concurrency: glorifier-solana-devnet-deploy
+    concurrency:
+      group: glorifier-solana-devnet-deploy
+      cancel-in-progress: false
     environment: glorifier-solana-devnet
     env:
       SOLANA_RPC_URL: ${{ secrets.GLORIFIER_SOLANA_DEVNET_RPC_URL }}
       AGAVE_VERSION: v4.2.2
       GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_KEYPAIR_JSON }}
+      CONFIRMATION: ${{ inputs.confirm }}
+
     steps:
       - name: Validate deployment authorization
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.confirm }}" = "DEPLOY_GLORIFIER_SOLANA_DEVNET" || {
+          test "$CONFIRMATION" = "DEPLOY_GLORIFIER_SOLANA_DEVNET" || {
             echo "::error::Refusing Solana Devnet deployment: exact confirmation required."
             exit 1
           }
@@ -52,27 +57,57 @@ jobs:
           cargo install spl-token-cli --locked --version 5.0.2
           spl-token --version
 
-      - name: Validate required deployment secret
+      - name: Validate required deployment secrets
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${GLORIFIER_SOLANA_KEYPAIR_JSON}" ]]; then
+          test -n "${GLORIFIER_SOLANA_KEYPAIR_JSON}" || {
             echo "::error::Missing GLORIFIER_SOLANA_KEYPAIR_JSON in the glorifier-solana-devnet environment."
             exit 1
-          fi
-          if [[ -z "${SOLANA_RPC_URL}" ]]; then
+          }
+          test -n "${SOLANA_RPC_URL}" || {
             echo "::error::Missing GLORIFIER_SOLANA_DEVNET_RPC_URL in the glorifier-solana-devnet environment."
             exit 1
-          fi
+          }
           cat > solana/deployment-status.txt <<'EOF'
 STATUS=CONFIGURED
 EOF
+
+      - name: Check deployment replay lock
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&per_page=100")"
+          if jq -e --arg current "${GITHUB_RUN_ID}" '
+            any(.workflow_runs[]?;
+              ((.id | tostring) != $current) and (.conclusion == "success")
+            )
+          ' <<<"$RUNS_JSON" >/dev/null; then
+            echo "::error::A previous GLORIFIER Solana Devnet deployment workflow already succeeded."
+            echo "::error::Use glorifier-solana-devnet-reconcile.yml with the existing mint instead of creating another mint."
+            exit 1
+          fi
+
+          ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=glorifier-solana-devnet-evidence&per_page=100")"
+          if jq -e --arg current "${GITHUB_RUN_ID}" '
+            any(.artifacts[]?;
+              (.expired == false) and ((.workflow_run.id // -1 | tostring) != $current)
+            )
+          ' <<<"$ARTIFACTS_JSON" >/dev/null; then
+            echo "::error::Prior Solana Devnet deployment evidence exists."
+            echo "::error::Mint creation is locked. Reconcile the recorded/existing mint instead."
+            exit 1
+          fi
+
+          echo "Replay lock: no prior successful deployment or unexpired deployment evidence found."
 
       - name: Configure dedicated deployment wallet
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GLORIFIER_SOLANA_KEYPAIR_JSON}" || { echo "Missing GLORIFIER_SOLANA_KEYPAIR_JSON"; exit 1; }
           mkdir -p "$HOME/.config/solana"
           printf '%s' "${GLORIFIER_SOLANA_KEYPAIR_JSON}" > "$HOME/.config/solana/glorifier-devnet-keypair.json"
           chmod 600 "$HOME/.config/solana/glorifier-devnet-keypair.json"
@@ -107,18 +142,49 @@ EOF
         shell: bash
         run: |
           set -euo pipefail
+          readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
           MINT="$(grep -E '^MINT=' solana/deployment-output.txt | tail -n1 | cut -d= -f2)"
           test -n "$MINT"
           echo "MINT=$MINT"
+
           spl-token --program-2022 supply "$MINT" | tee solana/final-supply.txt
           spl-token --program-2022 display "$MINT" | tee solana/final-mint-state.txt
+          solana account "$MINT" | tee solana/mint-account.txt
+
           ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/final-supply.txt | tr -d '\r')"
           test "$ACTUAL_SUPPLY" = "1000000000"
-          grep -q 'GLORIFIER' solana/final-mint-state.txt
-          grep -q 'GLR' solana/final-mint-state.txt
+
+          grep -Fq "Owner: $TOKEN_2022_PROGRAM" solana/mint-account.txt
+          grep -Fq "GLORIFIER" solana/final-mint-state.txt
+          grep -Fq "GLR" solana/final-mint-state.txt
+          grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/final-mint-state.txt
           grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/final-mint-state.txt
           grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/final-mint-state.txt
+
           test -s solana/deployment-evidence.json
+          jq -e             --arg mint "$MINT"             --arg program "$TOKEN_2022_PROGRAM" '
+              .status == "READY_FOR_VERIFICATION"
+              and .network == "solana-devnet"
+              and .mint == $mint
+              and .programId == $program
+              and .name == "GLORIFIER"
+              and .symbol == "GLR"
+              and .decimals == 9
+              and .totalSupply == "1000000000"
+              and .mintAuthority == null
+              and .freezeAuthority == null
+            ' solana/deployment-evidence.json >/dev/null
+
+          jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "VERIFIED" |
+             .verification = {
+               "runId": $run_id,
+               "runUrl": $run_url,
+               "verifiedAt": $verified_at
+             }'             solana/deployment-evidence.json > solana/deployment-evidence.tmp.json
+          mv solana/deployment-evidence.tmp.json solana/deployment-evidence.json
+
+          cp solana/deployment-evidence.json solana/deployment-record.json
+          echo "GLR_STATUS=VERIFIED" | tee solana/deployment-status.txt
 
       - name: Upload deployment evidence
         if: always()
@@ -130,6 +196,8 @@ EOF
           path: |
             solana/deployment-status.txt
             solana/deployment-output.txt
+            solana/mint-account.txt
             solana/final-supply.txt
             solana/final-mint-state.txt
             solana/deployment-evidence.json
+            solana/deployment-record.json
