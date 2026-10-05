@@ -46,7 +46,8 @@ export function normalizeGLRAmount(value: string | number): string {
   if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) {
     throw new Error('GLR amount must be a non-negative decimal string');
   }
-  const [whole, fraction = ''] = raw.split('.');
+  const [wholeRaw, fraction = ''] = raw.split('.');
+  const whole = wholeRaw.replace(/^0+(?=\\d)/, '');
   const normalizedFraction = fraction.replace(/0+$/, '');
   return normalizedFraction ? `${whole}.${normalizedFraction}` : whole;
 }
