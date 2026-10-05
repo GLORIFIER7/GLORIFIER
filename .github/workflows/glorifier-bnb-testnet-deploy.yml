@@ -158,7 +158,7 @@ jobs:
 
           CONSTRUCTOR_ARGS="$(cast abi-encode "constructor(address)" "$INITIAL_HOLDER")"
           DEPLOY_DATA="${CREATION_BYTECODE}${CONSTRUCTOR_ARGS#0x}"
-          GAS_ESTIMATE="$(cast estimate --create "$DEPLOY_DATA" --rpc-url "$RPC_URL")"
+          GAS_ESTIMATE="$(cast --rpc-url "$RPC_URL" estimate --create "$DEPLOY_DATA")"
           GAS_PRICE_WEI="$(cast gas-price --rpc-url "$RPC_URL")"
           REQUIRED_WEI="$((GAS_ESTIMATE * GAS_PRICE_WEI * 125 / 100))"
 
