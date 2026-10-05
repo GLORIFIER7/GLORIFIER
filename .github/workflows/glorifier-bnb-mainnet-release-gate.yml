@@ -12,11 +12,6 @@ on:
         required: false
         default: ""
         type: string
-      expected_deployer_nonce:
-        description: "Exact current deployer nonce as a decimal integer (example: 0, 1, 2). Do NOT enter the deployer address."
-        required: true
-        type: string
-
 concurrency:
   group: glorifier-bnb-mainnet-release
   cancel-in-progress: false
@@ -31,7 +26,6 @@ jobs:
       contents: read
     env:
       INITIAL_HOLDER_INPUT: ${{ inputs.initial_holder }}
-      EXPECTED_DEPLOYER_NONCE_INPUT: ${{ inputs.expected_deployer_nonce }}
       CONFIRM_INPUT: ${{ inputs.confirm }}
 
     steps:
@@ -171,24 +165,33 @@ jobs:
           }
 
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
-          EXPECTED_DEPLOYER_NONCE="$(printf '%s' "$EXPECTED_DEPLOYER_NONCE_INPUT" | tr -d '[:space:]')"
-          [[ "$EXPECTED_DEPLOYER_NONCE" =~ ^[0-9]+$ ]] || {
-            echo "ERROR: expected_deployer_nonce must be a non-negative integer."
+
+          # Obtain the deployment nonce directly from BNB Mainnet RPC.
+          # latest = next nonce after all mined transactions.
+          # pending = next nonce including transactions already in the mempool.
+          RPC_LATEST_JSON="$(cast rpc eth_getTransactionCount "$DEPLOYER" latest --rpc-url "$BNB_MAINNET_RPC_URL")"
+          RPC_PENDING_JSON="$(cast rpc eth_getTransactionCount "$DEPLOYER" pending --rpc-url "$BNB_MAINNET_RPC_URL")"
+          CURRENT_NONCE_HEX="$(printf '%s' "$RPC_LATEST_JSON" | jq -r '.result // empty')"
+          PENDING_NONCE_HEX="$(printf '%s' "$RPC_PENDING_JSON" | jq -r '.result // empty')"
+          [[ "$CURRENT_NONCE_HEX" =~ ^0x[0-9a-fA-F]+$ ]] || {
+            echo "ERROR: BNB RPC did not return a valid latest deployer nonce."
+            exit 1
+          }
+          [[ "$PENDING_NONCE_HEX" =~ ^0x[0-9a-fA-F]+$ ]] || {
+            echo "ERROR: BNB RPC did not return a valid pending deployer nonce."
+            exit 1
+          }
+          CURRENT_NONCE="$((16#${CURRENT_NONCE_HEX#0x}))"
+          PENDING_NONCE="$((16#${PENDING_NONCE_HEX#0x}))"
+          [[ "$CURRENT_NONCE" = "$PENDING_NONCE" ]] || {
+            echo "ERROR: deployer has a pending transaction."
+            echo "Mined/latest nonce: $CURRENT_NONCE"
+            echo "Pending nonce: $PENDING_NONCE"
+            echo "The release gate will not broadcast another transaction."
             exit 1
           }
 
-          CURRENT_NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
-          [[ "$CURRENT_NONCE" =~ ^[0-9]+$ ]] || {
-            echo "ERROR: invalid live deployer nonce: $CURRENT_NONCE"
-            exit 1
-          }
-          test "$CURRENT_NONCE" = "$EXPECTED_DEPLOYER_NONCE" || {
-            echo "ERROR: deployer nonce changed or expected nonce is wrong."
-            echo "Expected nonce: $EXPECTED_DEPLOYER_NONCE"
-            echo "Live nonce: $CURRENT_NONCE"
-            echo "No transaction will be broadcast."
-            exit 1
-          }
+          EXPECTED_DEPLOYER_NONCE="$CURRENT_NONCE"
 
           EXPECTED_CONTRACT_ADDRESS="$(cast compute-address "$DEPLOYER" --nonce "$EXPECTED_DEPLOYER_NONCE" | grep -Eo '0x[0-9a-fA-F]{40}' | tail -n1 | tr -d '\r\n')"
           [[ "$EXPECTED_CONTRACT_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
@@ -288,11 +291,21 @@ jobs:
             exit 1
           }
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
-          LIVE_NONCE="$(cast nonce "$DEPLOYER" --rpc-url "$BNB_MAINNET_RPC_URL" | awk '{print $1}' | tr -d '\r\n')"
-          [[ "$LIVE_NONCE" = "$DEPLOYER_NONCE" ]] || {
-            echo "ERROR: deployer nonce changed between preflight and final broadcast gate."
-            echo "Expected: $DEPLOYER_NONCE"
-            echo "Live: $LIVE_NONCE"
+          LIVE_LATEST_JSON="$(cast rpc eth_getTransactionCount "$DEPLOYER" latest --rpc-url "$BNB_MAINNET_RPC_URL")"
+          LIVE_PENDING_JSON="$(cast rpc eth_getTransactionCount "$DEPLOYER" pending --rpc-url "$BNB_MAINNET_RPC_URL")"
+          LIVE_LATEST_HEX="$(printf '%s' "$LIVE_LATEST_JSON" | jq -r '.result // empty')"
+          LIVE_PENDING_HEX="$(printf '%s' "$LIVE_PENDING_JSON" | jq -r '.result // empty')"
+          [[ "$LIVE_LATEST_HEX" =~ ^0x[0-9a-fA-F]+$ && "$LIVE_PENDING_HEX" =~ ^0x[0-9a-fA-F]+$ ]] || {
+            echo "ERROR: BNB RPC returned an invalid deployer nonce during final gate."
+            exit 1
+          }
+          LIVE_NONCE="$((16#${LIVE_LATEST_HEX#0x}))"
+          LIVE_PENDING_NONCE="$((16#${LIVE_PENDING_HEX#0x}))"
+          [[ "$LIVE_NONCE" = "$DEPLOYER_NONCE" && "$LIVE_PENDING_NONCE" = "$DEPLOYER_NONCE" ]] || {
+            echo "ERROR: deployer nonce changed or a pending transaction appeared before broadcast."
+            echo "Authorized nonce: $DEPLOYER_NONCE"
+            echo "Live latest nonce: $LIVE_NONCE"
+            echo "Live pending nonce: $LIVE_PENDING_NONCE"
             echo "No transaction will be broadcast."
             exit 1
           }
