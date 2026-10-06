@@ -1,0 +1,15 @@
+{
+  "asset": "GLORIFIER",
+  "symbol": "GLR",
+  "network": "solana-devnet",
+  "token_standard": "Token-2022",
+  "program_id": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH",
+  "canonical_mint": null,
+  "creation_transaction": null,
+  "mint_transaction": null,
+  "authority_revocation_transaction": null,
+  "status": "NOT VERIFIED",
+  "verification_boundary": "A mint becomes canonical only after one authorized deployment produces a real mint address plus transaction evidence and the final on-chain state is independently reconciled.",
+  "excluded_mint": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G",
+  "next_action": "Execute .github/workflows/glorifier-solana-devnet.yml once with explicit authorization; do not create a second mint."
+}
