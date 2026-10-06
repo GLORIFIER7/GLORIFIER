@@ -164,6 +164,12 @@ git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
 git push --set-upstream origin "${BRANCH}"
 
+EXISTING_PR="$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url' | head -n1 || true)"
+if [[ -n "${EXISTING_PR}" ]]; then
+  echo "Verified identity publication PR already exists: ${EXISTING_PR}"
+  exit 0
+fi
+
 PR_URL="$(gh pr create   --base main   --head "${BRANCH}"   --title "chore(solana): publish verified GLR Devnet identity"   --body "Automated governed publication after independent Solana Devnet reconciliation and deployment-provenance verification.
 
 - GLR mint: ${MINT}
