@@ -428,7 +428,7 @@ async function upsertCanonicalGLRDeployment(input: {
 }) {
   await getPostgresPool().query(`INSERT INTO canonical_asset_deployments
     (deployment_id,asset_id,network,network_family,network_id,chain_id,identifier_type,contract_address,asset_identifier,program_id,deployment_transaction,deployment_block,status,explorer,source_verification_status,deployer_address,initial_holder_address,verification_mode,verification_workflow_commit,evidence,first_verified_at,last_verified_at)
-    VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
+    VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
     ON CONFLICT(deployment_id) DO UPDATE SET
       network=EXCLUDED.network,network_family=EXCLUDED.network_family,network_id=EXCLUDED.network_id,chain_id=EXCLUDED.chain_id,identifier_type=EXCLUDED.identifier_type,contract_address=EXCLUDED.contract_address,asset_identifier=EXCLUDED.asset_identifier,program_id=EXCLUDED.program_id,
       deployment_transaction=EXCLUDED.deployment_transaction,deployment_block=EXCLUDED.deployment_block,
