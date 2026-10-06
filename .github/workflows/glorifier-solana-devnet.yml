@@ -173,6 +173,12 @@ EOF
             and .totalSupply == "1000000000"
             and .mintAuthority == null
             and .freezeAuthority == null
+            and (.creationTransaction | type == "string" and length >= 80)
+            and (.metadataTransaction | type == "string" and length >= 80)
+            and (.tokenAccountCreationTransaction | type == "string" and length >= 80)
+            and (.mintTransaction | type == "string" and length >= 80)
+            and (.mintAuthorityRevocationTransaction | type == "string" and length >= 80)
+            and (.freezeAuthorityRevocationTransaction | type == "string" and length >= 80)
           ' solana/deployment-evidence.json >/dev/null
 
           jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "FULLY_VERIFIED" |
