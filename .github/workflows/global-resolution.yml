@@ -21,10 +21,25 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check database configuration
+        id: database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_CONFIGURED=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DATABASE_URL is not configured; global issue resolution is NOT_OBSERVABLE and will not fabricate a success state."
+          else
+            echo "DATABASE_CONFIGURED=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Discover and queue global resolution candidates
+        if: steps.database.outputs.DATABASE_CONFIGURED == 'true'
         run: npx tsx scripts/run-global-resolution.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GLORIFIER_RESOLUTION_LIMIT: "200"
+      - name: Report unconfigured database boundary
+        if: steps.database.outputs.DATABASE_CONFIGURED != 'true'
+        run: echo "Global resolution cycle skipped truthfully because DATABASE_URL is unavailable."
