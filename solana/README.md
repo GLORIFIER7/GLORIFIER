@@ -62,7 +62,8 @@ does not need custody of the wallet's private key.
 
 - Source/configuration: PUBLISHED when merged.
 - Deployment automation: CONFIGURED with a replay lock; execution still requires the owner's authorized wallet secret and a successful workflow run.
-- Devnet deployment: NOT VERIFIED until a real Solana mint address and on-chain evidence are recorded.
+- Devnet deployment: NOT VERIFIED until a successful deployment workflow run records a real mint address and transaction evidence.
+- Devnet on-chain reconciliation: VERIFIED_ON_CHAIN only proves the supplied mint currently matches the expected GLORIFIER Token-2022 properties; it does not prove that this repository created that mint.
 - Devnet reconciliation: READ-ONLY; it cannot create a new mint or mutate an existing mint.
 - Mainnet deployment: NOT VERIFIED until a real mainnet mint and transaction
   evidence are recorded.
