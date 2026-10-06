@@ -16,6 +16,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy GLORIFIER GLR to Solana Devnet
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -29,6 +30,23 @@ jobs:
       CONFIRMATION: ${{ inputs.confirm }}
 
     steps:
+      - name: Validate deployment execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch" || {
+            echo "::error::Refusing Solana Devnet deployment: workflow_dispatch is required."
+            exit 1
+          }
+          test "${GITHUB_REF}" = "refs/heads/main" || {
+            echo "::error::Refusing Solana Devnet deployment: only the main branch is authorized."
+            exit 1
+          }
+          test "${GITHUB_REF_NAME}" = "main" || {
+            echo "::error::Refusing Solana Devnet deployment: GITHUB_REF_NAME must be main."
+            exit 1
+          }
+
       - name: Validate deployment authorization
         shell: bash
         run: |
@@ -37,7 +55,6 @@ jobs:
             echo "::error::Refusing Solana Devnet deployment: exact confirmation required."
             exit 1
           }
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
