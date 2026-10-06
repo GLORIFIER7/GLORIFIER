@@ -40,11 +40,12 @@ export function getGlorifierMediatorPolicy() {
       'Authenticated Demand + Marketplaces',
       'Authorized Execution Connectors',
       'External Acceptance / Outcome Systems',
+      'GLR Agent Economic Layer',
       'Settlement Rails',
       'Authoritative Revenue Ledger',
       'Learning / Improvement'
     ],
-    valueUnits: ['token', 'task', 'deliverable', 'dataset', 'api_call', 'analysis', 'security_finding', 'workflow_execution', 'measurable_outcome'],
+    valueUnits: ['GLR', 'token', 'task', 'deliverable', 'dataset', 'api_call', 'analysis', 'security_finding', 'workflow_execution', 'measurable_outcome'],
     mediationFunctions: ['discover', 'translate', 'match', 'route', 'verify', 'authorize', 'execute', 'deliver', 'measure', 'reconcile', 'settle', 'learn'],
     authorization: {
       externalAccessRequiresExplicitAuthorization: true,
@@ -58,6 +59,12 @@ export function getGlorifierMediatorPolicy() {
       settlementMustHaveQualifyingExternalEvidence: true,
       estimatesNeverBecomeRevenueAutomatically: true
     },
+    economicArchitecture: {
+      nativeEconomicUnit: 'GLR',
+      positioning: 'The native economic unit for governed AI-agent commerce.',
+      flow: ['agent-identity','capability-policy','task','GLR-intent','human-authority','execution','external-evidence','settlement','reconciliation'],
+      authorityBoundary: 'GLR ownership never grants agent authority or policy bypass.'
+    },
     economicTruth: {
       estimatedValue: 'NOT VERIFIED',
       pipelineValue: 'NOT VERIFIED',
@@ -66,6 +73,7 @@ export function getGlorifierMediatorPolicy() {
       verifiedRevenue: 'Qualifying external settlement evidence only'
     },
     safety: ['no unauthorized access', 'no credential abuse', 'no exploitation', 'no spam', 'no impersonation', 'no evasion', 'no irreversible financial action without authorization'],
+    glr: { nativeEconomicUnit: 'GLR', settlementEvidenceRequired: true, tokenContractDoesNotGrantAgentAuthority: true, positioning: 'The native economic unit for governed AI-agent commerce.', truthStates: ['NOT VERIFIED','EVIDENCE-BACKED','VERIFIED'] },
     providerNeutrality: true
   };
 }
@@ -107,6 +115,7 @@ export async function ensureCoreMediatorNodes() {
     { nodeType:'marketplace', provider:'External Marketplaces', capability:'authorized-market-access', status:'discovered', authorizationRequired:true },
     { nodeType:'execution_connector', provider:'GitHub Actions', capability:'governed-code-execution', status:'configured', authorizationRequired:true },
     { nodeType:'execution_connector', provider:'Railway/Vercel', capability:'application-deployment', status:'configured', authorizationRequired:true },
+    { nodeType:'settlement_rail', provider:'GLORIFIER GLR Economic Layer', capability:'agent-economic-intents', status:'configured', authorizationRequired:true },
     { nodeType:'settlement_rail', provider:'Authorized Payment Providers', capability:'payment-settlement', status:'discovered', authorizationRequired:true },
     { nodeType:'settlement_rail', provider:'Binance', capability:'public-asset-observation', status:'discovered', authorizationRequired:true },
     { nodeType:'evidence_system', provider:'GLORIFIER Evidence Layer', capability:'provenance-and-verification', status:'configured', authorizationRequired:false },

@@ -11,6 +11,7 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalP
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
+import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
 import { ensureGlobalProviderConnections, getGlobalCollaborationStatus, recordGlobalCollaboration } from './src/lib/global-collaboration';
@@ -83,6 +84,7 @@ void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDevi
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 initializeA2ARuntime();
 void initializeFederatedA2AV3().catch((error) => console.warn('[FederatedA2A v3] initialization deferred:', error?.message));
+void initializeGLREconomicLayer().catch((error) => console.warn('[GLR Economic Layer] initialization deferred:', error?.message));
 
 void initializeConnectionRegistry().then(() => ensureGlobalProviderConnections()).catch((error) => console.warn('[ConnectionRegistry] initialization deferred:', error?.message));
 
@@ -2096,6 +2098,66 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
 // ============================================================================
 app.get('/api/agents', (_req: Request, res: Response) => {
   res.json(agentManifest());
+});
+
+app.get('/api/economy/glr/policy', (_req: Request, res: Response) => {
+  res.json({ ok: true, policy: glrEconomicPolicy() });
+});
+
+app.get('/api/economy/glr/snapshot', async (_req: Request, res: Response) => {
+  try { res.json({ ok: true, snapshot: await getGLREconomicSnapshot() }); }
+  catch (error) { return apiError(res, 503, 'GLR economic snapshot unavailable', error); }
+});
+
+app.get('/api/economy/glr/intents', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+    res.json({ ok: true, intents: await listGLRPaymentIntents(limit), truth: 'Per-intent truthStatus is authoritative.' });
+  } catch (error) { return apiError(res, 503, 'GLR economic layer unavailable', error); }
+});
+
+app.get('/api/economy/glr/intents/:id', async (req: Request, res: Response) => {
+  try {
+    const intent = await getGLRPaymentIntent(String(req.params.id));
+    if (!intent) return res.status(404).json({ ok: false, error: 'GLR payment intent not found' });
+    res.json({ ok: true, intent });
+  } catch (error) { return apiError(res, 503, 'GLR payment intent unavailable', error); }
+});
+
+app.post('/api/economy/glr/intents', async (req: Request, res: Response) => {
+  try {
+    const intent = await createGLRPaymentIntent(req.body || {});
+    res.status(201).json({ ok: true, intent, truth: intent.truthStatus });
+  } catch (error) { return apiError(res, 400, 'Invalid GLR payment intent', error); }
+});
+
+app.post('/api/economy/glr/intents/:id/authorize', requireOwner, async (req: Request, res: Response) => {
+  try {
+    const intent = await authorizeGLRPaymentIntent(String(req.params.id), req.body?.humanAuthorized === true);
+    res.json({ ok: true, intent, truth: intent.truthStatus });
+  } catch (error) { return apiError(res, 403, 'GLR authorization denied', error); }
+});
+
+app.post('/api/economy/glr/intents/:id/commit', requireOwner, async (req: Request, res: Response) => {
+  try {
+    const intent = await commitGLRPaymentIntent(String(req.params.id));
+    res.json({ ok: true, intent, truth: intent.truthStatus });
+  } catch (error) { return apiError(res, 409, 'GLR commitment rejected', error); }
+});
+
+app.post('/api/economy/glr/intents/:id/settlement-evidence', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try {
+    const intent = await recordGLRSettlementEvidence({
+      intentId: String(req.params.id),
+      settlementTxRef: String(req.body?.settlementTxRef || ''),
+      evidenceRef: String(req.body?.evidenceRef || ''),
+      network: req.body?.network ? String(req.body.network) : null,
+      externallyVerified: req.body?.externallyVerified === true,
+      verificationMethod: req.body?.verificationMethod,
+      verifierRef: req.body?.verifierRef ? String(req.body.verifierRef) : null
+    });
+    res.json({ ok: true, intent, truth: intent.truthStatus });
+  } catch (error) { return apiError(res, 400, 'GLR settlement evidence rejected', error); }
 });
 
 app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {

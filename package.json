@@ -29,7 +29,8 @@
     "test:internet-discovery": "tsx src/lib/internet-discovery-fabric.test.ts",
     "test:model-network": "tsx src/lib/model-network.test.ts",
     "test:ai-web-network": "tsx src/lib/ai-web-network.test.ts",
-    "test:federated-a2a-v3": "tsx src/lib/federated-a2a-v3.test.ts"
+    "test:federated-a2a-v3": "tsx src/lib/federated-a2a-v3.test.ts",
+    "test:glr-economic-layer": "tsx src/lib/glr-economic-layer.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

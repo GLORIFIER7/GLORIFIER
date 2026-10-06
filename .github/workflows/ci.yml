@@ -47,5 +47,8 @@ jobs:
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
+      - name: GLR governed commerce invariants
+        run: npm run test:glr-economic-layer
+
       - name: Production build
         run: npm run build
