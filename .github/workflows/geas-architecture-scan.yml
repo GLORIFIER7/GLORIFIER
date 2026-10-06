@@ -23,20 +23,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout main
+      - name: Checkout revision under test
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Validate GEAS architecture contracts
         run: npm run validate:geas-architecture
