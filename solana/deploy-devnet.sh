@@ -1,44 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Requires the Solana CLI and spl-token CLI.
-# This script is intentionally signer-local: no private key is stored in
-# GLORIFIER and no GitHub secret is required.
+# DEPRECATED — direct local Solana GLR mint creation is intentionally disabled.
+# Do not create another Devnet mint from this script.
 #
-# Run from a wallet environment you control.
+# Canonical deployment path:
+#   .github/workflows/glorifier-solana-devnet.yml
 #
-# 1) solana config set --url devnet
-# 2) solana address
-# 3) solana airdrop 2
-# 4) Run this script.
+# After one successful authorized deployment, use:
+#   .github/workflows/glorifier-solana-devnet-reconcile.yml
+# for read-only reconciliation.
 #
-# The resulting mint address is printed and must be recorded as deployment
-# evidence. The script revokes mint/freeze authority after the full supply
-# is minted.
+# Never paste a private key or seed phrase into ChatGPT or commit it to GitHub.
 
-readonly DECIMALS=9
-readonly SUPPLY=1000000000
-
-solana config set --url devnet
-
-MINT="$(spl-token create-token --decimals "$DECIMALS" | awk '/Creating token/ {print $3}')"
-test -n "$MINT"
-
-echo "MINT=$MINT"
-
-spl-token create-account "$MINT"
-
-spl-token mint "$MINT" "$SUPPLY"
-
-echo "Supply:"
-spl-token supply "$MINT"
-
-echo "Holder balance:"
-spl-token balance "$MINT"
-
-# Remove both authorities after verification of the exact supply.
-spl-token authorize "$MINT" mint --disable
-spl-token authorize "$MINT" freeze --disable
-
-echo "Final mint state:"
-spl-token display "$MINT"
+echo "::error::Direct local GLR Devnet mint creation is disabled."
+echo "::error::Run the authorized GitHub Actions workflow:"
+echo "::error::.github/workflows/glorifier-solana-devnet.yml"
+exit 1
