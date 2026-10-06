@@ -62,7 +62,7 @@ MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --en
 printf '%s\n' "$MINT_OUTPUT"
 CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
 test -n "$CREATE_TOKEN_TX" || { echo "::error::Could not recover Token-2022 creation transaction signature."; exit 1; }
-MINT="$(printf '%s\n' "$MINT_OUTPUT" | grep -Eo '[1-9A-HJ-NP-Za-km-z]{32,44}' | tail -n1)"
+MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
   echo "::error::spl-token returned an invalid Solana mint address."
   exit 1
