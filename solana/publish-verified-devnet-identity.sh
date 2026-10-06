@@ -144,10 +144,31 @@ jq -e --arg mint "${MINT}" '
   and .freeze_authority_revocation_transaction
 ' solana/canonical-devnet-identity.json >/dev/null
 
+cat > solana/verified-publication.json <<EOF
+{
+  "status": "VERIFIED_ON_CHAIN",
+  "mint": "${MINT}",
+  "verificationRunId": "${GITHUB_RUN_ID}",
+  "verificationRunUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+  "publishedBy": "GLORIFIER Solana Devnet reconciliation workflow"
+}
+EOF
+
+BRANCH="automation/glorifier-solana-devnet-verified-${GITHUB_RUN_ID}"
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git fetch origin main
-git rebase origin/main
-git add solana/canonical-devnet-identity.json solana/deployment-provenance.json
+git checkout -b "${BRANCH}"
+git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json
+git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
-git push origin HEAD:main
+git push --set-upstream origin "${BRANCH}"
+
+PR_URL="$(gh pr create   --base main   --head "${BRANCH}"   --title "chore(solana): publish verified GLR Devnet identity"   --body "Automated governed publication after independent Solana Devnet reconciliation and deployment-provenance verification.
+
+- GLR mint: ${MINT}
+- Verification run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+- Deployment provenance was independently checked before this PR.
+- No token creation, minting, transfer, or authority mutation occurs in this publication step.
+- Human/protected-branch approval remains required for canonical identity publication." )"
+echo "Verified identity publication PR: ${PR_URL}"
