@@ -9,8 +9,9 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   actions: read
+  pull-requests: write
 
 jobs:
   deploy:
@@ -191,6 +192,91 @@ EOF
 
           cp solana/deployment-evidence.json solana/deployment-record.json
           echo "GLR_STATUS=FULLY_VERIFIED" | tee solana/deployment-status.txt
+
+      - name: Prepare canonical identity update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly BRANCH="automation/solana-devnet-canonical-${GITHUB_RUN_ID}"
+          readonly RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MINT="$(jq -r '.mint' solana/deployment-evidence.json)"
+          CREATION_TX="$(jq -r '.creationTransaction' solana/deployment-evidence.json)"
+          METADATA_TX="$(jq -r '.metadataTransaction' solana/deployment-evidence.json)"
+          ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction' solana/deployment-evidence.json)"
+          MINT_TX="$(jq -r '.mintTransaction' solana/deployment-evidence.json)"
+          MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-evidence.json)"
+          FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-evidence.json)"
+
+          jq \
+            --arg mint "$MINT" \
+            --arg creation "$CREATION_TX" \
+            --arg metadata "$METADATA_TX" \
+            --arg account "$ACCOUNT_TX" \
+            --arg mint_tx "$MINT_TX" \
+            --arg mint_auth "$MINT_AUTH_TX" \
+            --arg freeze_auth "$FREEZE_AUTH_TX" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_url "$RUN_URL" \
+            --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.canonical_mint = $mint
+             | .creation_transaction = $creation
+             | .metadata_transaction = $metadata
+             | .token_account_creation_transaction = $account
+             | .mint_transaction = $mint_tx
+             | .authority_revocation_transaction = $mint_auth
+             | .freeze_authority_revocation_transaction = $freeze_auth
+             | .status = "FULLY_VERIFIED"
+             | .verification_run_id = $run_id
+             | .verification_run_url = $run_url
+             | .verified_at = $verified_at
+             | .next_action = "Do not create another mint. Use glorifier-solana-devnet-reconcile.yml for later read-only reconciliation."' \
+            solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.tmp.json
+          mv solana/canonical-devnet-identity.tmp.json solana/canonical-devnet-identity.json
+
+          jq -e \
+            --arg mint "$MINT" \
+            --arg creation "$CREATION_TX" \
+            --arg mint_tx "$MINT_TX" \
+            --arg mint_auth "$MINT_AUTH_TX" \
+            --arg freeze_auth "$FREEZE_AUTH_TX" \
+            '.status == "FULLY_VERIFIED"
+             and .canonical_mint == $mint
+             and .creation_transaction == $creation
+             and .mint_transaction == $mint_tx
+             and .authority_revocation_transaction == $mint_auth
+             and .freeze_authority_revocation_transaction == $freeze_auth
+             and (.canonical_mint | type == "string" and length >= 32 and length <= 44)
+             and (.creation_transaction | type == "string" and length >= 80)
+             and (.mint_transaction | type == "string" and length >= 80)
+             and (.authority_revocation_transaction | type == "string" and length >= 80)
+             and (.freeze_authority_revocation_transaction | type == "string" and length >= 80)' \
+            solana/canonical-devnet-identity.json >/dev/null
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH"
+          git add solana/canonical-devnet-identity.json solana/deployment-evidence.json solana/deployment-record.json
+          git commit -m "chore: record verified Solana Devnet GLR identity"
+          git push --set-upstream origin "$BRANCH"
+
+          PR_URL="$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: record verified Solana Devnet GLR canonical mint" \
+            --body "Automated canonical identity handoff for successful GLORIFIER Solana Devnet deployment.
+
+Run: ${RUN_URL}
+
+The mint and transaction evidence in this branch was generated and checked by the deployment workflow. Merge this PR to publish the canonical mint in solana/canonical-devnet-identity.json.
+
+Do not create another GLORIFIER mint."
+          )"
+
+          echo "Canonical identity PR: ${PR_URL}"
 
       - name: Upload deployment evidence
         if: always()
