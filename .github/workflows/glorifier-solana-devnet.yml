@@ -41,6 +41,79 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Validate repository deployment contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n solana/deploy-token2022-devnet.sh
+          bash -n solana/reconcile-token2022-devnet.sh
+          bash -n solana/deploy-devnet.sh
+
+          jq -e '
+            .name == "GLORIFIER"
+            and .symbol == "GLR"
+            and .decimals == 9
+            and .totalSupply == "1000000000"
+            and .transferFeeBasisPoints == 0
+            and .permanentDelegate == null
+            and .finalMintAuthority == null
+            and .finalFreezeAuthority == null
+            and .devnetFirst == true
+            and .mainnetRequiresHumanApproval == true
+          ' solana/token-config.json >/dev/null
+
+          jq -e '
+            .asset == "GLORIFIER"
+            and .symbol == "GLR"
+            and .network == "solana-devnet"
+            and .token_standard == "Token-2022"
+            and .program_id == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+            and .status == "NOT VERIFIED"
+            and .canonical_mint == null
+            and .creation_transaction == null
+            and .mint_transaction == null
+            and .authority_revocation_transaction == null
+          ' solana/canonical-devnet-identity.json >/dev/null
+
+          python3 - <<'PY'
+from pathlib import Path
+import subprocess
+import tempfile
+
+path = Path(".github/workflows/glorifier-solana-devnet.yml")
+lines = path.read_text(encoding="utf-8").splitlines()
+blocks = []
+for i, line in enumerate(lines):
+    if line.strip() != "run: |":
+        continue
+    base_indent = len(line) - len(line.lstrip(" "))
+    block = []
+    j = i + 1
+    while j < len(lines):
+        candidate = lines[j]
+        if not candidate.strip():
+            block.append("")
+            j += 1
+            continue
+        indent = len(candidate) - len(candidate.lstrip(" "))
+        if indent <= base_indent:
+            break
+        block.append(candidate[base_indent + 2:])
+        j += 1
+    blocks.append("\n".join(block) + "\n")
+
+if not blocks:
+    raise SystemExit("No inline bash run blocks found in deployment workflow.")
+
+with tempfile.TemporaryDirectory() as tmp:
+    for n, block in enumerate(blocks):
+        p = Path(tmp) / f"step-{n}.sh"
+        p.write_text(block, encoding="utf-8")
+        subprocess.run(["bash", "-n", str(p)], check=True)
+
+print(f"Validated {len(blocks)} inline GitHub Actions bash blocks.")
+PY
+
       - name: Install Solana CLI
         shell: bash
         run: |
@@ -198,12 +271,12 @@ EOF
             and .totalSupply == "1000000000"
             and .mintAuthority == null
             and .freezeAuthority == null
-            and (.creationTransaction | type == "string" and length >= 80)
-            and (.metadataTransaction | type == "string" and length >= 80)
-            and (.tokenAccountCreationTransaction | type == "string" and length >= 80)
-            and (.mintTransaction | type == "string" and length >= 80)
-            and (.mintAuthorityRevocationTransaction | type == "string" and length >= 80)
-            and (.freezeAuthorityRevocationTransaction | type == "string" and length >= 80)
+            and (.creationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+            and (.metadataTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+            and (.tokenAccountCreationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+            and (.mintTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+            and (.mintAuthorityRevocationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+            and (.freezeAuthorityRevocationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
           ' solana/deployment-evidence.json >/dev/null
 
           jq             --arg run_id "${GITHUB_RUN_ID}"             --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"             '.status = "FULLY_VERIFIED" |
@@ -274,10 +347,10 @@ EOF
              and .authority_revocation_transaction == $mint_auth
              and .freeze_authority_revocation_transaction == $freeze_auth
              and (.canonical_mint | type == "string" and length >= 32 and length <= 44)
-             and (.creation_transaction | type == "string" and length >= 80)
-             and (.mint_transaction | type == "string" and length >= 80)
-             and (.authority_revocation_transaction | type == "string" and length >= 80)
-             and (.freeze_authority_revocation_transaction | type == "string" and length >= 80)' \
+             and (.creation_transaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+             and (.mint_transaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+             and (.authority_revocation_transaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))
+             and (.freeze_authority_revocation_transaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{80,96}$"))' \
             solana/canonical-devnet-identity.json >/dev/null
 
           git config user.name "github-actions[bot]"
