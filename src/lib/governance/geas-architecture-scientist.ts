@@ -25,6 +25,13 @@ export type EvidenceClass = 'observed-fact' | 'analysis' | 'recommendation';
 export type DriftStatus = 'aligned' | 'partial' | 'drift' | 'unknown';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type EvidenceStatus = 'verified' | 'not-observed' | 'unavailable';
+export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
+export type EvidenceSensitivity = 'public' | 'internal' | 'confidential' | 'restricted';
+
+export interface EvidenceGovernance { sensitivity: EvidenceSensitivity; retentionDays: number; disclosure: 'full' | 'redacted' | 'selective'; minimizationRequired: boolean; }
+export interface AgentTelemetryContract { version: 'GEAS-OTEL-GENAI-1'; operation: 'create_agent' | 'invoke_agent' | 'execute_tool' | 'invoke_workflow' | 'plan'; traceId: string; agentId: string; provider?: string; model?: string; tool?: string; policyDecisionRef?: string; evidenceRefs: string[]; }
+export interface FinOpsEvidenceContract { specification: 'FOCUS-1.4'; workloadId: string; provider: string; usageQuantity?: number; usageUnit?: string; billedCost?: number; currency?: string; invoiceRef?: string; billingPeriod?: string; commitmentRef?: string; verifiedOutcomeRef?: string; }
+export interface ArchitectureReconciliationContract { resourceId: string; desired: Record<string, unknown>; declared: Record<string, unknown>; deployed: Record<string, unknown>; observed: Record<string, unknown>; verified: Record<string, unknown>; status: 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN'; evidenceRefs: string[]; }
 
 export interface ArchitectureSource {
   id: string;
@@ -58,6 +65,7 @@ export interface ArchitecturePattern {
   GLORIFIERMapping: string;
   controlIds: string[];
   lastReviewed: string;
+  evidenceGovernance?: EvidenceGovernance;
 }
 
 export interface ArchitectureControl {
@@ -111,6 +119,8 @@ export interface ArchitectureScanResult {
     }
   >;
   irreversibleChangesExecuted: false;
+  architectureStateModel: ArchitectureState[];
+  sourcePolicyVersion: 'GEAS-AUTHORITY-1';
 }
 
 export interface AgentIdentityContract {
@@ -380,6 +390,38 @@ const SOURCES: ArchitectureSource[] = [
     cadenceHours: 168,
   },
   {
+    id: 'nist-token-protection',
+    authority: 'NIST',
+    domain: 'cybersecurity',
+    url: 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation',
+    patternIds: ['token-lifecycle-protection'],
+    cadenceHours: 168,
+  },
+  {
+    id: 'otel-genai-agents',
+    authority: 'OpenTelemetry',
+    domain: 'observability',
+    url: 'https://github.com/open-telemetry/semantic-conventions-genai',
+    patternIds: ['genai-agent-telemetry'],
+    cadenceHours: 168,
+  },
+  {
+    id: 'finops-focus-1-4',
+    authority: 'FinOps Foundation',
+    domain: 'finops',
+    url: 'https://focus.finops.org/docs/specification/v1-4/',
+    patternIds: ['cost-outcome-accounting'],
+    cadenceHours: 168,
+  },
+  {
+    id: 'nist-zero-trust',
+    authority: 'NIST',
+    domain: 'networking',
+    url: 'https://csrc.nist.gov/pubs/sp/800/207/final',
+    patternIds: ['zero-trust-resource-access'],
+    cadenceHours: 336,
+  },
+  {
     id: 'nist-traceability',
     authority: 'NIST',
     domain: 'data',
@@ -431,6 +473,9 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   P('runtime-agent-controls', 'Runtime agent control hooks', 'cybersecurity', 'owasp-agent-control', 'Expose inspectable, traceable and enforceable runtime controls for agents.', 'GEAS runtime policy adapters', ['SEC-01', 'POL-01', 'OBS-01'], ['agent', 'runtime', 'control', 'traceable']),
   P('adversarial-ai-controls', 'Adversarial AI threat-informed controls', 'cybersecurity', 'mitre-atlas', 'Use threat-informed adversarial AI knowledge to identify and prioritize defensive controls.', 'Code Sentinel + agent threat model', ['SEC-01'], ['attack', 'adversarial', 'machine learning']),
   P('provenance-graph', 'Cryptographically linked provenance', 'data', 'nist-traceability', 'Link traceability events into a verifiable provenance chain while enabling selective disclosure.', 'Evidence Graph + provider/model/software provenance', ['EVID-01', 'SUPPLY-01'], ['provenance', 'traceability', 'cryptographic', 'selective disclosure']),
+  P('token-lifecycle-protection', 'Token lifecycle protection', 'cybersecurity', 'nist-token-protection', 'Protect tokens and assertions against forgery, theft and misuse with verification, key management and lifecycle controls.', 'Token lifecycle contract + GEAS authorization gates', ['AUTH-01', 'SEC-01'], ['token', 'assertion', 'verification', 'key management']),
+  P('genai-agent-telemetry', 'GenAI agent telemetry semantics', 'observability', 'otel-genai-agents', 'Use common spans and attributes for agent creation, invocation, planning and tool execution.', 'Versioned GEAS agent telemetry contract', ['OBS-01', 'EVID-01'], ['agent', 'invoke', 'tool', 'span']),
+  P('zero-trust-resource-access', 'Resource-centric zero trust access', 'networking', 'nist-zero-trust', 'Authenticate and authorize subjects and devices before resource access without implicit trust from network location.', 'Per-resource GEAS capability and authorization gates', ['SEC-01', 'AUTH-01'], ['zero trust', 'resource', 'authorization', 'authentication']),
   P('federated-data-access', 'Federated data access', 'data', 'google-architecture', 'Use fit-for-purpose governed data access rather than assuming all workloads require centralized movement.', 'Data governance + provider-neutral connectors', ['DATA-01'], ['data', 'access', 'architecture']),
 ];
 
@@ -448,9 +493,19 @@ const CONTROLS: ArchitectureControl[] = [
   { id: 'REL-01', name: 'Agent reliability contract', family: 'reliability', requirement: 'Timeouts, bounded retries, validation, idempotency, isolation and graceful degradation are defined.', enforcement: 'gate', irreversibleChangeAllowed: false },
   { id: 'STATE-01', name: 'Durable execution state', family: 'reliability', requirement: 'Long-running governed work has durable ownership, checkpoint and recovery semantics.', enforcement: 'gate', irreversibleChangeAllowed: false },
   { id: 'SUPPLY-01', name: 'Software and provider provenance', family: 'supply-chain', requirement: 'Material software, model, provider and deployment dependencies have traceable provenance.', enforcement: 'gate', irreversibleChangeAllowed: false },
+  { id: 'TRACE-01', name: 'Five-state architecture reconciliation', family: 'architecture-state', requirement: 'Desired, declared, deployed, observed and verified states are separately recorded; missing evidence remains UNKNOWN.', enforcement: 'gate', irreversibleChangeAllowed: false },
+  { id: 'LEASE-01', name: 'Durable scanner ownership', family: 'reliability', requirement: 'Architecture scanning uses durable database-backed ownership to prevent overlapping multi-instance scans.', enforcement: 'gate', irreversibleChangeAllowed: false },
+  { id: 'TEL-01', name: 'Agent telemetry contract', family: 'observability', requirement: 'Agent, model, tool, policy and evidence correlation follows a versioned vendor-neutral telemetry contract.', enforcement: 'observe', irreversibleChangeAllowed: false },
+  { id: 'ECO-01', name: 'FOCUS-aligned economic evidence', family: 'finops', requirement: 'Cost and usage evidence can correlate workload, provider, billing/invoice context and verified outcomes.', enforcement: 'gate', irreversibleChangeAllowed: false },
 ];
 
 const RECOMMENDATIONS = [
+  'Use a durable database-backed lease for the architecture scientist so multiple application instances cannot perform overlapping scans.',
+  'Adopt the five-state architecture reconciliation contract: desired → declared → deployed → observed → verified; missing proof remains UNKNOWN.',
+  'Adopt the OpenTelemetry GenAI agent vocabulary for create_agent, invoke_agent, plan, workflow and execute_tool traces while retaining GEAS governance identifiers.',
+  'Classify architecture evidence, minimize raw payloads, retain only what policy permits, and support selective disclosure.',
+  'Normalize economic evidence against FOCUS 1.4 concepts and correlate cost/usage with workload, invoice/billing context and verified outcomes.',
+  'Treat identity and authorization as resource-centric controls consistent with zero-trust architecture; never infer authority from network location.',
   'Make the Architecture Evidence Graph canonical: source → observation → evidence → pattern → control → component → runtime evidence → drift → recommendation → authorization → outcome.',
   'Never label a pattern observed unless the current source fetch succeeds and a relevant evidence excerpt is extracted.',
   'Add first-class agent identity, delegated authority, capability scope, expiration and revocation semantics.',
@@ -777,6 +832,31 @@ export async function initializeGeasArchitectureScientist() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS geas_architecture_scan_leases (
+      lease_name TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      acquired_at TIMESTAMPTZ NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS geas_agent_telemetry_contracts (
+      trace_id TEXT PRIMARY KEY,
+      contract JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS geas_finops_evidence (
+      id TEXT PRIMARY KEY,
+      contract JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS geas_evidence_governance (
+      evidence_id TEXT PRIMARY KEY,
+      governance JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS geas_architecture_reconciliations (
       id TEXT PRIMARY KEY,
       resource_id TEXT NOT NULL,
@@ -810,6 +890,8 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     recommendations: [...RECOMMENDATIONS],
     coverage: coverage(sources, patterns),
     irreversibleChangesExecuted: false,
+    architectureStateModel: ['desired', 'declared', 'deployed', 'observed', 'verified'],
+    sourcePolicyVersion: 'GEAS-AUTHORITY-1',
   };
 
   try {
@@ -833,6 +915,28 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
   }
 
   return result;
+}
+
+export async function persistEvidenceGovernance(evidenceId: string, governance: EvidenceGovernance) {
+  await initializeGeasArchitectureScientist();
+  const db = getPostgresPool();
+  await db.query('INSERT INTO geas_evidence_governance(evidence_id, governance, updated_at) VALUES($1, $2, NOW()) ON CONFLICT(evidence_id) DO UPDATE SET governance = EXCLUDED.governance, updated_at = NOW()', [evidenceId, JSON.stringify(governance)]);
+  return governance;
+}
+
+export async function persistAgentTelemetryContract(contract: AgentTelemetryContract) {
+  await initializeGeasArchitectureScientist();
+  const db = getPostgresPool();
+  await db.query('INSERT INTO geas_agent_telemetry_contracts(trace_id, contract) VALUES($1, $2) ON CONFLICT(trace_id) DO UPDATE SET contract = EXCLUDED.contract', [contract.traceId, JSON.stringify(contract)]);
+  return contract;
+}
+
+export async function persistFinOpsEvidence(contract: FinOpsEvidenceContract) {
+  await initializeGeasArchitectureScientist();
+  const db = getPostgresPool();
+  const id = 'finops-evidence-' + createHash('sha256').update(JSON.stringify(contract)).digest('hex');
+  await db.query('INSERT INTO geas_finops_evidence(id, contract) VALUES($1, $2) ON CONFLICT(id) DO UPDATE SET contract = EXCLUDED.contract', [id, JSON.stringify(contract)]);
+  return { id, ...contract };
 }
 
 const memory: { last?: ArchitectureScanResult } = {};
