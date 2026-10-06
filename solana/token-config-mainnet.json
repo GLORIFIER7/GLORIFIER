@@ -1,0 +1,17 @@
+{
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "totalSupply": "1000000000",
+  "transferFeeBasisPoints": 0,
+  "permanentDelegate": null,
+  "initialMintAuthority": "MAINNET_DEPLOYER_WALLET",
+  "initialFreezeAuthority": "MAINNET_DEPLOYER_WALLET",
+  "finalMintAuthority": null,
+  "finalFreezeAuthority": null,
+  "network": "solana-mainnet",
+  "tokenStandard": "Token-2022",
+  "mainnetRequiresHumanApproval": true,
+  "productionRpcRequired": true,
+  "devnetCanonicalIdentityRequired": true
+}
