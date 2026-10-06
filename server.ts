@@ -60,6 +60,7 @@ import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, 
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
+import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
 import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
@@ -392,6 +393,26 @@ const integrationStatus = [
 ];
 
 // Global connection/authentication registry. Tokens and secrets are never returned by these endpoints.
+
+// Canonical GLR asset identity: one economic asset, independently verified deployments per chain.
+app.get('/api/assets/canonical', async (req: Request, res: Response) => {
+  try {
+    const assetId = String(req.query.assetId || 'glr').trim().toLowerCase();
+    const asset = await getCanonicalAsset(assetId);
+    if (!asset) return res.status(404).json({ ok: false, error: 'Canonical asset not found' });
+    return res.json({ ok: true, asset });
+  } catch (error) {
+    return apiError(res, 503, 'Canonical asset registry unavailable', error);
+  }
+});
+
+app.get('/api/assets/canonical/all', async (_req: Request, res: Response) => {
+  try {
+    return res.json({ ok: true, assets: await listCanonicalAssets() });
+  } catch (error) {
+    return apiError(res, 503, 'Canonical asset registry unavailable', error);
+  }
+});
 app.get('/api/connections', async (req: Request, res: Response) => {
   try { res.json({ ok: true, connections: await listConnections(req.query.status as any) }); }
   catch (error: any) { res.status(503).json({ error: 'Connection registry unavailable', details: error?.message }); }
