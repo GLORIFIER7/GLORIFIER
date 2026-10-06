@@ -47,7 +47,7 @@ METADATA_URI_VERIFIED=true
 cat > solana/reconciliation-evidence.json <<EOF
 {
   "network": "solana-devnet",
-  "status": "FULLY_VERIFIED",
+  "status": "VERIFIED_ON_CHAIN",
   "mode": "RECONCILIATION_READ_ONLY",
   "mint": "${MINT}",
   "programId": "${EXPECTED_PROGRAM}",
@@ -63,7 +63,7 @@ cat > solana/reconciliation-evidence.json <<EOF
 EOF
 
 jq -e '
-  .status == "FULLY_VERIFIED"
+  .status == "VERIFIED_ON_CHAIN"
   and .mode == "RECONCILIATION_READ_ONLY"
   and .network == "solana-devnet"
   and .mint
@@ -76,4 +76,4 @@ jq -e '
   and .freezeAuthority == null
 ' solana/reconciliation-evidence.json >/dev/null
 
-echo "GLR_STATUS=FULLY_VERIFIED" | tee -a solana/reconciliation-status.txt
+echo "GLR_STATUS=VERIFIED_ON_CHAIN" | tee -a solana/reconciliation-status.txt
