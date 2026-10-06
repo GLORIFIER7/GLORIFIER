@@ -226,23 +226,23 @@ EOF
 
           readonly MIN_REQUIRED_LAMPORTS=10000000
           BALANCE="$(solana balance --lamports | awk '{print $1}')"
-          BALANCE="\${BALANCE:-0}"
-          echo "Initial deployment-wallet balance: \${BALANCE} lamports"
+          BALANCE="${BALANCE:-0}"
+          echo "Initial deployment-wallet balance: ${BALANCE} lamports"
 
           if (( BALANCE < MIN_REQUIRED_LAMPORTS )); then
-            echo "Deployment wallet is below the \${MIN_REQUIRED_LAMPORTS}-lamport safety threshold; requesting Devnet SOL from the official faucet."
+            echo "Deployment wallet is below the ${MIN_REQUIRED_LAMPORTS}-lamport safety threshold; requesting Devnet SOL from the official faucet."
             for attempt in 1 2 3; do
-              echo "Devnet faucet attempt \${attempt}/3"
-              if solana airdrop 2 --url "\${SOLANA_RPC_URL}"; then
+              echo "Devnet faucet attempt ${attempt}/3"
+              if solana airdrop 2 --url "${SOLANA_RPC_URL}"; then
                 break
               fi
-              echo "::warning::Devnet faucet attempt \${attempt} failed or was rate-limited."
+              echo "::warning::Devnet faucet attempt ${attempt} failed or was rate-limited."
               sleep 5
             done
 
             BALANCE="$(solana balance --lamports | awk '{print $1}')"
-            BALANCE="\${BALANCE:-0}"
-            echo "Post-faucet deployment-wallet balance: \${BALANCE} lamports"
+            BALANCE="${BALANCE:-0}"
+            echo "Post-faucet deployment-wallet balance: ${BALANCE} lamports"
 
             if (( BALANCE < MIN_REQUIRED_LAMPORTS )); then
               echo "::error::Deployment wallet still lacks sufficient Devnet SOL after faucet recovery."
@@ -251,7 +251,7 @@ EOF
             fi
           fi
 
-          echo "Devnet funding check passed: \${BALANCE} lamports."
+          echo "Devnet funding check passed: ${BALANCE} lamports."
 
       - name: Deploy Token-2022 GLORIFIER
         shell: bash
