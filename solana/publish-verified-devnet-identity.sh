@@ -158,16 +158,24 @@ BRANCH="automation/glorifier-solana-devnet-verified-${GITHUB_RUN_ID}"
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git fetch origin main
-git checkout -b "${BRANCH}"
-git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json
-git diff --cached --check
-git commit -m "chore(solana): publish verified GLR devnet identity"
-git push --set-upstream origin "${BRANCH}"
 
 EXISTING_PR="$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url' | head -n1 || true)"
 if [[ -n "${EXISTING_PR}" ]]; then
   echo "Verified identity publication PR already exists: ${EXISTING_PR}"
   exit 0
+fi
+
+git checkout -b "${BRANCH}"
+git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json
+git diff --cached --check
+git commit -m "chore(solana): publish verified GLR devnet identity"
+
+if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
+  git fetch origin "${BRANCH}"
+  REMOTE_BRANCH_SHA="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
+  git push --force-with-lease="refs/heads/${BRANCH}:${REMOTE_BRANCH_SHA}" origin "${BRANCH}"
+else
+  git push --set-upstream origin "${BRANCH}"
 fi
 
 PR_URL="$(gh pr create   --base main   --head "${BRANCH}"   --title "chore(solana): publish verified GLR Devnet identity"   --body "Automated governed publication after independent Solana Devnet reconciliation and deployment-provenance verification.
@@ -176,5 +184,5 @@ PR_URL="$(gh pr create   --base main   --head "${BRANCH}"   --title "chore(solan
 - Verification run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 - Deployment provenance was independently checked before this PR.
 - No token creation, minting, transfer, or authority mutation occurs in this publication step.
-- Human/protected-branch approval remains required for canonical identity publication." )"
+- Human/protected-branch approval remains required for canonical identity publication.")"
 echo "Verified identity publication PR: ${PR_URL}"
