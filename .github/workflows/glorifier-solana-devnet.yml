@@ -114,7 +114,14 @@ jobs:
         run: |
           set -euo pipefail
           sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
+          test -x "$SOLANA_BIN/solana" || {
+            echo "::error::Solana CLI installer completed but the expected binary was not found at $SOLANA_BIN/solana"
+            exit 1
+          }
+          export PATH="$SOLANA_BIN:$PATH"
+          hash -r
+          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           solana --version
 
       - name: Install SPL Token CLI
