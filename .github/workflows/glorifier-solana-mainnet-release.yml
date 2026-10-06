@@ -23,16 +23,16 @@ concurrency:
 jobs:
   preflight:
     name: Mainnet release preflight
-    if: ${ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Validate authorization
         shell: bash
         run: |
           set -euo pipefail
-          test "${ github.ref }" = "refs/heads/main"
-          test "${ inputs.confirm }" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
-          test -n "${ inputs.release_reason }"
+          test "${{ github.ref }}" = "refs/heads/main"
+          test "${{ inputs.confirm }}" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
+          test -n "${{ inputs.release_reason }}"
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Require verified Devnet gate
@@ -47,8 +47,8 @@ jobs:
           jq -e '.name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .transferFeeBasisPoints==0 and .permanentDelegate==null and .finalMintAuthority==null and .finalFreezeAuthority==null and .network=="solana-mainnet" and .tokenStandard=="Token-2022" and .mainnetRequiresHumanApproval==true and .productionRpcRequired==true and .devnetCanonicalIdentityRequired==true' solana/token-config-mainnet.json >/dev/null
       - name: Require production secrets
         env:
-          MAINNET_RPC: ${ secrets.SOLANA_MAINNET_RPC_URL }
-          MAINNET_KEYPAIR: ${ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }
+          MAINNET_RPC: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
+          MAINNET_KEYPAIR: ${{ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }}
         run: |
           set -euo pipefail
           test -n "$MAINNET_RPC"
@@ -56,7 +56,7 @@ jobs:
           case "$MAINNET_RPC" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
       - name: Mainnet replay lock
         env:
-          GH_TOKEN: ${ github.token }
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -86,8 +86,8 @@ jobs:
     timeout-minutes: 25
     environment: glorifier-solana-mainnet
     env:
-      SOLANA_RPC_URL: ${ secrets.SOLANA_MAINNET_RPC_URL }
-      GLORIFIER_SOLANA_KEYPAIR_JSON: ${ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
+      GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install Solana CLI
