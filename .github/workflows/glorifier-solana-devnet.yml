@@ -92,7 +92,7 @@ EOF
             exit 1
           fi
 
-          ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=glorifier-solana-devnet-evidence&per_page=100")
+          ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=glorifier-solana-devnet-evidence&per_page=100")"
           while IFS=$'\t' read -r ARTIFACT_ID ARTIFACT_RUN_ID; do
             [[ -n "${ARTIFACT_ID}" ]] || continue
             [[ "${ARTIFACT_RUN_ID}" == "${GITHUB_RUN_ID}" ]] && continue
