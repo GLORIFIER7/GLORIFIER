@@ -2172,6 +2172,7 @@ app.post('/api/economy/glr/intents/:id/settlement-evidence', requireOwnerOrInter
       intentId: String(req.params.id),
       settlementTxRef: String(req.body?.settlementTxRef || ''),
       evidenceRef: String(req.body?.evidenceRef || ''),
+      humanAuthorized: req.body?.humanAuthorized === true,
       network: req.body?.network ? String(req.body.network) : null,
       externallyVerified: req.body?.externallyVerified === true,
       verificationMethod: req.body?.verificationMethod,
