@@ -14,29 +14,43 @@ readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/ma
 readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
 
 write_evidence() {
-  local status="${1}"
+  local status="$1"
+  local creation_tx="${CREATE_TOKEN_TX:-}"
+  local metadata_tx="${METADATA_TX:-}"
+  local account_tx="${CREATE_ACCOUNT_TX:-}"
+  local mint_tx="${MINT_TX:-}"
+  local mint_auth_tx="${MINT_AUTH_TX:-}"
+  local freeze_auth_tx="${FREEZE_AUTH_TX:-}"
+
+  json_or_null() {
+    if [[ -n "$1" ]]; then
+      jq -Rn --arg value "$1" '$value'
+    else
+      printf 'null'
+    fi
+  }
+
   cat > solana/deployment-evidence.json <<EOF
 {
   "network": "solana-devnet",
-  "status": "${status}",
-  "mint": "${MINT}",
-  "programId": "${TOKEN_2022_PROGRAM}",
+  "status": "$status",
+  "mint": "$MINT",
+  "programId": "$TOKEN_2022_PROGRAM",
   "name": "GLORIFIER",
   "symbol": "GLR",
-  "decimals": ${DECIMALS},
-  "totalSupply": "${SUPPLY}",
+  "decimals": $DECIMALS,
+  "totalSupply": "$SUPPLY",
   "mintAuthority": null,
   "freezeAuthority": null,
-  "creationTransaction": "${CREATE_TOKEN_TX}",
-  "metadataTransaction": "${METADATA_TX}",
-  "tokenAccountCreationTransaction": "${CREATE_ACCOUNT_TX}",
-  "mintTransaction": "${MINT_TX}",
-  "mintAuthorityRevocationTransaction": "${MINT_AUTH_TX}",
-  "freezeAuthorityRevocationTransaction": "${FREEZE_AUTH_TX}"
+  "creationTransaction": $(json_or_null "$creation_tx"),
+  "metadataTransaction": $(json_or_null "$metadata_tx"),
+  "tokenAccountCreationTransaction": $(json_or_null "$account_tx"),
+  "mintTransaction": $(json_or_null "$mint_tx"),
+  "mintAuthorityRevocationTransaction": $(json_or_null "$mint_auth_tx"),
+  "freezeAuthorityRevocationTransaction": $(json_or_null "$freeze_auth_tx")
 }
 EOF
 }
-
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
 CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
