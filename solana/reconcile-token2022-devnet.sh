@@ -4,7 +4,7 @@ set -euo pipefail
 # GLORIFIER GLR — Solana Token-2022 Devnet reconciliation.
 # Read-only: this script never creates, mints, transfers, or changes authorities.
 
-readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 readonly EXPECTED_NAME="GLORIFIER"
 readonly EXPECTED_SYMBOL="GLR"
 readonly EXPECTED_DECIMALS=9
@@ -73,7 +73,7 @@ jq -e '
   and .mode == "RECONCILIATION_READ_ONLY"
   and .network == "solana-devnet"
   and .mint
-  and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+  and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
   and .name == "GLORIFIER"
   and .symbol == "GLR"
   and .decimals == 9
