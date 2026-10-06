@@ -23,7 +23,7 @@ jobs:
       cancel-in-progress: false
     environment: glorifier-solana-devnet
     env:
-      SOLANA_RPC_URL: ${{ secrets.GLORIFIER_SOLANA_DEVNET_RPC_URL }}
+      SOLANA_RPC_URL: https://api.devnet.solana.com
       AGAVE_VERSION: v4.2.2
       GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_KEYPAIR_JSON }}
       CONFIRMATION: ${{ inputs.confirm }}
@@ -67,7 +67,7 @@ jobs:
             exit 1
           }
           test -n "${SOLANA_RPC_URL}" || {
-            echo "::error::Missing GLORIFIER_SOLANA_DEVNET_RPC_URL in the glorifier-solana-devnet environment."
+            echo "::error::Canonical Solana Devnet RPC is unexpectedly empty."
             exit 1
           }
           cat > solana/deployment-status.txt <<'EOF'
