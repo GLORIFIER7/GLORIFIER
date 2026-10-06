@@ -1,0 +1,55 @@
+name: GLORIFIER Architecture Contract Validation
+
+on:
+  push:
+    paths:
+      - 'agent-network/**'
+      - 'docs/**'
+      - '.github/workflows/architecture-contract-validation.yml'
+  pull_request:
+    paths:
+      - 'agent-network/**'
+      - 'docs/**'
+      - '.github/workflows/architecture-contract-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for p in [
+              Path("agent-network/agent-card.glorifier.json"),
+              Path("agent-network/task-envelope.schema.json"),
+          ]:
+              with p.open(encoding="utf-8") as f:
+                  json.load(f)
+              print(f"valid JSON: {p}")
+          PY
+
+      - name: Reject obvious secret material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE '(sk-[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|GLORIFIER_DEPLOYER_PRIVATE_KEY=)' agent-network docs; then
+            echo "Potential credential material found in architecture contracts."
+            exit 1
+          fi
+
+      - name: Check truthful verification language
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'NOT_VERIFIED' agent-network/agent-card.glorifier.json
+          grep -q 'verification_status' agent-network/task-envelope.schema.json
+          echo "Truthful verification markers present."
