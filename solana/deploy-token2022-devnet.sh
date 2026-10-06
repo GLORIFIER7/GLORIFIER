@@ -16,7 +16,7 @@ fi
 readonly DECIMALS=9
 readonly SUPPLY=1000000000
 readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
-readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 
 write_evidence() {
   local status="$1"
