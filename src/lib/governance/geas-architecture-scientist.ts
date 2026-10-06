@@ -872,7 +872,34 @@ export async function initializeGeasArchitectureScientist() {
   `);
 }
 
+async function acquireArchitectureScanLease(ownerId: string, ttlMinutes = 30): Promise<boolean> {
+  try {
+    await initializeGeasArchitectureScientist();
+    const db = getPostgresPool();
+    const result = await db.query(
+      "INSERT INTO geas_architecture_scan_leases(lease_name, owner_id, acquired_at, expires_at) VALUES($1, $2, NOW(), NOW() + ($3 || ' minutes')::interval) ON CONFLICT(lease_name) DO UPDATE SET owner_id = EXCLUDED.owner_id, acquired_at = EXCLUDED.acquired_at, expires_at = EXCLUDED.expires_at WHERE geas_architecture_scan_leases.expires_at < NOW() RETURNING owner_id",
+      ['global', ownerId, String(ttlMinutes)],
+    );
+    return result.rowCount === 1;
+  } catch {
+    return false;
+  }
+}
+
+async function releaseArchitectureScanLease(ownerId: string): Promise<void> {
+  try {
+    const db = getPostgresPool();
+    await db.query('DELETE FROM geas_architecture_scan_leases WHERE lease_name = $1 AND owner_id = $2', ['global', ownerId]);
+  } catch {
+    // Expiration provides recovery if cleanup cannot run.
+  }
+}
+
 export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult> {
+  const ownerId = `geas-scanner-${randomUUID()}`;
+  const leaseAcquired = await acquireArchitectureScanLease(ownerId);
+  if (!leaseAcquired) throw new Error('GEAS architecture scan lease is held by another instance');
+
   const scanId = `geas-scan-${randomUUID()}`;
   const startedAt = new Date().toISOString();
   const sources = await Promise.all(SOURCES.map(fetchSource));
@@ -914,6 +941,7 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     console.warn('[GEAS] architecture scan persistence deferred:', error instanceof Error ? error.message : error);
   }
 
+  await releaseArchitectureScanLease(ownerId);
   return result;
 }
 
