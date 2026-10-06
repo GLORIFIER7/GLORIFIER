@@ -52,7 +52,9 @@ write_evidence() {
   "tokenAccountCreationTransaction": $(json_or_null "$account_tx"),
   "mintTransaction": $(json_or_null "$mint_tx"),
   "mintAuthorityRevocationTransaction": $(json_or_null "$mint_auth_tx"),
-  "freezeAuthorityRevocationTransaction": $(json_or_null "$freeze_auth_tx")
+  "freezeAuthorityRevocationTransaction": $(json_or_null "$freeze_auth_tx"),
+  "deploymentWorkflowRunId": $(json_or_null "${GITHUB_RUN_ID:-}"),
+  "deploymentWorkflowRunUrl": $(json_or_null "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}")
 }
 EOF
 }
