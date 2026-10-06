@@ -289,14 +289,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RPC_URL="$(solana config get | awk -F': ' '/RPC URL/ {print $2}')"
-          test "$RPC_URL" = "https://api.devnet.solana.com" || {
-            echo "::error::Refusing deployment: configured RPC is not canonical Solana Devnet: $RPC_URL"
+
+          # Normalize trailing whitespace emitted by the Solana CLI before
+          # comparing the configured endpoint with the canonical Devnet RPC.
+          RPC_URL="$(solana config get | awk -F': ' '/^RPC URL:/ {gsub(/[[:space:]]+$/, "", $2); print $2; exit}')"
+          test "$RPC_URL" = "$SOLANA_RPC_URL" || {
+            echo "::error::Refusing deployment: configured RPC is not the canonical Solana Devnet endpoint."
+            printf 'Configured RPC: %q\n' "$RPC_URL"
+            printf 'Expected RPC: %q\n' "$SOLANA_RPC_URL"
             exit 1
           }
-          
+
+          # Defense in depth: the workflow-level endpoint itself must remain
+          # pinned to the canonical Solana Devnet RPC.
+          test "$SOLANA_RPC_URL" = "https://api.devnet.solana.com" || {
+            echo "::error::Refusing deployment: SOLANA_RPC_URL is not the canonical Solana Devnet endpoint."
+            exit 1
+          }
+
           solana cluster-version
-          
+
           readonly MIN_REQUIRED_LAMPORTS=10000000
           BALANCE="$(solana balance --lamports | awk '{print $1}')"
           BALANCE="${BALANCE:-0}"
