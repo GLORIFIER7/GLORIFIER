@@ -2,6 +2,7 @@
   "buildCommand": "npm run build:frontend",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ':!.github' ':!solana'",
   "framework": "vite",
   "git": {
     "deploymentEnabled": true
