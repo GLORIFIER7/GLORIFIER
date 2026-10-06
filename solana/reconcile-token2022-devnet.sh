@@ -18,6 +18,11 @@ test -n "$MINT" || {
   exit 1
 }
 
+[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
+  echo "::error::Invalid Solana mint address format."
+  exit 1
+}
+
 if [[ "$MINT" == "$EXCLUDED_EXISTING_MINT" ]]; then
   echo "::error::Refusing to reconcile the pre-existing/excluded GLR mint ${MINT}."
   exit 1
@@ -49,6 +54,7 @@ cat > solana/reconciliation-evidence.json <<EOF
   "network": "solana-devnet",
   "status": "VERIFIED_ON_CHAIN",
   "mode": "RECONCILIATION_READ_ONLY",
+  "verification_boundary": "This proves current on-chain properties of the supplied mint only; it does not prove that this repository created or controls the mint.",
   "mint": "${MINT}",
   "programId": "${EXPECTED_PROGRAM}",
   "name": "${EXPECTED_NAME}",
@@ -74,6 +80,7 @@ jq -e '
   and .totalSupply == "1000000000"
   and .mintAuthority == null
   and .freezeAuthority == null
+  and .verification_boundary
 ' solana/reconciliation-evidence.json >/dev/null
 
 echo "GLR_STATUS=VERIFIED_ON_CHAIN" | tee -a solana/reconciliation-status.txt
