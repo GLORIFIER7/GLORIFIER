@@ -13,7 +13,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -129,7 +129,7 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     env:
-      SOLANA_RPC_URL: ${ secrets.SOLANA_MAINNET_RPC_URL }
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install tooling
@@ -194,7 +194,7 @@ jobs:
           path: solana
       - name: Publish after provenance and transaction confirmation
         env:
-          GH_TOKEN: ${ github.token }
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           chmod +x solana/publish-verified-mainnet-identity.sh
