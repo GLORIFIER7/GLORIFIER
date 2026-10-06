@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Canonical GLR Solana Devnet publisher.
+# This script is executed only by the authorized reconciliation workflow.
+# It never creates or mutates a token; it only publishes identity after
+# deployment provenance and independent on-chain reconciliation pass.
+
+readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+readonly EXPECTED_METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
+readonly EXCLUDED_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+
+test "${GITHUB_ACTIONS:-}" = "true"
+test -n "${GH_TOKEN:-}"
+
+jq -e '
+  .status == "VERIFIED_ON_CHAIN"
+  and .mode == "RECONCILIATION_READ_ONLY"
+  and .network == "solana-devnet"
+  and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  and .name == "GLORIFIER"
+  and .symbol == "GLR"
+  and .decimals == 9
+  and .totalSupply == "1000000000"
+  and .mintAuthority == null
+  and .freezeAuthority == null
+  and .metadataUri == "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
+  and .metadataUriInDisplay == true
+' solana/reconciliation-evidence.json >/dev/null
+
+MINT="$(jq -r '.mint' solana/reconciliation-evidence.json)"
+[[ "${MINT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
+[[ "${MINT}" != "${EXCLUDED_MINT}" ]]
+
+RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+FOUND=0
+
+while IFS= read -r RUN_ID; do
+  [[ -n "${RUN_ID}" ]] || continue
+  RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
+  jq -e '
+    .path == ".github/workflows/glorifier-solana-devnet.yml"
+    and .event == "workflow_dispatch"
+    and .head_branch == "main"
+    and .conclusion == "success"
+  ' <<<"${RUN_JSON}" >/dev/null || continue
+
+  ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100")"
+
+  while IFS=$'\t' read -r ARTIFACT_ID ARTIFACT_DIGEST; do
+    [[ -n "${ARTIFACT_ID}" && -n "${ARTIFACT_DIGEST}" ]] || continue
+
+    rm -rf /tmp/glorifier-publish-evidence
+    mkdir -p /tmp/glorifier-publish-evidence
+    gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-publish-evidence.zip
+
+    ACTUAL="sha256:$(sha256sum /tmp/glorifier-publish-evidence.zip | awk '{print $1}')"
+    test "${ACTUAL}" = "${ARTIFACT_DIGEST}"
+
+    unzip -oq /tmp/glorifier-publish-evidence.zip -d /tmp/glorifier-publish-evidence
+    EVIDENCE_FILE="$(find /tmp/glorifier-publish-evidence -type f -name deployment-evidence.json -print -quit || true)"
+    [[ -n "${EVIDENCE_FILE}" ]] || continue
+
+    jq -e --arg mint "${MINT}" --arg run_id "${RUN_ID}" --arg repo "${GITHUB_REPOSITORY}" '
+      .network == "solana-devnet"
+      and .status == "READY_FOR_VERIFICATION"
+      and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+      and .mint == $mint
+      and .deploymentWorkflowRunId == $run_id
+      and .deploymentWorkflowRunUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id)
+      and (.creationTransaction | type == "string" and length > 0)
+      and (.metadataTransaction | type == "string" and length > 0)
+      and (.tokenAccountCreationTransaction | type == "string" and length > 0)
+      and (.mintTransaction | type == "string" and length > 0)
+      and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
+      and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+    ' "${EVIDENCE_FILE}" >/dev/null || continue
+
+    jq --arg run_id "${RUN_ID}"        --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"        --arg artifact_id "${ARTIFACT_ID}"        --arg artifact_digest "${ARTIFACT_DIGEST}"        '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}'        "${EVIDENCE_FILE}" > solana/deployment-provenance.json
+
+    FOUND=1
+    break 2
+  done < <(
+    jq -r '
+      [.artifacts[]?
+       | select(.expired == false)
+       | select(.name == "glorifier-solana-devnet-evidence")
+       | select(.digest != null and (.digest | startswith("sha256:")))]
+      | sort_by(.created_at)
+      | reverse
+      | .[]
+      | [(.id|tostring),.digest]
+      | @tsv
+    ' <<<"${ARTIFACTS_JSON}"
+  )
+done < <(
+  jq -r '
+    [.workflow_runs[]?
+     | select(.event == "workflow_dispatch")
+     | select(.head_branch == "main")
+     | select(.path == ".github/workflows/glorifier-solana-devnet.yml")]
+    | sort_by(.created_at)
+    | reverse
+    | .[].id
+  ' <<<"${RUNS_JSON}"
+)
+
+test "${FOUND}" -eq 1 || {
+  echo "::error::No trusted successful deployment artifact matches the independently reconciled mint."
+  exit 1
+}
+
+for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction; do
+  TX="$(jq -r --arg field "${FIELD}" '.[$field]' solana/deployment-provenance.json)"
+  [[ "${TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
+  solana confirm "${TX}" --commitment confirmed >/dev/null
+done
+
+jq --arg mint "${MINT}"    --arg creation "$(jq -r '.creationTransaction' solana/deployment-provenance.json)"    --arg metadata "$(jq -r '.metadataTransaction' solana/deployment-provenance.json)"    --arg account "$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provenance.json)"    --arg mint_tx "$(jq -r '.mintTransaction' solana/deployment-provenance.json)"    --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)"    --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)"    --arg run_id "${GITHUB_RUN_ID}"    --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"    --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+  .canonical_mint=$mint
+  | .creation_transaction=$creation
+  | .metadata_transaction=$metadata
+  | .token_account_creation_transaction=$account
+  | .mint_transaction=$mint_tx
+  | .authority_revocation_transaction=$mint_auth
+  | .freeze_authority_revocation_transaction=$freeze_auth
+  | .status="VERIFIED_ON_CHAIN"
+  | .verification_run_id=$run_id
+  | .verification_run_url=$run_url
+  | .verified_at=$verified_at
+  | .next_action="Independent read-only reconciliation and deployment provenance verification passed."
+' solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.json.tmp
+
+mv solana/canonical-devnet-identity.json.tmp solana/canonical-devnet-identity.json
+
+jq -e --arg mint "${MINT}" '
+  .status == "VERIFIED_ON_CHAIN"
+  and .canonical_mint == $mint
+  and .creation_transaction
+  and .metadata_transaction
+  and .token_account_creation_transaction
+  and .mint_transaction
+  and .authority_revocation_transaction
+  and .freeze_authority_revocation_transaction
+' solana/canonical-devnet-identity.json >/dev/null
+
+git config user.name "github-actions[bot]"
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+git add solana/canonical-devnet-identity.json solana/deployment-provenance.json
+git fetch origin main
+git rebase origin/main
+git add solana/canonical-devnet-identity.json solana/deployment-provenance.json
+git commit -m "chore(solana): publish verified GLR devnet identity"
+git push origin HEAD:main
