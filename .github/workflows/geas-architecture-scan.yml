@@ -1,0 +1,53 @@
+name: GEAS Architecture Science Scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geas-architecture-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Validate GEAS architecture contracts
+        run: npm run validate:geas-architecture
+
+      - name: Execute authoritative architecture scan
+        run: npm run scan:geas-architecture
+        env:
+          GEAS_SCAN_OUTPUT_DIR: artifacts/geas-architecture
+
+      - name: Validate scan safety invariant
+        run: |
+          node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/geas-architecture/latest.json','utf8')); if(x.irreversibleChangesExecuted!==false) process.exit(1); if(x.sourcePolicyVersion!=='GEAS-AUTHORITY-1') process.exit(1); console.log('GEAS scan safety invariant verified')"
+
+      - name: Upload scan evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: geas-architecture-scan-${{ github.run_id }}
+          path: artifacts/geas-architecture/
+          if-no-files-found: error
+          retention-days: 30
