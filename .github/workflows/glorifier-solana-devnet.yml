@@ -234,64 +234,25 @@ jobs:
           
           echo "Devnet funding check passed: ${BALANCE} lamports."
 
-      - name: Deploy Token-2022 GLORIFIER
+      - name: Execute real Token-2022 GLORIFIER deployment
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
         run: |
           set -euo pipefail
-          
-          # For now, create a placeholder deployment evidence
-          # In production, this would call solana/deploy-token2022-devnet.sh
-          mkdir -p solana
-          
-          # Create mock deployment output
-          MOCK_MINT="GLR1234567890123456789012345678901234567890"
-          echo "MINT=${MOCK_MINT}" | tee solana/deployment-output.txt
-          
-          # Create mock deployment evidence
-          jq -n \
-            --arg mint "${MOCK_MINT}" \
-            --arg program "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH" \
-            '{
-              status: "READY_FOR_VERIFICATION",
-              network: "solana-devnet",
-              programId: $program,
-              mint: $mint,
-              name: "GLORIFIER",
-              symbol: "GLR",
-              decimals: 9,
-              totalSupply: "1000000000",
-              mintAuthority: null,
-              freezeAuthority: null,
-              creationTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB",
-              metadataTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB",
-              tokenAccountCreationTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB",
-              mintTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB",
-              mintAuthorityRevocationTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB",
-              freezeAuthorityRevocationTransaction: "4r3FHP5Z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890AB"
-            }' > solana/deployment-evidence.json
-          
-          echo "GLR_STATUS=READY_FOR_VERIFICATION" | tee solana/deployment-status.txt
+          chmod +x solana/deploy-token2022-devnet.sh
+          ./solana/deploy-token2022-devnet.sh
 
-      - name: Verify final mint state
+      - name: Validate real deployment evidence
         shell: bash
         run: |
           set -euo pipefail
-          readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
-          MINT="$(grep -E '^MINT=' solana/deployment-output.txt | tail -n1 | cut -d= -f2)"
-          test -n "$MINT" || {
-            echo "::error::Failed to extract mint address from deployment output"
-            exit 1
-          }
-          echo "MINT=${MINT}"
-          
-          # Verify deployment evidence structure
-          jq -e --arg mint "$MINT" --arg program "$TOKEN_2022_PROGRAM" '
-            .status == "READY_FOR_VERIFICATION"
-            and .network == "solana-devnet"
-            and .mint == $mint
-            and .programId == $program
+          test -f solana/deployment-evidence.json
+          jq -e '
+            .network == "solana-devnet"
+            and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+            and .status == "READY_FOR_VERIFICATION"
+            and (.mint | type == "string" and length >= 32 and length <= 44)
             and .name == "GLORIFIER"
             and .symbol == "GLR"
             and .decimals == 9
@@ -299,102 +260,25 @@ jobs:
             and .mintAuthority == null
             and .freezeAuthority == null
             and (.creationTransaction | type == "string" and length > 0)
+            and (.metadataTransaction | type == "string" and length > 0)
+            and (.tokenAccountCreationTransaction | type == "string" and length > 0)
             and (.mintTransaction | type == "string" and length > 0)
             and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
-          ' solana/deployment-evidence.json >/dev/null || {
-            echo "::error::deployment-evidence.json validation failed"
-            exit 1
-          }
+            and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+          ' solana/deployment-evidence.json >/dev/null
 
-      - name: Prepare canonical identity update
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Explicitly keep canonical identity NOT VERIFIED until independent reconciliation
         shell: bash
         run: |
           set -euo pipefail
-          
-          readonly BRANCH="automation/solana-devnet-canonical-${GITHUB_RUN_ID}"
-          readonly RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          
-          MINT="$(jq -r '.mint' solana/deployment-evidence.json)"
-          CREATION_TX="$(jq -r '.creationTransaction' solana/deployment-evidence.json)"
-          METADATA_TX="$(jq -r '.metadataTransaction' solana/deployment-evidence.json)"
-          ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction' solana/deployment-evidence.json)"
-          MINT_TX="$(jq -r '.mintTransaction' solana/deployment-evidence.json)"
-          MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-evidence.json)"
-          FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-evidence.json)"
-          
-          jq \
-            --arg mint "$MINT" \
-            --arg creation "$CREATION_TX" \
-            --arg metadata "$METADATA_TX" \
-            --arg account "$ACCOUNT_TX" \
-            --arg mint_tx "$MINT_TX" \
-            --arg mint_auth "$MINT_AUTH_TX" \
-            --arg freeze_auth "$FREEZE_AUTH_TX" \
-            --arg run_id "${GITHUB_RUN_ID}" \
-            --arg run_url "$RUN_URL" \
-            --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '.canonical_mint = $mint
-            | .creation_transaction = $creation
-            | .metadata_transaction = $metadata
-            | .token_account_creation_transaction = $account
-            | .mint_transaction = $mint_tx
-            | .authority_revocation_transaction = $mint_auth
-            | .freeze_authority_revocation_transaction = $freeze_auth
-            | .status = "FULLY_VERIFIED"
-            | .verification_run_id = $run_id
-            | .verification_run_url = $run_url
-            | .verified_at = $verified_at
-            | .next_action = "Do not create another mint. Use glorifier-solana-devnet-reconcile.yml for later read-only reconciliation."' \
-            solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.tmp.json
-          mv solana/canonical-devnet-identity.tmp.json solana/canonical-devnet-identity.json
-          
-          # Validate the update
-          jq -e \
-            --arg mint "$MINT" \
-            --arg creation "$CREATION_TX" \
-            --arg mint_tx "$MINT_TX" \
-            --arg mint_auth "$MINT_AUTH_TX" \
-            --arg freeze_auth "$FREEZE_AUTH_TX" \
-            '.status == "FULLY_VERIFIED"
-            and .canonical_mint == $mint
-            and .creation_transaction == $creation
-            and .mint_transaction == $mint_tx
-            and .authority_revocation_transaction == $mint_auth
-            and .freeze_authority_revocation_transaction == $freeze_auth' \
-            solana/canonical-devnet-identity.json >/dev/null || {
-            echo "::error::Failed to validate canonical identity update"
-            exit 1
-          }
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch --create "$BRANCH"
-          git add solana/canonical-devnet-identity.json solana/deployment-evidence.json
-          git commit -m "chore: record verified Solana Devnet GLR identity
-
-Run: ${RUN_URL}
-Mint: ${MINT}"
-          git push --set-upstream origin "$BRANCH"
-          
-          PR_URL="$(gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "chore: record verified Solana Devnet GLR canonical mint" \
-            --body "Automated canonical identity handoff for successful GLORIFIER Solana Devnet deployment.
-
-Run: ${RUN_URL}
-
-The mint and transaction evidence in this branch was generated and checked by the deployment workflow. Merge this PR to publish the canonical mint in solana/canonical-devnet-identity.json.
-
-Do not create another GLORIFIER mint."
-          )" 2>&1 || true
-          
-          if [[ -n "${PR_URL}" ]]; then
-            echo "Canonical identity PR: ${PR_URL}"
-          fi
-
+          jq -e '
+            .status == "NOT VERIFIED"
+            and .canonical_mint == null
+            and .creation_transaction == null
+            and .mint_transaction == null
+            and .authority_revocation_transaction == null
+          ' solana/canonical-devnet-identity.json >/dev/null
+          echo "Deployment evidence exists, but canonical identity remains NOT VERIFIED until read-only reconciliation independently proves the on-chain state."
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@0b2256b8c231eaddb75b1bb18e9aeac02d30d42a # v4.0.0
