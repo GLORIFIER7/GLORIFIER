@@ -98,7 +98,7 @@ jobs:
             and .symbol == "GLR"
             and .network == "solana-devnet"
             and .token_standard == "Token-2022"
-            and .program_id == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+            and .program_id == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
             and .status == "NOT VERIFIED"
             and .canonical_mint == null
             and .creation_transaction == null
@@ -250,7 +250,7 @@ jobs:
           test -f solana/deployment-evidence.json
           jq -e '
             .network == "solana-devnet"
-            and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH"
+            and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
             and .status == "READY_FOR_VERIFICATION"
             and (.mint | type == "string" and length >= 32 and length <= 44)
             and .name == "GLORIFIER"
@@ -288,5 +288,4 @@ jobs:
           if-no-files-found: warn
           path: |
             solana/deployment-status.txt
-            solana/deployment-output.txt
             solana/deployment-evidence.json
