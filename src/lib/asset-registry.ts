@@ -103,7 +103,7 @@ export async function initializeAssetRegistry() {
       asset_id TEXT NOT NULL REFERENCES canonical_asset_registry(asset_id) ON DELETE CASCADE,
       network TEXT NOT NULL,
       network_family TEXT NOT NULL DEFAULT 'evm',
-      network_id TEXT NOT NULL DEFAULT 'evm:' || chain_id::TEXT,
+      network_id TEXT NOT NULL DEFAULT 'evm:unknown',
       chain_id BIGINT,
       identifier_type TEXT NOT NULL DEFAULT 'contract',
       contract_address TEXT,
