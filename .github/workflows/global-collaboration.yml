@@ -22,16 +22,32 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: npm install
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Request GitHub OIDC identity
         if: ${{ env.GITHUB_ACTIONS_OIDC == 'true' }}
         uses: actions/github-script@v9
         with:
           script: |
             core.info('GitHub Actions OIDC is enabled for this job. External federation must validate repository, workflow, ref, and actor claims before issuing short-lived credentials.');
+      - name: Check database configuration
+        id: database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_CONFIGURED=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DATABASE_URL is not configured; global collaboration is NOT_OBSERVABLE and will not fabricate a success state."
+          else
+            echo "DATABASE_CONFIGURED=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run global collaboration and resolution cycle
+        if: steps.database.outputs.DATABASE_CONFIGURED == 'true'
         run: npx tsx scripts/run-global-collaboration.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GLORIFIER_COLLABORATION_LIMIT: "200"
           GITHUB_ACTIONS_OIDC: "true"
+      - name: Report unconfigured database boundary
+        if: steps.database.outputs.DATABASE_CONFIGURED != 'true'
+        run: echo "Global collaboration cycle skipped truthfully because DATABASE_URL is unavailable."
