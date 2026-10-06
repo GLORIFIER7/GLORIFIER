@@ -101,15 +101,16 @@ mapfile -t TRANSACTION_SIGNATURES < <(jq -r '
 
 test "${#TRANSACTION_SIGNATURES[@]}" -eq 6
 
-jq -n --args '
-  . as $sigs |
+SIGNATURES_JSON="$(printf '%s\n' "${TRANSACTION_SIGNATURES[@]}" | jq -Rsc 'split("\\n") | map(select(length > 0))')"
+
+jq -n --argjson sigs "${SIGNATURES_JSON}" '
   {
     jsonrpc: "2.0",
     id: 1,
     method: "getSignatureStatuses",
     params: [$sigs, {searchTransactionHistory: true}]
   }
-' "${TRANSACTION_SIGNATURES[@]}" > /tmp/glorifier-signature-status-request.json
+' > /tmp/glorifier-signature-status-request.json
 
 curl --fail --silent --show-error \
   --retry 3 --retry-all-errors --max-time 30 \
