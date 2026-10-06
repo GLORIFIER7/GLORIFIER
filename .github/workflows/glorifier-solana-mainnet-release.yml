@@ -1,0 +1,197 @@
+name: GLORIFIER Solana Mainnet Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RELEASE_GLORIFIER_SOLANA_MAINNET to authorize the production release"
+        required: true
+        type: string
+      release_reason:
+        description: "Human release reason / approval reference"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: glorifier-solana-mainnet-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Mainnet release preflight
+    if: ${ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${ github.ref }" = "refs/heads/main"
+          test "${ inputs.confirm }" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
+          test -n "${ inputs.release_reason }"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Require verified Devnet gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.status=="VERIFIED_ON_CHAIN" and .network=="solana-devnet" and .token_standard=="Token-2022" and (.canonical_mint|type=="string" and length>=32 and length<=44)' solana/canonical-devnet-identity.json >/dev/null || { echo "::error::Devnet GLR is not independently verified."; exit 1; }
+      - name: Validate mainnet contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .transferFeeBasisPoints==0 and .permanentDelegate==null and .finalMintAuthority==null and .finalFreezeAuthority==null and .network=="solana-mainnet" and .tokenStandard=="Token-2022" and .mainnetRequiresHumanApproval==true and .productionRpcRequired==true and .devnetCanonicalIdentityRequired==true' solana/token-config-mainnet.json >/dev/null
+      - name: Require production secrets
+        env:
+          MAINNET_RPC: ${ secrets.SOLANA_MAINNET_RPC_URL }
+          MAINNET_KEYPAIR: ${ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }
+        run: |
+          set -euo pipefail
+          test -n "$MAINNET_RPC"
+          test -n "$MAINNET_KEYPAIR"
+          case "$MAINNET_RPC" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+      - name: Mainnet replay lock
+        env:
+          GH_TOKEN: ${ github.token }
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/glorifier-solana-mainnet-release.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+          while IFS= read -r ID; do
+            [ -n "$ID" ] || continue
+            [ "$ID" != "$GITHUB_RUN_ID" ] || continue
+            ARTS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$ID/artifacts?per_page=100")"
+            while IFS=$'\t' read -r AID DIGEST; do
+              [ -n "$AID" ] || continue
+              rm -rf /tmp/glr-replay; mkdir -p /tmp/glr-replay
+              gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/glr-replay.zip
+              unzip -oq /tmp/glr-replay.zip -d /tmp/glr-replay
+              E="$(find /tmp/glr-replay -type f -name deployment-mainnet-evidence.json -print -quit || true)"
+              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and (.status=="DEPLOYED" or .status=="READY_FOR_VERIFICATION")' "$E" >/dev/null; then
+                echo "::error::A prior mainnet run produced a real GLR mint. Reconcile it; never mint a second canonical GLR."
+                exit 1
+              fi
+            done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-mainnet-evidence")] | .[] | [(.id|tostring),(.digest//"")] | @tsv' <<<"$ARTS")
+          done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-mainnet-release.yml")] | .[].id' <<<"$RUNS")
+          echo "Mainnet replay lock passed."
+
+  deploy:
+    name: Deploy GLR Token-2022 to Solana Mainnet
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: glorifier-solana-mainnet
+    env:
+      SOLANA_RPC_URL: ${ secrets.SOLANA_MAINNET_RPC_URL }
+      GLORIFIER_SOLANA_KEYPAIR_JSON: ${ secrets.GLORIFIER_SOLANA_MAINNET_KEYPAIR_JSON }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install Solana CLI
+        run: |
+          set -euo pipefail
+          sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Install SPL Token CLI
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libudev-dev pkg-config
+          cargo install spl-token-cli --locked --version 5.0.2
+      - name: Configure production signer
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/solana"
+          printf '%s' "$GLORIFIER_SOLANA_KEYPAIR_JSON" > "$HOME/.config/solana/glorifier-mainnet-keypair.json"
+          chmod 600 "$HOME/.config/solana/glorifier-mainnet-keypair.json"
+          solana config set --url "$SOLANA_RPC_URL" --keypair "$HOME/.config/solana/glorifier-mainnet-keypair.json"
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
+          solana cluster-version
+          test "$(solana balance --lamports | awk '{print $1}')" -ge 50000000
+      - name: Execute real mainnet deployment
+        env:
+          GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW: "true"
+        run: |
+          set -euo pipefail
+          chmod +x solana/deploy-token2022-mainnet.sh
+          ./solana/deploy-token2022-mainnet.sh
+      - name: Validate deployment evidence
+        run: |
+          set -euo pipefail
+          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44) and .name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .mintAuthority==null and .freezeAuthority==null' solana/deployment-mainnet-evidence.json >/dev/null
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: glorifier-solana-mainnet-evidence
+          retention-days: 3650
+          path: solana/deployment-mainnet-evidence.json
+
+  reconcile:
+    name: Independent read-only mainnet reconciliation
+    needs: deploy
+    runs-on: ubuntu-latest
+    env:
+      SOLANA_RPC_URL: ${ secrets.SOLANA_MAINNET_RPC_URL }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install tooling
+        run: |
+          set -euo pipefail
+          sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libudev-dev pkg-config
+          cargo install spl-token-cli --locked --version 5.0.2
+      - name: Configure read-only production RPC
+        run: |
+          set -euo pipefail
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
+          solana config set --url "$SOLANA_RPC_URL"
+      - name: Download deployment evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: glorifier-solana-mainnet-evidence
+          path: /tmp/glr-mainnet
+      - name: Reconcile without mutation
+        run: |
+          set -euo pipefail
+          MINT="$(jq -r '.mint' /tmp/glr-mainnet/deployment-mainnet-evidence.json)"
+          chmod +x solana/reconcile-token2022-mainnet.sh
+          ./solana/reconcile-token2022-mainnet.sh "$MINT"
+      - name: Upload reconciliation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: glorifier-solana-mainnet-reconciliation
+          retention-days: 3650
+          path: solana/reconciliation-mainnet-*.txt,solana/reconciliation-mainnet-evidence.json
+
+  publish:
+    name: Publish verified mainnet identity
+    needs: reconcile
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install Solana CLI
+        run: |
+          set -euo pipefail
+          sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Download reconciliation evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          name: glorifier-solana-mainnet-reconciliation
+          path: solana
+      - name: Publish after provenance and transaction confirmation
+        env:
+          GH_TOKEN: ${ github.token }
+        run: |
+          set -euo pipefail
+          chmod +x solana/publish-verified-mainnet-identity.sh
+          ./solana/publish-verified-mainnet-identity.sh
