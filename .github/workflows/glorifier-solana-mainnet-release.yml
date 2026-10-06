@@ -242,6 +242,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pull-requests: write
     env:
       SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
