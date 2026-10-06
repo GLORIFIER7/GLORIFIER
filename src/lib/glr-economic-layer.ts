@@ -35,6 +35,7 @@ export interface GLRSettlementEvidenceInput {
   intentId: string;
   settlementTxRef: string;
   evidenceRef: string;
+  humanAuthorized: boolean;
   network?: string | null;
   externallyVerified?: boolean;
   verificationMethod?: 'chain-rpc' | 'explorer' | 'authoritative-ledger' | 'authorized-provider';
