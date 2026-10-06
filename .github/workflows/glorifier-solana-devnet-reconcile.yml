@@ -44,7 +44,7 @@ jobs:
           bash -n solana/reconcile-token2022-devnet.sh
           bash -n solana/publish-verified-devnet-identity.sh
 
-      - name: Validate JSON contracts
+      - name: Validate JSON contracts and proposed identity state
         shell: bash
         run: |
           set -euo pipefail
@@ -54,9 +54,55 @@ jobs:
             and .network == "solana-devnet"
             and .token_standard == "Token-2022"
             and .program_id == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-            and .status == "NOT VERIFIED"
-            and .canonical_mint == null
           ' solana/canonical-devnet-identity.json >/dev/null
+
+          STATUS="$(jq -r '.status' solana/canonical-devnet-identity.json)"
+          case "$STATUS" in
+            "NOT VERIFIED")
+              jq -e '
+                .canonical_mint == null
+                and .creation_transaction == null
+                and .mint_transaction == null
+                and .authority_revocation_transaction == null
+              ' solana/canonical-devnet-identity.json >/dev/null
+              ;;
+            "VERIFIED_ON_CHAIN")
+              jq -e '
+                (.canonical_mint | type == "string" and length >= 32 and length <= 44)
+                and .creation_transaction
+                and .metadata_transaction
+                and .token_account_creation_transaction
+                and .mint_transaction
+                and .authority_revocation_transaction
+                and .freeze_authority_revocation_transaction
+                and .verification_run_id
+                and .verification_run_url
+              ' solana/canonical-devnet-identity.json >/dev/null
+              test -f solana/verified-publication.json
+              test -f solana/deployment-provenance.json
+              MINT="$(jq -r '.canonical_mint' solana/canonical-devnet-identity.json)"
+              jq -e --arg mint "$MINT" '
+                .status == "READY_FOR_VERIFICATION"
+                and .network == "solana-devnet"
+                and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+                and .mint == $mint
+                and .name == "GLORIFIER"
+                and .symbol == "GLR"
+                and .decimals == 9
+                and .totalSupply == "1000000000"
+                and .mintAuthority == null
+                and .freezeAuthority == null
+              ' solana/deployment-provenance.json >/dev/null
+              jq -e --arg mint "$MINT" '
+                .status == "VERIFIED_ON_CHAIN"
+                and .mint == $mint
+              ' solana/verified-publication.json >/dev/null
+              ;;
+            *)
+              echo "::error::Unsupported canonical Devnet identity status: $STATUS"
+              exit 1
+              ;;
+          esac
 
       - name: Enforce governed publication boundary
         shell: bash
@@ -84,6 +130,7 @@ jobs:
 
   reconcile:
     name: Reconcile GLORIFIER GLR on Solana Devnet
+    needs: validate
     permissions:
       contents: write
       actions: read
