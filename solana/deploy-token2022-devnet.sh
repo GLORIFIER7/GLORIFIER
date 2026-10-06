@@ -5,7 +5,7 @@ if [[ "${GLORIFIER_AUTHORIZED_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}"
   echo "::error::Direct Token-2022 mint creation is disabled."
   echo "::error::Use .github/workflows/glorifier-solana-devnet.yml with explicit authorization."
   exit 1
-}
+fi
 # GLORIFIER GLR — Solana Token-2022 Devnet deployment.
 # This script creates a new mint ONLY when invoked by the authorized
 # deployment workflow. The workflow has a pre-deployment replay/evidence
