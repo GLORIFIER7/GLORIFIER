@@ -11,5 +11,12 @@
   "status": "NOT VERIFIED",
   "verification_boundary": "A mint becomes canonical only after one authorized deployment produces a real mint address plus transaction evidence and the final on-chain state is independently reconciled.",
   "excluded_mint": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G",
-  "next_action": "Execute .github/workflows/glorifier-solana-devnet.yml once with explicit authorization. A successful verified run will generate the canonical identity update in a PR; merge that PR to publish the mint as canonical. Do not create a second mint."
+  "next_action": "Execute .github/workflows/glorifier-solana-devnet.yml once with explicit authorization. A successful verified run will generate the canonical identity update in a PR; merge that PR to publish the mint as canonical. Do not create a second mint.",
+  "metadata_transaction": null,
+  "token_account_creation_transaction": null,
+  "freeze_authority_revocation_transaction": null,
+  "verification_run_id": null,
+  "verification_run_url": null,
+  "verified_at": null,
+  "mainnet_status": "NOT VERIFIED"
 }
