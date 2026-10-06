@@ -16,7 +16,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -276,6 +276,16 @@ EOF
           chmod +x solana/reconcile-token2022-devnet.sh
           solana config set --commitment confirmed
           ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
+
+      - name: Publish canonical identity after independent verification
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x solana/publish-verified-devnet-identity.sh
+          ./solana/publish-verified-devnet-identity.sh
 
       - name: Upload reconciliation evidence
         if: always()
