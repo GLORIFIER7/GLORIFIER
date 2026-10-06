@@ -21,9 +21,24 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check database configuration
+        id: database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "DATABASE_CONFIGURED=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DATABASE_URL is not configured; mediator expansion is NOT_OBSERVABLE."
+          else
+            echo "DATABASE_CONFIGURED=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Refresh mediator registry snapshot
+        if: steps.database.outputs.DATABASE_CONFIGURED == 'true'
         run: npx tsx scripts/run-mediator-expansion.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Report unconfigured database boundary
+        if: steps.database.outputs.DATABASE_CONFIGURED != 'true'
+        run: echo "Mediator expansion cycle skipped truthfully because DATABASE_URL is unavailable."
