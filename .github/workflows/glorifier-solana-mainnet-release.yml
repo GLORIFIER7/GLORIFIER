@@ -107,6 +107,9 @@ jobs:
           mkdir -p "$HOME/.config/solana"
           printf '%s' "$GLORIFIER_SOLANA_KEYPAIR_JSON" > "$HOME/.config/solana/glorifier-mainnet-keypair.json"
           chmod 600 "$HOME/.config/solana/glorifier-mainnet-keypair.json"
+          test -n "$SOLANA_RPC_URL"
+          test -n "$GLORIFIER_SOLANA_KEYPAIR_JSON"
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
           solana config set --url "$SOLANA_RPC_URL" --keypair "$HOME/.config/solana/glorifier-mainnet-keypair.json"
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
           solana cluster-version
