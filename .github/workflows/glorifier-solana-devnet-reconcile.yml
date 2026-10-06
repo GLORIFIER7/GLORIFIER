@@ -253,9 +253,9 @@ EOF
               echo "::error::Resolved mint does not match canonical identity."
               exit 1
             }
-            jq -e '
+            jq -e --arg mint "${CANONICAL_MINT}" '
               .status == "VERIFIED_ON_CHAIN"
-              and .canonical_mint == env.CANONICAL_MINT
+              and .canonical_mint == $mint
               and (.creation_transaction | type == "string" and length > 0)
               and (.metadata_transaction | type == "string" and length > 0)
               and (.token_account_creation_transaction | type == "string" and length > 0)
@@ -311,6 +311,36 @@ EOF
           }
           solana cluster-version
 
+      - name: Independently confirm deployment transactions on canonical Devnet
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f solana/deployment-provenance.json
+          declare -a TX_FIELDS=(
+            creationTransaction
+            metadataTransaction
+            tokenAccountCreationTransaction
+            mintTransaction
+            mintAuthorityRevocationTransaction
+            freezeAuthorityRevocationTransaction
+          )
+
+          : > solana/reconciliation-transactions.txt
+          for FIELD in "${TX_FIELDS[@]}"; do
+            TX="$(jq -r --arg field "${FIELD}" '.[$field] // empty' solana/deployment-provenance.json)"
+            [[ "${TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+              echo "::error::Invalid transaction signature in deployment provenance: ${FIELD}"
+              exit 1
+            }
+
+            echo "Confirming ${FIELD}: ${TX}"
+            solana confirm "${TX}" --commitment confirmed | tee -a solana/reconciliation-transactions.txt
+            solana confirm "${TX}" --commitment confirmed >/dev/null
+          done
+
+          echo "All deployment transactions independently confirmed on canonical Solana Devnet."
+          
       - name: Reconcile existing Token-2022 mint
         shell: bash
         run: |
