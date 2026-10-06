@@ -145,8 +145,68 @@ jobs:
             echo "::error::Canonical Solana Devnet RPC is unexpectedly empty."
             exit 1
           }
+
+          # Validate the credential without ever printing it.
+          # The deployment wallet may be supplied as:
+          #   1) canonical Solana CLI JSON: [64 integers]
+          #   2) a JSON string containing that array
+          #   3) a base58-encoded 64-byte Solana secret key.
+          python3 - <<'PY'
+          import base64
+          import json
+          import sys
+
+          raw = __import__("os").environ["GLORIFIER_SOLANA_KEYPAIR_JSON"].strip()
+
+          def valid_array(value):
+              return (
+                  isinstance(value, list)
+                  and len(value) == 64
+                  and all(isinstance(x, int) and not isinstance(x, bool) and 0 <= x <= 255 for x in value)
+              )
+
+          try:
+              parsed = json.loads(raw)
+          except json.JSONDecodeError:
+              parsed = None
+
+          if valid_array(parsed):
+              normalized = parsed
+          elif isinstance(parsed, str):
+              try:
+                  nested = json.loads(parsed)
+              except json.JSONDecodeError:
+                  nested = None
+              if not valid_array(nested):
+                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON must be a 64-byte Solana keypair JSON array or a JSON string containing one.", file=sys.stderr)
+                  sys.exit(1)
+              normalized = nested
+          else:
+              alphabet = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+              try:
+                  value = 0
+                  for char in raw.encode("ascii"):
+                      value = value * 58 + alphabet.index(bytes([char]))
+                  decoded = value.to_bytes((value.bit_length() + 7) // 8, "big")
+                  leading = len(raw) - len(raw.lstrip("1"))
+                  decoded = b"\x00" * leading + decoded
+              except (ValueError, UnicodeEncodeError):
+                  decoded = b""
+              if len(decoded) != 64:
+                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON is not a valid 64-byte Solana secret key.", file=sys.stderr)
+                  sys.exit(1)
+              normalized = list(decoded)
+
+          with open("/tmp/glorifier-keypair.json", "w", encoding="utf-8") as handle:
+              json.dump(normalized, handle, separators=(",", ":"))
+          PY
+
+          chmod 600 /tmp/glorifier-keypair.json
+          mv /tmp/glorifier-keypair.json solana/glorifier-devnet-keypair.normalized.json
+
           cat > solana/deployment-status.txt <<'EOF'
           STATUS=CONFIGURED
+          KEYPAIR_FORMAT_VALIDATED=true
           EOF
 
       - name: Check deployment replay lock
@@ -220,7 +280,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.config/solana"
-          printf '%s' "${GLORIFIER_SOLANA_KEYPAIR_JSON}" > "$HOME/.config/solana/glorifier-devnet-keypair.json"
+          cp solana/glorifier-devnet-keypair.normalized.json "$HOME/.config/solana/glorifier-devnet-keypair.json"
           chmod 600 "$HOME/.config/solana/glorifier-devnet-keypair.json"
           solana config set --url "${SOLANA_RPC_URL}" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
           solana address
