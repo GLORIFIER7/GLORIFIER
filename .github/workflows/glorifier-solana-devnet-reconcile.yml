@@ -160,7 +160,7 @@ EOF
   "mode": "RECONCILIATION_READ_ONLY",
   "verification_boundary": "No mint address or deployment evidence is currently published; this workflow did not create or mutate any asset.",
   "mint": null,
-  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
   "name": "GLORIFIER",
   "symbol": "GLR",
   "decimals": 9,
@@ -201,7 +201,7 @@ EOF
 
               jq -e --arg run_id "${DEPLOYMENT_RUN_ID}" --arg repo "${GITHUB_REPOSITORY}" '
                 (.network == "solana-devnet")
-                and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PH")
+                and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
                 and (.status == "DEPLOYED" or .status == "READY_FOR_VERIFICATION" or .status == "FULLY_VERIFIED")
                 and (.mint | type == "string" and length >= 32 and length <= 44)
                 and (.status != "FULLY_VERIFIED" or (.verification.runId == $run_id and .verification.runUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id)))
