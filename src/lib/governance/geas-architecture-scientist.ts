@@ -989,6 +989,7 @@ export function getGeasArchitectureModel() {
     version: 'GEAS-ARCHITECTURE-SCIENTIST-2.0',
     operatingRule: 'GEAS may observe, compare, explain, prioritize and recommend; it must not autonomously apply irreversible production changes.',
     sourcePolicy: 'Only curated authoritative public sources are accepted as architecture evidence.',
+    sourcePolicyVersion: 'GEAS-AUTHORITY-1',
     evidencePolicy: 'Observed facts require successful source observation plus extracted evidence. Analysis and recommendations remain distinct.',
     unknownPolicy: 'Missing or unavailable evidence remains UNKNOWN; no compliance is inferred from absence of evidence.',
     architectureStateModel: ['desired', 'declared', 'deployed', 'observed', 'verified'],
