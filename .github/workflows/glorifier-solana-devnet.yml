@@ -148,26 +148,52 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          
+
           DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-          
+
           while IFS= read -r PRIOR_RUN_ID; do
             [[ -n "${PRIOR_RUN_ID}" ]] || continue
             [[ "${PRIOR_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
-            
+
             PRIOR_RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}")"
             jq -e '
               .path == ".github/workflows/glorifier-solana-devnet.yml"
               and .event == "workflow_dispatch"
               and .head_branch == "main"
-              and .id != null
-              and (.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "startup_failure")
             ' <<<"${PRIOR_RUN_JSON}" >/dev/null || continue
-            
-            if jq -e '.conclusion == "success"' <<<"${PRIOR_RUN_JSON}" >/dev/null; then
-              echo "::error::A previous GLORIFIER Solana Devnet deployment workflow already succeeded."
-              echo "::error::Use glorifier-solana-devnet-reconcile.yml with the existing mint instead of creating another mint."
-              exit 1
+
+            # A real mint is considered consumed even if the workflow later failed.
+            # This prevents retrying after a partial deployment and creating a second mint.
+            ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}/artifacts?per_page=100")"
+            EVIDENCE_ID="$(jq -r '
+              [.artifacts[]?
+               | select(.expired == false)
+               | select(.name == "glorifier-solana-devnet-evidence")
+               | select(.workflow_run.id == ('"${PRIOR_RUN_ID}"' | tonumber))
+               | .id]
+              | last // empty
+            ' <<<"${ARTIFACTS_JSON}")"
+
+            if [[ -n "${EVIDENCE_ID}" ]]; then
+              rm -rf /tmp/glorifier-solana-replay-check
+              mkdir -p /tmp/glorifier-solana-replay-check
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ID}/zip" > /tmp/glorifier-solana-replay-check.zip
+              unzip -oq /tmp/glorifier-solana-replay-check.zip -d /tmp/glorifier-solana-replay-check
+
+              EVIDENCE_FILE="$(find /tmp/glorifier-solana-replay-check -type f -name "deployment-evidence.json" -print -quit || true)"
+              if [[ -n "${EVIDENCE_FILE}" ]] && jq -e '
+                (.network == "solana-devnet")
+                and (.mint | type == "string" and length >= 32 and length <= 44)
+                and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+                and (.status != "NOT_VERIFIED")
+              ' "${EVIDENCE_FILE}" >/dev/null; then
+                PRIOR_MINT="$(jq -r '.mint' "${EVIDENCE_FILE}")"
+                echo "::error::A prior deployment run already produced real GLR deployment evidence."
+                echo "::error::Prior run: ${PRIOR_RUN_ID}"
+                echo "::error::Prior mint: ${PRIOR_MINT}"
+                echo "::error::Do not create another mint. Use the reconciliation workflow."
+                exit 1
+              fi
             fi
           done < <(
             jq -r '
@@ -180,9 +206,8 @@ jobs:
               | .[]
             ' <<<"${DEPLOYMENT_RUNS_JSON}"
           )
-          
-          echo "Replay lock: no prior Solana Devnet deployment succeeded."
 
+          echo "Replay lock: no prior real GLR deployment evidence exists."
       - name: Configure dedicated deployment wallet
         shell: bash
         run: |
