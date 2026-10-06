@@ -57,7 +57,7 @@ jobs:
           }
 
       - name: Checkout
-        uses: actions/checkout@692973182d3b3510f4687a6b3898d2f0db8891fd # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate repository deployment contracts
         shell: bash
@@ -123,7 +123,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.0.2 2>&1 | grep -E "^(Updating|Downloading|Compiling|Finished)" || true
+          cargo install spl-token-cli --locked --version 5.6.1 2>&1 | grep -E "^(Updating|Downloading|Compiling|Finished)" || true
           spl-token --version
 
       - name: Validate required deployment secrets
@@ -397,7 +397,7 @@ Do not create another GLORIFIER mint."
 
       - name: Upload deployment evidence
         if: always()
-        uses: actions/upload-artifact@0b2256b8c231eaddb75b1bb18e9aeac02d30d42a # v4.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: glorifier-solana-devnet-evidence
           retention-days: 90
