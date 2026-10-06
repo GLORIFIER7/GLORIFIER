@@ -262,7 +262,17 @@ EOF
               and (.mint_transaction | type == "string" and length > 0)
               and (.authority_revocation_transaction | type == "string" and length > 0)
             ' solana/canonical-devnet-identity.json >/dev/null
-            jq '. as $x | $x' solana/canonical-devnet-identity.json > solana/deployment-provenance.json
+            jq '{
+              mint: .canonical_mint,
+              creationTransaction: .creation_transaction,
+              metadataTransaction: .metadata_transaction,
+              tokenAccountCreationTransaction: .token_account_creation_transaction,
+              mintTransaction: .mint_transaction,
+              mintAuthorityRevocationTransaction: .authority_revocation_transaction,
+              freezeAuthorityRevocationTransaction: .freeze_authority_revocation_transaction,
+              deploymentRunId: .verification_run_id,
+              deploymentRunUrl: .verification_run_url
+            }' solana/canonical-devnet-identity.json > solana/deployment-provenance.json
             echo "Canonical identity already contains deployment provenance for this mint."
             exit 0
           fi
