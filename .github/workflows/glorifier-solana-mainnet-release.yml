@@ -172,9 +172,12 @@ jobs:
     name: Publish verified mainnet identity
     needs: reconcile
     runs-on: ubuntu-latest
+    environment: glorifier-solana-mainnet
     permissions:
       contents: write
       actions: read
+    env:
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install Solana CLI
@@ -182,6 +185,8 @@ jobs:
           set -euo pipefail
           sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+          solana config set --url "$SOLANA_RPC_URL"
       - name: Download reconciliation evidence
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
         with:
