@@ -167,7 +167,12 @@ jobs:
         with:
           name: glorifier-solana-mainnet-reconciliation
           retention-days: 3650
-          path: solana/reconciliation-mainnet-*.txt,solana/reconciliation-mainnet-evidence.json
+          path: |
+            solana/reconciliation-mainnet-status.txt
+            solana/reconciliation-mainnet-account.txt
+            solana/reconciliation-mainnet-supply.txt
+            solana/reconciliation-mainnet-mint-state.txt
+            solana/reconciliation-mainnet-evidence.json
 
   publish:
     name: Publish verified mainnet identity
