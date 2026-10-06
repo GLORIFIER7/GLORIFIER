@@ -84,6 +84,57 @@ export async function initializeAssetRegistry() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_asset_evidence_account_time ON asset_evidence(asset_account_id, observed_at DESC);
+    CREATE TABLE IF NOT EXISTS canonical_asset_registry (
+      asset_id TEXT PRIMARY KEY,
+      namespace TEXT NOT NULL,
+      name TEXT NOT NULL,
+      symbol TEXT NOT NULL,
+      asset_class TEXT NOT NULL,
+      canonical_status TEXT NOT NULL DEFAULT 'active',
+      decimals INTEGER,
+      supply_policy TEXT,
+      canonical_metadata JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(namespace, symbol)
+    );
+    CREATE TABLE IF NOT EXISTS canonical_asset_deployments (
+      deployment_id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES canonical_asset_registry(asset_id) ON DELETE CASCADE,
+      network TEXT NOT NULL,
+      chain_id BIGINT NOT NULL,
+      contract_address TEXT NOT NULL,
+      deployment_transaction TEXT,
+      deployment_block BIGINT,
+      status TEXT NOT NULL DEFAULT 'not_verified',
+      explorer TEXT,
+      source_verification_status TEXT NOT NULL DEFAULT 'not_verified',
+      deployer_address TEXT,
+      initial_holder_address TEXT,
+      verification_mode TEXT,
+      verification_workflow_commit TEXT,
+      evidence JSONB NOT NULL DEFAULT '{}',
+      first_verified_at TIMESTAMPTZ,
+      last_verified_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(asset_id, chain_id),
+      UNIQUE(chain_id, contract_address)
+    );
+    CREATE INDEX IF NOT EXISTS idx_canonical_asset_deployments_asset
+      ON canonical_asset_deployments(asset_id, status);
+    CREATE INDEX IF NOT EXISTS idx_canonical_asset_deployments_chain
+      ON canonical_asset_deployments(chain_id, network);
+    CREATE TABLE IF NOT EXISTS canonical_asset_events (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL REFERENCES canonical_asset_registry(asset_id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_canonical_asset_events_time
+      ON canonical_asset_events(asset_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS asset_account_events (
       id TEXT PRIMARY KEY,
       asset_account_id TEXT NOT NULL REFERENCES asset_account_registry(id) ON DELETE CASCADE,
@@ -94,6 +145,7 @@ export async function initializeAssetRegistry() {
     );
     CREATE INDEX IF NOT EXISTS idx_asset_account_events_time ON asset_account_events(asset_account_id, created_at DESC);
   `);
+  await seedCanonicalGLRRegistry();
 }
 
 export async function ensureCoreAssetIntegrations() {
@@ -268,4 +320,142 @@ export async function recordAssetEvidence(input: {
       input.observedAt||new Date().toISOString(),input.payloadHash||null,JSON.stringify(input.details||{})]
   );
   return r.rows[0];
+}
+
+
+export type CanonicalAssetStatus = 'active' | 'deprecated' | 'disabled';
+export type CanonicalDeploymentStatus = 'fully_verified' | 'verified' | 'partially_verified' | 'not_verified' | 'degraded' | 'not_observable';
+
+export interface CanonicalAssetRecord {
+  assetId: string;
+  namespace: string;
+  name: string;
+  symbol: string;
+  assetClass: string;
+  canonicalStatus: CanonicalAssetStatus;
+  decimals: number | null;
+  supplyPolicy: string | null;
+  metadata: Record<string, unknown>;
+  deployments: CanonicalAssetDeploymentRecord[];
+}
+
+export interface CanonicalAssetDeploymentRecord {
+  deploymentId: string;
+  network: string;
+  chainId: number;
+  contractAddress: string;
+  deploymentTransaction: string | null;
+  deploymentBlock: number | null;
+  status: CanonicalDeploymentStatus;
+  explorer: string | null;
+  sourceVerificationStatus: string;
+  deployerAddress: string | null;
+  initialHolderAddress: string | null;
+  verificationMode: string | null;
+  verificationWorkflowCommit: string | null;
+  evidence: Record<string, unknown>;
+  firstVerifiedAt: string | null;
+  lastVerifiedAt: string | null;
+}
+
+async function seedCanonicalGLRRegistry() {
+  const db = getPostgresPool();
+  await db.query(`INSERT INTO canonical_asset_registry
+    (asset_id,namespace,name,symbol,asset_class,canonical_status,decimals,supply_policy,canonical_metadata)
+    VALUES('glr','glorifier','GLORIFIER','GLR','crypto','active',18,'fixed-max-supply-1000000000',$1)
+    ON CONFLICT(asset_id) DO UPDATE SET
+      namespace=EXCLUDED.namespace,name=EXCLUDED.name,symbol=EXCLUDED.symbol,
+      asset_class=EXCLUDED.asset_class,canonical_status=EXCLUDED.canonical_status,
+      decimals=EXCLUDED.decimals,supply_policy=EXCLUDED.supply_policy,
+      canonical_metadata=EXCLUDED.canonical_metadata,updated_at=NOW()`,
+    [JSON.stringify({
+      role: 'agent-economic-settlement-unit',
+      identityRule: 'one-canonical-asset-many-chain-deployments',
+      verificationRule: 'each-chain-independent'
+    })]);
+
+  await upsertCanonicalGLRDeployment({
+    deploymentId: 'glr-ethereum-mainnet', network: 'Ethereum Mainnet', chainId: 1,
+    contractAddress: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
+    deploymentTransaction: '0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a',
+    status: 'fully_verified', explorer: 'Etherscan', sourceVerificationStatus: 'verified',
+    verificationMode: 'workflow-reconciliation',
+    evidence: { etherscanVerified: true, source: 'github-actions-evidence' }
+  });
+  await upsertCanonicalGLRDeployment({
+    deploymentId: 'glr-bnb-mainnet', network: 'BNB Smart Chain Mainnet', chainId: 56,
+    contractAddress: '0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804',
+    deploymentTransaction: '0xf5698f6bbde7ff173be1cbd0bb83da53f03389842c68ca2f6e4e287b89d9bbc0',
+    deploymentBlock: 125836150, status: 'fully_verified', explorer: 'BscScan',
+    sourceVerificationStatus: 'verified',
+    deployerAddress: '0x4533168d8359fE1EEd2A923dF332a6Cea2eb17ad',
+    initialHolderAddress: '0x4533168d8359fE1EEd2A923dF332a6Cea2eb17ad',
+    verificationMode: 'verify-existing',
+    verificationWorkflowCommit: '8921c2e31b79107cf05aa3ba4bdb43715dda69d2',
+    evidence: { onChainAssertions: 'PASSED', bscScanVerified: true, blockchainTransactionBroadcast: false, deployerNonce: 3, source: 'github-actions-evidence' }
+  });
+}
+
+async function upsertCanonicalGLRDeployment(input: {
+  deploymentId: string; network: string; chainId: number; contractAddress: string;
+  deploymentTransaction: string; deploymentBlock?: number; status: CanonicalDeploymentStatus;
+  explorer: string; sourceVerificationStatus: string; deployerAddress?: string;
+  initialHolderAddress?: string; verificationMode: string; verificationWorkflowCommit?: string;
+  evidence: Record<string, unknown>;
+}) {
+  await getPostgresPool().query(`INSERT INTO canonical_asset_deployments
+    (deployment_id,asset_id,network,chain_id,contract_address,deployment_transaction,deployment_block,status,explorer,source_verification_status,deployer_address,initial_holder_address,verification_mode,verification_workflow_commit,evidence,first_verified_at,last_verified_at)
+    VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
+    ON CONFLICT(deployment_id) DO UPDATE SET
+      network=EXCLUDED.network,chain_id=EXCLUDED.chain_id,contract_address=EXCLUDED.contract_address,
+      deployment_transaction=EXCLUDED.deployment_transaction,deployment_block=EXCLUDED.deployment_block,
+      status=EXCLUDED.status,explorer=EXCLUDED.explorer,source_verification_status=EXCLUDED.source_verification_status,
+      deployer_address=EXCLUDED.deployer_address,initial_holder_address=EXCLUDED.initial_holder_address,
+      verification_mode=EXCLUDED.verification_mode,verification_workflow_commit=EXCLUDED.verification_workflow_commit,
+      evidence=EXCLUDED.evidence,last_verified_at=NOW(),updated_at=NOW()`,
+    [input.deploymentId,input.network,input.chainId,input.contractAddress,input.deploymentTransaction,input.deploymentBlock??null,
+     input.status,input.explorer,input.sourceVerificationStatus,input.deployerAddress??null,input.initialHolderAddress??null,
+     input.verificationMode,input.verificationWorkflowCommit??null,JSON.stringify(input.evidence)]
+  );
+}
+
+export async function getCanonicalAsset(assetId = 'glr'): Promise<CanonicalAssetRecord | null> {
+  await initializeAssetRegistry();
+  const db = getPostgresPool();
+  const asset = await db.query('SELECT * FROM canonical_asset_registry WHERE asset_id=$1',[assetId]);
+  if (!asset.rows[0]) return null;
+  const deployments = await db.query('SELECT * FROM canonical_asset_deployments WHERE asset_id=$1 ORDER BY chain_id',[assetId]);
+  return {
+    assetId: asset.rows[0].asset_id, namespace: asset.rows[0].namespace, name: asset.rows[0].name,
+    symbol: asset.rows[0].symbol, assetClass: asset.rows[0].asset_class,
+    canonicalStatus: asset.rows[0].canonical_status,
+    decimals: asset.rows[0].decimals == null ? null : Number(asset.rows[0].decimals),
+    supplyPolicy: asset.rows[0].supply_policy, metadata: asset.rows[0].canonical_metadata || {},
+    deployments: deployments.rows.map(mapCanonicalDeployment)
+  };
+}
+
+export async function listCanonicalAssets(): Promise<CanonicalAssetRecord[]> {
+  await initializeAssetRegistry();
+  const rows = await getPostgresPool().query('SELECT asset_id FROM canonical_asset_registry ORDER BY asset_id');
+  const result: CanonicalAssetRecord[] = [];
+  for (const row of rows.rows) {
+    const asset = await getCanonicalAsset(row.asset_id);
+    if (asset) result.push(asset);
+  }
+  return result;
+}
+
+function mapCanonicalDeployment(row: any): CanonicalAssetDeploymentRecord {
+  return {
+    deploymentId: row.deployment_id, network: row.network, chainId: Number(row.chain_id),
+    contractAddress: row.contract_address, deploymentTransaction: row.deployment_transaction,
+    deploymentBlock: row.deployment_block == null ? null : Number(row.deployment_block),
+    status: row.status, explorer: row.explorer, sourceVerificationStatus: row.source_verification_status,
+    deployerAddress: row.deployer_address, initialHolderAddress: row.initial_holder_address,
+    verificationMode: row.verification_mode, verificationWorkflowCommit: row.verification_workflow_commit,
+    evidence: row.evidence || {},
+    firstVerifiedAt: row.first_verified_at ? new Date(row.first_verified_at).toISOString() : null,
+    lastVerifiedAt: row.last_verified_at ? new Date(row.last_verified_at).toISOString() : null
+  };
 }
