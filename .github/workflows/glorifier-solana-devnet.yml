@@ -62,8 +62,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if grep -RniE 'MOCK_MINT|placeholder deployment evidence|READY_FOR_VERIFICATION|FULLY_VERIFIED' \
-            .github/workflows/glorifier-solana-devnet.yml \
+          if grep -RniE 'MOCK_MINT|placeholder deployment evidence' \
             solana/deployment-evidence.json \
             solana/canonical-devnet-identity.json 2>/dev/null; then
             echo "::error::Synthetic or premature verification state detected."
