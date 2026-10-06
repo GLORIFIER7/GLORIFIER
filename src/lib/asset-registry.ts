@@ -102,8 +102,13 @@ export async function initializeAssetRegistry() {
       deployment_id TEXT PRIMARY KEY,
       asset_id TEXT NOT NULL REFERENCES canonical_asset_registry(asset_id) ON DELETE CASCADE,
       network TEXT NOT NULL,
-      chain_id BIGINT NOT NULL,
-      contract_address TEXT NOT NULL,
+      network_family TEXT NOT NULL DEFAULT 'evm',
+      network_id TEXT NOT NULL DEFAULT 'evm:' || chain_id::TEXT,
+      chain_id BIGINT,
+      identifier_type TEXT NOT NULL DEFAULT 'contract',
+      contract_address TEXT,
+      asset_identifier TEXT NOT NULL DEFAULT '',
+      program_id TEXT,
       deployment_transaction TEXT,
       deployment_block BIGINT,
       status TEXT NOT NULL DEFAULT 'not_verified',
@@ -118,11 +123,24 @@ export async function initializeAssetRegistry() {
       last_verified_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(asset_id, chain_id),
-      UNIQUE(chain_id, contract_address)
+      UNIQUE(asset_id, network_id, asset_identifier),
+      UNIQUE(network_id, asset_identifier)
     );
     CREATE INDEX IF NOT EXISTS idx_canonical_asset_deployments_asset
       ON canonical_asset_deployments(asset_id, status);
+    ALTER TABLE canonical_asset_deployments ADD COLUMN IF NOT EXISTS network_family TEXT NOT NULL DEFAULT 'evm';
+    ALTER TABLE canonical_asset_deployments ADD COLUMN IF NOT EXISTS network_id TEXT;
+    ALTER TABLE canonical_asset_deployments ADD COLUMN IF NOT EXISTS identifier_type TEXT NOT NULL DEFAULT 'contract';
+    ALTER TABLE canonical_asset_deployments ADD COLUMN IF NOT EXISTS asset_identifier TEXT;
+    ALTER TABLE canonical_asset_deployments ADD COLUMN IF NOT EXISTS program_id TEXT;
+    UPDATE canonical_asset_deployments SET network_id = CASE WHEN chain_id IS NOT NULL THEN 'evm:' || chain_id::TEXT ELSE network END WHERE network_id IS NULL;
+    UPDATE canonical_asset_deployments SET asset_identifier = contract_address WHERE asset_identifier IS NULL OR asset_identifier = '';
+    ALTER TABLE canonical_asset_deployments ALTER COLUMN network_id SET NOT NULL;
+    ALTER TABLE canonical_asset_deployments ALTER COLUMN asset_identifier SET NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_canonical_asset_deployment_identity
+      ON canonical_asset_deployments(asset_id, network_id, asset_identifier);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_canonical_asset_deployment_network_identity
+      ON canonical_asset_deployments(network_id, asset_identifier);
     CREATE INDEX IF NOT EXISTS idx_canonical_asset_deployments_chain
       ON canonical_asset_deployments(chain_id, network);
     CREATE TABLE IF NOT EXISTS canonical_asset_events (
@@ -342,8 +360,13 @@ export interface CanonicalAssetRecord {
 export interface CanonicalAssetDeploymentRecord {
   deploymentId: string;
   network: string;
-  chainId: number;
-  contractAddress: string;
+  chainId: number | null;
+  networkFamily: 'evm' | 'solana' | 'other';
+  networkId: string;
+  identifierType: 'contract' | 'mint' | 'other';
+  contractAddress: string | null;
+  assetIdentifier: string;
+  programId: string | null;
   deploymentTransaction: string | null;
   deploymentBlock: number | null;
   status: CanonicalDeploymentStatus;
@@ -375,7 +398,7 @@ async function seedCanonicalGLRRegistry() {
     })]);
 
   await upsertCanonicalGLRDeployment({
-    deploymentId: 'glr-ethereum-mainnet', network: 'Ethereum Mainnet', chainId: 1,
+    deploymentId: 'glr-ethereum-mainnet', network: 'Ethereum Mainnet', networkFamily: 'evm', networkId: 'evm:1', chainId: 1, identifierType: 'contract',
     contractAddress: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
     deploymentTransaction: '0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a',
     status: 'fully_verified', explorer: 'Etherscan', sourceVerificationStatus: 'verified',
@@ -383,7 +406,7 @@ async function seedCanonicalGLRRegistry() {
     evidence: { etherscanVerified: true, source: 'github-actions-evidence' }
   });
   await upsertCanonicalGLRDeployment({
-    deploymentId: 'glr-bnb-mainnet', network: 'BNB Smart Chain Mainnet', chainId: 56,
+    deploymentId: 'glr-bnb-mainnet', network: 'BNB Smart Chain Mainnet', networkFamily: 'evm', networkId: 'evm:56', chainId: 56, identifierType: 'contract',
     contractAddress: '0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804',
     deploymentTransaction: '0xf5698f6bbde7ff173be1cbd0bb83da53f03389842c68ca2f6e4e287b89d9bbc0',
     deploymentBlock: 125836150, status: 'fully_verified', explorer: 'BscScan',
@@ -397,23 +420,23 @@ async function seedCanonicalGLRRegistry() {
 }
 
 async function upsertCanonicalGLRDeployment(input: {
-  deploymentId: string; network: string; chainId: number; contractAddress: string;
+  deploymentId: string; network: string; networkFamily?: 'evm' | 'solana' | 'other'; networkId?: string; chainId?: number | null; identifierType?: 'contract' | 'mint' | 'other'; contractAddress?: string | null; assetIdentifier?: string; programId?: string | null;
   deploymentTransaction: string; deploymentBlock?: number; status: CanonicalDeploymentStatus;
   explorer: string; sourceVerificationStatus: string; deployerAddress?: string;
   initialHolderAddress?: string; verificationMode: string; verificationWorkflowCommit?: string;
   evidence: Record<string, unknown>;
 }) {
   await getPostgresPool().query(`INSERT INTO canonical_asset_deployments
-    (deployment_id,asset_id,network,chain_id,contract_address,deployment_transaction,deployment_block,status,explorer,source_verification_status,deployer_address,initial_holder_address,verification_mode,verification_workflow_commit,evidence,first_verified_at,last_verified_at)
-    VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
+    (deployment_id,asset_id,network,network_family,network_id,chain_id,identifier_type,contract_address,asset_identifier,program_id,deployment_transaction,deployment_block,status,explorer,source_verification_status,deployer_address,initial_holder_address,verification_mode,verification_workflow_commit,evidence,first_verified_at,last_verified_at)
+    VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
     ON CONFLICT(deployment_id) DO UPDATE SET
-      network=EXCLUDED.network,chain_id=EXCLUDED.chain_id,contract_address=EXCLUDED.contract_address,
+      network=EXCLUDED.network,network_family=EXCLUDED.network_family,network_id=EXCLUDED.network_id,chain_id=EXCLUDED.chain_id,identifier_type=EXCLUDED.identifier_type,contract_address=EXCLUDED.contract_address,asset_identifier=EXCLUDED.asset_identifier,program_id=EXCLUDED.program_id,
       deployment_transaction=EXCLUDED.deployment_transaction,deployment_block=EXCLUDED.deployment_block,
       status=EXCLUDED.status,explorer=EXCLUDED.explorer,source_verification_status=EXCLUDED.source_verification_status,
       deployer_address=EXCLUDED.deployer_address,initial_holder_address=EXCLUDED.initial_holder_address,
       verification_mode=EXCLUDED.verification_mode,verification_workflow_commit=EXCLUDED.verification_workflow_commit,
       evidence=EXCLUDED.evidence,last_verified_at=NOW(),updated_at=NOW()`,
-    [input.deploymentId,input.network,input.chainId,input.contractAddress,input.deploymentTransaction,input.deploymentBlock??null,
+    [input.deploymentId,input.network,input.networkFamily || 'evm',input.networkId || `evm:${input.chainId}`,input.chainId ?? null,input.identifierType || 'contract',input.contractAddress ?? null,input.assetIdentifier || input.contractAddress || '',input.programId ?? null,input.deploymentTransaction,input.deploymentBlock??null,
      input.status,input.explorer,input.sourceVerificationStatus,input.deployerAddress??null,input.initialHolderAddress??null,
      input.verificationMode,input.verificationWorkflowCommit??null,JSON.stringify(input.evidence)]
   );
@@ -448,8 +471,9 @@ export async function listCanonicalAssets(): Promise<CanonicalAssetRecord[]> {
 
 function mapCanonicalDeployment(row: any): CanonicalAssetDeploymentRecord {
   return {
-    deploymentId: row.deployment_id, network: row.network, chainId: Number(row.chain_id),
-    contractAddress: row.contract_address, deploymentTransaction: row.deployment_transaction,
+    deploymentId: row.deployment_id, network: row.network, chainId: row.chain_id == null ? null : Number(row.chain_id),
+    networkFamily: row.network_family, networkId: row.network_id, identifierType: row.identifier_type,
+    contractAddress: row.contract_address || null, assetIdentifier: row.asset_identifier, programId: row.program_id || null, deploymentTransaction: row.deployment_transaction,
     deploymentBlock: row.deployment_block == null ? null : Number(row.deployment_block),
     status: row.status, explorer: row.explorer, sourceVerificationStatus: row.source_verification_status,
     deployerAddress: row.deployer_address, initialHolderAddress: row.initial_holder_address,
