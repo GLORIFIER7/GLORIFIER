@@ -65,4 +65,4 @@ The repository now contains the GLORIFIER ERC-20 foundation under `contracts/`.
 
 See [contracts/README.md](contracts/README.md), [tokenomics](docs/tokenomics.md), and the [launch checklist](docs/token-launch-checklist.md).
 
-**On-chain status:** source and deployment tooling are published; no mainnet deployment is claimed until a real transaction hash, contract address, chain, and explorer verification are available.
+**On-chain status:** GLR has independently reconciled **FULLY VERIFIED** deployments on Ethereum Mainnet and BNB Smart Chain Mainnet. See [canonical asset registry](docs/canonical-asset-registry.md) for the canonical GLR identity and chain-specific deployment evidence.
