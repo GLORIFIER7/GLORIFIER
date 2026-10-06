@@ -26,13 +26,21 @@ write_evidence() {
   "decimals": ${DECIMALS},
   "totalSupply": "${SUPPLY}",
   "mintAuthority": null,
-  "freezeAuthority": null
+  "freezeAuthority": null,
+  "creationTransaction": "${CREATE_TOKEN_TX}",
+  "metadataTransaction": "${METADATA_TX}",
+  "tokenAccountCreationTransaction": "${CREATE_ACCOUNT_TX}",
+  "mintTransaction": "${MINT_TX}",
+  "mintAuthorityRevocationTransaction": "${MINT_AUTH_TX}",
+  "freezeAuthorityRevocationTransaction": "${FREEZE_AUTH_TX}"
 }
 EOF
 }
 
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
+CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$CREATE_TOKEN_TX" || { echo "::error::Could not recover Token-2022 creation transaction signature."; exit 1; }
 MINT="$(printf '%s\n' "$MINT_OUTPUT" | grep -Eo '[1-9A-HJ-NP-Za-km-z]{32,44}' | tail -n1)"
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
   echo "::error::spl-token returned an invalid Solana mint address."
@@ -45,16 +53,34 @@ echo "MINT=$MINT"
 # This gives the workflow an artifact-based replay lock even if a later step fails.
 write_evidence "DEPLOYED"
 
-spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI"
-spl-token --program-2022 create-account "$MINT"
-spl-token --program-2022 mint "$MINT" "$SUPPLY"
+METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
+printf '%s\n' "$METADATA_OUTPUT"
+METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$METADATA_TX" || { echo "::error::Could not recover metadata transaction signature."; exit 1; }
+
+ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT")"
+printf '%s\n' "$ACCOUNT_OUTPUT"
+CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$CREATE_ACCOUNT_TX" || { echo "::error::Could not recover token-account creation transaction signature."; exit 1; }
+
+MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
+printf '%s\n' "$MINT_OUTPUT_2"
+MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$MINT_TX" || { echo "::error::Could not recover supply mint transaction signature."; exit 1; }
 
 ACTUAL_SUPPLY="$(spl-token --program-2022 supply "$MINT" | awk 'NR==1 {print $1}' | tr -d '\r')"
 test "$ACTUAL_SUPPLY" = "$SUPPLY"
 
 # Permanently remove authorities after the exact supply is minted.
-spl-token --program-2022 authorize "$MINT" mint --disable
-spl-token --program-2022 authorize "$MINT" freeze --disable
+MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
+printf '%s\n' "$MINT_AUTH_OUTPUT"
+MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$MINT_AUTH_TX" || { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
+
+FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
+printf '%s\n' "$FREEZE_AUTH_OUTPUT"
+FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
 
 BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
 printf '%s\n' "$BALANCE_OUTPUT"
