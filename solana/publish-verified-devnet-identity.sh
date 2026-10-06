@@ -146,7 +146,6 @@ jq -e --arg mint "${MINT}" '
 
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git add solana/canonical-devnet-identity.json solana/deployment-provenance.json
 git fetch origin main
 git rebase origin/main
 git add solana/canonical-devnet-identity.json solana/deployment-provenance.json
