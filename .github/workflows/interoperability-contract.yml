@@ -41,3 +41,7 @@ jobs:
       - name: Assert no secret-shaped literals
         run: |
           ! grep -RniE 'BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9]{20,}' agent-network docs/INTEROPERABILITY-*.md docs/INFERENCE-RUNTIME-CAPABILITY.md
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
