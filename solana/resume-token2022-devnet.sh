@@ -234,6 +234,18 @@ fi
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
   echo "Freeze authority already disabled."
+  if [[ -z "$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "freezeAccount")"
+    if [[ -z "${TX}" ]]; then
+      TX="$(find_tx_by_log "${MINT}" "FreezeAccount")"
+    fi
+    if [[ -n "${TX}" ]]; then
+      set_tx freezeAuthorityRevocationTransaction "${TX}"
+    else
+      echo "::error::Freeze authority is already disabled, but its historical revocation transaction could not be recovered from finalized mint history."
+      exit 1
+    fi
+  fi
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"
   printf '%s\n' "${OUT}"
