@@ -316,8 +316,8 @@ jobs:
                 | [(.id // ""), (.digest // "")]
                 | @tsv
               ' <<<"${CANDIDATE_ARTIFACTS}")"
-              CANDIDATE_ID="${CANDIDATE%%
-              CANDIDATE_DIGEST="${CANDIDATE#*
+              CANDIDATE_ID="${CANDIDATE%%$'\t'*}"
+              CANDIDATE_DIGEST="${CANDIDATE#*$'\t'}"
               if [[ -n "${CANDIDATE_ID}" && -n "${CANDIDATE_DIGEST}" && "${CANDIDATE_ID}" != "${CANDIDATE_DIGEST}" ]]; then
                 RESUME_RUN_ID="${CANDIDATE_RUN_ID}"
                 RESUME_ARTIFACT_ID="${CANDIDATE_ID}"
@@ -595,7 +595,7 @@ EOF
             solana/deployment-provenance.json
             solana/verified-publication.json
 \t'*}"
-              CANDIDATE_DIGEST="${{CANDIDATE#*$'\t'}"
+              CANDIDATE_DIGEST="${CANDIDATE#*$'\t'}"
               if [[ -n "${CANDIDATE_ID}" && -n "${CANDIDATE_DIGEST}" && "${CANDIDATE_ID}" != "${CANDIDATE_DIGEST}" ]]; then
                 RESUME_RUN_ID="${CANDIDATE_RUN_ID}"
                 RESUME_ARTIFACT_ID="${CANDIDATE_ID}"
@@ -1150,7 +1150,7 @@ EOF
             solana/deployment-provenance.json
             solana/verified-publication.json
 \t'*}"
-              CANDIDATE_DIGEST="${{CANDIDATE#*$'\t'}"
+              CANDIDATE_DIGEST="${CANDIDATE#*$'\t'}"
               if [[ -n "${CANDIDATE_ID}" && -n "${CANDIDATE_DIGEST}" && "${CANDIDATE_ID}" != "${CANDIDATE_DIGEST}" ]]; then
                 RESUME_RUN_ID="${CANDIDATE_RUN_ID}"
                 RESUME_ARTIFACT_ID="${CANDIDATE_ID}"
