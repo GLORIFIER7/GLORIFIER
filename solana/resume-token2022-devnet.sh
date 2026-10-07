@@ -188,14 +188,16 @@ for _page in range(20):
     time.sleep(1)
 PY
 }
+set_evidence_type() {
+  local field="$1" value="$2"
+  jq --arg field "$field" --arg value "$value" '.[ $field ]=$value' "${EVIDENCE}" > "${EVIDENCE}.tmp"
+  mv "${EVIDENCE}.tmp" "${EVIDENCE}"
+}
 
-# If an authority was disabled at mint creation, there is no later SetAuthority
-# transaction. Verify the finalized creation transaction explicitly instead of
-# fabricating a revocation transaction.
 authority_disabled_at_creation() {
   local address="$1"
   local authority="$2"
-  python3 - "$SOLANA_RPC_URL" "$RECOVERY_CREATION_TX" "$address" "$authority" <<'PY'
+  python3 - "${SOLANA_RPC_URL}" "${RECOVERY_CREATION_TX}" "${address}" "${authority}" <<'PY'
 import json,sys,time,urllib.error,urllib.request
 rpc,signature,address,authority=sys.argv[1:]
 payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTransaction","params":[signature,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}]}).encode()
@@ -209,7 +211,7 @@ for attempt in range(6):
             for ix in instructions:
                 parsed=ix.get("parsed") if isinstance(ix,dict) else None
                 if not isinstance(parsed,dict): continue
-                if str(parsed.get("type",""")).lower() not in ("initializemint","initializemint2"): continue
+                if str(parsed.get("type","")).lower() not in ("initializemint","initializemint2"): continue
                 info=parsed.get("info")
                 if not isinstance(info,dict) or str(info.get("mint","")).lower()!=address.lower(): continue
                 if authority=="freeze" and info.get("freezeAuthority") is None:
@@ -232,11 +234,6 @@ raise SystemExit(1)
 PY
 }
 
-set_evidence_type() {
-  local field="$1" value="$2"
-  jq --arg field "$field" --arg value "$value" '.[ $field ]=$value' "${EVIDENCE}" > "${EVIDENCE}.tmp"
-  mv "${EVIDENCE}.tmp" "${EVIDENCE}"
-}
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*
   echo "Metadata update authority is already disabled."
 elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
