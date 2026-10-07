@@ -370,6 +370,7 @@ jobs:
             and (.mintTransaction | type == "string" and length > 0)
             and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
             and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+            and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
           ' solana/deployment-evidence.json >/dev/null
 
       - name: Explicitly keep canonical identity NOT VERIFIED until independent reconciliation
