@@ -380,5 +380,3 @@ mv "${EVIDENCE}.tmp" "${EVIDENCE}"
 echo "GLR_STATUS=READY_FOR_VERIFICATION" | tee solana/resume-status.txt
 record "READY_FOR_VERIFICATION"
 jq -e --arg mint "${MINT}" '.status=="READY_FOR_VERIFICATION" and .mint==$mint and .network=="solana-devnet"' "${EVIDENCE}" >/dev/null
-; then
-  echo "Metadata update authority is already disabled."
