@@ -25,6 +25,7 @@ jobs:
       group: glorifier-solana-devnet-reconcile
       cancel-in-progress: false
     permissions:
+      actions: read
       contents: write
       pull-requests: write
     env:
@@ -52,6 +53,7 @@ jobs:
           set -euo pipefail
           bash -n solana/reconcile-token2022-devnet.sh
           bash -n solana/publish-verified-devnet-identity.sh
+          bash -n solana/recover-deployment-provenance.sh
           ! grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh
           grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
 
@@ -116,6 +118,14 @@ jobs:
           done
           test "${rpc_ok}" = true
 
+      - name: Recover trusted deployment provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x solana/recover-deployment-provenance.sh
+          ./solana/recover-deployment-provenance.sh "${MINT_ADDRESS}"
       - name: Independent Token-2022 reconciliation
         id: reconcile
         shell: bash
@@ -150,4 +160,5 @@ jobs:
             solana/reconciliation-metadata.json
             solana/reconciliation-tx-*.json
             solana/deployment-provenance.json
+            solana/devnet-resume-evidence.json
             solana/verified-publication.json
