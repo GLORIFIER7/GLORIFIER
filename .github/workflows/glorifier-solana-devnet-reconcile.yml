@@ -1,11 +1,6 @@
 name: GLORIFIER Solana Devnet Reconciliation
 
 on:
-  # Registration kick: a change to this workflow on the default branch causes
-  # GitHub Actions to register/refresh the workflow while preserving manual dispatch.
-  push:
-    paths:
-      - ".github/workflows/glorifier-solana-devnet-reconcile.yml"
   workflow_dispatch:
     inputs:
       confirm:
@@ -13,99 +8,68 @@ on:
         required: true
         type: string
       mint_address:
-        description: "Optional mint hint; when canonical identity is absent it cannot bypass deployment provenance"
+        description: "Optional canonical/recovered mint address"
         required: false
-        default: ""
+        default: "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
         type: string
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
-  validate:
-    name: Validate reconciliation assets
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Validate workflow and shell syntax
-        shell: bash
-        run: |
-          set -euo pipefail
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/glorifier-solana-devnet-reconcile.yml")'
-          bash -n solana/reconcile-token2022-devnet.sh
-          bash -n solana/publish-verified-devnet-identity.sh
-      - name: Validate authorization inputs
-        shell: bash
-        env:
-          CONFIRM: ${{ inputs.confirm }}
-          MINT: ${{ inputs.mint_address }}
-        run: |
-          set -euo pipefail
-          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
-          test "${GITHUB_REF}" = "refs/heads/main"
-          test "${CONFIRM}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
-          if [[ -n "${MINT}" ]]; then
-            test "${MINT}" = "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
-          fi
-      - name: Validate governed publication boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          ! grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh
-          grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
-
-  control-plane:
-    name: Reconciliation control-plane health
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report authorization boundary
-        run: |
-          set -euo pipefail
-          echo "Authorized manual reconciliation request detected."
-          echo "Mode=READ_ONLY_ON_CHAIN_RECONCILIATION"
-
   reconcile:
-    name: Reconcile GLORIFIER GLR on Solana Devnet
-    needs: [validate, control-plane]
-    permissions:
-      contents: write
-      actions: read
-      pull-requests: write
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    name: Independent Token-2022 reconciliation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
       group: glorifier-solana-devnet-reconcile
       cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
     env:
       SOLANA_RPC_URL: https://api.devnet.solana.com
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ inputs.confirm }}
       MINT_ADDRESS_INPUT: ${{ inputs.mint_address }}
     steps:
-      - name: Enforce exact authorization
-        run: |
-          set -euo pipefail
-          test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
-          test "${GITHUB_REF}" = "refs/heads/main"
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Resolve canonical recovered mint
+      - name: Enforce authorization and main branch
         shell: bash
         run: |
           set -euo pipefail
-          CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
-          if [[ -n "${CANONICAL_MINT}" ]]; then
-            MINT_ADDRESS="${CANONICAL_MINT}"
+          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          test -n "${MINT_ADDRESS_INPUT}"
+          test "${MINT_ADDRESS_INPUT}" = "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate local scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n solana/reconcile-token2022-devnet.sh
+          bash -n solana/publish-verified-devnet-identity.sh
+          ! grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh
+          grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
+
+      - name: Resolve and verify recovered mint
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
+          recovered="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
+          if [[ -n "${canonical}" ]]; then
+            mint="${canonical}"
           else
-            MINT_ADDRESS="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
+            mint="${recovered}"
           fi
-          test "${MINT_ADDRESS}" = "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
-          echo "MINT_ADDRESS=${MINT_ADDRESS}" >> "${GITHUB_ENV}"
+          test "${mint}" = "${MINT_ADDRESS_INPUT}"
+          test "${mint}" = "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
+          echo "MINT_ADDRESS=${mint}" >> "${GITHUB_ENV}"
+
       - name: Install Solana CLI
         shell: bash
         run: |
@@ -113,6 +77,7 @@ jobs:
           sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
           solana --version
+
       - name: Install SPL Token CLI
         shell: bash
         run: |
@@ -121,13 +86,15 @@ jobs:
           sudo apt-get install -y libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.6.1
           spl-token --version
-      - name: Configure canonical Devnet
+
+      - name: Configure finalized Devnet
         shell: bash
         run: |
           set -euo pipefail
           solana config set --url "${SOLANA_RPC_URL}" --commitment finalized
           test "$(solana config get | awk -F': ' '/RPC URL/ {print $2}')" = "${SOLANA_RPC_URL}"
           solana cluster-version
+
       - name: Independent Token-2022 reconciliation
         id: reconcile
         shell: bash
@@ -135,6 +102,7 @@ jobs:
           set -euo pipefail
           chmod +x solana/reconcile-token2022-devnet.sh
           ./solana/reconcile-token2022-devnet.sh "${MINT_ADDRESS}"
+
       - name: Publish verified identity through PR
         if: ${{ success() && steps.reconcile.outputs.RECOVERY_REQUIRED == 'false' }}
         env:
@@ -144,6 +112,7 @@ jobs:
           set -euo pipefail
           chmod +x solana/publish-verified-devnet-identity.sh
           ./solana/publish-verified-devnet-identity.sh
+
       - name: Upload reconciliation evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
