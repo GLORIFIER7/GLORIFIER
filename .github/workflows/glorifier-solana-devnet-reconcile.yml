@@ -295,6 +295,38 @@ jobs:
               echo "::error::Explicit mint does not match the recovered authorized deployment mint."
               exit 1
             fi
+            # Bind completed resume provenance to this exact recovered mint.
+            RESUME_RUN_ID=""
+            RESUME_ARTIFACT_ID=""
+            RESUME_ARTIFACT_DIGEST=""
+            RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+            while IFS= read -r CANDIDATE_RUN_ID; do
+              [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
+              [[ "${CANDIDATE_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
+              RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+              jq -e '.path == ".github/workflows/glorifier-solana-devnet-resume.yml" and .event == "workflow_dispatch" and .head_branch == "main" and .conclusion == "success"' <<<"$RUN_JSON" >/dev/null || continue
+              ARTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts?per_page=100")"
+              ROW="$(jq -r '.artifacts[]? | select(.expired == false) | select(.name == "glorifier-solana-devnet-resume-evidence") | select(.digest != null and (.digest | startswith("sha256:"))) | [(.id // ""),(.digest // "")] | @tsv' <<<"$ARTS" | tail -n 1)"
+              AID="$(printf "%s\n" "$ROW" | cut -f1)"
+              DIGEST="$(printf "%s\n" "$ROW" | cut -f2)"
+              if [[ -n "$AID" && -n "$DIGEST" && "$AID" != "$DIGEST" ]]; then
+                RESUME_RUN_ID="$CANDIDATE_RUN_ID"; RESUME_ARTIFACT_ID="$AID"; RESUME_ARTIFACT_DIGEST="$DIGEST"; break
+              fi
+            done < <(jq -r '[.workflow_runs[]? | select(.event == "workflow_dispatch") | select(.head_branch == "main")] | sort_by(.created_at) | reverse | .[].id' <<<"$RESUME_RUNS_JSON")
+            if [[ -n "${RESUME_ARTIFACT_ID}" ]]; then
+              rm -rf /tmp/glorifier-resume-proof && mkdir -p /tmp/glorifier-resume-proof
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RESUME_ARTIFACT_ID}/zip" > /tmp/glorifier-resume-proof.zip
+              ACTUAL_DIGEST="sha256:$(sha256sum /tmp/glorifier-resume-proof.zip | awk '{print $1}')"
+              test "$ACTUAL_DIGEST" = "$RESUME_ARTIFACT_DIGEST" || { echo "::error::Resume artifact digest mismatch."; exit 1; }
+              unzip -oq /tmp/glorifier-resume-proof.zip -d /tmp/glorifier-resume-proof
+              RESUME_EVIDENCE="$(find /tmp/glorifier-resume-proof -type f -name devnet-resume-evidence.json -print -quit || true)"
+              test -n "$RESUME_EVIDENCE" || { echo "::error::Resume artifact is missing evidence."; exit 1; }
+              jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "READY_FOR_VERIFICATION" and .mint == $mint and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.creationTransaction | type == "string" and length > 0) and (.metadataTransaction | type == "string" and length > 0) and (.tokenAccountCreationTransaction | type == "string" and length > 0) and (.mintTransaction | type == "string" and length > 0) and (.mintAuthorityRevocationTransaction | type == "string" and length > 0) and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0) and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)' "$RESUME_EVIDENCE" >/dev/null || { echo "::error::Resume evidence failed validation."; exit 1; }
+              jq --arg run "$RESUME_RUN_ID" --arg aid "$RESUME_ARTIFACT_ID" --arg digest "$RESUME_ARTIFACT_DIGEST" '. + {deploymentRunId:$run,deploymentRunUrl:("https://github.com/"+env.GITHUB_REPOSITORY+"/actions/runs/"+$run),deploymentArtifactId:$aid,deploymentArtifactDigest:$digest}' "$RESUME_EVIDENCE" > solana/deployment-provenance.json
+              echo "Completed resume provenance recovered from run $RESUME_RUN_ID."
+            else
+              echo "::notice::No completed resume evidence is available; reconciliation remains read-only."
+            fi
             echo "Recovered mint ${MINT_ADDRESS} from deployment run ${RECOVERY_RUN_ID}; canonical status remains NOT VERIFIED until reconciliation succeeds."
           else
             echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
@@ -358,22 +390,22 @@ GLR_STATUS=NOT_VERIFIED
 REASON=NO_CANONICAL_MINT_OR_DEPLOYMENT_EVIDENCE
 EOF
               cat > solana/reconciliation-evidence.json <<'EOF'
-{
-  "network": "solana-devnet",
-  "status": "NOT_VERIFIED",
-  "mode": "RECONCILIATION_READ_ONLY",
-  "verification_boundary": "No mint address or deployment evidence is currently published; this workflow did not create or mutate any asset.",
-  "mint": null,
-  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-  "name": "GLORIFIER",
-  "symbol": "GLR",
-  "decimals": 9,
-  "totalSupply": "1000000000",
-  "mintAuthority": null,
-  "freezeAuthority": null,
-  "next_action": "Run the authorized Solana Devnet deployment workflow once before attempting reconciliation."
-}
-EOF
+              {
+                "network": "solana-devnet",
+                "status": "NOT_VERIFIED",
+                "mode": "RECONCILIATION_READ_ONLY",
+                "verification_boundary": "No canonical mint or trusted deployment evidence is currently published; this workflow created or mutated no asset.",
+                "mint": null,
+                "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                "name": "GLORIFIER",
+                "symbol": "GLR",
+                "decimals": 9,
+                "totalSupply": "1000000000",
+                "mintAuthority": null,
+                "freezeAuthority": null,
+                "next_action": "Run the authorized Solana Devnet deployment or resume workflow before reconciliation."
+              }
+              EOF
               jq -e '.status == "NOT_VERIFIED" and .mode == "RECONCILIATION_READ_ONLY" and .mint == null' solana/reconciliation-evidence.json >/dev/null
               echo "No canonical mint or deployment evidence exists; reconciliation remains NOT_VERIFIED."
               exit 0

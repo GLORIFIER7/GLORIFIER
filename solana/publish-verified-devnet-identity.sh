@@ -40,8 +40,35 @@ MINT="$(jq -r '.mint' solana/reconciliation-evidence.json)"
 [[ "${MINT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
 [[ "${MINT}" != "${EXCLUDED_MINT}" ]]
 
-RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 FOUND=0
+
+# The reconciliation workflow may have consumed the dedicated existing-mint
+# resume artifact instead of the original mint-creation workflow artifact.
+# In that case deployment-provenance.json has already been digest-verified
+# against the immutable resume artifact; validate that local proof and reuse it.
+if [[ -f solana/deployment-provenance.json ]]; then
+  jq -e --arg mint "${MINT}" '
+    .network == "solana-devnet"
+    and .status == "READY_FOR_VERIFICATION"
+    and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    and .mint == $mint
+    and (.deploymentRunId | type == "string" and length > 0)
+    and (.deploymentArtifactId | type == "string" and length > 0)
+    and (.deploymentArtifactDigest | type == "string" and startswith("sha256:"))
+    and (.creationTransaction | type == "string" and length > 0)
+    and (.metadataTransaction | type == "string" and length > 0)
+    and (.tokenAccountCreationTransaction | type == "string" and length > 0)
+    and (.mintTransaction | type == "string" and length > 0)
+    and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
+    and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+    and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
+  ' solana/deployment-provenance.json >/dev/null || {
+    echo "::error::Local deployment provenance failed validation."
+    exit 1
+  }
+  FOUND=1
+else
+  RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
 while IFS= read -r RUN_ID; do
   [[ -n "${RUN_ID}" ]] || continue
@@ -113,6 +140,8 @@ done < <(
     | .[].id
   ' <<<"${RUNS_JSON}"
 )
+
+fi
 
 test "${FOUND}" -eq 1 || {
   echo "::error::No trusted successful deployment artifact matches the independently reconciled mint."
