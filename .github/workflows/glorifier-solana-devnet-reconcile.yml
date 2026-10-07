@@ -11,7 +11,7 @@ on:
       - "solana/publish-verified-devnet-identity.sh"
       - "solana/canonical-devnet-identity.json"
   workflow_run:
-    workflows: ["GLORIFIER Solana Devnet Resume"]
+    workflows: ["GLORIFIER Solana Devnet Resume Existing Mint"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -255,7 +255,7 @@ jobs:
             test "${TRIGGERING_RESUME_RUN_ID}" != "" || { echo "::error::Missing triggering resume run ID."; exit 1; }
             test "${TRIGGERING_RESUME_CONCLUSION}" = "success" || { echo "::error::Triggering resume did not succeed."; exit 1; }
             test "${TRIGGERING_RESUME_HEAD_BRANCH}" = "main" || { echo "::error::Triggering resume was not from main."; exit 1; }
-            test "${TRIGGERING_RESUME_WORKFLOW}" = "GLORIFIER Solana Devnet Resume" || { echo "::error::Unexpected triggering workflow."; exit 1; }
+            test "${TRIGGERING_RESUME_WORKFLOW}" = "GLORIFIER Solana Devnet Resume Existing Mint" || { echo "::error::Unexpected triggering workflow."; exit 1; }
           else
             echo "::error::Unsupported reconciliation event."
             exit 1
@@ -313,8 +313,6 @@ jobs:
               exit 1
             fi
             # Bind completed resume provenance to this exact recovered mint.
-            RESUME_RUN_ID=""
-            RESUME_ARTIFACT_ID=""
             RESUME_RUN_ID=""
             RESUME_ARTIFACT_ID=""
             RESUME_ARTIFACT_DIGEST=""
