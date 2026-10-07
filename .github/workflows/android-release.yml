@@ -15,16 +15,16 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           package-manager-cache: false
 
       - name: Setup Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: '21'
@@ -87,7 +87,7 @@ jobs:
           echo "Android App Bundle created successfully."
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: glorifier-ai-android-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
@@ -95,7 +95,7 @@ jobs:
 
 # Automatically generated and managed by gh-actions-pin
 dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/actions/setup-node@v7:sha1-820762786026740c76f36085b0efc47a31fe5020
-  - github.com/actions/setup-java@v6:sha1-de7274f081f381c8f8158605e0321c36c376e2e6
-  - github.com/actions/upload-artifact@v7:sha1-cf430e030ddbb5b0abf93d22962f4752f3646cd9
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/setup-node@820762786026740c76f36085b0efc47a31fe5020:sha1-820762786026740c76f36085b0efc47a31fe5020
+  - github.com/actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6:sha1-de7274f081f381c8f8158605e0321c36c376e2e6
+  - github.com/actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9:sha1-cf430e030ddbb5b0abf93d22962f4752f3646cd9
