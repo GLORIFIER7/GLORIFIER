@@ -238,9 +238,10 @@ jobs:
 
           DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
+          # A successful prior run proves that the deployment workflow completed
+          # its real Token-2022 minting path. Never create a second mint.
           while IFS= read -r PRIOR_RUN_ID; do
             [[ -n "${PRIOR_RUN_ID}" ]] || continue
-            [[ "${PRIOR_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
 
             PRIOR_RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}")"
             jq -e '
@@ -249,25 +250,49 @@ jobs:
               and .head_branch == "main"
             ' <<<"${PRIOR_RUN_JSON}" >/dev/null || continue
 
-            # A real mint is considered consumed even if the workflow later failed.
-            # This prevents retrying after a partial deployment and creating a second mint.
+            PRIOR_CONCLUSION="$(jq -r '.conclusion // empty' <<<"${PRIOR_RUN_JSON}")"
+            if [[ "${PRIOR_CONCLUSION}" == "success" ]]; then
+              PRIOR_RUN_URL="$(jq -r '.html_url // empty' <<<"${PRIOR_RUN_JSON}")"
+              echo "::error::A prior successful Solana Devnet deployment run already consumed the canonical deployment action."
+              echo "::error::Prior run: ${PRIOR_RUN_ID}"
+              [[ -n "${PRIOR_RUN_URL}" ]] && echo "::error::Prior run URL: ${PRIOR_RUN_URL}"
+              echo "::error::Do not create another mint. Use the reconciliation workflow."
+              exit 1
+            fi
+
+            # Failed/cancelled runs can still have created a real mint. Inspect
+            # their immutable evidence artifact before permitting any retry.
             ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}/artifacts?per_page=100")"
-            EVIDENCE_ID="$(jq -r '
+            EVIDENCE_RECORD="$(jq -r '
               [.artifacts[]?
                | select(.expired == false)
                | select(.name == "glorifier-solana-devnet-evidence")
                | select(.workflow_run.id == ('"${PRIOR_RUN_ID}"' | tonumber))
-               | .id]
-              | last // empty
+               | select(.digest != null and (.digest | startswith("sha256:")))]
+              | sort_by(.created_at)
+              | last
+              | [(.id // ""),(.digest // "")]
+              | @tsv
             ' <<<"${ARTIFACTS_JSON}")"
+            EVIDENCE_ID=""
+            EXPECTED_ARTIFACT_DIGEST=""
+            IFS=$'\t' read -r EVIDENCE_ID EXPECTED_ARTIFACT_DIGEST <<<"${EVIDENCE_RECORD}"
 
-            if [[ -n "${EVIDENCE_ID}" ]]; then
+            if [[ -n "${EVIDENCE_ID}" && -n "${EXPECTED_ARTIFACT_DIGEST}" ]]; then
               rm -rf /tmp/glorifier-solana-replay-check
               mkdir -p /tmp/glorifier-solana-replay-check
               gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ID}/zip" > /tmp/glorifier-solana-replay-check.zip
-              unzip -oq /tmp/glorifier-solana-replay-check.zip -d /tmp/glorifier-solana-replay-check
 
+              ACTUAL_ARTIFACT_DIGEST="sha256:$(sha256sum /tmp/glorifier-solana-replay-check.zip | awk '{print $1}')"
+              test "${ACTUAL_ARTIFACT_DIGEST}" = "${EXPECTED_ARTIFACT_DIGEST}" || {
+                echo "::error::Replay-check deployment artifact digest mismatch."
+                echo "::error::Run: ${PRIOR_RUN_ID}"
+                exit 1
+              }
+
+              unzip -oq /tmp/glorifier-solana-replay-check.zip -d /tmp/glorifier-solana-replay-check
               EVIDENCE_FILE="$(find /tmp/glorifier-solana-replay-check -type f -name "deployment-evidence.json" -print -quit || true)"
+
               if [[ -n "${EVIDENCE_FILE}" ]] && jq -e '
                 (.network == "solana-devnet")
                 and (.mint | type == "string" and length >= 32 and length <= 44)
@@ -289,12 +314,35 @@ jobs:
               | select(.head_branch == "main")
               | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
               | .id]
+              | sort
               | reverse
               | .[]
             ' <<<"${DEPLOYMENT_RUNS_JSON}"
           )
 
-          echo "Replay lock: no prior real GLR deployment evidence exists."
+          # GitHub reruns reuse the same workflow-run ID. On reruns, inspect
+          # earlier attempt logs so a mint created before an artifact upload
+          # failure cannot be followed by a second mint.
+          CURRENT_ATTEMPT="${GITHUB_RUN_ATTEMPT:-1}"
+          if (( CURRENT_ATTEMPT > 1 )); then
+            for (( ATTEMPT=1; ATTEMPT<CURRENT_ATTEMPT; ATTEMPT++ )); do
+              rm -rf "/tmp/glorifier-solana-attempt-${ATTEMPT}"
+              mkdir -p "/tmp/glorifier-solana-attempt-${ATTEMPT}"
+              if gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${ATTEMPT}/logs" > "/tmp/glorifier-solana-attempt-${ATTEMPT}.zip"; then
+                if unzip -oq "/tmp/glorifier-solana-attempt-${ATTEMPT}.zip" -d "/tmp/glorifier-solana-attempt-${ATTEMPT}" 2>/dev/null; then
+                  if grep -R -E -q '(^|[^A-Za-z0-9_])MINT=[1-9A-HJ-NP-Za-km-z]{32,44}($|[^A-Za-z0-9_])' "/tmp/glorifier-solana-attempt-${ATTEMPT}" 2>/dev/null; then
+                    echo "::error::A previous attempt of this same workflow run created a Solana mint."
+                    echo "::error::Workflow run: ${GITHUB_RUN_ID}"
+                    echo "::error::Attempt: ${ATTEMPT}"
+                    echo "::error::Do not create another mint. Use the reconciliation workflow."
+                    exit 1
+                  fi
+                fi
+              fi
+            done
+          fi
+
+          echo "Replay lock: no prior real GLR deployment evidence or mint-producing rerun attempt was detected."
       - name: Configure dedicated deployment wallet
         shell: bash
         run: |
