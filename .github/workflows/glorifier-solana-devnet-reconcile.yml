@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       mint_address:
-        description: "Existing GLORIFIER Token-2022 Devnet mint address to verify (leave blank to recover it from deployment evidence)"
+        description: "Optional mint hint; when canonical identity is absent it cannot bypass deployment provenance"
         required: false
         default: ""
         type: string
@@ -196,6 +196,7 @@ jobs:
           fi
           grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
           grep -Fq 'pull-requests: write' .github/workflows/glorifier-solana-devnet-reconcile.yml
+          grep -Fq 'and .conclusion == "success"' .github/workflows/glorifier-solana-devnet-reconcile.yml
 
   control-plane:
     name: Reconciliation control-plane health
@@ -266,18 +267,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
-            MINT_ADDRESS="${MINT_ADDRESS_INPUT}"
-            echo "Using explicitly supplied existing mint address."
-          else
-            echo "No mint address supplied; checking canonical identity first."
-            CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
+          CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
 
-            if [[ -n "${CANONICAL_MINT}" ]]; then
-              MINT_ADDRESS="${CANONICAL_MINT}"
-              echo "Recovered canonical mint from repository identity registry."
-            else
-              echo "Canonical mint is not published; searching only Solana Devnet deployment workflow runs on main."
+          if [[ -n "${CANONICAL_MINT}" ]]; then
+            if [[ -n "${MINT_ADDRESS_INPUT}" && "${MINT_ADDRESS_INPUT}" != "${CANONICAL_MINT}" ]]; then
+              echo "::error::Explicit mint does not match the published canonical Devnet mint."
+              exit 1
+            fi
+            MINT_ADDRESS="${CANONICAL_MINT}"
+            echo "Recovered canonical mint from repository identity registry."
+          else
+            echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
+            echo "Any explicit mint is matched against the recovered deployment artifact and cannot bypass provenance."
+            echo "Canonical mint is not published; searching only Solana Devnet deployment workflow runs on main."
               DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
               DEPLOYMENT_RUN_ID=""
@@ -291,7 +293,7 @@ jobs:
                 jq -e '.path == ".github/workflows/glorifier-solana-devnet.yml"
                   and .event == "workflow_dispatch"
                   and .head_branch == "main"
-                  and (.conclusion != "cancelled")' <<<"${DEPLOYMENT_RUN_JSON}" >/dev/null || continue
+                  and .conclusion == "success"' <<<"${DEPLOYMENT_RUN_JSON}" >/dev/null || continue
 
                 RUN_ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOYMENT_RUN_ID_CANDIDATE}/artifacts?per_page=100")"
 
@@ -322,7 +324,7 @@ jobs:
                    | select(.event == "workflow_dispatch")
                    | select(.head_branch == "main")
                    | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
-                   | select(.conclusion != "cancelled")]
+                   | select(.conclusion == "success")]
                   | sort_by(.created_at)
                   | reverse
                   | .[].id
@@ -406,7 +408,11 @@ EOF
               }
 
               echo "Recovered mint from deployment evidence artifact ${ARTIFACT_ID}."
-            fi
+          fi
+
+          if [[ -n "${MINT_ADDRESS_INPUT}" && -z "${CANONICAL_MINT}" && "${MINT_ADDRESS}" != "${MINT_ADDRESS_INPUT}" ]]; then
+            echo "::error::Explicit mint does not match the successful deployment artifact selected by provenance checks."
+            exit 1
           fi
 
           [[ "${MINT_ADDRESS}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
