@@ -19,7 +19,7 @@ jobs:
   validate-contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Validate JSON contracts
         shell: bash
@@ -56,4 +56,4 @@ jobs:
 
 # Automatically generated and managed by gh-actions-pin
 dependencies:
-  - github.com/actions/checkout@v4:sha1-11bd71901bbe5b1630ceea73d27597364c9af683
+  - github.com/actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683:sha1-11bd71901bbe5b1630ceea73d27597364c9af683
