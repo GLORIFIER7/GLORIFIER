@@ -100,7 +100,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/spl-token" --version
-          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
+          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.6.1"
       - name: Validate mainnet environment secrets
         run: |
           set -euo pipefail
