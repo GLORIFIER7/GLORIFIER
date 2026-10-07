@@ -20,13 +20,37 @@ grep -Fq "Owner: $EXPECTED_PROGRAM" solana/reconciliation-account.txt
 spl-token --program-2022 supply "$MINT" | tee solana/reconciliation-supply.txt
 spl-token --program-2022 display "$MINT" | tee solana/reconciliation-mint-state.txt
 ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/reconciliation-supply.txt | tr -d '\r')"
-test "$ACTUAL_SUPPLY" = "$EXPECTED_SUPPLY"
-grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mint-state.txt
-grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mint-state.txt
-grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt
-grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt
-grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt
-grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt
+
+if ! grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mint-state.txt \
+  || ! grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mint-state.txt \
+  || ! grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt \
+  || ! grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt \
+  || ! grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt \
+  || ! grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt \
+  || [[ "$ACTUAL_SUPPLY" != "$EXPECTED_SUPPLY" ]]; then
+  cat > solana/reconciliation-evidence.json <<EOF
+{
+  "network":"solana-devnet",
+  "status":"RECOVERY_REQUIRED",
+  "mode":"RECONCILIATION_READ_ONLY",
+  "commitment":"finalized",
+  "verification_boundary":"A real Devnet mint exists, but the recovered deployment is incomplete. This workflow performed read-only inspection and did not create, mint, transfer, or mutate the asset.",
+  "mint":"$MINT",
+  "programId":"$EXPECTED_PROGRAM",
+  "name":"$EXPECTED_NAME",
+  "symbol":"$EXPECTED_SYMBOL",
+  "decimals":$EXPECTED_DECIMALS,
+  "observedSupply":"$ACTUAL_SUPPLY",
+  "expectedSupply":"$EXPECTED_SUPPLY",
+  "next_action":"Resume the existing authorized Devnet deployment on this exact mint; do not create a second mint."
+}
+EOF
+  printf 'GLR_STATUS=RECOVERY_REQUIRED\nREASON=PARTIAL_DEPLOYMENT_REQUIRES_RESUME\nMINT=%s\n' "$MINT" | tee -a solana/reconciliation-status.txt
+  echo "RECOVERY_REQUIRED=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 0
+fi
+
+echo "RECOVERY_REQUIRED=false" >> "${GITHUB_OUTPUT:-/dev/null}"
 
 python3 - "$SOLANA_RPC_URL" "$MINT" "$EXPECTED_PROGRAM" "$EXPECTED_NAME" "$EXPECTED_SYMBOL" "$EXPECTED_METADATA_URI" > solana/reconciliation-metadata.json <<'PY'
 import base64, hashlib, json, sys, urllib.request

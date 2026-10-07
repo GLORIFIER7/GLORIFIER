@@ -485,6 +485,7 @@ EOF
           solana cluster-version
 
       - name: Reconcile existing Token-2022 mint
+        id: reconcile
         shell: bash
         run: |
           set -euo pipefail
@@ -493,7 +494,7 @@ EOF
           ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
 
       - name: Publish canonical identity after independent verification
-        if: success()
+        if: ${{ success() && steps.reconcile.outputs.RECOVERY_REQUIRED == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
