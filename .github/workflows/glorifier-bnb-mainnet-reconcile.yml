@@ -388,3 +388,9 @@ jobs:
           path: |
             contracts/bnb-mainnet-reconciliation-evidence.env
             contracts/bnb-mainnet-reconciliation-evidence.json
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/foundry-rs/foundry-toolchain@efe890f034d5dae7b46cba68d2c7afba603e5e4f:sha1-efe890f034d5dae7b46cba68d2c7afba603e5e4f
+  - github.com/actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a:sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
