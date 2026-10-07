@@ -36,6 +36,13 @@ write_evidence() {
     fi
   }
 
+  local mint_authority_json="null"
+  local freeze_authority_json="null"
+  if [[ "$status" != "READY_FOR_VERIFICATION" ]]; then
+    mint_authority_json="$(jq -Rn '"PRESENT"')"
+    freeze_authority_json="$(jq -Rn '"PRESENT"')"
+  fi
+
   cat > solana/deployment-evidence.json <<EOF
 {
   "network": "solana-devnet",
@@ -46,8 +53,8 @@ write_evidence() {
   "symbol": "GLR",
   "decimals": $DECIMALS,
   "totalSupply": "$SUPPLY",
-  "mintAuthority": null,
-  "freezeAuthority": null,
+  "mintAuthority": $mint_authority_json,
+  "freezeAuthority": $freeze_authority_json,
   "creationTransaction": $(json_or_null "$creation_tx"),
   "metadataTransaction": $(json_or_null "$metadata_tx"),
   "tokenAccountCreationTransaction": $(json_or_null "$account_tx"),
@@ -63,18 +70,25 @@ EOF
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
 CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$CREATE_TOKEN_TX" || { echo "::error::Could not recover Token-2022 creation transaction signature."; exit 1; }
 MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
   echo "::error::spl-token returned an invalid Solana mint address."
+  echo "::error::The workflow cannot safely recover the created mint; do not retry automatically."
   exit 1
 }
 
 echo "MINT=$MINT"
 
-# Persist a non-verified receipt immediately after the mint transaction returns.
-# This gives the workflow an artifact-based replay lock even if a later step fails.
+# Persist a non-verified receipt immediately after the mint address is recovered,
+# before parsing any later transaction output. This blocks a second mint even if
+# transaction-output formatting changes or a later step fails.
 write_evidence "DEPLOYED"
+
+test -n "$CREATE_TOKEN_TX" || {
+  echo "::error::Could not recover Token-2022 creation transaction signature."
+  echo "::error::The mint receipt was preserved in deployment-evidence.json; use reconciliation/provenance recovery instead of creating another mint."
+  exit 1
+}
 
 METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
 printf '%s\n' "$METADATA_OUTPUT"
