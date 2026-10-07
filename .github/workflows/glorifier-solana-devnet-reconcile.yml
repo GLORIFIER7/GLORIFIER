@@ -95,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           solana config set --url "${SOLANA_RPC_URL}" --commitment finalized
-          test "$(solana config get | awk -F': ' '/RPC URL/ {print $2}' | tr -d '\r')" = "${SOLANA_RPC_URL}"
+          test "$(solana config get | awk -F': ' '/RPC URL/ {print $2}' | sed 's/[[:space:]]*$//')" = "${SOLANA_RPC_URL}"
 
           # Devnet RPC can transiently return 429/5xx. Require a valid
           # finalized JSON-RPC response before reconciliation proceeds.
