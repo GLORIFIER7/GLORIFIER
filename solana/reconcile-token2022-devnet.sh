@@ -103,7 +103,7 @@ PY
 }
 
 test -f solana/deployment-provenance.json
-for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction; do
+for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
   test "$(jq -r --arg f "$field" '.[$f] // empty' solana/deployment-provenance.json)" != ""
 done
 CREATION_TX="$(jq -r '.creationTransaction' solana/deployment-provenance.json)"
@@ -112,12 +112,14 @@ ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provena
 MINT_TX="$(jq -r '.mintTransaction' solana/deployment-provenance.json)"
 MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)"
 FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)"
+METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)"
 verify_tx "creation" "$CREATION_TX" 'InitializeMint|InitializeMint2|CreateAccount'
 verify_tx "metadata" "$METADATA_TX" 'InitializeTokenMetadata|InitializeMetadata'
 verify_tx "token-account" "$ACCOUNT_TX" 'InitializeAccount|InitializeAccount3|Create'
 verify_tx "mint" "$MINT_TX" 'MintTo|MintToChecked'
 verify_tx "mint-authority" "$MINT_AUTH_TX" 'SetAuthority'
 verify_tx "freeze-authority" "$FREEZE_AUTH_TX" 'SetAuthority'
+verify_tx "metadata-authority" "$METADATA_AUTH_TX" 'SetAuthority|UpdateAuthority'
 
 cat > solana/reconciliation-evidence.json <<EOF
 {
