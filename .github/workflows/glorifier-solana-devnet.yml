@@ -251,8 +251,8 @@ jobs:
             }
             PRIOR_MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
             PRIOR_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
-            echo "::error::A real GLR Token-2022 mint already exists from authorized deployment run \${PRIOR_RUN_ID}."
-            echo "::error::Existing mint: \${PRIOR_MINT}"
+            echo "::error::A real GLR Token-2022 mint already exists from authorized deployment run ${PRIOR_RUN_ID}."
+            echo "::error::Existing mint: ${PRIOR_MINT}"
             echo "::error::Do not create a second mint. Run the read-only reconciliation workflow."
             exit 1
           fi
@@ -316,6 +316,7 @@ jobs:
           )
 
           echo "Replay lock: no prior real GLR deployment evidence exists."
+
       - name: Configure dedicated deployment wallet
         shell: bash
         run: |
@@ -425,6 +426,7 @@ jobs:
             and .authority_revocation_transaction == null
           ' solana/canonical-devnet-identity.json >/dev/null
           echo "Deployment evidence exists, but canonical identity remains NOT VERIFIED until read-only reconciliation independently proves the on-chain state."
+
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
