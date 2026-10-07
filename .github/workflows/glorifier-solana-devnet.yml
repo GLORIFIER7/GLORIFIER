@@ -45,6 +45,11 @@ jobs:
             echo "::error::Refusing Solana Devnet deployment: GITHUB_REF_NAME must be main."
             exit 1
           }
+          test "${GITHUB_RUN_ATTEMPT:-1}" = "1" || {
+            echo "::error::Refusing Solana Devnet deployment rerun: this minting workflow is single-attempt only."
+            echo "::error::Start a new manual workflow_dispatch only after reviewing any evidence from the failed attempt."
+            exit 1
+          }
 
       - name: Validate deployment authorization
         shell: bash
