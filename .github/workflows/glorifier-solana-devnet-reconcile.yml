@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Validate workflow and shell syntax
         shell: bash
@@ -392,8 +394,15 @@ EOF
                 and (.symbol == "GLR")
                 and (.decimals == 9)
                 and (.totalSupply == "1000000000")
-                and (.mintAuthority == null)
-                and (.freezeAuthority == null)
+                and (
+                  (.status == "READY_FOR_VERIFICATION" or .status == "FULLY_VERIFIED")
+                  and .mintAuthority == null
+                  and .freezeAuthority == null
+                  or
+                  (.status == "DEPLOYED")
+                  and (.mintAuthority != null)
+                  and (.freezeAuthority != null)
+                )
                 and (.deploymentWorkflowRunId == $run_id)
                 and (.deploymentWorkflowRunUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id))
               ' "${EVIDENCE_FILE}" >/dev/null || {
@@ -447,17 +456,31 @@ EOF
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
-          spl-token --version
+          CARGO_BIN="$HOME/.cargo/bin"
+          test -x "$CARGO_BIN/spl-token"
+          export PATH="$CARGO_BIN:$PATH"
+          hash -r
+          echo "$CARGO_BIN" >> "$GITHUB_PATH"
+          SPL_TOKEN_PATH="$(command -v spl-token)"
+          test "$SPL_TOKEN_PATH" = "$CARGO_BIN/spl-token" || {
+            echo "::error::Refusing reconciliation: PATH did not resolve to the pinned Cargo-installed spl-token binary."
+            exit 1
+          }
+          SPL_TOKEN_VERSION="$(spl-token --version | awk '{print $2}')"
+          test "$SPL_TOKEN_VERSION" = "5.0.2" || {
+            echo "::error::Refusing reconciliation: expected spl-token 5.0.2 but got $SPL_TOKEN_VERSION"
+            exit 1
+          }
 
       - name: Configure canonical Devnet RPC
         shell: bash
         run: |
           set -euo pipefail
           solana config set --url "$SOLANA_RPC_URL"
-          RPC_URL="$(solana config get | awk -F': ' '/RPC URL/ {print $2}')"
+          RPC_URL="$(solana config get | awk -F': ' '/^RPC URL:/ {gsub(/[[:space:]]+$/, "", $2); print $2; exit}')"
           test "$RPC_URL" = "$SOLANA_RPC_URL" || {
             echo "::error::Refusing reconciliation: non-canonical Solana Devnet RPC: $RPC_URL"
             exit 1
