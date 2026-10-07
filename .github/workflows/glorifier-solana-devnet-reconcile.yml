@@ -390,22 +390,22 @@ GLR_STATUS=NOT_VERIFIED
 REASON=NO_CANONICAL_MINT_OR_DEPLOYMENT_EVIDENCE
 EOF
               cat > solana/reconciliation-evidence.json <<'EOF'
-{
-  "network": "solana-devnet",
-  "status": "NOT_VERIFIED",
-  "mode": "RECONCILIATION_READ_ONLY",
-  "verification_boundary": "No mint address or deployment evidence is currently published; this workflow did not create or mutate any asset.",
-  "mint": null,
-  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-  "name": "GLORIFIER",
-  "symbol": "GLR",
-  "decimals": 9,
-  "totalSupply": "1000000000",
-  "mintAuthority": null,
-  "freezeAuthority": null,
-  "next_action": "Run the authorized Solana Devnet deployment workflow once before attempting reconciliation."
-}
-EOF
+              {
+                "network": "solana-devnet",
+                "status": "NOT_VERIFIED",
+                "mode": "RECONCILIATION_READ_ONLY",
+                "verification_boundary": "No canonical mint or trusted deployment evidence is currently published; this workflow created or mutated no asset.",
+                "mint": null,
+                "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                "name": "GLORIFIER",
+                "symbol": "GLR",
+                "decimals": 9,
+                "totalSupply": "1000000000",
+                "mintAuthority": null,
+                "freezeAuthority": null,
+                "next_action": "Run the authorized Solana Devnet deployment or resume workflow before reconciliation."
+              }
+              EOF
               jq -e '.status == "NOT_VERIFIED" and .mode == "RECONCILIATION_READ_ONLY" and .mint == null' solana/reconciliation-evidence.json >/dev/null
               echo "No canonical mint or deployment evidence exists; reconciliation remains NOT_VERIFIED."
               exit 0
