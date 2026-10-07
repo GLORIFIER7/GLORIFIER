@@ -115,17 +115,30 @@ def call(method, params):
     if "error" in data:
         raise SystemExit(0)
     return data.get("result")
-sigs=call("getSignaturesForAddress",[address,{"limit":100,"commitment":"finalized"}]) or []
-for item in sigs:
-    sig=item.get("signature")
-    if not sig:
-        continue
-    tx=call("getTransaction",[sig,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}])
-    if not tx:
-        continue
-    logs=((tx.get("meta") or {}).get("logMessages") or [])
-    if any(pattern in str(log) for log in logs):
-        print(sig)
+before=None
+for _page in range(20):
+    params=[address,{"limit":1000,"commitment":"finalized"}]
+    if before:
+        params[1]["before"]=before
+    sigs=call("getSignaturesForAddress",params) or []
+    if not sigs:
+        break
+    for item in sigs:
+        sig=item.get("signature")
+        if not sig:
+            continue
+        tx=call("getTransaction",[sig,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}])
+        if not tx:
+            continue
+        meta=tx.get("meta") or {}
+        logs=meta.get("logMessages") or []
+        instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
+        haystack=json.dumps({"logs":logs,"instructions":instructions},separators=(",",":"))
+        if pattern in haystack:
+            print(sig)
+            raise SystemExit(0)
+    before=sigs[-1].get("signature")
+    if len(sigs)<1000:
         break
 PY
 }
