@@ -1,16 +1,6 @@
 name: GLORIFIER Solana Devnet Reconciliation
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - ".github/workflows/glorifier-solana-devnet-reconcile.yml"
-      - "solana/reconcile-token2022-devnet.sh"
-      - "solana/publish-verified-devnet-identity.sh"
-      - "solana/canonical-devnet-identity.json"
-  workflow_run:
-    workflows: ["GLORIFIER Solana Devnet Resume Existing Mint"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       confirm:
@@ -31,7 +21,7 @@ jobs:
   # Solana reconciliation is infrastructure-only; Vercel must ignore this workflow surface.
   validate:
     name: Validate reconciliation assets
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -225,7 +215,7 @@ jobs:
       contents: write
       actions: read
       pull-requests: write
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -236,10 +226,6 @@ jobs:
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ inputs.confirm }}
       MINT_ADDRESS_INPUT: ${{ inputs.mint_address }}
-      TRIGGERING_RESUME_RUN_ID: ${{ github.event.workflow_run.id || '' }}
-      TRIGGERING_RESUME_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
-      TRIGGERING_RESUME_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
-      TRIGGERING_RESUME_WORKFLOW: ${{ github.event.workflow_run.name || '' }}
 
     steps:
       - name: Validate reconciliation execution boundary
@@ -274,8 +260,6 @@ jobs:
               echo "::error::Refusing reconciliation: exact confirmation required."
               exit 1
             }
-          else
-            echo "Read-only reconciliation is automatically authorized by a successful governed resume run; no asset mutation is permitted."
           fi
 
       - name: Checkout
@@ -320,11 +304,7 @@ jobs:
             RESUME_RUN_ID=""
             RESUME_ARTIFACT_ID=""
             RESUME_ARTIFACT_DIGEST=""
-            if [[ -n "${TRIGGERING_RESUME_RUN_ID}" ]]; then
-              RESUME_RUNS_JSON="{\"workflow_runs\":[{\"id\":${TRIGGERING_RESUME_RUN_ID},\"event\":\"workflow_dispatch\",\"head_branch\":\"main\"}]}"
-            else
-              RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-            fi
+            RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
             while IFS= read -r CANDIDATE_RUN_ID; do
               [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
