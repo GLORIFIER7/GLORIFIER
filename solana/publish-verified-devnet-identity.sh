@@ -195,7 +195,7 @@ if [[ -n "${EXISTING_PR}" ]]; then
 fi
 
 git checkout -b "${BRANCH}"
-git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json
+git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json solana/reconciliation-evidence.json solana/reconciliation-metadata.json solana/reconciliation-tx-*.json
 git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
 
