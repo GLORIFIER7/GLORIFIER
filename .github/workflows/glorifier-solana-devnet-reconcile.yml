@@ -10,6 +10,9 @@ on:
       - "solana/reconcile-token2022-devnet.sh"
       - "solana/publish-verified-devnet-identity.sh"
       - "solana/canonical-devnet-identity.json"
+  workflow_run:
+    workflows: ["GLORIFIER Solana Devnet Resume Existing Mint"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       confirm:
@@ -218,7 +221,7 @@ jobs:
       contents: write
       actions: read
       pull-requests: write
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -229,33 +232,47 @@ jobs:
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ inputs.confirm }}
       MINT_ADDRESS_INPUT: ${{ inputs.mint_address }}
+      TRIGGERING_RESUME_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+      TRIGGERING_RESUME_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+      TRIGGERING_RESUME_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+      TRIGGERING_RESUME_WORKFLOW: ${{ github.event.workflow_run.name || '' }}
 
     steps:
       - name: Validate reconciliation execution boundary
         shell: bash
         run: |
           set -euo pipefail
-          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch" || {
-            echo "::error::Refusing reconciliation: workflow_dispatch is required."
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            test "${GITHUB_REF}" = "refs/heads/main" || {
+              echo "::error::Refusing reconciliation: only the main branch is authorized."
+              exit 1
+            }
+            test "${GITHUB_REF_NAME}" = "main" || {
+              echo "::error::Refusing reconciliation: GITHUB_REF_NAME must be main."
+              exit 1
+            }
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
+            test "${TRIGGERING_RESUME_RUN_ID}" != "" || { echo "::error::Missing triggering resume run ID."; exit 1; }
+            test "${TRIGGERING_RESUME_CONCLUSION}" = "success" || { echo "::error::Triggering resume did not succeed."; exit 1; }
+            test "${TRIGGERING_RESUME_HEAD_BRANCH}" = "main" || { echo "::error::Triggering resume was not from main."; exit 1; }
+            test "${TRIGGERING_RESUME_WORKFLOW}" = "GLORIFIER Solana Devnet Resume Existing Mint" || { echo "::error::Unexpected triggering workflow."; exit 1; }
+          else
+            echo "::error::Unsupported reconciliation event."
             exit 1
-          }
-          test "${GITHUB_REF}" = "refs/heads/main" || {
-            echo "::error::Refusing reconciliation: only the main branch is authorized."
-            exit 1
-          }
-          test "${GITHUB_REF_NAME}" = "main" || {
-            echo "::error::Refusing reconciliation: GITHUB_REF_NAME must be main."
-            exit 1
-          }
+          fi
 
       - name: Validate reconciliation authorization
         shell: bash
         run: |
           set -euo pipefail
-          test "$CONFIRMATION" = "VERIFY_GLORIFIER_SOLANA_DEVNET" || {
-            echo "::error::Refusing reconciliation: exact confirmation required."
-            exit 1
-          }
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            test "$CONFIRMATION" = "VERIFY_GLORIFIER_SOLANA_DEVNET" || {
+              echo "::error::Refusing reconciliation: exact confirmation required."
+              exit 1
+            }
+          else
+            echo "Read-only reconciliation is automatically authorized by a successful governed resume run; no asset mutation is permitted."
+          fi
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -299,7 +316,12 @@ jobs:
             RESUME_RUN_ID=""
             RESUME_ARTIFACT_ID=""
             RESUME_ARTIFACT_DIGEST=""
-            RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+            if [[ -n "${TRIGGERING_RESUME_RUN_ID}" ]]; then
+              RESUME_RUNS_JSON="{\"workflow_runs\":[{\"id\":${TRIGGERING_RESUME_RUN_ID},\"event\":\"workflow_dispatch\",\"head_branch\":\"main\"}]}"
+            else
+              RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+            fi
+
             while IFS= read -r CANDIDATE_RUN_ID; do
               [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
               [[ "${CANDIDATE_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
