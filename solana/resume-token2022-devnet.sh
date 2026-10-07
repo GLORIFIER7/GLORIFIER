@@ -185,7 +185,39 @@ fi
 
 # Permanently revoke TokenMetadata update authority if it is still present.
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Update Authority.*(None|Disabled)|Metadata.*Update Authority.*(None|Disabled)'; then
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Update[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$|^[[:space:]]*Metadata.*Update[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*
+  echo "Metadata update authority is already disabled."
+else
+  OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Could not recover metadata-authority revocation signature."; exit 1; }
+  set_tx metadataUpdateAuthorityRevocationTransaction "${TX}"
+fi
+
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+printf '%s\n' "${DISPLAY}" | tee solana/resume-final-mint-state.txt
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Name[[:space:]]*:[[:space:]]*${EXPECTED_NAME}"
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Symbol[[:space:]]*:[[:space:]]*${EXPECTED_SYMBOL}"
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9'
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\\(not set\\))'
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\\(not set\\))'
+printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"
+
+for field in metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
+  test "$(jq -r --arg f "${field}" '.[$f] // empty' "${EVIDENCE}")" != "" || {
+    echo "::error::Missing resume transaction evidence field: ${field}"
+    exit 1
+  }
+done
+
+jq --arg status "READY_FOR_VERIFICATION" --arg creation "$(jq -r '.creationTransaction // empty' "${EVIDENCE}")"   '.status=$status | .creationTransaction=($creation // null) | .completedAt="'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"'   "${EVIDENCE}" > "${EVIDENCE}.tmp"
+mv "${EVIDENCE}.tmp" "${EVIDENCE}"
+
+echo "GLR_STATUS=READY_FOR_VERIFICATION" | tee solana/resume-status.txt
+record "READY_FOR_VERIFICATION"
+jq -e '.status=="READY_FOR_VERIFICATION" and .mint=="'"${MINT}"'" and .network=="solana-devnet"' "${EVIDENCE}" >/dev/null
+; then
   echo "Metadata update authority is already disabled."
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
