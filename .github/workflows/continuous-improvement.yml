@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: npm
@@ -52,5 +52,5 @@ jobs:
 
 # Automatically generated and managed by gh-actions-pin
 dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/actions/setup-node@v7:sha1-820762786026740c76f36085b0efc47a31fe5020
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/setup-node@820762786026740c76f36085b0efc47a31fe5020:sha1-820762786026740c76f36085b0efc47a31fe5020
