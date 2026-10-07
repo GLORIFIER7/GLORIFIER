@@ -1,0 +1,74 @@
+name: GLORIFIER Verification Contract Validation
+
+on:
+  push:
+    paths:
+      - 'agent-network/**'
+      - 'docs/**'
+      - '.github/workflows/verification-contract-validation.yml'
+  pull_request:
+    paths:
+      - 'agent-network/**'
+      - 'docs/**'
+      - '.github/workflows/verification-contract-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-verification-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for p in Path("agent-network").glob("*.json"):
+              with p.open(encoding="utf-8") as f:
+                  json.load(f)
+              print("valid JSON:", p)
+          PY
+
+      - name: Validate required verification boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "A2A v1.0 conformance" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "MCP 2025-11-25" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "MCP 2026-07-28" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "A2A cryptographic identity" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "NVIDIA Dynamo" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "Cross-provider semantic equivalence" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "Provider billing reconciliation" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "Independently verified economic outcomes" docs/INTEROPERABILITY-VERIFICATION-MATRIX.md
+          grep -q "NOT_VERIFIED" agent-network/agent-card.glorifier.json
+
+      - name: Reject credential material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE '(sk-[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|GLORIFIER_DEPLOYER_PRIVATE_KEY=)' agent-network docs; then
+            echo "Potential credential material found."
+            exit 1
+          fi
+
+      - name: Enforce no false promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          card=json.loads(Path("agent-network/agent-card.glorifier.json").read_text())
+          security=card.get("security", {})
+          runtime=card.get("runtime_compatibility", {})
+          assert security.get("runtimeContainmentStatus") == "NOT_VERIFIED"
+          assert runtime.get("status") == "NOT_VERIFIED"
+          assert card.get("protocol", {}).get("conformance_status") == "NOT_VERIFIED"
+          print("Unverified operational claims remain fail-closed.")
+          PY
