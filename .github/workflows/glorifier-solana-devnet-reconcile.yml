@@ -1,0 +1,34 @@
+name: GLORIFIER Solana Devnet Reconciliation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type VERIFY_GLORIFIER_SOLANA_DEVNET"
+        required: true
+        type: string
+      mint_address:
+        description: "Recovered canonical Devnet mint"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-check:
+    name: Authorized reconciliation trigger
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Validate authorization
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          MINT: ${{ inputs.mint_address }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRM" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          test "$MINT" = "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S"
+          echo "AUTHORIZED_RECONCILIATION_TRIGGER=true"
+          echo "MINT=$MINT"
