@@ -188,7 +188,202 @@ for _page in range(20):
     time.sleep(1)
 PY
 }
+
+# If an authority was disabled at mint creation, there is no later SetAuthority
+# transaction. Verify the finalized creation transaction explicitly instead of
+# fabricating a revocation transaction.
+authority_disabled_at_creation() {
+  local address="$1"
+  local authority="$2"
+  python3 - "$SOLANA_RPC_URL" "$RECOVERY_CREATION_TX" "$address" "$authority" <<'PY'
+import json,sys,time,urllib.error,urllib.request
+rpc,signature,address,authority=sys.argv[1:]
+payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTransaction","params":[signature,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}]}).encode()
+for attempt in range(6):
+    req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json","User-Agent":"GLORIFIER-Solana-Evidence/1.0"})
+    try:
+        with urllib.request.urlopen(req,timeout=30) as r: data=json.load(r)
+        tx=data.get("result")
+        if tx:
+            instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
+            for ix in instructions:
+                parsed=ix.get("parsed") if isinstance(ix,dict) else None
+                if not isinstance(parsed,dict): continue
+                if str(parsed.get("type",""")).lower() not in ("initializemint","initializemint2"): continue
+                info=parsed.get("info")
+                if not isinstance(info,dict) or str(info.get("mint","")).lower()!=address.lower(): continue
+                if authority=="freeze" and info.get("freezeAuthority") is None:
+                    print("true"); raise SystemExit(0)
+                if authority=="mint" and info.get("mintAuthority") is None:
+                    print("true"); raise SystemExit(0)
+            raise SystemExit(1)
+        if attempt < 5: time.sleep(min(2**attempt,10)); continue
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429,500,502,503,504) and attempt < 5:
+            retry_after=exc.headers.get("Retry-After")
+            try: delay=max(1,min(int(retry_after),30)) if retry_after else min(2**attempt,10)
+            except (TypeError,ValueError): delay=min(2**attempt,10)
+            time.sleep(delay); continue
+        raise SystemExit(1)
+    except (urllib.error.URLError,TimeoutError):
+        if attempt < 5: time.sleep(min(2**attempt,10)); continue
+        raise SystemExit(1)
+raise SystemExit(1)
+PY
+}
+
+set_evidence_type() {
+  local field="$1" value="$2"
+  jq --arg field "$field" --arg value "$value" '.[ $field ]=$value' "${EVIDENCE}" > "${EVIDENCE}.tmp"
+  mv "${EVIDENCE}.tmp" "${EVIDENCE}"
+}
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*
+  echo "Metadata update authority is already disabled."
+elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "Symbol: ${EXPECTED_SYMBOL}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "Mint: ${MINT}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "URI: ${EXPECTED_METADATA_URI}"; then
+  echo "Existing metadata matches the canonical GLORIFIER metadata; refusing overwrite."
+  TX="$(find_tx_by_log "${MINT}" "InitializeMetadata")"
+  if [[ -n "${TX}" ]]; then
+    set_tx metadataTransaction "${TX}"
+  else
+    echo "::error::Canonical metadata exists, but its initialization transaction could not be recovered from finalized mint history."
+    exit 1
+  fi
+else
+  if printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Name:'; then
+    echo "::error::Metadata already exists but does not match the canonical GLORIFIER metadata; refusing overwrite."
+    exit 1
+  fi
+  OUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "${EXPECTED_NAME}" "${EXPECTED_SYMBOL}" "${EXPECTED_METADATA_URI}")"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing metadata transaction signature."; exit 1; }
+  set_tx metadataTransaction "${TX}"
+fi
+
+OWNER="$(solana address)"
+ACCOUNT_ADDRESS="$(python3 - "${SOLANA_RPC_URL}" "${OWNER}" "${MINT}" <<'PY'
+import json,sys,urllib.request
+rpc,owner,mint=sys.argv[1:]
+params=[owner,{"mint":mint},{"encoding":"jsonParsed","commitment":"finalized"}]
+payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTokenAccountsByOwner","params":params}).encode()
+req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json"})
+with urllib.request.urlopen(req,timeout=30) as r: data=json.load(r)
+items=data.get("result",{}).get("value",[])
+print(items[0]["pubkey"] if items else "")
+PY
+)"
+
+if [[ -z "${ACCOUNT_ADDRESS}" ]]; then
+  OUT="$(spl-token --program-2022 create-account "${MINT}")"
+  printf '%s\n' "${OUT}"
+  ACCOUNT_ADDRESS="$(printf '%s\n' "${OUT}" | awk '/Creating account / {print $3; exit}')"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/Signature:/ {print $2; exit}')"
+  test -n "${ACCOUNT_ADDRESS}" || { echo "::error::Token account address evidence missing."; exit 1; }
+  test -n "${TX}" || { echo "::error::Token account creation transaction evidence missing."; exit 1; }
+  set_tx tokenAccountCreationTransaction "${TX}"
+else
+  echo "Existing Token-2022 holder account: ${ACCOUNT_ADDRESS}"
+  if [[ -z "$(jq -r '.tokenAccountCreationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${ACCOUNT_ADDRESS}" "InitializeAccount")"
+    if [[ -n "${TX}" ]]; then
+      set_tx tokenAccountCreationTransaction "${TX}"
+    else
+      echo "::error::Existing Token-2022 holder account was found, but its creation transaction could not be recovered from finalized account history."
+      exit 1
+    fi
+  fi
+fi
+
+if (( CURRENT_SUPPLY < EXPECTED_SUPPLY )); then
+  REMAINING=$((EXPECTED_SUPPLY-CURRENT_SUPPLY))
+  OUT="$(spl-token --program-2022 mint "${MINT}" "${REMAINING}")"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing mint transaction signature."; exit 1; }
+  set_tx mintTransaction "${TX}"
+else
+  echo "Canonical supply is already present; no additional GLR will be minted."
+fi
+
+FINAL_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
+test "${FINAL_SUPPLY}" = "${EXPECTED_SUPPLY}" || { echo "::error::Final supply is ${FINAL_SUPPLY}; expected ${EXPECTED_SUPPLY}."; exit 1; }
+
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Mint[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
+  echo "Mint authority already disabled."
+else
+  OUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing mint-authority revocation signature."; exit 1; }
+  set_tx mintAuthorityRevocationTransaction "${TX}"
+fi
+
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
+  echo "Freeze authority already disabled."
+  if [[ -z "$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "freezeAccount")"
+    if [[ -z "${TX}" ]]; then
+      TX="$(find_tx_by_log "${MINT}" "FreezeAccount")"
+    fi
+    if [[ -n "${TX}" ]]; then
+      set_tx freezeAuthorityRevocationTransaction "${TX}"
+      set_evidence_type freezeAuthorityRevocationEvidenceType "SET_AUTHORITY"
+    elif authority_disabled_at_creation "${MINT}" freeze; then
+      set_tx freezeAuthorityRevocationTransaction "${RECOVERY_CREATION_TX}"
+      set_evidence_type freezeAuthorityRevocationEvidenceType "DISABLED_AT_CREATION"
+      echo "Freeze authority was disabled at mint creation; using creation transaction as provenance evidence."
+    else
+      echo "::error::Freeze authority is already disabled, but neither a finalized SetAuthority transaction nor a creation-time null authority proof could be recovered."
+      exit 1
+    fi
+  fi
+else
+  OUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing freeze-authority revocation signature."; exit 1; }
+  set_tx freezeAuthorityRevocationTransaction "${TX}"
+fi
+
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$'; then
+  echo "Metadata update authority already disabled."
+else
+  OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing metadata-authority revocation signature."; exit 1; }
+  set_tx metadataUpdateAuthorityRevocationTransaction "${TX}"
+fi
+
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+printf '%s\n' "${DISPLAY}" | tee solana/resume-final-mint-state.txt
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Name[[:space:]]*:[[:space:]]*${EXPECTED_NAME}"
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Symbol[[:space:]]*:[[:space:]]*${EXPECTED_SYMBOL}"
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9'
+printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Mint[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'
+printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'
+printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"
+
+for field in metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
+  test "$(jq -r --arg f "${field}" '.[$f] // empty' "${EVIDENCE}")" != "" || {
+    echo "::error::Missing resume transaction evidence field: ${field}"
+    exit 1
+  }
+done
+
+jq --arg status "READY_FOR_VERIFICATION"    --arg creation "$(jq -r '.creationTransaction // empty' "${EVIDENCE}")"    --arg completed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"    '.status=$status | .creationTransaction=$creation | .completedAt=$completed_at'    "${EVIDENCE}" > "${EVIDENCE}.tmp"
+mv "${EVIDENCE}.tmp" "${EVIDENCE}"
+
+echo "GLR_STATUS=READY_FOR_VERIFICATION" | tee solana/resume-status.txt
+record "READY_FOR_VERIFICATION"
+jq -e --arg mint "${MINT}" '.status=="READY_FOR_VERIFICATION" and .mint==$mint and .network=="solana-devnet"' "${EVIDENCE}" >/dev/null
+; then
   echo "Metadata update authority is already disabled."
 elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
      printf '%s\n' "${DISPLAY}" | grep -Fq "Symbol: ${EXPECTED_SYMBOL}" &&
