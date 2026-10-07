@@ -12,9 +12,9 @@ write_evidence() {
   jq -n --arg network "solana-mainnet" --arg status "$status" --arg mint "$MINT" --arg program "$TOKEN_2022_PROGRAM" \
     --arg name "GLORIFIER" --arg symbol "GLR" --arg uri "$METADATA_URI" \
     --arg creation "${CREATE_TOKEN_TX:-}" --arg metadata "${METADATA_TX:-}" --arg account "${CREATE_ACCOUNT_TX:-}" \
-    --arg mintTx "${MINT_TX:-}" --arg mintAuth "${MINT_AUTH_TX:-}" --arg freezeAuth "${FREEZE_AUTH_TX:-}" \
+    --arg mintTx "${MINT_TX:-}" --arg mintAuth "${MINT_AUTH_TX:-}" --arg freezeAuth "${FREEZE_AUTH_TX:-}" --arg metadataAuth "${METADATA_AUTH_TX:-}" --arg metadataPointerAuth "${METADATA_POINTER_AUTH_TX:-}" \
     --arg runId "${GITHUB_RUN_ID:-}" --arg runUrl "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}" \
-    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
+    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
 }
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
@@ -44,12 +44,18 @@ METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --di
 printf '%s\n' "$METADATA_AUTH_OUTPUT"
 METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
 test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
+METADATA_POINTER_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
+printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT"
+METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$METADATA_POINTER_AUTH_TX" || { echo "::error::Could not recover metadata-pointer authority revocation transaction signature."; exit 1; }
 spl-token --program-2022 balance "$MINT" | tee solana/deployment-mainnet-holder-balance.txt
 test "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY"
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
 printf '%s\n' "$FINAL_MINT_STATE" | tee solana/deployment-mainnet-mint-state.txt
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
+FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
+test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None"
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
-for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX FREEZE_AUTH_TX METADATA_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX FREEZE_AUTH_TX METADATA_AUTH_TX METADATA_POINTER_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
 write_evidence "READY_FOR_VERIFICATION"
