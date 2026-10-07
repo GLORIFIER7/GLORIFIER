@@ -260,18 +260,6 @@ jobs:
             echo "::error::Unsupported reconciliation event."
             exit 1
           fi
-          # Existing workflow-dispatch callers retain the exact main-branch authorization checks above.
-            echo "::error::Refusing reconciliation: workflow_dispatch is required."
-            exit 1
-          }
-          test "${GITHUB_REF}" = "refs/heads/main" || {
-            echo "::error::Refusing reconciliation: only the main branch is authorized."
-            exit 1
-          }
-          test "${GITHUB_REF_NAME}" = "main" || {
-            echo "::error::Refusing reconciliation: GITHUB_REF_NAME must be main."
-            exit 1
-          }
 
       - name: Validate reconciliation authorization
         shell: bash
@@ -279,7 +267,7 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             test "$CONFIRMATION" = "VERIFY_GLORIFIER_SOLANA_DEVNET" || {
-            echo "::error::Refusing reconciliation: exact confirmation required."
+              echo "::error::Refusing reconciliation: exact confirmation required."
               exit 1
             }
           else
@@ -327,11 +315,15 @@ jobs:
             # Bind completed resume provenance to this exact recovered mint.
             RESUME_RUN_ID=""
             RESUME_ARTIFACT_ID=""
+            RESUME_RUN_ID=""
+            RESUME_ARTIFACT_ID=""
             RESUME_ARTIFACT_DIGEST=""
             if [[ -n "${TRIGGERING_RESUME_RUN_ID}" ]]; then
               RESUME_RUNS_JSON="{\"workflow_runs\":[{\"id\":${TRIGGERING_RESUME_RUN_ID},\"event\":\"workflow_dispatch\",\"head_branch\":\"main\"}]}"
             else
               RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+            fi
+
             while IFS= read -r CANDIDATE_RUN_ID; do
               [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
               [[ "${CANDIDATE_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
