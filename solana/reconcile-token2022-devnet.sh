@@ -128,10 +128,10 @@ cat > solana/reconciliation-evidence.json <<EOF
   "mint":"$MINT","programId":"$EXPECTED_PROGRAM","name":"$EXPECTED_NAME","symbol":"$EXPECTED_SYMBOL",
   "decimals":$EXPECTED_DECIMALS,"totalSupply":"$EXPECTED_SUPPLY","mintAuthority":null,"freezeAuthority":null,
   "metadataUri":"$EXPECTED_METADATA_URI","metadataPointerAuthority":null,"metadataUpdateAuthority":null,
-  "metadataPointerAddress":"$MINT","metadataMint":"$MINT",
+  "metadataPointerAddress":"$MINT","metadataMint":"$MINT","metadataUriInDisplay":true,
   "offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-metadata.json)",
   "transactionSemanticsVerified":true,"finalized":true
 }
 EOF
-jq -e '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and .transactionSemanticsVerified==true and .finalized==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==.mint and .metadataMint==.mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-evidence.json >/dev/null
+jq -e '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and .transactionSemanticsVerified==true and .finalized==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==.mint and .metadataUriInDisplay==true and .metadataMint==.mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-evidence.json >/dev/null
 echo "GLR_STATUS=VERIFIED_ON_CHAIN" | tee -a solana/reconciliation-status.txt

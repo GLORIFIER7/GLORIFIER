@@ -180,6 +180,7 @@ jobs:
             and .commitment == "finalized"
             and .finalized == true
             and .transactionSemanticsVerified == true
+            and .metadataUriInDisplay == true
             and .mint == $mint
             and .metadataUpdateAuthority == null
             and .metadataPointerAuthority == null
