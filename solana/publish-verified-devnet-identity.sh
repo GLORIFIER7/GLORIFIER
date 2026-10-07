@@ -53,8 +53,9 @@ if [[ -f solana/deployment-provenance.json ]]; then
     and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
     and .mint == $mint
     and (.deploymentRunId | type == "string" and length > 0)
-    and (.deploymentArtifactId | type == "string" and length > 0)
-    and (.deploymentArtifactDigest | type == "string" and startswith("sha256:"))
+    and .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE"
+    and (.deploymentJobId | type == "string" and length > 0)
+    and (.metadataPointerAuthorityRevocationTransaction | type == "string" and length > 0)
     and (.creationTransaction | type == "string" and length > 0)
     and (.metadataTransaction | type == "string" and length > 0)
     and (.tokenAccountCreationTransaction | type == "string" and length > 0)
@@ -148,7 +149,7 @@ test "${FOUND}" -eq 1 || {
   exit 1
 }
 
-for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
+for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
   TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-provenance.json)"
   [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
 done
@@ -164,6 +165,7 @@ jq --arg mint "$MINT" \
    --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg metadata_auth "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
+   --arg metadata_pointer_auth "$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg metadata_sha256 "$METADATA_SHA256" \
    --arg run_id "$GITHUB_RUN_ID" \
    --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
@@ -176,6 +178,7 @@ jq --arg mint "$MINT" \
   | .authority_revocation_transaction=$mint_auth
   | .freeze_authority_revocation_transaction=$freeze_auth
   | .metadata_update_authority_revocation_transaction=$metadata_auth
+  | .metadata_pointer_authority_revocation_transaction=$metadata_pointer_auth
   | .metadata_sha256=$metadata_sha256
   | .status="VERIFIED_ON_CHAIN"
   | .verification_run_id=$run_id
