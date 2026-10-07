@@ -1,0 +1,31 @@
+name: GLORIFIER Actions Workflow Registration Repair
+
+on:
+  push:
+    paths:
+      - ".github/workflows/glorifier-solana-actions-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  repair:
+    name: Re-enable canonical Solana reconciliation workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-enable workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKFLOW_ID="$(gh api "/repos/${REPO}/actions/workflows" --paginate             --jq '.workflows[] | select(.path == ".github/workflows/glorifier-solana-devnet-reconcile.yml") | .id'             | head -n1)"
+          test -n "${WORKFLOW_ID}" || {
+            echo "::error::Canonical reconciliation workflow is not registered yet."
+            exit 1
+          }
+          gh api --method PUT "/repos/${REPO}/actions/workflows/${WORKFLOW_ID}/enable"
+          echo "Enabled workflow ID ${WORKFLOW_ID}."
