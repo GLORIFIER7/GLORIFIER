@@ -128,7 +128,7 @@ cat > solana/reconciliation-evidence.json <<EOF
   "mint":"$MINT","programId":"$EXPECTED_PROGRAM","name":"$EXPECTED_NAME","symbol":"$EXPECTED_SYMBOL",
   "decimals":$EXPECTED_DECIMALS,"totalSupply":"$EXPECTED_SUPPLY","mintAuthority":null,"freezeAuthority":null,
   "metadataUri":"$EXPECTED_METADATA_URI","metadataPointerAuthority":null,"metadataUpdateAuthority":null,
-  "metadataPointerAddress":"$MINT","metadataMint":"$MINT",
+  "metadataPointerAddress":"$MINT","metadataMint":"$MINT","metadataUriInDisplay":true,
   "offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-metadata.json)",
   "transactionSemanticsVerified":true,"finalized":true
 }
