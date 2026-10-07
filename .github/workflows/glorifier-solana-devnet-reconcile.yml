@@ -408,12 +408,10 @@ EOF
               }
 
               echo "Recovered mint from deployment evidence artifact ${ARTIFACT_ID}."
-            fi
           fi
 
-          if [[ -n "${MINT_ADDRESS_INPUT}" && -z "${CANONICAL_MINT}" ]]; then
-            echo "::error::Explicit mint cannot bypass deployment provenance."
-            echo "::error::When no canonical mint exists, run the deployment workflow and let reconciliation recover its successful evidence artifact."
+          if [[ -n "${MINT_ADDRESS_INPUT}" && -z "${CANONICAL_MINT}" && "${MINT_ADDRESS}" != "${MINT_ADDRESS_INPUT}" ]]; then
+            echo "::error::Explicit mint does not match the successful deployment artifact selected by provenance checks."
             exit 1
           fi
 
