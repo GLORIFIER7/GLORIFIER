@@ -81,3 +81,8 @@ jobs:
         if: ${{ env.GEMINI_API_KEY == '' }}
         run: |
           echo "::warning::GEMINI_API_KEY is not configured. Add it as a GitHub Actions repository secret to activate the Gemini collaborator."
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/google-github-actions/run-gemini-cli@v0.1.22:sha1-f77273f4c914e4bf38440cf36a0369cb64a37489
