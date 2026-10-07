@@ -18,39 +18,48 @@ test "${RECOVERY_MINT}" = "${MINT}"
 LOG="/tmp/glorifier-deployment-job.log"
 gh run view --repo "${GITHUB_REPOSITORY}" --job "${JOB_ID}" --log > "${LOG}"
 
-extract_signatures_from_creation() {
-  awk -v mint="${MINT}" '
-    !active && $0 ~ "Creating token " mint " under program " { active=1; next }
-    active && /Signature:/ {
-      line=$0
-      sub(/^.*Signature:[[:space:]]*/, "", line)
-      sub(/[[:space:]\r]+$/, "", line)
-      if (line ~ /^[1-9A-HJ-NP-Za-km-z]{64,88}$/) print line
-    }
-    active && /Post job cleanup/ { exit }
-  ' "${LOG}"
+# The original partial deployment may contain only the mint-creation transaction.
+# The immutable recovery record preserves that transaction; the authorized resume
+# workflow supplies the six subsequent transactions after completing the mint.
+CREATION_TX="$(jq -r '.creationTransaction // empty' solana/devnet-deployment-recovery.json)"
+[[ "${CREATION_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+  echo "::error::Recovery record is missing a valid creation transaction."
+  exit 1
 }
-
-mapfile -t DEPLOYMENT_TXS < <(extract_signatures_from_creation)
-test "${#DEPLOYMENT_TXS[@]}" -ge 7 || {
-  echo "::error::Expected the immutable deployment job to contain the creation transaction plus at least 6 follow-on transaction signatures; found ${#DEPLOYMENT_TXS[@]}."
+grep -Fq "${CREATION_TX}" "${LOG}" || {
+  echo "::error::Creation transaction ${CREATION_TX} was not found in immutable deployment job ${JOB_ID}."
+  exit 1
+}
+grep -Fq "Creating token ${MINT} under program ${EXPECTED_PROGRAM}" "${LOG}" || {
+  echo "::error::Immutable deployment job ${JOB_ID} does not prove creation of the recovered mint."
   exit 1
 }
 
-CREATION_TX="${DEPLOYMENT_TXS[0]}"
-FOLLOW_ON_TXS=("${DEPLOYMENT_TXS[@]:1}")
-
-test "${#FOLLOW_ON_TXS[@]}" -ge 6 || {
-  echo "::error::Expected at least 6 post-creation transaction signatures in deployment job ${JOB_ID}; found ${#FOLLOW_ON_TXS[@]}."
+test -f solana/devnet-resume-evidence.json || {
+  echo "::error::Recovered mint is only partially deployed."
+  echo "::error::Run the authorized Devnet deployment workflow to complete the existing mint before reconciliation."
   exit 1
 }
 
-METADATA_TX="${FOLLOW_ON_TXS[0]}"
-ACCOUNT_TX="${FOLLOW_ON_TXS[1]}"
-MINT_TX="${FOLLOW_ON_TXS[2]}"
-MINT_AUTH_TX="${FOLLOW_ON_TXS[3]}"
-FREEZE_AUTH_TX="${FOLLOW_ON_TXS[4]}"
-METADATA_AUTH_TX="${FOLLOW_ON_TXS[5]}"
+RESUME_JSON="solana/devnet-resume-evidence.json"
+jq -e --arg mint "${MINT}" '
+  .network == "solana-devnet"
+  and .status == "READY_FOR_RECONCILIATION"
+  and .mint == $mint
+  and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  and .verifiedFinalState == true
+' "${RESUME_JSON}" >/dev/null || {
+  echo "::error::Recovered-mint resume evidence is not READY_FOR_RECONCILIATION."
+  exit 1
+}
+
+METADATA_TX="$(jq -r '.metadataTransaction // empty' "${RESUME_JSON}")"
+ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction // empty' "${RESUME_JSON}")"
+MINT_TX="$(jq -r '.mintTransaction // empty' "${RESUME_JSON}")"
+MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction // empty' "${RESUME_JSON}")"
+FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${RESUME_JSON}")"
+METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "${RESUME_JSON}")"
+RESUME_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' "${RESUME_JSON}")"
 
 for pair in \
   "metadata:${METADATA_TX}" \
@@ -58,23 +67,14 @@ for pair in \
   "mint:${MINT_TX}" \
   "mint-authority:${MINT_AUTH_TX}" \
   "freeze-authority:${FREEZE_AUTH_TX}" \
-  "metadata-update-authority:${METADATA_AUTH_TX}"; do
+  "metadata-update-authority:${METADATA_AUTH_TX}" \
+  "metadata-pointer-authority:${RESUME_TX}"; do
   value="${pair#*:}"
   [[ "${value}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
-    echo "::error::Recovered ${pair%%:*} transaction signature is invalid."
+    echo "::error::Recovered ${pair%%:*} transaction signature is invalid or missing."
     exit 1
   }
 done
-RESUME_TX=""
-if [[ -f solana/devnet-resume-evidence.json ]]; then
-  RESUME_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' solana/devnet-resume-evidence.json)"
-fi
-
-[[ "${RESUME_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
-  echo "::error::Recovered mint resume evidence is missing the Metadata Pointer authority-revocation transaction."
-  echo "::error::Run the authorized Devnet deployment/resume workflow before reconciliation."
-  exit 1
-}
 
 cat > solana/deployment-provenance.json <<EOF
 {
