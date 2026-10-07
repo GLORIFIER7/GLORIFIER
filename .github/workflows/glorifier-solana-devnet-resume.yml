@@ -17,7 +17,7 @@ jobs:
     name: Complete recovered GLORIFIER GLR Devnet mint
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     concurrency:
       group: glorifier-solana-devnet-resume
       cancel-in-progress: false
@@ -29,72 +29,44 @@ jobs:
       GLORIFIER_RESUME_AUTHORIZED_WORKFLOW: "true"
 
     steps:
-      - name: Validate resume execution boundary
+      - name: Validate authorization boundary
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_REF" = "refs/heads/main"
           test "$GITHUB_REF_NAME" = "main"
-          test "$CONFIRMATION" = "RESUME_GLORIFIER_SOLANA_DEVNET" || {
-            echo "::error::Exact resume authorization is required."
-            exit 1
-          }
+          test "$CONFIRMATION" = "RESUME_GLORIFIER_SOLANA_DEVNET" || exit 1
 
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
 
-      - name: Resolve immutable recovery identity
+      - name: Validate recovery contract
         shell: bash
         run: |
           set -euo pipefail
-          test -f solana/devnet-deployment-recovery.json || {
-            echo "::error::Missing immutable Devnet deployment recovery record."
-            exit 1
-          }
-
-          MINT="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
-          DEPLOYMENT_RUN_ID="$(jq -r '.deploymentWorkflowRunId // empty' solana/devnet-deployment-recovery.json)"
-
-          jq -e --arg mint "$MINT" --arg run_id "$DEPLOYMENT_RUN_ID" '
-            .status=="DEPLOYED_UNVERIFIED"
-            and .network=="solana-devnet"
-            and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-            and (.mint | type=="string" and test("^[1-9A-HJ-NP-Za-km-z]{32,44}$"))
-            and .mint==$mint
-            and (.deploymentWorkflowRunId | type=="string" and length>0)
-            and .deploymentWorkflowRunId==$run_id
-            and (.creationTransaction | type=="string" and length>0)
-          ' solana/devnet-deployment-recovery.json >/dev/null || {
-            echo "::error::Immutable recovery record failed provenance validation."
-            exit 1
-          }
-
-          [[ "$MINT" != "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G" ]] || {
-            echo "::error::Recovered mint is explicitly excluded from GLR canonicalization."
-            exit 1
-          }
-
-          {
-            echo "MINT=$MINT"
-            echo "RECOVERED_DEPLOYMENT_RUN_ID=$DEPLOYMENT_RUN_ID"
-          } >> "$GITHUB_ENV"
-
-          echo "Recovered existing GLR mint from immutable deployment provenance."
-          echo "Deployment run: $DEPLOYMENT_RUN_ID"
+          test -f solana/devnet-deployment-recovery.json
+          test -f solana/resume-token2022-devnet.sh
+          jq -e '.status=="DEPLOYED_UNVERIFIED" and .network=="solana-devnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and test("^[1-9A-HJ-NP-Za-km-z]{32,44}$")) and (.creationTransaction|type=="string" and length>0) and (.deploymentWorkflowRunId|type=="string" and length>0)' solana/devnet-deployment-recovery.json >/dev/null
+          MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+          test "$MINT" != "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+          echo "MINT=$MINT" >> "$GITHUB_ENV"
+          bash -n solana/resume-token2022-devnet.sh
 
       - name: Install Solana CLI
         shell: bash
         run: |
           set -euo pipefail
-          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
           sh -c "$(curl -sSfL "https://release.anza.xyz/$AGAVE_VERSION/install")"
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
           test -x "$SOLANA_BIN/solana"
-          export PATH="$SOLANA_BIN:$PATH"
+          test -x "$SOLANA_BIN/solana-keygen"
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
+          export PATH="$SOLANA_BIN:$PATH"
           solana --version
+          solana-keygen --version
 
       - name: Install SPL Token CLI
         shell: bash
@@ -103,256 +75,97 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.6.1
+          test -x "$HOME/.cargo/bin/spl-token"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
           test "$(spl-token --version | awk '{print $2}')" = "5.6.1"
 
-      - name: Validate and configure deployment wallet
+      - name: Normalize and validate deployment wallet
         env:
           GLORIFIER_SOLANA_KEYPAIR_JSON: ${{ secrets.GLORIFIER_SOLANA_KEYPAIR_JSON }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$GLORIFIER_SOLANA_KEYPAIR_JSON" || {
-            echo "::error::Missing GLORIFIER_SOLANA_KEYPAIR_JSON in the glorifier-solana-devnet environment."
-            exit 1
-          }
-
-          # Accept canonical 64-byte JSON, a JSON string containing it, or base58 64-byte secret.
-          # Never print secret material.
+          test -n "$GLORIFIER_SOLANA_KEYPAIR_JSON"
           python3 - <<'PY'
           import json, os, sys
           alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
           raw = os.environ["GLORIFIER_SOLANA_KEYPAIR_JSON"].strip()
-
-          def valid_array(value):
-              return (isinstance(value, list) and len(value) == 64 and
-                      all(isinstance(x, int) and not isinstance(x, bool) and 0 <= x <= 255 for x in value))
-
-          def decode_base58(value):
-              if not value: return None
+          def valid(v):
+              return isinstance(v,list) and len(v)==64 and all(isinstance(x,int) and not isinstance(x,bool) and 0<=x<=255 for x in v)
+          def b58(v):
               try:
-                  n = 0
-                  for ch in value: n = n * 58 + alphabet.index(ch)
-              except (ValueError, UnicodeEncodeError):
+                  n=0
+                  for c in v: n=n*58+alphabet.index(c)
+                  d=b"" if n==0 else n.to_bytes((n.bit_length()+7)//8,"big")
+                  d=b"\0"*(len(v)-len(v.lstrip("1")))+d
+                  return d if len(d)==64 else None
+              except (ValueError,UnicodeEncodeError):
                   return None
-              decoded = b'' if n == 0 else n.to_bytes((n.bit_length() + 7) // 8, 'big')
-              decoded = (b'\x00' * (len(value) - len(value.lstrip('1')))) + decoded
-              return decoded if len(decoded) == 64 else None
-
-          try: value = json.loads(raw)
-          except json.JSONDecodeError: value = None
-          if isinstance(value, str):
-              try: value = json.loads(value)
-              except json.JSONDecodeError: value = None
-          if valid_array(value): normalized = value
+          try: value=json.loads(raw)
+          except json.JSONDecodeError: value=None
+          if isinstance(value,str):
+              try: value=json.loads(value)
+              except json.JSONDecodeError: value=None
+          if valid(value): normalized=value
           else:
-              decoded = decode_base58(raw)
-              if decoded is None:
-                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON must be a 64-byte JSON keypair, a JSON string containing one, or base58 encoding of exactly 64 secret-key bytes.", file=sys.stderr)
+              d=b58(raw)
+              if d is None:
+                  print("::error::Invalid GLORIFIER_SOLANA_KEYPAIR_JSON",file=sys.stderr)
                   sys.exit(1)
-              normalized = list(decoded)
-
-          path = os.path.expanduser("~/.config/solana/glorifier-devnet-keypair.json")
-          os.makedirs(os.path.dirname(path), exist_ok=True)
-          with open(path, 'w', encoding='utf-8') as handle: json.dump(normalized, handle, separators=(',', ':'))
-          os.chmod(path, 0o600)
+              normalized=list(d)
+          path=os.path.expanduser("~/.config/solana/glorifier-devnet-keypair.json")
+          os.makedirs(os.path.dirname(path),exist_ok=True)
+          with open(path,"w") as f: json.dump(normalized,f,separators=(",",":"))
+          os.chmod(path,0o600)
           PY
-
           KEYPAIR="$HOME/.config/solana/glorifier-devnet-keypair.json"
-          test -s "$KEYPAIR"
-          chmod 600 "$KEYPAIR"
           solana config set --url "$SOLANA_RPC_URL" --keypair "$KEYPAIR"
-          test "$(solana config get | grep "^RPC URL:" | sed "s/^RPC URL:[[:space:]]*//")" = "$SOLANA_RPC_URL"
-          # Resolve the signer explicitly from the normalized keypair instead of
-          # relying on ambient CLI signer state. This keeps resume deterministic and
-          # makes malformed/incompatible keypair failures observable.
-          KEYPAIR_ERROR_FILE="$(mktemp)"
-          if ! ADDRESS="$(solana-keygen pubkey "$KEYPAIR" 2>"$KEYPAIR_ERROR_FILE")"; then
-            echo "::error::Normalized Solana keypair could not be decoded by solana-keygen."
-            sed -n '1,8p' "$KEYPAIR_ERROR_FILE" >&2 || true
-            rm -f "$KEYPAIR_ERROR_FILE"
-            exit 1
-          fi
-          rm -f "$KEYPAIR_ERROR_FILE"
+          ADDRESS="$(solana-keygen pubkey "$KEYPAIR")"
           test -n "$ADDRESS"
-          printf '%s' "$ADDRESS" | grep -Eq '^[1-9A-HJ-NP-Za-km-z]{32,44}
-      - name: Verify Devnet funding for completion
-        shell: bash
-        run: |
-          set -euo pipefail
-          BALANCE="$(solana balance --lamports | awk '{print $1}')"
-          BALANCE="${BALANCE:-0}"
-          if (( BALANCE < 10000000 )); then
-            echo "Deployment wallet is below the 10,000,000-lamport resume safety threshold; requesting Devnet SOL."
-            for attempt in 1 2 3; do
-              if solana airdrop 2 --url "$SOLANA_RPC_URL"; then
-                break
-              fi
-              echo "::warning::Devnet faucet attempt ${attempt} failed or was rate-limited."
-              sleep 5
-            done
-            BALANCE="$(solana balance --lamports | awk '{print $1}')"
-            BALANCE="${BALANCE:-0}"
-          fi
-          (( BALANCE >= 10000000 )) || {
-            echo "::error::Insufficient Devnet SOL to safely complete the recovered mint."
-            echo "::error::Retry the same authorized resume workflow later; do not create another mint."
-            exit 1
-          }
-          echo "Resume funding check passed: ${BALANCE} lamports."
+          printf '%s' "$ADDRESS" | grep -Eq '^[1-9A-HJ-NP-Za-km-z]{32,44}$'
+          test "$(solana address --keypair "$KEYPAIR")" = "$ADDRESS"
+          echo "Resume signer: $ADDRESS"
 
-      - name: Restore latest resume evidence
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          RUNS_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-          while IFS= read -r RUN_ID; do
-            [[ -n "$RUN_ID" && "$RUN_ID" != "$GITHUB_RUN_ID" ]] || continue
-            ARTS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
-            ROW="$(jq -r '
-              [.artifacts[]?
-               | select(.expired==false)
-               | select(.name=="glorifier-solana-devnet-resume-evidence")
-               | select(.digest!=null and (.digest|startswith("sha256:")))]
-              | sort_by(.created_at) | last
-              | [(.id//""),(.digest//"")] | @tsv
-            ' <<<"$ARTS")"
-            AID="${ROW%%$'\t'*}"; DIGEST="${ROW#*$'\t'}"
-            if [[ -n "$AID" && -n "$DIGEST" && "$AID" != "$DIGEST" ]]; then
-              gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/resume-evidence.zip
-              test "sha256:$(sha256sum /tmp/resume-evidence.zip | awk '{print $1}')" = "$DIGEST"
-              rm -rf /tmp/resume-evidence && mkdir -p /tmp/resume-evidence
-              unzip -oq /tmp/resume-evidence.zip -d /tmp/resume-evidence
-              FOUND="$(find /tmp/resume-evidence -type f -name devnet-resume-evidence.json -print -quit || true)"
-              if [[ -n "$FOUND" ]] && jq -e --arg mint "$MINT" '.mint==$mint and .network=="solana-devnet"' "$FOUND" >/dev/null; then
-                cp "$FOUND" /tmp/prior-resume-evidence.json
-                echo "Restored prior resume evidence from run $RUN_ID."
-                exit 0
-              fi
-            fi
-          done < <(jq -r '[.workflow_runs[]? | .id] | .[]' <<<"$RUNS_JSON")
-          echo "No prior resume evidence found; starting from the recovered create-token state."
-
-      - name: Verify canonical Devnet RPC and recovered mint
+      - name: Verify Devnet funding and recovered mint
         shell: bash
         run: |
           set -euo pipefail
           test "$SOLANA_RPC_URL" = "https://api.devnet.solana.com"
           solana cluster-version
-          solana account "$MINT" | grep -Fq "Owner: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-
-      - name: Complete existing Token-2022 mint
-        shell: bash
-        env:
-          GLORIFIER_RESUME_AUTHORIZED_WORKFLOW: "true"
-        run: |
-          set -euo pipefail
-          chmod +x solana/resume-token2022-devnet.sh
-          ./solana/resume-token2022-devnet.sh
-
-      - name: Upload resume evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: glorifier-solana-devnet-resume-evidence
-          retention-days: 3650
-          if-no-files-found: warn
-          path: |
-            solana/devnet-resume-evidence.json
-            solana/resume-status.txt
-            solana/resume-mint-account.txt
-            solana/resume-mint-display.txt
-            solana/resume-final-mint-state.txt
- || {
-            echo "::error::solana-keygen returned an invalid public-key encoding."
-            exit 1
-          }
-          CONFIGURED_ADDRESS="$(solana address --keypair "$KEYPAIR")"
-          test "$CONFIGURED_ADDRESS" = "$ADDRESS" || {
-            echo "::error::Configured Solana signer does not match the normalized keypair."
-            exit 1
-          }
-          echo "Resume deployment wallet public key: $ADDRESS"
-      - name: Verify Devnet funding for completion
-        shell: bash
-        run: |
-          set -euo pipefail
           BALANCE="$(solana balance --lamports | awk '{print $1}')"
-          BALANCE="${BALANCE:-0}"
+          if [ -z "$BALANCE" ]; then BALANCE=0; fi
           if (( BALANCE < 10000000 )); then
-            echo "Deployment wallet is below the 10,000,000-lamport resume safety threshold; requesting Devnet SOL."
             for attempt in 1 2 3; do
-              if solana airdrop 2 --url "$SOLANA_RPC_URL"; then
-                break
-              fi
-              echo "::warning::Devnet faucet attempt ${attempt} failed or was rate-limited."
+              if solana airdrop 2 --url "$SOLANA_RPC_URL"; then break; fi
               sleep 5
             done
             BALANCE="$(solana balance --lamports | awk '{print $1}')"
-            BALANCE="${BALANCE:-0}"
+            if [ -z "$BALANCE" ]; then BALANCE=0; fi
           fi
-          (( BALANCE >= 10000000 )) || {
-            echo "::error::Insufficient Devnet SOL to safely complete the recovered mint."
-            echo "::error::Retry the same authorized resume workflow later; do not create another mint."
-            exit 1
-          }
-          echo "Resume funding check passed: ${BALANCE} lamports."
-
-      - name: Restore latest resume evidence
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          RUNS_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-          while IFS= read -r RUN_ID; do
-            [[ -n "$RUN_ID" && "$RUN_ID" != "$GITHUB_RUN_ID" ]] || continue
-            ARTS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
-            ROW="$(jq -r '
-              [.artifacts[]?
-               | select(.expired==false)
-               | select(.name=="glorifier-solana-devnet-resume-evidence")
-               | select(.digest!=null and (.digest|startswith("sha256:")))]
-              | sort_by(.created_at) | last
-              | [(.id//""),(.digest//"")] | @tsv
-            ' <<<"$ARTS")"
-            AID="${ROW%%$'\t'*}"; DIGEST="${ROW#*$'\t'}"
-            if [[ -n "$AID" && -n "$DIGEST" && "$AID" != "$DIGEST" ]]; then
-              gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/resume-evidence.zip
-              test "sha256:$(sha256sum /tmp/resume-evidence.zip | awk '{print $1}')" = "$DIGEST"
-              rm -rf /tmp/resume-evidence && mkdir -p /tmp/resume-evidence
-              unzip -oq /tmp/resume-evidence.zip -d /tmp/resume-evidence
-              FOUND="$(find /tmp/resume-evidence -type f -name devnet-resume-evidence.json -print -quit || true)"
-              if [[ -n "$FOUND" ]] && jq -e --arg mint "$MINT" '.mint==$mint and .network=="solana-devnet"' "$FOUND" >/dev/null; then
-                cp "$FOUND" /tmp/prior-resume-evidence.json
-                echo "Restored prior resume evidence from run $RUN_ID."
-                exit 0
-              fi
-            fi
-          done < <(jq -r '[.workflow_runs[]? | .id] | .[]' <<<"$RUNS_JSON")
-          echo "No prior resume evidence found; starting from the recovered create-token state."
-
-      - name: Verify canonical Devnet RPC and recovered mint
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$SOLANA_RPC_URL" = "https://api.devnet.solana.com"
-          solana cluster-version
-          solana account "$MINT" | grep -Fq "Owner: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          (( BALANCE >= 10000000 )) || { echo "::error::Insufficient Devnet SOL; retry the same authorized resume."; exit 1; }
+          solana account "$MINT" | tee solana/resume-mint-account.txt
+          grep -Fq "Owner: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" solana/resume-mint-account.txt
 
       - name: Complete existing Token-2022 mint
-        shell: bash
         env:
           GLORIFIER_RESUME_AUTHORIZED_WORKFLOW: "true"
+        shell: bash
         run: |
           set -euo pipefail
           chmod +x solana/resume-token2022-devnet.sh
           ./solana/resume-token2022-devnet.sh
 
+      - name: Validate resume evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f solana/devnet-resume-evidence.json
+          jq -e --arg mint "$MINT" '.status=="READY_FOR_VERIFICATION" and .network=="solana-devnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .mint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .mintAuthority==null and .freezeAuthority==null and (.creationTransaction|type=="string" and length>0) and (.metadataTransaction|type=="string" and length>0) and (.tokenAccountCreationTransaction|type=="string" and length>0) and (.mintTransaction|type=="string" and length>0) and (.mintAuthorityRevocationTransaction|type=="string" and length>0) and (.freezeAuthorityRevocationTransaction|type=="string" and length>0) and (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>0)' solana/devnet-resume-evidence.json >/dev/null
+
       - name: Upload resume evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: glorifier-solana-devnet-resume-evidence
           retention-days: 3650
