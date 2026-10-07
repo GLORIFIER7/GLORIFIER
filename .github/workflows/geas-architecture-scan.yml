@@ -24,12 +24,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout revision under test
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 1
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
 
@@ -50,7 +50,7 @@ jobs:
           node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/geas-architecture/latest.json','utf8')); if(x.irreversibleChangesExecuted!==false) process.exit(1); if(x.sourcePolicyVersion!=='GEAS-AUTHORITY-1') process.exit(1); console.log('GEAS scan safety invariant verified')"
 
       - name: Upload scan evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: geas-architecture-scan-${{ github.run_id }}
           path: artifacts/geas-architecture/
@@ -59,6 +59,6 @@ jobs:
 
 # Automatically generated and managed by gh-actions-pin
 dependencies:
-  - github.com/actions/checkout@v4:sha1-11bd71901bbe5b1630ceea73d27597364c9af683
-  - github.com/actions/setup-node@v4:sha1-49933ea5288caeca8642d1e84afbd3f7d6820020
-  - github.com/actions/upload-artifact@v4:sha1-ea165f8d65b6e75b540449e92b4886f43607fa02
+  - github.com/actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683:sha1-11bd71901bbe5b1630ceea73d27597364c9af683
+  - github.com/actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020:sha1-49933ea5288caeca8642d1e84afbd3f7d6820020
+  - github.com/actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02:sha1-ea165f8d65b6e75b540449e92b4886f43607fa02
