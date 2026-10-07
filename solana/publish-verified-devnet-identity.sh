@@ -203,6 +203,7 @@ jq -e --arg mint "$MINT" --arg metadata_sha256 "$METADATA_SHA256" '
   and .authority_revocation_transaction
   and .freeze_authority_revocation_transaction
   and .metadata_update_authority_revocation_transaction
+  and .metadata_pointer_authority_revocation_transaction
 ' solana/canonical-devnet-identity.json >/dev/null
 
 cat > solana/verified-publication.json <<EOF
