@@ -41,3 +41,7 @@ jobs:
           existing="$(gh issue list --state open --label ai-recovery --search "Infrastructure health failure" --json number --jq 'length')"
           if [ "$existing" -gt 0 ]; then echo "An open ai-recovery issue already exists; avoiding duplicates."; exit 0; fi
           gh issue create --title "Infrastructure health failure" --label ai-recovery --body "The scheduled GLORIFIER production health probe failed. Investigate /api/health, recent deployments, logs, and relevant configuration. Do not expose secrets. Prepare a small reviewable PR if justified. Do not deploy directly. Triggered by: ${{ github.workflow }} run ${{ github.run_id }}"
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+
