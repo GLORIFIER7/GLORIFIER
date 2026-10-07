@@ -176,7 +176,7 @@ jobs:
       - name: Validate deployment evidence
         run: |
           set -euo pipefail
-          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44)' solana/deployment-mainnet-evidence.json >/dev/null
+          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44) and (.creationTransaction|type=="string" and length>0) and (.metadataTransaction|type=="string" and length>0) and (.tokenAccountCreationTransaction|type=="string" and length>0) and (.mintTransaction|type=="string" and length>0) and (.mintAuthorityRevocationTransaction|type=="string" and length>0) and (.freezeAuthorityRevocationTransaction|type=="string" and length>0) and (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>0)' solana/deployment-mainnet-evidence.json >/dev/null
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -229,7 +229,7 @@ jobs:
           set -euo pipefail
           MINT="$(jq -r '.mint' /tmp/glr-mainnet/deployment-mainnet-evidence.json)"
           chmod +x solana/reconcile-token2022-mainnet.sh
-          ./solana/reconcile-token2022-mainnet.sh "$MINT"
+          ./solana/reconcile-token2022-mainnet.sh "$MINT" /tmp/glr-mainnet/deployment-mainnet-evidence.json
       - name: Upload reconciliation evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -241,6 +241,8 @@ jobs:
             solana/reconciliation-mainnet-supply.txt
             solana/reconciliation-mainnet-mint-state.txt
             solana/reconciliation-mainnet-evidence.json
+            solana/reconciliation-mainnet-metadata.json
+            solana/reconciliation-mainnet-tx-*.json
 
   publish:
     name: Publish verified mainnet identity
