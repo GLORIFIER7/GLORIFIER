@@ -17,11 +17,11 @@ jobs:
       CI: true
     steps:
       - name: Checkout verified commit
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: npm
@@ -32,3 +32,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run production E2E
         run: npx playwright test tests/e2e/production.spec.ts
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/setup-node@820762786026740c76f36085b0efc47a31fe5020:sha1-820762786026740c76f36085b0efc47a31fe5020

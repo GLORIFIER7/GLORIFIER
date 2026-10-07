@@ -18,15 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Request GitHub OIDC identity
         if: ${{ env.GITHUB_ACTIONS_OIDC == 'true' }}
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
             core.info('GitHub Actions OIDC is enabled for this job. External federation must validate repository, workflow, ref, and actor claims before issuing short-lived credentials.');
@@ -51,3 +51,9 @@ jobs:
       - name: Report unconfigured database boundary
         if: steps.database.outputs.DATABASE_CONFIGURED != 'true'
         run: echo "Global collaboration cycle skipped truthfully because DATABASE_URL is unavailable."
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/setup-node@820762786026740c76f36085b0efc47a31fe5020:sha1-820762786026740c76f36085b0efc47a31fe5020
+  - github.com/actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3:sha1-3a2844b7e9c422d3c10d287c895573f7108da1b3
