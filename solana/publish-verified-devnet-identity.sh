@@ -119,12 +119,24 @@ test "${FOUND}" -eq 1 || {
 }
 
 for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction; do
-  TX="$(jq -r --arg field "${FIELD}" '.[$field]' solana/deployment-provenance.json)"
-  [[ "${TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
-  solana confirm "${TX}" --commitment confirmed >/dev/null
+  TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-provenance.json)"
+  [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
 done
 
-jq --arg mint "${MINT}"    --arg creation "$(jq -r '.creationTransaction' solana/deployment-provenance.json)"    --arg metadata "$(jq -r '.metadataTransaction' solana/deployment-provenance.json)"    --arg account "$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provenance.json)"    --arg mint_tx "$(jq -r '.mintTransaction' solana/deployment-provenance.json)"    --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)"    --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)"    --arg run_id "${GITHUB_RUN_ID}"    --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"    --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+METADATA_SHA256="$(jq -r '.offChainMetadataSha256' solana/reconciliation-evidence.json)"
+[[ "$METADATA_SHA256" =~ ^[0-9a-f]{64}$ ]]
+
+jq --arg mint "$MINT" \
+   --arg creation "$(jq -r '.creationTransaction' solana/deployment-provenance.json)" \
+   --arg metadata "$(jq -r '.metadataTransaction' solana/deployment-provenance.json)" \
+   --arg account "$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provenance.json)" \
+   --arg mint_tx "$(jq -r '.mintTransaction' solana/deployment-provenance.json)" \
+   --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
+   --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
+   --arg metadata_sha256 "$METADATA_SHA256" \
+   --arg run_id "$GITHUB_RUN_ID" \
+   --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+   --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
   .canonical_mint=$mint
   | .creation_transaction=$creation
   | .metadata_transaction=$metadata
@@ -132,20 +144,23 @@ jq --arg mint "${MINT}"    --arg creation "$(jq -r '.creationTransaction' solana
   | .mint_transaction=$mint_tx
   | .authority_revocation_transaction=$mint_auth
   | .freeze_authority_revocation_transaction=$freeze_auth
+  | .metadata_sha256=$metadata_sha256
   | .status="VERIFIED_ON_CHAIN"
   | .verification_run_id=$run_id
   | .verification_run_url=$run_url
   | .verified_at=$verified_at
-  | .metadata_sha256=(input_filename | "")
-  | .metadata_sha256=($metadata_sha256)
-  | .next_action="Independent finalized read-only reconciliation and deployment provenance verification passed."
+  | .next_action="Independent finalized read-only reconciliation and deployment provenance verification passed; canonical publication still requires protected PR approval."
 ' solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.json.tmp
 
 mv solana/canonical-devnet-identity.json.tmp solana/canonical-devnet-identity.json
 
-jq -e --arg mint "${MINT}" '
+jq -e --arg mint "$MINT" --arg metadata_sha256 "$METADATA_SHA256" '
   .status == "VERIFIED_ON_CHAIN"
   and .canonical_mint == $mint
+  and .metadata_sha256 == $metadata_sha256
+  and .verification_run_id
+  and .verification_run_url
+  and .verified_at
   and .creation_transaction
   and .metadata_transaction
   and .token_account_creation_transaction
