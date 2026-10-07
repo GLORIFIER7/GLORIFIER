@@ -236,6 +236,12 @@ PY
 
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$'; then
   echo "Metadata update authority is already disabled."
+  if [[ -z "$(jq -r '.metadataTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "TokenMetadataInstruction: Initialize")"
+    if [[ -z "${TX}" ]]; then TX="$(find_tx_by_log "${MINT}" "InitializeMetadata")"; fi
+    [[ -n "${TX}" ]] || { echo "::error::Canonical metadata exists but its initialization transaction could not be recovered."; exit 1; }
+    set_tx metadataTransaction "${TX}"
+  fi
 elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
      printf '%s\n' "${DISPLAY}" | grep -Fq "Symbol: ${EXPECTED_SYMBOL}" &&
      printf '%s\n' "${DISPLAY}" | grep -Fq "Mint: ${MINT}" &&
@@ -303,6 +309,11 @@ if (( CURRENT_SUPPLY < EXPECTED_SUPPLY )); then
   set_tx mintTransaction "${TX}"
 else
   echo "Canonical supply is already present; no additional GLR will be minted."
+  if [[ -z "$(jq -r '.mintTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "MintTo")"
+    [[ -n "${TX}" ]] || { echo "::error::Canonical supply exists but its historical mint transaction could not be recovered."; exit 1; }
+    set_tx mintTransaction "${TX}"
+  fi
 fi
 
 FINAL_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
@@ -311,6 +322,11 @@ test "${FINAL_SUPPLY}" = "${EXPECTED_SUPPLY}" || { echo "::error::Final supply i
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Mint[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
   echo "Mint authority already disabled."
+  if [[ -z "$(jq -r '.mintAuthorityRevocationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "mintTokens")"
+    [[ -n "${TX}" ]] || { echo "::error::Mint authority is already disabled, but its finalized SetAuthority transaction could not be recovered."; exit 1; }
+    set_tx mintAuthorityRevocationTransaction "${TX}"
+  fi
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"
   printf '%s\n' "${OUT}"
@@ -350,6 +366,12 @@ fi
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$'; then
   echo "Metadata update authority already disabled."
+  if [[ -z "$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "TokenMetadataInstruction: UpdateAuthority")"
+    if [[ -z "${TX}" ]]; then TX="$(find_tx_by_log "${MINT}" "updateTokenMetadataAuthority")"; fi
+    [[ -n "${TX}" ]] || { echo "::error::Metadata update authority is already disabled, but its finalized authority-update transaction could not be recovered."; exit 1; }
+    set_tx metadataUpdateAuthorityRevocationTransaction "${TX}"
+  fi
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
   printf '%s\n' "${OUT}"
