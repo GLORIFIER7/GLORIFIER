@@ -147,7 +147,7 @@ jobs:
             exit 1
           }
           SPL_TOKEN_VERSION="$(spl-token --version | awk '{print $2}')"
-          test "$SPL_TOKEN_VERSION" = "5.0.2" || {
+          test "$SPL_TOKEN_VERSION" = "5.6.1" || {
             echo "::error::Refusing deployment: expected spl-token 5.6.1 but got $SPL_TOKEN_VERSION"
             exit 1
           }
