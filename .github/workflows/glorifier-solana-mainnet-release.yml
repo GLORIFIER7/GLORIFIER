@@ -281,3 +281,9 @@ jobs:
           set -euo pipefail
           chmod +x solana/publish-verified-mainnet-identity.sh
           ./solana/publish-verified-mainnet-identity.sh
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a:sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+  - github.com/actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e:sha1-95815c38cf2ff2164869cbab79da8d1f422bc89e
