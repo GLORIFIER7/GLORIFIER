@@ -236,6 +236,27 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A prior authorized run already created a real mint before the parser
+          # failed. Treat that deployment as consumed and never create a second mint.
+          if [[ -f solana/devnet-deployment-recovery.json ]]; then
+            jq -e '
+              .status == "DEPLOYED_UNVERIFIED"
+              and .network == "solana-devnet"
+              and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+              and (.mint | type == "string" and length >= 32 and length <= 44)
+              and (.creationTransaction | type == "string" and length > 0)
+            ' solana/devnet-deployment-recovery.json >/dev/null || {
+              echo "::error::Invalid Solana Devnet deployment recovery record."
+              exit 1
+            }
+            PRIOR_MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+            PRIOR_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
+            echo "::error::A real GLR Token-2022 mint already exists from authorized deployment run \${PRIOR_RUN_ID}."
+            echo "::error::Existing mint: \${PRIOR_MINT}"
+            echo "::error::Do not create a second mint. Run the read-only reconciliation workflow."
+            exit 1
+          fi
+
           DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
           while IFS= read -r PRIOR_RUN_ID; do
