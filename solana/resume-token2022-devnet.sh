@@ -45,7 +45,7 @@ if [[ ! -f "${EVIDENCE}" ]]; then
   "symbol":"${EXPECTED_SYMBOL}",
   "decimals":${EXPECTED_DECIMALS},
   "totalSupply":"${EXPECTED_SUPPLY}",
-  "creationTransaction":null,
+  "creationTransaction":"22CCe2cgSYEG2gispHcrT3LVTMhGGmUynhvdYWEyUDgcPw3wjUzyaancgNQxcLHcLPPdH4RxhaeQqjN24o1dx2Tg",
   "metadataTransaction":null,
   "tokenAccountCreationTransaction":null,
   "mintTransaction":null,
