@@ -73,7 +73,7 @@ with urllib.request.urlopen(expected_uri,timeout=30) as response: data=response.
 print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":None,"metadataPointerAddress":ma,"metadataUpdateAuthority":None,"metadataMint":mm,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(data).hexdigest()},separators=(",",":")))
 PY
 jq -e --arg mint "$MINT" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri=="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json" and (.offChainMetadataSha256|length)==64' solana/reconciliation-mainnet-metadata.json >/dev/null
-for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
+for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
 jq -e --arg mint "$MINT" '.status=="READY_FOR_VERIFICATION" and .network=="solana-mainnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .mint==$mint' "$PROVENANCE" >/dev/null
 verify_tx() {
   local label="$1" tx="$2" patterns="$3"
@@ -97,13 +97,14 @@ verify_tx mint "$(jq -r '.mintTransaction' "$PROVENANCE")" 'MintTo|MintToChecked
 verify_tx mint-authority "$(jq -r '.mintAuthorityRevocationTransaction' "$PROVENANCE")" 'SetAuthority'
 verify_tx freeze-authority "$(jq -r '.freezeAuthorityRevocationTransaction' "$PROVENANCE")" 'SetAuthority'
 verify_tx metadata-authority "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' "$PROVENANCE")" 'SetAuthority|UpdateAuthority'
+verify_tx metadata-pointer-authority "$(jq -r '.metadataPointerAuthorityRevocationTransaction' "$PROVENANCE")" 'SetAuthority'
 
 cat > solana/reconciliation-mainnet-evidence.json <<EOF
 {
   "network":"solana-mainnet","status":"VERIFIED_ON_CHAIN","mode":"RECONCILIATION_READ_ONLY","commitment":"finalized","finalized":true,"transactionSemanticsVerified":true,
   "mint":"$MINT","programId":"$EXPECTED_PROGRAM","name":"$EXPECTED_NAME","symbol":"$EXPECTED_SYMBOL","decimals":9,"totalSupply":"1000000000",
   "mintAuthority":null,"freezeAuthority":null,"metadataUri":"$EXPECTED_METADATA_URI","metadataPointerAuthority":null,"metadataPointerAddress":"$MINT","metadataUpdateAuthority":null,"metadataMint":"$MINT",
-  "metadataUriInDisplay":true,"offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-mainnet-metadata.json)"
+  "metadataUriInDisplay":true,"metadataPointerAuthorityRevocationTransaction":"$(jq -r '.metadataPointerAuthorityRevocationTransaction' "$PROVENANCE")","offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-mainnet-metadata.json)"
 }
 EOF
 jq -e --arg mint "$MINT" '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and .finalized==true and .transactionSemanticsVerified==true and .mint==$mint and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==$mint and .metadataMint==$mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-mainnet-evidence.json >/dev/null
