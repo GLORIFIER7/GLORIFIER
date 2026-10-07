@@ -381,7 +381,7 @@ EOF
         run: |
           set -euo pipefail
           chmod +x solana/reconcile-token2022-devnet.sh
-          solana config set --commitment confirmed
+          solana config set --commitment finalized
           ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
 
       - name: Publish canonical identity after independent verification
@@ -399,7 +399,7 @@ EOF
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: glorifier-solana-devnet-reconciliation-evidence
-          retention-days: 90
+          retention-days: 3650
           if-no-files-found: warn
           path: |
             solana/reconciliation-status.txt
@@ -407,3 +407,7 @@ EOF
             solana/reconciliation-supply.txt
             solana/reconciliation-mint-state.txt
             solana/reconciliation-evidence.json
+            solana/reconciliation-metadata.json
+            solana/reconciliation-tx-*.json
+            solana/deployment-provenance.json
+            solana/verified-publication.json
