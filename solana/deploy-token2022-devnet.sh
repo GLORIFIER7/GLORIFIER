@@ -62,15 +62,42 @@ EOF
 }
 MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
-CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$CREATE_TOKEN_TX" || { echo "::error::Could not recover Token-2022 creation transaction signature."; exit 1; }
+
+# spl-token 5.x prints the mint in both the "Creating token <MINT>" line and
+# the "Address: <MINT>" line. Never derive the mint from Signature: — a
+# transaction signature is a different base58 value and may be mistaken for
+# the mint when parsed by field position.
+CREATED_MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Creating token[[:space:]]+/ {print $3; exit}')"
 MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
+CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:[[:space:]]+/ {print $2; exit}')"
+
+test -n "$CREATED_MINT" || {
+  echo "::error::Could not recover the Token-2022 mint from the 'Creating token' output."
+  exit 1
+}
+test -n "$MINT" || {
+  echo "::error::Could not recover the Token-2022 mint from the 'Address' output."
+  exit 1
+}
+test -n "$CREATE_TOKEN_TX" || {
+  echo "::error::Could not recover Token-2022 creation transaction signature."
+  exit 1
+}
+
+[[ "$CREATED_MINT" == "$MINT" ]] || {
+  echo "::error::Token-2022 CLI returned conflicting mint addresses."
+  printf 'Creating token mint: %s\n' "$CREATED_MINT"
+  printf 'Address mint: %s\n' "$MINT"
+  exit 1
+}
+
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
   echo "::error::spl-token returned an invalid Solana mint address."
   exit 1
 }
 
 echo "MINT=$MINT"
+echo "CREATE_TOKEN_TX=$CREATE_TOKEN_TX"
 
 # Persist a non-verified receipt immediately after the mint transaction returns.
 # This gives the workflow an artifact-based replay lock even if a later step fails.
