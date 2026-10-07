@@ -408,9 +408,9 @@ jobs:
             if [[ -z "${ARTIFACT_ID}" ]]; then
               mkdir -p solana
               cat > solana/reconciliation-status.txt <<'EOF'
-GLR_STATUS=NOT_VERIFIED
-REASON=NO_CANONICAL_MINT_OR_DEPLOYMENT_EVIDENCE
-EOF
+        GLR_STATUS=NOT_VERIFIED
+        REASON=NO_CANONICAL_MINT_OR_DEPLOYMENT_EVIDENCE
+        EOF
               cat > solana/reconciliation-evidence.json <<'EOF'
               {
                 "network": "solana-devnet",
