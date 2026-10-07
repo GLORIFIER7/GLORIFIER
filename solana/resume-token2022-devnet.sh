@@ -132,9 +132,10 @@ if [[ -z "${ACCOUNT_ADDRESS}" ]]; then
   OUT="$(spl-token --program-2022 create-account "${MINT}")"
   printf '%s\n' "${OUT}"
   ACCOUNT_ADDRESS="$(printf '%s\n' "${OUT}" | awk '/Creating account / {print $3; exit}')"
-TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/Signature:/ {print $2; exit}')"
-test -n "${ACCOUNT_ADDRESS}" || { echo "::error::Token account address evidence missing."; exit 1; }
-test -n "${TX}" || { echo "::error::Token account creation transaction evidence missing."; exit 1; }  set_tx tokenAccountCreationTransaction "${TX}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/Signature:/ {print $2; exit}')"
+  test -n "${ACCOUNT_ADDRESS}" || { echo "::error::Token account address evidence missing."; exit 1; }
+  test -n "${TX}" || { echo "::error::Token account creation transaction evidence missing."; exit 1; }
+  set_tx tokenAccountCreationTransaction "${TX}"
 else
   echo "Existing Token-2022 holder account: ${ACCOUNT_ADDRESS}"
 fi
