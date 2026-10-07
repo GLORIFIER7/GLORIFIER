@@ -3,6 +3,13 @@ name: GLORIFIER Solana Devnet Reconciliation
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/glorifier-solana-devnet-reconcile.yml"
+      - "solana/reconcile-token2022-devnet.sh"
+      - "solana/publish-verified-devnet-identity.sh"
+      - "solana/canonical-devnet-identity.json"
   workflow_dispatch:
     inputs:
       confirm:
@@ -16,10 +23,180 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 jobs:
+  # Solana reconciliation is infrastructure-only; Vercel must ignore this workflow surface.
+  validate:
+    name: Validate reconciliation assets
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate workflow and shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }' .github/workflows/glorifier-solana-devnet-reconcile.yml
+          bash -n solana/reconcile-token2022-devnet.sh
+          bash -n solana/publish-verified-devnet-identity.sh
+
+      - name: Validate JSON contracts and proposed identity state
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .asset == "GLORIFIER"
+            and .symbol == "GLR"
+            and .network == "solana-devnet"
+            and .token_standard == "Token-2022"
+            and .program_id == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+          ' solana/canonical-devnet-identity.json >/dev/null
+
+          STATUS="$(jq -r '.status' solana/canonical-devnet-identity.json)"
+          case "$STATUS" in
+            "NOT VERIFIED")
+              jq -e '
+                .canonical_mint == null
+                and .creation_transaction == null
+                and .mint_transaction == null
+                and .authority_revocation_transaction == null
+              ' solana/canonical-devnet-identity.json >/dev/null
+              ;;
+            "VERIFIED_ON_CHAIN")
+              jq -e '
+                (.canonical_mint | type == "string" and length >= 32 and length <= 44)
+                and .creation_transaction
+                and .metadata_transaction
+                and .token_account_creation_transaction
+                and .mint_transaction
+                and .authority_revocation_transaction
+                and .freeze_authority_revocation_transaction
+                and .verification_run_id
+                and .verification_run_url
+              ' solana/canonical-devnet-identity.json >/dev/null
+              test -f solana/verified-publication.json
+              test -f solana/deployment-provenance.json
+              MINT="$(jq -r '.canonical_mint' solana/canonical-devnet-identity.json)"
+              jq -e --arg mint "$MINT" '
+                .status == "READY_FOR_VERIFICATION"
+                and .network == "solana-devnet"
+                and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+                and .mint == $mint
+                and .name == "GLORIFIER"
+                and .symbol == "GLR"
+                and .decimals == 9
+                and .totalSupply == "1000000000"
+                and .mintAuthority == null
+                and .freezeAuthority == null
+              ' solana/deployment-provenance.json >/dev/null
+              jq -e --arg mint "$MINT" '
+                .status == "VERIFIED_ON_CHAIN"
+                and .mint == $mint
+              ' solana/verified-publication.json >/dev/null
+              ;;
+            *)
+              echo "::error::Unsupported canonical Devnet identity status: $STATUS"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify published identity against reconciliation run artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(jq -r '.status' solana/canonical-devnet-identity.json)"
+          if [[ "$STATUS" != "VERIFIED_ON_CHAIN" ]]; then
+            echo "Canonical identity is NOT VERIFIED; artifact provenance gate is not applicable."
+            exit 0
+          fi
+
+          RUN_ID="$(jq -r '.verification_run_id' solana/canonical-devnet-identity.json)"
+          test "$RUN_ID" != "null" && test -n "$RUN_ID"
+
+          ARTIFACT_ID=""
+          ARTIFACT_DIGEST=""
+          for attempt in $(seq 1 12); do
+            RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+            jq -e '
+              .path == ".github/workflows/glorifier-solana-devnet-reconcile.yml"
+              and .event == "workflow_dispatch"
+              and .head_branch == "main"
+              and .conclusion == "success"
+            ' <<<"$RUN_JSON" >/dev/null || {
+              echo "::error::Verification run provenance is not a successful authorized reconciliation run."
+              exit 1
+            }
+
+            ARTIFACTS_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
+            CANDIDATE="$(jq -r '
+              [.artifacts[]?
+               | select(.expired == false)
+               | select(.name == "glorifier-solana-devnet-reconciliation-evidence")
+               | select(.workflow_run.id == ('"$RUN_ID"' | tonumber))
+               | select(.digest != null and (.digest | startswith("sha256:")))]
+              | sort_by(.created_at)
+              | last
+              | [(.id // ""),(.digest // "")]
+              | @tsv
+            ' <<<"$ARTIFACTS_JSON")"
+            ARTIFACT_ID="$(printf '%s\n' "$CANDIDATE" | cut -f1)"
+            ARTIFACT_DIGEST="$(printf '%s\n' "$CANDIDATE" | cut -f2)"
+            if [[ -n "$ARTIFACT_ID" && -n "$ARTIFACT_DIGEST" && "$ARTIFACT_ID" != "$ARTIFACT_DIGEST" ]]; then
+              break
+            fi
+            sleep 5
+          done
+
+          test -n "$ARTIFACT_ID" && test -n "$ARTIFACT_DIGEST" && test "$ARTIFACT_ID" != "$ARTIFACT_DIGEST" || {
+            echo "::error::Reconciliation evidence artifact was not available for provenance verification."
+            exit 1
+          }
+
+          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/reconciliation-proof.zip
+          ACTUAL_DIGEST="sha256:$(sha256sum /tmp/reconciliation-proof.zip | awk '{print $1}')"
+          test "$ACTUAL_DIGEST" = "$ARTIFACT_DIGEST" || {
+            echo "::error::Reconciliation artifact digest mismatch."
+            exit 1
+          }
+
+          rm -rf /tmp/reconciliation-proof
+          mkdir -p /tmp/reconciliation-proof
+          unzip -oq /tmp/reconciliation-proof.zip -d /tmp/reconciliation-proof
+          ARTIFACT_EVIDENCE="$(find /tmp/reconciliation-proof -type f -name reconciliation-evidence.json -print -quit)"
+          test -n "$ARTIFACT_EVIDENCE"
+          cmp -s "$ARTIFACT_EVIDENCE" solana/reconciliation-evidence.json || {
+            echo "::error::Committed verification evidence does not exactly match the immutable reconciliation artifact."
+            exit 1
+          }
+
+          jq -e --arg mint "$(jq -r '.canonical_mint' solana/canonical-devnet-identity.json)" '
+            .status == "VERIFIED_ON_CHAIN"
+            and .commitment == "finalized"
+            and .finalized == true
+            and .transactionSemanticsVerified == true
+            and .metadataUriInDisplay == true
+            and .mint == $mint
+            and .metadataUpdateAuthority == null
+            and .metadataPointerAuthority == null
+          ' solana/reconciliation-evidence.json >/dev/null
+
+      - name: Enforce governed publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh; then
+            echo "::error::Verified identity publisher must never push directly to protected main."
+            exit 1
+          fi
+          grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
+          grep -Fq 'pull-requests: write' .github/workflows/glorifier-solana-devnet-reconcile.yml
+
   control-plane:
     name: Reconciliation control-plane health
     runs-on: ubuntu-latest
@@ -35,6 +212,11 @@ jobs:
 
   reconcile:
     name: Reconcile GLORIFIER GLR on Solana Devnet
+    needs: validate
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: write
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -204,7 +386,14 @@ EOF
                 and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
                 and (.status == "DEPLOYED" or .status == "READY_FOR_VERIFICATION" or .status == "FULLY_VERIFIED")
                 and (.mint | type == "string" and length >= 32 and length <= 44)
-                and (.status != "FULLY_VERIFIED" or (.verification.runId == $run_id and .verification.runUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id)))
+                and (.name == "GLORIFIER")
+                and (.symbol == "GLR")
+                and (.decimals == 9)
+                and (.totalSupply == "1000000000")
+                and (.mintAuthority == null)
+                and (.freezeAuthority == null)
+                and (.deploymentWorkflowRunId == $run_id)
+                and (.deploymentWorkflowRunUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id))
               ' "${EVIDENCE_FILE}" >/dev/null || {
                 echo "::error::Recovered deployment evidence failed workflow-run provenance validation."
                 exit 1
@@ -274,7 +463,7 @@ EOF
         run: |
           set -euo pipefail
           chmod +x solana/reconcile-token2022-devnet.sh
-          solana config set --commitment confirmed
+          solana config set --commitment finalized
           ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
 
       - name: Publish canonical identity after independent verification
@@ -292,7 +481,7 @@ EOF
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: glorifier-solana-devnet-reconciliation-evidence
-          retention-days: 90
+          retention-days: 3650
           if-no-files-found: warn
           path: |
             solana/reconciliation-status.txt
@@ -300,3 +489,7 @@ EOF
             solana/reconciliation-supply.txt
             solana/reconciliation-mint-state.txt
             solana/reconciliation-evidence.json
+            solana/reconciliation-metadata.json
+            solana/reconciliation-tx-*.json
+            solana/deployment-provenance.json
+            solana/verified-publication.json
