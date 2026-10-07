@@ -134,7 +134,10 @@ for _page in range(20):
         logs=meta.get("logMessages") or []
         instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
         haystack=json.dumps({"logs":logs,"instructions":instructions},separators=(",",":"))
-        if pattern in haystack:
+        # Solana/Token-2022 evidence can surface as log labels, parsed
+        # instruction types, or program-specific casing. Match the requested
+        # operation case-insensitively without accepting unrelated substrings.
+        if pattern.lower() in haystack.lower():
             print(sig)
             raise SystemExit(0)
     before=sigs[-1].get("signature")
