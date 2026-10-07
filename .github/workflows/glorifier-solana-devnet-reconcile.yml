@@ -104,6 +104,87 @@ jobs:
               ;;
           esac
 
+      - name: Verify published identity against reconciliation run artifact
+        env:
+          GH_TOKEN: ${{ { github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(jq -r '.status' solana/canonical-devnet-identity.json)"
+          if [[ "$STATUS" != "VERIFIED_ON_CHAIN" ]]; then
+            echo "Canonical identity is NOT VERIFIED; artifact provenance gate is not applicable."
+            exit 0
+          fi
+
+          RUN_ID="$(jq -r '.verification_run_id' solana/canonical-devnet-identity.json)"
+          test "$RUN_ID" != "null" && test -n "$RUN_ID"
+
+          ARTIFACT_ID=""
+          ARTIFACT_DIGEST=""
+          for attempt in $(seq 1 12); do
+            RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+            jq -e '
+              .path == ".github/workflows/glorifier-solana-devnet-reconcile.yml"
+              and .event == "workflow_dispatch"
+              and .head_branch == "main"
+              and .conclusion == "success"
+            ' <<<"$RUN_JSON" >/dev/null || {
+              echo "::error::Verification run provenance is not a successful authorized reconciliation run."
+              exit 1
+            }
+
+            ARTIFACTS_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
+            CANDIDATE="$(jq -r '
+              [.artifacts[]?
+               | select(.expired == false)
+               | select(.name == "glorifier-solana-devnet-reconciliation-evidence")
+               | select(.workflow_run.id == ('"$RUN_ID"' | tonumber))
+               | select(.digest != null and (.digest | startswith("sha256:")))]
+              | sort_by(.created_at)
+              | last
+              | [(.id // ""),(.digest // "")]
+              | @tsv
+            ' <<<"$ARTIFACTS_JSON")"
+            ARTIFACT_ID="$(printf '%s\n' "$CANDIDATE" | cut -f1)"
+            ARTIFACT_DIGEST="$(printf '%s\n' "$CANDIDATE" | cut -f2)"
+            if [[ -n "$ARTIFACT_ID" && -n "$ARTIFACT_DIGEST" && "$ARTIFACT_ID" != "$ARTIFACT_DIGEST" ]]; then
+              break
+            fi
+            sleep 5
+          done
+
+          test -n "$ARTIFACT_ID" && test -n "$ARTIFACT_DIGEST" && test "$ARTIFACT_ID" != "$ARTIFACT_DIGEST" || {
+            echo "::error::Reconciliation evidence artifact was not available for provenance verification."
+            exit 1
+          }
+
+          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/reconciliation-proof.zip
+          ACTUAL_DIGEST="sha256:$(sha256sum /tmp/reconciliation-proof.zip | awk '{print $1}')"
+          test "$ACTUAL_DIGEST" = "$ARTIFACT_DIGEST" || {
+            echo "::error::Reconciliation artifact digest mismatch."
+            exit 1
+          }
+
+          rm -rf /tmp/reconciliation-proof
+          mkdir -p /tmp/reconciliation-proof
+          unzip -oq /tmp/reconciliation-proof.zip -d /tmp/reconciliation-proof
+          ARTIFACT_EVIDENCE="$(find /tmp/reconciliation-proof -type f -name reconciliation-evidence.json -print -quit)"
+          test -n "$ARTIFACT_EVIDENCE"
+          cmp -s "$ARTIFACT_EVIDENCE" solana/reconciliation-evidence.json || {
+            echo "::error::Committed verification evidence does not exactly match the immutable reconciliation artifact."
+            exit 1
+          }
+
+          jq -e --arg mint "$(jq -r '.canonical_mint' solana/canonical-devnet-identity.json)" '
+            .status == "VERIFIED_ON_CHAIN"
+            and .commitment == "finalized"
+            and .finalized == true
+            and .transactionSemanticsVerified == true
+            and .mint == $mint
+            and .metadataUpdateAuthority == null
+            and .metadataPointerAuthority == null
+          ' solana/reconciliation-evidence.json >/dev/null
+
       - name: Enforce governed publication boundary
         shell: bash
         run: |
