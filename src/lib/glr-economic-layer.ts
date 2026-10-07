@@ -35,6 +35,7 @@ export interface GLRSettlementEvidenceInput {
   intentId: string;
   settlementTxRef: string;
   evidenceRef: string;
+  humanAuthorized: boolean;
   network?: string | null;
   externallyVerified?: boolean;
   verificationMethod?: 'chain-rpc' | 'explorer' | 'authoritative-ledger' | 'authorized-provider';
@@ -43,11 +44,11 @@ export interface GLRSettlementEvidenceInput {
 
 export function normalizeGLRAmount(value: string | number): string {
   const raw = String(value ?? '').trim();
-  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) {
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) {
     throw new Error('GLR amount must be a non-negative decimal string');
   }
   const [wholeRaw, fraction = ''] = raw.split('.');
-  const whole = wholeRaw.replace(/^0+(?=\\d)/, '');
+  const whole = wholeRaw.replace(/^0+(?=\d)/, '');
   const normalizedFraction = fraction.replace(/0+$/, '');
   return normalizedFraction ? `${whole}.${normalizedFraction}` : whole;
 }

@@ -43,6 +43,7 @@ jobs:
         run: npm run scan:geas-architecture
         env:
           GEAS_SCAN_OUTPUT_DIR: artifacts/geas-architecture
+          GEAS_SCAN_PERSIST: 'false'
 
       - name: Validate scan safety invariant
         run: |
