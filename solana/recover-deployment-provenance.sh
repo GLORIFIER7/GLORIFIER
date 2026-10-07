@@ -18,9 +18,9 @@ test "${RECOVERY_MINT}" = "${MINT}"
 LOG="/tmp/glorifier-deployment-job.log"
 gh run view --repo "${GITHUB_REPOSITORY}" --job "${JOB_ID}" --log > "${LOG}"
 
-extract_signatures_after_creation() {
-  awk '
-    /CREATE_TOKEN_TX=/ { active=1; next }
+extract_signatures_from_creation() {
+  awk -v mint="${MINT}" '
+    !active && $0 ~ "Creating token " mint " under program " { active=1; next }
     active && /Signature:/ {
       line=$0
       sub(/^.*Signature:[[:space:]]*/, "", line)
@@ -31,13 +31,15 @@ extract_signatures_after_creation() {
   ' "${LOG}"
 }
 
-CREATION_TX="$(awk -F'CREATE_TOKEN_TX=' '/CREATE_TOKEN_TX=/ {print $2; exit}' "${LOG}" | sed 's/[[:space:]]*$//')"
-[[ "${CREATION_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
-  echo "::error::Could not recover CREATE_TOKEN_TX from immutable deployment job ${JOB_ID}."
+mapfile -t DEPLOYMENT_TXS < <(extract_signatures_from_creation)
+test "${#DEPLOYMENT_TXS[@]}" -ge 7 || {
+  echo "::error::Expected the immutable deployment job to contain the creation transaction plus at least 6 follow-on transaction signatures; found ${#DEPLOYMENT_TXS[@]}."
   exit 1
 }
 
-mapfile -t FOLLOW_ON_TXS < <(extract_signatures_after_creation)
+CREATION_TX="${DEPLOYMENT_TXS[0]}"
+FOLLOW_ON_TXS=("${DEPLOYMENT_TXS[@]:1}")
+
 test "${#FOLLOW_ON_TXS[@]}" -ge 6 || {
   echo "::error::Expected at least 6 post-creation transaction signatures in deployment job ${JOB_ID}; found ${#FOLLOW_ON_TXS[@]}."
   exit 1
