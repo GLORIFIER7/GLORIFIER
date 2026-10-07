@@ -107,6 +107,31 @@ jobs:
           test "$(solana config get | awk -F': ' '/^RPC URL:/ {gsub(/[[:space:]]+$/, "", $2); print $2}')" = "$SOLANA_RPC_URL"
           solana address
 
+      - name: Verify Devnet funding for completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          BALANCE="$(solana balance --lamports | awk '{print $1}')"
+          BALANCE="${BALANCE:-0}"
+          if (( BALANCE < 10000000 )); then
+            echo "Deployment wallet is below the 10,000,000-lamport resume safety threshold; requesting Devnet SOL."
+            for attempt in 1 2 3; do
+              if solana airdrop 2 --url "$SOLANA_RPC_URL"; then
+                break
+              fi
+              echo "::warning::Devnet faucet attempt ${attempt} failed or was rate-limited."
+              sleep 5
+            done
+            BALANCE="$(solana balance --lamports | awk '{print $1}')"
+            BALANCE="${BALANCE:-0}"
+          fi
+          (( BALANCE >= 10000000 )) || {
+            echo "::error::Insufficient Devnet SOL to safely complete the recovered mint."
+            echo "::error::Retry the same authorized resume workflow later; do not create another mint."
+            exit 1
+          }
+          echo "Resume funding check passed: ${BALANCE} lamports."
+
       - name: Restore latest resume evidence
         env:
           GH_TOKEN: ${{ github.token }}
