@@ -196,8 +196,8 @@ fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 printf '%s\n' "${DISPLAY}" | tee solana/resume-final-mint-state.txt
-printf '%s\n' "${DISPLAY}" | grep -Eiq 'Name[[:space:]]*:[[:space:]]*${EXPECTED_NAME}'
-printf '%s\n' "${DISPLAY}" | grep -Eiq 'Symbol[[:space:]]*:[[:space:]]*${EXPECTED_SYMBOL}'
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Name[[:space:]]*:[[:space:]]*${EXPECTED_NAME}"
+printf '%s\n' "${DISPLAY}" | grep -Eiq "Symbol[[:space:]]*:[[:space:]]*${EXPECTED_SYMBOL}"
 printf '%s\n' "${DISPLAY}" | grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9'
 printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
