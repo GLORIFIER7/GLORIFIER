@@ -115,28 +115,56 @@ jobs:
             echo "::error::Missing GLORIFIER_SOLANA_KEYPAIR_JSON in the glorifier-solana-devnet environment."
             exit 1
           }
-          python3 - <<'PY'
-          import json,os,sys
-          raw=os.environ["GLORIFIER_SOLANA_KEYPAIR_JSON"].strip()
-          try:
-            value=json.loads(raw)
-          except json.JSONDecodeError:
-            value=None
-          if isinstance(value,str):
-            try: value=json.loads(value)
-            except json.JSONDecodeError: value=None
-          if not (isinstance(value,list) and len(value)==64 and all(isinstance(x,int) and not isinstance(x,bool) and 0<=x<=255 for x in value)):
-            print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON must contain a canonical 64-byte Solana keypair JSON array.",file=sys.stderr)
-            sys.exit(1)
-          os.makedirs(os.path.expanduser("~/.config/solana"),exist_ok=True)
-          with open(os.path.expanduser("~/.config/solana/glorifier-devnet-keypair.json"),"w") as f:
-            json.dump(value,f,separators=(",",":"))
-          PY
-          chmod 600 "$HOME/.config/solana/glorifier-devnet-keypair.json"
-          solana config set --url "$SOLANA_RPC_URL" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
-          test "$(solana config get | awk -F': ' '/^RPC URL:/ {gsub(/[[:space:]]+$/, "", $2); print $2}')" = "$SOLANA_RPC_URL"
-          solana address
 
+          # Accept canonical 64-byte JSON, a JSON string containing it, or base58 64-byte secret.
+          # Never print secret material.
+          python3 - <<'PY'
+          import json, os, sys
+          alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+          raw = os.environ["GLORIFIER_SOLANA_KEYPAIR_JSON"].strip()
+
+          def valid_array(value):
+              return (isinstance(value, list) and len(value) == 64 and
+                      all(isinstance(x, int) and not isinstance(x, bool) and 0 <= x <= 255 for x in value))
+
+          def decode_base58(value):
+              if not value: return None
+              try:
+                  n = 0
+                  for ch in value: n = n * 58 + alphabet.index(ch)
+              except (ValueError, UnicodeEncodeError):
+                  return None
+              decoded = b'' if n == 0 else n.to_bytes((n.bit_length() + 7) // 8, 'big')
+              decoded = (b'\x00' * (len(value) - len(value.lstrip('1')))) + decoded
+              return decoded if len(decoded) == 64 else None
+
+          try: value = json.loads(raw)
+          except json.JSONDecodeError: value = None
+          if isinstance(value, str):
+              try: value = json.loads(value)
+              except json.JSONDecodeError: value = None
+          if valid_array(value): normalized = value
+          else:
+              decoded = decode_base58(raw)
+              if decoded is None:
+                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON must be a 64-byte JSON keypair, a JSON string containing one, or base58 encoding of exactly 64 secret-key bytes.", file=sys.stderr)
+                  sys.exit(1)
+              normalized = list(decoded)
+
+          path = os.path.expanduser("~/.config/solana/glorifier-devnet-keypair.json")
+          os.makedirs(os.path.dirname(path), exist_ok=True)
+          with open(path, 'w', encoding='utf-8') as handle: json.dump(normalized, handle, separators=(',', ':'))
+          os.chmod(path, 0o600)
+          PY
+
+          KEYPAIR="$HOME/.config/solana/glorifier-devnet-keypair.json"
+          test -s "$KEYPAIR"
+          chmod 600 "$KEYPAIR"
+          solana config set --url "$SOLANA_RPC_URL" --keypair "$KEYPAIR"
+          test "$(solana config get | grep "^RPC URL:" | sed "s/^RPC URL:[[:space:]]*//")" = "$SOLANA_RPC_URL"
+          ADDRESS="$(solana-keygen pubkey "$KEYPAIR")"
+          test -n "$ADDRESS"
+          echo "Resume deployment wallet public key: $ADDRESS"
       - name: Verify Devnet funding for completion
         shell: bash
         run: |
