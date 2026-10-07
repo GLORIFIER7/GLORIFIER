@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GLORIFIER Verification Evidence Record",
+  "type": "object",
+  "required": ["claim_id", "claim_type", "status", "subject", "authorization_reference", "evidence_reference", "verified_at"],
+  "properties": {
+    "claim_id": {"type":"string","minLength":1},
+    "claim_type": {
+      "type":"string",
+      "enum":["A2A_CONFORMANCE","A2A_IDENTITY","MCP_INTEROPERABILITY","RUNTIME_CONTAINMENT","KUBERNETES_GPU","DYNAMO_RUNTIME","SEMANTIC_EQUIVALENCE","BILLING_RECONCILIATION","ECONOMIC_OUTCOME"]
+    },
+    "status": {
+      "type":"string",
+      "enum":["UNKNOWN","NOT_VERIFIED","PARTIALLY_VERIFIED","VERIFIED","FULLY_VERIFIED","DEGRADED","NOT_OBSERVABLE"]
+    },
+    "subject": {"type":"string","minLength":1},
+    "authorization_reference": {"type":"string","minLength":1},
+    "evidence_reference": {"type":"string","minLength":1},
+    "verified_at": {"type":"string","minLength":1},
+    "expires_at": {"type":["string","null"]},
+    "verifier": {"type":["string","null"]},
+    "scope": {"type":["string","null"]}
+  },
+  "additionalProperties": false
+}
