@@ -269,24 +269,17 @@ jobs:
 
           CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
 
-          if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
-            echo "An explicit mint was supplied; it is treated only as a provenance-binding hint."
-            if [[ -n "${CANONICAL_MINT}" && "${MINT_ADDRESS_INPUT}" != "${CANONICAL_MINT}" ]]; then
+          if [[ -n "${CANONICAL_MINT}" ]]; then
+            if [[ -n "${MINT_ADDRESS_INPUT}" && "${MINT_ADDRESS_INPUT}" != "${CANONICAL_MINT}" ]]; then
               echo "::error::Explicit mint does not match the published canonical Devnet mint."
               exit 1
             fi
-            MINT_ADDRESS="${MINT_ADDRESS_INPUT}"
-          elif [[ -n "${CANONICAL_MINT}" ]]; then
             MINT_ADDRESS="${CANONICAL_MINT}"
             echo "Recovered canonical mint from repository identity registry."
           else
             echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
-
-            if [[ -n "${CANONICAL_MINT}" ]]; then
-              MINT_ADDRESS="${CANONICAL_MINT}"
-              echo "Recovered canonical mint from repository identity registry."
-            else
-              echo "Canonical mint is not published; searching only Solana Devnet deployment workflow runs on main."
+            echo "Any explicit mint is matched against the recovered deployment artifact and cannot bypass provenance."
+            echo "Canonical mint is not published; searching only Solana Devnet deployment workflow runs on main."
               DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
               DEPLOYMENT_RUN_ID=""
