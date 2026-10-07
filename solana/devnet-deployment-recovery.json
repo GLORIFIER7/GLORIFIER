@@ -1,0 +1,11 @@
+{
+  "status": "DEPLOYED_UNVERIFIED",
+  "network": "solana-devnet",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "mint": "8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S",
+  "creationTransaction": "22CCe2cgSYEG2gispHcrT3LVTMhGGmUynhvdYWEyUDgcPw3wjUzyaancgNQxcLHcLPPdH4RxhaeQqjN24o1dx2Tg",
+  "deploymentWorkflowRunId": "37524079976",
+  "deploymentJobId": "112476524340",
+  "recoveryReason": "The authorized deployment transaction created this mint before the mint-parser failure. The workflow artifact recorded the trailing portion of the transaction signature as mint; this recovery record preserves the actual mint printed by spl-token in the immutable job log. It is not canonical verification.",
+  "canonicalization": "Independent read-only reconciliation is still required before this mint can become canonical."
+}
