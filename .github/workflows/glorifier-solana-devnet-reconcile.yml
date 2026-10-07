@@ -1,6 +1,11 @@
 name: GLORIFIER Solana Devnet Reconciliation
 
 on:
+  # Registration kick: touching this workflow on main causes GitHub Actions to register it.
+  # No reconciliation job runs for push events because execution jobs are workflow_dispatch-only.
+  push:
+    paths:
+      - ".github/workflows/glorifier-solana-devnet-reconcile.yml"
   workflow_dispatch:
     inputs:
       confirm:
