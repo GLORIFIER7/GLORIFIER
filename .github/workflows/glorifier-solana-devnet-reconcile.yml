@@ -289,13 +289,87 @@ jobs:
               echo "::error::Solana Devnet deployment recovery record failed validation."
               exit 1
             }
+
             MINT_ADDRESS="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
             RECOVERY_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
             if [[ -n "${MINT_ADDRESS_INPUT}" && "${MINT_ADDRESS_INPUT}" != "${MINT_ADDRESS}" ]]; then
               echo "::error::Explicit mint does not match the recovered authorized deployment mint."
               exit 1
             fi
-            echo "Recovered mint ${MINT_ADDRESS} from deployment run ${RECOVERY_RUN_ID}; canonical status remains NOT VERIFIED until reconciliation succeeds."
+
+            RESUME_RUN_ID=""
+            RESUME_ARTIFACT_ID=""
+            RESUME_ARTIFACT_DIGEST=""
+            RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+
+            while IFS= read -r CANDIDATE_RUN_ID; do
+              [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
+              [[ "${CANDIDATE_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
+              CANDIDATE_ARTIFACTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts?per_page=100")"
+              CANDIDATE="$(jq -r '
+                [.artifacts[]?
+                 | select(.expired == false)
+                 | select(.name == "glorifier-solana-devnet-resume-evidence")
+                 | select(.digest != null and (.digest | startswith("sha256:")))]
+                | sort_by(.created_at)
+                | last
+                | [(.id // ""), (.digest // "")]
+                | @tsv
+              ' <<<"${CANDIDATE_ARTIFACTS}")"
+              CANDIDATE_ID="${{CANDIDATE%%$'\t'*}"
+              CANDIDATE_DIGEST="${{CANDIDATE#*$'\t'}"
+              if [[ -n "${CANDIDATE_ID}" && -n "${CANDIDATE_DIGEST}" && "${CANDIDATE_ID}" != "${CANDIDATE_DIGEST}" ]]; then
+                RESUME_RUN_ID="${CANDIDATE_RUN_ID}"
+                RESUME_ARTIFACT_ID="${CANDIDATE_ID}"
+                RESUME_ARTIFACT_DIGEST="${CANDIDATE_DIGEST}"
+                break
+              fi
+            done < <(
+              jq -r '
+                [.workflow_runs[]?
+                 | select(.event == "workflow_dispatch")
+                 | select(.head_branch == "main")]
+                | sort_by(.created_at)
+                | reverse
+                | .[].id
+              ' <<<"${RESUME_RUNS_JSON}"
+            )
+
+            if [[ -n "${RESUME_ARTIFACT_ID}" ]]; then
+              rm -rf /tmp/glorifier-solana-resume-proof
+              mkdir -p /tmp/glorifier-solana-resume-proof
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RESUME_ARTIFACT_ID}/zip" > /tmp/glorifier-solana-resume-evidence.zip
+              ACTUAL_RESUME_DIGEST="sha256:$(sha256sum /tmp/glorifier-solana-resume-evidence.zip | awk '{print $1}')"
+              test "${ACTUAL_RESUME_DIGEST}" = "${RESUME_ARTIFACT_DIGEST}" || { echo "::error::Resume evidence artifact digest mismatch."; exit 1; }
+              unzip -oq /tmp/glorifier-solana-resume-evidence.zip -d /tmp/glorifier-solana-resume-proof
+              RESUME_EVIDENCE="$(find /tmp/glorifier-solana-resume-proof -type f -name "devnet-resume-evidence.json" -print -quit || true)"
+              test -n "${RESUME_EVIDENCE}" || { echo "::error::Resume evidence artifact does not contain devnet-resume-evidence.json."; exit 1; }
+              jq -e --arg mint "${MINT_ADDRESS}" '
+                .network == "solana-devnet"
+                and .status == "READY_FOR_VERIFICATION"
+                and .mint == $mint
+                and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+                and (.creationTransaction | type == "string" and length > 0)
+                and (.metadataTransaction | type == "string" and length > 0)
+                and (.tokenAccountCreationTransaction | type == "string" and length > 0)
+                and (.mintTransaction | type == "string" and length > 0)
+                and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
+                and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+                and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
+              ' "${RESUME_EVIDENCE}" >/dev/null || { echo "::error::Completed resume evidence failed provenance validation."; exit 1; }
+              jq --arg run_id "${RESUME_RUN_ID}" \
+                 --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RESUME_RUN_ID}" \
+                 --arg artifact_id "${RESUME_ARTIFACT_ID}" \
+                 --arg artifact_digest "${RESUME_ARTIFACT_DIGEST}" \
+                 '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}' \
+                 "${RESUME_EVIDENCE}" > solana/deployment-provenance.json
+              echo "Recovered mint ${MINT_ADDRESS} and trusted completed-resume provenance from run ${RESUME_RUN_ID}."
+            else
+              echo "::warning::No completed resume evidence artifact is available yet."
+              echo "::notice::The read-only reconciliation may report RECOVERY_REQUIRED; no mutation will occur."
+            fi
+
+            echo "MINT_ADDRESS=${MINT_ADDRESS}" >> "${GITHUB_ENV}"
           else
             echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
             echo "Any explicit mint is matched against the recovered deployment artifact and cannot bypass provenance."
