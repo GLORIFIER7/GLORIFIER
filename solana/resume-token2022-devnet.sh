@@ -189,62 +189,55 @@ for _page in range(20):
 PY
 }
 
-# A Token-2022 mint can legitimately have an authority disabled at creation.
-# If so, no later SetAuthority transaction exists. Verify the immutable
-# creation transaction itself proves the requested authority was null.
+# If an authority was disabled at mint creation, there is no later SetAuthority
+# transaction. Verify the finalized creation transaction explicitly instead of
+# fabricating a revocation transaction.
 authority_disabled_at_creation() {
   local address="$1"
   local authority="$2"
   python3 - "$SOLANA_RPC_URL" "$RECOVERY_CREATION_TX" "$address" "$authority" <<'PY'
 import json,sys,time,urllib.error,urllib.request
 rpc,signature,address,authority=sys.argv[1:]
-def call():
-    payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTransaction","params":[signature,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}]}).encode()
-    for attempt in range(6):
-        req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json","User-Agent":"GLORIFIER-Solana-Evidence/1.0"})
-        try:
-            with urllib.request.urlopen(req,timeout=30) as r: data=json.load(r)
-            if "error" in data or not data.get("result"):
-                if attempt < 5: time.sleep(min(2 ** attempt,10)); continue
-                return None
-            return data["result"]
-        except urllib.error.HTTPError as exc:
-            if exc.code in (429,500,502,503,504) and attempt < 5:
-                retry_after=exc.headers.get("Retry-After")
-                try: delay=max(1,min(int(retry_after),30)) if retry_after else min(2 ** attempt,10)
-                except (TypeError,ValueError): delay=min(2 ** attempt,10)
-                time.sleep(delay); continue
-            return None
-        except (urllib.error.URLError,TimeoutError):
-            if attempt < 5: time.sleep(min(2 ** attempt,10)); continue
-            return None
-    return None
-tx=call()
-if not tx: raise SystemExit(1)
-instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
-addr=address.lower()
-for ix in instructions:
-    parsed=ix.get("parsed") if isinstance(ix,dict) else None
-    if not isinstance(parsed,dict): continue
-    typ=str(parsed.get("type","")).lower()
-    info=parsed.get("info")
-    if not isinstance(info,dict) or typ not in ("initializemint","initializemint2"): continue
-    if str(info.get("mint","")).lower() != addr: continue
-    if authority == "freeze" and info.get("freezeAuthority") is None:
-        print("true"); raise SystemExit(0)
-    if authority == "mint" and info.get("mintAuthority") is None:
-        print("true"); raise SystemExit(0)
+payload=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTransaction","params":[signature,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}]}).encode()
+for attempt in range(6):
+    req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json","User-Agent":"GLORIFIER-Solana-Evidence/1.0"})
+    try:
+        with urllib.request.urlopen(req,timeout=30) as r: data=json.load(r)
+        tx=data.get("result")
+        if tx:
+            instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
+            for ix in instructions:
+                parsed=ix.get("parsed") if isinstance(ix,dict) else None
+                if not isinstance(parsed,dict): continue
+                if str(parsed.get("type",""")).lower() not in ("initializemint","initializemint2"): continue
+                info=parsed.get("info")
+                if not isinstance(info,dict) or str(info.get("mint","")).lower()!=address.lower(): continue
+                if authority=="freeze" and info.get("freezeAuthority") is None:
+                    print("true"); raise SystemExit(0)
+                if authority=="mint" and info.get("mintAuthority") is None:
+                    print("true"); raise SystemExit(0)
+            raise SystemExit(1)
+        if attempt < 5: time.sleep(min(2**attempt,10)); continue
+    except urllib.error.HTTPError as exc:
+        if exc.code in (429,500,502,503,504) and attempt < 5:
+            retry_after=exc.headers.get("Retry-After")
+            try: delay=max(1,min(int(retry_after),30)) if retry_after else min(2**attempt,10)
+            except (TypeError,ValueError): delay=min(2**attempt,10)
+            time.sleep(delay); continue
+        raise SystemExit(1)
+    except (urllib.error.URLError,TimeoutError):
+        if attempt < 5: time.sleep(min(2**attempt,10)); continue
+        raise SystemExit(1)
 raise SystemExit(1)
 PY
 }
 
 set_evidence_type() {
   local field="$1" value="$2"
-  jq --arg field "$field" --arg value "$value" '.[$field]=$value' "\${EVIDENCE}" > "\${EVIDENCE}.tmp"
-  mv "\${EVIDENCE}.tmp" "\${EVIDENCE}"
+  jq --arg field "$field" --arg value "$value" '.[ $field ]=$value' "${EVIDENCE}" > "${EVIDENCE}.tmp"
+  mv "${EVIDENCE}.tmp" "${EVIDENCE}"
 }
-
-if printf '%s\n' "\${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*
   echo "Metadata update authority is already disabled."
 elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
      printf '%s\n' "${DISPLAY}" | grep -Fq "Symbol: ${EXPECTED_SYMBOL}" &&
@@ -330,18 +323,18 @@ else
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if printf '%s\n' "\${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
+if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
   echo "Freeze authority already disabled."
-  if [[ -z "$(jq -r '.freezeAuthorityRevocationTransaction // empty' "\${EVIDENCE}")" ]]; then
-    TX="$(find_tx_by_log "\${MINT}" "freezeAccount")"
-    if [[ -z "\${TX}" ]]; then
-      TX="$(find_tx_by_log "\${MINT}" "FreezeAccount")"
+  if [[ -z "$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${MINT}" "freezeAccount")"
+    if [[ -z "${TX}" ]]; then
+      TX="$(find_tx_by_log "${MINT}" "FreezeAccount")"
     fi
-    if [[ -n "\${TX}" ]]; then
-      set_tx freezeAuthorityRevocationTransaction "\${TX}"
+    if [[ -n "${TX}" ]]; then
+      set_tx freezeAuthorityRevocationTransaction "${TX}"
       set_evidence_type freezeAuthorityRevocationEvidenceType "SET_AUTHORITY"
-    elif authority_disabled_at_creation "\${MINT}" freeze; then
-      set_tx freezeAuthorityRevocationTransaction "\${RECOVERY_CREATION_TX}"
+    elif authority_disabled_at_creation "${MINT}" freeze; then
+      set_tx freezeAuthorityRevocationTransaction "${RECOVERY_CREATION_TX}"
       set_evidence_type freezeAuthorityRevocationEvidenceType "DISABLED_AT_CREATION"
       echo "Freeze authority was disabled at mint creation; using creation transaction as provenance evidence."
     else
@@ -349,6 +342,12 @@ if printf '%s\n' "\${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Autho
       exit 1
     fi
   fi
+else
+  OUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"
+  printf '%s\n' "${OUT}"
+  TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "${TX}" || { echo "::error::Missing freeze-authority revocation signature."; exit 1; }
+  set_tx freezeAuthorityRevocationTransaction "${TX}"
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
