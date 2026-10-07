@@ -137,6 +137,7 @@ MINT_TX="$(jq -r '.mintTransaction' solana/deployment-provenance.json)"
 MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)"
 FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)"
 METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)"
+METADATA_POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)"
 verify_tx "creation" "$CREATION_TX" 'InitializeMint|InitializeMint2|CreateAccount'
 verify_tx "metadata" "$METADATA_TX" 'InitializeTokenMetadata|InitializeMetadata'
 verify_tx "token-account" "$ACCOUNT_TX" 'InitializeAccount|InitializeAccount3|Create'
@@ -144,6 +145,7 @@ verify_tx "mint" "$MINT_TX" 'MintTo|MintToChecked'
 verify_tx "mint-authority" "$MINT_AUTH_TX" 'SetAuthority'
 verify_tx "freeze-authority" "$FREEZE_AUTH_TX" 'SetAuthority'
 verify_tx "metadata-authority" "$METADATA_AUTH_TX" 'SetAuthority|UpdateAuthority'
+verify_tx "metadata-pointer-authority" "$METADATA_POINTER_AUTH_TX" 'SetAuthority'
 
 cat > solana/reconciliation-evidence.json <<EOF
 {
@@ -153,6 +155,7 @@ cat > solana/reconciliation-evidence.json <<EOF
   "decimals":$EXPECTED_DECIMALS,"totalSupply":"$EXPECTED_SUPPLY","mintAuthority":null,"freezeAuthority":null,
   "metadataUri":"$EXPECTED_METADATA_URI","metadataPointerAuthority":null,"metadataUpdateAuthority":null,
   "metadataPointerAddress":"$MINT","metadataMint":"$MINT","metadataUriInDisplay":true,
+  "metadataPointerAuthorityRevocationTransaction":"$METADATA_POINTER_AUTH_TX",
   "offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-metadata.json)",
   "transactionSemanticsVerified":true,"finalized":true
 }
