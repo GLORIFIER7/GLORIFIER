@@ -56,3 +56,9 @@ jobs:
           path: artifacts/geas-architecture/
           if-no-files-found: error
           retention-days: 30
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@v4:sha1-11bd71901bbe5b1630ceea73d27597364c9af683
+  - github.com/actions/setup-node@v4:sha1-49933ea5288caeca8642d1e84afbd3f7d6820020
+  - github.com/actions/upload-artifact@v4:sha1-ea165f8d65b6e75b540449e92b4886f43607fa02
