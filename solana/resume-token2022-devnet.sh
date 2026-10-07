@@ -57,6 +57,9 @@ if [[ ! -f "${EVIDENCE}" ]]; then
 EOF
 fi
 
+jq --arg tx "22CCe2cgSYEG2gispHcrT3LVTMhGGmUynhvdYWEyUDgcPw3wjUzyaancgNQxcLHcLPPdH4RxhaeQqjN24o1dx2Tg" '.creationTransaction=$tx' "${EVIDENCE}" > "${EVIDENCE}.tmp"
+mv "${EVIDENCE}.tmp" "${EVIDENCE}"
+
 jq -e --arg mint "${MINT}" '
   .mint == $mint
   and .network == "solana-devnet"
