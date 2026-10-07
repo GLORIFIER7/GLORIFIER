@@ -1,7 +1,7 @@
 name: GLORIFIER Solana Devnet Reconciliation (Manual)
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
     inputs:
       confirm:
         description: "Type VERIFY_GLORIFIER_SOLANA_DEVNET to authorize read-only reconciliation"
