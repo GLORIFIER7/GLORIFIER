@@ -289,32 +289,266 @@ jobs:
               echo "::error::Solana Devnet deployment recovery record failed validation."
               exit 1
             }
-
             MINT_ADDRESS="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
             RECOVERY_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
             if [[ -n "${MINT_ADDRESS_INPUT}" && "${MINT_ADDRESS_INPUT}" != "${MINT_ADDRESS}" ]]; then
               echo "::error::Explicit mint does not match the recovered authorized deployment mint."
               exit 1
             fi
-
+            # Bind completed resume provenance to this exact recovered mint.
             RESUME_RUN_ID=""
             RESUME_ARTIFACT_ID=""
             RESUME_ARTIFACT_DIGEST=""
             RESUME_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet-resume.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-
             while IFS= read -r CANDIDATE_RUN_ID; do
               [[ -n "${CANDIDATE_RUN_ID}" ]] || continue
               [[ "${CANDIDATE_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
-              CANDIDATE_ARTIFACTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts?per_page=100")"
-              CANDIDATE="$(jq -r '
+              RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}")"
+              jq -e '.path == ".github/workflows/glorifier-solana-devnet-resume.yml" and .event == "workflow_dispatch" and .head_branch == "main" and .conclusion == "success"' <<<"$RUN_JSON" >/dev/null || continue
+              ARTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}/artifacts?per_page=100")"
+              ROW="$(jq -r '.artifacts[]? | select(.expired == false) | select(.name == "glorifier-solana-devnet-resume-evidence") | select(.digest != null and (.digest | startswith("sha256:"))) | [(.id // ""),(.digest // "")] | @tsv' <<<"$ARTS" | tail -n 1)"
+              AID="$(printf "%s\n" "$ROW" | cut -f1)"
+              DIGEST="$(printf "%s\n" "$ROW" | cut -f2)"
+              if [[ -n "$AID" && -n "$DIGEST" && "$AID" != "$DIGEST" ]]; then
+                RESUME_RUN_ID="$CANDIDATE_RUN_ID"; RESUME_ARTIFACT_ID="$AID"; RESUME_ARTIFACT_DIGEST="$DIGEST"; break
+              fi
+            done < <(jq -r '[.workflow_runs[]? | select(.event == "workflow_dispatch") | select(.head_branch == "main")] | sort_by(.created_at) | reverse | .[].id' <<<"$RESUME_RUNS_JSON")
+            if [[ -n "${RESUME_ARTIFACT_ID}" ]]; then
+              rm -rf /tmp/glorifier-resume-proof && mkdir -p /tmp/glorifier-resume-proof
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RESUME_ARTIFACT_ID}/zip" > /tmp/glorifier-resume-proof.zip
+              ACTUAL_DIGEST="sha256:$(sha256sum /tmp/glorifier-resume-proof.zip | awk '{print $1}')"
+              test "$ACTUAL_DIGEST" = "$RESUME_ARTIFACT_DIGEST" || { echo "::error::Resume artifact digest mismatch."; exit 1; }
+              unzip -oq /tmp/glorifier-resume-proof.zip -d /tmp/glorifier-resume-proof
+              RESUME_EVIDENCE="$(find /tmp/glorifier-resume-proof -type f -name devnet-resume-evidence.json -print -quit || true)"
+              test -n "$RESUME_EVIDENCE" || { echo "::error::Resume artifact is missing evidence."; exit 1; }
+              jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "READY_FOR_VERIFICATION" and .mint == $mint and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.creationTransaction | type == "string" and length > 0) and (.metadataTransaction | type == "string" and length > 0) and (.tokenAccountCreationTransaction | type == "string" and length > 0) and (.mintTransaction | type == "string" and length > 0) and (.mintAuthorityRevocationTransaction | type == "string" and length > 0) and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0) and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)' "$RESUME_EVIDENCE" >/dev/null || { echo "::error::Resume evidence failed validation."; exit 1; }
+              jq --arg run "$RESUME_RUN_ID" --arg aid "$RESUME_ARTIFACT_ID" --arg digest "$RESUME_ARTIFACT_DIGEST" '. + {deploymentRunId:$run,deploymentRunUrl:("https://github.com/"+env.GITHUB_REPOSITORY+"/actions/runs/"+$run),deploymentArtifactId:$aid,deploymentArtifactDigest:$digest}' "$RESUME_EVIDENCE" > solana/deployment-provenance.json
+              echo "Completed resume provenance recovered from run $RESUME_RUN_ID."
+            else
+              echo "::notice::No completed resume evidence is available; reconciliation remains read-only."
+            fi
+            echo "Recovered mint ${MINT_ADDRESS} from deployment run ${RECOVERY_RUN_ID}; canonical status remains NOT VERIFIED until reconciliation succeeds."
+          else
+            echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
+            echo "Any explicit mint is matched against the recovered deployment artifact and cannot bypass provenance."
+            echo "Canonical mint is not published; searching only Solana Devnet deployment workflow runs on main."
+            DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+
+            DEPLOYMENT_RUN_ID=""
+            ARTIFACT_ID=""
+            ARTIFACT_DIGEST=""
+
+            while IFS= read -r DEPLOYMENT_RUN_ID_CANDIDATE; do
+              [[ -n "${DEPLOYMENT_RUN_ID_CANDIDATE}" ]] || continue
+
+              DEPLOYMENT_RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOYMENT_RUN_ID_CANDIDATE}")"
+              jq -e '.path == ".github/workflows/glorifier-solana-devnet.yml"
+                and .event == "workflow_dispatch"
+                and .head_branch == "main"
+                and .conclusion == "success"' <<<"${DEPLOYMENT_RUN_JSON}" >/dev/null || continue
+
+              RUN_ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOYMENT_RUN_ID_CANDIDATE}/artifacts?per_page=100")"
+
+              CANDIDATE="$(jq -r --arg run_id "${DEPLOYMENT_RUN_ID_CANDIDATE}" '
                 [.artifacts[]?
                  | select(.expired == false)
-                 | select(.name == "glorifier-solana-devnet-resume-evidence")
+                 | select(.name == "glorifier-solana-devnet-evidence")
+                 | select(.workflow_run.id == ($run_id | tonumber))
                  | select(.digest != null and (.digest | startswith("sha256:")))]
                 | sort_by(.created_at)
                 | last
                 | [(.id // ""), (.digest // "")]
                 | @tsv
-              ' <<<"${CANDIDATE_ARTIFACTS}")"
-              CANDIDATE_ID="${CANDIDATE%%$'\t'*}"
-  
+              ' <<<"${RUN_ARTIFACTS_JSON}")"
+
+              CANDIDATE_ARTIFACT_ID="${CANDIDATE%%$'\t'*}"
+              CANDIDATE_ARTIFACT_DIGEST="${CANDIDATE#*$'\t'}"
+
+              if [[ -n "${CANDIDATE_ARTIFACT_ID}" && -n "${CANDIDATE_ARTIFACT_DIGEST}" && "${CANDIDATE_ARTIFACT_ID}" != "${CANDIDATE_ARTIFACT_DIGEST}" ]]; then
+                DEPLOYMENT_RUN_ID="${DEPLOYMENT_RUN_ID_CANDIDATE}"
+                ARTIFACT_ID="${CANDIDATE_ARTIFACT_ID}"
+                ARTIFACT_DIGEST="${CANDIDATE_ARTIFACT_DIGEST}"
+                break
+              fi
+            done < <(
+              jq -r '
+                [.workflow_runs[]?
+                 | select(.event == "workflow_dispatch")
+                 | select(.head_branch == "main")
+                 | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
+                 | select(.conclusion == "success")]
+                | sort_by(.created_at)
+                | reverse
+                | .[].id
+              ' <<<"${DEPLOYMENT_RUNS_JSON}"
+            )
+
+            if [[ -z "${ARTIFACT_ID}" ]]; then
+              mkdir -p solana
+              cat > solana/reconciliation-status.txt <<'EOF'
+GLR_STATUS=NOT_VERIFIED
+REASON=NO_CANONICAL_MINT_OR_DEPLOYMENT_EVIDENCE
+EOF
+              cat > solana/reconciliation-evidence.json <<'EOF'
+{
+  "network": "solana-devnet",
+  "status": "NOT_VERIFIED",
+  "mode": "RECONCILIATION_READ_ONLY",
+  "verification_boundary": "No mint address or deployment evidence is currently published; this workflow did not create or mutate any asset.",
+  "mint": null,
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "totalSupply": "1000000000",
+  "mintAuthority": null,
+  "freezeAuthority": null,
+  "next_action": "Run the authorized Solana Devnet deployment workflow once before attempting reconciliation."
+}
+EOF
+              jq -e '.status == "NOT_VERIFIED" and .mode == "RECONCILIATION_READ_ONLY" and .mint == null' solana/reconciliation-evidence.json >/dev/null
+              echo "No canonical mint or deployment evidence exists; reconciliation remains NOT_VERIFIED."
+              exit 0
+            fi
+
+            echo "Resolved deployment run: ${DEPLOYMENT_RUN_ID}"
+            echo "Resolved deployment artifact: ${ARTIFACT_ID}"
+            echo "Expected artifact digest: ${ARTIFACT_DIGEST}"
+
+            rm -rf /tmp/glorifier-solana-recovered-evidence
+            mkdir -p /tmp/glorifier-solana-recovered-evidence
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-solana-devnet-evidence.zip
+
+            ACTUAL_ARTIFACT_DIGEST="sha256:$(sha256sum /tmp/glorifier-solana-devnet-evidence.zip | awk '{print $1}')"
+            test "${ACTUAL_ARTIFACT_DIGEST}" = "${ARTIFACT_DIGEST}" || {
+              echo "::error::Deployment artifact digest mismatch; refusing untrusted evidence."
+              echo "::error::Expected: ${ARTIFACT_DIGEST}"
+              echo "::error::Actual:   ${ACTUAL_ARTIFACT_DIGEST}"
+              exit 1
+            }
+
+            unzip -oq /tmp/glorifier-solana-devnet-evidence.zip -d /tmp/glorifier-solana-recovered-evidence
+
+            EVIDENCE_FILE="$(find /tmp/glorifier-solana-recovered-evidence -type f -name "deployment-evidence.json" -print -quit)"
+            test -n "${EVIDENCE_FILE}" || {
+              echo "::error::Deployment evidence artifact does not contain deployment-evidence.json."
+              exit 1
+            }
+
+            jq -e --arg run_id "${DEPLOYMENT_RUN_ID}" --arg repo "${GITHUB_REPOSITORY}" '
+              (.network == "solana-devnet")
+              and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+              and (.status == "DEPLOYED" or .status == "READY_FOR_VERIFICATION" or .status == "FULLY_VERIFIED")
+              and (.mint | type == "string" and length >= 32 and length <= 44)
+              and (.name == "GLORIFIER")
+              and (.symbol == "GLR")
+              and (.decimals == 9)
+              and (.totalSupply == "1000000000")
+              and (.mintAuthority == null)
+              and (.freezeAuthority == null)
+              and (.deploymentWorkflowRunId == $run_id)
+              and (.deploymentWorkflowRunUrl == ("https://github.com/" + $repo + "/actions/runs/" + $run_id))
+            ' "${EVIDENCE_FILE}" >/dev/null || {
+              echo "::error::Recovered deployment evidence failed workflow-run provenance validation."
+              exit 1
+            }
+
+            MINT_ADDRESS="$(jq -r '.mint // empty' "${EVIDENCE_FILE}")"
+            test -n "${MINT_ADDRESS}" || {
+              echo "::error::deployment-evidence.json does not contain a mint address."
+              exit 1
+            }
+
+            echo "Recovered mint from deployment evidence artifact ${ARTIFACT_ID}."
+          fi
+
+          if [[ -n "${MINT_ADDRESS_INPUT}" && -z "${CANONICAL_MINT}" && "${MINT_ADDRESS}" != "${MINT_ADDRESS_INPUT}" ]]; then
+            echo "::error::Explicit mint does not match the successful deployment artifact selected by provenance checks."
+            exit 1
+          fi
+
+          [[ "${MINT_ADDRESS}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
+            echo "::error::Invalid Solana mint address format."
+            exit 1
+          }
+
+          readonly EXCLUDED_EXISTING_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+          [[ "${MINT_ADDRESS}" != "${EXCLUDED_EXISTING_MINT}" ]] || {
+            echo "::error::Refusing the excluded pre-existing GLR mint."
+            exit 1
+          }
+
+          echo "MINT_ADDRESS=${MINT_ADDRESS}" >> "${GITHUB_ENV}"
+
+      - name: Validate resolved mint address
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${MINT_ADDRESS}"
+          echo "Resolved GLORIFIER Token-2022 Devnet mint: ${MINT_ADDRESS}"
+
+      - name: Install Solana CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
+
+      - name: Install SPL Token CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev pkg-config
+          cargo install spl-token-cli --locked --version 5.6.1
+          spl-token --version
+
+      - name: Configure canonical Devnet RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          solana config set --url "$SOLANA_RPC_URL"
+          RPC_URL="$(solana config get | awk -F': ' '/RPC URL/ {print $2}')"
+          test "$RPC_URL" = "$SOLANA_RPC_URL" || {
+            echo "::error::Refusing reconciliation: non-canonical Solana Devnet RPC: $RPC_URL"
+            exit 1
+          }
+          solana cluster-version
+
+      - name: Reconcile existing Token-2022 mint
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x solana/reconcile-token2022-devnet.sh
+          solana config set --commitment finalized
+          ./solana/reconcile-token2022-devnet.sh "$MINT_ADDRESS"
+
+      - name: Publish canonical identity after independent verification
+        if: ${{ success() && steps.reconcile.outputs.RECOVERY_REQUIRED == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x solana/publish-verified-devnet-identity.sh
+          ./solana/publish-verified-devnet-identity.sh
+
+      - name: Upload reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: glorifier-solana-devnet-reconciliation-evidence
+          retention-days: 3650
+          if-no-files-found: warn
+          path: |
+            solana/reconciliation-status.txt
+            solana/reconciliation-account.txt
+            solana/reconciliation-supply.txt
+            solana/reconciliation-mint-state.txt
+            solana/reconciliation-evidence.json
+            solana/reconciliation-metadata.json
+            solana/reconciliation-tx-*.json
+            solana/deployment-provenance.json
+            solana/verified-publication.json
