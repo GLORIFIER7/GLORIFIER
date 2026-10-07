@@ -26,6 +26,7 @@ write_evidence() {
   local mint_tx="${MINT_TX:-}"
   local mint_auth_tx="${MINT_AUTH_TX:-}"
   local freeze_auth_tx="${FREEZE_AUTH_TX:-}"
+  local metadata_auth_tx="${METADATA_AUTH_TX:-}"
 
   json_or_null() {
     if [[ -n "$1" ]]; then
@@ -53,6 +54,7 @@ write_evidence() {
   "mintTransaction": $(json_or_null "$mint_tx"),
   "mintAuthorityRevocationTransaction": $(json_or_null "$mint_auth_tx"),
   "freezeAuthorityRevocationTransaction": $(json_or_null "$freeze_auth_tx"),
+  "metadataUpdateAuthorityRevocationTransaction": $(json_or_null "$metadata_auth_tx"),
   "deploymentWorkflowRunId": $(json_or_null "${GITHUB_RUN_ID:-}"),
   "deploymentWorkflowRunUrl": $(json_or_null "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}")
 }
@@ -102,6 +104,11 @@ FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disabl
 printf '%s\n' "$FREEZE_AUTH_OUTPUT"
 FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
 test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
+
+METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
+printf '%s\n' "$METADATA_AUTH_OUTPUT"
+METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
 
 BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
 printf '%s\n' "$BALANCE_OUTPUT"
