@@ -94,8 +94,8 @@ PY
 )"
   jq -e --arg mint "$MINT" --arg program "$EXPECTED_PROGRAM" '.result != null and .result.meta.err == null and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($mint)) and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($program))' <<<"$json" >/dev/null
   local matched=0
-  IFS='|' read -ra pats <<<"$patterns"
-  for pat in $(printf '%s\n' $patterns); do
+  IFS='|' read -r -a pats <<<"$patterns"
+  for pat in "${pats[@]}"; do
     if jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | grep -Eiq "$pat"; then matched=1; break; fi
   done
   test "$matched" -eq 1
