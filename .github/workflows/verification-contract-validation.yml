@@ -19,7 +19,7 @@ jobs:
   validate-verification-contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Validate JSON contracts
         shell: bash
@@ -68,6 +68,9 @@ jobs:
           security=card.get("security", {})
           runtime=card.get("runtime_compatibility", {})
           assert security.get("runtimeContainmentStatus") == "NOT_VERIFIED"
+          assert security.get("networkEgressPolicyStatus") == "NOT_VERIFIED"
+          assert security.get("toolAllowlistStatus") == "NOT_VERIFIED"
+          assert security.get("auditTrailStatus") == "NOT_VERIFIED"
           assert runtime.get("status") == "NOT_VERIFIED"
           assert card.get("protocol", {}).get("conformance_status") == "NOT_VERIFIED"
           print("Unverified operational claims remain fail-closed.")
