@@ -82,6 +82,7 @@ while IFS= read -r RUN_ID; do
       and (.mintTransaction | type == "string" and length > 0)
       and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
       and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
+      and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
     ' "${EVIDENCE_FILE}" >/dev/null || continue
 
     jq --arg run_id "${RUN_ID}"        --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"        --arg artifact_id "${ARTIFACT_ID}"        --arg artifact_digest "${ARTIFACT_DIGEST}"        '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}'        "${EVIDENCE_FILE}" > solana/deployment-provenance.json
@@ -118,7 +119,7 @@ test "${FOUND}" -eq 1 || {
   exit 1
 }
 
-for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction; do
+for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
   TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-provenance.json)"
   [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
 done
@@ -133,6 +134,7 @@ jq --arg mint "$MINT" \
    --arg mint_tx "$(jq -r '.mintTransaction' solana/deployment-provenance.json)" \
    --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
+   --arg metadata_auth "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg metadata_sha256 "$METADATA_SHA256" \
    --arg run_id "$GITHUB_RUN_ID" \
    --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
@@ -144,6 +146,7 @@ jq --arg mint "$MINT" \
   | .mint_transaction=$mint_tx
   | .authority_revocation_transaction=$mint_auth
   | .freeze_authority_revocation_transaction=$freeze_auth
+  | .metadata_update_authority_revocation_transaction=$metadata_auth
   | .metadata_sha256=$metadata_sha256
   | .status="VERIFIED_ON_CHAIN"
   | .verification_run_id=$run_id
@@ -167,6 +170,7 @@ jq -e --arg mint "$MINT" --arg metadata_sha256 "$METADATA_SHA256" '
   and .mint_transaction
   and .authority_revocation_transaction
   and .freeze_authority_revocation_transaction
+  and .metadata_update_authority_revocation_transaction
 ' solana/canonical-devnet-identity.json >/dev/null
 
 cat > solana/verified-publication.json <<EOF
