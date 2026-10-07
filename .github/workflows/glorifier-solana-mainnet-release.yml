@@ -97,9 +97,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
-          spl-token --version
-          test "$(spl-token --version | awk '{print $2}')" = "5.0.2"
-      - name: Configure production signer
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/spl-token" --version
+          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
         run: |
           set -euo pipefail
           test -n "$SOLANA_RPC_URL"
@@ -187,6 +188,7 @@ jobs:
     name: Independent read-only mainnet reconciliation
     needs: deploy
     runs-on: ubuntu-latest
+    environment: glorifier-solana-mainnet
     env:
       SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
@@ -204,9 +206,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
-          spl-token --version
-          test "$(spl-token --version | awk '{print $2}')" = "5.0.2"
-      - name: Configure read-only production RPC
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/spl-token" --version
+          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
         run: |
           set -euo pipefail
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
