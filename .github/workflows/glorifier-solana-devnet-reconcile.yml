@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       mint_address:
-        description: "Existing GLORIFIER Token-2022 Devnet mint address to verify (leave blank to recover it from deployment evidence)"
+        description: "Optional mint hint; when canonical identity is absent it cannot bypass deployment provenance"
         required: false
         default: ""
         type: string
@@ -196,6 +196,7 @@ jobs:
           fi
           grep -Fq 'gh pr create' solana/publish-verified-devnet-identity.sh
           grep -Fq 'pull-requests: write' .github/workflows/glorifier-solana-devnet-reconcile.yml
+          grep -Fq 'and .conclusion == "success"' .github/workflows/glorifier-solana-devnet-reconcile.yml
 
   control-plane:
     name: Reconciliation control-plane health
@@ -266,12 +267,20 @@ jobs:
         run: |
           set -euo pipefail
 
+          CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
+
           if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
+            echo "An explicit mint was supplied; it is treated only as a provenance-binding hint."
+            if [[ -n "${CANONICAL_MINT}" && "${MINT_ADDRESS_INPUT}" != "${CANONICAL_MINT}" ]]; then
+              echo "::error::Explicit mint does not match the published canonical Devnet mint."
+              exit 1
+            fi
             MINT_ADDRESS="${MINT_ADDRESS_INPUT}"
-            echo "Using explicitly supplied existing mint address."
+          elif [[ -n "${CANONICAL_MINT}" ]]; then
+            MINT_ADDRESS="${CANONICAL_MINT}"
+            echo "Recovered canonical mint from repository identity registry."
           else
-            echo "No mint address supplied; checking canonical identity first."
-            CANONICAL_MINT="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
+            echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
 
             if [[ -n "${CANONICAL_MINT}" ]]; then
               MINT_ADDRESS="${CANONICAL_MINT}"
@@ -291,7 +300,7 @@ jobs:
                 jq -e '.path == ".github/workflows/glorifier-solana-devnet.yml"
                   and .event == "workflow_dispatch"
                   and .head_branch == "main"
-                  and (.conclusion != "cancelled")' <<<"${DEPLOYMENT_RUN_JSON}" >/dev/null || continue
+                  and .conclusion == "success"' <<<"${DEPLOYMENT_RUN_JSON}" >/dev/null || continue
 
                 RUN_ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOYMENT_RUN_ID_CANDIDATE}/artifacts?per_page=100")"
 
@@ -322,7 +331,7 @@ jobs:
                    | select(.event == "workflow_dispatch")
                    | select(.head_branch == "main")
                    | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
-                   | select(.conclusion != "cancelled")]
+                   | select(.conclusion == "success")]
                   | sort_by(.created_at)
                   | reverse
                   | .[].id
@@ -407,6 +416,12 @@ EOF
 
               echo "Recovered mint from deployment evidence artifact ${ARTIFACT_ID}."
             fi
+          fi
+
+          if [[ -n "${MINT_ADDRESS_INPUT}" && -z "${CANONICAL_MINT}" ]]; then
+            echo "::error::Explicit mint cannot bypass deployment provenance."
+            echo "::error::When no canonical mint exists, run the deployment workflow and let reconciliation recover its successful evidence artifact."
+            exit 1
           fi
 
           [[ "${MINT_ADDRESS}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
