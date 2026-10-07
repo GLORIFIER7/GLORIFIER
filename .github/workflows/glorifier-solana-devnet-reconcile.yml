@@ -276,6 +276,26 @@ jobs:
             fi
             MINT_ADDRESS="${CANONICAL_MINT}"
             echo "Recovered canonical mint from repository identity registry."
+          elif [[ -f solana/devnet-deployment-recovery.json ]]; then
+            echo "No canonical mint is published; using the immutable recovery record for the prior authorized deployment attempt."
+            jq -e '
+              .status == "DEPLOYED_UNVERIFIED"
+              and .network == "solana-devnet"
+              and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+              and (.mint | type == "string" and length >= 32 and length <= 44)
+              and (.creationTransaction | type == "string" and length > 0)
+              and (.deploymentWorkflowRunId | type == "string" and length > 0)
+            ' solana/devnet-deployment-recovery.json >/dev/null || {
+              echo "::error::Solana Devnet deployment recovery record failed validation."
+              exit 1
+            }
+            MINT_ADDRESS="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+            RECOVERY_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
+            if [[ -n "\${MINT_ADDRESS_INPUT}" && "\${MINT_ADDRESS_INPUT}" != "\${MINT_ADDRESS}" ]]; then
+              echo "::error::Explicit mint does not match the recovered authorized deployment mint."
+              exit 1
+            fi
+            echo "Recovered mint \${MINT_ADDRESS} from deployment run \${RECOVERY_RUN_ID}; canonical status remains NOT VERIFIED until reconciliation succeeds."
           else
             echo "No canonical mint is published; recovering a mint only from successful deployment evidence."
             echo "Any explicit mint is matched against the recovered deployment artifact and cannot bypass provenance."
