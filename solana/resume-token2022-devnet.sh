@@ -161,7 +161,24 @@ for _page in range(20):
         logs=meta.get("logMessages") or []
         instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
         haystack=json.dumps({"logs":logs,"instructions":instructions},separators=(",",":"))
-        if pattern.lower() in haystack.lower():
+        haystack_lower=haystack.lower()
+        wanted=pattern.lower()
+        # Authority revocations are Token-2022 SetAuthority instructions.
+        # The parsed instruction normally exposes authorityType=freezeAccount
+        # or mintTokens; it does not necessarily contain a "freezeAccount"
+        # log label. Match the semantic authority type as well as logs.
+        semantic_match=wanted in haystack_lower
+        if wanted in ("freezeaccount","freeze authority"):
+            semantic_match=semantic_match or (
+                '"authoritytype":"freezeaccount"' in haystack_lower
+                and ('"instruction":"setauthority"' in haystack_lower or '"type":"setauthority"' in haystack_lower)
+            )
+        elif wanted in ("minttokens","mint authority"):
+            semantic_match=semantic_match or (
+                '"authoritytype":"minttokens"' in haystack_lower
+                and ('"instruction":"setauthority"' in haystack_lower or '"type":"setauthority"' in haystack_lower)
+            )
+        if semantic_match:
             print(sig)
             raise SystemExit(0)
         time.sleep(0.05)
