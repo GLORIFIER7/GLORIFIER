@@ -28,7 +28,3 @@ jobs:
           else
             curl --fail-with-body --retry 2 --retry-delay 5 "$URL"
           fi
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-

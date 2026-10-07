@@ -291,9 +291,3 @@ jobs:
             contracts/broadcast/DeployGLORIFIER.s.sol/97/run-latest.json
             contracts/deployment-evidence.json
             contracts/deployment-preflight.env
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/foundry-rs/foundry-toolchain@v1:sha1-908c540300062bd5a7e473851cdb4282204cee09
-  - github.com/actions/upload-artifact@v7:sha1-cf430e030ddbb5b0abf93d22962f4752f3646cd9

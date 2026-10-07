@@ -29,7 +29,3 @@ jobs:
           }
           gh api --method PUT "/repos/${REPO}/actions/workflows/${WORKFLOW_ID}/enable"
           echo "Enabled workflow ID ${WORKFLOW_ID}."
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-

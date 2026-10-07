@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@v7
 
       - name: Run public-source brand scan
         env:
@@ -26,7 +26,3 @@ jobs:
           BRAND_MONITOR_WEBHOOK_SECRET: ${{ secrets.BRAND_MONITOR_WEBHOOK_SECRET }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/brand-monitor.mjs
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1

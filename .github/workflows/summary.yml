@@ -33,8 +33,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RESPONSE: ${{ steps.inference.outputs.response }}
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/actions/ai-inference@v3:sha1-2c43c91ae16266ca159d311430343c67a5ffa222

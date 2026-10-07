@@ -44,11 +44,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/actions/setup-node@v7:sha1-820762786026740c76f36085b0efc47a31fe5020
-  - github.com/actions/configure-pages@v6:sha1-45bfe0192ca1faeb007ade9deae92b16b8254a0d
-  - github.com/actions/upload-pages-artifact@v5:sha1-fc324d3547104276b827a68afc52ff2a11cc49c9
-  - github.com/actions/deploy-pages@v5:sha1-368f82528645a54fb793d4d04e342629a3f51346

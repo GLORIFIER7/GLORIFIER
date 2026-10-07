@@ -131,6 +131,7 @@ jobs:
             solana/deployment-provenance.json
             solana/verified-publication.json
 
+
 # Automatically generated and managed by gh-actions-pin
 dependencies:
   - github.com/actions/checkout@v7.0.1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1

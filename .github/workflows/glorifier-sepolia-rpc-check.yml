@@ -51,7 +51,3 @@ jobs:
           echo "Current Sepolia block: $BLOCK"
           test "$BLOCK" -gt 0
           echo "Sepolia RPC health check: PASSED"
-
-# Automatically generated and managed by gh-actions-pin
-dependencies:
-  - github.com/foundry-rs/foundry-toolchain@v1:sha1-908c540300062bd5a7e473851cdb4282204cee09
