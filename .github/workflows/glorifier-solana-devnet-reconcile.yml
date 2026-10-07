@@ -469,7 +469,7 @@ EOF
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.0.2
+          cargo install spl-token-cli --locked --version 5.6.1
           spl-token --version
 
       - name: Configure canonical Devnet RPC

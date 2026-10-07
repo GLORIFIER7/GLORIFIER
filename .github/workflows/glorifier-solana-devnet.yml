@@ -131,10 +131,10 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.0.2
+          cargo install spl-token-cli --locked --version 5.6.1
           CARGO_BIN="$HOME/.cargo/bin"
           test -x "$CARGO_BIN/spl-token" || {
-            echo "::error::spl-token-cli 5.0.2 was installed but the expected binary was not found at $CARGO_BIN/spl-token"
+            echo "::error::spl-token-cli 5.6.1 was installed but the expected binary was not found at $CARGO_BIN/spl-token"
             exit 1
           }
           export PATH="$CARGO_BIN:$PATH"
@@ -148,7 +148,7 @@ jobs:
           }
           SPL_TOKEN_VERSION="$(spl-token --version | awk '{print $2}')"
           test "$SPL_TOKEN_VERSION" = "5.0.2" || {
-            echo "::error::Refusing deployment: expected spl-token 5.0.2 but got $SPL_TOKEN_VERSION"
+            echo "::error::Refusing deployment: expected spl-token 5.6.1 but got $SPL_TOKEN_VERSION"
             exit 1
           }
           echo "Using pinned SPL Token CLI: $SPL_TOKEN_PATH (version $SPL_TOKEN_VERSION)"

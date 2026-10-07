@@ -96,7 +96,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.0.2
+          cargo install spl-token-cli --locked --version 5.6.1
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/spl-token" --version
@@ -209,7 +209,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.0.2
+          cargo install spl-token-cli --locked --version 5.6.1
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/spl-token" --version
