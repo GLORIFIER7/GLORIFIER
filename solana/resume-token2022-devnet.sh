@@ -100,7 +100,7 @@ CURRENT_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print 
 }
 
 # Initialize metadata only if the existing mint has not already been initialized.
-if printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Name:[[:space:]]*${EXPECTED_NAME}[[:space:]]*$'   && printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Symbol:[[:space:]]*${EXPECTED_SYMBOL}[[:space:]]*$'   && printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"; then
+if printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Name:[[:space:]]*${EXPECTED_NAME}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Symbol:[[:space:]]*${EXPECTED_SYMBOL}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"; then
   echo "Metadata is already initialized with the canonical GLORIFIER values."
 else
   if printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Name:'; then
