@@ -89,8 +89,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
           sh -c "$(curl -sSfL "https://release.anza.xyz/$AGAVE_VERSION/install")"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          test -x "$SOLANA_BIN/solana"
+          export PATH="$SOLANA_BIN:$PATH"
+          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           solana --version
 
       - name: Install SPL Token CLI
