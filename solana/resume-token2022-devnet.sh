@@ -105,16 +105,43 @@ find_tx_by_log() {
   local address="$1"
   local pattern="$2"
   python3 - "$SOLANA_RPC_URL" "$address" "$pattern" <<'PY'
-import json,sys,urllib.request
+import json,sys,time,urllib.error,urllib.request
 rpc,address,pattern=sys.argv[1:]
+
 def call(method, params):
     payload=json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
-    req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json"})
-    with urllib.request.urlopen(req,timeout=30) as r:
-        data=json.load(r)
-    if "error" in data:
-        raise SystemExit(0)
-    return data.get("result")
+    for attempt in range(6):
+        req=urllib.request.Request(
+            rpc,
+            data=payload,
+            headers={"Content-Type":"application/json","User-Agent":"GLORIFIER-Solana-Evidence/1.0"},
+        )
+        try:
+            with urllib.request.urlopen(req,timeout=30) as r:
+                data=json.load(r)
+            if "error" in data:
+                if attempt < 5:
+                    time.sleep(min(2 ** attempt, 10))
+                    continue
+                return None
+            return data.get("result")
+        except urllib.error.HTTPError as exc:
+            if exc.code in (429, 500, 502, 503, 504) and attempt < 5:
+                retry_after = exc.headers.get("Retry-After")
+                try:
+                    delay = max(1, min(int(retry_after), 30)) if retry_after else min(2 ** attempt, 10)
+                except (TypeError, ValueError):
+                    delay = min(2 ** attempt, 10)
+                time.sleep(delay)
+                continue
+            return None
+        except (urllib.error.URLError, TimeoutError):
+            if attempt < 5:
+                time.sleep(min(2 ** attempt, 10))
+                continue
+            return None
+    return None
+
 before=None
 for _page in range(20):
     params=[address,{"limit":1000,"commitment":"finalized"}]
@@ -134,18 +161,16 @@ for _page in range(20):
         logs=meta.get("logMessages") or []
         instructions=((tx.get("transaction") or {}).get("message") or {}).get("instructions") or []
         haystack=json.dumps({"logs":logs,"instructions":instructions},separators=(",",":"))
-        # Solana/Token-2022 evidence can surface as log labels, parsed
-        # instruction types, or program-specific casing. Match the requested
-        # operation case-insensitively without accepting unrelated substrings.
         if pattern.lower() in haystack.lower():
             print(sig)
             raise SystemExit(0)
+        time.sleep(0.05)
     before=sigs[-1].get("signature")
     if len(sigs)<1000:
         break
+    time.sleep(1)
 PY
 }
-
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$'; then
   echo "Metadata update authority is already disabled."
 elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
