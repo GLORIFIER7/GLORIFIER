@@ -26,7 +26,6 @@ jobs:
       SOLANA_RPC_URL: https://api.devnet.solana.com
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ inputs.confirm }}
-      MINT: 8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S
       GLORIFIER_RESUME_AUTHORIZED_WORKFLOW: "true"
 
     steps:
@@ -47,17 +46,44 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate immutable recovery record
+      - name: Resolve immutable recovery identity
         shell: bash
         run: |
           set -euo pipefail
-          jq -e --arg mint "$MINT" '
+          test -f solana/devnet-deployment-recovery.json || {
+            echo "::error::Missing immutable Devnet deployment recovery record."
+            exit 1
+          }
+
+          MINT="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
+          DEPLOYMENT_RUN_ID="$(jq -r '.deploymentWorkflowRunId // empty' solana/devnet-deployment-recovery.json)"
+
+          jq -e --arg mint "$MINT" --arg run_id "$DEPLOYMENT_RUN_ID" '
             .status=="DEPLOYED_UNVERIFIED"
             and .network=="solana-devnet"
             and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+            and (.mint | type=="string" and test("^[1-9A-HJ-NP-Za-km-z]{32,44}$"))
             and .mint==$mint
-            and .deploymentWorkflowRunId=="37524079976"
-          ' solana/devnet-deployment-recovery.json >/dev/null
+            and (.deploymentWorkflowRunId | type=="string" and length>0)
+            and .deploymentWorkflowRunId==$run_id
+            and (.creationTransaction | type=="string" and length>0)
+          ' solana/devnet-deployment-recovery.json >/dev/null || {
+            echo "::error::Immutable recovery record failed provenance validation."
+            exit 1
+          }
+
+          [[ "$MINT" != "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G" ]] || {
+            echo "::error::Recovered mint is explicitly excluded from GLR canonicalization."
+            exit 1
+          }
+
+          {
+            echo "MINT=$MINT"
+            echo "RECOVERED_DEPLOYMENT_RUN_ID=$DEPLOYMENT_RUN_ID"
+          } >> "$GITHUB_ENV"
+
+          echo "Recovered existing GLR mint from immutable deployment provenance."
+          echo "Deployment run: $DEPLOYMENT_RUN_ID"
 
       - name: Install Solana CLI
         shell: bash
