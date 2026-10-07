@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type DEPLOY_GLORIFIER_SOLANA_DEVNET to authorize a new Solana Devnet mint"
+        description: "Type DEPLOY_GLORIFIER_SOLANA_DEVNET to authorize the guarded Devnet deploy/resume path"
         required: true
         type: string
 
@@ -329,7 +329,6 @@ jobs:
           echo "Replay lock: no prior real GLR deployment evidence exists."
 
       - name: Configure dedicated deployment wallet
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -339,6 +338,16 @@ jobs:
           solana config set --url "${SOLANA_RPC_URL}" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
           solana address
 
+      - name: Resume recovered Token-2022 mint
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' }}
+        shell: bash
+        env:
+          GLORIFIER_AUTHORIZED_WORKFLOW: "true"
+        run: |
+          set -euo pipefail
+          MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+          chmod +x solana/resume-recovered-token2022-devnet.sh
+          ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
       - name: Verify Devnet RPC and recover Devnet funding
         if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
@@ -453,3 +462,4 @@ jobs:
           path: |
             solana/deployment-status.txt
             solana/deployment-evidence.json
+            solana/devnet-resume-evidence.json
