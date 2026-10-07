@@ -1,6 +1,10 @@
 name: GLORIFIER Solana Devnet Reconciliation (Manual)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/glorifier-solana-devnet-reconcile-manual.yml"
   workflow_dispatch:
     inputs:
       confirm:
