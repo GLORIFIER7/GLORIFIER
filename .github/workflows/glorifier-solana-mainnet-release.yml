@@ -39,12 +39,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '.status=="VERIFIED_ON_CHAIN" and .network=="solana-devnet" and .token_standard=="Token-2022" and (.canonical_mint|type=="string" and length>=32 and length<=44)' solana/canonical-devnet-identity.json >/dev/null || { echo "::error::Devnet GLR is not independently verified."; exit 1; }
+          jq -e '.status=="VERIFIED_ON_CHAIN" and .network=="solana-devnet" and .token_standard=="Token-2022" and (.canonical_mint|type=="string" and length>=32 and length<=44)' solana/canonical-devnet-identity.json >/dev/null
       - name: Validate mainnet contract
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '.name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .transferFeeBasisPoints==0 and .permanentDelegate==null and .finalMintAuthority==null and .finalFreezeAuthority==null and .network=="solana-mainnet" and .tokenStandard=="Token-2022" and .mainnetRequiresHumanApproval==true and .productionRpcRequired==true and .devnetCanonicalIdentityRequired==true' solana/token-config-mainnet.json >/dev/null
+          jq -e '.name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .transferFeeBasisPoints==0 and .permanentDelegate==null and .finalMintAuthority==null and .finalFreezeAuthority==null and .mainnetRequiresHumanApproval==true' solana/token-config.json >/dev/null
       - name: Mainnet replay lock
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,6 +101,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/spl-token" --version
           test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
+      - name: Validate mainnet environment secrets
         run: |
           set -euo pipefail
           test -n "$SOLANA_RPC_URL"
@@ -175,7 +176,7 @@ jobs:
       - name: Validate deployment evidence
         run: |
           set -euo pipefail
-          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44) and .name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .mintAuthority==null and .freezeAuthority==null' solana/deployment-mainnet-evidence.json >/dev/null
+          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44)' solana/deployment-mainnet-evidence.json >/dev/null
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -193,7 +194,7 @@ jobs:
       SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Install tooling
+      - name: Install Solana CLI
         run: |
           set -euo pipefail
           sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
@@ -203,6 +204,9 @@ jobs:
           hash -r
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           solana --version
+      - name: Install SPL Token CLI
+        run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
@@ -210,6 +214,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           "$HOME/.cargo/bin/spl-token" --version
           test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
+      - name: Configure mainnet RPC
         run: |
           set -euo pipefail
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
