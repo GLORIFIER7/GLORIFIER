@@ -39,4 +39,4 @@ jobs:
           MINT: ${{ inputs.mint_address }}
         run: |
           set -euo pipefail
-          gh workflow run glorifier-solana-devnet-reconcile-manual.yml             --repo "$REPO"             --ref main             -f confirm="$CONFIRM"             -f mint_address="$MINT"
+          gh workflow run glorifier-solana-devnet-reconcile-run.yml             --repo "$REPO"             --ref main             -f confirm="$CONFIRM"             -f mint_address="$MINT"
