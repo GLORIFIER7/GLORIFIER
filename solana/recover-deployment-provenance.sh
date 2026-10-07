@@ -36,28 +36,28 @@ require_signature() {
   local label="$1"
   local needle="$2"
   local value
-  value="$(extract_signature "$${needle}")"
-  [[ "$${value}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+  value="$(extract_signature "${needle}")"
+  [[ "${value}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
     echo "::error::Could not recover ${label} transaction signature from immutable deployment job ${JOB_ID}."
     exit 1
   }
-  printf '%s' "$${value}"
+  printf '%s' "${value}"
 }
 
 CREATION_TX="$(require_signature creation 'spl-token --program-2022 create-token')"
 METADATA_TX="$(require_signature metadata 'spl-token --program-2022 initialize-metadata')"
 ACCOUNT_TX="$(require_signature token-account 'spl-token --program-2022 create-account')"
-MINT_TX="$(require_signature mint 'spl-token --program-2022 mint "$${MINT}" "$${SUPPLY}"')"
-MINT_AUTH_TX="$(require_signature mint-authority 'spl-token --program-2022 authorize "$${MINT}" mint --disable')"
-FREEZE_AUTH_TX="$(require_signature freeze-authority 'spl-token --program-2022 authorize "$${MINT}" freeze --disable')"
-METADATA_AUTH_TX="$(require_signature metadata-update-authority 'spl-token --program-2022 authorize "$${MINT}" metadata --disable')"
+MINT_TX="$(require_signature mint 'spl-token --program-2022 mint "${MINT}" "${SUPPLY}"')"
+MINT_AUTH_TX="$(require_signature mint-authority 'spl-token --program-2022 authorize "${MINT}" mint --disable')"
+FREEZE_AUTH_TX="$(require_signature freeze-authority 'spl-token --program-2022 authorize "${MINT}" freeze --disable')"
+METADATA_AUTH_TX="$(require_signature metadata-update-authority 'spl-token --program-2022 authorize "${MINT}" metadata --disable')"
 
 RESUME_TX=""
 if [[ -f solana/devnet-resume-evidence.json ]]; then
   RESUME_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' solana/devnet-resume-evidence.json)"
 fi
 
-[[ "$${RESUME_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+[[ "${RESUME_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
   echo "::error::Recovered mint resume evidence is missing the Metadata Pointer authority-revocation transaction."
   echo "::error::Run the authorized Devnet deployment/resume workflow before reconciliation."
   exit 1
@@ -67,24 +67,24 @@ cat > solana/deployment-provenance.json <<EOF
 {
   "network": "solana-devnet",
   "status": "READY_FOR_VERIFICATION",
-  "programId": "$${EXPECTED_PROGRAM}",
-  "mint": "$${MINT}",
-  "deploymentRunId": "$${RUN_ID}",
-  "deploymentRunUrl": "$${GITHUB_SERVER_URL}/$${GITHUB_REPOSITORY}/actions/runs/$${RUN_ID}",
-  "deploymentJobId": "$${JOB_ID}",
+  "programId": "${EXPECTED_PROGRAM}",
+  "mint": "${MINT}",
+  "deploymentRunId": "${RUN_ID}",
+  "deploymentRunUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}",
+  "deploymentJobId": "${JOB_ID}",
   "provenanceSource": "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE",
-  "creationTransaction": "$${CREATION_TX}",
-  "metadataTransaction": "$${METADATA_TX}",
-  "tokenAccountCreationTransaction": "$${ACCOUNT_TX}",
-  "mintTransaction": "$${MINT_TX}",
-  "mintAuthorityRevocationTransaction": "$${MINT_AUTH_TX}",
-  "freezeAuthorityRevocationTransaction": "$${FREEZE_AUTH_TX}",
-  "metadataUpdateAuthorityRevocationTransaction": "$${METADATA_AUTH_TX}",
-  "metadataPointerAuthorityRevocationTransaction": "$${RESUME_TX}"
+  "creationTransaction": "${CREATION_TX}",
+  "metadataTransaction": "${METADATA_TX}",
+  "tokenAccountCreationTransaction": "${ACCOUNT_TX}",
+  "mintTransaction": "${MINT_TX}",
+  "mintAuthorityRevocationTransaction": "${MINT_AUTH_TX}",
+  "freezeAuthorityRevocationTransaction": "${FREEZE_AUTH_TX}",
+  "metadataUpdateAuthorityRevocationTransaction": "${METADATA_AUTH_TX}",
+  "metadataPointerAuthorityRevocationTransaction": "${RESUME_TX}"
 }
 EOF
 
-jq -e --arg mint "$${MINT}" '
+jq -e --arg mint "${MINT}" '
   .network == "solana-devnet"
   and .status == "READY_FOR_VERIFICATION"
   and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
