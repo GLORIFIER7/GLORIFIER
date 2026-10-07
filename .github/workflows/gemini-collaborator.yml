@@ -22,7 +22,7 @@ jobs:
       GEMINI_CLI_TRUST_WORKSPACE: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -30,7 +30,7 @@ jobs:
       - name: Run Gemini
         if: ${{ env.GEMINI_API_KEY != '' }}
         continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0.1.22
+        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         with:
           gemini_api_key: ${{ env.GEMINI_API_KEY }}
           gemini_cli_version: latest
@@ -84,5 +84,5 @@ jobs:
 
 # Automatically generated and managed by gh-actions-pin
 dependencies:
-  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
-  - github.com/google-github-actions/run-gemini-cli@v0.1.22:sha1-f77273f4c914e4bf38440cf36a0369cb64a37489
+  - github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489:sha1-f77273f4c914e4bf38440cf36a0369cb64a37489
