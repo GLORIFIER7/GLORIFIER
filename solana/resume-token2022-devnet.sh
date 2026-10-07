@@ -100,7 +100,7 @@ CURRENT_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print 
 }
 
 # Initialize metadata only if the existing mint has not already been initialized.
-if printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Name:[[:space:]]*${EXPECTED_NAME}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Symbol:[[:space:]]*${EXPECTED_SYMBOL}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"; then
+if printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Name:[[:space:]]*${EXPECTED_NAME}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Eq "^[[:space:]]*Symbol:[[:space:]]*${EXPECTED_SYMBOL}[[:space:]]*$"   && printf '%s\n' "${DISPLAY}" | grep -Eiq 'Update Authority.*(None|Disabled)|Metadata.*Update Authority.*(None|Disabled)'\nprintf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"; then
   echo "Metadata is already initialized with the canonical GLORIFIER values."
 else
   if printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Name:'; then
@@ -160,7 +160,7 @@ test "${FINAL_SUPPLY}" = "${EXPECTED_SUPPLY}" || {
 
 # Permanently revoke mint authority if it is still present.
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'; then
+if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\\(not set\\))'; then
   echo "Mint authority is already disabled."
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"
@@ -172,7 +172,7 @@ fi
 
 # Permanently revoke freeze authority if it is still present.
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'; then
+if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\\(not set\\))'; then
   echo "Freeze authority is already disabled."
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"
@@ -184,7 +184,7 @@ fi
 
 # Permanently revoke TokenMetadata update authority if it is still present.
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Update Authority.*None|Metadata.*Update Authority.*None'; then
+if printf '%s\n' "${DISPLAY}" | grep -Eiq 'Update Authority.*(None|Disabled)|Metadata.*Update Authority.*(None|Disabled)'; then
   echo "Metadata update authority is already disabled."
 else
   OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
@@ -199,8 +199,8 @@ printf '%s\n' "${DISPLAY}" | tee solana/resume-final-mint-state.txt
 printf '%s\n' "${DISPLAY}" | grep -Eiq "Name[[:space:]]*:[[:space:]]*${EXPECTED_NAME}"
 printf '%s\n' "${DISPLAY}" | grep -Eiq "Symbol[[:space:]]*:[[:space:]]*${EXPECTED_SYMBOL}"
 printf '%s\n' "${DISPLAY}" | grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9'
-printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
-printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\\(not set\\))'
+printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\\(not set\\))'
 printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"
 
 for field in metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
