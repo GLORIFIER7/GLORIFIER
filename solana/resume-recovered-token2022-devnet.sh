@@ -54,11 +54,12 @@ fi
 
 FINAL="$(spl-token --program-2022 display "${MINT}")"
 printf '%s\n' "${FINAL}"
-printf '%s\n' "${FINAL}" | awk '
+FINAL_AUTH="$(printf '%s\n' "${FINAL}" | awk '
   /Metadata Pointer:/ { in_pointer=1; next }
-  in_pointer && /^[[:space:]]*Authority:[[:space:]]*(Disabled|None)[[:space:]]*$/ { found=1; exit }
+  in_pointer && /^[[:space:]]*Authority:/ { print $2; exit }
   in_pointer && /^$/ { exit }
-'
+')"
+test "${FINAL_AUTH}" = "Disabled" || test "${FINAL_AUTH}" = "None"
 printf '%s\n' "${FINAL}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
 
