@@ -25,7 +25,10 @@ METADATA_TX=""; ACCOUNT_TX=""; MINT_TX=""; MINT_AUTH_TX=""; FREEZE_AUTH_TX=""; M
 # The original deployment stopped immediately after create-token. Complete the
 # existing mint in place; never create another mint.
 if ! printf '%s\n' "${DISPLAY}" | grep -Eq 'Metadata:[[:space:]]+GLORIFIER([[:space:]]|$)'; then
-  OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
+  MINT_AUTHORITY_KEYPAIR="${HOME}/.config/solana/glorifier-devnet-keypair.json"
+  OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}" \
+    --mint-authority "${MINT_AUTHORITY_KEYPAIR}" \
+    --update-authority "${SIGNER}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
   test -n "${METADATA_TX}"
