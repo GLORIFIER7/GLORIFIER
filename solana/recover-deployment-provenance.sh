@@ -12,8 +12,8 @@ JOB_ID="$(jq -r '.deploymentJobId // empty' solana/devnet-deployment-recovery.js
 RUN_ID="$(jq -r '.deploymentWorkflowRunId // empty' solana/devnet-deployment-recovery.json)"
 
 test "${RECOVERY_MINT}" = "${MINT}"
-test "${JOB_ID}" =~ ^[0-9]+$
-test "${RUN_ID}" =~ ^[0-9]+$
+[[ "${JOB_ID}" =~ ^[0-9]+$ ]]
+[[ "${RUN_ID}" =~ ^[0-9]+$ ]]
 
 LOG="/tmp/glorifier-deployment-job.log"
 gh run view --repo "${GITHUB_REPOSITORY}" --job "${JOB_ID}" --log > "${LOG}"
