@@ -26,6 +26,14 @@ jq -e '
   and .freezeAuthority == null
   and .metadataUri == "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
   and .metadataUriInDisplay == true
+  and .commitment == "finalized"
+  and .finalized == true
+  and .transactionSemanticsVerified == true
+  and .metadataPointerAuthority == null
+  and .metadataUpdateAuthority == null
+  and .metadataPointerAddress == .mint
+  and .metadataMint == .mint
+  and (.offChainMetadataSha256 | type == "string" and length == 64)
 ' solana/reconciliation-evidence.json >/dev/null
 
 MINT="$(jq -r '.mint' solana/reconciliation-evidence.json)"
@@ -128,7 +136,9 @@ jq --arg mint "${MINT}"    --arg creation "$(jq -r '.creationTransaction' solana
   | .verification_run_id=$run_id
   | .verification_run_url=$run_url
   | .verified_at=$verified_at
-  | .next_action="Independent read-only reconciliation and deployment provenance verification passed."
+  | .metadata_sha256=(input_filename | "")
+  | .metadata_sha256=($metadata_sha256)
+  | .next_action="Independent finalized read-only reconciliation and deployment provenance verification passed."
 ' solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.json.tmp
 
 mv solana/canonical-devnet-identity.json.tmp solana/canonical-devnet-identity.json
