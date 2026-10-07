@@ -101,11 +101,52 @@ CURRENT_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print 
 [[ "${CURRENT_SUPPLY}" =~ ^[0-9]+$ ]] || { echo "::error::Unable to read recovered mint supply."; exit 1; }
 (( CURRENT_SUPPLY <= EXPECTED_SUPPLY )) || { echo "::error::Recovered supply exceeds canonical supply."; exit 1; }
 
+find_tx_by_log() {
+  local address="$1"
+  local pattern="$2"
+  python3 - "$SOLANA_RPC_URL" "$address" "$pattern" <<'PY'
+import json,sys,urllib.request
+rpc,address,pattern=sys.argv[1:]
+def call(method, params):
+    payload=json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+    req=urllib.request.Request(rpc,data=payload,headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req,timeout=30) as r:
+        data=json.load(r)
+    if "error" in data:
+        raise SystemExit(0)
+    return data.get("result")
+sigs=call("getSignaturesForAddress",[address,{"limit":100,"commitment":"finalized"}]) or []
+for item in sigs:
+    sig=item.get("signature")
+    if not sig:
+        continue
+    tx=call("getTransaction",[sig,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}])
+    if not tx:
+        continue
+    logs=((tx.get("meta") or {}).get("logMessages") or [])
+    if any(pattern in str(log) for log in logs):
+        print(sig)
+        break
+PY
+}
+
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*(Update|Metadata.*Update)[[:space:]]+Authority:[[:space:]]*(None|Disabled|\(not set\))[[:space:]]*$'; then
   echo "Metadata update authority is already disabled."
+elif printf '%s\n' "${DISPLAY}" | grep -Fq "Name: ${EXPECTED_NAME}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "Symbol: ${EXPECTED_SYMBOL}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "Mint: ${MINT}" &&
+     printf '%s\n' "${DISPLAY}" | grep -Fq "URI: ${EXPECTED_METADATA_URI}"; then
+  echo "Existing metadata matches the canonical GLORIFIER metadata; refusing overwrite."
+  TX="$(find_tx_by_log "${MINT}" "InitializeMetadata")"
+  if [[ -n "${TX}" ]]; then
+    set_tx metadataTransaction "${TX}"
+  else
+    echo "::error::Canonical metadata exists, but its initialization transaction could not be recovered from finalized mint history."
+    exit 1
+  fi
 else
   if printf '%s\n' "${DISPLAY}" | grep -Eq '^[[:space:]]*Name:'; then
-    echo "::error::Metadata already exists but is not proven canonical; refusing overwrite."
+    echo "::error::Metadata already exists but does not match the canonical GLORIFIER metadata; refusing overwrite."
     exit 1
   fi
   OUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "${EXPECTED_NAME}" "${EXPECTED_SYMBOL}" "${EXPECTED_METADATA_URI}")"
@@ -138,6 +179,15 @@ if [[ -z "${ACCOUNT_ADDRESS}" ]]; then
   set_tx tokenAccountCreationTransaction "${TX}"
 else
   echo "Existing Token-2022 holder account: ${ACCOUNT_ADDRESS}"
+  if [[ -z "$(jq -r '.tokenAccountCreationTransaction // empty' "${EVIDENCE}")" ]]; then
+    TX="$(find_tx_by_log "${ACCOUNT_ADDRESS}" "InitializeAccount")"
+    if [[ -n "${TX}" ]]; then
+      set_tx tokenAccountCreationTransaction "${TX}"
+    else
+      echo "::error::Existing Token-2022 holder account was found, but its creation transaction could not be recovered from finalized account history."
+      exit 1
+    fi
+  fi
 fi
 
 if (( CURRENT_SUPPLY < EXPECTED_SUPPLY )); then
