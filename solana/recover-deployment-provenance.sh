@@ -28,11 +28,11 @@ extract_signatures_after_creation() {
       if (line ~ /^[1-9A-HJ-NP-Za-km-z]{64,88}$/) print line
     }
     active && /Post job cleanup/ { exit }
-  ' "$${LOG}"
+  ' "${LOG}"
 }
 
-CREATION_TX="$(awk -F'CREATE_TOKEN_TX=' '/CREATE_TOKEN_TX=/ {print $2; exit}' "$${LOG}" | sed 's/[[:space:]]*$//')"
-[[ "$${CREATION_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+CREATION_TX="$(awk -F'CREATE_TOKEN_TX=' '/CREATE_TOKEN_TX=/ {print $2; exit}' "${LOG}" | sed 's/[[:space:]]*$//')"
+[[ "${CREATION_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
   echo "::error::Could not recover CREATE_TOKEN_TX from immutable deployment job ${JOB_ID}."
   exit 1
 }
