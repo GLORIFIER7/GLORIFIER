@@ -18,40 +18,51 @@ test "${RUN_ID}" =~ ^[0-9]+$
 LOG="/tmp/glorifier-deployment-job.log"
 gh run view --repo "${GITHUB_REPOSITORY}" --job "${JOB_ID}" --log > "${LOG}"
 
-extract_signature() {
-  local needle="$1"
-  awk -v needle="$needle" '
-    index($0, needle) { active=1; next }
+extract_signatures_after_creation() {
+  awk '
+    /CREATE_TOKEN_TX=/ { active=1; next }
     active && /Signature:/ {
       line=$0
       sub(/^.*Signature:[[:space:]]*/, "", line)
       sub(/[[:space:]\r]+$/, "", line)
-      if (line ~ /^[1-9A-HJ-NP-Za-km-z]{64,88}$/) { print line; exit }
+      if (line ~ /^[1-9A-HJ-NP-Za-km-z]{64,88}$/) print line
     }
-    active && /##\[group\]/ && index($0, needle) == 0 { active=0 }
-  ' "$LOG"
+    active && /Post job cleanup/ { exit }
+  ' "$${LOG}"
 }
 
-require_signature() {
-  local label="$1"
-  local needle="$2"
-  local value
-  value="$(extract_signature "${needle}")"
+CREATION_TX="$(awk -F'CREATE_TOKEN_TX=' '/CREATE_TOKEN_TX=/ {print $2; exit}' "$${LOG}" | sed 's/[[:space:]]*$//')"
+[[ "$${CREATION_TX}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
+  echo "::error::Could not recover CREATE_TOKEN_TX from immutable deployment job ${JOB_ID}."
+  exit 1
+}
+
+mapfile -t FOLLOW_ON_TXS < <(extract_signatures_after_creation)
+test "${#FOLLOW_ON_TXS[@]}" -ge 6 || {
+  echo "::error::Expected at least 6 post-creation transaction signatures in deployment job ${JOB_ID}; found ${#FOLLOW_ON_TXS[@]}."
+  exit 1
+}
+
+METADATA_TX="${FOLLOW_ON_TXS[0]}"
+ACCOUNT_TX="${FOLLOW_ON_TXS[1]}"
+MINT_TX="${FOLLOW_ON_TXS[2]}"
+MINT_AUTH_TX="${FOLLOW_ON_TXS[3]}"
+FREEZE_AUTH_TX="${FOLLOW_ON_TXS[4]}"
+METADATA_AUTH_TX="${FOLLOW_ON_TXS[5]}"
+
+for pair in \
+  "metadata:${METADATA_TX}" \
+  "token-account:${ACCOUNT_TX}" \
+  "mint:${MINT_TX}" \
+  "mint-authority:${MINT_AUTH_TX}" \
+  "freeze-authority:${FREEZE_AUTH_TX}" \
+  "metadata-update-authority:${METADATA_AUTH_TX}"; do
+  value="${pair#*:}"
   [[ "${value}" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || {
-    echo "::error::Could not recover ${label} transaction signature from immutable deployment job ${JOB_ID}."
+    echo "::error::Recovered ${pair%%:*} transaction signature is invalid."
     exit 1
   }
-  printf '%s' "${value}"
-}
-
-CREATION_TX="$(require_signature creation 'spl-token --program-2022 create-token')"
-METADATA_TX="$(require_signature metadata 'spl-token --program-2022 initialize-metadata')"
-ACCOUNT_TX="$(require_signature token-account 'spl-token --program-2022 create-account')"
-MINT_TX="$(require_signature mint 'spl-token --program-2022 mint "${MINT}" "${SUPPLY}"')"
-MINT_AUTH_TX="$(require_signature mint-authority 'spl-token --program-2022 authorize "${MINT}" mint --disable')"
-FREEZE_AUTH_TX="$(require_signature freeze-authority 'spl-token --program-2022 authorize "${MINT}" freeze --disable')"
-METADATA_AUTH_TX="$(require_signature metadata-update-authority 'spl-token --program-2022 authorize "${MINT}" metadata --disable')"
-
+done
 RESUME_TX=""
 if [[ -f solana/devnet-resume-evidence.json ]]; then
   RESUME_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' solana/devnet-resume-evidence.json)"
