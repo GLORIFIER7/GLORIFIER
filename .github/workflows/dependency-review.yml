@@ -21,3 +21,8 @@ jobs:
         uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
+
+# Automatically generated and managed by gh-actions-pin
+dependencies:
+  - github.com/actions/checkout@v7:sha1-3d3c42e5aac5ba805825da76410c181273ba90b1
+  - github.com/actions/dependency-review-action@v5:sha1-a1d282b36b6f3519aa1f3fc636f609c47dddb294
