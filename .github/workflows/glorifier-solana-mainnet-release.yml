@@ -13,7 +13,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -85,24 +85,84 @@ jobs:
         run: |
           set -euo pipefail
           sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
+          test -x "$SOLANA_BIN/solana" || { echo "::error::Solana CLI installer completed but the expected binary was not found."; exit 1; }
+          export PATH="$SOLANA_BIN:$PATH"
+          hash -r
+          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
+          solana --version
       - name: Install SPL Token CLI
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
-      - name: Configure production signer
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/spl-token" --version
+          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.config/solana"
-          printf '%s' "$GLORIFIER_SOLANA_KEYPAIR_JSON" > "$HOME/.config/solana/glorifier-mainnet-keypair.json"
-          chmod 600 "$HOME/.config/solana/glorifier-mainnet-keypair.json"
           test -n "$SOLANA_RPC_URL"
           test -n "$GLORIFIER_SOLANA_KEYPAIR_JSON"
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          raw = os.environ["GLORIFIER_SOLANA_KEYPAIR_JSON"].strip()
+
+          def valid_array(value):
+              return (
+                  isinstance(value, list)
+                  and len(value) == 64
+                  and all(isinstance(x, int) and not isinstance(x, bool) and 0 <= x <= 255 for x in value)
+              )
+
+          try:
+              parsed = json.loads(raw)
+          except json.JSONDecodeError:
+              parsed = None
+
+          if valid_array(parsed):
+              normalized = parsed
+          elif isinstance(parsed, str):
+              try:
+                  nested = json.loads(parsed)
+              except json.JSONDecodeError:
+                  nested = None
+              if not valid_array(nested):
+                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON must be a 64-byte Solana keypair JSON array or a JSON string containing one.", file=sys.stderr)
+                  sys.exit(1)
+              normalized = nested
+          else:
+              alphabet = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+              try:
+                  value = 0
+                  for char in raw.encode("ascii"):
+                      value = value * 58 + alphabet.index(bytes([char]))
+                  decoded = value.to_bytes((value.bit_length() + 7) // 8, "big")
+                  leading = len(raw) - len(raw.lstrip("1"))
+                  decoded = b"\x00" * leading + decoded
+              except (ValueError, UnicodeEncodeError):
+                  decoded = b""
+              if len(decoded) != 64:
+                  print("::error::GLORIFIER_SOLANA_KEYPAIR_JSON is not a valid 64-byte Solana secret key.", file=sys.stderr)
+                  sys.exit(1)
+              normalized = list(decoded)
+
+          with open("/tmp/glorifier-mainnet-keypair.json", "w", encoding="utf-8") as handle:
+              json.dump(normalized, handle, separators=(",", ":"))
+          PY
+
+          chmod 600 /tmp/glorifier-mainnet-keypair.json
+          mkdir -p "$HOME/.config/solana"
+          cp /tmp/glorifier-mainnet-keypair.json "$HOME/.config/solana/glorifier-mainnet-keypair.json"
+          chmod 600 "$HOME/.config/solana/glorifier-mainnet-keypair.json"
           solana config set --url "$SOLANA_RPC_URL" --keypair "$HOME/.config/solana/glorifier-mainnet-keypair.json"
-          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
+          solana address
           solana cluster-version
           test "$(solana balance --lamports | awk '{print $1}')" -ge 50000000
       - name: Execute real mainnet deployment
@@ -128,19 +188,28 @@ jobs:
     name: Independent read-only mainnet reconciliation
     needs: deploy
     runs-on: ubuntu-latest
+    environment: glorifier-solana-mainnet
     env:
-      SOLANA_RPC_URL: ${ secrets.SOLANA_MAINNET_RPC_URL }
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install tooling
         run: |
           set -euo pipefail
           sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
+          test -x "$SOLANA_BIN/solana" || { echo "::error::Solana CLI installer completed but the expected binary was not found."; exit 1; }
+          export PATH="$SOLANA_BIN:$PATH"
+          hash -r
+          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
+          solana --version
           sudo apt-get update -qq
           sudo apt-get install -y -qq libudev-dev pkg-config
           cargo install spl-token-cli --locked --version 5.0.2
-      - name: Configure read-only production RPC
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/spl-token" --version
+          test "$("$HOME/.cargo/bin/spl-token" --version | awk '{print $2}')" = "5.0.2"
         run: |
           set -euo pipefail
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
@@ -176,6 +245,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pull-requests: write
     env:
       SOLANA_RPC_URL: ${{ secrets.SOLANA_MAINNET_RPC_URL }}
     steps:
@@ -184,7 +254,12 @@ jobs:
         run: |
           set -euo pipefail
           sh -c "curl -sSfL https://release.anza.xyz/v4.2.2/install | sh"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
+          test -x "$SOLANA_BIN/solana" || { echo "::error::Solana CLI installer completed but the expected binary was not found."; exit 1; }
+          export PATH="$SOLANA_BIN:$PATH"
+          hash -r
+          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
+          solana --version
           case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
           solana config set --url "$SOLANA_RPC_URL"
       - name: Download reconciliation evidence
@@ -194,7 +269,7 @@ jobs:
           path: solana
       - name: Publish after provenance and transaction confirmation
         env:
-          GH_TOKEN: ${ github.token }
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           chmod +x solana/publish-verified-mainnet-identity.sh
