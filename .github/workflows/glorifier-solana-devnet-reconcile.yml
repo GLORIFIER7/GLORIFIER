@@ -126,11 +126,15 @@ jobs:
             RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
             jq -e '
               .path == ".github/workflows/glorifier-solana-devnet-reconcile.yml"
-              and .event == "workflow_dispatch"
               and .head_branch == "main"
               and .conclusion == "success"
+              and (
+                (.event == "workflow_dispatch" and (.actor.login // "") != "")
+                or
+                (.event == "workflow_run" and (.name // "") == "GLORIFIER Solana Devnet Reconciliation")
+              )
             ' <<<"$RUN_JSON" >/dev/null || {
-              echo "::error::Verification run provenance is not a successful authorized reconciliation run."
+              echo "::error::Verification run provenance is not a successful main-branch reconciliation run."
               exit 1
             }
 
