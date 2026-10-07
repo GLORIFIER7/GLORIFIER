@@ -1,8 +1,6 @@
 name: GLORIFIER Solana Devnet Reconciliation
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
     paths:
@@ -33,7 +31,7 @@ jobs:
   # Solana reconciliation is infrastructure-only; Vercel must ignore this workflow surface.
   validate:
     name: Validate reconciliation assets
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -210,8 +208,10 @@ jobs:
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             echo "Authorized manual reconciliation request detected."
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            echo "Successful governed resume completion received; automatic reconciliation is read-only and provenance-bound."
           else
-            echo "Read-only reconciliation is manual-only; no asset mutation or verification is executed for this event."
+            echo "Pull-request validation only; no asset mutation or verification is executed for this event."
           fi
 
   reconcile:
