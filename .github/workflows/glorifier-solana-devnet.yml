@@ -230,6 +230,7 @@ jobs:
           EOF
 
       - name: Check deployment replay lock
+        id: replay_lock
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -251,10 +252,14 @@ jobs:
             }
             PRIOR_MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
             PRIOR_RUN_ID="$(jq -r '.deploymentWorkflowRunId' solana/devnet-deployment-recovery.json)"
-            echo "::error::A real GLR Token-2022 mint already exists from authorized deployment run ${PRIOR_RUN_ID}."
-            echo "::error::Existing mint: ${PRIOR_MINT}"
-            echo "::error::Do not create a second mint. Run the read-only reconciliation workflow."
-            exit 1
+            echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
+            echo "STATUS=RECONCILIATION_REQUIRED" > solana/deployment-status.txt
+            echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
+            echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
+            echo "::warning::A real GLR Token-2022 mint already exists from authorized deployment run ${PRIOR_RUN_ID}."
+            echo "::notice::Existing mint: ${PRIOR_MINT}"
+            echo "::notice::No second mint will be created. Continue with the read-only reconciliation workflow."
+            exit 0
           fi
 
           DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
@@ -296,11 +301,15 @@ jobs:
                 and (.status != "NOT_VERIFIED")
               ' "${EVIDENCE_FILE}" >/dev/null; then
                 PRIOR_MINT="$(jq -r '.mint' "${EVIDENCE_FILE}")"
-                echo "::error::A prior deployment run already produced real GLR deployment evidence."
-                echo "::error::Prior run: ${PRIOR_RUN_ID}"
-                echo "::error::Prior mint: ${PRIOR_MINT}"
-                echo "::error::Do not create another mint. Use the reconciliation workflow."
-                exit 1
+                echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
+                echo "STATUS=RECONCILIATION_REQUIRED" > solana/deployment-status.txt
+                echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
+                echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
+                echo "::warning::A prior deployment run already produced real GLR deployment evidence."
+                echo "::notice::Prior run: ${PRIOR_RUN_ID}"
+                echo "::notice::Prior mint: ${PRIOR_MINT}"
+                echo "::notice::No second mint will be created. Use the read-only reconciliation workflow."
+                exit 0
               fi
             fi
           done < <(
@@ -315,9 +324,12 @@ jobs:
             ' <<<"${DEPLOYMENT_RUNS_JSON}"
           )
 
+          echo "DEPLOYABLE=true" >> "$GITHUB_OUTPUT"
+          echo "STATUS=DEPLOYMENT_AUTHORIZED" > solana/deployment-status.txt
           echo "Replay lock: no prior real GLR deployment evidence exists."
 
       - name: Configure dedicated deployment wallet
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -328,6 +340,7 @@ jobs:
           solana address
 
       - name: Verify Devnet RPC and recover Devnet funding
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -381,6 +394,7 @@ jobs:
           echo "Devnet funding check passed: ${BALANCE} lamports."
 
       - name: Execute real Token-2022 GLORIFIER deployment
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
@@ -390,6 +404,7 @@ jobs:
           ./solana/deploy-token2022-devnet.sh
 
       - name: Validate real deployment evidence
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -415,6 +430,7 @@ jobs:
           ' solana/deployment-evidence.json >/dev/null
 
       - name: Explicitly keep canonical identity NOT VERIFIED until independent reconciliation
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
