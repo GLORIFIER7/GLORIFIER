@@ -110,7 +110,7 @@ if update_authority != none_key: raise SystemExit("TokenMetadata update authorit
 if metadata_mint != mint: raise SystemExit("TokenMetadata mint field does not match target mint")
 if name != expected_name or symbol != expected_symbol or uri != expected_uri: raise SystemExit("on-chain TokenMetadata fields do not match GLORIFIER contract")
 with urllib.request.urlopen(expected_uri, timeout=30) as response: metadata_bytes = response.read()
-print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":null,"metadataPointerAddress":metadata_address,"metadataUpdateAuthority":None,"metadataMint":metadata_mint,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(metadata_bytes).hexdigest()}, separators=(",",":")))
+print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":None,"metadataPointerAddress":metadata_address,"metadataUpdateAuthority":None,"metadataMint":metadata_mint,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(metadata_bytes).hexdigest()}, separators=(",",":")))
 PY
 jq -e --arg mint "$MINT" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri=="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json" and (.offChainMetadataSha256|type=="string" and length==64)' solana/reconciliation-metadata.json >/dev/null
 
