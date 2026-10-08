@@ -1,6 +1,9 @@
 name: GLORIFIER Solana Devnet Reconciliation
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       confirm:
@@ -47,11 +50,16 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             test "${GITHUB_REF}" = "refs/heads/main"
             test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
-          else
-            test "${GITHUB_EVENT_NAME}" = "workflow_run"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
             test "${{ github.event.workflow_run.conclusion }}" = "success"
             test "${{ github.event.workflow_run.head_branch }}" = "main"
             test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            test "${GITHUB_REF}" = "refs/heads/main"
+            test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          else
+            echo "::error::Unsupported event: ${GITHUB_EVENT_NAME}"
+            exit 1
           fi
           if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
             [[ "${MINT_ADDRESS_INPUT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
