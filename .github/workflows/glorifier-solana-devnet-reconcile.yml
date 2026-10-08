@@ -154,7 +154,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh -c "curl -sSfL https://release.anza.xyz/${AGAVE_VERSION}/install"
+          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
           SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           export PATH="$SOLANA_BIN:$PATH"
@@ -207,15 +207,13 @@ jobs:
         run: |
           set -euo pipefail
           test -f solana/deployment-provenance.json
-          jq -e --arg mint "${MINT_ADDRESS}"             '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true'             solana/deployment-provenance.json >/dev/null
-
+          jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true' solana/deployment-provenance.json >/dev/null
           cat > solana/reconciliation-status.txt <<EOF
           GLR_STATUS=RECOVERY_REQUIRED
           REASON=RECOVERED_MINT_IS_IRRECOVERABLE
           MINT=${MINT_ADDRESS}
           NEXT_ACTION=EXPLICIT_HUMAN_DECISION_REQUIRED
           EOF
-
           cat > solana/reconciliation-evidence.json <<EOF
           {
             "network":"solana-devnet",
