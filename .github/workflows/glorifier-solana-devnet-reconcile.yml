@@ -38,6 +38,7 @@ jobs:
       AGAVE_VERSION: v4.2.2
       CONFIRMATION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm || 'VERIFY_GLORIFIER_SOLANA_DEVNET' }}
       MINT_ADDRESS_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.mint_address || '' }}
+
     steps:
       - name: Enforce authorization and main branch
         shell: bash
@@ -77,160 +78,79 @@ jobs:
           set -euo pipefail
           canonical="$(jq -r '.canonical_mint // empty' solana/canonical-devnet-identity.json)"
           mint=""
+
           if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
             mint="${MINT_ADDRESS_INPUT}"
           else
-            # Never let a stale repository canonical value shadow a newer
-            # authorized deployment. Prefer the newest successful deployment
-            # artifact; canonical identity is only published after independent
-            # finalized reconciliation.
-
             RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+
             while IFS= read -r run_id; do
               [[ -n "${run_id}" ]] || continue
               artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
-              while IFS=
-      - name: Install Solana CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
-          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
-          echo "$SOLANA_BIN" >> "$GITHUB_PATH"
-          export PATH="$SOLANA_BIN:$PATH"
-          command -v solana
-          solana --version
 
-      - name: Install SPL Token CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev pkg-config
-          cargo install spl-token-cli --locked --version 5.6.1
-          spl-token --version
-
-      - name: Configure finalized Devnet
-        shell: bash
-        run: |
-          set -euo pipefail
-          solana config set --url "${SOLANA_RPC_URL}" --commitment finalized
-          test "$(solana config get | awk -F': ' '/RPC URL/ {print $2}' | sed 's/[[:space:]]*$//')" = "${SOLANA_RPC_URL}"
-
-          # Devnet RPC can transiently return 429/5xx. Require a valid
-          # finalized JSON-RPC response before reconciliation proceeds.
-          rpc_ok=false
-          for attempt in 1 2 3 4 5 6; do
-            response="$(curl --fail --silent --show-error --max-time 20 \
-              -H 'content-type: application/json' \
-              --data '{"jsonrpc":"2.0","id":1,"method":"getEpochInfo","params":[{"commitment":"finalized"}]}' \
-              "${SOLANA_RPC_URL}" 2>/dev/null || true)"
-            if jq -e '.jsonrpc == "2.0" and (.result.absoluteSlot | type == "number")' >/dev/null 2>&1 <<<"${response}"; then
-              rpc_ok=true
-              echo "Finalized Devnet RPC healthy on attempt ${attempt}"
-              echo "${response}" | jq '.result | {absoluteSlot, epoch, slotIndex}'
-              break
-            fi
-            echo "Devnet RPC health probe attempt ${attempt}/6 did not return a valid finalized response"
-            sleep $((attempt * 5))
-          done
-          test "${rpc_ok}" = true
-
-      - name: Recover trusted deployment provenance
-        id: provenance
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x solana/recover-deployment-provenance.sh
-          ./solana/recover-deployment-provenance.sh "${MINT_ADDRESS}"
-
-      - name: Record irrecoverable recovered-mint state
-        if: ${{ steps.provenance.outputs.RECOVERY_REQUIRED == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f solana/deployment-provenance.json
-          jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true' solana/deployment-provenance.json >/dev/null
-
-          cat > solana/reconciliation-status.txt <<EOF
-          GLR_STATUS=RECOVERY_REQUIRED
-          REASON=RECOVERED_MINT_IS_IRRECOVERABLE
-          MINT=${MINT_ADDRESS}
-          NEXT_ACTION=EXPLICIT_HUMAN_DECISION_REQUIRED
-          EOF
-
-          cat > solana/reconciliation-evidence.json <<EOF
-          {
-            "network":"solana-devnet",
-            "status":"RECOVERY_REQUIRED",
-            "mode":"RECONCILIATION_READ_ONLY",
-            "verification_boundary":"The recovered mint is real but cannot be completed because its mint authority is already revoked. No mutation or replacement mint was created.",
-            "mint":"${MINT_ADDRESS}",
-            "programId":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-            "recoveryRequired":true,
-            "nextAction":"Explicit human authorization is required before any replacement canonical mint can be created."
-          }
-          EOF
-          echo "::warning::Recovered Devnet mint is irrecoverable; preserving it and stopping before any second mint is created."
-
-      - name: Independent Token-2022 reconciliation
-        id: reconcile
-        if: ${{ steps.provenance.outputs.RECOVERY_REQUIRED != 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x solana/reconcile-token2022-devnet.sh
-          ./solana/reconcile-token2022-devnet.sh "${MINT_ADDRESS}"
-
-      - name: Publish verified identity through PR
-        if: ${{ success() && steps.reconcile.outputs.RECOVERY_REQUIRED == 'false' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x solana/publish-verified-devnet-identity.sh
-          ./solana/publish-verified-devnet-identity.sh
-
-      - name: Upload reconciliation evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: glorifier-solana-devnet-reconciliation-evidence
-          retention-days: 3650
-          if-no-files-found: warn
-          path: |
-            solana/reconciliation-status.txt
-            solana/reconciliation-account.txt
-            solana/reconciliation-supply.txt
-            solana/reconciliation-mint-state.txt
-            solana/reconciliation-evidence.json
-            solana/reconciliation-metadata.json
-            solana/reconciliation-tx-*.json
-            solana/deployment-provenance.json
-            solana/devnet-resume-evidence.json
-            solana/verified-publication.json
-\t' read -r artifact_id digest; do
+              while IFS=$'\t' read -r artifact_id digest; do
                 [[ -n "${artifact_id}" && -n "${digest}" ]] || continue
                 rm -rf /tmp/glorifier-resolve
                 mkdir -p /tmp/glorifier-resolve
+
                 gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > /tmp/glorifier-resolve.zip
-                test "sha256:$(sha256sum /tmp/glorifier-resolve.zip | awk '{print $1}')" = "${digest}"
+                actual_digest="sha256:$(sha256sum /tmp/glorifier-resolve.zip | awk '{print $1}')"
+                test "${actual_digest}" = "${digest}"
+
                 unzip -oq /tmp/glorifier-resolve.zip -d /tmp/glorifier-resolve
                 evidence="$(find /tmp/glorifier-resolve -type f -name deployment-evidence.json -print -quit || true)"
                 [[ -n "${evidence}" ]] || continue
-                if jq -e '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44)' "${evidence}" >/dev/null; then
+
+                if jq -e '
+                  .network == "solana-devnet"
+                  and .status == "READY_FOR_VERIFICATION"
+                  and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+                  and (.mint | type == "string" and length >= 32 and length <= 44)
+                ' "${evidence}" >/dev/null; then
                   mint="$(jq -r '.mint' "${evidence}")"
                   break 2
                 fi
-              done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-devnet-evidence") | select(.digest!=null and (.digest|startswith("sha256:")))] | sort_by(.created_at) | reverse | .[] | [(.id|tostring),.digest] | @tsv' <<<"${artifacts}")
-            done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-devnet.yml") | select(.conclusion=="success")] | sort_by(.created_at) | reverse | .[].id' <<<"${RUNS_JSON}")
+              done < <(
+                jq -r '
+                  [.artifacts[]?
+                    | select(.expired == false)
+                    | select(.name == "glorifier-solana-devnet-evidence")
+                    | select(.digest != null and (.digest | startswith("sha256:")))]
+                  | sort_by(.created_at)
+                  | reverse
+                  | .[]
+                  | [(.id | tostring), .digest]
+                  | @tsv
+                ' <<<"${artifacts}"
+              )
+            done < <(
+              jq -r '
+                [.workflow_runs[]?
+                  | select(.event == "workflow_dispatch")
+                  | select(.head_branch == "main")
+                  | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
+                  | select(.conclusion == "success")]
+                | sort_by(.created_at)
+                | reverse
+                | .[].id
+              ' <<<"${RUNS_JSON}"
+            )
+
+            # Fall back to the repository canonical value only when no newer
+            # verified deployment artifact was found.
+            if [[ -z "${mint}" && -n "${canonical}" ]]; then
+              mint="${canonical}"
+            fi
           fi
-          test -n "${mint}" || { echo "::error::No canonical or READY_FOR_VERIFICATION Devnet mint was found."; exit 1; }
+
+          test -n "${mint}" || {
+            echo "::error::No canonical or READY_FOR_VERIFICATION Devnet mint was found."
+            exit 1
+          }
+
           test "${mint}" != "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
           echo "MINT_ADDRESS=${mint}" >> "${GITHUB_ENV}"
+          echo "Resolved Devnet mint: ${mint}"
 
       - name: Install Solana CLI
         shell: bash
@@ -259,14 +179,9 @@ jobs:
           solana config set --url "${SOLANA_RPC_URL}" --commitment finalized
           test "$(solana config get | awk -F': ' '/RPC URL/ {print $2}' | sed 's/[[:space:]]*$//')" = "${SOLANA_RPC_URL}"
 
-          # Devnet RPC can transiently return 429/5xx. Require a valid
-          # finalized JSON-RPC response before reconciliation proceeds.
           rpc_ok=false
           for attempt in 1 2 3 4 5 6; do
-            response="$(curl --fail --silent --show-error --max-time 20 \
-              -H 'content-type: application/json' \
-              --data '{"jsonrpc":"2.0","id":1,"method":"getEpochInfo","params":[{"commitment":"finalized"}]}' \
-              "${SOLANA_RPC_URL}" 2>/dev/null || true)"
+            response="$(curl --fail --silent --show-error --max-time 20               -H 'content-type: application/json'               --data '{"jsonrpc":"2.0","id":1,"method":"getEpochInfo","params":[{"commitment":"finalized"}]}'               "${SOLANA_RPC_URL}" 2>/dev/null || true)"
             if jq -e '.jsonrpc == "2.0" and (.result.absoluteSlot | type == "number")' >/dev/null 2>&1 <<<"${response}"; then
               rpc_ok=true
               echo "Finalized Devnet RPC healthy on attempt ${attempt}"
@@ -294,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f solana/deployment-provenance.json
-          jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true' solana/deployment-provenance.json >/dev/null
+          jq -e --arg mint "${MINT_ADDRESS}"             '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true'             solana/deployment-provenance.json >/dev/null
 
           cat > solana/reconciliation-status.txt <<EOF
           GLR_STATUS=RECOVERY_REQUIRED
@@ -338,7 +253,7 @@ jobs:
 
       - name: Upload reconciliation evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0 # v7.0.1
         with:
           name: glorifier-solana-devnet-reconciliation-evidence
           retention-days: 3650
