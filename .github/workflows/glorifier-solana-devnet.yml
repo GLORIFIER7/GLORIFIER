@@ -258,7 +258,7 @@ jobs:
               echo "::error::Invalid partial mint recovery record."
               exit 1
             }
-            if spl-token --program-2022 display "${PARTIAL_MINT}" >/tmp/glorifier-partial-display.txt 2>&1; then
+            if spl-token --program-2022 display "${PARTIAL_MINT}" --url "${SOLANA_RPC_URL}" >/tmp/glorifier-partial-display.txt 2>&1; then
               if grep -Fq 'Token-2022' /tmp/glorifier-partial-display.txt; then
                 echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
                 echo "RESUME_MINT=${PARTIAL_MINT}" >> "$GITHUB_OUTPUT"
