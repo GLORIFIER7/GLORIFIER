@@ -119,6 +119,7 @@ jobs:
           test "${rpc_ok}" = true
 
       - name: Recover trusted deployment provenance
+        id: provenance
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -126,8 +127,39 @@ jobs:
           set -euo pipefail
           chmod +x solana/recover-deployment-provenance.sh
           ./solana/recover-deployment-provenance.sh "${MINT_ADDRESS}"
+
+      - name: Record irrecoverable recovered-mint state
+        if: ${{ steps.provenance.outputs.RECOVERY_REQUIRED == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f solana/deployment-provenance.json
+          jq -e --arg mint "${MINT_ADDRESS}" '.network == "solana-devnet" and .status == "IRRECOVERABLE_PARTIAL" and .mint == $mint and .recoveryRequired == true' solana/deployment-provenance.json >/dev/null
+
+          cat > solana/reconciliation-status.txt <<EOF
+          GLR_STATUS=RECOVERY_REQUIRED
+          REASON=RECOVERED_MINT_IS_IRRECOVERABLE
+          MINT=${MINT_ADDRESS}
+          NEXT_ACTION=EXPLICIT_HUMAN_DECISION_REQUIRED
+          EOF
+
+          cat > solana/reconciliation-evidence.json <<EOF
+          {
+            "network":"solana-devnet",
+            "status":"RECOVERY_REQUIRED",
+            "mode":"RECONCILIATION_READ_ONLY",
+            "verification_boundary":"The recovered mint is real but cannot be completed because its mint authority is already revoked. No mutation or replacement mint was created.",
+            "mint":"${MINT_ADDRESS}",
+            "programId":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+            "recoveryRequired":true,
+            "nextAction":"Explicit human authorization is required before any replacement canonical mint can be created."
+          }
+          EOF
+          echo "::warning::Recovered Devnet mint is irrecoverable; preserving it and stopping before any second mint is created."
+
       - name: Independent Token-2022 reconciliation
         id: reconcile
+        if: ${{ steps.provenance.outputs.RECOVERY_REQUIRED != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
