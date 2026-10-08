@@ -24,9 +24,18 @@ METADATA_TX=""; ACCOUNT_TX=""; MINT_TX=""; MINT_AUTH_TX=""; FREEZE_AUTH_TX=""; M
 
 # The original deployment stopped immediately after create-token. Complete the
 # existing mint in place; never create another mint.
-MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk -F': ' '/^[[:space:]]*Mint authority:/ {print $2; exit}')"
+# spl-token display uses title-cased field labels (for example, "Mint Authority:").
+# Parse case-insensitively and trim surrounding whitespace so the authority
+# comparison is based on the actual on-chain display value rather than a brittle
+# capitalization assumption.
+MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'BEGIN{IGNORECASE=1} /^[[:space:]]*Mint[[:space:]]+Authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
 test -n "${MINT_AUTHORITY}" || {
   echo "::error::Recovered mint did not expose a Mint authority in spl-token display output."
+  printf '%s\n' "${DISPLAY}"
+  exit 1
+}
+test "${MINT_AUTHORITY}" != "None" || {
+  echo "::error::Recovered mint has no mint authority; refusing metadata initialization or supply changes."
   exit 1
 }
 test "${MINT_AUTHORITY}" = "${SIGNER}" || {
@@ -39,12 +48,12 @@ test "${MINT_AUTHORITY}" = "${SIGNER}" || {
 # create-token --enable-metadata leaves the metadata extension allocated but
 # uninitialized. Use the canonical CLI form documented by Solana; the wallet
 # configured above is the mint authority and signs the initialization.
-if ! printf '%s\n' "${DISPLAY}" | grep -Eq 'Metadata:[[:space:]]+GLORIFIER([[:space:]]|$)'; then
+if ! printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Metadata:[[:space:]]+GLORIFIER([[:space:]]|$)'; then
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
   test -n "${METADATA_TX}"
-}
+fi
 
 SUPPLY_NOW="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
 if [[ "${SUPPLY_NOW}" == "0" ]]; then
