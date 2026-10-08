@@ -1,0 +1,18 @@
+{
+  "network": "solana-devnet",
+  "status": "READY_FOR_VERIFICATION",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "totalSupply": "1000000000",
+  "mintAuthority": null,
+  "freezeAuthority": null,
+  "deploymentRunId": "37725071172",
+  "deploymentJobId": "113145993199",
+  "deploymentRunUrl": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37725071172",
+  "deploymentArtifactId": "11528177017",
+  "deploymentArtifactDigest": "sha256:0318fd03d876b20d05646dc177b6816a2030461ef7d44b24d949223d3d50ba7d",
+  "provenanceSource": "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"
+}
