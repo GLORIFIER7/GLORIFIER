@@ -92,7 +92,7 @@ def b58(data):
         if b == 0: pad += 1
         else: break
     return "1"*pad + (out or "")
-pointer_authority = None if mp[:32] == b"\\x00" * 32 else b58(mp[:32])
+pointer_authority = None if mp[:32] == b"\x00" * 32 else b58(mp[:32])
 metadata_address = b58(mp[32:64])
 update_authority, metadata_mint = b58(tm[:32]), b58(tm[32:64])
 cursor = 64
