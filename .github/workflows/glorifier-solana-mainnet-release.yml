@@ -206,7 +206,13 @@ jobs:
           solana address
           solana cluster-version
           BALANCE_LAMPORTS="$(solana balance --lamports | awk '{print $1}')"
-          test "$BALANCE_LAMPORTS" -ge 100000000 || { echo "::error::Mainnet deployer must hold at least 0.1 SOL before an irreversible token deployment."; exit 1; }
+          # Solana base fees are 5,000 lamports/signature; the deployment also funds
+          # rent-exempt Token-2022 mint/metadata and holder accounts. Keep a 0.02 SOL
+          # production reserve instead of the old 0.10 SOL blanket gate. This remains
+          # deliberately above the documented fee/rent footprint and does not remove
+          # the explicit human approval, private-RPC, or irreversible-deployment gates.
+          readonly MIN_MAINNET_DEPLOYER_BALANCE_LAMPORTS=20000000
+          test "$BALANCE_LAMPORTS" -ge "$MIN_MAINNET_DEPLOYER_BALANCE_LAMPORTS" || { echo "::error::Mainnet deployer must hold at least 0.02 SOL before an irreversible token deployment."; exit 1; }
       - name: Execute real mainnet deployment
         env:
           GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW: "true"
