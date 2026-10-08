@@ -24,8 +24,8 @@ ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/reconciliation-supply.txt | tr -d
 if ! grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mint-state.txt \
   || ! grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mint-state.txt \
   || ! grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt \
-  || ! grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt \
-  || ! grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/reconciliation-mint-state.txt \
+  || ! ! grep -Eiq 'Mint[[:space:]]+Authority.*(None|\\(not set\\))' solana/reconciliation-mint-state.txt \
+  || ! grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\\(not set\\))' solana/reconciliation-mint-state.txt \
   || ! grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt \
   || [[ "$ACTUAL_SUPPLY" != "$EXPECTED_SUPPLY" ]]; then
   cat > solana/reconciliation-evidence.json <<EOF
