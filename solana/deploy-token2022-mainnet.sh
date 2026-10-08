@@ -98,9 +98,10 @@ STATE="$(spl-token --program-2022 display "$MINT")"
 if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabled)'; then
   echo "Metadata update authority is already absent."
 else
-  METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
-  printf '%s\n' "$METADATA_AUTH_OUTPUT"
-  METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  echo "Revoking Token Metadata update authority with the Token Metadata interface instruction (the spl-token CLI metadata alias can incorrectly dispatch Token-2022 SetAuthority after mint supply is fixed)."
+  npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15 @solana/spl-token-metadata@0.1.6
+  METADATA_AUTH_TX="$(node solana/revoke-token2022-metadata-authority.mjs "$MINT")"
+  test -n "$METADATA_AUTH_TX"
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
