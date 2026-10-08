@@ -190,7 +190,6 @@ jq --arg mint "$MINT" \
   | .transaction_semantics_verified=($transaction_semantics_verified == "true")
   | .verification_run_id=$run_id
   | .verification_run_url=$run_url
-  | .transaction_semantics_verified=($TRANSACTION_SEMANTICS_VERIFIED == "true")
   | .verified_at=$verified_at
   | .next_action="Independent finalized read-only reconciliation and deployment provenance verification passed; canonical publication still requires protected PR approval."
 ' solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.json.tmp
