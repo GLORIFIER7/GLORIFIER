@@ -39,6 +39,7 @@ write_evidence() {
   local mint_auth_tx="${MINT_AUTH_TX:-}"
   local freeze_auth_tx="${FREEZE_AUTH_TX:-}"
   local metadata_auth_tx="${METADATA_AUTH_TX:-}"
+  local metadata_pointer_auth_tx="${METADATA_POINTER_AUTH_TX:-}"
   if [[ -f "${previous_file}" ]] && jq -e --arg mint "${MINT:-}" '.mint == $mint' "${previous_file}" >/dev/null 2>&1; then
     creation_tx="${creation_tx:-$(jq -r '.creationTransaction // empty' "${previous_file}")}"
     metadata_tx="${metadata_tx:-$(jq -r '.metadataTransaction // empty' "${previous_file}")}"
@@ -76,6 +77,7 @@ write_evidence() {
   "mintAuthorityRevocationTransaction": $(json_or_null "$mint_auth_tx"),
   "freezeAuthorityRevocationTransaction": $(json_or_null "$freeze_auth_tx"),
   "metadataUpdateAuthorityRevocationTransaction": $(json_or_null "$metadata_auth_tx"),
+  "metadataPointerAuthorityRevocationTransaction": $(json_or_null "$metadata_pointer_auth_tx"),
   "deploymentWorkflowRunId": $(json_or_null "${GITHUB_RUN_ID:-}"),
   "deploymentWorkflowRunUrl": $(json_or_null "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}")
 }
@@ -174,6 +176,19 @@ else
   printf '%s\n' "$METADATA_AUTH_OUTPUT"
   METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
   test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
+fi
+
+FINAL_METADATA_POINTER_STATE="$(spl-token --program-2022 display "$MINT")"
+CURRENT_POINTER_AUTH="$(printf '%s\n' "$FINAL_METADATA_POINTER_STATE" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
+if [[ "$CURRENT_POINTER_AUTH" == "Disabled" || "$CURRENT_POINTER_AUTH" == "None" ]]; then
+  echo "Metadata pointer authority is already disabled; continuing."
+  METADATA_POINTER_AUTH_TX=""
+else
+  test "$CURRENT_POINTER_AUTH" = "$(solana address)"
+  METADATA_POINTER_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
+  printf '%s\n' "$METADATA_POINTER_OUTPUT"
+  METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$METADATA_POINTER_AUTH_TX" || { echo "::error::Could not recover metadata-pointer-authority revocation transaction signature."; exit 1; }
 fi
 
 BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
