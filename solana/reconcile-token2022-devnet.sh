@@ -72,7 +72,7 @@ while offset + 4 <= len(raw):
     extensions[etype] = raw[offset:offset+elen]
     offset += elen
 mp, tm = extensions.get(18), extensions.get(19)
-if mp is None or len(mp) < 64: raise SystemExit("MetadataPointer extension missing or malformed")
+if mp is None or len(mp) < 68: raise SystemExit("MetadataPointer extension missing or malformed")
 if tm is None or len(tm) < 64: raise SystemExit("TokenMetadata extension missing or malformed")
 alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 def b58(data):
@@ -84,7 +84,7 @@ def b58(data):
         if b == 0: pad += 1
         else: break
     return "1"*pad + (out or "")
-pointer_authority, metadata_address = b58(mp[:32]), b58(mp[32:64])
+pointer_authority_tag = int.from_bytes(mp[:4], "little")\npointer_authority = None if pointer_authority_tag == 0 else b58(mp[4:36])\nmetadata_address = b58(mp[36:68])
 update_authority, metadata_mint = b58(tm[:32]), b58(tm[32:64])
 cursor = 64
 def read_string():
@@ -95,13 +95,13 @@ def read_string():
     s = tm[cursor:cursor+n].decode("utf-8"); cursor += n; return s
 name, symbol, uri = read_string(), read_string(), read_string()
 none_key = "11111111111111111111111111111111"
-if pointer_authority != none_key: raise SystemExit("metadata pointer authority is not disabled")
+if pointer_authority is not None: raise SystemExit("metadata pointer authority is not disabled")
 if metadata_address != mint: raise SystemExit("metadata pointer does not point to the mint")
 if update_authority != none_key: raise SystemExit("TokenMetadata update authority is not disabled")
 if metadata_mint != mint: raise SystemExit("TokenMetadata mint field does not match target mint")
 if name != expected_name or symbol != expected_symbol or uri != expected_uri: raise SystemExit("on-chain TokenMetadata fields do not match GLORIFIER contract")
 with urllib.request.urlopen(expected_uri, timeout=30) as response: metadata_bytes = response.read()
-print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":None,"metadataPointerAddress":metadata_address,"metadataUpdateAuthority":None,"metadataMint":metadata_mint,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(metadata_bytes).hexdigest()}, separators=(",",":")))
+print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":null,"metadataPointerAddress":metadata_address,"metadataUpdateAuthority":None,"metadataMint":metadata_mint,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(metadata_bytes).hexdigest()}, separators=(",",":")))
 PY
 jq -e --arg mint "$MINT" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri=="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json" and (.offChainMetadataSha256|type=="string" and length==64)' solana/reconciliation-metadata.json >/dev/null
 
