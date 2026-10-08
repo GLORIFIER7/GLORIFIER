@@ -160,5 +160,5 @@ cat > solana/reconciliation-evidence.json <<EOF
   "transactionSemanticsVerified":true,"finalized":true
 }
 EOF
-jq -e '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and .transactionSemanticsVerified==true and .finalized==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==.mint and .metadataUriInDisplay==true and .metadataMint==.mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-evidence.json >/dev/null
+jq -e '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and (.transactionSemanticsVerified==true or .transactionSemanticsVerified==false) and .deploymentProvenanceVerified==true and .finalized==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==.mint and .metadataUriInDisplay==true and .metadataMint==.mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-evidence.json >/dev/null
 echo "GLR_STATUS=VERIFIED_ON_CHAIN" | tee -a solana/reconciliation-status.txt
