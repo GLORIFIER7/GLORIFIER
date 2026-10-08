@@ -79,7 +79,9 @@ write_evidence() {
   "metadataUpdateAuthorityRevocationTransaction": $(json_or_null "$metadata_auth_tx"),
   "metadataPointerAuthorityRevocationTransaction": $(json_or_null "$metadata_pointer_auth_tx"),
   "deploymentWorkflowRunId": $(json_or_null "${GITHUB_RUN_ID:-}"),
-  "deploymentWorkflowRunUrl": $(json_or_null "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}")
+  "deploymentWorkflowRunUrl": $(json_or_null "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}"),
+  "replacementAuthorized": ${REPLACEMENT_AUTHORIZED:-false},
+  "replacedMint": $(json_or_null "${REPLACED_MINT:-}")
 }
 EOF
 }
