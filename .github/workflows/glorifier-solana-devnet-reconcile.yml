@@ -136,8 +136,6 @@ jobs:
               ' <<<"${RUNS_JSON}"
             )
 
-            # Fall back to the repository canonical value only when no newer
-            # verified deployment artifact was found.
             if [[ -z "${mint}" && -n "${canonical}" ]]; then
               mint="${canonical}"
             fi
@@ -156,7 +154,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
+          sh -c "curl -sSfL https://release.anza.xyz/${AGAVE_VERSION}/install"
           SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           export PATH="$SOLANA_BIN:$PATH"
@@ -253,7 +251,7 @@ jobs:
 
       - name: Upload reconciliation evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0 # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: glorifier-solana-devnet-reconciliation-evidence
           retention-days: 3650
