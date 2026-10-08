@@ -62,9 +62,9 @@ value = result.get("result", {}).get("value")
 if not value: raise SystemExit("mint account not found at finalized commitment")
 if value.get("owner") != program: raise SystemExit("mint owner is not canonical Token-2022")
 raw = base64.b64decode(value["data"][0])
-if len(raw) < 82: raise SystemExit("mint account is shorter than the base mint state")
+if len(raw) < 83: raise SystemExit("mint account is shorter than the Token-2022 mint header")
 extensions = {}
-offset = 82
+offset = 83
 while offset + 4 <= len(raw):
     etype = int.from_bytes(raw[offset:offset+2], "little")
     elen = int.from_bytes(raw[offset+2:offset+4], "little")
@@ -84,7 +84,9 @@ def b58(data):
         if b == 0: pad += 1
         else: break
     return "1"*pad + (out or "")
-pointer_authority_tag = int.from_bytes(mp[:4], "little")\npointer_authority = None if pointer_authority_tag == 0 else b58(mp[4:36])\nmetadata_address = b58(mp[36:68])
+pointer_authority_tag = int.from_bytes(mp[:4], "little")
+pointer_authority = None if pointer_authority_tag == 0 else b58(mp[4:36])
+metadata_address = b58(mp[36:68])
 update_authority, metadata_mint = b58(tm[:32]), b58(tm[32:64])
 cursor = 64
 def read_string():
