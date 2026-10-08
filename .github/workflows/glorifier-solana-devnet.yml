@@ -404,6 +404,23 @@ jobs:
         run: |
           set -euo pipefail
           MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+          DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+          MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'tolower($0) ~ /^[[:space:]]*mint[[:space:]]+authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
+          if [[ "${MINT_AUTHORITY}" == "(not set)" || "${MINT_AUTHORITY}" == "None" ]]; then
+            cat > solana/devnet-resume-blocked.json <<EOF
+          {
+            "network":"solana-devnet",
+            "status":"IRRECOVERABLE_PARTIAL",
+            "mint":"${MINT}",
+            "programId":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+            "reason":"Mint authority is already revoked; the existing mint cannot be completed in place.",
+            "replacementCreated":false,
+            "nextAction":"Explicit human authorization is required before any replacement canonical mint is created."
+          }
+          EOF
+            echo "::warning::Recovered mint ${MINT} is irrecoverable because mint authority is revoked. No second mint will be created."
+            exit 0
+          fi
           chmod +x solana/resume-recovered-token2022-devnet.sh
           ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
       - name: Verify Devnet RPC and recover Devnet funding
@@ -524,3 +541,4 @@ jobs:
             solana/deployment-evidence.json
             solana/devnet-resume-evidence.json
             solana/replacement-authorization.json
+            solana/devnet-resume-blocked.json
