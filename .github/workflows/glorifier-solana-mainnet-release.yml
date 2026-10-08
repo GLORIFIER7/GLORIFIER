@@ -82,6 +82,13 @@ jobs:
             and (.deploymentArtifactDigest|type=="string" and startswith("sha256:"))
             and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"
           ' solana/deployment-provenance.json >/dev/null
+      - name: Validate exact Mainnet recovery candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.status=="RECOVERY_REQUIRED" and .network=="solana-mainnet" and .mint=="7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9" and .source_workflow_run_id=="37764127153" and .freezeAuthorityInitiallyNone==true' solana/mainnet-recovery.json >/dev/null
+          echo "Authorized incomplete Mainnet deployment will resume exact mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9; no second mint is permitted."
+
       - name: Mainnet replay lock
         env:
           GH_TOKEN: ${{ github.token }}
@@ -99,9 +106,13 @@ jobs:
               gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/glr-replay.zip
               unzip -oq /tmp/glr-replay.zip -d /tmp/glr-replay
               E="$(find /tmp/glr-replay -type f -name deployment-mainnet-evidence.json -print -quit || true)"
-              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and (.status=="DEPLOYED" or .status=="READY_FOR_VERIFICATION")' "$E" >/dev/null; then
-                echo "::error::A prior mainnet run produced a real GLR mint. Reconcile it; never mint a second canonical GLR."
+              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and .status=="READY_FOR_VERIFICATION"' "$E" >/dev/null; then
+                echo "::error::A prior mainnet run produced a completed deployment. Reconcile it; never mint a second canonical GLR."
                 exit 1
+              fi
+              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and .status=="DEPLOYED"' "$E" >/dev/null; then
+                M="$(jq -r '.mint' "$E")"
+                test "$M" = "7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9" || { echo "::error::An unexpected incomplete Mainnet mint exists; refusing to mint another."; exit 1; }
               fi
             done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-mainnet-evidence")] | .[] | [(.id|tostring),(.digest//"")] | @tsv' <<<"$ARTS")
           done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-mainnet-release.yml")] | .[].id' <<<"$RUNS")
@@ -223,7 +234,7 @@ jobs:
       - name: Validate deployment evidence
         run: |
           set -euo pipefail
-          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44) and (.creationTransaction|type=="string" and length>0) and (.metadataTransaction|type=="string" and length>0) and (.tokenAccountCreationTransaction|type=="string" and length>0) and (.mintTransaction|type=="string" and length>0) and (.mintAuthorityRevocationTransaction|type=="string" and length>0) and (.freezeAuthorityRevocationTransaction|type=="string" and length>0) and (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>0) and (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>0)' solana/deployment-mainnet-evidence.json >/dev/null
+          jq -e '.network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint|type=="string" and length>=32 and length<=44) and (.creationTransaction|type=="string" and length>0) and (.metadataTransaction|type=="string" and length>0) and (.tokenAccountCreationTransaction|type=="string" and length>0) and (.mintTransaction|type=="string" and length>0) and (.mintAuthorityRevocationTransaction|type=="string" and length>0) and ((.freezeAuthorityRevocationTransaction|type=="string" and length>0) or (.freezeAuthorityRevocationTransaction==null and .freezeAuthorityInitiallyNone==true)) and (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>0) and (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>0)' solana/deployment-mainnet-evidence.json >/dev/null
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
