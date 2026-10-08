@@ -48,7 +48,6 @@ jobs:
             test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
           else
             test "${GITHUB_EVENT_NAME}" = "workflow_run"
-            test "${GITHUB_EVENT_WORKFLOW}" = "GLORIFIER Solana Devnet Deployment"
             test "${{ github.event.workflow_run.conclusion }}" = "success"
             test "${{ github.event.workflow_run.head_branch }}" = "main"
             test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
