@@ -11,12 +11,15 @@
   "status": "NOT VERIFIED",
   "verification_boundary": "A mint becomes canonical only after one authorized deployment produces a real mint address plus transaction evidence and the final on-chain state is independently reconciled.",
   "excluded_mint": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G",
-  "next_action": "Run the authorized manual Devnet reconciliation workflow against the recovered mint 8rXQAygKxRZ9R7fojLrXLoHdKxnEKTjmb8sfnnGvfU3S. Successful independent finalized reconciliation will publish the VERIFIED_ON_CHAIN identity through a protected PR. Do not create a second mint.",
+  "next_action": "Run VERIFY_GLORIFIER_SOLANA_DEVNET against the latest authorized Devnet deployment artifact. Independent finalized reconciliation must pass before this identity may become VERIFIED_ON_CHAIN. Do not create a second mint.",
   "metadata_transaction": null,
   "token_account_creation_transaction": null,
   "freeze_authority_revocation_transaction": null,
   "verification_run_id": null,
   "verification_run_url": null,
   "verified_at": null,
-  "mainnet_status": "NOT VERIFIED"
+  "mainnet_status": "NOT VERIFIED",
+  "metadata_update_authority_revocation_transaction": null,
+  "metadata_pointer_authority_revocation_transaction": null,
+  "metadata_sha256": null
 }
