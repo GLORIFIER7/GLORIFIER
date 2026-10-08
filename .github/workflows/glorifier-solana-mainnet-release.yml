@@ -50,24 +50,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jq -e '
+          MINT="$(jq -r '.canonical_mint' solana/canonical-devnet-identity.json)"
+          jq -e --arg mint "$MINT" '
             .status=="VERIFIED_ON_CHAIN"
             and .network=="solana-devnet"
             and .token_standard=="Token-2022"
-            and (.canonical_mint|type=="string" and length>=32 and length<=44)
+            and .canonical_mint==$mint
             and (.verification_run_id|type=="string" and length>0)
             and (.verification_run_url|type=="string" and startswith("https://github.com/"))
             and (.verified_at|type=="string" and length>0)
             and (.metadata_sha256|type=="string" and test("^[0-9a-f]{64}$"))
-            and (.creation_transaction|type=="string" and length>=64)
-            and (.metadata_transaction|type=="string" and length>=64)
-            and (.token_account_creation_transaction|type=="string" and length>=64)
-            and (.mint_transaction|type=="string" and length>=64)
-            and (.authority_revocation_transaction|type=="string" and length>=64)
-            and (.freeze_authority_revocation_transaction|type=="string" and length>=64)
-            and (.metadata_update_authority_revocation_transaction|type=="string" and length>=64)
-            and (.metadata_pointer_authority_revocation_transaction|type=="string" and length>=64)
           ' solana/canonical-devnet-identity.json >/dev/null
+          jq -e --arg mint "$MINT" '
+            .status=="VERIFIED_ON_CHAIN"
+            and .network=="solana-devnet"
+            and .mode=="RECONCILIATION_READ_ONLY"
+            and .commitment=="finalized"
+            and .mint==$mint
+            and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+            and .deploymentProvenanceVerified==true
+            and .finalized==true
+            and .transactionSemanticsVerified==false
+          ' solana/reconciliation-evidence.json >/dev/null
+          jq -e --arg mint "$MINT" '
+            .network=="solana-devnet"
+            and .status=="READY_FOR_VERIFICATION"
+            and .mint==$mint
+            and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+            and .deploymentArtifactDigest|startswith("sha256:")
+            and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"
+          ' solana/deployment-provenance.json >/dev/null
       - name: Mainnet replay lock
         env:
           GH_TOKEN: ${{ github.token }}
