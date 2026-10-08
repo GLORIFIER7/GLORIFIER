@@ -34,8 +34,9 @@ test -n "${MINT_AUTHORITY}" || {
   printf '%s\n' "${DISPLAY}"
   exit 1
 }
-test "${MINT_AUTHORITY}" != "None" || {
-  echo "::error::Recovered mint has no mint authority; refusing metadata initialization or supply changes."
+test "${MINT_AUTHORITY}" != "(not set)" && test "${MINT_AUTHORITY}" != "None" || {
+  echo "::error::RECOVERY_BLOCKED_MINT_AUTHORITY_REVOKED: the existing recovered mint has no mint authority. Token-2022 metadata initialization and supply completion cannot be authorized on this mint."
+  echo "::error::Do not create a replacement mint automatically. Preserve this mint as DEPLOYED_UNVERIFIED and require an explicit human decision before any new canonical mint is created."
   exit 1
 }
 test "${MINT_AUTHORITY}" = "${SIGNER}" || {
