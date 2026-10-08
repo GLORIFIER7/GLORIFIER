@@ -346,16 +346,6 @@ jobs:
           solana config set --url "${SOLANA_RPC_URL}" --keypair "$HOME/.config/solana/glorifier-devnet-keypair.json"
           solana address
 
-      - name: Resume recovered Token-2022 mint
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replacement_gate.outputs.AUTHORIZED != 'true' }}
-        shell: bash
-        env:
-          GLORIFIER_AUTHORIZED_WORKFLOW: "true"
-        run: |
-          set -euo pipefail
-          MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
-          chmod +x solana/resume-recovered-token2022-devnet.sh
-          ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
       - name: Gate controlled replacement mint
         id: replacement_gate
         if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' }}
@@ -402,6 +392,16 @@ jobs:
           EOF
           jq -e '.status=="AUTHORIZED" and .replacedMint==$m' --arg m "${RECOVERED_MINT}" solana/replacement-authorization.json >/dev/null
 
+      - name: Resume recovered Token-2022 mint
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replacement_gate.outputs.AUTHORIZED != 'true' }}
+        shell: bash
+        env:
+          GLORIFIER_AUTHORIZED_WORKFLOW: "true"
+        run: |
+          set -euo pipefail
+          MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+          chmod +x solana/resume-recovered-token2022-devnet.sh
+          ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
       - name: Verify Devnet RPC and recover Devnet funding
         if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
@@ -518,3 +518,4 @@ jobs:
             solana/deployment-status.txt
             solana/deployment-evidence.json
             solana/devnet-resume-evidence.json
+            solana/replacement-authorization.json
