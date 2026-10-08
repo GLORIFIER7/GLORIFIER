@@ -16,38 +16,99 @@ write_evidence() {
     --arg runId "${GITHUB_RUN_ID:-}" --arg runUrl "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}" \
     '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
 }
-MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
-printf '%s\n' "$MINT_OUTPUT"
-CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
-[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid mainnet mint address."; exit 1; }
-write_evidence "DEPLOYED"
-METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
-printf '%s\n' "$METADATA_OUTPUT"
-METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT")"
-printf '%s\n' "$ACCOUNT_OUTPUT"
-CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
-printf '%s\n' "$MINT_OUTPUT_2"
-MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test "$(spl-token --program-2022 supply "$MINT" | awk 'NR==1 {print $1}' | tr -d '\r')" = "$SUPPLY"
-MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
-printf '%s\n' "$MINT_AUTH_OUTPUT"
-MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
-printf '%s\n' "$FREEZE_AUTH_OUTPUT"
-FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
+RECOVERY_FILE="solana/mainnet-recovery.json"
+MINT=""
+CREATE_TOKEN_TX=""
+METADATA_TX=""
+CREATE_ACCOUNT_TX=""
+MINT_TX=""
+MINT_AUTH_TX=""
+FREEZE_AUTH_TX=""
+METADATA_AUTH_TX=""
+METADATA_POINTER_AUTH_TX=""
 
-METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
-printf '%s\n' "$METADATA_AUTH_OUTPUT"
-METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
-METADATA_POINTER_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
-printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT"
-METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$METADATA_POINTER_AUTH_TX" || { echo "::error::Could not recover metadata-pointer authority revocation transaction signature."; exit 1; }
+if [[ -f "$RECOVERY_FILE" ]] && jq -e '.status=="RECOVERY_REQUIRED" and .network=="solana-mainnet"' "$RECOVERY_FILE" >/dev/null; then
+  MINT="$(jq -r '.mint' "$RECOVERY_FILE")"
+  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid recovery mint address."; exit 1; }
+  CREATE_TOKEN_TX="$(jq -r '.creationTransaction // empty' "$RECOVERY_FILE")"
+  METADATA_TX="$(jq -r '.metadataTransaction // empty' "$RECOVERY_FILE")"
+  CREATE_ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction // empty' "$RECOVERY_FILE")"
+  MINT_TX="$(jq -r '.mintTransaction // empty' "$RECOVERY_FILE")"
+  MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction // empty' "$RECOVERY_FILE")"
+  FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "$RECOVERY_FILE")"
+  echo "Recovering existing authorized Mainnet mint: $MINT"
+  STATE="$(spl-token --program-2022 display "$MINT")"
+  printf '%s\n' "$STATE"
+else
+  MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
+  printf '%s\n' "$MINT_OUTPUT"
+  CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
+  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid mainnet mint address."; exit 1; }
+fi
+
+STATE="$(spl-token --program-2022 display "$MINT")"
+printf '%s\n' "$STATE"
+
+if printf '%s\n' "$STATE" | grep -Fq "$METADATA_URI"; then
+  echo "Metadata already initialized with the canonical immutable URI."
+else
+  METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
+  printf '%s\n' "$METADATA_OUTPUT"
+  METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+fi
+
+CURRENT_SUPPLY="$(spl-token --program-2022 supply "$MINT" | awk 'NR==1 {print $1}' | tr -d '\r')"
+if [[ "$CURRENT_SUPPLY" == "$SUPPLY" ]]; then
+  echo "Supply already equals canonical 1,000,000,000 GLR; skipping mint."
+elif [[ "$CURRENT_SUPPLY" == "0" ]]; then
+  ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT")"
+  printf '%s\n' "$ACCOUNT_OUTPUT"
+  CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
+  printf '%s\n' "$MINT_OUTPUT_2"
+  MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+else
+  echo "::error::Unexpected existing Mainnet supply: $CURRENT_SUPPLY"; exit 1
+fi
+
+STATE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled)'; then
+  echo "Mint authority is already disabled."
+else
+  MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
+  printf '%s\n' "$MINT_AUTH_OUTPUT"
+  MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+fi
+
+STATE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled)'; then
+  echo "Freeze authority is already absent; no revocation transaction exists."
+  FREEZE_AUTH_TX=""
+else
+  FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
+  printf '%s\n' "$FREEZE_AUTH_OUTPUT"
+  FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+fi
+
+STATE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabled)'; then
+  echo "Metadata update authority is already absent."
+else
+  METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
+  printf '%s\n' "$METADATA_AUTH_OUTPUT"
+  METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+fi
+
+STATE="$(spl-token --program-2022 display "$MINT")"
+POINTER_STATE="$(printf '%s\n' "$STATE" | awk '/Metadata Pointer:/,/^$/')"
+if printf '%s\n' "$POINTER_STATE" | grep -Eiq 'Authority:[[:space:]]*(None|Disabled)'; then
+  echo "Metadata pointer authority is already absent."
+else
+  METADATA_POINTER_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
+  printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT"
+  METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+fi
 spl-token --program-2022 balance "$MINT" | tee solana/deployment-mainnet-holder-balance.txt
 test "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY"
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
