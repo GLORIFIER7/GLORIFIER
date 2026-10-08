@@ -11,5 +11,6 @@
   "finalFreezeAuthority": null,
   "devnetFirst": true,
   "mainnetRequiresHumanApproval": true,
-  "existingMintExcluded": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
+  "existingMintExcluded": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G",
+  "mainnetMetadataUri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/d0d5c16fc4a74099c125c8aac594352d53675177/solana/token.json"
 }
