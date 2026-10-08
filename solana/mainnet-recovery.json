@@ -1,0 +1,15 @@
+{
+  "network": "solana-mainnet",
+  "status": "RECOVERY_REQUIRED",
+  "mint": "7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9",
+  "source_workflow_run_id": "37764127153",
+  "source_workflow_run_url": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37764127153",
+  "creationTransaction": "32rz6kyEhRjYNLNjbg1JMh7Z7PHoZHeaYdzkuPtYthUJZfM6SFMpwhopgJamKLnxu693emkHAjJDE6n5kMdK2AoH",
+  "metadataTransaction": "3sCZecnupchvhw5XzTFH8LVstrSuNCNSjqqoAZqiSn2fPhrS9cBnmzvmiEmJyjgXQsTcwr7PWKX4aaigvouuLPvo",
+  "tokenAccountCreationTransaction": "4D9zRf8AmQreWoF8RQsz7PpdVB1LgYYqifVHG3KRWGYB5ziDdsuQeqkUkX7E1oBWgh6ppLdLMdo6RcQMgDjjFbCw",
+  "mintTransaction": "Ast4qmsxwCDcA5eLjrNJ4QH6q9H7GwdAi1CwFMDgCySVHChmY7MEdz8vdfpszFn3SqSyF95fejgLyzMeU9aswQa",
+  "mintAuthorityRevocationTransaction": "3fHZ6HMQnZ5jMXvTn7GQEtwceZ3p8WpVeQpPsjVUuZuqXyBz438kpkpmj9aKYm3dvi6jEpPyG7cvRAn1QtJtHAKb",
+  "freezeAuthorityRevocationTransaction": null,
+  "freezeAuthorityInitiallyNone": true,
+  "reason": "The authorized first Mainnet run created and funded this exact mint, initialized metadata, minted the full supply, and disabled mint authority before the workflow stopped because freeze authority was already absent. Resume this exact mint; never create a second canonical mint."
+}
