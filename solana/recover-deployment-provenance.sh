@@ -7,6 +7,36 @@ readonly MINT="${1:-}"
 test -n "${GH_TOKEN:-}"
 test -n "${MINT}"
 
+# First trust an immutable successful deployment artifact for the exact mint.
+# This check runs before legacy recovery/replacement handling so a newer
+# authorized mint is not incorrectly classified as a replacement merely because
+# an older irrecoverable recovery record is still present in the repository.
+RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+FOUND=0
+while IFS= read -r RUN_ID; do
+  [[ -n "${RUN_ID}" ]] || continue
+  [[ "${RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
+  RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}")"
+  jq -e '.path==".github/workflows/glorifier-solana-devnet.yml" and .event=="workflow_dispatch" and .head_branch=="main" and .conclusion=="success"' <<<"${RUN_JSON}" >/dev/null || continue
+  ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100")"
+  while IFS="$(printf "\t")" read -r ARTIFACT_ID ARTIFACT_DIGEST; do
+    [[ -n "${ARTIFACT_ID}" && -n "${ARTIFACT_DIGEST}" ]] || continue
+    rm -rf /tmp/glorifier-exact-provenance
+    mkdir -p /tmp/glorifier-exact-provenance
+    gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-exact-provenance.zip
+    test "sha256:$(sha256sum /tmp/glorifier-exact-provenance.zip | awk '{print $1}')" = "${ARTIFACT_DIGEST}"
+    unzip -oq /tmp/glorifier-exact-provenance.zip -d /tmp/glorifier-exact-provenance
+    EVIDENCE_FILE="$(find /tmp/glorifier-exact-provenance -type f -name deployment-evidence.json -print -quit || true)"
+    [[ -n "${EVIDENCE_FILE}" ]] || continue
+    if jq -e --arg mint "${MINT}" --arg run "${RUN_ID}" --arg program "${EXPECTED_PROGRAM}" '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .programId==$program and .mint==$mint and .deploymentWorkflowRunId==$run' "${EVIDENCE_FILE}" >/dev/null; then
+      jq --arg run "${RUN_ID}" --arg artifact_id "${ARTIFACT_ID}" --arg digest "${ARTIFACT_DIGEST}" '. + {deploymentRunId:$run,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$digest,provenanceSource:"IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"}' "${EVIDENCE_FILE}" > solana/deployment-provenance.json
+      jq -e --arg mint "${MINT}" '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .mint==$mint and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"' solana/deployment-provenance.json >/dev/null
+      echo "RECOVERY_REQUIRED=false" >> "${GITHUB_OUTPUT:-/dev/null}"
+      echo "::notice::Exact immutable deployment artifact matched mint ${MINT}; legacy recovery state does not override this proof."
+      exit 0
+    fi
+  done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-devnet-evidence") | select(.digest!=null and (.digest|startswith("sha256:")))] | sort_by(.created_at) | reverse | .[] | [(.id|tostring),.digest] | @tsv' <<<"${ARTIFACTS_JSON}")
+done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-devnet.yml") | select(.conclusion=="success")] | sort_by(.created_at) | reverse | .[].id' <<<"${RUNS_JSON}")
 # Controlled replacement provenance path. It is reached only when the dedicated
 # deployment workflow has already accepted the exact human replacement gate.
 if [[ -f solana/devnet-deployment-recovery.json ]]; then
