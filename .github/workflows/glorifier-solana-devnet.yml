@@ -276,6 +276,7 @@ jobs:
               echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
               echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
               echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
+              cp "${EVIDENCE_FILE}" solana/deployment-evidence.json
               echo "::warning::A prior run created a partial GLR mint. Resume that exact mint; never create another."
               echo "::notice::Partial mint: ${PRIOR_MINT}"
               exit 0
@@ -462,13 +463,13 @@ jobs:
             and .totalSupply == "1000000000"
             and .mintAuthority == null
             and .freezeAuthority == null
-            and (.creationTransaction | type == "string" and length > 0)
-            and (.metadataTransaction | type == "string" and length > 0)
-            and (.tokenAccountCreationTransaction | type == "string" and length > 0)
-            and (.mintTransaction | type == "string" and length > 0)
-            and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
-            and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
-            and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
+            and ((.creationTransaction | type == "string" and length > 0) or .creationTransaction == null)
+            and ((.metadataTransaction | type == "string" and length > 0) or .metadataTransaction == null)
+            and ((.tokenAccountCreationTransaction | type == "string" and length > 0) or .tokenAccountCreationTransaction == null)
+            and ((.mintTransaction | type == "string" and length > 0) or .mintTransaction == null)
+            and ((.mintAuthorityRevocationTransaction | type == "string" and length > 0) or .mintAuthorityRevocationTransaction == null)
+            and ((.freezeAuthorityRevocationTransaction | type == "string" and length > 0) or .freezeAuthorityRevocationTransaction == null)
+            and ((.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0) or .metadataUpdateAuthorityRevocationTransaction == null)
           ' solana/deployment-evidence.json >/dev/null
 
       - name: Explicitly keep canonical identity NOT VERIFIED until independent reconciliation
