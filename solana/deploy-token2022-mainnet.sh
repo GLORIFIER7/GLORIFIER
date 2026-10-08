@@ -76,7 +76,7 @@ else
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
-if printf '%s\n' "$STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled)'; then
+if printf '%s\n' "$STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled|\(not set\))'; then
   echo "Mint authority is already disabled."
 else
   MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
@@ -85,7 +85,7 @@ else
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
-if printf '%s\n' "$STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled)'; then
+if printf '%s\n' "$STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled|\(not set\))'; then
   echo "Freeze authority is already absent; no revocation transaction exists."
   FREEZE_AUTH_TX=""
 else
@@ -95,7 +95,7 @@ else
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
-if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabled)'; then
+if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabled|\(not set\))'; then
   echo "Metadata update authority is already absent."
 else
   echo "Revoking Token Metadata update authority with the Token Metadata interface instruction (the spl-token CLI metadata alias can incorrectly dispatch Token-2022 SetAuthority after mint supply is fixed)."
@@ -118,10 +118,10 @@ spl-token --program-2022 balance "$MINT" | tee solana/deployment-mainnet-holder-
 test "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY"
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
 printf '%s\n' "$FINAL_MINT_STATE" | tee solana/deployment-mainnet-mint-state.txt
-printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
-printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled|\(not set\))'
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled|\(not set\))'
 FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
-test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None"
+test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None" || test "$FINAL_POINTER_AUTH" = "(not set)"
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
 for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX METADATA_AUTH_TX METADATA_POINTER_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
 if [[ "$FREEZE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$FREEZE_AUTH_TX" || { echo "::error::Missing transaction signature: FREEZE_AUTH_TX"; exit 1; }; fi
