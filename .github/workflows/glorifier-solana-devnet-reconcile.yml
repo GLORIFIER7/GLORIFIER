@@ -68,9 +68,12 @@ jobs:
           mint=""
           if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
             mint="${MINT_ADDRESS_INPUT}"
-          elif [[ -n "${canonical}" ]]; then
-            mint="${canonical}"
           else
+            # Never let a stale repository canonical value shadow a newer
+            # authorized deployment. Prefer the newest successful deployment
+            # artifact; canonical identity is only published after independent
+            # finalized reconciliation.
+
             RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
             while IFS= read -r run_id; do
               [[ -n "${run_id}" ]] || continue
