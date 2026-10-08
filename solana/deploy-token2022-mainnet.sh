@@ -5,7 +5,7 @@ if [[ "${GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW:-}" != "true" || -z "${GITHUB_ACT
 fi
 readonly DECIMALS=9
 readonly SUPPLY=1000000000
-readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
+readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/d0d5c16fc4a74099c125c8aac594352d53675177/solana/token.json"
 readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 write_evidence() {
   local status="$1"
