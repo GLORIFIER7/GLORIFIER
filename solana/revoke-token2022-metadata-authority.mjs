@@ -32,7 +32,7 @@ const signature = await sendAndConfirmTransaction(
 );
 
 const finalMetadata = await getTokenMetadata(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID);
-if (finalMetadata?.updateAuthority) {
+if (!finalMetadata || finalMetadata.updateAuthority) {
   throw new Error("Token Metadata update authority was not cleared on-chain.");
 }
 console.log(signature);
