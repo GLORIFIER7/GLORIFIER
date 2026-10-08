@@ -1,7 +1,7 @@
 {
-  "status":"VERIFIED_ON_CHAIN","publicationStatus":"READY_FOR_PR","mint":"8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
-  "verificationRunId":"37748349535","verificationRunUrl":"https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37748349535",
-  "publicationBranch":"automation/glorifier-solana-devnet-verified-37748349535",
-  "blockingRequirement":"Protected repository rule requires the build status check and one approving review before canonical publication can merge.",
-  "nextAction":"Run the build check on this PR and obtain the required human approval; do not bypass protection.","canonicalIdentityUpdated":true
+  "status": "VERIFIED_ON_CHAIN",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "verificationRunId": "37753847649",
+  "verificationRunUrl": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37753847649",
+  "publishedBy": "GLORIFIER Solana Devnet reconciliation workflow"
 }
