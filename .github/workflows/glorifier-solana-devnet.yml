@@ -309,6 +309,17 @@ jobs:
                 and (.status != "NOT_VERIFIED")
               ' "${EVIDENCE_FILE}" >/dev/null; then
                 PRIOR_MINT="$(jq -r '.mint' "${EVIDENCE_FILE}")"
+                PRIOR_STATUS="$(jq -r '.status' "${EVIDENCE_FILE}")"
+                if [[ "${PRIOR_STATUS}" == "DEPLOYED" || "${PRIOR_STATUS}" == "READY_FOR_VERIFICATION" ]]; then
+                  echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
+                  echo "RESUME_MINT=${PRIOR_MINT}" >> "$GITHUB_OUTPUT"
+                  echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
+                  echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
+                  echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
+                  echo "::warning::A prior run created a partial GLR mint. Resume that exact mint; never create another."
+                  echo "::notice::Partial mint: ${PRIOR_MINT}"
+                  exit 0
+                fi
                 echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
                 echo "STATUS=RECONCILIATION_REQUIRED" > solana/deployment-status.txt
                 echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
@@ -348,7 +359,7 @@ jobs:
 
       - name: Gate controlled replacement mint
         id: replacement_gate
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replay_lock.outputs.RESUME_MINT == '' }}
         shell: bash
         env:
           REPLACEMENT_CONFIRMATION: ${{ inputs.replacement_confirm }}
