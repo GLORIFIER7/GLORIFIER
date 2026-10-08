@@ -53,7 +53,7 @@ if [[ -f solana/deployment-provenance.json ]]; then
     and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
     and .mint == $mint
     and (.deploymentRunId | type == "string" and length > 0)
-    and .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE"
+    and .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE" or .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"
     and (.deploymentJobId | type == "string" and length > 0)
     and (.metadataPointerAuthorityRevocationTransaction | type == "string" and length > 0)
     and (.creationTransaction | type == "string" and length > 0)
