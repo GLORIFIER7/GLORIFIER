@@ -483,6 +483,7 @@ jobs:
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
           REPLACEMENT_AUTHORIZED: ${{ steps.replacement_gate.outputs.AUTHORIZED }}
+          REPLACED_MINT: ${{ steps.replacement_gate.outputs.REPLACED_MINT }}
           EXISTING_MINT: ${{ steps.replay_lock.outputs.RESUME_MINT }}
         run: |
           set -euo pipefail
