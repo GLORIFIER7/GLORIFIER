@@ -11,7 +11,7 @@
   "status": "VERIFIED_ON_CHAIN",
   "verification_boundary": "Finalized canonical Devnet RPC state plus immutable exact-mint deployment provenance. Transaction-level semantic verification is not asserted because preserved historical receipts are incomplete; current finalized state and immutable exact-mint GitHub Actions provenance are independently verified.",
   "excluded_mint": "FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G",
-  "next_action": "Independent finalized read-only reconciliation and deployment provenance verification passed; canonical publication still requires protected PR approval.",
+  "next_action": "Canonical Devnet identity is published on main. Preserve this mint and evidence; Solana Mainnet remains separately gated and NOT VERIFIED until an authorized human-approved Mainnet deployment is independently reconciled.",
   "metadata_transaction": "null",
   "token_account_creation_transaction": "null",
   "freeze_authority_revocation_transaction": "null",
