@@ -245,8 +245,47 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A prior authorized run already created a real mint before the parser
-          # failed. Treat that deployment as consumed and never create a second mint.
+          # Prefer a resumable partial deployment artifact over the legacy
+          # recovery record. A later partial mint is the canonical resume target
+          # for this workflow; the legacy recovery record is only the irrecoverable
+          # pre-parser mint and must never shadow a newer partial mint.
+          DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+
+          while IFS= read -r PRIOR_RUN_ID; do
+            [[ -n "${PRIOR_RUN_ID}" ]] || continue
+            [[ "${PRIOR_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
+
+            PRIOR_RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}")"
+            jq -e '.path == ".github/workflows/glorifier-solana-devnet.yml" and .event == "workflow_dispatch" and .head_branch == "main"' <<<"${PRIOR_RUN_JSON}" >/dev/null || continue
+
+            ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}/artifacts?per_page=100")"
+            EVIDENCE_ID="$(jq -r '[.artifacts[]? | select(.expired == false) | select(.name == "glorifier-solana-devnet-evidence") | .id] | last // empty' <<<"${ARTIFACTS_JSON}")"
+            [[ -n "${EVIDENCE_ID}" ]] || continue
+
+            rm -rf /tmp/glorifier-solana-replay-check
+            mkdir -p /tmp/glorifier-solana-replay-check
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ID}/zip" > /tmp/glorifier-solana-replay-check.zip
+            unzip -oq /tmp/glorifier-solana-replay-check.zip -d /tmp/glorifier-solana-replay-check
+            EVIDENCE_FILE="$(find /tmp/glorifier-solana-replay-check -type f -name "deployment-evidence.json" -print -quit || true)"
+
+            if [[ -n "${EVIDENCE_FILE}" ]] && jq -e '.network == "solana-devnet" and (.mint | type == "string" and length >= 32 and length <= 44) and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb") and (.status == "DEPLOYED" or .status == "READY_FOR_VERIFICATION")' "${EVIDENCE_FILE}" >/dev/null; then
+              PRIOR_MINT="$(jq -r '.mint' "${EVIDENCE_FILE}")"
+              PRIOR_STATUS="$(jq -r '.status' "${EVIDENCE_FILE}")"
+              echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
+              echo "RESUME_MINT=${PRIOR_MINT}" >> "$GITHUB_OUTPUT"
+              echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
+              echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
+              echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
+              echo "::warning::A prior run created a partial GLR mint. Resume that exact mint; never create another."
+              echo "::notice::Partial mint: ${PRIOR_MINT}"
+              exit 0
+            fi
+          done < <(
+            jq -r '[.workflow_runs[]? | select(.event == "workflow_dispatch") | select(.head_branch == "main") | select(.path == ".github/workflows/glorifier-solana-devnet.yml") | .id] | reverse | .[]' <<<"${DEPLOYMENT_RUNS_JSON}"
+          )
+
+          # No resumable partial artifact was found. Only now consult the legacy
+          # recovery record, which represents the older irrecoverable mint.
           if [[ -f solana/devnet-deployment-recovery.json ]]; then
             jq -e '
               .status == "DEPLOYED_UNVERIFIED"
@@ -269,79 +308,6 @@ jobs:
             echo "::notice::No second mint will be created. Continue with the read-only reconciliation workflow."
             exit 0
           fi
-
-          DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
-
-          while IFS= read -r PRIOR_RUN_ID; do
-            [[ -n "${PRIOR_RUN_ID}" ]] || continue
-            [[ "${PRIOR_RUN_ID}" != "${GITHUB_RUN_ID}" ]] || continue
-
-            PRIOR_RUN_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}")"
-            jq -e '
-              .path == ".github/workflows/glorifier-solana-devnet.yml"
-              and .event == "workflow_dispatch"
-              and .head_branch == "main"
-            ' <<<"${PRIOR_RUN_JSON}" >/dev/null || continue
-
-            # A real mint is considered consumed even if the workflow later failed.
-            # This prevents retrying after a partial deployment and creating a second mint.
-            ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${PRIOR_RUN_ID}/artifacts?per_page=100")"
-            EVIDENCE_ID="$(jq -r '
-              [.artifacts[]?
-               | select(.expired == false)
-               | select(.name == "glorifier-solana-devnet-evidence")
-               | select(.workflow_run.id == ('"${PRIOR_RUN_ID}"' | tonumber))
-               | .id]
-              | last // empty
-            ' <<<"${ARTIFACTS_JSON}")"
-
-            if [[ -n "${EVIDENCE_ID}" ]]; then
-              rm -rf /tmp/glorifier-solana-replay-check
-              mkdir -p /tmp/glorifier-solana-replay-check
-              gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EVIDENCE_ID}/zip" > /tmp/glorifier-solana-replay-check.zip
-              unzip -oq /tmp/glorifier-solana-replay-check.zip -d /tmp/glorifier-solana-replay-check
-
-              EVIDENCE_FILE="$(find /tmp/glorifier-solana-replay-check -type f -name "deployment-evidence.json" -print -quit || true)"
-              if [[ -n "${EVIDENCE_FILE}" ]] && jq -e '
-                (.network == "solana-devnet")
-                and (.mint | type == "string" and length >= 32 and length <= 44)
-                and (.programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
-                and (.status != "NOT_VERIFIED")
-              ' "${EVIDENCE_FILE}" >/dev/null; then
-                PRIOR_MINT="$(jq -r '.mint' "${EVIDENCE_FILE}")"
-                PRIOR_STATUS="$(jq -r '.status' "${EVIDENCE_FILE}")"
-                if [[ "${PRIOR_STATUS}" == "DEPLOYED" || "${PRIOR_STATUS}" == "READY_FOR_VERIFICATION" ]]; then
-                  echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
-                  echo "RESUME_MINT=${PRIOR_MINT}" >> "$GITHUB_OUTPUT"
-                  echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
-                  echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
-                  echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
-                  echo "::warning::A prior run created a partial GLR mint. Resume that exact mint; never create another."
-                  echo "::notice::Partial mint: ${PRIOR_MINT}"
-                  exit 0
-                fi
-                echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
-                echo "STATUS=RECONCILIATION_REQUIRED" > solana/deployment-status.txt
-                echo "EXISTING_MINT=${PRIOR_MINT}" >> solana/deployment-status.txt
-                echo "PRIOR_DEPLOYMENT_RUN_ID=${PRIOR_RUN_ID}" >> solana/deployment-status.txt
-                echo "::warning::A prior deployment run already produced real GLR deployment evidence."
-                echo "::notice::Prior run: ${PRIOR_RUN_ID}"
-                echo "::notice::Prior mint: ${PRIOR_MINT}"
-                echo "::notice::No second mint will be created. Use the read-only reconciliation workflow."
-                exit 0
-              fi
-            fi
-          done < <(
-            jq -r '
-              [.workflow_runs[]?
-              | select(.event == "workflow_dispatch")
-              | select(.head_branch == "main")
-              | select(.path == ".github/workflows/glorifier-solana-devnet.yml")
-              | .id]
-              | reverse
-              | .[]
-            ' <<<"${DEPLOYMENT_RUNS_JSON}"
-          )
 
           echo "DEPLOYABLE=true" >> "$GITHUB_OUTPUT"
           echo "STATUS=DEPLOYMENT_AUTHORIZED" > solana/deployment-status.txt
@@ -404,7 +370,7 @@ jobs:
           jq -e '.status=="AUTHORIZED" and .replacedMint==$m' --arg m "${RECOVERED_MINT}" solana/replacement-authorization.json >/dev/null
 
       - name: Resume recovered Token-2022 mint
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replacement_gate.outputs.AUTHORIZED != 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replay_lock.outputs.RESUME_MINT == '' && steps.replacement_gate.outputs.AUTHORIZED != 'true' }}
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
