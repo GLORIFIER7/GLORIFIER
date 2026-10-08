@@ -249,6 +249,32 @@ jobs:
           # recovery record. A later partial mint is the canonical resume target
           # for this workflow; the legacy recovery record is only the irrecoverable
           # pre-parser mint and must never shadow a newer partial mint.
+          # A deployment run created this partial mint before a later evidence-parser
+          # bug wrote the transaction signature into deployment-evidence.json. Prefer
+          # the explicit recovery record and verify the mint on-chain before resuming.
+          if [[ -f solana/devnet-partial-mint-recovery.json ]]; then
+            PARTIAL_MINT="$(jq -r '.mint // empty' solana/devnet-partial-mint-recovery.json)"
+            jq -e '.status == "DEPLOYED" and .network == "solana-devnet" and .programId == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and (.mint | type == "string" and length >= 32 and length <= 44)' solana/devnet-partial-mint-recovery.json >/dev/null || {
+              echo "::error::Invalid partial mint recovery record."
+              exit 1
+            }
+            if spl-token --program-2022 display "${PARTIAL_MINT}" >/tmp/glorifier-partial-display.txt 2>&1; then
+              if grep -Fq 'Token-2022' /tmp/glorifier-partial-display.txt; then
+                echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
+                echo "RESUME_MINT=${PARTIAL_MINT}" >> "$GITHUB_OUTPUT"
+                echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
+                echo "EXISTING_MINT=${PARTIAL_MINT}" >> solana/deployment-status.txt
+                echo "PRIOR_DEPLOYMENT_RUN_ID=$(jq -r '.sourceWorkflowRunId' solana/devnet-partial-mint-recovery.json)" >> solana/deployment-status.txt
+                cp solana/devnet-partial-mint-recovery.json solana/devnet-partial-mint-recovery-used.json
+                echo "::notice::Authoritative partial mint recovery: ${PARTIAL_MINT}"
+                exit 0
+              fi
+            fi
+            echo "::error::Recorded partial mint is not a live Token-2022 mint on Devnet."
+            cat /tmp/glorifier-partial-display.txt
+            exit 1
+          fi
+
           DEPLOYMENT_RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
 
           while IFS= read -r PRIOR_RUN_ID; do
