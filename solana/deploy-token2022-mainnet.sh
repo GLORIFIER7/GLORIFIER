@@ -13,9 +13,11 @@ write_evidence() {
     --arg name "GLORIFIER" --arg symbol "GLR" --arg uri "$METADATA_URI" \
     --arg creation "${CREATE_TOKEN_TX:-}" --arg metadata "${METADATA_TX:-}" --arg account "${CREATE_ACCOUNT_TX:-}" \
     --arg mintTx "${MINT_TX:-}" --arg mintAuth "${MINT_AUTH_TX:-}" --arg freezeAuth "${FREEZE_AUTH_TX:-}" --arg metadataAuth "${METADATA_AUTH_TX:-}" --arg metadataPointerAuth "${METADATA_POINTER_AUTH_TX:-}" \
+    --argjson metadataUpdateAuthorityInitiallyNone "${METADATA_UPDATE_AUTHORITY_INITIALLY_NONE:-false}" \
+    --argjson metadataPointerAuthorityInitiallyNone "${METADATA_POINTER_AUTHORITY_INITIALLY_NONE:-false}" \
     --arg runId "${GITHUB_RUN_ID:-}" --arg runUrl "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}" \
     --argjson freezeInitiallyNone "${FREEZE_AUTHORITY_INITIALLY_NONE:-false}" \
-    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,freezeAuthorityInitiallyNone:$freezeInitiallyNone,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
+    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,freezeAuthorityInitiallyNone:$freezeInitiallyNone,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,metadataUpdateAuthorityInitiallyNone:$metadataUpdateAuthorityInitiallyNone,metadataPointerAuthorityInitiallyNone:$metadataPointerAuthorityInitiallyNone,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
 }
 RECOVERY_FILE="solana/mainnet-recovery.json"
 MINT=""
@@ -28,6 +30,8 @@ FREEZE_AUTH_TX=""
 FREEZE_AUTHORITY_INITIALLY_NONE=false
 METADATA_AUTH_TX=""
 METADATA_POINTER_AUTH_TX=""
+METADATA_UPDATE_AUTHORITY_INITIALLY_NONE=false
+METADATA_POINTER_AUTHORITY_INITIALLY_NONE=false
 
 if [[ -f "$RECOVERY_FILE" ]] && jq -e '.status=="RECOVERY_REQUIRED" and .network=="solana-mainnet"' "$RECOVERY_FILE" >/dev/null; then
   MINT="$(jq -r '.mint' "$RECOVERY_FILE")"
@@ -97,6 +101,7 @@ fi
 STATE="$(spl-token --program-2022 display "$MINT")"
 if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabled|\(not set\))'; then
   echo "Metadata update authority is already absent."
+  METADATA_UPDATE_AUTHORITY_INITIALLY_NONE=true
 else
   echo "Revoking Token Metadata update authority with the Token Metadata interface instruction (the spl-token CLI metadata alias can incorrectly dispatch Token-2022 SetAuthority after mint supply is fixed)."
   npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15 @solana/spl-token-metadata@0.1.6
@@ -105,9 +110,10 @@ else
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
-POINTER_STATE="$(printf '%s\n' "$STATE" | awk '/Metadata Pointer:/,/^$/')"
-if printf '%s\n' "$POINTER_STATE" | grep -Eiq 'Authority:[[:space:]]*(None|Disabled)'; then
+POINTER_AUTH="$(printf '%s\n' "$STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
+if [[ -z "$POINTER_AUTH" || "$POINTER_AUTH" == "None" || "$POINTER_AUTH" == "Disabled" ]]; then
   echo "Metadata pointer authority is already absent."
+  METADATA_POINTER_AUTHORITY_INITIALLY_NONE=true
 else
   echo "Revoking Metadata Pointer authority with a direct Token-2022 instruction (the spl-token CLI can incorrectly resolve extension authority after mint authority is fixed)."
   npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15
@@ -123,6 +129,8 @@ printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(Non
 FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
 test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None" || test "$FINAL_POINTER_AUTH" = "(not set)"
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
-for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX METADATA_AUTH_TX METADATA_POINTER_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+if [[ "$METADATA_UPDATE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$METADATA_AUTH_TX" || { echo "::error::Missing transaction signature: METADATA_AUTH_TX"; exit 1; }; fi
+if [[ "$METADATA_POINTER_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$METADATA_POINTER_AUTH_TX" || { echo "::error::Missing transaction signature: METADATA_POINTER_AUTH_TX"; exit 1; }; fi
 if [[ "$FREEZE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$FREEZE_AUTH_TX" || { echo "::error::Missing transaction signature: FREEZE_AUTH_TX"; exit 1; }; fi
 write_evidence "READY_FOR_VERIFICATION"
