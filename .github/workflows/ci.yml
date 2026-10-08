@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
