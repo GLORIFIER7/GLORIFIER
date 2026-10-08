@@ -67,6 +67,12 @@ if [[ -f solana/deployment-provenance.json ]]; then
     echo "::error::Local deployment provenance failed validation."
     exit 1
   }
+  if jq -e '.replacementAuthorized == true' solana/deployment-provenance.json >/dev/null 2>&1; then
+    jq -e --arg mint "${MINT}" '.replacementAuthorized == true and (.replacedMint | type == "string" and length >= 32 and length <= 44) and .replacedMint != $mint' solana/deployment-provenance.json >/dev/null || {
+      echo "::error::Replacement provenance is invalid: the canonical mint must be distinct from the preserved irrecoverable mint."
+      exit 1
+    }
+  fi
   FOUND=1
 else
   RUNS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/glorifier-solana-devnet.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
