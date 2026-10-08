@@ -110,7 +110,8 @@ else
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
-POINTER_AUTH="$(printf '%s\n' "$STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
+POINTER_AUTH="$(printf '%s\n' "$STATE" | sed -n '/^[[:space:]]*Metadata Pointer:/,/^[[:space:]]*Metadata:/p' | awk -F': ' '/^[[:space:]]*Authority:/ {print $2; exit}' | tr -d '\r')"
+echo "Detected Metadata Pointer authority: ${POINTER_AUTH:-<none>}"
 if [[ -z "$POINTER_AUTH" || "$POINTER_AUTH" == "None" || "$POINTER_AUTH" == "Disabled" ]]; then
   echo "Metadata pointer authority is already absent."
   METADATA_POINTER_AUTHORITY_INITIALLY_NONE=true
@@ -126,7 +127,8 @@ FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
 printf '%s\n' "$FINAL_MINT_STATE" | tee solana/deployment-mainnet-mint-state.txt
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled|\(not set\))'
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled|\(not set\))'
-FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
+FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | sed -n '/^[[:space:]]*Metadata Pointer:/,/^[[:space:]]*Metadata:/p' | awk -F': ' '/^[[:space:]]*Authority:/ {print $2; exit}' | tr -d '\r')"
+echo "Detected final Metadata Pointer authority: ${FINAL_POINTER_AUTH:-<none>}"
 test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None" || test "$FINAL_POINTER_AUTH" = "(not set)"
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
 for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
