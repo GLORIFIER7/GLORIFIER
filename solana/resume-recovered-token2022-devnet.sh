@@ -24,15 +24,27 @@ METADATA_TX=""; ACCOUNT_TX=""; MINT_TX=""; MINT_AUTH_TX=""; FREEZE_AUTH_TX=""; M
 
 # The original deployment stopped immediately after create-token. Complete the
 # existing mint in place; never create another mint.
+MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk -F': ' '/^[[:space:]]*Mint authority:/ {print $2; exit}')"
+test -n "${MINT_AUTHORITY}" || {
+  echo "::error::Recovered mint did not expose a Mint authority in spl-token display output."
+  exit 1
+}
+test "${MINT_AUTHORITY}" = "${SIGNER}" || {
+  echo "::error::Recovered mint authority does not match the deployment signer; refusing metadata initialization."
+  printf 'Mint authority: %s\n' "${MINT_AUTHORITY}"
+  printf 'Deployment signer: %s\n' "${SIGNER}"
+  exit 1
+}
+
+# create-token --enable-metadata leaves the metadata extension allocated but
+# uninitialized. Use the canonical CLI form documented by Solana; the wallet
+# configured above is the mint authority and signs the initialization.
 if ! printf '%s\n' "${DISPLAY}" | grep -Eq 'Metadata:[[:space:]]+GLORIFIER([[:space:]]|$)'; then
-  MINT_AUTHORITY_KEYPAIR="${HOME}/.config/solana/glorifier-devnet-keypair.json"
-  OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}" \
-    --mint-authority "${MINT_AUTHORITY_KEYPAIR}" \
-    --update-authority "${SIGNER}")"
+  OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
   test -n "${METADATA_TX}"
-fi
+}
 
 SUPPLY_NOW="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
 if [[ "${SUPPLY_NOW}" == "0" ]]; then
