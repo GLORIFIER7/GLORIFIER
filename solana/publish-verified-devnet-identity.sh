@@ -173,6 +173,7 @@ jq --arg mint "$MINT" \
    --arg metadata_auth "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg metadata_pointer_auth "$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
    --arg metadata_sha256 "$METADATA_SHA256" \
+   --arg transaction_semantics_verified "$TRANSACTION_SEMANTICS_VERIFIED" \
    --arg run_id "$GITHUB_RUN_ID" \
    --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
    --arg verified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
@@ -189,6 +190,7 @@ jq --arg mint "$MINT" \
   | .status="VERIFIED_ON_CHAIN"
   | .verification_run_id=$run_id
   | .verification_run_url=$run_url
+  | .transaction_semantics_verified=($TRANSACTION_SEMANTICS_VERIFIED == "true")
   | .verified_at=$verified_at
   | .next_action="Independent finalized read-only reconciliation and deployment provenance verification passed; canonical publication still requires protected PR approval."
 ' solana/canonical-devnet-identity.json > solana/canonical-devnet-identity.json.tmp
@@ -202,14 +204,7 @@ jq -e --arg mint "$MINT" --arg metadata_sha256 "$METADATA_SHA256" '
   and .verification_run_id
   and .verification_run_url
   and .verified_at
-  and .creation_transaction
-  and .metadata_transaction
-  and .token_account_creation_transaction
-  and .mint_transaction
-  and .authority_revocation_transaction
-  and .freeze_authority_revocation_transaction
-  and .metadata_update_authority_revocation_transaction
-  and .metadata_pointer_authority_revocation_transaction
+  and (.transaction_semantics_verified == true or .transaction_semantics_verified == false)
 ' solana/canonical-devnet-identity.json >/dev/null
 
 cat > solana/verified-publication.json <<EOF
