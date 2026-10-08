@@ -7,6 +7,11 @@ on:
         description: "Type DEPLOY_GLORIFIER_SOLANA_DEVNET to authorize the guarded Devnet deploy/resume path"
         required: true
         type: string
+      replacement_confirm:
+        description: "Only for the irrecoverable recovered mint: type AUTHORIZE_GLORIFIER_SOLANA_DEVNET_REPLACEMENT to permit one controlled replacement mint"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -342,7 +347,7 @@ jobs:
           solana address
 
       - name: Resume recovered Token-2022 mint
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' && steps.replacement_gate.outputs.AUTHORIZED != 'true' }}
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
@@ -351,8 +356,54 @@ jobs:
           MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
           chmod +x solana/resume-recovered-token2022-devnet.sh
           ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
+      - name: Gate controlled replacement mint
+        id: replacement_gate
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'false' }}
+        shell: bash
+        env:
+          REPLACEMENT_CONFIRMATION: ${{ inputs.replacement_confirm }}
+        run: |
+          set -euo pipefail
+
+          test "${REPLACEMENT_CONFIRMATION}" = "AUTHORIZE_GLORIFIER_SOLANA_DEVNET_REPLACEMENT" || {
+            echo "AUTHORIZED=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Recovered mint remains protected. No replacement mint was authorized."
+            exit 0
+          }
+
+          test -f solana/devnet-deployment-recovery.json
+          RECOVERED_MINT="$(jq -r '.mint' solana/devnet-deployment-recovery.json)"
+          test -n "${RECOVERED_MINT}"
+
+          DISPLAY="$(spl-token --program-2022 display "${RECOVERED_MINT}")"
+          printf '%s\n' "${DISPLAY}"
+
+          MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'tolower($0) ~ /^[[:space:]]*mint[[:space:]]+authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
+
+          test "${MINT_AUTHORITY}" = "(not set)" || test "${MINT_AUTHORITY}" = "None" || {
+            echo "::error::Replacement blocked: the recovered mint still has a mint authority. Resume/reconcile it instead of creating a replacement."
+            exit 1
+          }
+
+          echo "AUTHORIZED=true" >> "$GITHUB_OUTPUT"
+          echo "REPLACED_MINT=${RECOVERED_MINT}" >> "$GITHUB_OUTPUT"
+          echo "Replacement authorization accepted only because the recovered mint has permanently revoked mint authority."
+          echo "The recovered mint will remain preserved as DEPLOYED_UNVERIFIED."
+          echo "A new mint will be independently reconciled before canonicalization."
+          cat > solana/replacement-authorization.json <<EOF
+          {
+            "status": "AUTHORIZED",
+            "reason": "Recovered Devnet mint has no mint authority and cannot complete the required metadata/supply lifecycle.",
+            "replacedMint": "${RECOVERED_MINT}",
+            "confirmation": "AUTHORIZE_GLORIFIER_SOLANA_DEVNET_REPLACEMENT",
+            "workflowRunId": "${GITHUB_RUN_ID}",
+            "workflowRunUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          }
+          EOF
+          jq -e '.status=="AUTHORIZED" and .replacedMint==$m' --arg m "${RECOVERED_MINT}" solana/replacement-authorization.json >/dev/null
+
       - name: Verify Devnet RPC and recover Devnet funding
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -406,17 +457,18 @@ jobs:
           echo "Devnet funding check passed: ${BALANCE} lamports."
 
       - name: Execute real Token-2022 GLORIFIER deployment
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
+          REPLACEMENT_AUTHORIZED: ${{ steps.replacement_gate.outputs.AUTHORIZED }}
         run: |
           set -euo pipefail
           chmod +x solana/deploy-token2022-devnet.sh
           ./solana/deploy-token2022-devnet.sh
 
       - name: Validate real deployment evidence
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
