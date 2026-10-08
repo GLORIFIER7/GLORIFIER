@@ -1,0 +1,21 @@
+{
+  "network": "solana-devnet",
+  "status": "VERIFIED_ON_CHAIN",
+  "mode": "RECONCILIATION_READ_ONLY",
+  "commitment": "finalized",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "name": "GLORIFIER",
+  "symbol": "GLR",
+  "decimals": 9,
+  "totalSupply": "1000000000",
+  "mintAuthority": null,
+  "freezeAuthority": null,
+  "metadataPointerAuthority": null,
+  "metadataUpdateAuthority": null,
+  "offChainMetadataSha256": "13e7f50a3c209cfd9e1b0fcf862c61c33f2b95e28635d6c889cfa2615f108225",
+  "deploymentProvenanceVerified": true,
+  "provenanceSource": "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT",
+  "transactionSemanticsVerified": false,
+  "finalized": true
+}
