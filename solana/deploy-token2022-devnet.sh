@@ -133,10 +133,16 @@ else
 fi
 
 # Permanently remove authorities after the exact supply is minted.
-MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
-printf '%s\n' "$MINT_AUTH_OUTPUT"
-MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$MINT_AUTH_TX" || { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
+MINT_STATE_AFTER_SUPPLY="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$MINT_STATE_AFTER_SUPPLY" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\(not set\))'; then
+  echo "Mint authority is already disabled; continuing."
+  MINT_AUTH_TX=""
+else
+  MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
+  printf '%s\n' "$MINT_AUTH_OUTPUT"
+  MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$MINT_AUTH_TX" || { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
+fi
 
 FINAL_MINT_STATE_PRE_FREEZE="$(spl-token --program-2022 display "$MINT")"
 if printf '%s\n' "$FINAL_MINT_STATE_PRE_FREEZE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\(not set\))'; then
