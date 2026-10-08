@@ -6,6 +6,17 @@ if [[ "${GLORIFIER_AUTHORIZED_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}"
   echo "::error::Use .github/workflows/glorifier-solana-devnet.yml with explicit authorization."
   exit 1
 fi
+if [[ -f solana/devnet-deployment-recovery.json ]]; then
+  if [[ "${REPLACEMENT_AUTHORIZED:-}" != "true" || ! -f solana/replacement-authorization.json ]]; then
+    echo "::error::Replacement mint creation is blocked: an existing recovered Devnet mint is already recorded."
+    echo "::error::A replacement requires the workflow's explicit controlled replacement authorization gate."
+    exit 1
+  fi
+  jq -e '.status == "AUTHORIZED" and (.replacedMint | type == "string" and length >= 32 and length <= 44)' solana/replacement-authorization.json >/dev/null || {
+    echo "::error::Replacement authorization artifact is invalid."
+    exit 1
+  }
+fi
 # GLORIFIER GLR — Solana Token-2022 Devnet deployment.
 # This script creates a new mint ONLY when invoked by the authorized
 # deployment workflow. The workflow has a pre-deployment replay/evidence
