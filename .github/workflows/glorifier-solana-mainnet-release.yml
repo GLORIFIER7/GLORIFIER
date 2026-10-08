@@ -46,6 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           jq -e '.name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .transferFeeBasisPoints==0 and .permanentDelegate==null and .finalMintAuthority==null and .finalFreezeAuthority==null and .mainnetRequiresHumanApproval==true' solana/token-config.json >/dev/null
+          jq -e '.mainnetMetadataUri|type=="string" and startswith("https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/") and contains("/main/")==false' solana/token-config.json >/dev/null
 
       - name: Require complete independently verified Devnet evidence
         shell: bash
