@@ -80,7 +80,7 @@ while offset + 4 <= len(raw):
     extensions[etype] = raw[offset:end]
     offset = end
 mp, tm = extensions.get(18), extensions.get(19)
-if mp is None or len(mp) < 68: raise SystemExit("MetadataPointer extension missing or malformed")
+if mp is None or len(mp) != 64: raise SystemExit("MetadataPointer extension missing or malformed")
 if tm is None or len(tm) < 64: raise SystemExit("TokenMetadata extension missing or malformed")
 alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 def b58(data):
@@ -92,9 +92,8 @@ def b58(data):
         if b == 0: pad += 1
         else: break
     return "1"*pad + (out or "")
-pointer_authority_tag = int.from_bytes(mp[:4], "little")
-pointer_authority = None if pointer_authority_tag == 0 else b58(mp[4:36])
-metadata_address = b58(mp[36:68])
+pointer_authority = None if mp[:32] == b"\\x00" * 32 else b58(mp[:32])
+metadata_address = b58(mp[32:64])
 update_authority, metadata_mint = b58(tm[:32]), b58(tm[32:64])
 cursor = 64
 def read_string():
