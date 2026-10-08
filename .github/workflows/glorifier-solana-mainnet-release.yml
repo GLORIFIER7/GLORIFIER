@@ -32,7 +32,8 @@ jobs:
           set -euo pipefail
           test "${{ github.ref }}" = "refs/heads/main"
           test "${{ inputs.confirm }}" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
-          test -n "${{ inputs.release_reason }}"
+          RELEASE_REASON="${{ inputs.release_reason }}"
+          test "${#RELEASE_REASON}" -ge 20
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Require verified Devnet gate
@@ -141,7 +142,10 @@ jobs:
           set -euo pipefail
           test -n "$SOLANA_RPC_URL"
           test -n "$GLORIFIER_SOLANA_KEYPAIR_JSON"
-          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*|https://api.mainnet-beta.solana.com|https://api.mainnet-beta.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+
+          MAINNET_GENESIS="$(curl -sSfL --retry 3 --retry-delay 1 --max-time 20 "$SOLANA_RPC_URL" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}' | jq -r '.result // empty')"
+          test "$MAINNET_GENESIS" = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" || { echo "::error::Configured RPC is not Solana Mainnet Beta (genesis hash mismatch)."; exit 1; }
 
           python3 - <<'PY'
           import json
@@ -200,7 +204,8 @@ jobs:
           solana config set --url "$SOLANA_RPC_URL" --keypair "$HOME/.config/solana/glorifier-mainnet-keypair.json"
           solana address
           solana cluster-version
-          test "$(solana balance --lamports | awk '{print $1}')" -ge 50000000
+          BALANCE_LAMPORTS="$(solana balance --lamports | awk '{print $1}')"
+          test "$BALANCE_LAMPORTS" -ge 100000000 || { echo "::error::Mainnet deployer must hold at least 0.1 SOL before an irreversible token deployment."; exit 1; }
       - name: Execute real mainnet deployment
         env:
           GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW: "true"
@@ -252,7 +257,9 @@ jobs:
       - name: Configure mainnet RPC
         run: |
           set -euo pipefail
-          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) exit 1;; esac
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*|https://api.mainnet-beta.solana.com|https://api.mainnet-beta.solana.com/*) exit 1;; esac
+          MAINNET_GENESIS="$(curl -sSfL --retry 3 --retry-delay 1 --max-time 20 "$SOLANA_RPC_URL" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}' | jq -r '.result // empty')"
+          test "$MAINNET_GENESIS" = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
           solana config set --url "$SOLANA_RPC_URL"
       - name: Download deployment evidence
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
@@ -302,7 +309,9 @@ jobs:
           hash -r
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
           solana --version
-          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+          case "$SOLANA_RPC_URL" in https://api.mainnet.solana.com|https://api.mainnet.solana.com/*|https://api.mainnet-beta.solana.com|https://api.mainnet-beta.solana.com/*) echo "::error::Dedicated/private mainnet RPC required."; exit 1;; esac
+          MAINNET_GENESIS="$(curl -sSfL --retry 3 --retry-delay 1 --max-time 20 "$SOLANA_RPC_URL" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}' | jq -r '.result // empty')"
+          test "$MAINNET_GENESIS" = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" || { echo "::error::Configured RPC is not Solana Mainnet Beta."; exit 1; }
           solana config set --url "$SOLANA_RPC_URL"
       - name: Download reconciliation evidence
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
