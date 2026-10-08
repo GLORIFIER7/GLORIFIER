@@ -414,7 +414,7 @@ jobs:
           chmod +x solana/resume-recovered-token2022-devnet.sh
           ./solana/resume-recovered-token2022-devnet.sh "${MINT}"
       - name: Verify Devnet RPC and recover Devnet funding
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replay_lock.outputs.RESUME_MINT != '' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
