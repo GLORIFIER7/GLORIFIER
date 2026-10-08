@@ -12,6 +12,11 @@ on:
         required: false
         default: ""
         type: string
+  workflow_run:
+    workflows:
+      - "GLORIFIER Solana Devnet Deployment"
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -31,16 +36,23 @@ jobs:
     env:
       SOLANA_RPC_URL: https://api.devnet.solana.com
       AGAVE_VERSION: v4.2.2
-      CONFIRMATION: ${{ inputs.confirm }}
-      MINT_ADDRESS_INPUT: ${{ inputs.mint_address }}
+      CONFIRMATION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm || 'VERIFY_GLORIFIER_SOLANA_DEVNET' }}
+      MINT_ADDRESS_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.mint_address || '' }}
     steps:
       - name: Enforce authorization and main branch
         shell: bash
         run: |
           set -euo pipefail
-          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
-          test "${GITHUB_REF}" = "refs/heads/main"
-          test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            test "${GITHUB_REF}" = "refs/heads/main"
+            test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          else
+            test "${GITHUB_EVENT_NAME}" = "workflow_run"
+            test "${GITHUB_EVENT_WORKFLOW}" = "GLORIFIER Solana Devnet Deployment"
+            test "${{ github.event.workflow_run.conclusion }}" = "success"
+            test "${{ github.event.workflow_run.head_branch }}" = "main"
+            test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
+          fi
           if [[ -n "${MINT_ADDRESS_INPUT}" ]]; then
             [[ "${MINT_ADDRESS_INPUT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
           fi
