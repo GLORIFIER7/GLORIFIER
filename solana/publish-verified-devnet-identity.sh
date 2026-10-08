@@ -228,7 +228,19 @@ if [[ -n "${EXISTING_PR}" ]]; then
 fi
 
 git checkout -b "${BRANCH}"
-git add solana/canonical-devnet-identity.json solana/deployment-provenance.json solana/verified-publication.json solana/reconciliation-evidence.json solana/reconciliation-metadata.json solana/reconciliation-tx-*.json
+# Reconciliation may legitimately finish without transaction JSON files when immutable
+# artifact provenance is sufficient; never let an unmatched glob break publication.
+shopt -s nullglob
+STAGED_FILES=(
+  solana/canonical-devnet-identity.json
+  solana/deployment-provenance.json
+  solana/verified-publication.json
+  solana/reconciliation-evidence.json
+  solana/reconciliation-metadata.json
+  solana/reconciliation-tx-*.json
+)
+test "${#STAGED_FILES[@]}" -gt 0
+git add "${STAGED_FILES[@]}"
 git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
 
