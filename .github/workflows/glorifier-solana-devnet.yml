@@ -468,18 +468,19 @@ jobs:
           echo "Devnet funding check passed: ${BALANCE} lamports."
 
       - name: Execute real Token-2022 GLORIFIER deployment
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replay_lock.outputs.RESUME_MINT != '' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         env:
           GLORIFIER_AUTHORIZED_WORKFLOW: "true"
           REPLACEMENT_AUTHORIZED: ${{ steps.replacement_gate.outputs.AUTHORIZED }}
+          EXISTING_MINT: ${{ steps.replay_lock.outputs.RESUME_MINT }}
         run: |
           set -euo pipefail
           chmod +x solana/deploy-token2022-devnet.sh
           ./solana/deploy-token2022-devnet.sh
 
       - name: Validate real deployment evidence
-        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
+        if: ${{ steps.replay_lock.outputs.DEPLOYABLE == 'true' || steps.replay_lock.outputs.RESUME_MINT != '' || steps.replacement_gate.outputs.AUTHORIZED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
