@@ -14,7 +14,7 @@
   "status": "NOT VERIFIED",
   "mainnet_status": "NOT VERIFIED",
   "verification_boundary": "Mainnet identity is publishable only after devnet canonical verification, explicit human approval, real mainnet deployment evidence, independent read-only reconciliation, and transaction confirmation.",
-  "next_action": "Complete the authorized Solana Devnet deployment and reconciliation first. Then configure the protected glorifier-solana-mainnet GitHub Environment and run the manual mainnet release.",
+  "next_action": "Configure the protected glorifier-solana-mainnet environment with a dedicated production RPC and funded mainnet deployer, obtain required human approval, then run the manual release. Mainnet remains NOT VERIFIED until real deployment and independent reconciliation succeed.",
   "verification_run_id": null,
   "verification_run_url": null,
   "verified_at": null
