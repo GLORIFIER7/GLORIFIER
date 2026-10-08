@@ -62,15 +62,23 @@ value = result.get("result", {}).get("value")
 if not value: raise SystemExit("mint account not found at finalized commitment")
 if value.get("owner") != program: raise SystemExit("mint owner is not canonical Token-2022")
 raw = base64.b64decode(value["data"][0])
-if len(raw) < 83: raise SystemExit("mint account is shorter than the Token-2022 mint header")
+if len(raw) < 166: raise SystemExit("extended Token-2022 mint is shorter than the canonical 166-byte header")
+if raw[165] != 1: raise SystemExit("Token-2022 account type is not Mint")
 extensions = {}
-offset = 83
+offset = 166
 while offset + 4 <= len(raw):
     etype = int.from_bytes(raw[offset:offset+2], "little")
     elen = int.from_bytes(raw[offset+2:offset+4], "little")
     offset += 4
-    extensions[etype] = raw[offset:offset+elen]
-    offset += elen
+    if etype == 0:
+        if any(raw[offset:]):
+            raise SystemExit("non-zero bytes remain after the Token-2022 TLV region")
+        break
+    end = offset + elen
+    if end > len(raw):
+        raise SystemExit("Token-2022 extension length exceeds account data")
+    extensions[etype] = raw[offset:end]
+    offset = end
 mp, tm = extensions.get(18), extensions.get(19)
 if mp is None or len(mp) < 68: raise SystemExit("MetadataPointer extension missing or malformed")
 if tm is None or len(tm) < 64: raise SystemExit("TokenMetadata extension missing or malformed")
