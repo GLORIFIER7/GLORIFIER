@@ -28,7 +28,7 @@ METADATA_TX=""; ACCOUNT_TX=""; MINT_TX=""; MINT_AUTH_TX=""; FREEZE_AUTH_TX=""; M
 # Parse case-insensitively and trim surrounding whitespace so the authority
 # comparison is based on the actual on-chain display value rather than a brittle
 # capitalization assumption.
-MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'BEGIN{IGNORECASE=1} /^[[:space:]]*Mint[[:space:]]+Authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
+MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'tolower($0) ~ /^[[:space:]]*mint[[:space:]]+authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
 test -n "${MINT_AUTHORITY}" || {
   echo "::error::Recovered mint did not expose a Mint authority in spl-token display output."
   printf '%s\n' "${DISPLAY}"
