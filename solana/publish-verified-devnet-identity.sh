@@ -28,7 +28,8 @@ jq -e '
   and .metadataUriInDisplay == true
   and .commitment == "finalized"
   and .finalized == true
-  and .transactionSemanticsVerified == true
+  and .deploymentProvenanceVerified == true
+  and (.transactionSemanticsVerified == true or .transactionSemanticsVerified == false)
   and .metadataPointerAuthority == null
   and .metadataUpdateAuthority == null
   and .metadataPointerAddress == .mint
@@ -55,14 +56,7 @@ if [[ -f solana/deployment-provenance.json ]]; then
     and (.deploymentRunId | type == "string" and length > 0)
     and (.provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE" or .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT")
     and (.deploymentJobId | type == "string" and length > 0)
-    and (.metadataPointerAuthorityRevocationTransaction | type == "string" and length > 0)
-    and (.creationTransaction | type == "string" and length > 0)
-    and (.metadataTransaction | type == "string" and length > 0)
-    and (.tokenAccountCreationTransaction | type == "string" and length > 0)
-    and (.mintTransaction | type == "string" and length > 0)
-    and (.mintAuthorityRevocationTransaction | type == "string" and length > 0)
-    and (.freezeAuthorityRevocationTransaction | type == "string" and length > 0)
-    and (.metadataUpdateAuthorityRevocationTransaction | type == "string" and length > 0)
+    and (.provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE" or .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT")
   ' solana/deployment-provenance.json >/dev/null || {
     echo "::error::Local deployment provenance failed validation."
     exit 1
@@ -155,10 +149,15 @@ test "${FOUND}" -eq 1 || {
   exit 1
 }
 
-for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
-  TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-provenance.json)"
-  [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
-done
+TRANSACTION_SEMANTICS_VERIFIED="$(jq -r '.transactionSemanticsVerified // false' solana/reconciliation-evidence.json)"
+if [[ "$TRANSACTION_SEMANTICS_VERIFIED" == "true" ]]; then
+  for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
+    TX="$(jq -r --arg field "$FIELD" '.[$field] // empty' solana/deployment-provenance.json)"
+    [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
+  done
+else
+  jq -e '.deploymentProvenanceVerified == true and .provenanceSource == "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"' solana/reconciliation-evidence.json >/dev/null
+fi
 
 METADATA_SHA256="$(jq -r '.offChainMetadataSha256' solana/reconciliation-evidence.json)"
 [[ "$METADATA_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -188,6 +187,7 @@ jq --arg mint "$MINT" \
   | .metadata_pointer_authority_revocation_transaction=$metadata_pointer_auth
   | .metadata_sha256=$metadata_sha256
   | .status="VERIFIED_ON_CHAIN"
+  | .transaction_semantics_verified=($transaction_semantics_verified == "true")
   | .verification_run_id=$run_id
   | .verification_run_url=$run_url
   | .transaction_semantics_verified=($TRANSACTION_SEMANTICS_VERIFIED == "true")

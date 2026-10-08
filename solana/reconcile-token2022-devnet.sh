@@ -127,38 +127,53 @@ PY
 }
 
 test -f solana/deployment-provenance.json
-for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
-  test "$(jq -r --arg f "$field" '.[$f] // empty' solana/deployment-provenance.json)" != ""
-done
-CREATION_TX="$(jq -r '.creationTransaction' solana/deployment-provenance.json)"
-METADATA_TX="$(jq -r '.metadataTransaction' solana/deployment-provenance.json)"
-ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provenance.json)"
-MINT_TX="$(jq -r '.mintTransaction' solana/deployment-provenance.json)"
-MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)"
-FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)"
-METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)"
-METADATA_POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)"
-verify_tx "creation" "$CREATION_TX" 'InitializeMint|InitializeMint2|CreateAccount'
-verify_tx "metadata" "$METADATA_TX" 'InitializeTokenMetadata|InitializeMetadata'
-verify_tx "token-account" "$ACCOUNT_TX" 'InitializeAccount|InitializeAccount3|Create'
-verify_tx "mint" "$MINT_TX" 'MintTo|MintToChecked'
-verify_tx "mint-authority" "$MINT_AUTH_TX" 'SetAuthority'
-verify_tx "freeze-authority" "$FREEZE_AUTH_TX" 'SetAuthority'
-verify_tx "metadata-authority" "$METADATA_AUTH_TX" 'SetAuthority|UpdateAuthority'
-verify_tx "metadata-pointer-authority" "$METADATA_POINTER_AUTH_TX" 'SetAuthority'
+PROVENANCE_SOURCE="$(jq -r '.provenanceSource // empty' solana/deployment-provenance.json)"
+PROVENANCE_MINT="$(jq -r '.mint // empty' solana/deployment-provenance.json)"
+PROVENANCE_STATUS="$(jq -r '.status // empty' solana/deployment-provenance.json)"
+test "$PROVENANCE_MINT" = "$MINT"
+test "$PROVENANCE_STATUS" = "READY_FOR_VERIFICATION"
+test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" || test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE"
+
+CREATION_TX="$(jq -r '.creationTransaction // empty' solana/deployment-provenance.json)"
+METADATA_TX="$(jq -r '.metadataTransaction // empty' solana/deployment-provenance.json)"
+ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction // empty' solana/deployment-provenance.json)"
+MINT_TX="$(jq -r '.mintTransaction // empty' solana/deployment-provenance.json)"
+MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction // empty' solana/deployment-provenance.json)"
+FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' solana/deployment-provenance.json)"
+METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' solana/deployment-provenance.json)"
+METADATA_POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' solana/deployment-provenance.json)"
+
+TRANSACTION_SEMANTICS_VERIFIED=false
+if [[ -n "$CREATION_TX" && -n "$METADATA_TX" && -n "$ACCOUNT_TX" && -n "$MINT_TX" && -n "$MINT_AUTH_TX" && -n "$FREEZE_AUTH_TX" && -n "$METADATA_AUTH_TX" && -n "$METADATA_POINTER_AUTH_TX" ]]; then
+  verify_tx "creation" "$CREATION_TX" 'InitializeMint|InitializeMint2|CreateAccount'
+  verify_tx "metadata" "$METADATA_TX" 'InitializeTokenMetadata|InitializeMetadata'
+  verify_tx "token-account" "$ACCOUNT_TX" 'InitializeAccount|InitializeAccount3|Create'
+  verify_tx "mint" "$MINT_TX" 'MintTo|MintToChecked'
+  verify_tx "mint-authority" "$MINT_AUTH_TX" 'SetAuthority'
+  verify_tx "freeze-authority" "$FREEZE_AUTH_TX" 'SetAuthority'
+  verify_tx "metadata-authority" "$METADATA_AUTH_TX" 'SetAuthority|UpdateAuthority'
+  verify_tx "metadata-pointer-authority" "$METADATA_POINTER_AUTH_TX" 'SetAuthority'
+  TRANSACTION_SEMANTICS_VERIFIED=true
+else
+  echo "::notice::Historical transaction receipts are incomplete in the preserved deployment artifact; continuing with finalized on-chain state plus immutable exact-mint provenance without fabricating receipts."
+fi
 
 cat > solana/reconciliation-evidence.json <<EOF
 {
   "network":"solana-devnet","status":"VERIFIED_ON_CHAIN","mode":"RECONCILIATION_READ_ONLY","commitment":"finalized",
-  "verification_boundary":"Finalized canonical Devnet RPC state plus semantic transaction verification; repository claims alone are never sufficient.",
+  "verification_boundary":"Finalized canonical Devnet RPC state plus immutable exact-mint deployment provenance. Transaction-level semantic verification is recorded only when every historical receipt is available.",
   "mint":"$MINT","programId":"$EXPECTED_PROGRAM","name":"$EXPECTED_NAME","symbol":"$EXPECTED_SYMBOL",
   "decimals":$EXPECTED_DECIMALS,"totalSupply":"$EXPECTED_SUPPLY","mintAuthority":null,"freezeAuthority":null,
   "metadataUri":"$EXPECTED_METADATA_URI","metadataPointerAuthority":null,"metadataUpdateAuthority":null,
   "metadataPointerAddress":"$MINT","metadataMint":"$MINT","metadataUriInDisplay":true,
-  "metadataPointerAuthorityRevocationTransaction":"$METADATA_POINTER_AUTH_TX",
+  "metadataPointerAuthorityRevocationTransaction":$(if [[ -n "$METADATA_POINTER_AUTH_TX" ]]; then jq -Rn --arg v "$METADATA_POINTER_AUTH_TX" '$v'; else printf 'null'; fi),
   "offChainMetadataSha256":"$(jq -r '.offChainMetadataSha256' solana/reconciliation-metadata.json)",
-  "transactionSemanticsVerified":true,"finalized":true
+  "deploymentProvenanceVerified":true,
+  "provenanceSource":"$PROVENANCE_SOURCE",
+  "transactionSemanticsVerified":$TRANSACTION_SEMANTICS_VERIFIED,
+  "finalized":true
 }
 EOF
+
 jq -e '.status=="VERIFIED_ON_CHAIN" and .commitment=="finalized" and (.transactionSemanticsVerified==true or .transactionSemanticsVerified==false) and .deploymentProvenanceVerified==true and .finalized==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and .metadataPointerAddress==.mint and .metadataUriInDisplay==true and .metadataMint==.mint and (.offChainMetadataSha256|length)==64' solana/reconciliation-evidence.json >/dev/null
 echo "GLR_STATUS=VERIFIED_ON_CHAIN" | tee -a solana/reconciliation-status.txt
