@@ -1,0 +1,11 @@
+{
+  "status": "VERIFIED_ON_CHAIN",
+  "publicationStatus": "READY_FOR_REVIEW",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "verificationRunId": "37745274526",
+  "verificationRunUrl": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37745274526",
+  "deploymentArtifactId": "11528177017",
+  "verificationEvidenceArtifactId": "11535299758",
+  "canonicalIdentityUpdated": true,
+  "mainnetStatus": "NOT VERIFIED"
+}
