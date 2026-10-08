@@ -184,8 +184,8 @@ test "$HOLDER_BALANCE" = "$SUPPLY"
 echo "Final mint state:"
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
 printf '%s\n' "$FINAL_MINT_STATE"
-printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\\(not set\\))'
-printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\\(not set\\))'
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|\(not set\))'
+printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\(not set\))'
 
 # Keep the receipt truthful: final workflow verification is performed separately.
 write_evidence "READY_FOR_VERIFICATION"
