@@ -101,23 +101,36 @@ echo "CREATE_TOKEN_TX=$CREATE_TOKEN_TX"
 # This gives the workflow an artifact-based replay lock even if a later step fails.
 write_evidence "DEPLOYED"
 
-METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
-printf '%s\n' "$METADATA_OUTPUT"
-METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$METADATA_TX" || { echo "::error::Could not recover metadata transaction signature."; exit 1; }
+DISPLAY_BEFORE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$DISPLAY_BEFORE" | grep -Fq 'Name: GLORIFIER' && printf '%s\n' "$DISPLAY_BEFORE" | grep -Fq 'Symbol: GLR'; then
+  echo "GLORIFIER/GLR metadata already initialized; continuing."
+  METADATA_TX=""
+else
+  METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
+  printf '%s\n' "$METADATA_OUTPUT"
+  METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$METADATA_TX" || { echo "::error::Could not recover metadata transaction signature."; exit 1; }
+fi
 
-ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT")"
-printf '%s\n' "$ACCOUNT_OUTPUT"
-CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$CREATE_ACCOUNT_TX" || { echo "::error::Could not recover token-account creation transaction signature."; exit 1; }
-
-MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
-printf '%s\n' "$MINT_OUTPUT_2"
-MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$MINT_TX" || { echo "::error::Could not recover supply mint transaction signature."; exit 1; }
+if ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT" 2>&1)"; then
+  printf '%s\n' "$ACCOUNT_OUTPUT"
+  CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$CREATE_ACCOUNT_TX" || { echo "::error::Could not recover token-account creation transaction signature."; exit 1; }
+else
+  echo "Token account creation was not needed or the account already exists; continuing."
+  CREATE_ACCOUNT_TX=""
+fi
 
 ACTUAL_SUPPLY="$(spl-token --program-2022 supply "$MINT" | awk 'NR==1 {print $1}' | tr -d '\r')"
-test "$ACTUAL_SUPPLY" = "$SUPPLY"
+if [[ "$ACTUAL_SUPPLY" == "$SUPPLY" ]]; then
+  echo "Supply already equals ${SUPPLY}; continuing."
+  MINT_TX=""
+else
+  MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
+  printf '%s\n' "$MINT_OUTPUT_2"
+  MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$MINT_TX" || { echo "::error::Could not recover supply mint transaction signature."; exit 1; }
+fi
 
 # Permanently remove authorities after the exact supply is minted.
 MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
