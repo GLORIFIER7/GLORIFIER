@@ -79,7 +79,7 @@ jobs:
             and .status=="READY_FOR_VERIFICATION"
             and .mint==$mint
             and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-            and .deploymentArtifactDigest|startswith("sha256:")
+            and (.deploymentArtifactDigest|type=="string" and startswith("sha256:"))
             and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"
           ' solana/deployment-provenance.json >/dev/null
       - name: Mainnet replay lock
