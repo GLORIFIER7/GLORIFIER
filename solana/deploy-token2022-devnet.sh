@@ -32,12 +32,22 @@ readonly TOKEN_2022_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 write_evidence() {
   local status="$1"
   local creation_tx="${CREATE_TOKEN_TX:-}"
+  local previous_file="solana/deployment-evidence.json"
   local metadata_tx="${METADATA_TX:-}"
   local account_tx="${CREATE_ACCOUNT_TX:-}"
   local mint_tx="${MINT_TX:-}"
   local mint_auth_tx="${MINT_AUTH_TX:-}"
   local freeze_auth_tx="${FREEZE_AUTH_TX:-}"
   local metadata_auth_tx="${METADATA_AUTH_TX:-}"
+  if [[ -f "${previous_file}" ]] && jq -e --arg mint "${MINT:-}" '.mint == $mint' "${previous_file}" >/dev/null 2>&1; then
+    creation_tx="${creation_tx:-$(jq -r '.creationTransaction // empty' "${previous_file}")}"
+    metadata_tx="${metadata_tx:-$(jq -r '.metadataTransaction // empty' "${previous_file}")}"
+    account_tx="${account_tx:-$(jq -r '.tokenAccountCreationTransaction // empty' "${previous_file}")}"
+    mint_tx="${mint_tx:-$(jq -r '.mintTransaction // empty' "${previous_file}")}"
+    mint_auth_tx="${mint_auth_tx:-$(jq -r '.mintAuthorityRevocationTransaction // empty' "${previous_file}")}"
+    freeze_auth_tx="${freeze_auth_tx:-$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${previous_file}")}"
+    metadata_auth_tx="${metadata_auth_tx:-$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "${previous_file}")}"
+  fi
 
   json_or_null() {
     if [[ -n "$1" ]]; then
