@@ -155,10 +155,16 @@ else
   test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
 fi
 
-METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
-printf '%s\n' "$METADATA_AUTH_OUTPUT"
-METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
+FINAL_METADATA_STATE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$FINAL_METADATA_STATE" | grep -Eiq 'Update Authority:[[:space:]]+(Disabled|None|\(not set\))'; then
+  echo "Metadata update authority is already disabled; continuing."
+  METADATA_AUTH_TX=""
+else
+  METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
+  printf '%s\n' "$METADATA_AUTH_OUTPUT"
+  METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$METADATA_AUTH_TX" || { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
+fi
 
 BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
 printf '%s\n' "$BALANCE_OUTPUT"
