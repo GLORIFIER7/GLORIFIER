@@ -71,41 +71,28 @@ write_evidence() {
 }
 EOF
 }
-MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --mint-authority "$HOME/.config/solana/glorifier-devnet-keypair.json" --enable-metadata)"
-printf '%s\n' "$MINT_OUTPUT"
+if [[ -n "${EXISTING_MINT:-}" ]]; then
+  MINT="${EXISTING_MINT}"
+  echo "::notice::Resuming existing partially deployed Token-2022 mint: ${MINT}"
+  test "${MINT}" != "$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json 2>/dev/null || true)" || { echo "::error::Refusing to operate on the irrecoverable recovered mint."; exit 1; }
+  CREATE_TOKEN_TX=""
+else
+  MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --mint-authority "$HOME/.config/solana/glorifier-devnet-keypair.json" --enable-metadata)"
+  printf '%s\n' "$MINT_OUTPUT"
+fi
 
 # spl-token 5.x prints the mint in both the "Creating token <MINT>" line and
 # the "Address: <MINT>" line. Never derive the mint from Signature: — a
 # transaction signature is a different base58 value and may be mistaken for
 # the mint when parsed by field position.
-CREATED_MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Creating token[[:space:]]+/ {print $3; exit}')"
-MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
-CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:[[:space:]]+/ {print $2; exit}')"
-
-test -n "$CREATED_MINT" || {
-  echo "::error::Could not recover the Token-2022 mint from the 'Creating token' output."
-  exit 1
-}
-test -n "$MINT" || {
-  echo "::error::Could not recover the Token-2022 mint from the 'Address' output."
-  exit 1
-}
-test -n "$CREATE_TOKEN_TX" || {
-  echo "::error::Could not recover Token-2022 creation transaction signature."
-  exit 1
-}
-
-[[ "$CREATED_MINT" == "$MINT" ]] || {
-  echo "::error::Token-2022 CLI returned conflicting mint addresses."
-  printf 'Creating token mint: %s\n' "$CREATED_MINT"
-  printf 'Address mint: %s\n' "$MINT"
-  exit 1
-}
-
-[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || {
-  echo "::error::spl-token returned an invalid Solana mint address."
-  exit 1
-}
+if [[ -z "${EXISTING_MINT:-}" ]]; then
+  CREATED_MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Creating token[[:space:]]+/ {print $3; exit}')"
+  MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
+  CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:[[:space:]]+/ {print $2; exit}')"
+  test -n "$CREATED_MINT" && test -n "$MINT" && test -n "$CREATE_TOKEN_TX" || { echo "::error::Could not recover new Token-2022 mint evidence."; exit 1; }
+  [[ "$CREATED_MINT" == "$MINT" ]] || { echo "::error::Token-2022 CLI returned conflicting mint addresses."; exit 1; }
+  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::spl-token returned an invalid Solana mint address."; exit 1; }
+fi
 
 echo "MINT=$MINT"
 echo "CREATE_TOKEN_TX=$CREATE_TOKEN_TX"
@@ -138,10 +125,16 @@ printf '%s\n' "$MINT_AUTH_OUTPUT"
 MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
 test -n "$MINT_AUTH_TX" || { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
 
-FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
-printf '%s\n' "$FREEZE_AUTH_OUTPUT"
-FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
+FINAL_MINT_STATE_PRE_FREEZE="$(spl-token --program-2022 display "$MINT")"
+if printf '%s\n' "$FINAL_MINT_STATE_PRE_FREEZE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\(not set\))'; then
+  echo "Freeze authority is already disabled; continuing."
+  FREEZE_AUTH_TX=""
+else
+  FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
+  printf '%s\n' "$FREEZE_AUTH_OUTPUT"
+  FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  test -n "$FREEZE_AUTH_TX" || { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
+fi
 
 METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
 printf '%s\n' "$METADATA_AUTH_OUTPUT"
