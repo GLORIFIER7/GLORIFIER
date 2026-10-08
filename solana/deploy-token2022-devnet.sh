@@ -60,7 +60,7 @@ write_evidence() {
 }
 EOF
 }
-MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --enable-metadata)"
+MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --mint-authority "$HOME/.config/solana/glorifier-devnet-keypair.json" --enable-metadata)"
 printf '%s\n' "$MINT_OUTPUT"
 
 # spl-token 5.x prints the mint in both the "Creating token <MINT>" line and
