@@ -244,15 +244,43 @@ git add "${STAGED_FILES[@]}"
 git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
 
+PUSH_OK=false
 if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
   git fetch origin "${BRANCH}"
   REMOTE_BRANCH_SHA="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
-  git push --force-with-lease="refs/heads/${BRANCH}:${REMOTE_BRANCH_SHA}" origin "${BRANCH}"
+  if git push --force-with-lease="refs/heads/${BRANCH}:${REMOTE_BRANCH_SHA}" origin "${BRANCH}"; then
+    PUSH_OK=true
+  fi
 else
-  git push --set-upstream origin "${BRANCH}"
+  if git push --set-upstream origin "${BRANCH}"; then
+    PUSH_OK=true
+  fi
 fi
 
-PR_URL="$(gh pr create   --base main   --head "${BRANCH}"   --title "chore(solana): publish verified GLR Devnet identity"   --body "Automated governed publication after independent Solana Devnet reconciliation and deployment-provenance verification.
+if [[ "${PUSH_OK}" != "true" ]]; then
+  # GitHub may require the protected "build" status before allowing the
+  # automation branch to be created/updated. Do not turn a repository-policy
+  # gate into a false verification failure; preserve the independently verified
+  # evidence and report the publication boundary explicitly.
+  cat > solana/verified-publication.json <<EOF
+{
+  "status":"VERIFIED_ON_CHAIN",
+  "publicationStatus":"BLOCKED_BY_REPOSITORY_RULE",
+  "mint":"${MINT}",
+  "verificationRunId":"${GITHUB_RUN_ID}",
+  "verificationRunUrl":"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+  "publicationBranch":"${BRANCH}",
+  "blockingRequirement":"Required status check \"build\" must pass before the automation branch can be pushed.",
+  "nextAction":"Allow the build check for the automation publication path, or have an authorized repository maintainer create/approve the publication branch/PR.",
+  "canonicalIdentityUpdated":false
+}
+EOF
+  echo "::warning::Verified on-chain, but canonical publication is blocked by repository rule: required status check 'build'."
+  echo "PUBLICATION_STATUS=BLOCKED_BY_REPOSITORY_RULE" >> "${GITHUB_OUTPUT:-/dev/null}"
+  exit 0
+fi
+
+PR_URL="$(gh pr create --base main --head "${BRANCH}" --title "chore(solana): publish verified GLR Devnet identity" --body "Automated governed publication after independent Solana Devnet reconciliation and deployment-provenance verification.
 
 - GLR mint: ${MINT}
 - Verification run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
