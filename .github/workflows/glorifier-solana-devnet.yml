@@ -17,7 +17,10 @@ jobs:
     name: Deploy GLORIFIER GLR to Solana Devnet
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Solana CLI + spl-token-cli are Rust toolchains; a clean hosted runner can
+    # legitimately need more than 20 minutes before deployment starts.
+    # Keep this bounded, but leave enough time for compilation plus on-chain work.
+    timeout-minutes: 45
     concurrency:
       group: glorifier-solana-devnet-deploy
       cancel-in-progress: false
