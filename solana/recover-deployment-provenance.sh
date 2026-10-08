@@ -35,6 +35,35 @@ grep -Fq "Creating token ${MINT} under program ${EXPECTED_PROGRAM}" "${LOG}" || 
   exit 1
 }
 
+# A recovered mint whose mint authority was already revoked cannot be
+# completed in place. Preserve it as evidence and stop cleanly; never create
+# a replacement mint implicitly. The reconciliation workflow surfaces this as
+# RECOVERY_REQUIRED and requires an explicit human decision.
+DISPLAY="$(spl-token --program-2022 display "${MINT}")"
+MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'tolower($0) ~ /^[[:space:]]*mint[[:space:]]+authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
+if [[ "${MINT_AUTHORITY}" == "(not set)" || "${MINT_AUTHORITY}" == "None" ]]; then
+  cat > solana/deployment-provenance.json <<EOF
+{
+  "network":"solana-devnet",
+  "status":"IRRECOVERABLE_PARTIAL",
+  "programId":"${EXPECTED_PROGRAM}",
+  "mint":"${MINT}",
+  "deploymentRunId":"${RUN_ID}",
+  "deploymentRunUrl":"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}",
+  "deploymentJobId":"${JOB_ID}",
+  "provenanceSource":"IMMUTABLE_GITHUB_ACTIONS_JOB_LOG",
+  "creationTransaction":"${CREATION_TX}",
+  "recoveryRequired":true,
+  "reason":"Mint authority is already revoked; the existing mint cannot be completed in place without minting authority.",
+  "nextAction":"Explicit human authorization is required before any replacement canonical mint is created."
+}
+EOF
+  jq -e --arg mint "${MINT}" '.network=="solana-devnet" and .status=="IRRECOVERABLE_PARTIAL" and .mint==$mint and .recoveryRequired==true and (.creationTransaction|type=="string" and length>=64)' solana/deployment-provenance.json >/dev/null
+  echo "RECOVERY_REQUIRED=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+  echo "::warning::Recovered mint ${MINT} is irrecoverable because mint authority is revoked. No replacement mint was created."
+  exit 0
+fi
+
 test -f solana/devnet-resume-evidence.json || {
   echo "::error::Recovered mint is only partially deployed."
   echo "::error::Run the authorized Devnet deployment workflow to complete the existing mint before reconciliation."
