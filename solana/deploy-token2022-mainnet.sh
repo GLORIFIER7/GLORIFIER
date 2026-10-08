@@ -14,7 +14,8 @@ write_evidence() {
     --arg creation "${CREATE_TOKEN_TX:-}" --arg metadata "${METADATA_TX:-}" --arg account "${CREATE_ACCOUNT_TX:-}" \
     --arg mintTx "${MINT_TX:-}" --arg mintAuth "${MINT_AUTH_TX:-}" --arg freezeAuth "${FREEZE_AUTH_TX:-}" --arg metadataAuth "${METADATA_AUTH_TX:-}" --arg metadataPointerAuth "${METADATA_POINTER_AUTH_TX:-}" \
     --arg runId "${GITHUB_RUN_ID:-}" --arg runUrl "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-GLORIFIER7/GLORIFIER}/actions/runs/${GITHUB_RUN_ID:-}" \
-    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
+    --argjson freezeInitiallyNone "${FREEZE_AUTHORITY_INITIALLY_NONE:-false}" \
+    '{network:$network,status:$status,mint:$mint,programId:$program,name:$name,symbol:$symbol,decimals:9,totalSupply:"1000000000",mintAuthority:null,freezeAuthority:null,freezeAuthorityInitiallyNone:$freezeInitiallyNone,metadataUri:$uri,creationTransaction:$creation,metadataTransaction:$metadata,tokenAccountCreationTransaction:$account,mintTransaction:$mintTx,mintAuthorityRevocationTransaction:$mintAuth,freezeAuthorityRevocationTransaction:$freezeAuth,metadataUpdateAuthorityRevocationTransaction:$metadataAuth,metadataPointerAuthorityRevocationTransaction:$metadataPointerAuth,deploymentWorkflowRunId:$runId,deploymentWorkflowRunUrl:$runUrl}' > solana/deployment-mainnet-evidence.json
 }
 RECOVERY_FILE="solana/mainnet-recovery.json"
 MINT=""
@@ -24,6 +25,7 @@ CREATE_ACCOUNT_TX=""
 MINT_TX=""
 MINT_AUTH_TX=""
 FREEZE_AUTH_TX=""
+FREEZE_AUTHORITY_INITIALLY_NONE=false
 METADATA_AUTH_TX=""
 METADATA_POINTER_AUTH_TX=""
 
@@ -36,6 +38,7 @@ if [[ -f "$RECOVERY_FILE" ]] && jq -e '.status=="RECOVERY_REQUIRED" and .network
   MINT_TX="$(jq -r '.mintTransaction // empty' "$RECOVERY_FILE")"
   MINT_AUTH_TX="$(jq -r '.mintAuthorityRevocationTransaction // empty' "$RECOVERY_FILE")"
   FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "$RECOVERY_FILE")"
+  FREEZE_AUTHORITY_INITIALLY_NONE="$(jq -r '.freezeAuthorityInitiallyNone // false' "$RECOVERY_FILE")"
   echo "Recovering existing authorized Mainnet mint: $MINT"
   STATE="$(spl-token --program-2022 display "$MINT")"
   printf '%s\n' "$STATE"
@@ -105,9 +108,10 @@ POINTER_STATE="$(printf '%s\n' "$STATE" | awk '/Metadata Pointer:/,/^$/')"
 if printf '%s\n' "$POINTER_STATE" | grep -Eiq 'Authority:[[:space:]]*(None|Disabled)'; then
   echo "Metadata pointer authority is already absent."
 else
-  METADATA_POINTER_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
-  printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT"
-  METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
+  echo "Revoking Metadata Pointer authority with a direct Token-2022 instruction (the spl-token CLI can incorrectly resolve extension authority after mint authority is fixed)."
+  npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15
+  METADATA_POINTER_AUTH_TX="$(node solana/revoke-token2022-metadata-pointer.mjs "$MINT")"
+  test -n "$METADATA_POINTER_AUTH_TX"
 fi
 spl-token --program-2022 balance "$MINT" | tee solana/deployment-mainnet-holder-balance.txt
 test "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY"
@@ -118,5 +122,6 @@ printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*None
 FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | awk '/Metadata Pointer:/ { in_pointer=1; next } in_pointer && /^[[:space:]]*Authority:/ { print $2; exit } in_pointer && /^$/ { exit }')"
 test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None"
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
-for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX FREEZE_AUTH_TX METADATA_AUTH_TX METADATA_POINTER_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX METADATA_AUTH_TX METADATA_POINTER_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+if [[ "$FREEZE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$FREEZE_AUTH_TX" || { echo "::error::Missing transaction signature: FREEZE_AUTH_TX"; exit 1; }; fi
 write_evidence "READY_FOR_VERIFICATION"
