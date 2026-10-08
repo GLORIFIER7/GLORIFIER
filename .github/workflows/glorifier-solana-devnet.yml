@@ -259,7 +259,7 @@ jobs:
               exit 1
             }
             if spl-token --program-2022 display "${PARTIAL_MINT}" --url "${SOLANA_RPC_URL}" >/tmp/glorifier-partial-display.txt 2>&1; then
-              if grep -Fq 'Token-2022' /tmp/glorifier-partial-display.txt; then
+              if grep -Fq 'Program: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' /tmp/glorifier-partial-display.txt; then
                 echo "DEPLOYABLE=false" >> "$GITHUB_OUTPUT"
                 echo "RESUME_MINT=${PARTIAL_MINT}" >> "$GITHUB_OUTPUT"
                 echo "STATUS=PARTIAL_DEPLOYMENT_RESUME" > solana/deployment-status.txt
