@@ -1,0 +1,10 @@
+{
+  "status": "DEPLOYED",
+  "network": "solana-devnet",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "sourceWorkflowRunId": "37710755587",
+  "sourceJobId": "113095864431",
+  "recoveryReason": "Authoritative mint printed by the Token-2022 deployment execution before the freeze-authority idempotency failure. A later evidence artifact incorrectly contained the trailing transaction signature; this record prevents that stale parser artifact from becoming the resume target.",
+  "canonicalization": "Independent read-only reconciliation is still required before canonicalization."
+}
