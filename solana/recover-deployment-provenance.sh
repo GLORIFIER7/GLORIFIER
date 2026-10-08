@@ -29,8 +29,13 @@ while IFS= read -r RUN_ID; do
     EVIDENCE_FILE="$(find /tmp/glorifier-exact-provenance -type f -name deployment-evidence.json -print -quit || true)"
     [[ -n "${EVIDENCE_FILE}" ]] || continue
     if jq -e --arg mint "${MINT}" --arg run "${RUN_ID}" --arg program "${EXPECTED_PROGRAM}" '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .programId==$program and .mint==$mint and .deploymentWorkflowRunId==$run' "${EVIDENCE_FILE}" >/dev/null; then
-      jq --arg run "${RUN_ID}" --arg artifact_id "${ARTIFACT_ID}" --arg digest "${ARTIFACT_DIGEST}" '. + {deploymentRunId:$run,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$digest,provenanceSource:"IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"}' "${EVIDENCE_FILE}" > solana/deployment-provenance.json
-      jq -e --arg mint "${MINT}" '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .mint==$mint and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"' solana/deployment-provenance.json >/dev/null
+      # Older immutable artifacts predate deploymentJobId. Recover the exact
+      # successful deploy job from the same immutable workflow run.
+      JOB_ID="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100" |
+        jq -r '[.jobs[]? | select(.name=="Deploy GLORIFIER GLR to Solana Devnet") | select(.conclusion=="success")] | sort_by(.completed_at) | reverse | .[0].id // empty')"
+      [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "::error::No successful deployment job found for immutable run ${RUN_ID}."; exit 1; }
+      jq --arg run "${RUN_ID}" --arg job "${JOB_ID}" --arg artifact_id "${ARTIFACT_ID}" --arg digest "${ARTIFACT_DIGEST}"         '. + {deploymentRunId:$run,deploymentJobId:$job,deploymentRunUrl:("https://github.com/" + env.GITHUB_REPOSITORY + "/actions/runs/" + $run),deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$digest,provenanceSource:"IMMUTABLE_GITHUB_ACTIONS_ARTIFACT"}'         "${EVIDENCE_FILE}" > solana/deployment-provenance.json
+      jq -e --arg mint "${MINT}" '.network=="solana-devnet" and .status=="READY_FOR_VERIFICATION" and .mint==$mint and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" and (.deploymentRunId|type=="string" and length>0) and (.deploymentJobId|type=="string" and length>0)' solana/deployment-provenance.json >/dev/null
       echo "RECOVERY_REQUIRED=false" >> "${GITHUB_OUTPUT:-/dev/null}"
       echo "::notice::Exact immutable deployment artifact matched mint ${MINT}; legacy recovery state does not override this proof."
       exit 0
