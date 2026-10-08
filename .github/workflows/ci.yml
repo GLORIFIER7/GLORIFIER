@@ -26,6 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Validate Solana deployment and reconciliation scripts
+        run: |
+          set -euo pipefail
+          bash -n solana/deploy-token2022-devnet.sh
+          bash -n solana/recover-deployment-provenance.sh
+          bash -n solana/reconcile-token2022-devnet.sh
+          bash -n solana/publish-verified-devnet-identity.sh
+          jq -e '.asset=="GLORIFIER" and .symbol=="GLR" and .network=="solana-devnet" and .token_standard=="Token-2022"' solana/canonical-devnet-identity.json >/dev/null
       - name: Type-check
         run: npm run lint
 
