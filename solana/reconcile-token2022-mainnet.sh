@@ -114,18 +114,46 @@ fi
 jq -e --arg mint "$MINT" '.status=="READY_FOR_VERIFICATION" and .network=="solana-mainnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .mint==$mint' "$PROVENANCE" >/dev/null
 verify_tx() {
   local label="$1" tx="$2" patterns="$3"
-  [[ "$tx" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || { echo "::error::Invalid $label transaction signature."; exit 1; }
-  local json; json="$(python3 - "$SOLANA_RPC_URL" "$tx" <<'PY'
+  [[ "$tx" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || { echo "::error::Invalid $label transaction signature (length/encoding check failed)."; exit 1; }
+  echo "Checking finalized $label transaction: $tx"
+  local json
+  if ! json="$(python3 - "$SOLANA_RPC_URL" "$tx" <<'PY'
 import json,sys,urllib.request
 rpc,sig=sys.argv[1:]
 p=json.dumps({"jsonrpc":"2.0","id":1,"method":"getTransaction","params":[sig,{"encoding":"jsonParsed","commitment":"finalized","maxSupportedTransactionVersion":0}]}).encode()
 q=urllib.request.Request(rpc,data=p,headers={"Content-Type":"application/json"})
-with urllib.request.urlopen(q,timeout=30) as r: print(r.read().decode())
+try:
+    with urllib.request.urlopen(q,timeout=30) as r: print(r.read().decode())
+except Exception as e:
+    print(f"RPC getTransaction failed: {type(e).__name__}: {e}",file=sys.stderr)
+    raise SystemExit(2)
 PY
- )"
-  jq -e --arg mint "$MINT" --arg program "$EXPECTED_PROGRAM" '.result != null and .result.meta.err == null and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($mint)) and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($program))' <<<"$json" >/dev/null
-  local matched=0; IFS='|' read -ra pats <<<"$patterns"; for pat in "${pats[@]}"; do if jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | grep -Eiq "$pat"; then matched=1; break; fi; done; test "$matched" -eq 1
+)"; then
+    echo "::error::Could not retrieve finalized $label transaction from the configured RPC."
+    exit 1
+  fi
+  if ! jq -e --arg mint "$MINT" --arg program "$EXPECTED_PROGRAM" '
+    .result != null
+    and .result.meta.err == null
+    and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($mint) != null)
+    and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($program) != null)
+  ' <<<"$json" >/dev/null; then
+    echo "::error::$label transaction is missing, failed on-chain, or does not reference both the expected mint and Token-2022 program."
+    jq -c '{error, result: (if .result == null then null else {slot:.result.slot, metaErr:.result.meta.err, accountKeys:(.result.transaction.message.accountKeys // [])} end)}' <<<"$json" || true
+    exit 1
+  fi
+  local matched=0
+  IFS='|' read -ra pats <<<"$patterns"
+  for pat in "${pats[@]}"; do
+    if jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | grep -Eiq "$pat"; then matched=1; break; fi
+  done
+  if [[ "$matched" -ne 1 ]]; then
+    echo "::error::$label transaction finalized successfully but its program logs did not match expected instruction patterns: $patterns"
+    jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | tail -n 30
+    exit 1
+  fi
   printf '%s\n' "$json" > "solana/reconciliation-mainnet-tx-$label.json"
+  echo "PASS: Finalized $label transaction references the expected mint and Token-2022 program and matches its instruction pattern."
 }
 verify_tx creation "$(jq -r '.creationTransaction' "$PROVENANCE")" 'InitializeMint|InitializeMint2|CreateAccount'
 verify_tx metadata "$(jq -r '.metadataTransaction' "$PROVENANCE")" 'InitializeTokenMetadata|InitializeMetadata'
