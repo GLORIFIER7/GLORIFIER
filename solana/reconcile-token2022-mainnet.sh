@@ -28,8 +28,8 @@ test "$ACTUAL_SUPPLY" = "$EXPECTED_SUPPLY"
 grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
 grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
 grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mainnet-mint-state.txt
-grep -Eiq 'Mint[[:space:]]+Authority.*None' solana/reconciliation-mainnet-mint-state.txt
-grep -Eiq 'Freeze[[:space:]]+Authority.*None' solana/reconciliation-mainnet-mint-state.txt
+grep -Eiq 'Mint[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
+grep -Eiq 'Freeze[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
 grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mainnet-mint-state.txt
 
 python3 - "$SOLANA_RPC_URL" "$MINT" "$EXPECTED_PROGRAM" "$EXPECTED_NAME" "$EXPECTED_SYMBOL" "$EXPECTED_METADATA_URI" > solana/reconciliation-mainnet-metadata.json <<'PY'
