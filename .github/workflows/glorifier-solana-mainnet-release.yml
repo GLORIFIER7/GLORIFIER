@@ -377,6 +377,8 @@ jobs:
   publish:
     name: Publish verified mainnet identity
     needs: reconcile
+    # A successful reconcile-existing run intentionally skips deploy; override Actions' implicit success() so publication still runs after verified reconciliation.
+    if: ${{ always() && needs.reconcile.result == 'success' }}
     runs-on: ubuntu-latest
     environment: glorifier-solana-mainnet
     permissions:
