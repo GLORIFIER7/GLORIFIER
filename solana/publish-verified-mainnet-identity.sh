@@ -8,20 +8,22 @@ test -n "${GH_TOKEN:-}"
 jq -e '.status=="VERIFIED_ON_CHAIN" and .network=="solana-mainnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .mintAuthority==null and .freezeAuthority==null and .metadataUriInDisplay==true and .commitment=="finalized" and .finalized==true and .transactionSemanticsVerified==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and (.metadataPointerAuthorityRevocationTransaction or .metadataPointerAuthorityInitiallyNone==true)' solana/reconciliation-mainnet-evidence.json >/dev/null
 MINT="$(jq -r '.mint' solana/reconciliation-mainnet-evidence.json)"
 
-ARTIFACTS_JSON="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100")"
-ARTIFACT_ROW="$(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-mainnet-evidence") | select(.digest!=null and (.digest|startswith("sha256:")))] | sort_by(.created_at) | last | [(.id|tostring),.digest] | @tsv' <<<"$ARTIFACTS_JSON")"
-IFS=$'	' read -r ARTIFACT_ID ARTIFACT_DIGEST <<<"$ARTIFACT_ROW"
-test -n "$ARTIFACT_ID" && test -n "$ARTIFACT_DIGEST"
+SOURCE_RUN_ID="$(jq -er '.deploymentRunId' solana/deployment-mainnet-provenance.json)"
+ARTIFACT_ID="$(jq -er '.deploymentArtifactId' solana/deployment-mainnet-provenance.json)"
+ARTIFACT_DIGEST="$(jq -er '.deploymentArtifactDigest' solana/deployment-mainnet-provenance.json)"
+[[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+[[ "$ARTIFACT_ID" =~ ^[0-9]{1,20}$ ]]
+[[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
 
 rm -rf /tmp/glorifier-mainnet-publish
 mkdir -p /tmp/glorifier-mainnet-publish
 gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/glorifier-mainnet-publish.zip
-test "sha256:$(sha256sum /tmp/glorifier-mainnet-publish.zip | awk '{print $1}')" = "$ARTIFACT_DIGEST"
+test "sha256:$(sha256sum /tmp/glorifier-mainnet-publish.zip | awk '{print $1}')" = "$ARTIFACT_DIGEST" || { echo "::error::Original deployment artifact digest mismatch."; exit 1; }
 unzip -oq /tmp/glorifier-mainnet-publish.zip -d /tmp/glorifier-mainnet-publish
 EVIDENCE_FILE="$(find /tmp/glorifier-mainnet-publish -type f -name deployment-mainnet-evidence.json -print -quit)"
 test -n "$EVIDENCE_FILE"
 
-jq -e --arg mint "$MINT" --arg run_id "$GITHUB_RUN_ID" --arg repo "$GITHUB_REPOSITORY" '
+jq -e --arg mint "$MINT" --arg run_id "$SOURCE_RUN_ID" --arg repo "$GITHUB_REPOSITORY" '
   .network=="solana-mainnet"
   and .status=="READY_FOR_VERIFICATION"
   and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
@@ -30,8 +32,12 @@ jq -e --arg mint "$MINT" --arg run_id "$GITHUB_RUN_ID" --arg repo "$GITHUB_REPOS
   and .deploymentWorkflowRunUrl==("https://github.com/"+$repo+"/actions/runs/"+$run_id)
 ' "$EVIDENCE_FILE" >/dev/null
 
-jq --arg run_id "$GITHUB_RUN_ID" --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --arg artifact_id "$ARTIFACT_ID" --arg artifact_digest "$ARTIFACT_DIGEST" '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}' "$EVIDENCE_FILE" > solana/deployment-mainnet-provenance.json
+jq 'del(.deploymentRunId,.deploymentRunUrl,.deploymentArtifactId,.deploymentArtifactDigest)' solana/deployment-mainnet-provenance.json | jq -S . > /tmp/glr-provenance-normalized.json
+jq -S . "$EVIDENCE_FILE" > /tmp/glr-source-evidence-normalized.json
+cmp /tmp/glr-provenance-normalized.json /tmp/glr-source-evidence-normalized.json
 
+jq --arg run_id "$SOURCE_RUN_ID" --arg run_url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/$SOURCE_RUN_ID" --arg artifact_id "$ARTIFACT_ID" --arg artifact_digest "$ARTIFACT_DIGEST" '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}' "$EVIDENCE_FILE" > /tmp/glorifier-mainnet-publish/deployment-mainnet-provenance-verified.json
+mv /tmp/glorifier-mainnet-publish/deployment-mainnet-provenance-verified.json solana/deployment-mainnet-provenance.json
 for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction; do
   TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-mainnet-provenance.json)"
   [[ "$FIELD" == "freezeAuthorityRevocationTransaction" && -z "$TX" ]] && continue
