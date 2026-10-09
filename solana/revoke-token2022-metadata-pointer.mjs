@@ -12,12 +12,21 @@ const connection = new Connection(process.env.SOLANA_RPC_URL, "confirmed");
 async function sendAndConfirmHttp(instruction) {
   // Use the HTTP RPC confirmation path. This avoids web3.js websocket
   // signatureSubscribe, which is not exposed by the configured Alchemy RPC URL.
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-  const transaction = new Transaction({
-    feePayer: signer.publicKey,
-    recentBlockhash: blockhash,
-    lastValidBlockHeight,
-  }).add(instruction);
+  const latest = await connection.getLatestBlockhash("confirmed");
+  if (!latest?.blockhash || !Number.isFinite(latest.lastValidBlockHeight)) {
+    throw new Error("RPC did not return a valid recent blockhash and last-valid block height.");
+  }
+
+  // Set required legacy Transaction fields explicitly after adding the
+  // instruction. This avoids signing a transaction whose message has no
+  // recentBlockhash (the previous Mainnet attempt failed before submission).
+  const transaction = new Transaction().add(instruction);
+  transaction.feePayer = signer.publicKey;
+  transaction.recentBlockhash = latest.blockhash;
+  transaction.lastValidBlockHeight = latest.lastValidBlockHeight;
+  if (!transaction.recentBlockhash) {
+    throw new Error("Refusing to sign Metadata Pointer revocation without a recent blockhash.");
+  }
 
   transaction.sign(signer);
   const signature = await connection.sendRawTransaction(transaction.serialize(), {
@@ -38,9 +47,9 @@ async function sendAndConfirmHttp(instruction) {
     }
 
     const blockHeight = await connection.getBlockHeight("confirmed");
-    if (blockHeight > lastValidBlockHeight) {
+    if (blockHeight > latest.lastValidBlockHeight) {
       throw new Error(
-        `Metadata Pointer authority transaction expired before confirmation: ${signature} (block height ${blockHeight} > last valid ${lastValidBlockHeight}).`,
+        `Metadata Pointer authority transaction expired before confirmation: ${signature} (block height ${blockHeight} > last valid ${latest.lastValidBlockHeight}).`,
       );
     }
 
