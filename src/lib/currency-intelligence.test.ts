@@ -69,8 +69,8 @@ const tinyGross = buildCurrencyQuote({
   evidence: { ...rate, rate: '1', providerFeeBps: 5000, slippageBps: 5000 }, now,
 });
 expect(tinyGross.estimatedNetOutputAmount === '0', 'rounded fee components must never produce a negative net amount');
-expect(Number(tinyGross.estimatedFees) <= Number(tinyGross.grossOutputAmount),
-  'combined rounded fee estimates must not exceed gross output');
+expect(tinyGross.estimatedFees === '0.01' && tinyGross.grossOutputAmount === '0.01',
+  'combined rounded fee estimates must be capped at gross output using exact decimal strings');
 
 const malformedSourceStatus = getCurrencyRateStatus({
   ...rate, source: undefined as unknown as string,
