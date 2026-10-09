@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "Choose deploy for a new authorized release or reconcile-existing for a prior exact-mint deployment (read-only)"
+        description: "Choose deploy for a new authorized release or reconcile an existing mint without on-chain mutation"
         required: true
         type: choice
         options:
@@ -12,7 +12,7 @@ on:
           - reconcile-existing
         default: deploy
       source_run_id:
-        description: "For reconcile-existing only: prior authorized Mainnet workflow run ID containing deployment evidence"
+        description: "For reconcile-existing only: prior authorized Mainnet run ID with evidence; a protected identity publication PR may be opened after verification"
         required: false
         type: string
       confirm:
