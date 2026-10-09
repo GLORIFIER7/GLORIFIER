@@ -156,7 +156,7 @@ PY
   echo "PASS: Finalized $label transaction references the expected mint and Token-2022 program and matches its instruction pattern."
 }
 verify_tx creation "$(jq -r '.creationTransaction' "$PROVENANCE")" 'InitializeMint|InitializeMint2|CreateAccount'
-verify_tx metadata "$(jq -r '.metadataTransaction' "$PROVENANCE")" 'InitializeTokenMetadata|InitializeMetadata'
+verify_tx metadata "$(jq -r '.metadataTransaction' "$PROVENANCE")" 'TokenMetadataInstruction: Initialize|InitializeTokenMetadata|InitializeMetadata'
 verify_tx token-account "$(jq -r '.tokenAccountCreationTransaction' "$PROVENANCE")" 'InitializeAccount|InitializeAccount3|Create'
 verify_tx mint "$(jq -r '.mintTransaction' "$PROVENANCE")" 'MintTo|MintToChecked'
 verify_tx mint-authority "$(jq -r '.mintAuthorityRevocationTransaction' "$PROVENANCE")" 'SetAuthority'
