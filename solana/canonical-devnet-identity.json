@@ -15,12 +15,12 @@
   "metadata_transaction": "null",
   "token_account_creation_transaction": "null",
   "freeze_authority_revocation_transaction": "null",
-  "verification_run_id": "37887701970",
-  "verification_run_url": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37887701970",
-  "verified_at": "2026-10-09T05:19:04Z",
+  "verification_run_id": "37905416568",
+  "verification_run_url": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37905416568",
+  "verified_at": "2026-10-09T08:35:57Z",
   "mainnet_status": "NOT VERIFIED",
   "metadata_update_authority_revocation_transaction": "null",
   "metadata_pointer_authority_revocation_transaction": "null",
-  "metadata_sha256": "13e7f50a3c209cfd9e1b0fcf862c61c33f2b95e28635d6c889cfa2615f108225",
+  "metadata_sha256": "c023ca9f3a5c1b224205551c5158132210d3c47201f17976fb88674c52dd5f25",
   "transaction_semantics_verified": false
 }
