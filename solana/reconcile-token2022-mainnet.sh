@@ -23,14 +23,15 @@ solana account "$MINT" | tee solana/reconciliation-mainnet-account.txt
 grep -Fq "Owner: $EXPECTED_PROGRAM" solana/reconciliation-mainnet-account.txt
 spl-token --program-2022 supply "$MINT" | tee solana/reconciliation-mainnet-supply.txt
 spl-token --program-2022 display "$MINT" | tee solana/reconciliation-mainnet-mint-state.txt
+require_check() { local label="$1"; shift; if "$@"; then echo "PASS: $label"; else echo "::error::$label"; exit 1; fi; }
 ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/reconciliation-mainnet-supply.txt | tr -d '\r')"
-test "$ACTUAL_SUPPLY" = "$EXPECTED_SUPPLY"
-grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
-grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
-grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mainnet-mint-state.txt
-grep -Eiq 'Mint[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
-grep -Eiq 'Freeze[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
-grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mainnet-mint-state.txt
+require_check "Finalized supply equals expected 1000000000" test "$ACTUAL_SUPPLY" = "$EXPECTED_SUPPLY"
+require_check "Mint name equals GLORIFIER" grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
+require_check "Mint symbol equals GLR" grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mainnet-mint-state.txt
+require_check "Mint decimals equal 9" grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mainnet-mint-state.txt
+require_check "Mint authority is absent" grep -Eiq 'Mint[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
+require_check "Freeze authority is absent" grep -Eiq 'Freeze[[:space:]]+Authority.*(None|not set)' solana/reconciliation-mainnet-mint-state.txt
+require_check "On-chain metadata URI matches pinned URI" grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mainnet-mint-state.txt
 
 python3 - "$SOLANA_RPC_URL" "$MINT" "$EXPECTED_PROGRAM" "$EXPECTED_NAME" "$EXPECTED_SYMBOL" "$EXPECTED_METADATA_URI" > solana/reconciliation-mainnet-metadata.json <<'PY'
 import base64,hashlib,json,sys,urllib.request
