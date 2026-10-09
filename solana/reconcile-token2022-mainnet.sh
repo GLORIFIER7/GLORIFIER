@@ -72,7 +72,7 @@ if (name,symbol,uri)!=(expected_name,expected_symbol,expected_uri): raise System
 with urllib.request.urlopen(expected_uri,timeout=30) as response: data=response.read()
 print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":None,"metadataPointerAddress":ma,"metadataUpdateAuthority":None,"metadataMint":mm,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(data).hexdigest()},separators=(",",":")))
 PY
-jq -e --arg mint "$MINT" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri=="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json" and (.offChainMetadataSha256|length)==64' solana/reconciliation-mainnet-metadata.json >/dev/null
+jq -e --arg mint "$MINT" --arg uri "$EXPECTED_METADATA_URI" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri==$uri and (.offChainMetadataSha256|length)==64' solana/reconciliation-mainnet-metadata.json >/dev/null
 for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
 METADATA_AUTH="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 METADATA_AUTH_INITIALLY_NONE="$(jq -r '.metadataUpdateAuthorityInitiallyNone // false' "$PROVENANCE")"

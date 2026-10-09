@@ -3,6 +3,18 @@ name: GLORIFIER Solana Mainnet Release
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: "Choose deploy for a new authorized release or reconcile an existing mint without on-chain mutation"
+        required: true
+        type: choice
+        options:
+          - deploy
+          - reconcile-existing
+        default: deploy
+      source_run_id:
+        description: "For reconcile-existing only: prior authorized Mainnet run ID with evidence; a protected identity publication PR may be opened after verification"
+        required: false
+        type: string
       confirm:
         description: "Type RELEASE_GLORIFIER_SOLANA_MAINNET to authorize the production release"
         required: true
@@ -26,14 +38,26 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Validate authorization
+      - name: Validate authorization and selected operation
+        env:
+          RELEASE_OPERATION: ${{ inputs.operation }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          RELEASE_REASON: ${{ inputs.release_reason }}
+          RELEASE_CONFIRM: ${{ inputs.confirm }}
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ github.ref }}" = "refs/heads/main"
-          test "${{ inputs.confirm }}" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
-          RELEASE_REASON="${{ inputs.release_reason }}"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$RELEASE_CONFIRM" = "RELEASE_GLORIFIER_SOLANA_MAINNET"
           test "${#RELEASE_REASON}" -ge 20
+          case "$RELEASE_OPERATION" in
+            deploy) ;;
+            reconcile-existing)
+              [[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::reconcile-existing requires a numeric source_run_id."; exit 1; }
+              [[ "$SOURCE_RUN_ID" != "$GITHUB_RUN_ID" ]] || { echo "::error::source_run_id must identify a prior run."; exit 1; }
+              ;;
+            *) echo "::error::Unsupported operation."; exit 1 ;;
+          esac
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Require verified Devnet gate
@@ -90,6 +114,7 @@ jobs:
           echo "Authorized incomplete Mainnet deployment will resume exact mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9; no second mint is permitted."
 
       - name: Mainnet replay lock
+        if: ${{ inputs.operation == 'deploy' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -120,6 +145,7 @@ jobs:
 
   deploy:
     name: Deploy GLR Token-2022 to Solana Mainnet
+    if: ${{ inputs.operation == 'deploy' }}
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -248,7 +274,8 @@ jobs:
 
   reconcile:
     name: Independent read-only mainnet reconciliation
-    needs: deploy
+    needs: [preflight, deploy]
+    if: ${{ always() && needs.preflight.result == 'success' && ((inputs.operation == 'reconcile-existing') || (inputs.operation == 'deploy' && needs.deploy.result == 'success')) }}
     runs-on: ubuntu-latest
     environment: glorifier-solana-mainnet
     env:
@@ -282,17 +309,55 @@ jobs:
           MAINNET_GENESIS="$(curl -sSfL --retry 3 --retry-delay 1 --max-time 20 "$SOLANA_RPC_URL" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}' | jq -r '.result // empty')"
           test "$MAINNET_GENESIS" = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
           solana config set --url "$SOLANA_RPC_URL"
-      - name: Download deployment evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
-        with:
-          name: glorifier-solana-mainnet-evidence
-          path: /tmp/glr-mainnet
+      - name: Fetch and verify immutable deployment evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_INPUT: ${{ inputs.source_run_id }}
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == "reconcile-existing" ]]; then SOURCE_RUN_ID="$SOURCE_RUN_INPUT"; else SOURCE_RUN_ID="$GITHUB_RUN_ID"; fi
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]]
+          RUN_INFO="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID")"
+          jq -e --arg id "$SOURCE_RUN_ID" '.id==($id|tonumber) and .event=="workflow_dispatch" and .head_branch=="main" and .path==".github/workflows/glorifier-solana-mainnet-release.yml"' <<<"$RUN_INFO" >/dev/null
+          ARTIFACTS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100")"
+          ARTIFACT_ROW="$(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-mainnet-evidence") | select(.digest!=null and (.digest|startswith("sha256:")))] | sort_by(.created_at) | last | if .==null then empty else [(.id|tostring),.digest] | @tsv end' <<<"$ARTIFACTS")"
+          IFS=$'\t' read -r ARTIFACT_ID ARTIFACT_DIGEST <<<"$ARTIFACT_ROW"
+          [[ "$ARTIFACT_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::No non-expired immutable deployment evidence artifact was found for source run $SOURCE_RUN_ID."; exit 1; }
+          [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Source artifact digest is missing or malformed."; exit 1; }
+          rm -rf /tmp/glr-mainnet /tmp/glr-mainnet-artifact.zip
+          mkdir -p /tmp/glr-mainnet
+          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/glr-mainnet-artifact.zip
+          test "sha256:$(sha256sum /tmp/glr-mainnet-artifact.zip | awk '{print $1}')" = "$ARTIFACT_DIGEST" || { echo "::error::Downloaded deployment artifact digest does not match GitHub's immutable artifact digest."; exit 1; }
+          unzip -oq /tmp/glr-mainnet-artifact.zip -d /tmp/glr-mainnet
+          EVIDENCE_FILE="$(find /tmp/glr-mainnet -type f -name deployment-mainnet-evidence.json -print -quit)"
+          test -n "$EVIDENCE_FILE" || { echo "::error::Deployment evidence JSON is missing from the artifact."; exit 1; }
+          EXPECTED_MINT="$(jq -er '.mint' solana/mainnet-recovery.json)"
+          jq -e --arg mint "$EXPECTED_MINT" --arg run_id "$SOURCE_RUN_ID" --arg repo "$GITHUB_REPOSITORY" '
+            .network=="solana-mainnet" and .status=="READY_FOR_VERIFICATION"
+            and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .mint==$mint
+            and .deploymentWorkflowRunId==$run_id
+            and .deploymentWorkflowRunUrl==("https://github.com/"+$repo+"/actions/runs/"+$run_id)
+            and (.creationTransaction|type=="string" and length>0)
+            and (.metadataTransaction|type=="string" and length>0)
+            and (.tokenAccountCreationTransaction|type=="string" and length>0)
+            and (.mintTransaction|type=="string" and length>0)
+            and (.mintAuthorityRevocationTransaction|type=="string" and length>0)
+            and ((.freezeAuthorityRevocationTransaction|type=="string" and length>0) or ((.freezeAuthorityRevocationTransaction==null or .freezeAuthorityRevocationTransaction=="") and .freezeAuthorityInitiallyNone==true))
+            and (.metadataUpdateAuthorityInitiallyNone|type=="boolean")
+            and ((.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>0) or (.metadataUpdateAuthorityRevocationTransaction=="" and .metadataUpdateAuthorityInitiallyNone==true))
+            and (.metadataPointerAuthorityInitiallyNone|type=="boolean")
+            and ((.metadataPointerAuthorityRevocationTransaction|type=="string" and length>0) or (.metadataPointerAuthorityRevocationTransaction=="" and .metadataPointerAuthorityInitiallyNone==true))
+          ' "$EVIDENCE_FILE" >/dev/null
+          cp "$EVIDENCE_FILE" solana/deployment-mainnet-evidence.json
+          jq --arg run_id "$SOURCE_RUN_ID" --arg run_url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --arg artifact_id "$ARTIFACT_ID" --arg artifact_digest "$ARTIFACT_DIGEST" '. + {deploymentRunId:$run_id,deploymentRunUrl:$run_url,deploymentArtifactId:$artifact_id,deploymentArtifactDigest:$artifact_digest}' "$EVIDENCE_FILE" > solana/deployment-mainnet-provenance.json
       - name: Reconcile without mutation
         run: |
           set -euo pipefail
           MINT="$(jq -r '.mint' /tmp/glr-mainnet/deployment-mainnet-evidence.json)"
           chmod +x solana/reconcile-token2022-mainnet.sh
-          ./solana/reconcile-token2022-mainnet.sh "$MINT" /tmp/glr-mainnet/deployment-mainnet-evidence.json
+          ./solana/reconcile-token2022-mainnet.sh "$MINT" solana/deployment-mainnet-provenance.json
       - name: Upload reconciliation evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -305,6 +370,8 @@ jobs:
             solana/reconciliation-mainnet-mint-state.txt
             solana/reconciliation-mainnet-evidence.json
             solana/reconciliation-mainnet-metadata.json
+            solana/deployment-mainnet-provenance.json
+            solana/deployment-mainnet-evidence.json
             solana/reconciliation-mainnet-tx-*.json
 
   publish:
