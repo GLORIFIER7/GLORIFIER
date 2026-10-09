@@ -80,7 +80,25 @@ if (name,symbol,uri)!=(expected_name,expected_symbol,expected_uri): raise System
 with urllib.request.urlopen(expected_uri,timeout=30) as response: data=response.read()
 print(json.dumps({"commitment":"finalized","owner":program,"metadataPointerAuthority":None,"metadataPointerAddress":ma,"metadataUpdateAuthority":None,"metadataMint":mm,"name":name,"symbol":symbol,"uri":uri,"offChainMetadataSha256":hashlib.sha256(data).hexdigest()},separators=(",",":")))
 PY
-jq -e --arg mint "$MINT" --arg uri "$EXPECTED_METADATA_URI" '.commitment=="finalized" and .owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .metadataPointerAuthority==null and .metadataPointerAddress==$mint and .metadataUpdateAuthority==null and .metadataMint==$mint and .name=="GLORIFIER" and .symbol=="GLR" and .uri==$uri and (.offChainMetadataSha256|length)==64' solana/reconciliation-mainnet-metadata.json >/dev/null
+METADATA_CHECKS="$(jq -r --arg mint "$MINT" --arg uri "$EXPECTED_METADATA_URI" '{
+  finalizedCommitment:(.commitment=="finalized"),
+  canonicalToken2022Owner:(.owner=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+  metadataPointerAuthorityDisabled:(.metadataPointerAuthority==null),
+  metadataPointerSelfReference:(.metadataPointerAddress==$mint),
+  metadataUpdateAuthorityDisabled:(.metadataUpdateAuthority==null),
+  metadataMintMatches:(.metadataMint==$mint),
+  nameMatches:(.name=="GLORIFIER"),
+  symbolMatches:(.symbol=="GLR"),
+  pinnedUriMatches:(.uri==$uri),
+  offChainSha256Valid:((.offChainMetadataSha256|type)=="string" and (.offChainMetadataSha256|length)==64)
+}' solana/reconciliation-mainnet-metadata.json)" || { echo "::error::Could not parse finalized metadata reconciliation output."; exit 1; }
+echo "$METADATA_CHECKS" | jq .
+FAILED_METADATA_CHECKS="$(jq -r 'to_entries | map(select(.value != true) | .key) | join(", ")' <<<"$METADATA_CHECKS")"
+if [[ -n "$FAILED_METADATA_CHECKS" ]]; then
+  echo "::error::Finalized metadata reconciliation failed: $FAILED_METADATA_CHECKS"
+  exit 1
+fi
+echo "PASS: Finalized account, metadata fields, authorities, pinned URI, and off-chain SHA-256 validated."
 for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
 METADATA_AUTH="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 METADATA_AUTH_INITIALLY_NONE="$(jq -r '.metadataUpdateAuthorityInitiallyNone // false' "$PROVENANCE")"
