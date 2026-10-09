@@ -133,7 +133,7 @@ export function getCurrencyRateStatus(
 ): CurrencyQuoteStatus {
   const observed = Date.parse(evidence.observedAt);
   const retrieved = Date.parse(evidence.retrievedAt);
-  if (!evidence.source.trim() || !Number.isFinite(observed) || !Number.isFinite(retrieved)) {
+  if (typeof evidence.source !== 'string' || !evidence.source.trim() || !Number.isFinite(observed) || !Number.isFinite(retrieved)) {
     return 'NO_RELIABLE_QUOTE';
   }
   if (!Number.isFinite(evidence.maxAgeSeconds) || evidence.maxAgeSeconds < 0) {
@@ -204,8 +204,15 @@ export function buildCurrencyQuote(input: {
   const gross = parseDecimal(multiplyCurrencyAmount(amount, evidence.rate, quote.decimals), 'Gross output');
   const feeBps = providerFeeBps + slippageBps;
   if (feeBps > 10_000) throw new Error('Combined fee and slippage cannot exceed 10000 basis points');
-  const providerFeeUnits = roundDiv(gross.units * BigInt(providerFeeBps), 10_000n);
-  const slippageUnits = roundDiv(gross.units * BigInt(slippageBps), 10_000n);
+  const rawProviderFeeUnits = roundDiv(gross.units * BigInt(providerFeeBps), 10_000n);
+  const rawSlippageUnits = roundDiv(gross.units * BigInt(slippageBps), 10_000n);
+  // Independent half-up rounding can make tiny fee components exceed the gross
+  // amount by one minor unit. Cap the combined estimate so net output never goes negative.
+  const providerFeeUnits = rawProviderFeeUnits > gross.units ? gross.units : rawProviderFeeUnits;
+  const remainingAfterProviderFee = gross.units - providerFeeUnits;
+  const slippageUnits = rawSlippageUnits > remainingAfterProviderFee
+    ? remainingAfterProviderFee
+    : rawSlippageUnits;
   const fees = providerFeeUnits + slippageUnits;
   const net = gross.units - fees;
   const warnings: string[] = ['Indicative quote only; not an executable price or payment instruction.'];
