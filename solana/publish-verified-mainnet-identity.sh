@@ -46,7 +46,7 @@ for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransac
 done
 for FIELD in metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
   TX="$(jq -r --arg field "$FIELD" '.[$field]' solana/deployment-mainnet-provenance.json)"
-  INIT="$(jq -r --arg field "$FIELD" 'if $field=="metadataUpdateAuthorityRevocationTransaction" then .metadataUpdateAuthorityInitiallyNone else .metadataPointerAuthorityInitiallyNone end' solana/deployment-mainnet-provenance.json)
+  INIT="$(jq -r --arg field "$FIELD" 'if $field=="metadataUpdateAuthorityRevocationTransaction" then .metadataUpdateAuthorityInitiallyNone else .metadataPointerAuthorityInitiallyNone end' solana/deployment-mainnet-provenance.json)"
   if [[ -n "$TX" ]]; then
     [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
     solana confirm "$TX" --commitment finalized >/dev/null
