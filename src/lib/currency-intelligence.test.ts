@@ -41,6 +41,18 @@ const stale = buildCurrencyQuote({
 });
 expect(stale.status === 'STALE' && stale.grossOutputAmount === null, 'stale rates must not produce an amount');
 
+const staleRetrieved = buildCurrencyQuote({
+  amount: '100', base: usd, quote: eur,
+  evidence: { ...rate, retrievedAt: '2026-10-09T11:50:00.000Z' }, now,
+});
+expect(staleRetrieved.status === 'STALE' && staleRetrieved.grossOutputAmount === null,
+  'recently observed but old retrieved evidence must not produce an amount');
+
+const futureRetrieved = getCurrencyRateStatus({
+  ...rate, retrievedAt: '2026-10-09T12:01:00.000Z',
+}, now);
+expect(futureRetrieved === 'NO_RELIABLE_QUOTE', 'future retrieval timestamps must fail closed');
+
 const unsupported = buildCurrencyQuote({ amount: '100', base: usd, quote: eur });
 expect(unsupported.status === 'UNSUPPORTED_PAIR', 'missing evidence must not invent a rate');
 
