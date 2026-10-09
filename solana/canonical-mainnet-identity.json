@@ -13,8 +13,8 @@
   "freeze_authority_revocation_transaction": "",
   "status": "VERIFIED_ON_CHAIN",
   "mainnet_status": "FULLY_VERIFIED",
-  "verification_boundary": "Mainnet identity is publishable only after devnet canonical verification, explicit human approval, real mainnet deployment evidence, independent read-only reconciliation, and transaction confirmation.",
-  "next_action": "Mainnet GLR deployment independently reconciled and transaction provenance confirmed.",
+  "verification_boundary": "Mainnet identity is verified from finalized read-only reconciliation, immutable deployment provenance, and transaction confirmation. Repository presentation metadata is supplemental and does not override the immutable on-chain URI.",
+  "next_action": "No further on-chain metadata action is possible: metadata pointer and metadata update authorities are disabled. Keep the immutable on-chain URI and clearly label the newer repository metadata/logo as supplemental.",
   "verification_run_id": "37886411021",
   "verification_run_url": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37886411021",
   "verified_at": "2026-10-09T05:03:36Z",
@@ -23,8 +23,8 @@
   "repository_metadata_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json",
   "image_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/e4e2c5bfead19eed360a1543b93ec58cdd3fff02/public/glorifier-logo.jpg",
   "on_chain_metadata_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/d0d5c16fc4a74099c125c8aac594352d53675177/solana/token.json",
-  "metadata_alignment_status": "REPOSITORY_METADATA_UPDATED; ON_CHAIN_URI_STILL_POINTS_TO_COMMIT_PINNED_METADATA",
+  "metadata_alignment_status": "ON_CHAIN_URI_AND_SHA256_VERIFIED; URI_IS_IMMUTABLE_BECAUSE_METADATA_POINTER_AND_UPDATE_AUTHORITIES_ARE_DISABLED; REPOSITORY_METADATA_WITH_LOGO_IS_SUPPLEMENTAL",
   "reconciliation_run_number_reported": 87,
   "reconciliation_reported_status": "success",
-  "reconciliation_evidence_artifact_review": "pending"
+  "reconciliation_evidence_artifact_review": "REVIEWED_2026-10-09; downloaded reconciliation artifact confirms finalized 1000000000 supply, 9 decimals, absent mint/freeze authorities, disabled metadata authorities, and pinned URI SHA-256 validation"
 }
