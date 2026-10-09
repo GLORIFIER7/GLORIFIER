@@ -19,5 +19,12 @@
   "verification_run_url": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/37886411021",
   "verified_at": "2026-10-09T05:03:36Z",
   "metadata_update_authority_revocation_transaction": "",
-  "metadata_pointer_authority_revocation_transaction": ""
+  "metadata_pointer_authority_revocation_transaction": "",
+  "repository_metadata_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json",
+  "image_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/e4e2c5bfead19eed360a1543b93ec58cdd3fff02/public/glorifier-logo.jpg",
+  "on_chain_metadata_uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/d0d5c16fc4a74099c125c8aac594352d53675177/solana/token.json",
+  "metadata_alignment_status": "REPOSITORY_METADATA_UPDATED; ON_CHAIN_URI_STILL_POINTS_TO_COMMIT_PINNED_METADATA",
+  "reconciliation_run_number_reported": 87,
+  "reconciliation_reported_status": "success",
+  "reconciliation_evidence_artifact_review": "pending"
 }
