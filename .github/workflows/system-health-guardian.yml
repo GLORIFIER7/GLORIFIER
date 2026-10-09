@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
+          package-manager-cache: false
 
       - name: Install
         run: npm install --no-audit --no-fund
