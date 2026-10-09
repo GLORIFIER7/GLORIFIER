@@ -140,7 +140,11 @@ export function getCurrencyRateStatus(
     return 'NO_RELIABLE_QUOTE';
   }
   if (now.getTime() < observed || now.getTime() < retrieved) return 'NO_RELIABLE_QUOTE';
-  if ((now.getTime() - observed) / 1000 > evidence.maxAgeSeconds) return 'STALE';
+  // Both the provider observation and our retrieval must remain within the freshness window.
+  // A recently fetched cache entry must not make an old upstream observation look fresh.
+  const observedAgeSeconds = (now.getTime() - observed) / 1000;
+  const retrievedAgeSeconds = (now.getTime() - retrieved) / 1000;
+  if (observedAgeSeconds > evidence.maxAgeSeconds || retrievedAgeSeconds > evidence.maxAgeSeconds) return 'STALE';
   if (evidence.status === 'NOT_OBSERVABLE') return 'NOT_OBSERVABLE';
   if (evidence.status === 'DEGRADED') return 'DEGRADED';
   return evidence.status;
