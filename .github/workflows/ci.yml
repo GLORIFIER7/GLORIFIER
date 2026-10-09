@@ -58,5 +58,8 @@ jobs:
       - name: GLR governed commerce invariants
         run: npm run test:glr-economic-layer
 
+      - name: Currency intelligence arithmetic and fail-closed quote tests
+        run: npm run test:currency-intelligence
+
       - name: Production build
         run: npm run build
