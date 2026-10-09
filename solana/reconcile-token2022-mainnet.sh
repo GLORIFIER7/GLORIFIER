@@ -42,10 +42,17 @@ value=result.get("result",{}).get("value")
 if not value: raise SystemExit("mint account not found at finalized commitment")
 if value.get("owner")!=program: raise SystemExit("mint owner is not canonical Token-2022")
 raw=base64.b64decode(value["data"][0])
-if len(raw)<82: raise SystemExit("mint account is shorter than the base mint state")
-extensions={}; off=82
-while off+4<=len(raw):
-    etype=int.from_bytes(raw[off:off+2],"little"); elen=int.from_bytes(raw[off+2:off+4],"little"); off+=4; extensions[etype]=raw[off:off+elen]; off+=elen
+if len(raw)<166: raise SystemExit("Token-2022 mint account is shorter than the base state, padding, and account-type byte")
+# Token-2022 preserves the legacy 165-byte account layout for compatibility.
+# Extended mints store AccountType::Mint (1) at byte 165 and TLV extensions at 166.
+if raw[165] != 1: raise SystemExit("Token-2022 account type byte is not Mint")
+extensions={}; off=166
+while off<len(raw):
+    if off+4>len(raw): raise SystemExit("Token-2022 extension header is truncated")
+    etype=int.from_bytes(raw[off:off+2],"little"); elen=int.from_bytes(raw[off+2:off+4],"little"); off+=4
+    if off+elen>len(raw): raise SystemExit("Token-2022 extension payload is truncated")
+    if etype in extensions: raise SystemExit("duplicate Token-2022 extension type")
+    extensions[etype]=raw[off:off+elen]; off+=elen
 mp,tm=extensions.get(18),extensions.get(19)
 if mp is None or len(mp)<64: raise SystemExit("MetadataPointer extension missing or malformed")
 if tm is None or len(tm)<64: raise SystemExit("TokenMetadata extension missing or malformed")
