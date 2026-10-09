@@ -64,4 +64,17 @@ let invalidFeeRejected = false;
 try { buildCurrencyQuote({ amount: '1', base: usd, quote: eur, evidence: { ...rate, providerFeeBps: 10001 }, now }); } catch { invalidFeeRejected = true; }
 expect(invalidFeeRejected, 'invalid fee basis points must be rejected');
 
+const tinyGross = buildCurrencyQuote({
+  amount: '0.01', base: usd, quote: eur,
+  evidence: { ...rate, rate: '1', providerFeeBps: 5000, slippageBps: 5000 }, now,
+});
+expect(tinyGross.estimatedNetOutputAmount === '0', 'rounded fee components must never produce a negative net amount');
+expect(Number(tinyGross.estimatedFees) <= Number(tinyGross.grossOutputAmount),
+  'combined rounded fee estimates must not exceed gross output');
+
+const malformedSourceStatus = getCurrencyRateStatus({
+  ...rate, source: undefined as unknown as string,
+}, now);
+expect(malformedSourceStatus === 'NO_RELIABLE_QUOTE', 'malformed source metadata must fail closed instead of throwing');
+
 console.log('Currency Intelligence Engine tests passed.');
