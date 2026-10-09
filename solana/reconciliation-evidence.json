@@ -6,7 +6,7 @@
   "metadataUri":"https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json","metadataPointerAuthority":null,"metadataUpdateAuthority":null,
   "metadataPointerAddress":"8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd","metadataMint":"8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd","metadataUriInDisplay":true,
   "metadataPointerAuthorityRevocationTransaction":null,
-  "offChainMetadataSha256":"13e7f50a3c209cfd9e1b0fcf862c61c33f2b95e28635d6c889cfa2615f108225",
+  "offChainMetadataSha256":"c023ca9f3a5c1b224205551c5158132210d3c47201f17976fb88674c52dd5f25",
   "deploymentProvenanceVerified":true,
   "provenanceSource":"IMMUTABLE_GITHUB_ACTIONS_ARTIFACT",
   "transactionSemanticsVerified":false,
