@@ -55,6 +55,18 @@ jobs:
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
+      - name: GEAS architecture scientist evidence and cadence tests
+        run: npm run test:geas-scientist
+
+      - name: GEAS state reconciliation tests
+        run: npm run test:geas-reconciliation
+
+      - name: GEAS enterprise governance controls
+        run: npm run test:geas-enterprise-controls
+
+      - name: Validate GEAS architecture model
+        run: npm run validate:geas-architecture
+
       - name: GLR governed commerce invariants
         run: npm run test:glr-economic-layer
 
