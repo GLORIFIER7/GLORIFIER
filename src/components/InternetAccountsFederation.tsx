@@ -17,8 +17,6 @@ import {
   Wallet, 
   Smartphone, 
   Mail, 
-  Github, 
-  Twitter, 
   ShieldAlert,
   ArrowUpRight,
   Database,

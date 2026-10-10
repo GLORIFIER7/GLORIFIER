@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, Globe2, Github, Users, Cpu, Search, Database, DollarSign, Lightbulb, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Activity, Globe2, Code2, Users, Cpu, Search, Database, DollarSign, Lightbulb, RefreshCw, ShieldCheck } from 'lucide-react';
 
 type Insight = {
   id: string;
@@ -12,7 +12,7 @@ type Insight = {
 
 const ICONS: Record<string, React.ElementType> = {
   web_mentions: Globe2,
-  github: Github,
+  github: Code2,
   competitors: Users,
   trends: Cpu,
   search: Search,
