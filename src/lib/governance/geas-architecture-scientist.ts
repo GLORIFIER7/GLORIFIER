@@ -51,6 +51,7 @@ export interface SourceObservation {
   finalUrl?: string;
   etag?: string | null;
   lastModified?: string | null;
+  reusedCachedObservation?: boolean;
   evidenceExcerpt: string | null;
   evidenceStatus: EvidenceStatus;
   error?: string;
@@ -549,7 +550,7 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
-function stripHtml(input: string) {
+export function stripHtml(input: string) {
   return input
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -560,6 +561,17 @@ function stripHtml(input: string) {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function isClaimSupportedEvidence(status: EvidenceStatus): boolean {
+  return status === 'claim-supported';
+}
+
+export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
+  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt) return true;
+  const observedMs = Date.parse(observedAt);
+  if (!Number.isFinite(observedMs)) return true;
+  return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 }
 
 function extractEvidence(body: string, keywords: string[]) {
@@ -910,7 +922,34 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
 
   const scanId = `geas-scan-${randomUUID()}`;
   const startedAt = new Date().toISOString();
-  const sources = await Promise.all(SOURCES.map(fetchSource));
+  const previous = new Map<string, { observed_at: string; ok: boolean; status: number | null; content_hash: string | null; evidence_excerpt: string | null; evidence_status: EvidenceStatus; error: string | null }>();
+  if (persist) {
+    try {
+      const db = getPostgresPool();
+      const prior = await db.query('SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error FROM geas_source_observations');
+      for (const row of prior.rows) previous.set(String(row.source_id), row);
+    } catch (error) {
+      console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
+    }
+  }
+  const nowMs = Date.now();
+  const sources = await Promise.all(SOURCES.map(async (source) => {
+    const cached = previous.get(source.id);
+    if (cached && !isSourceObservationDue(source.cadenceHours, cached.observed_at, nowMs)) {
+      return {
+        sourceId: source.id,
+        ok: cached.ok,
+        status: cached.status,
+        contentHash: cached.content_hash,
+        observedAt: new Date(cached.observed_at).toISOString(),
+        reusedCachedObservation: true,
+        evidenceExcerpt: cached.evidence_excerpt,
+        evidenceStatus: cached.evidence_status,
+        error: cached.error ?? undefined,
+      } satisfies SourceObservation;
+    }
+    return fetchSource(source);
+  }));
   const completedAt = new Date().toISOString();
   const patterns = observedPatterns(sources, completedAt);
   const evidence = buildEvidence(sources, patterns);
