@@ -24,7 +24,7 @@ export type ArchitectureDomain =
 export type EvidenceClass = 'observed-fact' | 'analysis' | 'recommendation';
 export type DriftStatus = 'aligned' | 'partial' | 'drift' | 'unknown';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
-export type EvidenceStatus = 'verified' | 'not-observed' | 'unavailable';
+export type EvidenceStatus = 'source-available' | 'content-matched' | 'claim-supported' | 'not-observed' | 'unavailable';
 export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
 export type EvidenceSensitivity = 'public' | 'internal' | 'confidential' | 'restricted';
 
@@ -48,6 +48,9 @@ export interface SourceObservation {
   status: number | null;
   contentHash: string | null;
   observedAt: string;
+  finalUrl?: string;
+  etag?: string | null;
+  lastModified?: string | null;
   evidenceExcerpt: string | null;
   evidenceStatus: EvidenceStatus;
   error?: string;
@@ -507,7 +510,7 @@ const RECOMMENDATIONS = [
   'Normalize economic evidence against FOCUS 1.4 concepts and correlate cost/usage with workload, invoice/billing context and verified outcomes.',
   'Treat identity and authorization as resource-centric controls consistent with zero-trust architecture; never infer authority from network location.',
   'Make the Architecture Evidence Graph canonical: source → observation → evidence → pattern → control → component → runtime evidence → drift → recommendation → authorization → outcome.',
-  'Never label a pattern observed unless the current source fetch succeeds and a relevant evidence excerpt is extracted.',
+  'Do not promote source availability or keyword matches into claim verification; require claim-specific support before emitting an observed architecture pattern.',
   'Add first-class agent identity, delegated authority, capability scope, expiration and revocation semantics.',
   'Represent governed actions as evidence packages binding identity, authority, policy, action hash, execution identity, telemetry and outcome.',
   'Adopt a versioned OpenTelemetry-compatible execution trace contract while minimizing sensitive GenAI payloads.',
@@ -586,7 +589,8 @@ async function fetchSource(source: ArchitectureSource): Promise<SourceObservatio
     });
     clearTimeout(timer);
     const body = await response.text();
-    const hash = createHash('sha256').update(body).digest('hex');
+    const normalizedText = stripHtml(body).replace(/\s+/g, ' ').trim();
+    const hash = createHash('sha256').update(normalizedText).digest('hex');
     const keywords = PATTERN_DEFINITIONS.filter((pattern) => pattern.sourceId === source.id).flatMap((pattern) => pattern.keywords);
     const excerpt = response.ok ? extractEvidence(body, keywords) : null;
     return {
@@ -595,8 +599,11 @@ async function fetchSource(source: ArchitectureSource): Promise<SourceObservatio
       status: response.status,
       contentHash: hash,
       observedAt,
+      finalUrl: response.url || source.url,
+      etag: response.headers.get('etag'),
+      lastModified: response.headers.get('last-modified'),
       evidenceExcerpt: excerpt,
-      evidenceStatus: excerpt ? 'verified' : 'not-observed',
+      evidenceStatus: excerpt ? 'content-matched' : response.ok ? 'source-available' : 'not-observed',
       error: response.ok ? undefined : `source fetch returned ${response.status}`,
     };
   } catch (error) {
@@ -617,7 +624,7 @@ function observedPatterns(results: SourceObservation[], reviewedAt: string): Arc
   const map = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = map.get(pattern.sourceId);
-    if (!source || !source.ok || source.evidenceStatus !== 'verified' || !source.evidenceExcerpt) {
+    if (!source || !source.ok || source.evidenceStatus !== 'claim-supported' || !source.evidenceExcerpt) {
       return [] as ArchitecturePattern[];
     }
     return [{
@@ -645,7 +652,7 @@ function buildEvidence(results: SourceObservation[], patterns: ArchitecturePatte
   }
 
   return results.flatMap((result) => {
-    if (!result.ok || !result.evidenceExcerpt || result.evidenceStatus !== 'verified') return [] as ArchitectureEvidence[];
+    if (!result.ok || !result.evidenceExcerpt || !['content-matched', 'claim-supported'].includes(result.evidenceStatus)) return [] as ArchitectureEvidence[];
     return [{
       id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
       sourceId: result.sourceId,
@@ -686,88 +693,88 @@ function drift(): DriftFinding[] {
     {
       id: 'drift-agent-identity',
       controlId: 'AUTH-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'high',
       intended: 'Agents have explicit identity, delegation scope, audience, expiration and revocation semantics.',
-      observed: 'Scoped agent authorization exists, but identity and delegation are not universally enforced across execution surfaces.',
-      evidenceRefs: ['nist-ai-agents', 'owasp-agent-control'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Adopt AgentIdentityContract for governed agent actions.',
       createdAt: ts,
     },
     {
       id: 'drift-telemetry-contract',
       controlId: 'OBS-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'medium',
       intended: 'Agent/model/tool/deployment/outcome events share stable correlation semantics.',
-      observed: 'Agent observability exists, but an architecture-wide OTEL-compatible contract is not universal.',
-      evidenceRefs: ['opentelemetry-semconv'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Adopt a versioned GEAS telemetry contract.',
       createdAt: ts,
     },
     {
       id: 'drift-evidence-minimization',
       controlId: 'EVID-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'medium',
       intended: 'Evidence has integrity, classification, retention and disclosure controls.',
-      observed: 'Evidence/provenance exists, but universal raw-payload minimization is not established.',
-      evidenceRefs: ['opentelemetry-semconv', 'nist-traceability'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Add classification, redaction, retention and selective-disclosure metadata.',
       createdAt: ts,
     },
     {
       id: 'drift-policy-enforcement',
       controlId: 'POL-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'medium',
       intended: 'Applicable policies are machine-evaluable before governed execution.',
-      observed: 'GEAS policy evaluation exists; universal runtime/deployment gates are not established.',
-      evidenceRefs: ['cncf-kyverno', 'owasp-agent-control'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Publish versioned policies and add enforcement adapters.',
       createdAt: ts,
     },
     {
       id: 'drift-provenance',
       controlId: 'SUPPLY-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'high',
       intended: 'Software, model, provider and deployment dependencies have traceable provenance.',
-      observed: 'Provenance events exist, but a unified linked graph is incomplete.',
-      evidenceRefs: ['nist-traceability', 'nist-ssdf'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Link provider/model/software/deployment provenance into one evidence graph.',
       createdAt: ts,
     },
     {
       id: 'drift-finops',
       controlId: 'FIN-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'low',
       intended: 'Material architecture choices record cost, value and placement tradeoffs.',
-      observed: 'Economic controls exist, but normalized usage/cost is not universally tied to architecture decisions.',
-      evidenceRefs: ['finops-focus'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Add normalized cost/usage attribution and verified-outcome correlation.',
       createdAt: ts,
     },
     {
       id: 'drift-daemon-ha',
       controlId: 'STATE-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'high',
       intended: 'Long-running governed work has durable ownership, checkpoint and recovery semantics.',
-      observed: 'Daemon overlap protection is process-local; durable multi-instance ownership is not universal.',
-      evidenceRefs: ['cncf-dapr-agents'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Evaluate durable lease/checkpoint coordination before claiming HA.',
       createdAt: ts,
     },
     {
       id: 'drift-architecture-reconciliation',
       controlId: 'GOV-01',
-      status: 'partial',
+      status: 'unknown',
       severity: 'high',
       intended: 'Desired, declared, deployed, observed and verified states are reconciled.',
-      observed: 'Architecture models and drift findings exist, but the five-state reconciliation contract is not universal.',
-      evidenceRefs: ['microsoft-architecture', 'aws-well-architected'],
+      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
+      evidenceRefs: [],
       recommendation: 'Persist the five-state reconciliation and never infer compliance from missing evidence.',
       createdAt: ts,
     },
@@ -922,7 +929,7 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     sourcePolicyVersion: 'GEAS-AUTHORITY-1',
   };
 
-  try {
+  if (persist) try {
     await initializeGeasArchitectureScientist();
     const db = getPostgresPool();
     await db.query('INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)', [scanId, startedAt, completedAt, result]);
@@ -991,7 +998,7 @@ export function getGeasArchitectureModel() {
     operatingRule: 'GEAS may observe, compare, explain, prioritize and recommend; it must not autonomously apply irreversible production changes.',
     sourcePolicy: 'Only curated authoritative public sources are accepted as architecture evidence.',
     sourcePolicyVersion: 'GEAS-AUTHORITY-1',
-    evidencePolicy: 'Observed facts require successful source observation plus extracted evidence. Analysis and recommendations remain distinct.',
+    evidencePolicy: 'Source availability and keyword matches are not claim verification. A pattern is labeled observed-fact only when its evidence status is claim-supported; absent claim-validation evidence remains UNKNOWN.',
     unknownPolicy: 'Missing or unavailable evidence remains UNKNOWN; no compliance is inferred from absence of evidence.',
     architectureStateModel: ['desired', 'declared', 'deployed', 'observed', 'verified'],
     domains: [...new Set(SOURCES.map((source) => source.domain))],
