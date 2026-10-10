@@ -811,8 +811,14 @@ export async function initializeGeasArchitectureScientist() {
       content_hash TEXT,
       evidence_excerpt TEXT,
       evidence_status TEXT NOT NULL DEFAULT 'unavailable',
-      error TEXT
+      error TEXT,
+      final_url TEXT,
+      etag TEXT,
+      last_modified TEXT
     );
+    ALTER TABLE geas_source_observations ADD COLUMN IF NOT EXISTS final_url TEXT;
+    ALTER TABLE geas_source_observations ADD COLUMN IF NOT EXISTS etag TEXT;
+    ALTER TABLE geas_source_observations ADD COLUMN IF NOT EXISTS last_modified TEXT;
 
     CREATE TABLE IF NOT EXISTS geas_architecture_evidence (
       id TEXT PRIMARY KEY,
@@ -922,11 +928,11 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
 
   const scanId = `geas-scan-${randomUUID()}`;
   const startedAt = new Date().toISOString();
-  const previous = new Map<string, { observed_at: string; ok: boolean; status: number | null; content_hash: string | null; evidence_excerpt: string | null; evidence_status: EvidenceStatus; error: string | null }>();
+  const previous = new Map<string, { observed_at: string; ok: boolean; status: number | null; content_hash: string | null; evidence_excerpt: string | null; evidence_status: EvidenceStatus; error: string | null; final_url?: string | null; etag?: string | null; last_modified?: string | null }>();
   if (persist) {
     try {
       const db = getPostgresPool();
-      const prior = await db.query('SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error FROM geas_source_observations');
+      const prior = await db.query('SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified FROM geas_source_observations');
       for (const row of prior.rows) previous.set(String(row.source_id), row);
     } catch (error) {
       console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
@@ -943,6 +949,9 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
         contentHash: cached.content_hash,
         observedAt: new Date(cached.observed_at).toISOString(),
         reusedCachedObservation: true,
+        finalUrl: cached.final_url ?? undefined,
+        etag: cached.etag ?? null,
+        lastModified: cached.last_modified ?? null,
         evidenceExcerpt: cached.evidence_excerpt,
         evidenceStatus: cached.evidence_status,
         error: cached.error ?? undefined,
@@ -974,8 +983,8 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     await db.query('INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)', [scanId, startedAt, completedAt, result]);
     for (const source of sources) {
       await db.query(
-        'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error) VALUES($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error',
-        [source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt, source.evidenceStatus, source.error ?? null],
+        'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified',
+        [source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt, source.evidenceStatus, source.error ?? null, source.finalUrl ?? null, source.etag ?? null, source.lastModified ?? null],
       );
     }
     for (const item of evidence) {
