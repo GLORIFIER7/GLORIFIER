@@ -61,7 +61,7 @@ export interface ArchitecturePattern {
   id: string;
   title: string;
   domain: ArchitectureDomain;
-  evidenceClass: 'observed-fact';
+  evidenceClass: EvidenceClass;
   sourceId: string;
   evidenceUrl: string;
   evidenceExcerpt: string;
@@ -636,14 +636,14 @@ function observedPatterns(results: SourceObservation[], reviewedAt: string): Arc
   const map = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = map.get(pattern.sourceId);
-    if (!source || !source.ok || source.evidenceStatus !== 'claim-supported' || !source.evidenceExcerpt) {
+    if (!source || !source.ok || !['content-matched', 'claim-supported'].includes(source.evidenceStatus) || !source.evidenceExcerpt) {
       return [] as ArchitecturePattern[];
     }
     return [{
       id: pattern.id,
       title: pattern.title,
       domain: pattern.domain,
-      evidenceClass: 'observed-fact',
+      evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
       sourceId: source.sourceId,
       evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
       evidenceExcerpt: source.evidenceExcerpt,
