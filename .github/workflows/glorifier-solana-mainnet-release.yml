@@ -266,7 +266,7 @@ jobs:
             and ((.metadataPointerAuthorityRevocationTransaction|type=="string" and length>0) or (.metadataPointerAuthorityRevocationTransaction=="" and .metadataPointerAuthorityInitiallyNone==true))' solana/deployment-mainnet-evidence.json >/dev/null
       - name: Upload deployment evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: glorifier-solana-mainnet-evidence
           retention-days: 3650
@@ -359,7 +359,7 @@ jobs:
           chmod +x solana/reconcile-token2022-mainnet.sh
           ./solana/reconcile-token2022-mainnet.sh "$MINT" solana/deployment-mainnet-provenance.json
       - name: Upload reconciliation evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: glorifier-solana-mainnet-reconciliation
           retention-days: 3650

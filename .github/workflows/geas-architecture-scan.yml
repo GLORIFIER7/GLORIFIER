@@ -50,7 +50,7 @@ jobs:
           node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/geas-architecture/latest.json','utf8')); if(x.irreversibleChangesExecuted!==false) process.exit(1); if(x.sourcePolicyVersion!=='GEAS-AUTHORITY-1') process.exit(1); console.log('GEAS scan safety invariant verified')"
 
       - name: Upload scan evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: geas-architecture-scan-${{ github.run_id }}
           path: artifacts/geas-architecture/
