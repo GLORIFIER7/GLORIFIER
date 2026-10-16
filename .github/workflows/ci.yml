@@ -52,6 +52,9 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: LangSmith metadata-only tracing tests
+        run: npx tsx src/lib/observability/langsmith.test.ts
+
       - name: Agent harness approval tests
         run: npm run test:harness
 

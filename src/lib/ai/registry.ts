@@ -3,6 +3,7 @@ import { AnthropicProvider } from './providers/anthropic';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import type { AIProvider, AIProviderId, ProviderRegistryEntry } from './types';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, type DiscoveredProvider } from './provider-discovery';
+import { withLangSmithTrace } from '../observability/langsmith';
 
 const compatibleProviders = [
   { id: 'openai', name: 'OpenAI', apiKeyEnv: 'OPENAI_API_KEY', baseUrlEnv: 'OPENAI_BASE_URL', modelEnv: 'OPENAI_MODEL', defaultBaseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
@@ -372,22 +373,60 @@ const createProviderExecutionState = (): ProviderExecutionState => ({
   transientRetries: 0,
 });
 
+const TRACE_PROVIDER_IDS = new Set([
+  'gemini', 'anthropic', ...compatibleProviders.map((provider) => provider.id),
+]);
+
+const safeTraceProviderId = (value: string): string => TRACE_PROVIDER_IDS.has(value) ? value : 'unknown';
+
+export const buildProviderRegistryTraceInputs = (request: ProviderExecutionRequest): Record<string, unknown> => ({
+  messageCount: Array.isArray(request.messages) ? request.messages.length : 0,
+  messageRoles: Array.isArray(request.messages)
+    ? [...new Set(request.messages.map((message) =>
+        typeof message?.role === 'string' && ['system', 'developer', 'user', 'assistant', 'tool'].includes(message.role)
+          ? message.role
+          : 'unknown'))]
+    : [],
+  // Never transmit caller-controlled model/capability text in telemetry.
+  hasRequestedModel: Boolean(request.model),
+  hasPreferredProvider: Boolean(request.preferredProvider),
+  hasCapability: Boolean(request.capability),
+  maxTokens: typeof request.maxTokens === 'number' && Number.isFinite(request.maxTokens) ? request.maxTokens : null,
+});
+
+export const summarizeProviderRegistryTrace = (result: ProviderExecutionResult): Record<string, unknown> => ({
+  success: Boolean(result.response),
+  selectedProvider: safeTraceProviderId(result.provider),
+  attemptedProviderCount: result.attemptedProviders.length,
+  attemptedProviders: result.attemptedProviders.map(safeTraceProviderId),
+  providerStatuses: Object.fromEntries(Object.entries(result.providerStatuses)
+    .filter(([provider, status]) => TRACE_PROVIDER_IDS.has(provider)
+      && ['connected', 'unavailable', 'error'].includes(status))
+    .map(([provider, status]) => [provider, status])),
+  errorCount: result.errors.length,
+});
+
 /** Execute providers in governed order with bounded retries and one discovery refresh. */
 export const executeThroughProviderRegistry = async (
   request: ProviderExecutionRequest,
-): Promise<ProviderExecutionResult> => {
-  const policy = resolveExecutionPolicy(request);
-  assertGovernedFallbackPolicy(policy);
-  const connected = getConnectedProviders();
-  const preferredProvider = resolvePreferredProvider(request);
-  const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
-  const ordered = [...connected]
-    .filter((provider) => isProviderEligible(provider, discovery, request.capability))
-    .sort((a, b) => compareProviderOrder(a, b, discovery, preferredProvider));
-  const state = createProviderExecutionState();
-  const initial = await tryOrderedProviders(ordered, request, policy, discovery, state);
-  if (initial) return buildExecutionResult(initial.provider, initial.response, state);
-  const refreshed = await tryDiscoveryRefresh(request, policy, discovery, state);
-  if (refreshed) return buildExecutionResult(refreshed.provider, refreshed.response, state);
-  return buildExecutionResult('provider-registry-exhausted', undefined, state);
-};
+): Promise<ProviderExecutionResult> => withLangSmithTrace(
+  'GLORIFIER Provider Registry',
+  buildProviderRegistryTraceInputs(request),
+  async () => {
+    const policy = resolveExecutionPolicy(request);
+    assertGovernedFallbackPolicy(policy);
+    const connected = getConnectedProviders();
+    const preferredProvider = resolvePreferredProvider(request);
+    const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
+    const ordered = [...connected]
+      .filter((provider) => isProviderEligible(provider, discovery, request.capability))
+      .sort((a, b) => compareProviderOrder(a, b, discovery, preferredProvider));
+    const state = createProviderExecutionState();
+    const initial = await tryOrderedProviders(ordered, request, policy, discovery, state);
+    if (initial) return buildExecutionResult(initial.provider, initial.response, state);
+    const refreshed = await tryDiscoveryRefresh(request, policy, discovery, state);
+    if (refreshed) return buildExecutionResult(refreshed.provider, refreshed.response, state);
+    return buildExecutionResult('provider-registry-exhausted', undefined, state);
+  },
+  summarizeProviderRegistryTrace,
+);
