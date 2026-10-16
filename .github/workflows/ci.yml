@@ -67,6 +67,9 @@ jobs:
       - name: Interoperability controls
         run: npx tsx src/lib/governance/interoperability-controls.test.ts
 
+      - name: ASAP Protocol governance boundary regression tests
+        run: npm run test:asap-bridge
+
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 

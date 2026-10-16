@@ -39,7 +39,8 @@
     "test:glr-bnb-verifier": "tsx src/lib/glr-bnb-verifier.test.ts",
     "test:glr-solana-verifier": "tsx src/lib/glr-solana-verifier.test.ts",
     "test:outcome-evidence-gates": "tsx src/lib/governance/outcome-evidence-gates.test.ts",
-    "test:cloudflare-worker": "tsx src/worker.test.ts"
+    "test:cloudflare-worker": "tsx src/worker.test.ts",
+    "test:asap-bridge": "tsx src/lib/asap-bridge.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
