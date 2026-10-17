@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload discovery report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-bounty-discovery-report-${{ github.run_id }}
           path: artifacts/bounty-discovery.json
