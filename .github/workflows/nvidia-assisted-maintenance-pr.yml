@@ -16,20 +16,20 @@ permissions:
   contents: write
   pull-requests: write
 concurrency:
-  group: nvidia-assisted-maintenance-${ github.event.workflow_run.id || inputs.run_id || github.run_id }}
+  group: nvidia-assisted-maintenance-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
   cancel-in-progress: false
 jobs:
   propose-fix:
-    if: ${ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      GH_TOKEN: ${ github.token }}
-      RUN_ID: ${ github.event.workflow_run.id || inputs.run_id || '' }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
     steps:
       - name: Require NVIDIA credential
         env:
-          NVIDIA_API_KEY: ${ secrets.NVIDIA_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
           set -euo pipefail
           if [[ -z "$NVIDIA_API_KEY" ]]; then echo "::error::Configure NVIDIA_API_KEY in Actions secrets; never paste it into chat or source."; exit 1; fi
@@ -54,14 +54,14 @@ jobs:
         if: steps.target.outputs.skip != 'true'
         uses: actions/checkout@v7
         with:
-          ref: ${ steps.target.outputs.head_sha }}
+          ref: ${{ steps.target.outputs.head_sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Gather bounded failure logs and changed source
         if: steps.target.outputs.skip != 'true'
         env:
-          TARGET_SHA: ${ steps.target.outputs.head_sha }}
-          TARGET_RUN_ID: ${ steps.target.outputs.run_id }}
+          TARGET_SHA: ${{ steps.target.outputs.head_sha }}
+          TARGET_RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
           set -euo pipefail
           gh run view "$TARGET_RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > logs.raw 2>/dev/null || true
@@ -93,10 +93,10 @@ jobs:
       - name: Request a constrained patch from Nemotron
         if: steps.target.outputs.skip != 'true'
         env:
-          NVIDIA_API_KEY: ${ secrets.NVIDIA_API_KEY }}
-          NVIDIA_MODEL: ${ secrets.NVIDIA_MODEL }}
-          NVIDIA_BASE_URL: ${ secrets.NVIDIA_BASE_URL }}
-          RUN_URL: ${ steps.target.outputs.run_url }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NVIDIA_MODEL: ${{ secrets.NVIDIA_MODEL }}
+          NVIDIA_BASE_URL: ${{ secrets.NVIDIA_BASE_URL }}
+          RUN_URL: ${{ steps.target.outputs.run_url }}
         run: |
           set -euo pipefail
           base="$NVIDIA_BASE_URL"; if [[ -z "$base" ]]; then base="https://integrate.api.nvidia.com/v1"; fi
@@ -165,8 +165,8 @@ jobs:
       - name: Push fix branch and open PR
         if: steps.target.outputs.skip != 'true' && steps.verify.outputs.created == 'true'
         env:
-          TARGET_RUN_ID: ${ steps.target.outputs.run_id }}
-          TARGET_RUN_URL: ${ steps.target.outputs.run_url }}
+          TARGET_RUN_ID: ${{ steps.target.outputs.run_id }}
+          TARGET_RUN_URL: ${{ steps.target.outputs.run_url }}
         run: |
           set -euo pipefail
           branch="nvidia/auto-fix-$TARGET_RUN_ID"
