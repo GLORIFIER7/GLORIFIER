@@ -46,10 +46,12 @@ jobs:
           if [[ ! "$candidate" =~ ^[0-9]+$ ]]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "::notice::No failed main-branch CI run; no PR created."; exit 0; fi
           meta="$(gh run view "$candidate" --repo "$GITHUB_REPOSITORY" --json workflowName,headBranch,conclusion,url,headSha)"
           jq -e '.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure" and (.headSha | type == "string")' <<<"$meta" >/dev/null || { echo "::error::Refusing nonmatching run."; exit 1; }
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "run_id=$candidate" >> "$GITHUB_OUTPUT"
-          echo "run_url=$(jq -r '.url' <<<"$meta")" >> "$GITHUB_OUTPUT"
-          echo "head_sha=$(jq -r '.headSha' <<<"$meta")" >> "$GITHUB_OUTPUT"
+          {
+            echo "skip=false"
+            echo "run_id=$candidate"
+            echo "run_url=$(jq -r '.url' <<<"$meta")"
+            echo "head_sha=$(jq -r '.headSha' <<<"$meta")"
+          } >> "$GITHUB_OUTPUT"
       - name: Checkout failed commit
         if: steps.target.outputs.skip != 'true'
         uses: actions/checkout@v7
