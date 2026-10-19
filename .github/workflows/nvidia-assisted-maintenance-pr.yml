@@ -161,7 +161,7 @@ jobs:
           npm run test:architecture
           npm run test:geas-claim-verification
           npm run test:geas-state-reconciliation
-          if [[ -z "$(git status --porcelain)" ]]; then echo "created=false" >> "$GITHUB_OUTPUT"; else echo "created=true" >> "$GITHUB_OUTPUT"; fi
+          if git diff --quiet; then echo "created=false" >> "$GITHUB_OUTPUT"; else echo "created=true" >> "$GITHUB_OUTPUT"; fi
       - name: Push fix branch and open PR
         if: steps.target.outputs.skip != 'true' && steps.verify.outputs.created == 'true'
         env:
