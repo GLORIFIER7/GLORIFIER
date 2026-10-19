@@ -132,6 +132,12 @@ jobs:
           if len(patch.encode())>30000 or not headers or len(headers)>5: print("::error::Patch size or file count invalid."); raise SystemExit(1)
           for a,b in headers:
             if a!=b or not a.startswith(("src/","docs/","scripts/","tests/")) or ".." in a.split("/") or any(x in a.lower() for x in denied): print("::error::Patch path denied."); raise SystemExit(1)
+          file_headers=re.findall(r"(?m)^(---|\+\+\+) (.+)$",patch)
+          for marker,path in file_headers:
+            path=path.split("\t",1)[0]
+            if path in ("/dev/null","dev/null") or path.startswith("/") or ".." in path.split("/"): print("::error::Patch file header path denied."); raise SystemExit(1)
+            if path.startswith(("a/","b/")): path=path[2:]
+            if not path.startswith(("src/","docs/","scripts/","tests/")) or any(x in path.lower() for x in denied): print("::error::Patch file header outside allowlist."); raise SystemExit(1)
           if re.search(r"(?m)^(deleted file mode|new file mode|rename from|rename to|copy from|copy to)",patch): print("::error::Create/delete/rename denied."); raise SystemExit(1)
           if sum(1 for x in patch.splitlines() if x.startswith(("+","-")) and not x.startswith(("+++","---")))>250: print("::error::Patch too large."); raise SystemExit(1)
           Path("patch.diff").write_text(patch)
@@ -169,7 +175,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add -- src docs scripts tests
+          git add -u
           git commit -m "fix: propose verified repair for CI run $TARGET_RUN_ID"
           gh auth setup-git
           git push origin "$branch"
