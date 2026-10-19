@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
 
@@ -52,9 +54,24 @@ export interface SourceObservation {
   etag?: string | null;
   lastModified?: string | null;
   reusedCachedObservation?: boolean;
+  revalidatedNotModified?: boolean;
   evidenceExcerpt: string | null;
   evidenceStatus: EvidenceStatus;
   error?: string;
+}
+
+export interface CachedSourceObservation {
+  observed_at: string;
+  ok: boolean;
+  status: number | null;
+  content_hash: string | null;
+  evidence_excerpt: string | null;
+  evidence_status: EvidenceStatus;
+  error?: string | null;
+  final_url?: string | null;
+  etag?: string | null;
+  last_modified?: string | null;
+  source_url?: string | null;
 }
 
 export interface ArchitecturePattern {
@@ -240,7 +257,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'enterprise-architecture',
     url: 'https://learn.microsoft.com/en-us/azure/architecture/',
     patternIds: ['cross-cutting-cloud-controls'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'aws-well-architected',
@@ -248,7 +265,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cloud',
     url: 'https://aws.amazon.com/architecture/well-architected/',
     patternIds: ['cross-cutting-cloud-controls', 'durable-agent-execution'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'google-architecture',
@@ -256,7 +273,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cloud',
     url: 'https://docs.cloud.google.com/architecture/',
     patternIds: ['federated-data-access'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-ai-rmf',
@@ -264,7 +281,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'ai',
     url: 'https://www.nist.gov/itl/ai-risk-management-framework',
     patternIds: ['ai-lifecycle-risk'],
-    cadenceHours: 168,
+    cadenceHours: 720,
   },
   {
     id: 'nist-ai-agents',
@@ -272,7 +289,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'ai',
     url: 'https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative',
     patternIds: ['agent-identity-delegation'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-csf',
@@ -280,7 +297,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cybersecurity',
     url: 'https://www.nist.gov/cyberframework',
     patternIds: ['identity-risk-controls'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-ssdf',
@@ -288,7 +305,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'software',
     url: 'https://csrc.nist.gov/Projects/ssdf',
     patternIds: ['software-supply-chain'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'opentelemetry-semconv',
@@ -296,7 +313,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'observability',
     url: 'https://opentelemetry.io/docs/concepts/semantic-conventions/',
     patternIds: ['vendor-neutral-telemetry', 'evidence-minimization'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'finops-focus',
@@ -304,7 +321,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'finops',
     url: 'https://focus.finops.org/',
     patternIds: ['cost-outcome-accounting'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'cncf-kyverno',
@@ -312,7 +329,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'platform-engineering',
     url: 'https://www.cncf.io/projects/kyverno/',
     patternIds: ['policy-as-code'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'cncf-dapr-agents',
@@ -320,7 +337,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'reliability',
     url: 'https://www.cncf.io/projects/dapr/',
     patternIds: ['durable-agent-execution'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'etsi-eni',
@@ -328,7 +345,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'networking',
     url: 'https://www.etsi.org/technical-groups/eni/',
     patternIds: ['federated-continuum', 'intent-closed-loop'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'ietf-rfcs',
@@ -336,7 +353,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'integration',
     url: 'https://www.ietf.org/process/rfcs/',
     patternIds: ['protocol-neutral-interoperability'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-iot',
@@ -384,7 +401,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cybersecurity',
     url: 'https://genai.owasp.org/resource/agent-control-standard-acs/',
     patternIds: ['runtime-agent-controls'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'mitre-atlas',
@@ -392,7 +409,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cybersecurity',
     url: 'https://atlas.mitre.org/',
     patternIds: ['adversarial-ai-controls'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-token-protection',
@@ -400,7 +417,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'cybersecurity',
     url: 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation',
     patternIds: ['token-lifecycle-protection'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'otel-genai-agents',
@@ -408,7 +425,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'observability',
     url: 'https://github.com/open-telemetry/semantic-conventions-genai',
     patternIds: ['genai-agent-telemetry'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'finops-focus-1-4',
@@ -416,7 +433,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'finops',
     url: 'https://focus.finops.org/docs/specification/v1-4/',
     patternIds: ['cost-outcome-accounting'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   {
     id: 'nist-zero-trust',
@@ -432,7 +449,7 @@ const SOURCES: ArchitectureSource[] = [
     domain: 'data',
     url: 'https://csrc.nist.gov/pubs/ir/8536/final',
     patternIds: ['provenance-graph'],
-    cadenceHours: 168,
+    cadenceHours: 336,
   },
   { id: 'opengroup-togaf', authority: 'The Open Group', domain: 'enterprise-architecture', url: 'https://www.opengroup.org/togaf', patternIds: ['enterprise-architecture-traceability'], cadenceHours: 336 },
   { id: 'ietf-oauth-security', authority: 'IETF', domain: 'cybersecurity', url: 'https://datatracker.ietf.org/doc/html/rfc9700', patternIds: ['oauth-security-best-practice'], cadenceHours: 336 },
@@ -608,6 +625,39 @@ export function shouldReuseSourceObservation(input: {
   return !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
 }
 
+export function buildConditionalRequestHeaders(
+  configuredUrl: string,
+  cached?: CachedSourceObservation | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!cached || cached.source_url !== configuredUrl || !cached.ok || !cached.content_hash) return headers;
+  if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
+  if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
+  return headers;
+}
+
+export function reuseNotModifiedSourceObservation(
+  source: Pick<ArchitectureSource, 'id' | 'url'>,
+  cached: CachedSourceObservation | null | undefined,
+  response: { finalUrl: string; etag: string | null; lastModified: string | null },
+  observedAt: string,
+): SourceObservation | null {
+  if (!cached || cached.source_url !== source.url || !cached.ok || !cached.content_hash) return null;
+  return {
+    sourceId: source.id,
+    ok: true,
+    status: 304,
+    contentHash: cached.content_hash,
+    observedAt,
+    finalUrl: response.finalUrl,
+    etag: response.etag ?? cached.etag ?? null,
+    lastModified: response.lastModified ?? cached.last_modified ?? null,
+    revalidatedNotModified: true,
+    evidenceExcerpt: cached.evidence_excerpt,
+    evidenceStatus: cached.evidence_status,
+  };
+}
+
 function extractEvidence(body: string, keywords: string[]) {
   const text = stripHtml(body);
   const lower = text.toLowerCase();
@@ -629,6 +679,7 @@ const SOURCE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 async function fetchCuratedSource(
   sourceUrl: string,
   signal: AbortSignal,
+  conditionalHeaders: Record<string, string> = {},
 ): Promise<{ response: Response; finalUrl: URL; body: string }> {
   const originalUrl = new URL(sourceUrl);
   if (originalUrl.protocol !== 'https:' || originalUrl.username || originalUrl.password) {
@@ -643,6 +694,7 @@ async function fetchCuratedSource(
       headers: {
         'User-Agent': 'GLORIFIER-GEAS-Architecture-Scientist/2.0',
         Accept: 'text/html,application/xhtml+xml,text/plain',
+        ...conditionalHeaders,
       },
       signal,
     });
@@ -676,6 +728,11 @@ async function fetchCuratedSource(
     throw new Error('source redirect rejected: final host/protocol differs from curated source');
   }
 
+  if (response.status === 304) {
+    // A 304 has no new representation body. The caller must validate and reuse the exact URL's cached evidence.
+    return { response, finalUrl, body: '' };
+  }
+
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
   if (declaredLength > SOURCE_MAX_BYTES) {
     await response.body?.cancel();
@@ -707,12 +764,40 @@ async function fetchCuratedSource(
   return { response, finalUrl, body: new TextDecoder().decode(bytes) };
 }
 
-async function fetchSource(source: ArchitectureSource): Promise<SourceObservation> {
+async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> {
   const observedAt = new Date().toISOString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const { response, finalUrl, body } = await fetchCuratedSource(source.url, controller.signal);
+    const { response, finalUrl, body } = await fetchCuratedSource(
+      source.url,
+      controller.signal,
+      buildConditionalRequestHeaders(source.url, cached),
+    );
+    if (response.status === 304) {
+      const revalidated = reuseNotModifiedSourceObservation(
+        source,
+        cached,
+        {
+          finalUrl: finalUrl.toString(),
+          etag: response.headers.get('etag'),
+          lastModified: response.headers.get('last-modified'),
+        },
+        observedAt,
+      );
+      if (revalidated) return revalidated;
+      return {
+        sourceId: source.id,
+        ok: false,
+        status: 304,
+        contentHash: null,
+        observedAt,
+        finalUrl: finalUrl.toString(),
+        evidenceExcerpt: null,
+        evidenceStatus: 'unavailable',
+        error: 'source returned 304 without valid cached evidence for the exact configured URL',
+      };
+    }
     const normalizedText = stripHtml(body);
     const contentHash = createHash('sha256').update(normalizedText).digest('hex');
     const keywords = PATTERN_DEFINITIONS
@@ -1086,7 +1171,7 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
         error: cached.error ?? undefined,
       } satisfies SourceObservation;
     }
-    return fetchSource(source);
+    return fetchSource(source, cached);
   }));
   const completedAt = new Date().toISOString();
   const patterns = observedPatterns(sources, completedAt);

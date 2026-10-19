@@ -1,4 +1,4 @@
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, stripHtml } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
 
@@ -13,6 +13,50 @@ if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cac
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
 if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
 if (stripHtml('<main>  alpha &amp; beta </main>') !== 'alpha and beta') throw new Error('HTML normalization failed');
+
+const cachedObservation = {
+  observed_at: new Date(0).toISOString(),
+  ok: true,
+  status: 200,
+  content_hash: 'a'.repeat(64),
+  evidence_excerpt: 'Exact cached excerpt',
+  evidence_status: 'content-matched' as const,
+  final_url: 'https://example.org/architecture',
+  etag: '"v1"',
+  last_modified: 'Tue, 01 Jan 2030 00:00:00 GMT',
+  source_url: 'https://example.org/architecture',
+};
+const conditionalHeaders = buildConditionalRequestHeaders(cachedObservation.source_url, cachedObservation);
+if (conditionalHeaders['If-None-Match'] !== '"v1"' || conditionalHeaders['If-Modified-Since'] !== cachedObservation.last_modified) {
+  throw new Error('valid cached validators must be sent as conditional request headers');
+}
+if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', cachedObservation)).length !== 0) {
+  throw new Error('URL changes must suppress conditional request headers');
+}
+if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, ok: false })).length !== 0) {
+  throw new Error('failed cached observations must not be used for conditional requests');
+}
+const revalidated = reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  cachedObservation,
+  { finalUrl: cachedObservation.source_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+);
+if (!revalidated || revalidated.status !== 304 || revalidated.contentHash !== cachedObservation.content_hash || revalidated.evidenceExcerpt !== cachedObservation.evidence_excerpt || revalidated.evidenceStatus !== 'content-matched') {
+  throw new Error('304 response must preserve the exact cached evidence and content hash');
+}
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: 'https://example.org/changed' },
+  cachedObservation,
+  { finalUrl: 'https://example.org/changed', etag: null, lastModified: null },
+  new Date(1000).toISOString(),
+) !== null) throw new Error('304 response must not reuse evidence after source URL changes');
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  null,
+  { finalUrl: cachedObservation.source_url, etag: null, lastModified: null },
+  new Date(1000).toISOString(),
+) !== null) throw new Error('304 response without cached evidence must remain unverified');
 
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
