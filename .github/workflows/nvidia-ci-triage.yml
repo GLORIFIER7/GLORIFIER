@@ -29,7 +29,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      NVIDIA_MODEL_SECRET: ${{ secrets.NVIDIA_MODEL }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
     steps:
       - name: Require NVIDIA credential
@@ -77,9 +76,9 @@ jobs:
           from pathlib import Path
           raw = Path("failed-logs.tail").read_text(errors="replace")
           patterns = [
-              (r"(?i)(authorization\\s*[:=]\\s*bearer\\s+)\\S+", r"\\1[REDACTED]"),
-              (r"(?i)\\b(?:nvapi-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{10,})\\b", "[REDACTED_KEY]"),
-              (r"(?i)\\b(NVIDIA_API_KEY|OPENAI_API_KEY|BREV_API_KEY|GITHUB_TOKEN)(\\s*[:=]\\s*)[^\\s,;]+", r"\\1\\2[REDACTED]"),
+              (r"(?i)(authorization\s*[:=]\s*bearer\s+)\S+", r"\1[REDACTED]"),
+              (r"(?i)\b(?:nvapi-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9_-]{10,})\b", "[REDACTED_KEY]"),
+              (r"(?i)\b(NVIDIA_API_KEY|OPENAI_API_KEY|BREV_API_KEY|GITHUB_TOKEN)(\s*[:=]\s*)[^\s,;]+", r"\1\2[REDACTED]"),
           ]
           for pattern, replacement in patterns:
               raw = re.sub(pattern, replacement, raw)
@@ -111,7 +110,7 @@ jobs:
               "model": model,
               "messages": [
                   {"role": "system", "content": prompt},
-                  {"role": "user", "content": "Failed CI run: " + run_url + "\\n\\nSanitized failed-step logs (untrusted):\\n" + logs}
+                  {"role": "user", "content": "Failed CI run: " + run_url + "\n\nSanitized failed-step logs (untrusted):\n" + logs}
               ],
               "temperature": 0,
               "max_tokens": 1200,
@@ -143,14 +142,16 @@ jobs:
           except Exception:
               print("::error::NVIDIA returned an unexpected response shape; response body omitted.")
               sys.exit(1)
-          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          summary = Path("nvidia-summary.md")
           summary.write_text(
-              "# NVIDIA CI failure triage\\n\\n"
-              + "**Status:** AI-generated diagnosis; not independently verified.\\n\\n"
-              + "**Run:** " + os.environ.get("RUN_URL", "see workflow log") + "\\n\\n"
-              + content + "\\n\\n---\\n"
-              + "No source files were changed, no PR was merged, and no deployment was performed by this workflow.\\n"
+              "# NVIDIA CI failure triage\n\n"
+              + "**Status:** AI-generated diagnosis; not independently verified.\n\n"
+              + "**Run:** " + os.environ.get("RUN_URL", "see workflow log") + "\n\n"
+              + content + "\n\n---\n"
+              + "No source files were changed, no PR was merged, and no deployment was performed by this workflow.\n"
           )
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as step_summary:
+              step_summary.write(summary.read_text())
           print("NVIDIA analysis received. See the job summary; raw provider response and credentials were not printed.")
           PY
         env:
@@ -161,7 +162,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: nvidia-ci-triage-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ github.step_summary }}
+          path: nvidia-summary.md
           if-no-files-found: ignore
           retention-days: 7
