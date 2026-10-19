@@ -3,7 +3,9 @@ name: GLORIFIER Global Collaboration & Resolution
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"
+    # Reduced from every 15 minutes to every 6 hours to conserve Neon free-tier quota.
+    # Manual dispatch remains available for urgent runs.
+    - cron: "47 */6 * * *"
 
 permissions:
   contents: read
@@ -22,8 +24,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
       - name: Request GitHub OIDC identity
         if: ${{ env.GITHUB_ACTIONS_OIDC == 'true' }}
         uses: actions/github-script@v9

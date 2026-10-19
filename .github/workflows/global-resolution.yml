@@ -3,7 +3,9 @@ name: GLORIFIER Global Issue Resolution
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"
+    # Reduced from every 15 minutes to every 6 hours to conserve Neon free-tier quota.
+    # Manual dispatch remains available for urgent runs.
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: read
