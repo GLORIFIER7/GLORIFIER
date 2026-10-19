@@ -28,10 +28,11 @@ jobs:
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
     steps:
       - name: Require NVIDIA credential
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -90,6 +91,7 @@ jobs:
       - name: Ask NVIDIA NIM for a diagnostic (no repository writes)
         shell: bash
         env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_MODEL: ${{ secrets.NVIDIA_MODEL }}
           RUN_URL: ${{ steps.target.outputs.url }}
         run: |
