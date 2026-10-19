@@ -154,8 +154,6 @@ jobs:
               step_summary.write(summary.read_text())
           print("NVIDIA analysis received. See the job summary; raw provider response and credentials were not printed.")
           PY
-        env:
-          RUN_URL: ${{ steps.target.outputs.url }}
 
       - name: Upload diagnosis summary
         if: always()
