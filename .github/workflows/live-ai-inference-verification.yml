@@ -43,7 +43,7 @@ jobs:
           body="$(mktemp)"
           request="$(mktemp)"
           trap 'rm -f "$body" "$request"' EXIT
-          MODEL="$model" node -e 'process.stdout.write(JSON.stringify({model:process.env.MODEL,messages:[{role:"user",content:"Return exactly this token and nothing else: GLORIFIER_RUNTIME_PROBE_OK"}],max_tokens:64,temperature:0,stream:false}))' > "$request"
+          MODEL="$model" node -e 'process.stdout.write(JSON.stringify({model:process.env.MODEL,messages:[{role:"user",content:"Return exactly this token and nothing else: GLORIFIER_RUNTIME_PROBE_OK"}],max_tokens:128,temperature:0,reasoning_effort:"none",stream:false}))' > "$request"
           status="$(curl --silent --show-error --connect-timeout 10 --max-time 90 \
             -o "$body" -w '%{http_code}' \
             https://integrate.api.nvidia.com/v1/chat/completions \
