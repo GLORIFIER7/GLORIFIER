@@ -8,16 +8,17 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Failed GLORIFIER CI run ID to analyze (main branch only)"
-        required: true
+        description: "Optional full Actions run ID from /actions/runs/…; leave blank to auto-select the latest failed GLORIFIER CI run on main"
+        required: false
         type: string
+        default: ""
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: nvidia-ci-triage-${{ github.event.workflow_run.id || inputs.run_id }}
+  group: nvidia-ci-triage-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
     steps:
       - name: Require NVIDIA credential
         env:
@@ -40,10 +41,40 @@ jobs:
             echo "::error::NVIDIA_API_KEY is not configured in GitHub Actions secrets. Add it in Settings > Secrets and variables > Actions; do not put it in code."
             exit 1
           fi
-          if [[ ! "${RUN_ID}" =~ ^[0-9]+$ ]]; then
-            echo "::error::Run ID must contain digits only."
+
+      - name: Select a valid failed main-branch GLORIFIER CI run
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="${RUN_ID:-}"
+
+          # Reject accidental run numbers, malformed values, and IDs for the wrong workflow.
+          if [[ -n "$candidate" ]]; then
+            if [[ ! "$candidate" =~ ^[0-9]+$ ]]; then
+              echo "::warning::The supplied value is not a numeric Actions run ID. Auto-selecting the latest failed GLORIFIER CI run on main."
+              candidate=""
+            else
+              meta="$(gh run view "$candidate" --repo "$GITHUB_REPOSITORY" --json workflowName,headBranch,conclusion,url 2>/dev/null || true)"
+              if ! jq -e '.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure"' <<<"$meta" >/dev/null 2>&1; then
+                echo "::warning::The supplied ID is not a failed GLORIFIER CI run on main (a run number may have been entered instead). Auto-selecting the latest matching failure."
+                candidate=""
+              fi
+            fi
+          fi
+
+          if [[ -z "$candidate" ]]; then
+            candidate="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "GLORIFIER CI" --branch main --status failure --limit 20 --json databaseId,workflowName,headBranch,conclusion               | jq -r '[.[] | select(.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure")][0].databaseId // empty')"
+          fi
+
+          if [[ ! "$candidate" =~ ^[0-9]+$ ]]; then
+            echo "::error::No failed GLORIFIER CI run on main was found. Open Actions > GLORIFIER CI and confirm a failed main-branch run exists."
             exit 1
           fi
+
+          echo "run_id=$candidate" >> "$GITHUB_OUTPUT"
+          echo "RUN_ID=$candidate" >> "$GITHUB_ENV"
+          echo "Selected failed CI run ID: $candidate"
 
       - name: Verify target is a failed main-branch GLORIFIER CI run
         id: target
@@ -128,6 +159,7 @@ jobs:
             -H 'Accept: application/json' \
             --data-binary @nvidia-request.json)"
           if [[ "$status" != "200" ]]; then
+            rm -f nvidia-request.json nvidia-response.json
             echo "::error::NVIDIA triage request failed with HTTP $status. Response body was not printed."
             exit 1
           fi
@@ -142,6 +174,8 @@ jobs:
                   raise ValueError("empty response content")
               content = content[:12000]
           except Exception:
+              Path("nvidia-request.json").unlink(missing_ok=True)
+              Path("nvidia-response.json").unlink(missing_ok=True)
               print("::error::NVIDIA returned an unexpected response shape; response body omitted.")
               sys.exit(1)
           summary = Path("nvidia-summary.md")
@@ -154,6 +188,8 @@ jobs:
           )
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as step_summary:
               step_summary.write(summary.read_text())
+          Path("nvidia-request.json").unlink(missing_ok=True)
+          Path("nvidia-response.json").unlink(missing_ok=True)
           print("NVIDIA analysis received. See the job summary; raw provider response and credentials were not printed.")
           PY
 
