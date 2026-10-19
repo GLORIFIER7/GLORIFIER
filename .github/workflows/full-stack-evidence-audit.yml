@@ -1,0 +1,78 @@
+name: Full-Stack Evidence Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5 * * 1-5"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "server.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/full-stack-evidence-audit.yml"
+      - "docs/full-stack-verification-gates.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-stack-evidence-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic:
+    name: Deterministic source checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit locked dependencies
+        run: npm audit --audit-level=low
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Verify core governance and provider regressions
+        run: |
+          set -euo pipefail
+          npm run test:nvidia-provider
+          npm run test:backend-auth
+          npm run test:protected-api-paths
+          npm run test:harness
+          npm run test:architecture
+          npm run test:geas-claim-verification
+          npm run test:geas-state-reconciliation
+
+      - name: Emit scoped evidence summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Full-stack evidence audit"
+            echo
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Timestamp (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- Deterministic checks: see job step outcomes above."
+            echo "- Production frontend: NOT VERIFIED by this job; a source build does not prove the deployed site matches this commit."
+            echo "- Direct backend and database runtime: NOT VERIFIED; this job does not infer health from CI or credentials."
+            echo "- Live AI inference, customer payment, and revenue: NOT VERIFIED unless separately supported by timestamped runtime evidence."
+            echo
+            echo "A successful job verifies only the source checks listed in this workflow for this commit."
+          } >> "$GITHUB_STEP_SUMMARY"
