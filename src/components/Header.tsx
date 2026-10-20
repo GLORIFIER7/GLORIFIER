@@ -14,7 +14,7 @@ interface HeaderProps {
   currentUser: User | null;
 }
 
-const OFFICIAL_GLORIFIER_LOGO = 'https://ipfs.io/ipfs/bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm';
+const OFFICIAL_GLORIFIER_LOGO = 'https://ipfs.io/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv';
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
