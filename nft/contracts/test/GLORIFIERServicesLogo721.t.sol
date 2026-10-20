@@ -9,12 +9,11 @@ contract GLORIFIERServicesLogo721Test is Test {
 
     address internal owner = address(0xA11CE);
     address internal recipient = address(0xB0B);
-
-    string internal metadataURI =
+    string internal constant APPROVED_METADATA_URI =
         "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
 
     function setUp() public {
-        nft = new GLORIFIERServicesLogo721(owner, metadataURI);
+        nft = new GLORIFIERServicesLogo721(owner);
     }
 
     function testDeploymentDoesNotMint() public view {
@@ -23,17 +22,17 @@ contract GLORIFIERServicesLogo721Test is Test {
         assertFalse(nft.minted());
     }
 
-    function testOwnerCanMintExactlyOneToken() public {
+    function testOwnerCanMintExactlyOneTokenWithApprovedMetadata() public {
         vm.prank(owner);
         nft.mint(recipient);
 
         assertTrue(nft.minted());
         assertEq(nft.ownerOf(1), recipient);
-        assertEq(nft.tokenURI(1), metadataURI);
+        assertEq(nft.tokenURI(1), APPROVED_METADATA_URI);
     }
 
     function testNonOwnerCannotMint() public {
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", recipient));
         vm.prank(recipient);
         nft.mint(recipient);
     }
@@ -52,13 +51,8 @@ contract GLORIFIERServicesLogo721Test is Test {
         nft.mint(address(0));
     }
 
-    function testMetadataURIRequired() public {
-        vm.expectRevert(GLORIFIERServicesLogo721.EmptyMetadataURI.selector);
-        new GLORIFIERServicesLogo721(owner, "");
-    }
-
     function testTokenURIFailsBeforeMint() public {
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 1));
         nft.tokenURI(1);
     }
 }

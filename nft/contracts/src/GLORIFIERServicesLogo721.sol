@@ -6,24 +6,21 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title GLORIFIER SERVICES Official Logo #001
 /// @notice Review-only single-edition ERC-721. Deployment and minting require separate human authorization.
-/// @dev The metadata URI is fixed at construction; no public mint, URI mutation, upgrade, or withdrawal path exists.
+/// @dev The approved metadata URI is compiled into the contract. No public mint, URI mutation, upgrade, or withdrawal path exists.
 contract GLORIFIERServicesLogo721 is ERC721, Ownable {
     uint256 public constant TOKEN_ID = 1;
+    string private constant _METADATA_URI =
+        "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
 
-    string private _metadataURI;
     bool public minted;
 
-    error EmptyMetadataURI();
     error InvalidRecipient();
     error AlreadyMinted();
 
-    constructor(address initialOwner, string memory metadataURI)
+    constructor(address initialOwner)
         ERC721(unicode"GLORIFIER SERVICES — Official Logo #001", "GLORIFIER-LOGO-001")
         Ownable(initialOwner)
-    {
-        if (bytes(metadataURI).length == 0) revert EmptyMetadataURI();
-        _metadataURI = metadataURI;
-    }
+    {}
 
     /// @notice Mint the single edition. This function does not run during deployment.
     /// @dev Only the owner can mint; the token can be minted at most once.
@@ -36,6 +33,6 @@ contract GLORIFIERServicesLogo721 is ERC721, Ownable {
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
-        return _metadataURI;
+        return _METADATA_URI;
     }
 }
