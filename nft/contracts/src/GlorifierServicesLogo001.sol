@@ -15,7 +15,7 @@ contract GlorifierServicesLogo001 is ERC721, Ownable {
     error EmptyMetadataURI();
 
     constructor(address initialOwner, string memory metadataURI)
-        ERC721("GLORIFIER SERVICES — Official Logo #001", "GLRLOGO001")
+        ERC721(unicode"GLORIFIER SERVICES — Official Logo #001", "GLRLOGO001")
         Ownable(initialOwner)
     {
         if (initialOwner == address(0)) revert InvalidRecipient();
