@@ -7,10 +7,10 @@ This document records the current implemented architecture and its governing bou
 ## Official brand identity
 
 - Official mark: **GLORIFIER SERVICES — EST 2022**, the owner-designated circular badge.
-- Canonical artwork URI: `ipfs://bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm`.
-- The artwork includes its own circular navy/silver background. UI surfaces must preserve the full square source image using aspect-ratio-preserving `contain` rendering; do not crop, stretch, or wrap it in a competing rounded-square logo tile.
+- Canonical artwork URI: `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`.
+- The updated artwork is the circular version without the old background. UI surfaces must preserve it as supplied using aspect-ratio-preserving `contain` rendering; do not add a background, crop, stretch, or wrap it in a competing rounded-square logo tile.
 - Shared brand record: `src/lib/brand-assets.ts`; app header consumes the canonical artwork URI.
-- Verification boundary: header source configuration is updated in this branch, but full-page usage, favicon/app icons, public gateway uptime, production deployment, and end-to-end visual rendering still require verification. Existing repository JPEG mismatch remains unresolved; do not label every deployed surface fully verified.
+- Verification boundary: header source configuration points to the updated CID in this branch, but the updated artwork SHA-256, full-page usage, favicon/app icons, public gateway uptime, production deployment, and end-to-end visual rendering still require verification. Existing repository JPEG mismatch remains unresolved; do not label every deployed surface fully verified.
 - Legal/trademark clearance remains pending and is not implied by owner designation.
 
 ## System identity
