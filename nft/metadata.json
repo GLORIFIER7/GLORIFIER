@@ -1,36 +1,47 @@
 {
   "name": "GLORIFIER SERVICES — Official Logo #001",
-  "description": "Owner-designated GLORIFIER SERVICES logo artwork, including the original circular design and “EST 2022”. The owner reports that the artwork and metadata links load. Independent raw-byte retrieval and pinning-receipt verification remain outstanding; this repository file is a draft and is not proof that its exact bytes match the published metadata CID.",
+  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork and that the metadata image reference is correct. On 2026-10-20, Filebase and Pinata gateways independently returned identical PNG bytes for the designated artwork CID: 55,886 bytes, SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790. These bytes differ from the previously recorded source PNG (151,445 bytes; SHA-256 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513), so byte-for-byte identity with that historical file is not claimed. Both designated CIDs are reported pinned by the owner; provider pin receipts were not independently inspected. NFT minting has not occurred. Copyright, licensing, and trademark clearance remain pending and are not asserted by this metadata.",
   "image": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
   "attributes": [
     {
-      "trait_type": "Collection",
+      "trait_type": "Brand",
       "value": "GLORIFIER SERVICES"
     },
     {
-      "trait_type": "Asset",
-      "value": "Official Logo"
+      "trait_type": "Artwork identity",
+      "value": "Owner-confirmed intended artwork; byte-for-byte match to historical source PNG not established"
+    },
+    {
+      "trait_type": "Artwork SHA-256",
+      "value": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790"
+    },
+    {
+      "trait_type": "Historical source PNG SHA-256",
+      "value": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513"
     },
     {
       "trait_type": "Edition",
       "value": "001"
     },
     {
-      "trait_type": "Artwork integrity status",
-      "value": "Previously recorded SHA-256; comparison to designated IPFS bytes pending"
+      "trait_type": "Mint status",
+      "value": "NOT MINTED"
     },
     {
-      "trait_type": "Mint status",
-      "value": "Not minted"
+      "trait_type": "Artwork gateway retrieval",
+      "value": "VERIFIED AT TWO GATEWAYS ON 2026-10-20"
+    },
+    {
+      "trait_type": "Durable pinning",
+      "value": "OWNER-REPORTED PINNED; RECEIPTS NOT INDEPENDENTLY INSPECTED"
+    },
+    {
+      "trait_type": "Metadata publication",
+      "value": "CORRECTED DRAFT; MUST BE REPUBLISHED TO IPFS"
+    },
+    {
+      "trait_type": "Legal review",
+      "value": "PENDING"
     }
-  ],
-  "properties": {
-    "artwork_sha256_recorded": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
-    "image_cid_designated": "QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
-    "image_retrieval": "OWNER_REPORTED_ACCESSIBLE; INDEPENDENT_VERIFICATION_PENDING",
-    "image_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
-    "metadata_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
-    "minting": "NOT_PERFORMED",
-    "spending_authorized": false
-  }
+  ]
 }
