@@ -9,11 +9,11 @@
     },
     {
       "trait_type": "Artwork",
-      "value": "Uploaded PNG hash matches historical NFT artwork hash"
+      "value": "Historical source PNG digest; designated CID comparison pending"
     },
     {
       "trait_type": "Artwork SHA-256",
-      "value": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513"
+      "value": "Previously recorded source SHA-256; designated CID comparison pending"
     },
     {
       "trait_type": "Edition",
