@@ -36,12 +36,12 @@
 - Artwork alternate gateway: `https://gateway.pinata.cloud/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
 - Both artwork gateways returned HTTP 200 and `Content-Type: image/png`, 55,886 bytes, SHA-256 `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`.
 - The retrieved artwork's byte size and SHA-256 do not match the previously recorded source PNG (151,445 bytes; SHA-256 `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`). This proves the downloaded bytes are not byte-for-byte identical to that recorded source file. It does not, by itself, prove the visible artwork is different; visual/pixel comparison is still required.
-- The metadata's description/attributes claim the historical source PNG hash matches the uploaded artwork. The fresh raw-byte result does not support byte-for-byte identity. Do not mint against this metadata until the owner confirms whether the designated artwork is an intentionally re-encoded version of the original or replaces it with the exact approved artwork, and the metadata is corrected and republished if needed.
+- The currently published metadata's description/attributes claim the historical source PNG hash matches the uploaded artwork. The fresh raw-byte result does not support byte-for-byte identity. The owner has confirmed the designated artwork and image reference are the intended/correct content. This PR updates the repository metadata drafts to report the retrieved artwork hash and distinguish it from the historical source hash. These corrected drafts are not yet published: they require upload to IPFS, a new metadata CID, and an update/review of the contract's fixed URI before deployment.
 - The gateway responses prove retrieval at the time observed, not durable pinning or future availability. Filebase pinning is owner-reported; no account receipt was independently inspected.
 
 ## Required safe completion procedure
 
-1. Compare the downloaded artwork visually/pixel-wise against the owner-approved source. Do not treat different file hashes as proof of visual difference, but do not claim byte identity.
+1. The owner confirms the designated artwork and reference are intended. Preserve the distinction between owner confirmation and byte-level evidence: the retrieved PNG is not byte-for-byte identical to the historical source PNG. Do not claim byte identity.
 2. If exact original bytes are required, re-pin the exact approved source PNG and update metadata to reference that artwork CID. If the artwork is intentionally re-encoded, correct metadata wording so it does not claim byte-for-byte hash identity.
 3. Publish corrected metadata to IPFS, obtain its new CID, retrieve it through independent gateways, and confirm its exact `image` URI. Do not silently reuse the existing metadata CID for different bytes.
 4. Verify provider pin records/receipts for the exact artwork and metadata CIDs. Do not incur a charge without explicit authorization.
