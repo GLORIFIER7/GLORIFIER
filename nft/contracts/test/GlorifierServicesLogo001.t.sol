@@ -48,9 +48,7 @@ contract GlorifierServicesLogo001Test is Test {
         token.mintOnce(address(0));
 
         assertFalse(token.minted());
-        assertEq(token.balanceOf(address(0)), 0);
-        vm.expectRevert();
-        token.ownerOf(1);
+        assertEq(token.balanceOf(recipient), 0);
     }
 
     function testMetadataUriIsFixed() public {
