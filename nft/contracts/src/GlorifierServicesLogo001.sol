@@ -4,8 +4,9 @@ pragma solidity 0.8.24;
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title GLORIFIER SERVICES — Official Logo #001
-/// @notice Review-only contract for a fixed edition of one. Not deployed.
+/// @title GLORIFIER SERVICES — Official Logo #001 (legacy duplicate)
+/// @notice Legacy review-only implementation. Do not deploy; use GLORIFIERServicesLogo721.sol instead.
+/// @dev Retained temporarily for compatibility while references are audited.
 contract GlorifierServicesLogo001 is ERC721, Ownable {
     string private _fixedMetadataURI;
     bool public minted;
