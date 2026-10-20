@@ -7,7 +7,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @title GLORIFIER SERVICES — Official Logo #001
 /// @notice Review-only contract for a fixed edition of one. Not deployed.
 contract GlorifierServicesLogo001 is ERC721, Ownable {
-    string private immutable _fixedMetadataURI;
+    string private _fixedMetadataURI;
     bool public minted;
 
     error AlreadyMinted();
@@ -33,7 +33,8 @@ contract GlorifierServicesLogo001 is ERC721, Ownable {
         _safeMint(recipient, 1);
     }
 
-    /// @notice Returns the immutable metadata URI for the sole token.
+    /// @notice Returns the constructor-set metadata URI for the sole token.
+    /// @dev No setter exists; the URI cannot be changed through the contract API.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
         return _fixedMetadataURI;
