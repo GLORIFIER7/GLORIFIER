@@ -8,8 +8,8 @@ The Human Owner designates the circular PNG supplied in this conversation as the
 - Required composition: the updated circular artwork without the old background; preserve the supplied source as-is.
 - Canonical image URI: `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
 - Web display gateway currently configured in the app header: `https://ipfs.io/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- Updated artwork SHA-256: **NOT YET VERIFIED**. Do not reuse the previous artwork's SHA-256 for this updated CID until the bytes are independently hashed.
-- Integrity boundary: the updated CID is owner-designated, but the updated artwork's byte-level SHA-256, format, dimensions, public gateway uptime, and deployed-page coverage remain unverified.
+- Updated artwork SHA-256: `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` (Human Owner confirms this is the same hash as the previously recorded artwork).
+- Integrity boundary: the Human Owner confirms the updated CID resolves to artwork with the same SHA-256 recorded above. This assertion is recorded as owner-provided; independent re-hashing of the updated CID, exact format/dimensions, public gateway uptime, and deployed-page coverage remain unverified.
 - Legal status: **PENDING** — owner designation is not trademark clearance, copyright opinion, proof of registration, or third-party endorsement.
 - Final authority: Human Owner.
 
