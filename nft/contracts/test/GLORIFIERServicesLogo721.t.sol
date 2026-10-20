@@ -13,7 +13,7 @@ contract GLORIFIERServicesLogo721Test is Test {
         "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
 
     function setUp() public {
-        nft = new GLORIFIERServicesLogo721(owner);
+        nft = new GLORIFIERServicesLogo721(owner, APPROVED_METADATA_URI);
     }
 
     function testDeploymentDoesNotMint() public view {
@@ -49,6 +49,11 @@ contract GLORIFIERServicesLogo721Test is Test {
         vm.expectRevert(GLORIFIERServicesLogo721.InvalidRecipient.selector);
         vm.prank(owner);
         nft.mint(address(0));
+    }
+
+    function testEmptyMetadataURIRejected() public {
+        vm.expectRevert(GLORIFIERServicesLogo721.InvalidMetadataURI.selector);
+        new GLORIFIERServicesLogo721(owner, "");
     }
 
     function testTokenURIFailsBeforeMint() public {
