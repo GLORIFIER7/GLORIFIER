@@ -6,6 +6,8 @@ const files = [
 ];
 
 const normalize = (uri) => uri.replace(/^ipfs:\/\//, "");
+const expectedName = "GLORIFIER SERVICES — Official Logo #001";
+const expectedImageUri = "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv";
 
 const results = await Promise.all(files.map(async (file) => {
   try {
@@ -15,11 +17,17 @@ const results = await Promise.all(files.map(async (file) => {
     if (typeof metadata.name !== "string" || !metadata.name.trim()) {
       throw new TypeError("missing non-empty name");
     }
+    if (metadata.name !== expectedName) {
+      throw new TypeError(`name must equal ${expectedName}`);
+    }
     if (typeof metadata.description !== "string" || !metadata.description.trim()) {
       throw new TypeError("missing non-empty description");
     }
     if (typeof metadata.image !== "string" || !metadata.image.startsWith("ipfs://")) {
       throw new TypeError("image must be an ipfs:// URI");
+    }
+    if (metadata.image !== expectedImageUri) {
+      throw new TypeError(`image must reference the designated artwork URI ${expectedImageUri}`);
     }
     if (!Array.isArray(metadata.attributes)) {
       throw new TypeError("attributes must be an array");
