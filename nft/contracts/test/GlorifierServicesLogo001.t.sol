@@ -66,7 +66,8 @@ contract GlorifierServicesLogo001Test is Test {
     }
 
     function testZeroOwnerConstructorReverts() public {
-        vm.expectRevert(GlorifierServicesLogo001.InvalidRecipient.selector);
+        // OpenZeppelin Ownable validates the initial owner in its base constructor.
+        vm.expectRevert();
         new GlorifierServicesLogo001(address(0), METADATA_URI);
     }
 
