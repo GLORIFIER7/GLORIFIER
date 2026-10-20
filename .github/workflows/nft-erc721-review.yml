@@ -1,0 +1,49 @@
+name: NFT ERC-721 Review Checks
+
+on:
+  pull_request:
+    paths:
+      - "nft/**"
+      - ".github/workflows/nft-erc721-review.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "nft/**"
+      - ".github/workflows/nft-erc721-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-and-contract-tests:
+    name: Metadata JSON and ERC-721 tests (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate NFT metadata JSON structure
+        run: node nft/scripts/validate-metadata.mjs
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install test dependencies
+        working-directory: nft/contracts
+        run: |
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
+
+      - name: Compile contract
+        working-directory: nft/contracts
+        run: forge build
+
+      - name: Run unit tests
+        working-directory: nft/contracts
+        run: forge test -vv
+
+      - name: Confirm this workflow cannot deploy
+        run: |
+          ! grep -En -- '--broadcast|forge script|cast send|wallet|private.key' .github/workflows/nft-erc721-review.yml
