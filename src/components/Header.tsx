@@ -14,6 +14,8 @@ interface HeaderProps {
   currentUser: User | null;
 }
 
+const OFFICIAL_GLORIFIER_LOGO = 'https://ipfs.io/ipfs/bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm';
+
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
@@ -85,13 +87,13 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-3 text-left"
             aria-label="GLORIFIER overview"
           >
-            <div className="w-9 h-9 shrink-0 rounded-md border border-slate-700 bg-[#111] overflow-hidden flex items-center justify-center">
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center overflow-hidden" aria-label="Official circular GLORIFIER SERVICES logo">
               {logoFailed ? (
-                <span aria-label="GLORIFIER logo fallback" className="text-emerald-300 font-bold text-xl leading-none">G</span>
+                <span aria-label="GLORIFIER logo unavailable" className="text-slate-200 font-bold text-xl leading-none">G</span>
               ) : (
                 <img
-                  src={`${import.meta.env.BASE_URL}glorifier-logo.jpg`}
-                  alt="GLORIFIER"
+                  src={OFFICIAL_GLORIFIER_LOGO}
+                  alt="GLORIFIER SERVICES official circular logo, EST 2022"
                   width={512}
                   height={512}
                   decoding="async"
