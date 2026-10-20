@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   propose-fix:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -44,13 +44,13 @@ jobs:
             candidate="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "GLORIFIER CI" --branch main --status failure --limit 20 --json databaseId,workflowName,headBranch,conclusion | jq -r '[.[] | select(.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure")][0].databaseId // empty')"
           fi
           if [[ ! "$candidate" =~ ^[0-9]+$ ]]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "::notice::No failed main-branch CI run; no PR created."; exit 0; fi
-          meta="$(gh run view "$candidate" --repo "$GITHUB_REPOSITORY" --json workflowName,headBranch,conclusion,url,headSha)"
-          jq -e '.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure" and (.headSha | type == "string")' <<<"$meta" >/dev/null || { echo "::error::Refusing nonmatching run."; exit 1; }
+          meta="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate")"
+          jq -e --arg repository "$GITHUB_REPOSITORY" '.name == "GLORIFIER CI" and .event == "push" and .head_branch == "main" and .head_repository.full_name == $repository and .conclusion == "failure" and (.head_sha | type == "string")' <<<"$meta" >/dev/null || { echo "::error::Refusing nonmatching run."; exit 1; }
           {
             echo "skip=false"
             echo "run_id=$candidate"
-            echo "run_url=$(jq -r '.url' <<<"$meta")"
-            echo "head_sha=$(jq -r '.headSha' <<<"$meta")"
+            echo "run_url=$(jq -r '.html_url' <<<"$meta")"
+            echo "head_sha=$(jq -r '.head_sha' <<<"$meta")"
           } >> "$GITHUB_OUTPUT"
       - name: Checkout failed commit
         if: steps.target.outputs.skip != 'true'
