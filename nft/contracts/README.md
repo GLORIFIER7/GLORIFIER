@@ -16,11 +16,12 @@ The contract has these controls:
 
 `src/GlorifierServicesLogo001.sol` and its matching test are a **legacy duplicate**, not the proposed deployment target. Do not deploy both implementations. Remove or archive the legacy pair in a separately reviewed cleanup after confirming no external workflow depends on them.
 
-## Proposed metadata parameters
+## Proposed mainnet parameters
 
 - Metadata URI: `ipfs://QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs`
 - Image URI: `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- Proposed recipient (user-supplied): `0x393c19Ff12e1624181fBF1938b80982b9dfC427`
+- Initial owner **and** proposed recipient (user-confirmed): `0x393c19Ff12e1624181fBF1938b80982b9dfC427`
+- Network: Ethereum Mainnet (chain ID 1)
 
 The user reports that the metadata CID is visible in Filebase and loads through a gateway; that report has not been independently verified in this review. Keep the prior metadata pinned until the new metadata is independently retrieved and checked through at least two gateways and pin/retention status is confirmed.
 
@@ -29,13 +30,12 @@ The retrieved image bytes previously measured SHA-256 `6d76341a1a892d05d7c416217
 ## Required gates before mainnet transactions
 
 1. Independently retrieve the exact metadata JSON from multiple gateways; verify the name, description, attributes, and image URI.
-2. Confirm the intended wallet controls the proposed recipient address.
-3. Separately choose and verify `initialOwner`—the wallet that will be authorized to call `mint`. Do not assume it is the recipient.
-4. Verify pinning/retention without incurring a charge unless separately approved.
-5. Run the pinned Foundry compile/test workflow on the exact proposed commit and inspect its results.
-6. Simulate deployment and mint with the exact constructor arguments and transaction parameters; record estimated gas and current fee conditions.
-7. Present the contract address (after deployment), owner, recipient, metadata URI, network, and costs for review before minting.
+2. Confirm the wallet controls the selected owner/recipient address.
+3. Verify pinning/retention without incurring a charge unless separately approved.
+4. Run the pinned Foundry compile/test workflow on the exact proposed commit and inspect its results.
+5. Simulate deployment and mint with the exact constructor arguments and transaction parameters; record estimated gas and current fee conditions.
+6. Review the contract address (after deployment), owner, recipient, metadata URI, network, and costs before minting.
 
-The workflow `.github/workflows/nft-contract-review.yml` is intended to run `forge test`; it must not be treated as a wallet, deployment, or mint workflow. Passing tests are not an independent security audit, proof of IPFS persistence, legal clearance, or transaction authorization.
+The workflow `.github/workflows/nft-contract-review.yml` is intended to run `forge test`; it must not be treated as a wallet, deployment, or mint workflow. Passing tests are not an independent security audit, proof of IPFS persistence, or legal clearance.
 
 **No deployment, mint, wallet signature, or expenditure is performed by this documentation change.**
