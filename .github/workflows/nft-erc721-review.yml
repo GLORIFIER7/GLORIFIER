@@ -1,0 +1,49 @@
+name: NFT ERC-721 Review Checks
+
+on:
+  pull_request:
+    paths:
+      - "nft/**"
+      - ".github/workflows/nft-erc721-review.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "nft/**"
+      - ".github/workflows/nft-erc721-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata-and-contract-tests:
+    name: Metadata JSON and ERC-721 tests (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate NFT metadata JSON structure
+        run: node nft/scripts/validate-metadata.mjs
+
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.3.1
+
+      - name: Install test dependencies
+        working-directory: nft/contracts
+        run: |
+          mkdir -p lib
+          git clone https://github.com/OpenZeppelin/openzeppelin-contracts.git lib/openzeppelin-contracts
+          git -C lib/openzeppelin-contracts checkout --detach c64a1edb67b6e3f4a15cca8909c9482ad33a02b0
+          git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
+          git -C lib/forge-std checkout --detach bf647bd6046f2f7da30d0c2bf435e5c76a780c1b
+
+      - name: Compile contract
+        working-directory: nft/contracts
+        run: forge build
+
+      - name: Run unit tests
+        working-directory: nft/contracts
+        run: forge test -vv
+

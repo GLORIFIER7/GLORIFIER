@@ -1,7 +1,7 @@
 {
   "name": "GLORIFIER SERVICES — Official Logo #001",
-  "description": "Official GLORIFIER SERVICES logo artwork, including the original circular design and “EST 2022”. This metadata references the existing image CID; public retrieval and pinning must be independently verified before minting.",
-  "image": "ipfs://bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm",
+  "description": "Owner-designated GLORIFIER SERVICES logo artwork, including the original circular design and “EST 2022”. The owner reports that the artwork and metadata links load. Independent raw-byte retrieval and pinning-receipt verification remain outstanding; this repository file is a draft and is not proof that its exact bytes match the published metadata CID.",
+  "image": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
   "attributes": [
     {
       "trait_type": "Collection",
@@ -17,7 +17,7 @@
     },
     {
       "trait_type": "Artwork integrity status",
-      "value": "Previously recorded SHA-256; re-verification pending"
+      "value": "Previously recorded SHA-256; comparison to designated IPFS bytes pending"
     },
     {
       "trait_type": "Mint status",
@@ -26,10 +26,10 @@
   ],
   "properties": {
     "artwork_sha256_recorded": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
-    "image_cid_existing": "bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm",
-    "image_retrieval": "NOT_VERIFIED",
-    "image_pinning": "PENDING",
-    "metadata_pinning": "PENDING",
+    "image_cid_designated": "QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
+    "image_retrieval": "OWNER_REPORTED_ACCESSIBLE; INDEPENDENT_VERIFICATION_PENDING",
+    "image_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
+    "metadata_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
     "minting": "NOT_PERFORMED",
     "spending_authorized": false
   }
