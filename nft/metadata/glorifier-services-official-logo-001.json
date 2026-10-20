@@ -1,6 +1,6 @@
 {
   "name": "GLORIFIER SERVICES — Official Logo #001",
-  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork and that the metadata image reference is correct. On 2026-10-20, Filebase and Pinata gateways independently returned identical PNG bytes for the designated artwork CID: 55,886 bytes, SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790. These bytes differ from the previously recorded source PNG (151,445 bytes; SHA-256 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513), so byte-for-byte identity with that historical file is not claimed. Both designated CIDs are reported pinned by the owner; provider pin receipts were not independently inspected. NFT minting has not occurred. Copyright, licensing, and trademark clearance remain pending and are not asserted by this metadata.",
+  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork. The retrieved IPFS image bytes have SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790; they differ from the previously recorded source PNG hash 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513, so byte-for-byte identity with that historical file is not claimed.",
   "image": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
   "attributes": [
     {
@@ -12,36 +12,8 @@
       "value": "Owner-confirmed intended artwork; byte-for-byte match to historical source PNG not established"
     },
     {
-      "trait_type": "Artwork SHA-256",
-      "value": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790"
-    },
-    {
-      "trait_type": "Historical source PNG SHA-256",
-      "value": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513"
-    },
-    {
       "trait_type": "Edition",
       "value": "001"
-    },
-    {
-      "trait_type": "Mint status",
-      "value": "NOT MINTED"
-    },
-    {
-      "trait_type": "Artwork gateway retrieval",
-      "value": "VERIFIED AT TWO GATEWAYS ON 2026-10-20"
-    },
-    {
-      "trait_type": "Durable pinning",
-      "value": "OWNER-REPORTED PINNED; RECEIPTS NOT INDEPENDENTLY INSPECTED"
-    },
-    {
-      "trait_type": "Metadata publication",
-      "value": "CORRECTED DRAFT; MUST BE REPUBLISHED TO IPFS"
-    },
-    {
-      "trait_type": "Legal review",
-      "value": "PENDING"
     }
   ]
 }
