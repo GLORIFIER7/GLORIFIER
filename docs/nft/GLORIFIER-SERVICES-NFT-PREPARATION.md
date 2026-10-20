@@ -9,7 +9,7 @@
 This record preserves the current NFT preparation details for the original GLORIFIER SERVICES artwork. It is a planning and evidence record, not proof that an NFT has been minted.
 
 - Preserve the existing artwork and metadata CIDs; do not replace or regenerate the artwork.
-- Target network: **UNRESOLVED**. Earlier notes mention Base mainnet and Ethereum mainnet; the owner must explicitly reconfirm the target before any network-specific cost estimate or deployment proposal.
+- Current review target: **Ethereum mainnet ERC-721**, as explicitly requested for this review on 2026-10-20. An earlier preparation record mentioned Base mainnet; that historical target does not override the current request. No deployment is authorized.
 - User-selected implementation: **custom ERC-721 contract**.
 - No contract has been deployed by this workflow.
 - No wallet has been asked to sign a transaction.
@@ -42,7 +42,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 3. Open the owner-designated artwork CID through a working IPFS gateway and confirm it renders the intended original logo.
 4. Recalculate the source artwork SHA-256 from the exact original file and compare it with the recorded value.
 5. Prepare and review the custom ERC-721 source, including token URI handling and ownership/mint controls.
-6. After the owner explicitly selects the target network, obtain its live deployment and mint gas estimate, including deploy and mint transactions separately.
+6. For any future deployment proposal, obtain a live Ethereum mainnet deployment and mint gas estimate separately; do not broadcast either transaction without separate explicit authorization.
 7. Show the exact contract code, deployment parameters, mint recipient, token URI, and total estimated costs for user review.
 8. Stop and obtain separate explicit authorization before any deployment, wallet signing, payment, or minting.
 
@@ -55,7 +55,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 | Metadata JSON contents and image field | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Live artwork rendering from IPFS | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Fresh SHA-256 recalculation | NOT PERFORMED |
-| Target network and implementation | UNRESOLVED / CUSTOM ERC-721 review only |
+| Target network and implementation | ETHEREUM MAINNET / CUSTOM ERC-721 review only; no deployment authorized |
 | Contract source reviewed by user | NOT YET |
 | Contract deployed | NO |
 | Wallet transaction signed | NO |
