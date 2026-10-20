@@ -21,8 +21,8 @@ This record preserves the current NFT preparation details for the original GLORI
 
 - **Owner-designated artwork CID:** `QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
 - **Expected artwork URI in metadata:** `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- **Owner-supplied metadata CID:** `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX`
-- **Metadata URI for review:** `ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX`
+- **Historical owner-supplied metadata CID (not final):** `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX`
+- **Final corrected metadata URI:** NOT SET; publish the reviewed repository draft to IPFS and verify the resulting CID before any deployment.
 - **Original artwork reference:** `https://gravatar.com/glorifier7`
 - **Artwork source URL previously used:** `https://1.gravatar.com/avatar/2debdba15d0c08ab78691048092e465dc74c530e3447e3f584a23e7165272c33?size=512&d=initials`
 - **Previously recorded artwork SHA-256:** `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`
@@ -37,8 +37,8 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 
 ## Required checks before deployment
 
-1. Fetch the full metadata JSON from `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX` and inspect its complete contents.
-2. Confirm the JSON `image` field exactly matches `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`.
+1. Publish the approved corrected JSON from `nft/metadata.json` to IPFS and record the newly returned CID; do not treat the historical metadata CID as final.
+2. Retrieve that new CID through two independent gateways and confirm the JSON `image` field exactly matches `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`.
 3. Open the owner-designated artwork CID through a working IPFS gateway and confirm it renders the intended original logo.
 4. Recalculate the source artwork SHA-256 from the exact original file and compare it with the recorded value.
 5. Prepare and review the custom ERC-721 source, including token URI handling and ownership/mint controls.
@@ -52,7 +52,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 |---|---|
 | Owner-designated artwork and metadata CIDs recorded | RECORDED |
 | Filebase pinning for designated new CIDs | NOT ESTABLISHED; prior report referred to older CIDs |
-| Metadata JSON contents and image field | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
+| Metadata JSON contents and image field | FINAL CORRECTED CID NOT YET SET; INDEPENDENT VERIFICATION PENDING |
 | Live artwork rendering from IPFS | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Fresh SHA-256 recalculation | NOT PERFORMED |
 | Target network and implementation | ETHEREUM MAINNET / CUSTOM ERC-721 review only; no deployment authorized |

@@ -10,9 +10,8 @@ contract GLORIFIERServicesLogo721Test is Test {
     address internal owner = address(0xA11CE);
     address internal recipient = address(0xB0B);
 
-    // Test fixture only; gateway retrieval and pinning must be verified independently.
-    string internal constant TEST_METADATA_URI =
-        "ipfs://QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs";
+    // Synthetic test fixture only. This is deliberately not a published CID and must never be used for deployment.
+    string internal constant TEST_METADATA_URI = "ipfs://test-fixture/metadata.json";
 
     function setUp() public {
         nft = new GLORIFIERServicesLogo721(owner, TEST_METADATA_URI);
