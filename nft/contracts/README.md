@@ -18,12 +18,12 @@ The contract has these controls:
 
 ## Proposed mainnet parameters
 
-- Metadata URI: `ipfs://QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs`
+- **Final metadata URI: NOT SET.** The historical candidates `QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs` and `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX` are not approved as the final corrected publication in this repository state. Do not use either for mainnet deployment until the corrected metadata is republished and independently verified.
 - Image URI: `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
 - Initial owner **and** proposed recipient (user-confirmed): `0x393c19Ff12e1624181fBF1938b80982b9dfC427`
 - Network: Ethereum Mainnet (chain ID 1)
 
-The user reports that the metadata CID is visible in Filebase and loads through a gateway; that report has not been independently verified in this review. Keep the prior metadata pinned until the new metadata is independently retrieved and checked through at least two gateways and pin/retention status is confirmed.
+The corrected metadata draft at `nft/metadata.json` is repository content only; it is not a published IPFS object. Publish that exact reviewed JSON to IPFS, record the resulting CID as the final metadata URI, retrieve the JSON through at least two gateways, verify its `image` field, and inspect pin/retention receipts. Do not infer a final CID from historical notes or test fixtures.
 
 The retrieved image bytes previously measured SHA-256 `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`, differing from the historical source PNG hash `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`. Byte-for-byte identity with that historical file is therefore **not established**.
 
