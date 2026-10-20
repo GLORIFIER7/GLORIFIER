@@ -10,9 +10,9 @@ contract GLORIFIERServicesLogo721Test is Test {
     address internal owner = address(0xA11CE);
     address internal recipient = address(0xB0B);
 
-    // Test fixture only. This is not approval that this CID is the final published metadata.
+    // Test fixture only; gateway retrieval and pinning must be verified independently.
     string internal constant TEST_METADATA_URI =
-        "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
+        "ipfs://QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs";
 
     function setUp() public {
         nft = new GLORIFIERServicesLogo721(owner, TEST_METADATA_URI);
