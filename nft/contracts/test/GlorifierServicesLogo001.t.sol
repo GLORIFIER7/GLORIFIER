@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {GlorifierServicesLogo001} from "../src/GlorifierServicesLogo001.sol";
 
+/// @dev Legacy compatibility tests only. Do not use this duplicate contract for deployment.
 contract GlorifierServicesLogo001Test is Test {
     GlorifierServicesLogo001 private token;
 
@@ -11,7 +12,7 @@ contract GlorifierServicesLogo001Test is Test {
     address private recipient = address(0xB0B);
 
     string private constant METADATA_URI =
-        "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
+        "ipfs://QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs";
 
     function setUp() public {
         vm.prank(owner);
