@@ -13,17 +13,13 @@
 
 The owner-only mint function is present in source but has not been called on a live network. Unit tests that exercise minting are local simulations and do not broadcast transactions.
 
-## Current metadata blocker
+## Current metadata review status
 
-The committed metadata files still reference the previous image CID:
-
-`bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm`
-
-The newly designated image CID is:
-
-`QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-
-Do not change the published metadata URI or deploy this contract until the new image CID's raw bytes are retrieved and SHA-256 is independently checked against the recorded source digest, and the metadata JSON is reviewed. The recorded digest matching the newer CID is currently an owner-confirmed assertion, not a fresh independent byte-level calculation.
+- Owner-designated artwork CID: `QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
+- Owner-supplied metadata CID: `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX`
+- Both repository metadata drafts now point their `image` field at the designated artwork CID.
+- The owner reports that the links load. Independent raw-byte retrieval, SHA-256 recalculation, provider pin-receipt verification, and exact byte-for-byte correspondence between the supplied metadata CID and repository JSON remain unverified.
+- Do not deploy or mint until the metadata CID is retrieved and its `image` field is confirmed to reference the designated artwork URI.
 
 The offline metadata script checks JSON shape and reports image URIs; it does not fetch IPFS, verify pinning, or calculate the image hash.
 
