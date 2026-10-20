@@ -18,7 +18,7 @@ contract GLORIFIERServicesLogo721Test is Test {
     }
 
     function testDeploymentDoesNotMint() public view {
-        assertEq(nft.name(), "GLORIFIER SERVICES — Official Logo #001");
+        assertEq(nft.name(), unicode"GLORIFIER SERVICES — Official Logo #001");
         assertEq(nft.symbol(), "GLORIFIER-LOGO-001");
         assertFalse(nft.minted());
     }
