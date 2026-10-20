@@ -34,8 +34,7 @@ jobs:
         working-directory: nft/contracts
         run: |
           mkdir -p lib
-          mkdir -p lib
-git clone https://github.com/OpenZeppelin/openzeppelin-contracts.git lib/openzeppelin-contracts
+          git clone https://github.com/OpenZeppelin/openzeppelin-contracts.git lib/openzeppelin-contracts
           git -C lib/openzeppelin-contracts checkout --detach c64a1edb67b6e3f4a15cca8909c9482ad33a02b0
           git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
           git -C lib/forge-std checkout --detach bf647bd6046f2f7da30d0c2bf435e5c76a780c1b
