@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {GLORIFIERServicesLogo721} from "../src/GLORIFIERServicesLogo721.sol";
 
 contract GLORIFIERServicesLogo721Test is Test {
@@ -32,7 +34,7 @@ contract GLORIFIERServicesLogo721Test is Test {
     }
 
     function testNonOwnerCannotMint() public {
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, recipient));
         vm.prank(recipient);
         nft.mint(recipient);
     }
@@ -52,7 +54,7 @@ contract GLORIFIERServicesLogo721Test is Test {
     }
 
     function testTokenURIFailsBeforeMint() public {
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(ERC721.ERC721NonexistentToken.selector, 1));
         nft.tokenURI(1);
     }
 }
