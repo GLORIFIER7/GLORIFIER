@@ -42,7 +42,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 3. Open the owner-designated artwork CID through a working IPFS gateway and confirm it renders the intended original logo.
 4. Recalculate the source artwork SHA-256 from the exact original file and compare it with the recorded value.
 5. Prepare and review the custom ERC-721 source, including token URI handling and ownership/mint controls.
-6. Obtain a live Base mainnet deployment and mint gas estimate, including the deploy and mint transactions separately.
+6. Obtain a live Ethereum mainnet deployment and mint gas estimate, including the deploy and mint transactions separately.
 7. Show the exact contract code, deployment parameters, mint recipient, token URI, and total estimated costs for user review.
 8. Stop and obtain separate explicit authorization before any deployment, wallet signing, payment, or minting.
 
@@ -55,7 +55,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 | Metadata JSON contents and image field | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Live artwork rendering from IPFS | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Fresh SHA-256 recalculation | NOT PERFORMED |
-| Target network and implementation | BASE MAINNET / CUSTOM ERC-721 selected for planning |
+| Target network and implementation | ETHEREUM MAINNET / CUSTOM ERC-721 review target; reconfirm before deployment |
 | Contract source reviewed by user | NOT YET |
 | Contract deployed | NO |
 | Wallet transaction signed | NO |
