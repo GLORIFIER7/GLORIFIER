@@ -23,8 +23,12 @@ const results = await Promise.all(files.map(async (file) => {
     if (typeof metadata.description !== "string" || !metadata.description.trim()) {
       throw new TypeError("missing non-empty description");
     }
-    if (typeof metadata.image !== "string" || !metadata.image.startsWith("ipfs://")) {
-      throw new TypeError("image must be an ipfs:// URI");
+    if (
+      typeof metadata.image !== "string" ||
+      !metadata.image.startsWith("ipfs://") ||
+      !metadata.image.slice("ipfs://".length).trim()
+    ) {
+      throw new TypeError("image must be a non-empty ipfs:// URI");
     }
     if (metadata.image !== expectedImageUri) {
       throw new TypeError(`image must reference the designated artwork URI ${expectedImageUri}`);
