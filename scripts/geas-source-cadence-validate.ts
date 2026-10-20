@@ -215,7 +215,7 @@ for (const entry of entries) {
 }
 
 if (failures.length) {
-  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\\n`);
+  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\n`);
   process.exit(1);
 }
 
@@ -229,4 +229,4 @@ process.stdout.write(`${JSON.stringify({
   scannerCatalog: scannerPath,
   braceStringRegression: 'passed',
   irreversibleChangesExecuted: false,
-}, null, 2)}\\n`);
+}, null, 2)}\n`);
