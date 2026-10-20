@@ -1,42 +1,29 @@
 # GLORIFIER Official Brand Asset Policy
 
-## Owner-designated source record
+## Canonical owner-designated source
 
-The Human Owner designated the logo supplied on 2026-09-24 as the authoritative GLORIFIER artwork.
+The Human Owner designates the circular PNG supplied in this conversation as the official GLORIFIER SERVICES logo for the app and architecture.
 
-- Recorded source dimensions / format: 500 × 500 / JPEG
-- Recorded source SHA-256: `ea08a5035eedcf2c45d42163d9db4a08b7b68052a95eece40e5e83582c9e37de`
-- Source designation: recorded as official by the Human Owner
-- Legal status: **PENDING** — designation is not trademark clearance, a copyright opinion, proof of registration, or a third-party endorsement.
+- Display name: **GLORIFIER SERVICES — EST 2022**
+- Required composition: complete circular badge, including its navy/silver background, atom symbol, laurel branches, lettering, and EST 2022 detail.
+- Canonical image URI: `ipfs://bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm`
+- Web display gateway currently configured in the app header: `https://ipfs.io/ipfs/bafkreiakbvnq4sc5xvff5vzyhj572kemre5sfwedi2almqkhlqz53hefcm`
+- Recorded source SHA-256 for the previously supplied matching artwork: `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`
+- Integrity boundary: the owner-provided artwork hash matches the previously recorded artwork hash, but this change does not by itself prove that the public IPFS gateway is available at all times or that every deployed app page has been updated.
+- Legal status: **PENDING** — owner designation is not trademark clearance, copyright opinion, proof of registration, or third-party endorsement.
 - Final authority: Human Owner.
 
-## Repository asset integrity status
+## Rendering rules
 
-The repository contains `public/glorifier-logo.jpg`, but it has **not been established as byte-identical to the owner-designated source**. A SHA-256 calculated from the base64 content returned for that repository file was `60bd392bb61104651aa6b1a4d97ef2f36ba98e3a2cd6df1c4754b014b29ee0aa`, which differs from the recorded source hash above. Reproduce the check using a local checkout and inspect the file format before resolving this discrepancy. Do not overwrite the recorded source hash just to make the values match.
+- Use the entire image with `object-fit: contain` or an equivalent aspect-ratio-preserving setting.
+- Do not crop the circular boundary, stretch the artwork, recreate it using text, remove the baked-in background, recolor it, or overlay badges.
+- The supplied logo already includes its own circular background. Do not add a rounded-square tile, border, or replacement background around it.
+- Give the mark enough clear space and test its legibility at desktop, mobile, favicon, app-icon, and social-preview sizes.
+- If the image host fails, show a neutral fallback glyph and report that the official image could not be loaded; do not substitute an unverified derivative while claiming it is the official logo.
+- Use a local, integrity-verified repository asset for production reliability when it can be added and checked. The current header uses the recorded IPFS artwork through a public gateway as an interim source.
 
-The active fallback `public/glorifier-app-icon.svg` is also an unverified derivative. It omits visible source detail described in the artwork record (including “EST 2022”), so it must not be represented as a verified faithful copy. It remains a temporary display fallback only while the exact source or an explicitly approved derivative is recovered and checked.
+## Architecture and governance
 
-**Current status: source-to-repository integrity NOT VERIFIED; derivative fidelity NOT VERIFIED.** Do not describe the deployed favicon/app icon as finally approved until these gaps are resolved.
+The official logo is a brand identity asset, not evidence of AI capability, autonomy, financial performance, ownership rights, settlement, security certification, or endorsement by any AI provider. Brand configuration must remain separate from secrets and runtime configuration. Record source hash, derivative hash (if applicable), asset path, review date, reviewer, and approval status when local derivatives are created.
 
-## Usage guidance for an approved asset
-
-Once the source or an approved derivative is validated:
-
-- Preserve all visible artwork and wording and retain the aspect ratio; do not crop or stretch the circular boundary.
-- Keep at least 10% of the displayed artwork width as clear space around the image.
-- Prefer a plain, uncluttered background; do not place text, badges, or competing marks over the artwork.
-- Do not apply effects, filters, recoloring, perspective transforms, or decorative overlays.
-- Review rendering and readability at favicon, mobile, app-icon, social-preview, and print sizes before marking each variant approved.
-- Do not label an icon as maskable until its safe area has been checked.
-
-## AI policy and marketing claims
-
-GLORIFIER is provider-neutral. The mark is a brand asset, not evidence of AI capability, autonomy, financial performance, ownership, settlement, security certification, legal clearance, or endorsement by any AI provider. Public claims must not promise guaranteed earnings, guaranteed autonomous execution, or unverified outcomes.
-
-AI agents may inspect references, prepare technical derivatives, and record review evidence. They may not unilaterally replace the source, claim legal clearance, assert ownership beyond recorded evidence, or initiate legal enforcement.
-
-## Governance and change control
-
-Material changes to the source asset, wordmark, public brand claim, or approved derivative require Human Owner review. Record the asset path, source hash, derivative hash (if applicable), review date, reviewer, purpose, and approval status. Keep assets separate from secrets and runtime configuration.
-
-See [Brand Governance Review](docs/brand-governance-review.md) for the current acceptance register and unresolved evidence.
+Material changes to the artwork or approved derivatives require Human Owner review.
