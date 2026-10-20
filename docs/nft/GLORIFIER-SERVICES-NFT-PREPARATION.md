@@ -9,7 +9,7 @@
 This record preserves the current NFT preparation details for the original GLORIFIER SERVICES artwork. It is a planning and evidence record, not proof that an NFT has been minted.
 
 - Preserve the existing artwork and metadata CIDs; do not replace or regenerate the artwork.
-- Current review target: **Ethereum mainnet ERC-721**. A prior preparation record mentioned Base mainnet; confirm the target network again before any deployment proposal.
+- Target network: **UNRESOLVED**. Earlier notes mention Base mainnet and Ethereum mainnet; the owner must explicitly reconfirm the target before any network-specific cost estimate or deployment proposal.
 - User-selected implementation: **custom ERC-721 contract**.
 - No contract has been deployed by this workflow.
 - No wallet has been asked to sign a transaction.
@@ -27,7 +27,7 @@ This record preserves the current NFT preparation details for the original GLORI
 - **Artwork source URL previously used:** `https://1.gravatar.com/avatar/2debdba15d0c08ab78691048092e465dc74c530e3447e3f584a23e7165272c33?size=512&d=initials`
 - **Previously recorded artwork SHA-256:** `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`
 
-The SHA-256 above is a previously recorded value, not a fresh calculation. The owner reports the new links load. The exact metadata-to-artwork reference and provider pin receipts have not been independently verified in this session.
+The SHA-256 above is a previously recorded value, not a fresh calculation. The owner reports the new links load. The earlier Filebase pinning report referred to the previous CIDs; it does not establish pinning for the newly designated CIDs. The exact metadata-to-artwork reference and provider pin receipts for the new CIDs have not been independently verified in this session.
 
 ## Metadata verification attempt — 2026-10-14
 
@@ -42,7 +42,7 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 3. Open the owner-designated artwork CID through a working IPFS gateway and confirm it renders the intended original logo.
 4. Recalculate the source artwork SHA-256 from the exact original file and compare it with the recorded value.
 5. Prepare and review the custom ERC-721 source, including token URI handling and ownership/mint controls.
-6. Obtain a live Ethereum mainnet deployment and mint gas estimate, including the deploy and mint transactions separately.
+6. After the owner explicitly selects the target network, obtain its live deployment and mint gas estimate, including deploy and mint transactions separately.
 7. Show the exact contract code, deployment parameters, mint recipient, token URI, and total estimated costs for user review.
 8. Stop and obtain separate explicit authorization before any deployment, wallet signing, payment, or minting.
 
@@ -51,11 +51,11 @@ Attempted to retrieve the metadata CID and artwork CID through public IPFS gatew
 | Item | Status |
 |---|---|
 | Owner-designated artwork and metadata CIDs recorded | RECORDED |
-| Filebase pinning | USER-REPORTED; not independently re-verified |
+| Filebase pinning for designated new CIDs | NOT ESTABLISHED; prior report referred to older CIDs |
 | Metadata JSON contents and image field | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Live artwork rendering from IPFS | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
 | Fresh SHA-256 recalculation | NOT PERFORMED |
-| Target network and implementation | ETHEREUM MAINNET / CUSTOM ERC-721 review target; reconfirm before deployment |
+| Target network and implementation | UNRESOLVED / CUSTOM ERC-721 review only |
 | Contract source reviewed by user | NOT YET |
 | Contract deployed | NO |
 | Wallet transaction signed | NO |
