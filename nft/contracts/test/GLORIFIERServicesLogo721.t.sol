@@ -9,11 +9,13 @@ contract GLORIFIERServicesLogo721Test is Test {
 
     address internal owner = address(0xA11CE);
     address internal recipient = address(0xB0B);
-    string internal constant APPROVED_METADATA_URI =
+
+    // Test fixture only. This is not approval that this CID is the final published metadata.
+    string internal constant TEST_METADATA_URI =
         "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
 
     function setUp() public {
-        nft = new GLORIFIERServicesLogo721(owner, APPROVED_METADATA_URI);
+        nft = new GLORIFIERServicesLogo721(owner, TEST_METADATA_URI);
     }
 
     function testDeploymentDoesNotMint() public view {
@@ -22,13 +24,13 @@ contract GLORIFIERServicesLogo721Test is Test {
         assertFalse(nft.minted());
     }
 
-    function testOwnerCanMintExactlyOneTokenWithApprovedMetadata() public {
+    function testOwnerCanMintExactlyOneTokenWithConstructorMetadata() public {
         vm.prank(owner);
         nft.mint(recipient);
 
         assertTrue(nft.minted());
         assertEq(nft.ownerOf(1), recipient);
-        assertEq(nft.tokenURI(1), APPROVED_METADATA_URI);
+        assertEq(nft.tokenURI(1), TEST_METADATA_URI);
     }
 
     function testNonOwnerCannotMint() public {
