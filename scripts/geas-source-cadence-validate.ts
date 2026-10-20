@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import * as ts from 'typescript';
 
 type RegistrySource = {
   id: string;
@@ -13,50 +12,149 @@ type ScannerSource = { id: string; cadenceHours: number };
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 
-function parseScannerSources(sourceText: string, fileName: string): ScannerSource[] {
-  const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  if (sourceFile.parseDiagnostics.length > 0) {
-    const diagnostics = sourceFile.parseDiagnostics.map((diagnostic) =>
-      ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-    );
-    throw new Error(`unable to parse scanner TypeScript: ${diagnostics.join('; ')}`);
+/**
+ * Find a matching delimiter while ignoring delimiters inside strings and comments.
+ * This intentionally avoids relying on TypeScript's compiler API so this governance
+ * check remains usable across compiler package/API changes.
+ */
+function findMatchingDelimiter(source: string, start: number, open: string, close: string): number {
+  if (source[start] !== open) throw new Error(`expected "${open}" at offset ${start}`);
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+    const next = source[i + 1];
+
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      lineComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      blockComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === open) depth += 1;
+    if (ch === close) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
   }
+  throw new Error(`unterminated "${open}" delimiter in scanner source`);
+}
 
-  let sourceArray: ts.ArrayLiteralExpression | undefined;
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 'SOURCES' &&
-      node.initializer &&
-      ts.isArrayLiteralExpression(node.initializer)
-    ) {
-      sourceArray = node.initializer;
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-  if (!sourceArray) throw new Error('unable to locate the scanner SOURCES array');
+function parseScannerSources(sourceText: string): ScannerSource[] {
+  const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(sourceText);
+  if (!declaration) throw new Error('unable to locate the scanner SOURCES declaration');
+  const equals = sourceText.indexOf('=', declaration.index + declaration[0].length);
+  if (equals < 0) throw new Error('unable to locate the SOURCES initializer');
+  const arrayStart = sourceText.indexOf('[', equals + 1);
+  if (arrayStart < 0) throw new Error('SOURCES initializer is not an array');
+  const arrayEnd = findMatchingDelimiter(sourceText, arrayStart, '[', ']');
+  const arrayText = sourceText.slice(arrayStart + 1, arrayEnd);
 
-  const result: ScannerSource[] = [];
-  for (const element of sourceArray.elements) {
-    if (!ts.isObjectLiteralExpression(element)) throw new Error('scanner SOURCES contains a non-object entry');
-    let id: string | undefined;
-    let cadenceHours: number | undefined;
-    for (const property of element.properties) {
-      if (!ts.isPropertyAssignment(property)) continue;
-      const key = ts.isIdentifier(property.name) ? property.name.text :
-        ts.isStringLiteral(property.name) ? property.name.text : undefined;
-      if (key === 'id' && ts.isStringLiteral(property.initializer)) id = property.initializer.text;
-      if (key === 'cadenceHours' && ts.isNumericLiteral(property.initializer)) cadenceHours = Number(property.initializer.text);
+  const objects: string[] = [];
+  let depth = 0;
+  let objectStart = -1;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < arrayText.length; i += 1) {
+    const ch = arrayText[i];
+    const next = arrayText[i + 1];
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      continue;
     }
-    if (!id || !Number.isFinite(cadenceHours)) {
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      lineComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      blockComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{') {
+      if (depth === 0) objectStart = i;
+      depth += 1;
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth < 0) throw new Error('unexpected closing brace in SOURCES array');
+      if (depth === 0 && objectStart >= 0) {
+        objects.push(arrayText.slice(objectStart, i + 1));
+        objectStart = -1;
+      }
+    }
+  }
+  if (depth !== 0 || quote || blockComment) throw new Error('unterminated object, string, or comment in SOURCES array');
+  if (objects.length === 0) throw new Error('scanner SOURCES array contains no object entries');
+
+  return objects.map((objectText) => {
+    const idMatch = /\bid\s*:\s*(['"])(.*?)\1/s.exec(objectText);
+    const cadenceMatch = /\bcadenceHours\s*:\s*(\d+)\b/.exec(objectText);
+    if (!idMatch || !idMatch[2] || !cadenceMatch) {
       throw new Error('every scanner source must have a string id and numeric cadenceHours');
     }
-    result.push({ id, cadenceHours: cadenceHours as number });
-  }
-  return result;
+    return { id: idMatch[2], cadenceHours: Number(cadenceMatch[1]) };
+  });
 }
 
 function verifyParserHandlesBraceCharacters(): void {
@@ -69,7 +167,7 @@ function verifyParserHandlesBraceCharacters(): void {
     cadenceHours: 24
   }];
   const P = () => {};`;
-  const parsed = parseScannerSources(fixture, 'fixture.ts');
+  const parsed = parseScannerSources(fixture);
   if (parsed.length !== 1 || parsed[0].id !== 'fixture' || parsed[0].cadenceHours !== 24) {
     throw new Error('structured scanner parser failed its brace-containing string regression fixture');
   }
@@ -83,7 +181,7 @@ const failures: string[] = [];
 if (!Array.isArray(registry.sources)) throw new Error('authoritative registry must contain a sources array');
 
 const activeRegistry = registry.sources.filter((source) => source.scannerStatus === 'active');
-const entries = parseScannerSources(scanner, scannerPath);
+const entries = parseScannerSources(scanner);
 const scannerById = new Map<string, ScannerSource>();
 for (const entry of entries) {
   if (scannerById.has(entry.id)) failures.push(`duplicate scanner source id ${entry.id}`);
@@ -117,7 +215,7 @@ for (const entry of entries) {
 }
 
 if (failures.length) {
-  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\n`);
+  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\\n`);
   process.exit(1);
 }
 
@@ -126,9 +224,9 @@ process.stdout.write(`${JSON.stringify({
   activeSources: activeRegistry.length,
   scannerSources: entries.length,
   cadenceUnit: 'hours',
-  parser: 'TypeScript AST',
+  parser: 'delimiter-aware source scanner',
   sourceRegistry: registryPath,
   scannerCatalog: scannerPath,
   braceStringRegression: 'passed',
   irreversibleChangesExecuted: false,
-}, null, 2)}\n`);
+}, null, 2)}\\n`);
