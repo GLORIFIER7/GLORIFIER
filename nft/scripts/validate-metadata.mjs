@@ -5,25 +5,24 @@ const files = [
   "nft/metadata/glorifier-services-official-logo-001.json",
 ];
 
-let failed = false;
 const normalize = (uri) => uri.replace(/^ipfs:\/\//, "");
 
-for (const file of files) {
+const results = await Promise.all(files.map(async (file) => {
   try {
     const raw = await readFile(file, "utf8");
     const metadata = JSON.parse(raw);
 
     if (typeof metadata.name !== "string" || !metadata.name.trim()) {
-      throw new Error("missing non-empty name");
+      throw new TypeError("missing non-empty name");
     }
     if (typeof metadata.description !== "string" || !metadata.description.trim()) {
-      throw new Error("missing non-empty description");
+      throw new TypeError("missing non-empty description");
     }
     if (typeof metadata.image !== "string" || !metadata.image.startsWith("ipfs://")) {
-      throw new Error("image must be an ipfs:// URI");
+      throw new TypeError("image must be an ipfs:// URI");
     }
     if (!Array.isArray(metadata.attributes)) {
-      throw new Error("attributes must be an array");
+      throw new TypeError("attributes must be an array");
     }
     for (const [index, attribute] of metadata.attributes.entries()) {
       if (
@@ -31,15 +30,24 @@ for (const file of files) {
         typeof attribute.trait_type !== "string" ||
         typeof attribute.value !== "string"
       ) {
-        throw new Error(`attribute ${index} must have string trait_type and value`);
+        throw new TypeError(`attribute ${index} must have string trait_type and value`);
       }
     }
 
-    console.log(`PASS ${file}: valid JSON shape; image CID = ${normalize(metadata.image)}`);
+    return { file, metadata };
   } catch (error) {
-    failed = true;
-    console.error(`FAIL ${file}: ${error.message}`);
+    return { file, error };
   }
+}));
+
+let failed = false;
+for (const result of results) {
+  if (result.error) {
+    failed = true;
+    console.error(`FAIL ${result.file}: ${result.error.message}`);
+    continue;
+  }
+  console.log(`PASS ${result.file}: valid JSON shape; image CID = ${normalize(result.metadata.image)}`);
 }
 
 if (failed) process.exitCode = 1;
