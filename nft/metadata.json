@@ -28,8 +28,8 @@
     "artwork_sha256_recorded": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
     "image_cid_designated": "QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
     "image_retrieval": "OWNER_REPORTED_ACCESSIBLE; INDEPENDENT_VERIFICATION_PENDING",
-    "image_pinning": "OWNER_REPORTED; PROVIDER_RECEIPT_NOT_VERIFIED",
-    "metadata_pinning": "OWNER_REPORTED_ACCESSIBLE; PROVIDER_RECEIPT_NOT_VERIFIED",
+    "image_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
+    "metadata_pinning": "NOT_ESTABLISHED_FOR_DESIGNATED_CID",
     "minting": "NOT_PERFORMED",
     "spending_authorized": false
   }
