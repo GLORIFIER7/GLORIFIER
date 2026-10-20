@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "title": "GLORIFIER SERVICES — Official Logo #001",
+  "updated_at": "2026-10-21",
+  "network": {
+    "name": "Ethereum Mainnet",
+    "chain_id": 1
+  },
+  "artwork": {
+    "cid": "QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
+    "uri": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
+    "historical_source_sha256": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
+    "latest_retrieved_bytes_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+    "integrity_status": "MISMATCH_REQUIRES_RECONCILIATION"
+  },
+  "metadata": {
+    "final_corrected_cid": null,
+    "status": "NOT_VERIFIED",
+    "historical_candidate_cid": "QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX",
+    "note": "Historical candidate is not approved as final metadata. Do not use for deployment until corrected metadata is published and independently verified."
+  },
+  "existing_contract_candidate": {
+    "address": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
+    "explorer_url": "https://etherscan.io/address/0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
+    "status": "EXISTING_CANDIDATE_NOT_VERIFIED",
+    "contract_code_verified": false,
+    "erc721_compatibility": "NOT_VERIFIED",
+    "owner_and_mint_permissions": "NOT_VERIFIED",
+    "note": "Previously recorded address. Do not represent as the newly deployed contract or assume it is compatible until chain code, source, and permissions are inspected."
+  },
+  "related_transaction_evidence": [
+    {
+      "hash": "0x2f03900afbcd03b5639e7213f907de612adf9f4bd70c6d2743c29c09c2be5cd4",
+      "explorer_url": "https://etherscan.io/tx/0x2f03900afbcd03b5639e7213f907de612adf9f4bd70c6d2743c29c09c2be5cd4",
+      "block_number": 26235919,
+      "value_eth": "0",
+      "recorded_method_label": "Set Transfer Val… (truncated; not decoded/verified)",
+      "receipt_status": "NOT_VERIFIED_IN_THIS_UPDATE",
+      "nft_mint_proven": false
+    }
+  ],
+  "latest_deployment_attempt": {
+    "network": "Ethereum Mainnet",
+    "reported_errors": [
+      "RPC request expired",
+      "ContractFunctionExecutionError"
+    ],
+    "transaction_hash": null,
+    "deployment_outcome": "NOT_VERIFIED",
+    "interpretation": "Errors alone do not prove whether a transaction was broadcast or a contract was deployed. Check wallet activity and explorer receipts before retrying."
+  },
+  "recipient_candidate": {
+    "address": "0x393c19Ff12e1624181fBF1938b80982b9dfC427",
+    "status": "USER_CONFIRMED_ADDRESS; LIVE_CONNECTION_AND_CONTROL_NOT_INDEPENDENTLY_VERIFIED"
+  },
+  "safety_gates": {
+    "signing_authorized": false,
+    "deployment_authorized": false,
+    "mint_authorized": false,
+    "spending_authorized": false,
+    "next_steps": [
+      "Inspect the existing contract address on Ethereum Mainnet and confirm bytecode, verified source, standard interface, owner, and mint permissions.",
+      "Inspect the related transaction receipt and decoded method; do not infer minting from a method label.",
+      "Publish the reviewed corrected metadata JSON to IPFS and verify the new CID through independent gateways.",
+      "Reconcile the artwork byte-hash mismatch and confirm the intended recipient wallet.",
+      "Do not sign, deploy, mint, or spend until the exact transaction is reviewed and explicitly authorized."
+    ]
+  }
+}
