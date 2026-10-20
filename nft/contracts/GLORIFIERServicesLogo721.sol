@@ -10,7 +10,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract GLORIFIERServicesLogo721 is ERC721, Ownable {
     uint256 public constant TOKEN_ID = 1;
 
-    string private immutable _metadataURI;
+    string private _metadataURI;
     bool public minted;
 
     error EmptyMetadataURI();
