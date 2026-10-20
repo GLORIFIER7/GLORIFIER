@@ -23,8 +23,8 @@ contract GlorifierServicesLogo001Test is Test {
         token.mintOnce(recipient);
 
         assertEq(token.ownerOf(1), recipient);
+        assertEq(token.balanceOf(recipient), 1);
         assertTrue(token.minted());
-        assertEq(token.totalSupply(), 1);
     }
 
     function testSecondMintReverts() public {
@@ -48,7 +48,9 @@ contract GlorifierServicesLogo001Test is Test {
         token.mintOnce(address(0));
 
         assertFalse(token.minted());
-        assertEq(token.totalSupply(), 0);
+        assertEq(token.balanceOf(address(0)), 0);
+        vm.expectRevert();
+        token.ownerOf(1);
     }
 
     function testMetadataUriIsFixed() public {
