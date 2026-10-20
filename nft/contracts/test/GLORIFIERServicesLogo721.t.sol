@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {GLORIFIERServicesLogo721} from "../GLORIFIERServicesLogo721.sol";
+import {GLORIFIERServicesLogo721} from "../src/GLORIFIERServicesLogo721.sol";
 
 contract GLORIFIERServicesLogo721Test is Test {
     GLORIFIERServicesLogo721 internal nft;
@@ -11,7 +11,7 @@ contract GLORIFIERServicesLogo721Test is Test {
     address internal recipient = address(0xB0B);
 
     string internal metadataURI =
-        "ipfs://bafkreig7fyy4shnubajnzzflqrnlnd3dsb3acyuqomr7miiomtb2p5e4ai";
+        "ipfs://QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX";
 
     function setUp() public {
         nft = new GLORIFIERServicesLogo721(owner, metadataURI);
