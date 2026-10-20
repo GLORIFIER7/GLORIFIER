@@ -28,8 +28,10 @@ The offline metadata script checks JSON shape and reports image URIs; it does no
 Install Foundry, then from this directory:
 
 ```sh
-forge install OpenZeppelin/openzeppelin-contracts --no-commit
-forge install foundry-rs/forge-std --no-commit
+git clone https://github.com/OpenZeppelin/openzeppelin-contracts.git lib/openzeppelin-contracts
+git -C lib/openzeppelin-contracts checkout --detach c64a1edb67b6e3f4a15cca8909c9482ad33a02b0
+git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
+git -C lib/forge-std checkout --detach bf647bd6046f2f7da30d0c2bf435e5c76a780c1b
 forge build
 forge test -vv
 ```
