@@ -29,7 +29,6 @@
     "image_cid_designated": "QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
     "image_retrieval": "OWNER_REPORTED_ACCESSIBLE; INDEPENDENT_VERIFICATION_PENDING",
     "image_pinning": "OWNER_REPORTED; PROVIDER_RECEIPT_NOT_VERIFIED",
-    "metadata_cid_owner_supplied": "QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX",
     "metadata_pinning": "OWNER_REPORTED_ACCESSIBLE; PROVIDER_RECEIPT_NOT_VERIFIED",
     "minting": "NOT_PERFORMED",
     "spending_authorized": false
