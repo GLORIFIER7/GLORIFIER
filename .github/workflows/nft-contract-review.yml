@@ -1,0 +1,52 @@
+name: NFT Contract Review (No Deployment)
+
+on:
+  pull_request:
+    paths:
+      - "nft/contracts/**"
+      - ".github/workflows/nft-contract-review.yml"
+  push:
+    branches:
+      - "nft/review-only-erc721-tests-20261020"
+    paths:
+      - "nft/contracts/**"
+      - ".github/workflows/nft-contract-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nft-contract-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-and-test:
+    name: Compile and test locally (no deployment)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install pinned OpenZeppelin dependency
+        working-directory: nft/contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.4.0
+
+      - name: Install pinned Foundry test helpers
+        working-directory: nft/contracts
+        run: forge install foundry-rs/forge-std@v1.9.7
+
+      - name: Compile and run unit tests
+        working-directory: nft/contracts
+        run: forge test -vvv
+
+      - name: Explicitly confirm this workflow has no deployment step
+        run: |
+          echo "Review-only workflow completed its configured checks."
+          echo "No wallet, RPC endpoint, private key, deployment, or mint command is configured."
