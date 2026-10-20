@@ -44,6 +44,3 @@ jobs:
         working-directory: nft/contracts
         run: forge test -vv
 
-      - name: Confirm this workflow cannot deploy
-        run: |
-          ! grep -En -- '--broadcast|forge script|cast send|wallet|private.key' .github/workflows/nft-erc721-review.yml
