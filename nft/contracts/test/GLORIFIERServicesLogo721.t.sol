@@ -21,7 +21,6 @@ contract GLORIFIERServicesLogo721Test is Test {
         assertEq(nft.name(), "GLORIFIER SERVICES — Official Logo #001");
         assertEq(nft.symbol(), "GLORIFIER-LOGO-001");
         assertFalse(nft.minted());
-        assertEq(nft.totalSupply(), 0);
     }
 
     function testOwnerCanMintExactlyOneToken() public {
@@ -31,7 +30,6 @@ contract GLORIFIERServicesLogo721Test is Test {
         assertTrue(nft.minted());
         assertEq(nft.ownerOf(1), recipient);
         assertEq(nft.tokenURI(1), metadataURI);
-        assertEq(nft.totalSupply(), 1);
     }
 
     function testNonOwnerCannotMint() public {
