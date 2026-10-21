@@ -19,6 +19,7 @@ const INTERNAL_SERVICE_HEADERS = INTERNAL_SERVICE_TOKEN
   : {};
 let running = false;
 let healthFailures = 0;
+let backendHealthy = false;
 let stopping = false;
 
 const AI_CEO = {
@@ -58,6 +59,7 @@ async function healthCheck() {
     // should restart. In particular, a database quota/availability failure cannot
     // be repaired by repeatedly crashing this separate process.
     if (response.status === 503 && health?.status === 'degraded') {
+      backendHealthy = false;
       healthFailures = 0;
       const dependencies = health.checks
         ? Object.fromEntries(Object.entries(health.checks).map(([name, check]) => [name, check?.ok === true ? 'ok' : check?.ok === false ? 'failed' : 'unknown']))
@@ -73,10 +75,12 @@ async function healthCheck() {
     }
 
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.slice(0, 300)}`);
+    backendHealthy = true;
     healthFailures = 0;
     log('APP_HEALTH_OK', { url: APP_HEALTH_URL });
     return true;
   } catch (error) {
+    backendHealthy = false;
     healthFailures += 1;
     log('APP_HEALTH_FAILED', {
       failures: healthFailures,
@@ -203,6 +207,13 @@ async function standingGlobalSyncMission() {
 
 async function autonomousCycle() {
   if (running || stopping) return;
+  if (!backendHealthy) {
+    log('AUTONOMOUS_CYCLE_SKIPPED', {
+      reason: 'backend health is not verified; avoid repeated calls into a degraded dependency',
+      nextAction: 'wait for a successful health check before resuming missions',
+    });
+    return;
+  }
   running = true;
   log('AUTONOMOUS_CYCLE_START', {
     mode: 'headless-supervisor',
