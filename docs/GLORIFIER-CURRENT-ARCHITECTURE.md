@@ -24,7 +24,7 @@ This document records the current implemented architecture and its governing bou
 
 ## System flow
 
-HUMAN OWNER → AI CEO → MEDIATOR → INTELLIGENCE / GOVERNANCE / CONNECTIONS → OPPORTUNITY → EVIDENCE → AUTHORIZATION → EXECUTION → DELIVERY → ACCEPTANCE → SETTLEMENT EVIDENCE → REVENUE CONTROL PLANE → NEON LEDGER → LEARNING
+HUMAN OWNER → AI CEO → MEDIATOR → INTELLIGENCE / GOVERNANCE / CONNECTIONS → OPPORTUNITY → EVIDENCE → AUTHORIZATION → EXECUTION → DELIVERY → ACCEPTANCE → SETTLEMENT EVIDENCE → REVENUE CONTROL PLANE → AUTHORITATIVE POSTGRESQL LEDGER → LEARNING
 
 ## Permanent planes
 
@@ -85,7 +85,7 @@ The following are not automatically revenue:
 
 ## Revenue ledger
 
-Neon/PostgreSQL is the authoritative economic ledger.
+PostgreSQL is the authoritative economic ledger. The active provider is configured through `DATABASE_URL`; Neon is the currently recorded deployment provider. A provider change is not complete until schema, data, permissions, indexes, ledger reconciliation, application health, and rollback are verified.
 
 Revenue events include:
 - event ID
