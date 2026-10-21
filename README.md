@@ -40,7 +40,7 @@ The human owner retains final authority. High-impact or irreversible production 
 
 The repository includes a web application, API/server code, AI-provider integrations, governance components, and blockchain-related contracts and evidence records.
 
-**Intended deployment shape:** Cloudflare Workers static assets/public frontend → Railway API/backend → Neon/PostgreSQL. The public frontend target is `https://glorifier.glorifier.workers.dev`; Vercel is not the authoritative production hosting target. Cloudflare routing, the frontend build, direct Railway health/readiness, and API response contracts must be verified independently before claiming production readiness.
+**Intended deployment shape:** Cloudflare Workers static assets/public frontend → Railway API/backend → PostgreSQL configured through `DATABASE_URL` (Neon is the currently recorded provider; another compatible PostgreSQL provider requires a verified migration before switching). The public frontend target is `https://glorifier.glorifier.workers.dev`; Vercel is not the authoritative production hosting target. Cloudflare routing, the frontend build, direct Railway health/readiness, and API response contracts must be verified independently before claiming production readiness.
 
 The repository also uses technologies including React, TypeScript, Node.js, Firebase, PostgreSQL, and GitHub Actions. Actual capabilities depend on configuration, credentials, provider quotas, and runtime health. Confirm the relevant deployment and workflow evidence before describing a service as live or healthy.
 
