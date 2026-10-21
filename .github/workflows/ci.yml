@@ -180,5 +180,8 @@ jobs:
       - name: Validate permanent orchestrator JavaScript syntax
         run: node --check scripts/permanent-orchestrator.mjs
 
-      - name: Production build
+      - name: Production frontend build
         run: npm run build
+
+      - name: Build bundled production server
+        run: npm run build:server
