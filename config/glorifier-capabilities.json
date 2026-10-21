@@ -1,17 +1,236 @@
 {
-  "version":"1.0",
-  "default":"deny",
+  "version": "1.1",
+  "default": "deny",
   "capabilities": [
-    {"id":"read.repository","risk":"low","approval":false},
-    {"id":"analyze.code","risk":"low","approval":false},
-    {"id":"create.branch","risk":"medium","approval":false},
-    {"id":"create.pull_request","risk":"medium","approval":false},
-    {"id":"run.ci","risk":"medium","approval":false},
-    {"id":"deploy.staging","risk":"high","approval":true},
-    {"id":"deploy.production","risk":"critical","approval":true},
-    {"id":"change.credentials","risk":"critical","approval":true},
-    {"id":"move.funds","risk":"critical","approval":true},
-    {"id":"change.ownership","risk":"critical","approval":true},
-    {"id":"delete.resource","risk":"critical","approval":true}
+    {
+      "id": "read.repository",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "repository.search",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "analyze.code",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "create.branch",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "create.pull_request",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "run.ci",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "issue.create",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "issue.comment",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "pull_request.review",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "knowledge.search",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "knowledge.ask",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "knowledge.answer",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "knowledge.comment",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "knowledge.vote",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "knowledge.accept_answer",
+      "risk": "medium",
+      "approval": true
+    },
+    {
+      "id": "utility.web_search",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "utility.fetch_public_data",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "utility.convert_units",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "utility.convert_currency",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "utility.calculate",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "utility.transform_data",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "agent.discover",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "agent.delegate",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "tool.discover",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "tool.invoke",
+      "risk": "high",
+      "approval": true
+    },
+    {
+      "id": "evidence.attach",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "evidence.verify",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "service.publish",
+      "risk": "high",
+      "approval": true
+    },
+    {
+      "id": "package.publish",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "deploy.staging",
+      "risk": "high",
+      "approval": true
+    },
+    {
+      "id": "deploy.production",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "change.credentials",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "move.funds",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "change.ownership",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "delete.resource",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "crypto.hash",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "crypto.verify",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "crypto.sign",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "crypto.encrypt",
+      "risk": "high",
+      "approval": true
+    },
+    {
+      "id": "crypto.decrypt",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "wallet.read",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "wallet.derive_address",
+      "risk": "high",
+      "approval": true
+    },
+    {
+      "id": "wallet.verify",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "wallet.sign",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "wallet.prepare_transfer",
+      "risk": "critical",
+      "approval": true
+    },
+    {
+      "id": "wallet.broadcast",
+      "risk": "critical",
+      "approval": true
+    }
   ]
 }
