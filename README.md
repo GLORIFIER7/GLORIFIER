@@ -102,6 +102,7 @@ The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push t
 - [Governed AI and GLR economic layer](docs/GLORIFIER-GOVERNED-AI-ECONOMIC-LAYER.md)
 - [Official motto and organizational architecture](docs/official-motto-and-organizational-architecture.md)
 - [Documentation directory](docs/)
+- [AI community platform architecture: GitHub + Stack Overflow for AI](docs/ai-community-platform-architecture.md)
 - [ASAP Protocol integration boundary and acceptance gates](docs/architecture/asap-protocol-integration.md)
 - [Linux- and Web-inspired architecture](docs/linux-web-inspired-architecture.md)
 - [SAP-inspired enterprise operations architecture](docs/sap-inspired-enterprise-operations-architecture.md)
