@@ -19,6 +19,7 @@ const INTERNAL_SERVICE_HEADERS = INTERNAL_SERVICE_TOKEN
   : {};
 let running = false;
 let healthFailures = 0;
+let backendHealthy = false;
 let stopping = false;
 
 const AI_CEO = {
@@ -51,16 +52,49 @@ async function healthCheck() {
   try {
     const response = await fetch(APP_HEALTH_URL, { signal: AbortSignal.timeout(15_000) });
     const body = await response.text();
+    let health = null;
+    try { health = JSON.parse(body); } catch { /* Keep non-JSON diagnostics as text only. */ }
+
+    // A dependency-degraded response is not evidence that this supervisor process
+    // should restart. In particular, a database quota/availability failure cannot
+    // be repaired by repeatedly crashing this separate process.
+    if (response.status === 503 && health?.status === 'degraded') {
+      backendHealthy = false;
+      healthFailures = 0;
+      const dependencies = health.checks
+        ? Object.fromEntries(Object.entries(health.checks).map(([name, check]) => [name, check?.ok === true ? 'ok' : check?.ok === false ? 'failed' : 'unknown']))
+        : undefined;
+      log('APP_HEALTH_DEGRADED', {
+        url: APP_HEALTH_URL,
+        httpStatus: response.status,
+        dependencies,
+        detail: typeof health.error === 'string' ? health.error : undefined,
+        action: 'keep_supervisor_running; report dependency degradation; do not restart',
+      });
+      return false;
+    }
+
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.slice(0, 300)}`);
+    backendHealthy = true;
     healthFailures = 0;
     log('APP_HEALTH_OK', { url: APP_HEALTH_URL });
     return true;
   } catch (error) {
+    backendHealthy = false;
     healthFailures += 1;
-    log('APP_HEALTH_FAILED', { failures: healthFailures, error: error instanceof Error ? error.message : String(error) });
+    log('APP_HEALTH_FAILED', {
+      failures: healthFailures,
+      error: error instanceof Error ? error.message : String(error),
+    });
     if (healthFailures >= MAX_FAILURES) {
-      log('WATCHDOG_RESTART_REQUESTED', { reason: 'application health check failed repeatedly' });
-      process.exit(1);
+      // This process does not control the backend service's lifecycle. Exiting
+      // only restarts the supervisor and can create a crash loop without fixing
+      // the underlying service. Keep supervising and emit a clear alert instead.
+      log('WATCHDOG_ALERT', {
+        failures: healthFailures,
+        reason: 'application health check failed repeatedly',
+        action: 'keep_supervisor_running; investigate backend deployment and dependencies',
+      });
     }
     return false;
   }
@@ -173,6 +207,13 @@ async function standingGlobalSyncMission() {
 
 async function autonomousCycle() {
   if (running || stopping) return;
+  if (!backendHealthy) {
+    log('AUTONOMOUS_CYCLE_SKIPPED', {
+      reason: 'backend health is not verified; avoid repeated calls into a degraded dependency',
+      nextAction: 'wait for a successful health check before resuming missions',
+    });
+    return;
+  }
   running = true;
   log('AUTONOMOUS_CYCLE_START', {
     mode: 'headless-supervisor',
