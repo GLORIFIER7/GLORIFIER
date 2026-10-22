@@ -269,3 +269,11 @@ Observed on migration branch commit `a3538ec4d022f77b1eb4cdfb064a9db67de9d525`:
 - A live request to the public Worker endpoint could not be verified through the available inspection channel. Production health is therefore **not verified here**.
 
 Next gate: port a small, explicitly reviewed route group to Worker-native handlers with contract tests, then repeat this check. Do not remove Railway forwarding or Vercel deployment configuration until the corresponding Worker routes and frontend release are verified.
+
+## First Worker-native route migrated on the migration branch
+
+- `GET /api/identity` is now handled directly by `src/worker.ts` using Cloudflare environment bindings; it no longer calls Railway for this route.
+- The response preserves the existing identity response shape and conservative readiness rules: readiness is false unless a domain, organization email, and recognized ownership/verification status are configured.
+- The route sets `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
+- `src/worker.test.ts` now covers unconfigured identity, configured identity, normalization of domain/email values, and the assertion that this endpoint does not call the upstream or static assets.
+- This is a narrow first migration slice. All other API/auth routes still use the legacy upstream unless separately ported. The test changes have been pushed, but their latest CI run is still pending at the time of this note.
