@@ -1,6 +1,12 @@
 export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
 export type ReconciliationStatus = 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
 
+export interface StateEvidence {
+  refs: string[];
+  observedAt: string;
+  validUntil: string;
+}
+
 export interface ReconciliationInput {
   resourceId: string;
   desired?: Record<string, unknown> | null;
@@ -8,7 +14,9 @@ export interface ReconciliationInput {
   deployed?: Record<string, unknown> | null;
   observed?: Record<string, unknown> | null;
   verified?: Record<string, unknown> | null;
+  /** Legacy aggregate references are retained for traceability but never satisfy per-state evidence. */
   evidenceRefs?: string[];
+  evidenceByState?: Partial<Record<ArchitectureState, StateEvidence>>;
 }
 
 export interface ReconciliationResult {
@@ -34,18 +42,31 @@ function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<strin
     .filter((key) => !(key in left) || !(key in right) || canonical(left[key]) !== canonical(right[key]));
 }
 
+function isFreshStateEvidence(evidence: StateEvidence | undefined, nowMs: number): evidence is StateEvidence {
+  if (!evidence || !Array.isArray(evidence.refs) || evidence.refs.length === 0
+      || evidence.refs.some((ref) => typeof ref !== 'string' || !ref.trim())) return false;
+  const observedAt = Date.parse(evidence.observedAt);
+  const validUntil = Date.parse(evidence.validUntil);
+  return Number.isFinite(observedAt) && Number.isFinite(validUntil)
+    && observedAt <= nowMs && validUntil > nowMs && validUntil >= observedAt;
+}
+
 /**
- * Reconciles only explicitly supplied snapshots. A missing state is UNKNOWN,
- * never an inferred match. Mismatch is asserted only when both snapshots and
- * traceable evidence references exist.
+ * Reconciles explicit snapshots only. Every state needs its own fresh evidence.
+ * This gate validates evidence metadata, not the external evidence's semantic truth.
  */
-export function reconcileArchitectureStates(input: ReconciliationInput): ReconciliationResult {
+export function reconcileArchitectureStates(input: ReconciliationInput, now: Date = new Date()): ReconciliationResult {
   const states: ArchitectureState[] = ['desired', 'declared', 'deployed', 'observed', 'verified'];
   const supplied = states.filter((state) => {
     const value = input[state];
     return !!value && typeof value === 'object' && !Array.isArray(value);
   });
-  const evidenceRefs = [...new Set((input.evidenceRefs ?? []).filter((ref) => typeof ref === 'string' && ref.trim()))];
+  const stateEvidence = states.map((state) => input.evidenceByState?.[state]);
+  const allStateEvidenceFresh = stateEvidence.every((evidence) => isFreshStateEvidence(evidence, now.getTime()));
+  const evidenceRefs = [...new Set([
+    ...(input.evidenceRefs ?? []).filter((ref) => typeof ref === 'string' && ref.trim()),
+    ...stateEvidence.flatMap((evidence) => evidence?.refs ?? []),
+  ])];
   const mismatches: ReconciliationResult['mismatches'] = [];
 
   for (let i = 1; i < states.length; i++) {
@@ -60,17 +81,18 @@ export function reconcileArchitectureStates(input: ReconciliationInput): Reconci
 
   let status: ReconciliationStatus;
   let reason: string;
-  if (supplied.length < states.length || evidenceRefs.length === 0) {
+  if (supplied.length < states.length) {
     status = 'UNKNOWN';
-    reason = supplied.length < states.length
-      ? 'One or more architecture states are missing; no alignment or drift is inferred.'
-      : 'Evidence references are missing; differences are not promoted to verified drift.';
+    reason = 'One or more architecture states are missing; no alignment or drift is inferred.';
+  } else if (!allStateEvidenceFresh) {
+    status = 'UNKNOWN';
+    reason = 'Each architecture state requires its own nonempty, timestamped, currently valid evidence references.';
   } else if (mismatches.length) {
     status = 'DRIFT';
-    reason = 'Adjacent architecture states differ and evidence references were supplied; validate references before acting.';
+    reason = 'Adjacent architecture states differ and each state has fresh evidence metadata; validate evidence content before acting.';
   } else {
     status = 'ALIGNED';
-    reason = 'All five supplied states match on their declared keys and evidence references are present; external verification is still required to validate those references.';
+    reason = 'All five supplied states match and each state has fresh evidence metadata; external verification must still validate evidence content.';
   }
 
   return { resourceId: input.resourceId, status, comparedStates: supplied, mismatches, evidenceRefs, reason };
