@@ -642,7 +642,13 @@ export function reuseNotModifiedSourceObservation(
   response: { finalUrl: string; etag: string | null; lastModified: string | null },
   observedAt: string,
 ): SourceObservation | null {
-  if (!cached || cached.source_url !== source.url || !cached.ok || !cached.content_hash) return null;
+  if (!cached || cached.source_url !== source.url || !cached.ok
+      || typeof cached.content_hash !== 'string'
+      || !/^[a-f0-9]{64}$/i.test(cached.content_hash)
+      || typeof cached.final_url !== 'string'
+      || cached.final_url !== response.finalUrl
+      || !Number.isFinite(Date.parse(cached.observed_at))
+      || !['source-available', 'content-matched', 'claim-supported', 'not-observed', 'unavailable'].includes(cached.evidence_status)) return null;
   return {
     sourceId: source.id,
     ok: true,
