@@ -48,6 +48,9 @@ jobs:
       - name: Verify static output
         run: test -s dist/index.html
 
+      - name: Validate Worker bundle and Wrangler configuration (no deploy)
+        run: npx --yes wrangler@4.151.1 deploy --dry-run
+
       - name: Deploy Cloudflare Worker
         if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
         env:
