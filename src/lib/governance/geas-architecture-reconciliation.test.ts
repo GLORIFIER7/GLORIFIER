@@ -37,7 +37,7 @@ const stale = reconcileArchitectureStates({
   },
 }, now);
 assert.equal(stale.status, 'UNKNOWN');
-assert.match(stale.reason, /fresh evidence/);
+assert.match(stale.reason, /currently valid evidence references/);
 
 const futureEvidence = reconcileArchitectureStates({
   ...base,
