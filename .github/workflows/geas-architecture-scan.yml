@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - 'src/lib/governance/geas-architecture-scientist.ts'
+      - 'src/lib/governance/geas-claim-verification.ts'
+      - 'src/lib/governance/geas-claim-verification.test.ts'
+      - 'src/lib/governance/geas-architecture-reconciliation.ts'
+      - 'src/lib/governance/geas-architecture-reconciliation.test.ts'
       - 'scripts/geas-architecture-*.ts'
       - 'scripts/geas-authority-*.ts'
       - 'scripts/geas-source-cadence-validate.ts'
