@@ -2,9 +2,9 @@
  * Claim-level evidence admission for GEAS.
  *
  * Source availability, keyword matches, and model-generated summaries are not
- * claim verification. Only an explicit human review record can admit a claim
- * as supported. This module validates the structure/provenance of that record;
- * it does not decide whether the claim is semantically true.
+ * claim verification. A supported review must bind to the exact source snapshot
+ * and excerpt. This deterministic gate checks integrity and structure; it does
+ * not authenticate reviewer identity or decide semantic truth.
  */
 import { createHash } from 'node:crypto';
 
@@ -17,6 +17,7 @@ export interface ClaimReviewRecord {
   canonicalSourceUrl: string;
   observedSourceUrl: string;
   observedAt: string;
+  sourceSnapshot: string;
   sourceContentHash: string;
   supportingExcerpt: string;
   reviewer: string;
@@ -31,12 +32,16 @@ export interface ClaimReviewResult {
   failures: string[];
 }
 
-/** Deterministic structural gate; never promotes an unreviewed claim. */
+function normalizeExcerpt(value: string): string {
+  return value.replace(/\\s+/g, ' ').trim();
+}
+
+/** Deterministic integrity gate; reviewer authentication and semantic truth are external. */
 export function validateClaimReview(record: Partial<ClaimReviewRecord>): ClaimReviewResult {
   const failures: string[] = [];
   const required: Array<keyof ClaimReviewRecord> = [
     'claimId', 'claim', 'sourceId', 'canonicalSourceUrl', 'observedSourceUrl',
-    'observedAt', 'sourceContentHash', 'supportingExcerpt', 'reviewer', 'decision', 'rationale',
+    'observedAt', 'sourceSnapshot', 'sourceContentHash', 'supportingExcerpt', 'reviewer', 'decision', 'rationale',
   ];
   for (const key of required) {
     if (typeof record[key] !== 'string' || !(record[key] as string).trim()) {
@@ -66,18 +71,29 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>): ClaimRe
   if (typeof record.sourceContentHash === 'string' && !/^[a-f0-9]{64}$/i.test(record.sourceContentHash)) {
     failures.push('sourceContentHash must be a SHA-256 hex digest');
   }
+  if (typeof record.sourceSnapshot === 'string' && typeof record.sourceContentHash === 'string'
+      && /^[a-f0-9]{64}$/i.test(record.sourceContentHash)) {
+    const actualHash = createHash('sha256').update(record.sourceSnapshot, 'utf8').digest('hex');
+    if (actualHash.toLowerCase() !== record.sourceContentHash.toLowerCase()) {
+      failures.push('sourceContentHash does not match sourceSnapshot');
+    }
+  }
+  if (typeof record.sourceSnapshot === 'string' && typeof record.supportingExcerpt === 'string'
+      && record.supportingExcerpt.trim()
+      && !normalizeExcerpt(record.sourceSnapshot).includes(normalizeExcerpt(record.supportingExcerpt))) {
+    failures.push('supportingExcerpt is not present in sourceSnapshot after whitespace normalization');
+  }
   if (record.decision !== 'supported' && record.decision !== 'contradicted' && record.decision !== 'insufficient') {
     failures.push('decision must be an explicit reviewer decision');
   }
-  if (typeof record.claim === 'string' && typeof record.supportingExcerpt === 'string'
-      && record.claim.trim() && record.supportingExcerpt.trim()
-      && record.supportingExcerpt.length > 12000) {
+  if (typeof record.supportingExcerpt === 'string' && record.supportingExcerpt.length > 12000) {
     failures.push('supportingExcerpt exceeds the 12,000 character review limit');
+  }
+  if (typeof record.sourceSnapshot === 'string' && record.sourceSnapshot.length > 2_000_000) {
+    failures.push('sourceSnapshot exceeds the 2,000,000 character admission limit');
   }
 
   const admissible = failures.length === 0 && record.decision === 'supported';
-  // Evidence references are admission handles, not merely review-record IDs.
-  // Contradicted/insufficient records must never expose an admissible evidenceRef.
   const evidenceRef = admissible
     ? 'claim-review-' + createHash('sha256').update(JSON.stringify({
         claimId: record.claimId,
