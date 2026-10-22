@@ -257,3 +257,15 @@ POST /api/agent-miner/compute-authorization
 POST /api/agent-miner/run
 GET /{*splat}
 ```
+
+## CI evidence snapshot (2026-10-23)
+
+Observed on migration branch commit `a3538ec4d022f77b1eb4cdfb064a9db67de9d525`:
+
+- GitHub Actions run `39803162732` (`GLORIFIER Cloudflare Worker`) completed successfully: dependency installation, TypeScript check, Worker tests, frontend build, and static-output check all passed.
+- The Cloudflare deploy step was **skipped** because production deployment is gated. This is build/test evidence, not a deployed-release verification.
+- Other GitHub Actions runs associated with this commit reported success for CI, CodeQL, dependency review, architecture validation, and verification-contract validation.
+- The combined commit-status API also reported an external `CircleCI Pipeline` status of `error` and a `Vercel` status of `success`. The Vercel build-verification and GitHub Pages workflows also reported success. These are evidence that legacy deployment/CI paths still exist; they are not evidence that the Cloudflare-only target has been achieved.
+- A live request to the public Worker endpoint could not be verified through the available inspection channel. Production health is therefore **not verified here**.
+
+Next gate: port a small, explicitly reviewed route group to Worker-native handlers with contract tests, then repeat this check. Do not remove Railway forwarding or Vercel deployment configuration until the corresponding Worker routes and frontend release are verified.
