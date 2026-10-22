@@ -21,6 +21,13 @@ const valid = {
 
 const supported = validateClaimReview(valid);
 assert.equal(supported.admissible, true);
+
+const whitespaceNormalized = validateClaimReview({
+  ...valid,
+  supportingExcerpt: 'The specification\n\tdefines   a versioned interface.',
+});
+assert.equal(whitespaceNormalized.admissible, true);
+assert.equal(whitespaceNormalized.failures.length, 0);
 assert.match(supported.evidenceRef ?? '', /^claim-review-[a-f0-9]{24}$/);
 
 const unreviewed = validateClaimReview({ ...valid, decision: undefined });
