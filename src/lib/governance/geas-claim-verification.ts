@@ -33,7 +33,7 @@ export interface ClaimReviewResult {
 }
 
 function normalizeExcerpt(value: string): string {
-  return value.replace(/\\s+/g, ' ').trim();
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 /** Deterministic integrity gate; reviewer authentication and semantic truth are external. */
