@@ -208,7 +208,7 @@ async function run(): Promise<void> {
     });
     shouldThrow = true;
     const unavailable = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/health'),
+      new Request('https://glorifier.glorifier.workers.dev/api/test-unavailable'),
       env,
     );
     assert.equal(unavailable.status, 502);
