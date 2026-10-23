@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 
-import { GLORIFIER_BUSINESS_MODEL_VERSION, GLORIFIER_BUSINESS_MODEL_ARCHITECTURE, pricingPlans } from './business-model-contract';
 export { GLORIFIER_BUSINESS_MODEL_VERSION, GLORIFIER_BUSINESS_MODEL_ARCHITECTURE, pricingPlans, getBusinessModel } from './business-model-contract';
 
 export type WorkUnitKind = 'research'|'analysis'|'automation'|'monitoring'|'coding'|'social-intelligence'|'opportunity-analysis'|'other';
