@@ -132,6 +132,24 @@ async function run(): Promise<void> {
     assert.equal(configuredIdentity.identity.domainOwnedOrVerified, true);
     assert.equal(capturedRequest, null, 'configured identity endpoint must remain Worker-native');
 
+    const assetCallsBeforeBusinessModel = assetCalls;
+    const businessModelResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/business-model'),
+      env,
+    );
+    assert.equal(businessModelResponse.status, 200);
+    assert.equal(businessModelResponse.headers.get('cache-control'), 'no-store');
+    const businessModelBody = await businessModelResponse.json() as {
+      ok: boolean;
+      model: { version: string; economicTruth: { verifiedRevenue: string }; governance: { autonomousFundMovement: boolean } };
+    };
+    assert.equal(businessModelBody.ok, true);
+    assert.equal(businessModelBody.model.version, 'GBM-2.0');
+    assert.equal(businessModelBody.model.economicTruth.verifiedRevenue, 'requires qualifying payment evidence');
+    assert.equal(businessModelBody.model.governance.autonomousFundMovement, false);
+    assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
+    assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
+
     const apiResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
       env,
