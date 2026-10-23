@@ -80,10 +80,12 @@ const healthResponse = (method: string, env: CloudflareEnv): Response => {
       databases: 'not-probed',
     },
   };
-  return Response.json(method === 'HEAD' ? null : body, {
-    status: 200,
-    headers: { 'Cache-Control': 'no-store, max-age=0', 'X-Content-Type-Options': 'nosniff' },
-  });
+  const headers = {
+    'Cache-Control': 'no-store, max-age=0',
+    'X-Content-Type-Options': 'nosniff',
+  };
+  if (method === 'HEAD') return new Response(null, { status: 200, headers });
+  return Response.json(body, { status: 200, headers });
 };
 
 const isBackendPath = (pathname: string): boolean =>
