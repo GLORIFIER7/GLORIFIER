@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: glorifier-cloudflare-${{ github.event_name == 'workflow_dispatch' && 'deploy' || github.event.pull_request.number || github.ref }}
+  group: glorifier-cloudflare-${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production) && 'deploy' || format('{0}-{1}', github.event_name, github.event.pull_request.number || github.ref) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
