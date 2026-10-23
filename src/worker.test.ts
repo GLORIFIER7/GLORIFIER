@@ -9,6 +9,7 @@ type TestEnv = {
   GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
+  GLORIFIER_BACKEND_ORIGIN?: string;
 };
 
 const originalFetch = globalThis.fetch;
@@ -140,6 +141,23 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://glorifier-artificial-intelligence-production.up.railway.app/api/runtime-verification?probeAi=false');
     assert.equal(getCapturedRequest().headers.get('x-forwarded-host'), 'glorifier.glorifier.workers.dev');
     assert.equal(await apiResponse.json().then((body: { ok?: boolean }) => body.ok), true);
+
+    capturedRequest = null;
+    const configuredBackendResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/configurable-backend?mode=probe'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test' },
+    );
+    assert.equal(configuredBackendResponse.status, 200);
+    assert.equal(getCapturedRequest().url, 'https://api.example.test/api/configurable-backend?mode=probe');
+
+    capturedRequest = null;
+    const invalidBackendResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/invalid-backend-config'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: 'http://insecure.example.test' },
+    );
+    assert.equal(invalidBackendResponse.status, 502);
+    assert.equal(await invalidBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
+    assert.equal(capturedRequest, null, 'invalid backend origins must fail closed without making a request');
 
     upstreamResponse = new Response('{"ok":false,"error":"not found"}', {
       status: 404,
