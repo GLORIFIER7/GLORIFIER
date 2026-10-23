@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: "Explicitly authorize the production Cloudflare deployment"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -54,7 +60,7 @@ jobs:
 
   deploy-production:
     needs: validate-and-build
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.deploy_production == true && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
