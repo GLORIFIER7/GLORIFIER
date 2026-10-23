@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
+import type { StateEvidence as ReconciliationStateEvidence } from './geas-architecture-reconciliation';
 
 export type ArchitectureDomain =
   | 'enterprise-architecture'
@@ -33,7 +34,18 @@ export type EvidenceSensitivity = 'public' | 'internal' | 'confidential' | 'rest
 export interface EvidenceGovernance { sensitivity: EvidenceSensitivity; retentionDays: number; disclosure: 'full' | 'redacted' | 'selective'; minimizationRequired: boolean; }
 export interface AgentTelemetryContract { version: 'GEAS-OTEL-GENAI-1'; operation: 'create_agent' | 'invoke_agent' | 'execute_tool' | 'invoke_workflow' | 'plan'; traceId: string; agentId: string; provider?: string; model?: string; tool?: string; policyDecisionRef?: string; evidenceRefs: string[]; }
 export interface FinOpsEvidenceContract { specification: 'FOCUS-1.4'; workloadId: string; provider: string; usageQuantity?: number; usageUnit?: string; billedCost?: number; currency?: string; invoiceRef?: string; billingPeriod?: string; commitmentRef?: string; verifiedOutcomeRef?: string; }
-export interface ArchitectureReconciliationContract { resourceId: string; desired: Record<string, unknown>; declared: Record<string, unknown>; deployed: Record<string, unknown>; observed: Record<string, unknown>; verified: Record<string, unknown>; status: 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN'; evidenceRefs: string[]; }
+export interface ArchitectureReconciliationContract {
+  resourceId: string;
+  desired: Record<string, unknown>;
+  declared: Record<string, unknown>;
+  deployed: Record<string, unknown>;
+  observed: Record<string, unknown>;
+  verified: Record<string, unknown>;
+  status: 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
+  /** Aggregate references are traceability-only; every state also needs snapshot-bound evidence. */
+  evidenceRefs: string[];
+  evidenceByState: Record<ArchitectureState, ReconciliationStateEvidence>;
+}
 
 export interface ArchitectureSource {
   id: string;
