@@ -32,23 +32,53 @@ export interface ReconciliationResult {
   reason: string;
 }
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
-  if (value && typeof value === 'object') {
-    const object = value as Record<string, unknown>;
-    return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonical(object[key])).join(',') + '}';
+function canonical(value: unknown, ancestors = new WeakSet<object>()): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Architecture snapshots must contain only finite JSON numbers.');
+    return JSON.stringify(value);
   }
-  return JSON.stringify(value) ?? 'undefined';
+  if (typeof value !== 'object') {
+    throw new TypeError('Architecture snapshots must contain only JSON-compatible values; undefined, functions, symbols, and bigint are not supported.');
+  }
+  if (ancestors.has(value)) throw new TypeError('Architecture snapshots must not contain circular references.');
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) return '[' + value.map((item) => canonical(item, ancestors)).join(',') + ']';
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError('Architecture snapshots must contain only plain JSON objects.');
+    }
+    const object = value as Record<string, unknown>;
+    return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonical(object[key], ancestors)).join(',') + '}';
+  } finally {
+    ancestors.delete(value);
+  }
 }
 
-/** Stable SHA-256 binding for JSON-like architecture state snapshots; not a signature or proof of truth. */
+/** Stable SHA-256 binding for JSON-compatible architecture state snapshots; not a signature or proof of truth. */
 export function hashArchitectureSnapshot(snapshot: Record<string, unknown>): string {
   return createHash('sha256').update(canonical(snapshot), 'utf8').digest('hex');
 }
 
+function canonicalOrNull(value: unknown): string | null {
+  try {
+    return canonical(value);
+  } catch {
+    return null;
+  }
+}
+
 function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<string, unknown>): string[] {
   return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
-    .filter((key) => !(key in left) || !(key in right) || canonical(left[key]) !== canonical(right[key]));
+    .filter((key) => {
+      if (!(key in left) || !(key in right)) return true;
+      const leftValue = canonicalOrNull(left[key]);
+      const rightValue = canonicalOrNull(right[key]);
+      return leftValue === null || rightValue === null || leftValue !== rightValue;
+    });
 }
 
 function isFreshStateEvidence(
@@ -60,7 +90,13 @@ function isFreshStateEvidence(
   if (!evidence || !Array.isArray(evidence.refs) || evidence.refs.length === 0
       || evidence.refs.some((ref) => typeof ref !== 'string' || !ref.trim())) return false;
   if (typeof evidence.snapshotHash !== 'string' || !/^[a-f0-9]{64}$/i.test(evidence.snapshotHash)) return false;
-  if (hashArchitectureSnapshot(snapshot) !== evidence.snapshotHash.toLowerCase()) return false;
+  let computedHash: string;
+  try {
+    computedHash = hashArchitectureSnapshot(snapshot);
+  } catch {
+    return false;
+  }
+  if (computedHash !== evidence.snapshotHash.toLowerCase()) return false;
   const observedAt = Date.parse(evidence.observedAt);
   const validUntil = Date.parse(evidence.validUntil);
   return Number.isFinite(observedAt) && Number.isFinite(validUntil)
@@ -82,7 +118,9 @@ export function reconcileArchitectureStates(input: ReconciliationInput, now: Dat
     isFreshStateEvidence(evidence, snapshot, now.getTime()));
   const evidenceRefs = [...new Set([
     ...(input.evidenceRefs ?? []).filter((ref) => typeof ref === 'string' && ref.trim()),
-    ...stateEvidence.flatMap(({ evidence }) => evidence?.refs ?? []),
+    ...stateEvidence.flatMap(({ evidence }) => Array.isArray(evidence?.refs)
+      ? evidence.refs.filter((ref) => typeof ref === 'string' && ref.trim())
+      : []),
   ])];
   const mismatches: ReconciliationResult['mismatches'] = [];
 
