@@ -1,0 +1,29 @@
+version: 2.1
+
+jobs:
+  validate-cloudflare-worker:
+    docker:
+      - image: cimg/node:24.16.0
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          name: Install locked dependencies
+          command: npm ci --no-audit --no-fund
+      - run:
+          name: Type-check
+          command: npm run lint
+      - run:
+          name: Test Cloudflare Worker
+          command: npm run test:cloudflare-worker
+      - run:
+          name: Build frontend
+          command: npm run build:frontend
+      - run:
+          name: Verify static output
+          command: test -s dist/index.html
+
+workflows:
+  validate:
+    jobs:
+      - validate-cloudflare-worker
