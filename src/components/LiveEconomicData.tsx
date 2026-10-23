@@ -53,7 +53,7 @@ export const LiveEconomicData: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
           <h2 className="text-base font-bold text-white">GLORIFIER Live Economic Data</h2>
-          <p className="text-xs text-slate-400 mt-1">Source-backed observations refresh every 30 seconds.</p>
+          <p className="text-xs text-slate-400 mt-1">Refresh is attempted every 30 seconds; values remain NOT VERIFIED until source and evidence checks pass.</p>
         </div>
         <span className="inline-flex w-fit rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-300">NOT VERIFIED</span>
       </div>
