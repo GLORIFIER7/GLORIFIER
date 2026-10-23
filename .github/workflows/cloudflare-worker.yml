@@ -80,6 +80,11 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Build frontend for deployment
+        run: npm run build:frontend
+        env:
+          CLOUDFLARE_BUILD: "true"
+
       - name: Verify deployment credentials
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
