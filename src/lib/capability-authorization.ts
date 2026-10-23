@@ -57,7 +57,8 @@ const POLICIES: Record<string, CapabilityPolicy> = {
 };
 
 export function getCapabilityPolicy(capability: string): CapabilityPolicy | null {
-  return POLICIES[capability.trim().toLowerCase()] || null;
+  const key = capability.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(POLICIES, key) ? POLICIES[key] : null;
 }
 
 export function authorizeCapability(input: { capability: string; requestedBy?: string; humanApproved?: boolean }) {
