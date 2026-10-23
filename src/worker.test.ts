@@ -61,6 +61,43 @@ async function run(): Promise<void> {
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
 
+    const healthAssetCallsBefore = assetCalls;
+    const workerHealth = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/health'),
+      env,
+    );
+    assert.equal(workerHealth.status, 200);
+    assert.equal(workerHealth.headers.get('cache-control'), 'no-store, max-age=0');
+    const workerHealthBody = await workerHealth.json() as {
+      ok: boolean;
+      status: string;
+      layer: string;
+      dependencies: { backend: string; authentication: string; databases: string };
+    };
+    assert.equal(workerHealthBody.ok, true);
+    assert.equal(workerHealthBody.status, 'worker-ready');
+    assert.equal(workerHealthBody.layer, 'cloudflare-worker');
+    assert.equal(workerHealthBody.dependencies.backend, 'not-probed');
+    assert.equal(workerHealthBody.dependencies.authentication, 'not-probed');
+    assert.equal(workerHealthBody.dependencies.databases, 'not-probed');
+    assert.equal(capturedRequest, null, 'Worker health must not call Railway');
+    assert.equal(assetCalls, healthAssetCallsBefore, 'Worker health must not fall through to static assets');
+
+    const headHealth = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/health', { method: 'HEAD' }),
+      env,
+    );
+    assert.equal(headHealth.status, 200);
+    assert.equal(await headHealth.text(), '');
+
+    const invalidHealthMethod = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/health', { method: 'POST' }),
+      env,
+    );
+    assert.equal(invalidHealthMethod.status, 405);
+    assert.equal(invalidHealthMethod.headers.get('allow'), 'GET, HEAD');
+    assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to Railway');
+
     const assetCallsBeforeIdentity = assetCalls;
     const identityResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/identity'),

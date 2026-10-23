@@ -56,6 +56,36 @@ const identityResponse = (env: CloudflareEnv): Response => {
   });
 };
 
+const healthResponse = (method: string, env: CloudflareEnv): Response => {
+  if (method !== 'GET' && method !== 'HEAD') {
+    return Response.json({ ok: false, error: 'Method not allowed' }, {
+      status: 405,
+      headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+
+  // This is deliberately a Worker-runtime health check, not a claim that
+  // provider APIs, authentication, or databases have been verified.
+  const body = {
+    ok: true,
+    status: 'worker-ready',
+    layer: 'cloudflare-worker',
+    checks: {
+      worker: 'ok',
+      assetsBindingConfigured: Boolean(env.ASSETS),
+    },
+    dependencies: {
+      backend: 'not-probed',
+      authentication: 'not-probed',
+      databases: 'not-probed',
+    },
+  };
+  return Response.json(method === 'HEAD' ? null : body, {
+    status: 200,
+    headers: { 'Cache-Control': 'no-store, max-age=0', 'X-Content-Type-Options': 'nosniff' },
+  });
+};
+
 const isBackendPath = (pathname: string): boolean =>
   /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
@@ -115,6 +145,11 @@ const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL): void => {
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
+
+    // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
+    if (incomingUrl.pathname === '/api/health') {
+      return healthResponse(request.method, env);
+    }
 
     // First Worker-native API route: identity configuration is read only from
     // Cloudflare environment bindings and never depends on the legacy backend.
