@@ -1,3 +1,5 @@
+import { getBusinessModel } from './lib/business-model-contract';
+
 type CloudflareEnv = {
   ASSETS: {
     fetch(request: Request): Promise<Response>;
@@ -174,6 +176,14 @@ export default {
     // Cloudflare environment bindings and never depends on the legacy backend.
     if (request.method === 'GET' && incomingUrl.pathname === '/api/identity') {
       return identityResponse(env);
+    }
+
+    // The business model is a static, evidence-labelled contract; serve it from the Worker
+    // without depending on the unavailable legacy API runtime or a database connection.
+    if (request.method === 'GET' && incomingUrl.pathname === '/api/business-model') {
+      return Response.json({ ok: true, model: getBusinessModel() }, {
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
     }
 
     // Backend endpoints must never fall through to the SPA's index.html.
