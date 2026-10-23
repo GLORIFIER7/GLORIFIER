@@ -28,5 +28,8 @@ for (const id of ['tool.invoke', 'knowledge.accept_answer', 'service.publish', '
   assert.equal(authorizeCapability({ capability: id }).allowed, false, `${id} must require human approval`);
   assert.equal(authorizeCapability({ capability: id, humanApproved: true }).allowed, true);
 }
-for (const id of ['not.registered', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {\n  assert.equal(getCapabilityPolicy(id), null, `${id} must not resolve through Object.prototype`);\n  assert.equal(authorizeCapability({ capability: id }).allowed, false, `${id} must fail closed`);\n}
+for (const id of ['not.registered', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+  assert.equal(getCapabilityPolicy(id), null, `${id} must not resolve through Object.prototype`);
+  assert.equal(authorizeCapability({ capability: id }).allowed, false, `${id} must fail closed`);
+}
 console.log('Capability authorization regression tests: PASS');
