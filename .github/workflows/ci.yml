@@ -85,6 +85,9 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: Governed capability catalog regression tests
+        run: npm run test:capability-authorization
+
       - name: Opportunity discovery commercial qualification regression tests
         run: npm run test:opportunity-discovery
 

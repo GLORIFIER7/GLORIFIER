@@ -54,7 +54,8 @@
     "test:nvidia-provider": "tsx src/lib/ai/providers/nvidia-provider.test.ts",
     "test:new-id": "tsx src/lib/new-id.test.ts",
     "test:glr-common": "tsx src/lib/glr-rpc-verifier-common.test.ts",
-    "test:opportunity-discovery": "tsx src/lib/24x7-opportunity-discovery.test.ts"
+    "test:opportunity-discovery": "tsx src/lib/24x7-opportunity-discovery.test.ts",
+    "test:capability-authorization": "tsx src/lib/capability-authorization.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
