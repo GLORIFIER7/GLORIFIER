@@ -63,9 +63,22 @@ export function hashArchitectureSnapshot(snapshot: Record<string, unknown>): str
   return createHash('sha256').update(canonical(snapshot), 'utf8').digest('hex');
 }
 
+function canonicalOrNull(value: unknown): string | null {
+  try {
+    return canonical(value);
+  } catch {
+    return null;
+  }
+}
+
 function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<string, unknown>): string[] {
   return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
-    .filter((key) => !(key in left) || !(key in right) || canonical(left[key]) !== canonical(right[key]));
+    .filter((key) => {
+      if (!(key in left) || !(key in right)) return true;
+      const leftValue = canonicalOrNull(left[key]);
+      const rightValue = canonicalOrNull(right[key]);
+      return leftValue === null || rightValue === null || leftValue !== rightValue;
+    });
 }
 
 function isFreshStateEvidence(
