@@ -28,6 +28,12 @@ assert.equal(
   hashArchitectureSnapshot({ version: 1, region: 'test' }),
   'snapshot hashes must be stable across object key order',
 );
+assert.throws(() => hashArchitectureSnapshot({ value: undefined }), /JSON-compatible values/);
+assert.throws(() => hashArchitectureSnapshot({ value: Number.NaN }), /finite JSON numbers/);
+const circular: Record<string, unknown> = {};
+circular.self = circular;
+assert.throws(() => hashArchitectureSnapshot(circular), /circular references/);
+assert.throws(() => hashArchitectureSnapshot({ value: () => 'not-json' }), /JSON-compatible values/);
 
 assert.equal(reconcileArchitectureStates(base, now).status, 'ALIGNED');
 assert.equal(reconcileArchitectureStates({ ...base, observed: undefined }, now).status, 'UNKNOWN');
@@ -88,6 +94,14 @@ const drift = reconcileArchitectureStates({
 assert.equal(drift.status, 'DRIFT', 'mismatches may be classified as drift only when each state evidence hash matches its snapshot');
 assert.ok(drift.mismatches.some((mismatch) => mismatch.expectedState === 'deployed' && mismatch.actualState === 'observed' && mismatch.keys.includes('version')));
 
+const malformedEvidence = {
+  ...evidenceByState,
+  observed: { ...evidenceByState.observed, refs: 7 },
+} as unknown as typeof evidenceByState;
+const malformed = reconcileArchitectureStates({ ...base, evidenceByState: malformedEvidence }, now);
+assert.equal(malformed.status, 'UNKNOWN');
+assert.ok(!malformed.evidenceRefs.includes(7 as unknown as string), 'malformed references must not leak into the result');
+
 const keyOrder = reconcileArchitectureStates({
   ...base,
   desired: { region: 'test', version: 1 },
@@ -98,4 +112,4 @@ const keyOrder = reconcileArchitectureStates({
 }, now);
 assert.equal(keyOrder.status, 'ALIGNED');
 
-process.stdout.write('GEAS five-state snapshot-binding and freshness tests passed.\\n');
+process.stdout.write('GEAS five-state snapshot-binding, canonicalization, and freshness tests passed.\\n');
