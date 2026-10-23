@@ -8,9 +8,26 @@ type CloudflareEnv = {
   GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
+  GLORIFIER_BACKEND_ORIGIN?: string;
 };
 
-const BACKEND_ORIGIN = 'https://glorifier-artificial-intelligence-production.up.railway.app';
+const LEGACY_BACKEND_ORIGIN = 'https://glorifier-artificial-intelligence-production.up.railway.app';
+
+// The backend is temporarily configurable so the Worker can target a reviewed replacement
+// without requiring a source edit. Accept an HTTPS origin only; never accept paths or credentials.
+const resolveBackendOrigin = (value?: string): string | null => {
+  const candidate = configured(value);
+  if (!candidate) return LEGACY_BACKEND_ORIGIN;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+};
 
 const configured = (value: string | undefined): string => (value || '').trim();
 const identityResponse = (env: CloudflareEnv): Response => {
@@ -109,8 +126,8 @@ const isApiPath = (pathname: string): boolean =>
 const looksLikeStaticAsset = (pathname: string): boolean =>
   /\.(?:m?js|css|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf|json|webmanifest)$/i.test(pathname);
 
-const createUpstreamRequest = (request: Request, incomingUrl: URL): Request => {
-  const upstreamUrl = new URL(incomingUrl.pathname + incomingUrl.search, BACKEND_ORIGIN);
+const createUpstreamRequest = (request: Request, incomingUrl: URL, backendOrigin: string): Request => {
+  const upstreamUrl = new URL(incomingUrl.pathname + incomingUrl.search, backendOrigin);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete('host');
   requestHeaders.delete('content-length');
@@ -130,13 +147,13 @@ const createUpstreamRequest = (request: Request, incomingUrl: URL): Request => {
   return new Request(upstreamUrl, requestInit);
 };
 
-const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL): void => {
+const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL, backendOrigin: string): void => {
   const location = headers.get('location');
   if (!location) return;
 
   try {
-    const redirectUrl = new URL(location, BACKEND_ORIGIN);
-    if (redirectUrl.origin === BACKEND_ORIGIN) {
+    const redirectUrl = new URL(location, backendOrigin);
+    if (redirectUrl.origin === backendOrigin) {
       headers.set('Location', incomingUrl.origin + redirectUrl.pathname + redirectUrl.search + redirectUrl.hash);
     }
   } catch {
@@ -176,8 +193,16 @@ export default {
       return assetResponse;
     }
 
+    const backendOrigin = resolveBackendOrigin(env.GLORIFIER_BACKEND_ORIGIN);
+    if (!backendOrigin) {
+      return apiError(
+        'GLORIFIER_BACKEND_ORIGIN must be a valid HTTPS origin without credentials, path, query, or fragment.',
+        'BACKEND_ORIGIN_INVALID',
+      );
+    }
+
     try {
-      const upstreamResponse = await fetch(createUpstreamRequest(request, incomingUrl));
+      const upstreamResponse = await fetch(createUpstreamRequest(request, incomingUrl, backendOrigin));
       const upstreamContentType = upstreamResponse.headers.get('content-type')?.toLowerCase() || '';
       if (isApiPath(incomingUrl.pathname) && upstreamContentType.includes('text/html')) {
         return apiError(
@@ -188,7 +213,7 @@ export default {
       const responseHeaders = new Headers(upstreamResponse.headers);
       responseHeaders.set('Cache-Control', 'no-store');
       responseHeaders.set('X-Content-Type-Options', 'nosniff');
-      rewriteBackendRedirect(responseHeaders, incomingUrl);
+      rewriteBackendRedirect(responseHeaders, incomingUrl, backendOrigin);
 
       return new Response(upstreamResponse.body, {
         status: upstreamResponse.status,

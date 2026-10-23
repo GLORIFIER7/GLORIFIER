@@ -7,7 +7,7 @@ Cloudflare Workers is the only approved production hosting and application execu
 ## Evidence from the current repository
 
 - `wrangler.jsonc` already builds a Worker entry point at `src/worker.ts` and serves the Vite output from `dist/`.
-- `src/worker.ts` has Worker-native `GET /api/health` and `GET /api/identity` handlers, but still forwards other `/api/*` and `/auth/*` requests to `https://glorifier-artificial-intelligence-production.up.railway.app`. It is therefore not Railway-independent.
+- `src/worker.ts` has Worker-native `GET /api/health` and `GET /api/identity` handlers. Other `/api/*` and `/auth/*` requests are still proxied to the legacy Railway origin by default, so the Worker is not Railway-independent. A reviewed `GLORIFIER_BACKEND_ORIGIN` HTTPS-origin binding can redirect that proxy to a replacement runtime without a source edit; this is a migration bridge, not proof that the target runtime exists or is healthy.
 - `src/worker.test.ts` explicitly asserts that API and authentication requests reach Railway.
 - `server.ts` is a large Express/Node application (about 198 KB in the repository API response) with many routes, Node-specific imports, Postgres access, provider SDKs, and daemon initialization. It cannot safely be treated as a drop-in Workers module.
 - `vercel.json` still declares Vercel routing and forwards API/auth paths to Railway.
@@ -18,7 +18,7 @@ Cloudflare Workers is the only approved production hosting and application execu
 1. Inventory every Express route and the frontend caller, including request/response schemas, auth/owner/internal-service guards, rate limits, webhook verification, and persistence side effects.
 2. Extract runtime-independent business logic from `server.ts` into modules that do not require Express, Node-only APIs, or process-global startup side effects.
 3. Port endpoints to Worker-native `fetch(Request, Env)` handlers in groups. `GET /api/health` is a Worker-runtime-only probe and explicitly reports backend/auth/database as `not-probed`; `GET /api/identity` is also Worker-native. Add contract tests for success, validation errors, authentication, authorization, rate limiting, provider failures, and persistence.
-4. Replace Node-specific dependencies with Workers-compatible APIs or bindings. Use Cloudflare bindings/secrets for runtime configuration; never commit credentials.
+4. Replace Node-specific dependencies with Workers-compatible APIs or bindings. Use Cloudflare bindings/secrets for runtime configuration; never commit credentials. Until route migration is complete, `GLORIFIER_BACKEND_ORIGIN` may point the proxy at a reviewed HTTPS origin only (origin only; no credentials, path, query, or fragment). The legacy Railway origin remains the fallback when the binding is unset, so configure and smoke-test a replacement before claiming independence.
 5. Decide and document database access for Supabase and Neon. Do not assume their records synchronize automatically; implement and test explicit ownership, idempotency, conflict resolution, and recovery before dual writes.
 6. Move scheduled/background work to supported Cloudflare primitives (Cron Triggers, Queues, Workflows, or Durable Objects as appropriate) with idempotency and bounded execution. Do not start infinite daemons inside request handlers.
 7. Remove Railway forwarding only after the relevant Worker-native route group passes contract tests. Remove Vercel configuration and deployment automation only after the Cloudflare frontend deployment is verified.
