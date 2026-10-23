@@ -2,9 +2,59 @@ type CloudflareEnv = {
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
+  GLORIFIER_CANONICAL_DOMAIN?: string;
+  GLORIFIER_ORG_EMAIL?: string;
+  GLORIFIER_EMAIL_MODE?: string;
+  GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
+  GLORIFIER_DOMAIN_STATUS?: string;
+  GLORIFIER_PUBLIC_URL?: string;
 };
 
 const BACKEND_ORIGIN = 'https://glorifier-artificial-intelligence-production.up.railway.app';
+
+const configured = (value: string | undefined): string => (value || '').trim();
+const identityResponse = (env: CloudflareEnv): Response => {
+  const canonicalDomain = configured(env.GLORIFIER_CANONICAL_DOMAIN).toLowerCase();
+  const primaryEmail = configured(env.GLORIFIER_ORG_EMAIL).toLowerCase();
+  const emailMode = configured(env.GLORIFIER_EMAIL_MODE || 'forwarding').toLowerCase();
+  const emailForwardingTargetConfigured = Boolean(configured(env.GLORIFIER_EMAIL_FORWARDING_TARGET));
+  const domainStatus = configured(env.GLORIFIER_DOMAIN_STATUS || 'not-configured').toLowerCase();
+  const website = configured(env.GLORIFIER_PUBLIC_URL);
+  const domainConfigured = Boolean(canonicalDomain);
+  const emailConfigured = Boolean(primaryEmail);
+  const domainOwnedOrVerified = ['owned', 'verified', 'active'].includes(domainStatus);
+  const identity = {
+    organization: 'GLORIFIER',
+    canonicalDomain,
+    primaryEmail,
+    emailMode,
+    emailForwardingTargetConfigured,
+    domainStatus,
+    website,
+    principles: [
+      'Domain identity is independent from hosting/provider identity.',
+      'Email routing is separate from application authentication.',
+      'No paid mailbox is required for the architecture to operate.',
+      'A domain must be controlled before an @domain address can be authoritative.',
+      'Provider replacement must not change GLORIFIER organizational identity.',
+      'Human owner remains final authority for consequential actions.',
+    ],
+    ready: domainConfigured && emailConfigured && domainOwnedOrVerified,
+    domainConfigured,
+    emailConfigured,
+    domainOwnedOrVerified,
+    nextAction: !domainConfigured
+      ? 'Set GLORIFIER_CANONICAL_DOMAIN after the organization controls its domain.'
+      : !domainOwnedOrVerified
+        ? 'Verify domain ownership/control before treating the domain as authoritative.'
+        : !emailConfigured
+          ? 'Configure GLORIFIER_ORG_EMAIL after an @domain mailbox or forwarding address exists.'
+          : 'Identity configuration is ready.',
+  };
+  return Response.json({ ok: true, identity }, {
+    headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+  });
+};
 
 const isBackendPath = (pathname: string): boolean =>
   /^\/(?:api|auth)(?:\/|$)/.test(pathname);
@@ -65,6 +115,12 @@ const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL): void => {
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
+
+    // First Worker-native API route: identity configuration is read only from
+    // Cloudflare environment bindings and never depends on the legacy backend.
+    if (request.method === 'GET' && incomingUrl.pathname === '/api/identity') {
+      return identityResponse(env);
+    }
 
     // Backend endpoints must never fall through to the SPA's index.html.
     if (!isBackendPath(incomingUrl.pathname)) {

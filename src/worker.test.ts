@@ -3,6 +3,12 @@ import worker from './worker.ts';
 
 type TestEnv = {
   ASSETS: { fetch(request: Request): Promise<Response> };
+  GLORIFIER_CANONICAL_DOMAIN?: string;
+  GLORIFIER_ORG_EMAIL?: string;
+  GLORIFIER_EMAIL_MODE?: string;
+  GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
+  GLORIFIER_DOMAIN_STATUS?: string;
+  GLORIFIER_PUBLIC_URL?: string;
 };
 
 const originalFetch = globalThis.fetch;
@@ -54,6 +60,39 @@ async function run(): Promise<void> {
     assert.equal(missingAsset.status, 404, 'SPA HTML must not be served as a missing JavaScript asset');
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
+
+    const assetCallsBeforeIdentity = assetCalls;
+    const identityResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/identity'),
+      env,
+    );
+    assert.equal(identityResponse.status, 200);
+    assert.equal(identityResponse.headers.get('cache-control'), 'no-store');
+    const identityBody = await identityResponse.json() as { ok: boolean; identity: { organization: string; ready: boolean; domainStatus: string; nextAction: string } };
+    assert.equal(identityBody.ok, true);
+    assert.equal(identityBody.identity.organization, 'GLORIFIER');
+    assert.equal(identityBody.identity.ready, false, 'identity must not be called ready without verified environment configuration');
+    assert.equal(identityBody.identity.domainStatus, 'not-configured');
+    assert.match(identityBody.identity.nextAction, /Set GLORIFIER_CANONICAL_DOMAIN/);
+    assert.equal(capturedRequest, null, 'identity endpoint must not call Railway');
+    assert.equal(assetCalls, assetCallsBeforeIdentity, 'identity endpoint must not fall through to static assets');
+
+    const configuredIdentityResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/identity'),
+      {
+        ...env,
+        GLORIFIER_CANONICAL_DOMAIN: 'Example.org',
+        GLORIFIER_ORG_EMAIL: 'Owner@Example.org',
+        GLORIFIER_DOMAIN_STATUS: 'verified',
+        GLORIFIER_PUBLIC_URL: 'https://example.org',
+      },
+    );
+    const configuredIdentity = await configuredIdentityResponse.json() as { identity: { ready: boolean; canonicalDomain: string; primaryEmail: string; domainOwnedOrVerified: boolean } };
+    assert.equal(configuredIdentity.identity.ready, true);
+    assert.equal(configuredIdentity.identity.canonicalDomain, 'example.org');
+    assert.equal(configuredIdentity.identity.primaryEmail, 'owner@example.org');
+    assert.equal(configuredIdentity.identity.domainOwnedOrVerified, true);
+    assert.equal(capturedRequest, null, 'configured identity endpoint must remain Worker-native');
 
     const apiResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
