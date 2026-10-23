@@ -12,7 +12,7 @@ Status: source and policy refinements; this document does not claim runtime cont
 7. No source scan or recommendation authorizes irreversible production changes.
 
 ## Five-state reconciliation
-Record desired, declared, deployed, observed, and verified states separately. A comparison is valid only when both values have evidence references and timestamps. Empty evidence references must never produce ALIGNED or VERIFIED. Deployment records do not prove observed health; health telemetry does not prove a security control works.
+Record desired, declared, deployed, observed, and verified states separately. Each state's evidence must include nonempty references, observation/expiry timestamps, and a SHA-256 hash of that state's canonicalized snapshot. The reconciler recomputes the hash; evidence for an earlier or different snapshot must yield UNKNOWN, not ALIGNED or DRIFT. Hash binding proves integrity linkage only: it does not authenticate the referenced artifact or establish semantic truth. Deployment records do not prove observed health; health telemetry does not prove a security control works.
 
 The complete outcome set is **VERIFIED, ALIGNED, PARTIALLY_VERIFIED, DRIFT, UNKNOWN**. Apply these rules in order:
 1. **UNKNOWN** — any required evidence is missing, stale, unavailable, or contradictory. Do not infer alignment or failure from absent evidence.

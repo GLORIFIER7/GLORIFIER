@@ -33,6 +33,8 @@ requirePattern(/irreversibleChangesExecuted:\s*false/,
   'scan result must explicitly prohibit autonomous irreversible changes');
 requirePattern(/architectureStateModel:\s*\['desired',\s*'declared',\s*'deployed',\s*'observed',\s*'verified'\]/,
   'five-state architecture model must remain explicit');
+requirePattern(/export interface ArchitectureReconciliationContract\s*\{[^}]*evidenceByState:\s*Record<ArchitectureState,\s*ReconciliationStateEvidence>/,
+  'five-state reconciliation contract must require snapshot-bound evidence for every state');
 
 // Drift is not allowed to claim a confirmed mismatch without traceable evidence.
 requirePattern(/export interface DriftFinding[\s\S]*?evidenceRefs:\s*string\[\]/,

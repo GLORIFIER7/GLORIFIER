@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
 export type ReconciliationStatus = 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
 
@@ -5,6 +7,8 @@ export interface StateEvidence {
   refs: string[];
   observedAt: string;
   validUntil: string;
+  /** SHA-256 of the canonicalized state snapshot this evidence is intended to support. */
+  snapshotHash: string;
 }
 
 export interface ReconciliationInput {
@@ -34,7 +38,12 @@ function canonical(value: unknown): string {
     const object = value as Record<string, unknown>;
     return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonical(object[key])).join(',') + '}';
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? 'undefined';
+}
+
+/** Stable SHA-256 binding for JSON-like architecture state snapshots; not a signature or proof of truth. */
+export function hashArchitectureSnapshot(snapshot: Record<string, unknown>): string {
+  return createHash('sha256').update(canonical(snapshot), 'utf8').digest('hex');
 }
 
 function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<string, unknown>): string[] {
@@ -42,9 +51,16 @@ function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<strin
     .filter((key) => !(key in left) || !(key in right) || canonical(left[key]) !== canonical(right[key]));
 }
 
-function isFreshStateEvidence(evidence: StateEvidence | undefined, nowMs: number): evidence is StateEvidence {
+function isFreshStateEvidence(
+  evidence: StateEvidence | undefined,
+  snapshot: Record<string, unknown> | null | undefined,
+  nowMs: number,
+): evidence is StateEvidence {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return false;
   if (!evidence || !Array.isArray(evidence.refs) || evidence.refs.length === 0
       || evidence.refs.some((ref) => typeof ref !== 'string' || !ref.trim())) return false;
+  if (typeof evidence.snapshotHash !== 'string' || !/^[a-f0-9]{64}$/i.test(evidence.snapshotHash)) return false;
+  if (hashArchitectureSnapshot(snapshot) !== evidence.snapshotHash.toLowerCase()) return false;
   const observedAt = Date.parse(evidence.observedAt);
   const validUntil = Date.parse(evidence.validUntil);
   return Number.isFinite(observedAt) && Number.isFinite(validUntil)
@@ -61,11 +77,12 @@ export function reconcileArchitectureStates(input: ReconciliationInput, now: Dat
     const value = input[state];
     return !!value && typeof value === 'object' && !Array.isArray(value);
   });
-  const stateEvidence = states.map((state) => input.evidenceByState?.[state]);
-  const allStateEvidenceFresh = stateEvidence.every((evidence) => isFreshStateEvidence(evidence, now.getTime()));
+  const stateEvidence = states.map((state) => ({ state, evidence: input.evidenceByState?.[state], snapshot: input[state] }));
+  const allStateEvidenceFresh = stateEvidence.every(({ evidence, snapshot }) =>
+    isFreshStateEvidence(evidence, snapshot, now.getTime()));
   const evidenceRefs = [...new Set([
     ...(input.evidenceRefs ?? []).filter((ref) => typeof ref === 'string' && ref.trim()),
-    ...stateEvidence.flatMap((evidence) => evidence?.refs ?? []),
+    ...stateEvidence.flatMap(({ evidence }) => evidence?.refs ?? []),
   ])];
   const mismatches: ReconciliationResult['mismatches'] = [];
 
@@ -86,7 +103,7 @@ export function reconcileArchitectureStates(input: ReconciliationInput, now: Dat
     reason = 'One or more architecture states are missing; no alignment or drift is inferred.';
   } else if (!allStateEvidenceFresh) {
     status = 'UNKNOWN';
-    reason = 'Each architecture state requires its own nonempty, timestamped, currently valid evidence references.';
+    reason = 'Each architecture state requires fresh timestamped evidence references and a SHA-256 snapshot hash matching that state.';
   } else if (mismatches.length) {
     status = 'DRIFT';
     reason = 'Adjacent architecture states differ and each state has fresh evidence metadata; validate evidence content before acting.';
