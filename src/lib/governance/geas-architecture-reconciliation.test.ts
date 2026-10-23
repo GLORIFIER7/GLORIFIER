@@ -43,6 +43,20 @@ assert.equal(reconcileArchitectureStates({
   evidenceByState: { ...evidenceByState, observed: undefined },
 }, now).status, 'UNKNOWN');
 
+const nestedUndefined = reconcileArchitectureStates({
+  ...base,
+  observed: { version: undefined },
+}, now);
+assert.equal(nestedUndefined.status, 'UNKNOWN', 'nested undefined values must fail closed without throwing');
+
+const nestedCircular: Record<string, unknown> = {};
+nestedCircular.self = nestedCircular;
+const circularReconciliation = reconcileArchitectureStates({
+  ...base,
+  observed: nestedCircular,
+}, now);
+assert.equal(circularReconciliation.status, 'UNKNOWN', 'circular snapshots must fail closed without throwing');
+
 const stale = reconcileArchitectureStates({
   ...base,
   evidenceByState: {
