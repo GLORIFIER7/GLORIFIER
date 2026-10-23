@@ -51,20 +51,56 @@ jobs:
       - name: Validate Worker bundle and Wrangler configuration (no deploy)
         run: npx --yes wrangler@4.151.1 deploy --dry-run
 
-      - name: Deploy Cloudflare Worker
-        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+
+  deploy-production:
+    needs: validate-and-build
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify deployment credentials
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_DEPLOY_ENABLED: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED }}
         run: |
           set -euo pipefail
-          if [[ "${CLOUDFLARE_DEPLOY_ENABLED:-}" != "true" ]]; then
-            echo "Cloudflare deployment is build-only until repository variable CLOUDFLARE_DEPLOY_ENABLED=true is explicitly enabled."
-            exit 0
-          fi
-          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
-            echo "::error::Cloudflare deploy is enabled but CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is missing."
-            exit 1
-          fi
-          npx --yes wrangler@4.151.1 deploy
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
+      - name: Deploy Cloudflare Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.151.1 deploy
+
+      - name: Smoke-test deployed Worker health endpoint
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors https://glorifier.glorifier.workers.dev/api/health)"
+          printf '%s' "$response" | node -e '
+            let data = "";
+            process.stdin.on("data", chunk => data += chunk);
+            process.stdin.on("end", () => {
+              const body = JSON.parse(data);
+              if (body.ok !== true || body.status !== "worker-ready" || body.layer !== "cloudflare-worker") {
+                console.error("Unexpected health response:", data);
+                process.exit(1);
+              }
+            });
+          '
