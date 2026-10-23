@@ -38,6 +38,16 @@ Cloudflare Workers is the only approved production hosting and application execu
 
 **Migration incomplete / not production-ready.** The Worker now has native `GET /api/health` and `GET /api/identity` handlers, with tests added for the health endpoint. This does not establish live production health. This file does not claim the backend has been ported, Railway has been disconnected, Vercel has been removed, databases are synchronized, or Cloudflare production is healthy.
 
+## Live smoke-test evidence (2026-10-23)
+
+An external live fetch was performed against the currently deployed public Worker URL `https://glorifier.glorifier.workers.dev`:
+
+- `GET /api/health`: **HTTP 502**, JSON code `API_HTML_RESPONSE`. The deployed Worker forwarded this route upstream and received HTML where API JSON was expected. This is a real production routing failure, not a successful health check.
+- `GET /api/identity`: **HTTP 200** with `ready: false` and `domainStatus: not-configured`. The route responds, but organizational domain/email identity is not configured in its Worker bindings.
+- The new Worker-native `GET /api/health` implementation in this PR is not yet deployed; its runtime tests must pass and a reviewed deployment is required before it can affect production.
+
+The new health endpoint intentionally reports only Worker runtime readiness and does not claim the backend, authentication, or databases are healthy. Separate smoke tests are still required for each of those dependencies.
+
 ## Express route inventory snapshot
 
 A source scan of `server.ts` on the base revision found **213 explicit `app.<method>(path)` route declarations**. This is a static inventory, not a complete behavioral specification: mounted routers, middleware ordering, dynamically registered routes, auth policies, and side effects still require review. The route set must be ported in tested groups rather than replaced by a generic proxy.
