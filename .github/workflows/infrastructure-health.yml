@@ -26,16 +26,49 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check production health endpoint
+      - name: Check Cloudflare Worker liveness
+        if: always()
+        run: |
+          set -euo pipefail
+          url="https://glorifier.glorifier.workers.dev/api/health"
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          status="$(curl -sS -o "$body" -w "%{http_code}" --max-time 15 "$url")"
+          echo "Cloudflare Worker liveness HTTP status: $status"
+          test "$status" = "200"
+          node -e '
+            const fs = require("node:fs");
+            let data;
+            try { data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); }
+            catch { console.error("Worker health response is not valid JSON"); process.exit(1); }
+            if (data.ok !== true || data.status !== "worker-ready" || data.layer !== "cloudflare-worker") {
+              console.error("Worker health response did not match the documented liveness contract");
+              process.exit(1);
+            }
+            console.log("Cloudflare Worker liveness contract passed");
+          ' "$body"
+
+      - name: Check configured application health endpoint
+        if: always()
         run: |
           set -euo pipefail
           url="${GLORIFIER_HEALTH_URL:-https://glorifier-artificial-intelligence-production.up.railway.app/api/health}"
           body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
           status="$(curl -sS -o "$body" -w "%{http_code}" --max-time 15 "$url")"
-          echo "Health endpoint HTTP status: $status"
-          cat "$body"
+          echo "Configured application health HTTP status: $status"
           test "$status" = "200"
-          grep -q '"status":"ok"' "$body"
+          node -e '
+            const fs = require("node:fs");
+            let data;
+            try { data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); }
+            catch { console.error("Application health response is not valid JSON"); process.exit(1); }
+            if (data.status !== "ok") {
+              console.error("Application health response did not match the expected status contract");
+              process.exit(1);
+            }
+            console.log("Application health contract passed");
+          ' "$body"
 
       - name: Open recovery issue on failure
         if: failure()
@@ -45,4 +78,4 @@ jobs:
           gh label create ai-recovery --color B60205 --description "GLORIFIER infrastructure recovery" 2>/dev/null || true
           existing="$(gh issue list --state open --label ai-recovery --search "Infrastructure health failure" --json number --jq 'length')"
           if [ "$existing" -gt 0 ]; then echo "An open ai-recovery issue already exists; avoiding duplicates."; exit 0; fi
-          gh issue create --title "Infrastructure health failure" --label ai-recovery --body "The scheduled GLORIFIER production health probe failed. Investigate /api/health, recent deployments, logs, and relevant configuration. Do not expose secrets. Prepare a small reviewable PR if justified. Do not deploy directly. Triggered by: ${{ github.workflow }} run ${{ github.run_id }}"
+          gh issue create --title "Infrastructure health failure" --label ai-recovery --body "The scheduled GLORIFIER health probes failed. Worker liveness and application health are checked independently. Investigate deployment routing, database readiness, logs, and relevant configuration. Response bodies are not printed. Do not expose secrets. Prepare a small reviewable PR if justified. Do not deploy directly. Triggered by: ${{ github.workflow }} run ${{ github.run_id }}"
