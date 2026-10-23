@@ -142,6 +142,10 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().headers.get('x-forwarded-host'), 'glorifier.glorifier.workers.dev');
     assert.equal(await apiResponse.json().then((body: { ok?: boolean }) => body.ok), true);
 
+    upstreamResponse = new Response('{"ok":true}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
     capturedRequest = null;
     const configuredBackendResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/configurable-backend?mode=probe'),
