@@ -2,6 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "glorifier",
   "compatibility_date": "2026-10-12",
+  "vars": {
+    "GLORIFIER_SUPABASE_URL": "https://ymbhbxrobfpqlxhyulbt.supabase.co"
+  },
+  "secrets": {
+    "required": [
+      "GLORIFIER_SUPABASE_SERVICE_ROLE_KEY"
+    ]
+  },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
