@@ -27,7 +27,6 @@ jobs:
           persist-credentials: false
 
       - name: Check Cloudflare Worker liveness
-        if: always()
         run: |
           set -euo pipefail
           url="https://glorifier.glorifier.workers.dev/api/health"
@@ -49,10 +48,10 @@ jobs:
           ' "$body"
 
       - name: Check configured application health endpoint
-        if: always()
+        if: ${{ env.GLORIFIER_HEALTH_URL != '' }}
         run: |
           set -euo pipefail
-          url="${GLORIFIER_HEALTH_URL:-https://glorifier-artificial-intelligence-production.up.railway.app/api/health}"
+          url="$GLORIFIER_HEALTH_URL"
           body="$(mktemp)"
           trap 'rm -f "$body"' EXIT
           status="$(curl -sS -o "$body" -w "%{http_code}" --max-time 15 "$url")"
@@ -70,6 +69,10 @@ jobs:
             console.log("Application health contract passed");
           ' "$body"
 
+      - name: Report optional application endpoint is not configured
+        if: ${{ env.GLORIFIER_HEALTH_URL == '' }}
+        run: echo "Optional application endpoint is not configured; only Cloudflare Worker liveness was verified. No legacy Railway fallback is used."
+
       - name: Open recovery issue on failure
         if: failure()
         env:
@@ -78,4 +81,4 @@ jobs:
           gh label create ai-recovery --color B60205 --description "GLORIFIER infrastructure recovery" 2>/dev/null || true
           existing="$(gh issue list --state open --label ai-recovery --search "Infrastructure health failure" --json number --jq 'length')"
           if [ "$existing" -gt 0 ]; then echo "An open ai-recovery issue already exists; avoiding duplicates."; exit 0; fi
-          gh issue create --title "Infrastructure health failure" --label ai-recovery --body "The scheduled GLORIFIER health probes failed. Worker liveness and application health are checked independently. Investigate deployment routing, database readiness, logs, and relevant configuration. Response bodies are not printed. Do not expose secrets. Prepare a small reviewable PR if justified. Do not deploy directly. Triggered by: ${{ github.workflow }} run ${{ github.run_id }}"
+          gh issue create --title "Infrastructure health failure" --label ai-recovery --body "The scheduled GLORIFIER health probes failed. Worker liveness and configured application health are checked independently when GLORIFIER_HEALTH_URL is configured. Investigate deployment routing, database readiness, logs, and relevant configuration. Response bodies are not printed. Do not expose secrets. Prepare a small reviewable PR if justified. Do not deploy directly. Triggered by: ${{ github.workflow }} run ${{ github.run_id }}"
