@@ -2,6 +2,21 @@ import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 
 export type AssetClass = 'crypto' | 'fiat' | 'gaming' | 'stock' | 'bond' | 'etf' | 'other';
+
+let canonicalRegistrySeedPromise: Promise<void> | null = null;
+
+async function ensureCanonicalRegistrySeeded() {
+  if (!canonicalRegistrySeedPromise) {
+    canonicalRegistrySeedPromise = (async () => {
+      await seedCanonicalGLRRegistry();
+      await seedCanonicalNFTRegistry();
+    })().catch((error) => {
+      canonicalRegistrySeedPromise = null;
+      throw error;
+    });
+  }
+  await canonicalRegistrySeedPromise;
+}
 export type AssetStatus = 'discovered' | 'connected' | 'authorized' | 'degraded' | 'revoked' | 'disabled';
 
 export interface AssetAccountRecord {
@@ -163,8 +178,7 @@ export async function initializeAssetRegistry() {
     );
     CREATE INDEX IF NOT EXISTS idx_asset_account_events_time ON asset_account_events(asset_account_id, created_at DESC);
   `);
-  await seedCanonicalGLRRegistry();
-  await seedCanonicalNFTRegistry();
+  await ensureCanonicalRegistrySeeded();
 }
 
 export async function ensureCoreAssetIntegrations() {
@@ -488,7 +502,7 @@ async function seedCanonicalNFTRegistry() {
   for (const asset of assets) {
     await db.query(`INSERT INTO canonical_asset_registry
       (asset_id,namespace,name,symbol,asset_class,canonical_status,decimals,supply_policy,canonical_metadata)
-      VALUES($1,'glorifier-nft','GLORIFIER',$2,'nft','active',NULL,'collection-defined',$3)
+      VALUES($1,'glorifier-nft','GLORIFIER',$2,'other','active',NULL,'collection-defined',$3)
       ON CONFLICT(asset_id) DO UPDATE SET
         namespace=EXCLUDED.namespace,name=EXCLUDED.name,symbol=EXCLUDED.symbol,
         asset_class=EXCLUDED.asset_class,canonical_status=EXCLUDED.canonical_status,
