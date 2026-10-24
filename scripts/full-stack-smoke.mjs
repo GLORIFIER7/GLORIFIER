@@ -2,7 +2,12 @@ const base = process.env.FRONTEND_URL || 'https://glorifier.glorifier.workers.de
 const checks = [
   { name: 'cloudflare-frontend', url: new URL('/', base).toString(), kind: 'html' },
   { name: 'cloudflare-worker-health', url: new URL('/api/health', base).toString(), kind: 'json', validate: body => body.ok === true && body.status === 'worker-ready' && body.layer === 'cloudflare-worker' },
-  { name: 'cloudflare-identity-readiness', url: new URL('/api/identity', base).toString(), kind: 'json', validate: body => body.ok === true && body.identity?.ready === true },
+  // Domain identity is intentionally deferred until funding; validate the explicit
+  // not-ready contract without pretending the organization identity is ready.
+  { name: 'cloudflare-identity-readiness', url: new URL('/api/identity', base).toString(), kind: 'json', validate: body =>
+    (body.ok === true && body.status === 'ready' && body.identity?.ready === true) ||
+    (body.ok === false && body.status === 'not-ready' && body.identity?.ready === false &&
+      body.identity?.domainConfigured === false && body.identity?.domainStatus === 'not-configured') },
   { name: 'cloudflare-operational-reports', url: new URL('/api/reports/summary', base).toString(), kind: 'json', validate: body => body.ok === true && body.status === 'operational-data-observed' && body.evidence?.exactRowCounts === true },
   { name: 'cloudflare-runtime-verification', url: new URL('/api/runtime-verification', base).toString(), kind: 'json', validate: body => body.ok === true && body.status === 'verified-for-probed-dependencies' && body.checks?.database?.ok === true }
 ];
@@ -28,6 +33,18 @@ for (const check of checks) {
 }
 
 for (const result of results) console.log(JSON.stringify(result));
+const identity = results.find(result => result.name === 'cloudflare-identity-readiness');
+const identityBody = identity?.body && typeof identity.body === 'object' ? identity.body : null;
+if (identityBody?.status === 'not-ready' &&
+    identityBody.identity?.domainConfigured === false &&
+    identityBody.identity?.domainStatus === 'not-configured' && identity?.ok) {
+  console.warn('IDENTITY READINESS DEFERRED: canonical domain is intentionally unconfigured pending funding; the endpoint remains not-ready.');
+} else if (identity && !identity.ok) {
+  const reason = identityBody?.identity?.nextAction ||
+    'The identity endpoint did not return a valid identity JSON contract; inspect its HTTP status and response body.';
+  console.error('IDENTITY READINESS BLOCKER: ' + reason);
+  console.error('Do not substitute the workers.dev hostname or claim organization identity is verified without domain control.');
+}
 const failures = results.filter(result => !result.ok);
 if (failures.length) {
   console.error('CLOUDFLARE PRODUCTION VERIFICATION FAILED: ' + failures.map(result => result.name).join(', '));
