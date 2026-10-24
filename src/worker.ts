@@ -11,6 +11,8 @@ type CloudflareEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_SUPABASE_URL?: string;
+  GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 // Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
@@ -68,7 +70,8 @@ const identityResponse = (env: CloudflareEnv): Response => {
           ? 'Configure GLORIFIER_ORG_EMAIL after an @domain mailbox or forwarding address exists.'
           : 'Identity configuration is ready.',
   };
-  return Response.json({ ok: true, identity }, {
+  return Response.json({ ok: identity.ready, status: identity.ready ? 'ready' : 'not-ready', identity }, {
+    status: identity.ready ? 200 : 503,
     headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
   });
 };
@@ -103,6 +106,102 @@ const healthResponse = (method: string, env: CloudflareEnv): Response => {
   };
   if (method === 'HEAD') return new Response(null, { status: 200, headers });
   return Response.json(body, { status: 200, headers });
+};
+
+
+const supabaseConfig = (env: CloudflareEnv): { url: URL; key: string } | null => {
+  const rawUrl = configured(env.GLORIFIER_SUPABASE_URL);
+  const key = configured(env.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY);
+  if (!rawUrl || !key) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !url.hostname.endsWith('.supabase.co')) return null;
+    url.pathname = url.pathname.replace(/\/$/, '');
+    return { url, key };
+  } catch {
+    return null;
+  }
+};
+
+const supabaseTableCount = async (config: { url: URL; key: string }, table: string): Promise<number> => {
+  const endpoint = new URL(config.url.toString());
+  endpoint.pathname = `${endpoint.pathname.replace(/\/$/, '')}/rest/v1/${table}`;
+  endpoint.search = 'select=*&limit=0';
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      Prefer: 'count=exact',
+      Range: '0-0',
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error(`Supabase query failed with HTTP ${response.status}`);
+  const match = (response.headers.get('content-range') || '').match(/\/(\d+)$/);
+  if (!match) throw new Error('Supabase did not return an exact row count');
+  return Number(match[1]);
+};
+
+const supabaseUnavailable = (code: string, message: string, status = 503): Response =>
+  Response.json({ ok: false, status: 'unavailable', error: message, code }, {
+    status,
+    headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+  });
+
+const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => {
+  const config = supabaseConfig(env);
+  if (!config) return supabaseUnavailable('SUPABASE_NOT_CONFIGURED', 'Worker-native reporting requires GLORIFIER_SUPABASE_URL and the server-side GLORIFIER_SUPABASE_SERVICE_ROLE_KEY secret.');
+  const tables = ['connection_approvals', 'connection_events', 'connection_registry', 'intelligence_analyses', 'intelligence_evidence', 'intelligence_reports'] as const;
+  try {
+    const entries = await Promise.all(tables.map(async (table) => [table, await supabaseTableCount(config, table)] as const));
+    const counts = Object.fromEntries(entries) as Record<(typeof tables)[number], number>;
+    return Response.json({
+      ok: true,
+      status: 'operational-data-observed',
+      generatedAt: new Date().toISOString(),
+      summary: {
+        connectionApprovals: counts.connection_approvals,
+        connectionEvents: counts.connection_events,
+        registeredConnections: counts.connection_registry,
+        intelligenceAnalyses: counts.intelligence_analyses,
+        intelligenceEvidence: counts.intelligence_evidence,
+        intelligenceReports: counts.intelligence_reports,
+      },
+      evidence: { source: 'supabase-postgrest', exactRowCounts: true, revenue: 'not-observable-from-operational-tables', legacyEconomicSummary: 'not-ported' },
+    }, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  } catch {
+    return supabaseUnavailable('SUPABASE_REPORTS_QUERY_FAILED', 'Supabase operational reporting could not be verified.', 502);
+  }
+};
+
+const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv): Promise<Response> => {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  }
+  const config = supabaseConfig(env);
+  const checks: Record<string, unknown> = {
+    worker: { ok: true, layer: 'cloudflare-worker' },
+    assets: { ok: Boolean(env.ASSETS) },
+    authentication: { ok: null, status: 'not-probed', reason: 'No public authentication probe is configured.' },
+    ai: { ok: null, executed: false, status: 'not-probed', reason: 'AI provider calls are excluded from this infrastructure probe.' },
+  };
+  if (!config) {
+    checks.database = { ok: false, status: 'not-configured', code: 'SUPABASE_NOT_CONFIGURED' };
+    const body = { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks };
+    return request.method === 'HEAD' ? new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  }
+  try {
+    const startedAt = Date.now();
+    const count = await supabaseTableCount(config, 'connection_registry');
+    checks.database = { ok: true, source: 'supabase-postgrest', probe: 'exact-count-query', latencyMs: Date.now() - startedAt, connectionRegistryRows: count };
+    const body = { ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks };
+    return request.method === 'HEAD' ? new Response(null, { status: 200, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  } catch {
+    checks.database = { ok: false, status: 'unavailable', code: 'SUPABASE_PROBE_FAILED' };
+    const body = { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks };
+    return request.method === 'HEAD' ? new Response(null, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  }
 };
 
 const isBackendPath = (pathname: string): boolean =>
@@ -169,6 +268,14 @@ export default {
     if (incomingUrl.pathname === '/api/health') {
       return healthResponse(request.method, env);
     }
+
+    if (incomingUrl.pathname === '/api/reports/summary') {
+      if (request.method !== 'GET' && request.method !== 'HEAD') return supabaseUnavailable('METHOD_NOT_ALLOWED', 'Method not allowed.', 405);
+      const response = await reportsSummaryResponse(env);
+      return request.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
+    }
+
+    if (incomingUrl.pathname === '/api/runtime-verification') return runtimeVerificationResponse(request, env);
 
     // First Worker-native API route: identity configuration is read only from
     // Cloudflare environment bindings and never depends on the legacy backend.
