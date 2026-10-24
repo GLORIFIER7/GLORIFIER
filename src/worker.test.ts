@@ -170,6 +170,25 @@ async function run(): Promise<void> {
     assert.equal(await nativeReportsWithoutSupabase.json().then((body: { code?: string }) => body.code), 'SUPABASE_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'native reports must not proxy to a legacy backend');
 
+    // With no backend configured, unauthenticated app-state requests must be rejected
+    // by the authentication boundary rather than surfacing as a generic upstream 502.
+    const unauthenticatedAppState = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/app-state'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(unauthenticatedAppState.status, 401);
+    assert.equal(await unauthenticatedAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
+    assert.equal(capturedRequest, null, 'unauthenticated app-state must be rejected before upstream routing');
+
+    const credentialedAppStateWithoutBackend = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
+        headers: { Authorization: 'Bearer test-token' },
+      }),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(credentialedAppStateWithoutBackend.status, 502);
+    assert.equal(await credentialedAppStateWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+
     upstreamResponse = new Response('{"ok":true}', {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
