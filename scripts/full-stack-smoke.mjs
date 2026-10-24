@@ -2,6 +2,10 @@ const base = process.env.FRONTEND_URL || 'https://glorifier.glorifier.workers.de
 const checks = [
   { name: 'cloudflare-frontend', url: new URL('/', base).toString(), kind: 'html' },
   { name: 'cloudflare-worker-health', url: new URL('/api/health', base).toString(), kind: 'json', validate: body => body.ok === true && body.status === 'worker-ready' && body.layer === 'cloudflare-worker' },
+  // Unauthenticated app-state requests must never be treated as successful.
+  // A configured upstream may return either 401 or 403; with no backend, the
+  // Worker must reject the request locally with 401.
+  { name: 'cloudflare-app-state-auth-boundary', url: new URL('/api/app-state', base).toString(), kind: 'protected' },
   // Domain identity is intentionally deferred until funding; validate the explicit
   // not-ready contract without pretending the organization identity is ready.
   { name: 'cloudflare-identity-readiness', url: new URL('/api/identity', base).toString(), kind: 'json', validate: body =>
@@ -24,7 +28,8 @@ for (const check of checks) {
       try { body = JSON.parse(text); } catch {}
     }
     // Only the explicitly documented, deferred identity state may use HTTP 503.
-    // Every other check still requires a successful HTTP response.
+    // Every other ordinary check requires a successful HTTP response. Protected
+    // app-state is the exception: it must reject an unauthenticated request.
     const deferredIdentity503 =
       check.name === 'cloudflare-identity-readiness' &&
       response.status === 503 &&
@@ -35,10 +40,12 @@ for (const check of checks) {
       body?.identity?.domainStatus === 'not-configured';
     const valid = check.kind === 'html'
       ? response.ok && contentType.includes('text/html')
-      : contentType.includes('application/json') &&
-        body !== null &&
-        check.validate(body) &&
-        (response.ok || deferredIdentity503);
+      : check.kind === 'protected'
+        ? response.status === 401 || response.status === 403
+        : contentType.includes('application/json') &&
+          body !== null &&
+          check.validate(body) &&
+          (response.ok || deferredIdentity503);
     results.push({ name: check.name, url: check.url, status: response.status, ok: valid, latencyMs: Date.now() - started, body: body ?? text.slice(0, 300) });
   } catch (error) {
     results.push({ name: check.name, url: check.url, status: 0, ok: false, latencyMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) });
