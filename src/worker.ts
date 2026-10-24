@@ -212,8 +212,11 @@ const hasSessionCredential = (request: Request): boolean => {
   if (/^Bearer\s+\S+$/i.test(authorization)) return true;
   const cookie = request.headers.get('cookie') || '';
   return cookie.split(';').some((part) => {
-    const name = part.trim().split('=', 1)[0] || '';
-    return /^(session|auth-token|access-token)$/i.test(name);
+    const separator = part.indexOf('=');
+    if (separator <= 0) return false;
+    const name = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+    return /^(session|auth-token|access-token)$/i.test(name) && value.length > 0;
   });
 };
 
