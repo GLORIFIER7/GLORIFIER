@@ -198,6 +198,17 @@ async function run(): Promise<void> {
     assert.equal(unrelatedCookieAppState.status, 401, 'unrelated cookie names are not session credentials');
     assert.equal(await unrelatedCookieAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
 
+    for (const cookie of ['session', 'session=', 'session=   ', 'auth-token=', 'access-token']) {
+      const emptySessionCookie = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
+          headers: { Cookie: cookie },
+        }),
+        { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+      );
+      assert.equal(emptySessionCookie.status, 401, `empty cookie value must not count as a credential: ${cookie}`);
+      assert.equal(await emptySessionCookie.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
+    }
+
     const exactSessionCookieWithoutBackend = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
         headers: { Cookie: 'session=test-value' },
