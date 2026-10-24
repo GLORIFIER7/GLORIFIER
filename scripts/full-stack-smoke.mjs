@@ -23,9 +23,22 @@ for (const check of checks) {
     if (contentType.includes('json')) {
       try { body = JSON.parse(text); } catch {}
     }
+    // Only the explicitly documented, deferred identity state may use HTTP 503.
+    // Every other check still requires a successful HTTP response.
+    const deferredIdentity503 =
+      check.name === 'cloudflare-identity-readiness' &&
+      response.status === 503 &&
+      body?.ok === false &&
+      body?.status === 'not-ready' &&
+      body?.identity?.ready === false &&
+      body?.identity?.domainConfigured === false &&
+      body?.identity?.domainStatus === 'not-configured';
     const valid = check.kind === 'html'
       ? response.ok && contentType.includes('text/html')
-      : response.ok && contentType.includes('application/json') && body !== null && check.validate(body);
+      : contentType.includes('application/json') &&
+        body !== null &&
+        check.validate(body) &&
+        (response.ok || deferredIdentity503);
     results.push({ name: check.name, url: check.url, status: response.status, ok: valid, latencyMs: Date.now() - started, body: body ?? text.slice(0, 300) });
   } catch (error) {
     results.push({ name: check.name, url: check.url, status: 0, ok: false, latencyMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) });
