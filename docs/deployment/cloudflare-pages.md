@@ -5,8 +5,8 @@ GLORIFIER already has a Cloudflare Worker entry point in `src/worker.ts` and con
 ## Existing architecture
 
 - Static frontend: Vite build output in `dist`, served through the Worker's `ASSETS` binding.
-- API and authentication: `/api/*` and `/auth/*` are proxied by the Worker to the existing Railway backend.
-- Database: keep the existing Neon PostgreSQL connection on the backend; never expose database credentials in frontend or Worker client-visible values.
+- API and authentication: Worker-native handlers cover selected routes. Remaining `/api/*` and `/auth/*` routes require an explicitly configured `GLORIFIER_BACKEND_ORIGIN`; there is no implicit Railway fallback, and unconfigured routes fail closed.
+- Database: backend database access is not proven to be Worker-native. Never expose database credentials in frontend or Worker client-visible values.
 
 ## GitHub-connected deployment
 
