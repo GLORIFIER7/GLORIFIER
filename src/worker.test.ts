@@ -180,6 +180,33 @@ async function run(): Promise<void> {
     assert.equal(await unauthenticatedAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
     assert.equal(capturedRequest, null, 'unauthenticated app-state must be rejected before upstream routing');
 
+    const emptyBearerAppState = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
+        headers: { Authorization: 'Bearer ' },
+      }),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(emptyBearerAppState.status, 401, 'an empty bearer token is not a credential');
+    assert.equal(await emptyBearerAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
+
+    const unrelatedCookieAppState = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
+        headers: { Cookie: 'old-session-data=anything; theme=dark' },
+      }),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(unrelatedCookieAppState.status, 401, 'unrelated cookie names are not session credentials');
+    assert.equal(await unrelatedCookieAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
+
+    const exactSessionCookieWithoutBackend = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
+        headers: { Cookie: 'session=test-value' },
+      }),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(exactSessionCookieWithoutBackend.status, 502);
+    assert.equal(await exactSessionCookieWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+
     const credentialedAppStateWithoutBackend = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
         headers: { Authorization: 'Bearer test-token' },

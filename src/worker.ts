@@ -208,11 +208,12 @@ const isBackendPath = (pathname: string): boolean =>
   /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
 const hasSessionCredential = (request: Request): boolean => {
-  if (request.headers.get('authorization')?.trim()) return true;
+  const authorization = request.headers.get('authorization')?.trim() || '';
+  if (/^Bearer\s+\S+$/i.test(authorization)) return true;
   const cookie = request.headers.get('cookie') || '';
   return cookie.split(';').some((part) => {
     const name = part.trim().split('=', 1)[0] || '';
-    return /(?:^|[-_])(session|auth-token|access-token)(?:$|[-_])/i.test(name);
+    return /^(session|auth-token|access-token)$/i.test(name);
   });
 };
 
