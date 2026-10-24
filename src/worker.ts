@@ -215,7 +215,10 @@ const hasSessionCredential = (request: Request): boolean => {
     const separator = part.indexOf('=');
     if (separator <= 0) return false;
     const name = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
+    const rawValue = part.slice(separator + 1).trim();
+    const value = rawValue.startsWith('"') && rawValue.endsWith('"')
+      ? rawValue.slice(1, -1).trim()
+      : rawValue;
     return /^(session|auth-token|access-token)$/i.test(name) && value.length > 0;
   });
 };
