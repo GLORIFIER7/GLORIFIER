@@ -28,6 +28,7 @@ function getCapturedRequest(): Request {
 }
 
 const env: TestEnv = {
+  GLORIFIER_BACKEND_ORIGIN: 'https://glorifier-artificial-intelligence-production.up.railway.app',
   ASSETS: {
     async fetch() {
       assetCalls += 1;
@@ -149,6 +150,15 @@ async function run(): Promise<void> {
     assert.equal(businessModelBody.model.governance.autonomousFundMovement, false);
     assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
     assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
+
+    const missingBackendCallsBefore = capturedRequest;
+    const missingBackendResponse = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(missingBackendResponse.status, 502);
+    assert.equal(await missingBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+    assert.equal(capturedRequest, missingBackendCallsBefore, 'missing backend configuration must not trigger an implicit upstream request');
 
     const apiResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
