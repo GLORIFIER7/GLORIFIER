@@ -498,8 +498,9 @@ export async function seedCanonicalNFTRegistry(db: CanonicalNFTRegistryQueryClie
         standard: 'ERC-1155',
         openseaCollectionUrl: 'https://opensea.io/collection/glorifier1',
         identitySource: 'owner-confirmed-in-conversation',
-        verificationStatus: 'pending_contract_address',
-        note: 'OpenSea collection slug is not a contract address. Resolve the actual Ethereum contract address before creating a deployment record.'
+        verificationStatus: 'not_verified',
+        contractAddressSource: 'owner-supplied-in-conversation',
+        note: 'The ERC-1155 contract address was supplied by the owner; independently verify the contract standard and collection relationship on Ethereum before upgrading status.'
       }
     }
   ];
@@ -530,6 +531,28 @@ export async function seedCanonicalNFTRegistry(db: CanonicalNFTRegistryQueryClie
         verificationStatus: 'not_verified',
         deploymentTransactionStatus: 'not_recorded',
         note: 'The supplied successful transaction was a call to this contract, not evidence that this transaction deployed the contract.'
+      })
+    ]);
+
+  await db.query(`INSERT INTO canonical_asset_deployments
+    (deployment_id,asset_id,network,network_family,network_id,chain_id,identifier_type,
+     contract_address,asset_identifier,program_id,deployment_transaction,deployment_block,
+     status,explorer,source_verification_status,verification_mode,evidence)
+    VALUES($1,$2,$3,'evm','evm:1',1,'contract',$4,$4,NULL,NULL,NULL,
+      'not_verified','Etherscan','not_verified','owner-supplied-reference',$5)
+    ON CONFLICT(deployment_id) DO NOTHING`,
+    [
+      'glorifier-erc1155-ethereum-mainnet',
+      'glorifier-erc1155',
+      'Ethereum Mainnet',
+      '0x355C94e4b6B353421De956e87D643bB036d6a417',
+      JSON.stringify({
+        standard: 'ERC-1155',
+        openseaCollectionUrl: 'https://opensea.io/collection/glorifier1',
+        contractAddressSource: 'owner-supplied-in-conversation',
+        verificationStatus: 'not_verified',
+        deploymentTransactionStatus: 'not_recorded',
+        note: 'Owner-supplied contract reference only; no independent chain or OpenSea relationship verification has been recorded.'
       })
     ]);
 }
