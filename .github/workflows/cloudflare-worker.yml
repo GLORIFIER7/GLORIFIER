@@ -167,10 +167,12 @@ jobs:
               process.exit(1);
             }
           } else if (path.startsWith("/api/runtime-verification")) {
-            if (!["verified-for-probed-dependencies", "degraded"].includes(body.status) ||
+            if (body.ok !== true ||
+                body.status !== "verified-for-probed-dependencies" ||
                 !body.checks || typeof body.checks !== "object" ||
-                !body.checks.database || typeof body.checks.database !== "object") {
-              console.error("Invalid runtime-verification response contract", raw);
+                !body.checks.database || typeof body.checks.database !== "object" ||
+                body.checks.database.ok !== true) {
+              console.error("Runtime verification did not confirm healthy probed dependencies", raw);
               process.exit(1);
             }
           } else if (path === "/api/reports/summary") {
