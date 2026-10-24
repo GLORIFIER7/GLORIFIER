@@ -10,6 +10,8 @@ type TestEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_SUPABASE_URL?: string;
+  GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
 
 const originalFetch = globalThis.fetch;
@@ -105,10 +107,10 @@ async function run(): Promise<void> {
       new Request('https://glorifier.glorifier.workers.dev/api/identity'),
       env,
     );
-    assert.equal(identityResponse.status, 200);
+    assert.equal(identityResponse.status, 503);
     assert.equal(identityResponse.headers.get('cache-control'), 'no-store');
     const identityBody = await identityResponse.json() as { ok: boolean; identity: { organization: string; ready: boolean; domainStatus: string; nextAction: string } };
-    assert.equal(identityBody.ok, true);
+    assert.equal(identityBody.ok, false);
     assert.equal(identityBody.identity.organization, 'GLORIFIER');
     assert.equal(identityBody.identity.ready, false, 'identity must not be called ready without verified environment configuration');
     assert.equal(identityBody.identity.domainStatus, 'not-configured');
@@ -151,24 +153,22 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
     assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
 
-    const missingBackendCallsBefore = capturedRequest;
-    const missingBackendResponse = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
-      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
-    );
-    assert.equal(missingBackendResponse.status, 502);
-    assert.equal(await missingBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
-    assert.equal(capturedRequest, missingBackendCallsBefore, 'missing backend configuration must not trigger an implicit upstream request');
 
-    const apiResponse = await worker.fetch(
+    const nativeRuntimeWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
-      env,
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
     );
-    assert.equal(apiResponse.status, 200);
-    assert.equal(apiResponse.headers.get('cache-control'), 'no-store');
-    assert.equal(getCapturedRequest().url, 'https://api.example.test/api/runtime-verification?probeAi=false');
-    assert.equal(getCapturedRequest().headers.get('x-forwarded-host'), 'glorifier.glorifier.workers.dev');
-    assert.equal(await apiResponse.json().then((body: { ok?: boolean }) => body.ok), true);
+    assert.equal(nativeRuntimeWithoutSupabase.status, 503);
+    assert.equal(await nativeRuntimeWithoutSupabase.json().then((body: { checks?: { database?: { code?: string } } }) => body.checks?.database?.code), 'SUPABASE_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
+
+    const nativeReportsWithoutSupabase = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
+    );
+    assert.equal(nativeReportsWithoutSupabase.status, 503);
+    assert.equal(await nativeReportsWithoutSupabase.json().then((body: { code?: string }) => body.code), 'SUPABASE_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'native reports must not proxy to a legacy backend');
 
     upstreamResponse = new Response('{"ok":true}', {
       status: 200,
