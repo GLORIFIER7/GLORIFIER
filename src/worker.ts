@@ -13,13 +13,11 @@ type CloudflareEnv = {
   GLORIFIER_BACKEND_ORIGIN?: string;
 };
 
-const LEGACY_BACKEND_ORIGIN = 'https://glorifier-artificial-intelligence-production.up.railway.app';
-
-// The backend is temporarily configurable so the Worker can target a reviewed replacement
-// without requiring a source edit. Accept an HTTPS origin only; never accept paths or credentials.
+// Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
+// Never silently fall back to Railway or another provider when configuration is absent.
 const resolveBackendOrigin = (value?: string): string | null => {
   const candidate = configured(value);
-  if (!candidate) return LEGACY_BACKEND_ORIGIN;
+  if (!candidate) return null;
   try {
     const url = new URL(candidate);
     if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
@@ -203,7 +201,14 @@ export default {
       return assetResponse;
     }
 
-    const backendOrigin = resolveBackendOrigin(env.GLORIFIER_BACKEND_ORIGIN);
+    const configuredBackendOrigin = configured(env.GLORIFIER_BACKEND_ORIGIN);
+    if (!configuredBackendOrigin) {
+      return apiError(
+        'No backend origin is configured. This route is not yet Worker-native; refusing to use a legacy provider implicitly.',
+        'BACKEND_ORIGIN_NOT_CONFIGURED',
+      );
+    }
+    const backendOrigin = resolveBackendOrigin(configuredBackendOrigin);
     if (!backendOrigin) {
       return apiError(
         'GLORIFIER_BACKEND_ORIGIN must be a valid HTTPS origin without credentials, path, query, or fragment.',

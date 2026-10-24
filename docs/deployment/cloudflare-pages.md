@@ -5,8 +5,8 @@ GLORIFIER already has a Cloudflare Worker entry point in `src/worker.ts` and con
 ## Existing architecture
 
 - Static frontend: Vite build output in `dist`, served through the Worker's `ASSETS` binding.
-- API and authentication: `/api/*` and `/auth/*` are proxied by the Worker to the existing Railway backend.
-- Database: keep the existing Neon PostgreSQL connection on the backend; never expose database credentials in frontend or Worker client-visible values.
+- API and authentication: Worker-native handlers cover selected routes. Remaining `/api/*` and `/auth/*` routes require an explicitly configured `GLORIFIER_BACKEND_ORIGIN`; there is no implicit Railway fallback, and unconfigured routes fail closed.
+- Database: backend database access is not proven to be Worker-native. Never expose database credentials in frontend or Worker client-visible values.
 
 ## GitHub-connected deployment
 
@@ -22,7 +22,7 @@ GLORIFIER already has a Cloudflare Worker entry point in `src/worker.ts` and con
 
 Cloudflare's documented Git integration can build and deploy a Worker on pushes and provides preview deployments for non-production branches: https://developers.cloudflare.com/workers/ci-cd/builds/ and https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/.
 
-This repository is configured for **Cloudflare Workers with `wrangler.jsonc`**, not Cloudflare Pages. Do not add a Pages-only `public/_redirects` file or use Pages `200` proxy rewrites for this Worker. The Worker itself must implement API/auth proxying. The Railway origin is not a credential, but it must be kept server-side in Worker configuration and never baked into `VITE_*` client variables. Preview traffic must not become an unreviewed proxy into production.
+This repository is configured for **Cloudflare Workers with `wrangler.jsonc`**, not Cloudflare Pages. Do not add a Pages-only `public/_redirects` file or use Pages `200` proxy rewrites for this Worker. The Worker itself must implement API/auth proxying. A backend origin is configuration, not a credential, but it must be explicitly reviewed and kept server-side in Worker configuration; never bake it into `VITE_*` client variables. Do not configure a Railway origin when claiming Railway independence. Preview traffic must not become an unreviewed proxy into production.
 
 ## Verification before production
 
