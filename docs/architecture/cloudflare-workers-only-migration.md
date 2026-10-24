@@ -7,7 +7,7 @@ Cloudflare Workers is the only approved production hosting and application execu
 ## Evidence from the current repository
 
 - `wrangler.jsonc` already builds a Worker entry point at `src/worker.ts` and serves the Vite output from `dist/`.
-- `src/worker.ts` has Worker-native `GET /api/health` and `GET /api/identity` handlers. Other `/api/*` and `/auth/*` requests are still proxied to the legacy Railway origin by default, so the Worker is not Railway-independent. A reviewed `GLORIFIER_BACKEND_ORIGIN` HTTPS-origin binding can redirect that proxy to a replacement runtime without a source edit; this is a migration bridge, not proof that the target runtime exists or is healthy.
+- `src/worker.ts` has Worker-native `GET /api/health`, `GET /api/identity`, and `GET /api/business-model` handlers. Other `/api/*` and `/auth/*` requests require an explicit `GLORIFIER_BACKEND_ORIGIN` HTTPS-origin binding. The Worker no longer silently falls back to Railway when the binding is absent; unported routes fail closed with `BACKEND_ORIGIN_NOT_CONFIGURED`. A configured origin is still a migration bridge, not proof that the target runtime exists or is healthy.
 - `src/worker.test.ts` explicitly asserts that API and authentication requests reach Railway.
 - `server.ts` is a large Express/Node application (about 198 KB in the repository API response) with many routes, Node-specific imports, Postgres access, provider SDKs, and daemon initialization. It cannot safely be treated as a drop-in Workers module.
 - `vercel.json` still declares Vercel routing and forwards API/auth paths to Railway.
