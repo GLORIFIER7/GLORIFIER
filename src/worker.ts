@@ -207,6 +207,15 @@ const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv)
 const isBackendPath = (pathname: string): boolean =>
   /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
+const hasSessionCredential = (request: Request): boolean => {
+  if (request.headers.get('authorization')?.trim()) return true;
+  const cookie = request.headers.get('cookie') || '';
+  return cookie.split(';').some((part) => {
+    const name = part.trim().split('=', 1)[0] || '';
+    return /(?:^|[-_])(session|auth-token|access-token)(?:$|[-_])/i.test(name);
+  });
+};
+
 const apiError = (message: string, code: string): Response =>
   Response.json(
     { ok: false, status: 'unavailable', error: message, code },
@@ -310,6 +319,15 @@ export default {
 
     const configuredBackendOrigin = configured(env.GLORIFIER_BACKEND_ORIGIN);
     if (!configuredBackendOrigin) {
+      // Fail closed at the authentication boundary before reporting backend availability.
+      // This is not a substitute for session validation: credentialed requests still fail
+      // with 502 until the route is implemented natively or a reviewed backend is configured.
+      if (incomingUrl.pathname === '/api/app-state' && !hasSessionCredential(request)) {
+        return Response.json(
+          { ok: false, status: 'unauthenticated', error: 'Authentication is required for app state.', code: 'AUTHENTICATION_REQUIRED' },
+          { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } },
+        );
+      }
       return apiError(
         'No backend origin is configured. This route is not yet Worker-native; refusing to use a legacy provider implicitly.',
         'BACKEND_ORIGIN_NOT_CONFIGURED',
