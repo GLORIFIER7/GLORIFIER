@@ -55,7 +55,7 @@ The canonical asset registry also records the two owner-designated Ethereum NFT 
 
 The collection-to-standard mapping above reflects the owner's explicit confirmation. The ERC-721 contract address is a previously supplied address and remains `not_verified` until independently checked against Ethereum. An OpenSea collection slug is not a contract address, so no ERC-1155 deployment row is created until its contract address is established.
 
-These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent and records metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry.
+These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent: it inserts missing NFT identities/deployment records but does not overwrite existing canonical metadata or evidence on conflict. It records owner-supplied metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry. Regression tests cover the two collection identities, the single known ERC-721 deployment, pending ERC-1155 address, and conflict-preservation behavior.
 
 ## API
 
