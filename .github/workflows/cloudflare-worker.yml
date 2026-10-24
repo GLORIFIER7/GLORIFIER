@@ -174,8 +174,7 @@ jobs:
               process.exit(1);
             }
           } else if (path === "/api/reports/summary") {
-            if (!["operational-data-observed", "unavailable"].includes(body.status) ||
-                typeof body.ok !== "boolean") {
+            if (body.status !== "operational-data-observed" || body.ok !== true) {
               console.error("Invalid reports-summary response contract", raw);
               process.exit(1);
             }
@@ -189,5 +188,5 @@ jobs:
           # configuration is completed. Database endpoints must return their documented
           # success or explicit degraded/unavailable contract, never HTML or an opaque 500.
           probe "/api/identity" "200,503"
-          probe "/api/runtime-verification?probeAi=false" "200,502,503"
-          probe "/api/reports/summary" "200,502,503"
+          probe "/api/runtime-verification?probeAi=false" "200"
+          probe "/api/reports/summary" "200"
