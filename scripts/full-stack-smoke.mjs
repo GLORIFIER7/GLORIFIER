@@ -29,12 +29,13 @@ for (const check of checks) {
 
 for (const result of results) console.log(JSON.stringify(result));
 const identity = results.find(result => result.name === 'cloudflare-identity-readiness');
-if (identity && !identity.ok && identity.body?.status === 'not-ready') {
-  console.error(
-    'IDENTITY READINESS BLOCKER: ' +
-    (identity.body.identity?.nextAction ||
-      'Configure the canonical organization domain and primary email using verified values in Cloudflare Worker variables.')
-  );
+if (identity && !identity.ok) {
+  const identityBody = identity.body && typeof identity.body === 'object' ? identity.body : null;
+  const reason = identityBody?.identity?.nextAction ||
+    (identityBody?.status === 'not-ready'
+      ? 'Configure the canonical organization domain and primary email using verified values in Cloudflare Worker variables.'
+      : 'The identity endpoint did not return a valid ready JSON contract; inspect its HTTP status and response body.');
+  console.error('IDENTITY READINESS BLOCKER: ' + reason);
   console.error('Do not substitute the workers.dev hostname or claim organization identity is verified without domain control.');
 }
 const failures = results.filter(result => !result.ok);
