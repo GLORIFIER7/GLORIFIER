@@ -474,8 +474,11 @@ async function seedCanonicalGLRRegistry() {
  * Unknown ERC-1155 contract identifiers remain pending instead of being guessed from an OpenSea slug.
  * Existing canonical records and independently collected evidence are preserved on subsequent initialization.
  */
-async function seedCanonicalNFTRegistry() {
-  const db = getPostgresPool();
+type CanonicalNFTRegistryQueryClient = {
+  query: (sql: string, values?: any[]) => Promise<any>;
+};
+
+export async function seedCanonicalNFTRegistry(db: CanonicalNFTRegistryQueryClient = getPostgresPool()) {
   const assets = [
     {
       assetId: 'glorifier-erc721',
