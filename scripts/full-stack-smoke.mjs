@@ -28,6 +28,15 @@ for (const check of checks) {
 }
 
 for (const result of results) console.log(JSON.stringify(result));
+const identity = results.find(result => result.name === 'cloudflare-identity-readiness');
+if (identity && !identity.ok && identity.body?.status === 'not-ready') {
+  console.error(
+    'IDENTITY READINESS BLOCKER: ' +
+    (identity.body.identity?.nextAction ||
+      'Configure the canonical organization domain and primary email using verified values in Cloudflare Worker variables.')
+  );
+  console.error('Do not substitute the workers.dev hostname or claim organization identity is verified without domain control.');
+}
 const failures = results.filter(result => !result.ok);
 if (failures.length) {
   console.error('CLOUDFLARE PRODUCTION VERIFICATION FAILED: ' + failures.map(result => result.name).join(', '));
