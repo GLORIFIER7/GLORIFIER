@@ -38,15 +38,19 @@ Cloudflare Workers is the only approved production hosting and application execu
 
 **Migration incomplete / not production-ready.** The Worker now has native `GET /api/health` and `GET /api/identity` handlers, with tests added for the health endpoint. This does not establish live production health. This file does not claim the backend has been ported, Railway has been disconnected, Vercel has been removed, databases are synchronized, or Cloudflare production is healthy.
 
-## Live smoke-test evidence (2026-10-23)
+## Live smoke-test evidence (2026-10-24)
 
-An external live fetch was performed against the currently deployed public Worker URL `https://glorifier.glorifier.workers.dev`:
+Fresh external fetches were performed against `https://glorifier.glorifier.workers.dev` on 2026-10-24. These checks confirm the public Worker is reachable but do **not** establish full production readiness.
 
-- `GET /api/health`: **HTTP 502**, JSON code `API_HTML_RESPONSE`. The deployed Worker forwarded this route upstream and received HTML where API JSON was expected. This is a real production routing failure, not a successful health check.
-- `GET /api/identity`: **HTTP 200** with `ready: false` and `domainStatus: not-configured`. The route responds, but organizational domain/email identity is not configured in its Worker bindings.
-- The new Worker-native `GET /api/health` implementation in this PR is not yet deployed; its runtime tests must pass and a reviewed deployment is required before it can affect production.
+- `GET /api/health`: **HTTP 200**. The response reports `worker-ready`, Worker and assets binding OK, and explicitly reports backend, authentication, and databases as `not-probed`. Treat this as a Worker-runtime check only.
+- `GET /api/business-model`: **HTTP 200**. Returns the static GBM-2.0 contract with evidence-based economic truth labels and human-approval controls.
+- `GET /api/identity`: **HTTP 200**, but `ready: false`; canonical domain and primary email are empty and `domainStatus: not-configured`.
+- `GET /api/reports/summary`: **HTTP 502**, code `BACKEND_ORIGIN_NOT_CONFIGURED`. The route is not Worker-native and no explicit backend origin is configured.
+- `GET /api/runtime-verification?probeAi=false`: **HTTP 502**, code `BACKEND_ORIGIN_NOT_CONFIGURED`. This route still requires functionality that has not been migrated into the Worker.
 
-The new health endpoint intentionally reports only Worker runtime readiness and does not claim the backend, authentication, or databases are healthy. Separate smoke tests are still required for each of those dependencies.
+These results supersede older smoke-test observations in this document. A successful `/api/health` response is not evidence of database, authentication, or backend readiness. The reports and runtime-verification failures remain production blockers.
+
+## Express route inventory snapshot
 
 ## Express route inventory snapshot
 
