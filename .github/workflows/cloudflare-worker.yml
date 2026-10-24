@@ -149,8 +149,10 @@ jobs:
             console.error("Unauthenticated app-state returned non-JSON content");
             process.exit(1);
           }
-          if (status !== 401 || body.code !== "AUTHENTICATION_REQUIRED") {
-            console.error("Expected unauthenticated app-state to return HTTP 401 AUTHENTICATION_REQUIRED; got", status, raw);
+          if (status !== 401 || body === null || typeof body !== "object" ||
+              body.ok !== false ||
+              (body.code !== undefined && body.code !== "AUTHENTICATION_REQUIRED")) {
+            console.error("Unauthenticated app-state boundary failed; expected HTTP 401 and an authentication-required JSON contract; status=" + status + "; code=" + (typeof body?.code === "string" ? body.code : "absent"));
             process.exit(1);
           }
           console.log("Unauthenticated app-state boundary valid; status=401");
