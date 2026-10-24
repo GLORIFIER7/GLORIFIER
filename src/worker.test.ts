@@ -28,7 +28,7 @@ function getCapturedRequest(): Request {
 }
 
 const env: TestEnv = {
-  GLORIFIER_BACKEND_ORIGIN: 'https://glorifier-artificial-intelligence-production.up.railway.app',
+  GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   ASSETS: {
     async fetch() {
       assetCalls += 1;
@@ -82,7 +82,7 @@ async function run(): Promise<void> {
     assert.equal(workerHealthBody.dependencies.backend, 'not-probed');
     assert.equal(workerHealthBody.dependencies.authentication, 'not-probed');
     assert.equal(workerHealthBody.dependencies.databases, 'not-probed');
-    assert.equal(capturedRequest, null, 'Worker health must not call Railway');
+    assert.equal(capturedRequest, null, 'Worker health must not call an upstream backend');
     assert.equal(assetCalls, healthAssetCallsBefore, 'Worker health must not fall through to static assets');
 
     const headHealth = await worker.fetch(
@@ -98,7 +98,7 @@ async function run(): Promise<void> {
     );
     assert.equal(invalidHealthMethod.status, 405);
     assert.equal(invalidHealthMethod.headers.get('allow'), 'GET, HEAD');
-    assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to Railway');
+    assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to an upstream backend');
 
     const assetCallsBeforeIdentity = assetCalls;
     const identityResponse = await worker.fetch(
@@ -113,7 +113,7 @@ async function run(): Promise<void> {
     assert.equal(identityBody.identity.ready, false, 'identity must not be called ready without verified environment configuration');
     assert.equal(identityBody.identity.domainStatus, 'not-configured');
     assert.match(identityBody.identity.nextAction, /Set GLORIFIER_CANONICAL_DOMAIN/);
-    assert.equal(capturedRequest, null, 'identity endpoint must not call Railway');
+    assert.equal(capturedRequest, null, 'identity endpoint must not call an upstream backend');
     assert.equal(assetCalls, assetCallsBeforeIdentity, 'identity endpoint must not fall through to static assets');
 
     const configuredIdentityResponse = await worker.fetch(
@@ -166,7 +166,7 @@ async function run(): Promise<void> {
     );
     assert.equal(apiResponse.status, 200);
     assert.equal(apiResponse.headers.get('cache-control'), 'no-store');
-    assert.equal(getCapturedRequest().url, 'https://glorifier-artificial-intelligence-production.up.railway.app/api/runtime-verification?probeAi=false');
+    assert.equal(getCapturedRequest().url, 'https://api.example.test/api/runtime-verification?probeAi=false');
     assert.equal(getCapturedRequest().headers.get('x-forwarded-host'), 'glorifier.glorifier.workers.dev');
     assert.equal(await apiResponse.json().then((body: { ok?: boolean }) => body.ok), true);
 
@@ -232,7 +232,7 @@ async function run(): Promise<void> {
     upstreamResponse = new Response(null, {
       status: 302,
       headers: {
-        Location: 'https://glorifier-artificial-intelligence-production.up.railway.app/auth/provider/callback?state=test',
+        Location: 'https://api.example.test/auth/provider/callback?state=test',
       },
     });
     const assetCallsBeforeAuth = assetCalls;
@@ -248,7 +248,7 @@ async function run(): Promise<void> {
     );
     assert.equal(
       getCapturedRequest().url,
-      'https://glorifier-artificial-intelligence-production.up.railway.app/auth/provider/start',
+      'https://api.example.test/auth/provider/start',
     );
     assert.equal(assetCalls, assetCallsBeforeAuth, 'auth routes must not fall through to the SPA assets');
 
