@@ -132,6 +132,30 @@ jobs:
             });
           '
 
+      - name: Smoke-test unauthenticated app-state boundary
+        run: |
+          set -euo pipefail
+          output="$(mktemp)"
+          trap 'rm -f "$output"' EXIT
+          status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' https://glorifier.glorifier.workers.dev/api/app-state)"
+          printf '%s %s\\n' "$status" "/api/app-state (unauthenticated)"
+          STATUS="$status" node - "$output" <<'NODE'
+          const fs = require("node:fs");
+          const status = Number(process.env.STATUS);
+          const raw = fs.readFileSync(process.argv[2], "utf8");
+          let body;
+          try { body = JSON.parse(raw); }
+          catch {
+            console.error("Unauthenticated app-state returned non-JSON content");
+            process.exit(1);
+          }
+          if (status !== 401 || body.code !== "AUTHENTICATION_REQUIRED") {
+            console.error("Expected unauthenticated app-state to return HTTP 401 AUTHENTICATION_REQUIRED; got", status, raw);
+            process.exit(1);
+          }
+          console.log("Unauthenticated app-state boundary valid; status=401");
+          NODE
+
       - name: Probe identity, runtime verification, and reporting contracts
         run: |
           set -euo pipefail
