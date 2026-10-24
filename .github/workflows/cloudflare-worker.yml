@@ -115,3 +115,79 @@ jobs:
               }
             });
           '
+
+      - name: Smoke-test Worker-native business model endpoint
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors https://glorifier.glorifier.workers.dev/api/business-model)"
+          printf '%s' "$response" | node -e '
+            let data = "";
+            process.stdin.on("data", chunk => data += chunk);
+            process.stdin.on("end", () => {
+              const body = JSON.parse(data);
+              if (body.ok !== true || !body.model || typeof body.model !== "object") {
+                console.error("Unexpected business-model response:", data);
+                process.exit(1);
+              }
+            });
+          '
+
+      - name: Probe identity, runtime verification, and reporting contracts
+        run: |
+          set -euo pipefail
+          probe() {
+            local path="$1"
+            local allowed_statuses="$2"
+            local output
+            local status
+            output="$(mktemp)"
+            status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' "https://glorifier.glorifier.workers.dev$path")"
+            printf '%s %s\n' "$status" "$path"
+            STATUS="$status" ALLOWED="$allowed_statuses" PATHNAME="$path" node - "$output" <<'NODE'
+          const fs = require("node:fs");
+          const file = process.argv[2];
+          const status = Number(process.env.STATUS);
+          const allowed = process.env.ALLOWED.split(",").map(Number);
+          const path = process.env.PATHNAME;
+          const raw = fs.readFileSync(file, "utf8");
+          let body;
+          try { body = JSON.parse(raw); }
+          catch {
+            console.error(path + " returned non-JSON content");
+            process.exit(1);
+          }
+          if (!allowed.includes(status)) {
+            console.error(path + " returned unexpected HTTP status " + status, raw);
+            process.exit(1);
+          }
+          if (path === "/api/identity") {
+            if (!body.identity || typeof body.identity.ready !== "boolean" ||
+                !["ready", "not-ready"].includes(body.status)) {
+              console.error("Invalid identity response contract", raw);
+              process.exit(1);
+            }
+          } else if (path.startsWith("/api/runtime-verification")) {
+            if (!["verified-for-probed-dependencies", "degraded"].includes(body.status) ||
+                !body.checks || typeof body.checks !== "object" ||
+                !body.checks.database || typeof body.checks.database !== "object") {
+              console.error("Invalid runtime-verification response contract", raw);
+              process.exit(1);
+            }
+          } else if (path === "/api/reports/summary") {
+            if (!["operational-data-observed", "unavailable"].includes(body.status) ||
+                typeof body.ok !== "boolean") {
+              console.error("Invalid reports-summary response contract", raw);
+              process.exit(1);
+            }
+          }
+          console.log(path + " response contract valid; status=" + status +
+            (body.status ? "; applicationStatus=" + body.status : ""));
+          NODE
+            rm -f "$output"
+          }
+          # Identity may legitimately report not-ready until organization domain/email
+          # configuration is completed. Database endpoints must return their documented
+          # success or explicit degraded/unavailable contract, never HTML or an opaque 500.
+          probe "/api/identity" "200,503"
+          probe "/api/runtime-verification?probeAi=false" "200,502,503"
+          probe "/api/reports/summary" "200,502,503"
