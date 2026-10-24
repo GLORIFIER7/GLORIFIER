@@ -44,6 +44,19 @@ The Solana Mainnet Beta mint's on-chain identity reconciliation is recorded in [
 
 The immutable on-chain metadata URI points to `solana/token.json` at commit `d0d5c16fc4a74099c125c8aac594352d53675177`. That pinned JSON was fetched and contains name, symbol, description, external URL, and attributes, but no `image` or `mint` field. The current `main/solana/token.json` contains both as supplemental repository metadata; it does not change the immutable on-chain URI. Because the metadata pointer and update authorities are disabled, do not claim the on-chain metadata image was updated or attempt a redeployment to change it.
 
+## NFT collection identities
+
+The canonical asset registry also records the two owner-designated Ethereum NFT collections as separate canonical collection identities:
+
+| Canonical asset ID | Standard | OpenSea reference | Deployment record | Status |
+|---|---|---|---|---|
+| `glorifier-erc721` | ERC-721 | [glorifier7](https://opensea.io/collection/glorifier7) | Ethereum Mainnet contract `0xd62eb4963423f6e224af0bcccabf75f566fb9ad7` | NOT VERIFIED |
+| `glorifier-erc1155` | ERC-1155 | [glorifier1](https://opensea.io/collection/glorifier1) | Contract address not yet established from evidence | PENDING CONTRACT ADDRESS |
+
+The collection-to-standard mapping above reflects the owner's explicit confirmation. The ERC-721 contract address is a previously supplied address and remains `not_verified` until independently checked against Ethereum. An OpenSea collection slug is not a contract address, so no ERC-1155 deployment row is created until its contract address is established.
+
+These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent and records metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry.
+
 ## API
 
 - `GET /api/assets/canonical?assetId=glr` returns one canonical asset and its chain deployments.
