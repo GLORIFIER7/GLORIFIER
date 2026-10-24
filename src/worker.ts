@@ -115,7 +115,7 @@ const supabaseConfig = (env: CloudflareEnv): { url: URL; key: string } | null =>
   if (!rawUrl || !key) return null;
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !url.hostname.endsWith('.supabase.co')) return null;
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !url.hostname.endsWith('.supabase.co')) return null;
     url.pathname = url.pathname.replace(/\/$/, '');
     return { url, key };
   } catch {
