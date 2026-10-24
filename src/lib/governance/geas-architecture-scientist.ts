@@ -616,7 +616,8 @@ export function classifyArchitectureEvidence(status: EvidenceStatus): EvidenceCl
 export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
   if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt) return true;
   const observedMs = Date.parse(observedAt);
-  if (!Number.isFinite(observedMs)) return true;
+  // A future timestamp is not trustworthy freshness evidence; force a fresh observation.
+  if (!Number.isFinite(observedMs) || observedMs > nowMs) return true;
   return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 }
 
@@ -640,9 +641,13 @@ export function shouldReuseSourceObservation(input: {
 export function buildConditionalRequestHeaders(
   configuredUrl: string,
   cached?: CachedSourceObservation | null,
+  nowMs = Date.now(),
 ): Record<string, string> {
   const headers: Record<string, string> = {};
   if (!cached || cached.source_url !== configuredUrl || !cached.ok || !cached.content_hash) return headers;
+  const cachedObservedAt = Date.parse(cached.observed_at);
+  // Do not let a clock-skewed or corrupted future observation seed a conditional request.
+  if (!Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs) return headers;
   if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
   if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
   return headers;
@@ -653,13 +658,15 @@ export function reuseNotModifiedSourceObservation(
   cached: CachedSourceObservation | null | undefined,
   response: { finalUrl: string; etag: string | null; lastModified: string | null },
   observedAt: string,
+  nowMs = Date.now(),
 ): SourceObservation | null {
+  const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
   if (!cached || cached.source_url !== source.url || !cached.ok
       || typeof cached.content_hash !== 'string'
       || !/^[a-f0-9]{64}$/i.test(cached.content_hash)
       || typeof cached.final_url !== 'string'
       || cached.final_url !== response.finalUrl
-      || !Number.isFinite(Date.parse(cached.observed_at))
+      || !Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs
       || !['source-available', 'content-matched', 'claim-supported', 'not-observed', 'unavailable'].includes(cached.evidence_status)) return null;
   return {
     sourceId: source.id,
