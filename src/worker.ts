@@ -219,7 +219,7 @@ const hasSessionCredential = (request: Request): boolean => {
     const value = rawValue.startsWith('"') && rawValue.endsWith('"')
       ? rawValue.slice(1, -1).trim()
       : rawValue;
-    return /^(session|auth-token|access-token)$/i.test(name) && value.length > 0;
+    return /^(session|auth-token|access-token)$/.test(name) && value.length > 0;
   });
 };
 
