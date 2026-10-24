@@ -9,6 +9,10 @@ if (classifyArchitectureEvidence('source-available') !== 'analysis') throw new E
 if (classifyArchitectureEvidence('claim-supported') !== 'observed-fact') throw new Error('claim-supported evidence should be classified as observed fact');
 if (isSourceObservationDue(24, new Date(0).toISOString(), 24 * 60 * 60 * 1000 - 1)) throw new Error('source cadence should reuse fresh observations');
 if (!isSourceObservationDue(24, new Date(0).toISOString(), 24 * 60 * 60 * 1000)) throw new Error('source cadence should refresh expired observations');
+const fixedNowMs = 1000;
+const futureObservedAt = new Date(fixedNowMs + 1).toISOString();
+if (!isSourceObservationDue(24, futureObservedAt, fixedNowMs)) throw new Error('future-dated source observations must force revalidation');
+if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: true, cadenceHours: 336, observedAt: futureObservedAt, nowMs: fixedNowMs })) throw new Error('future-dated observations must not be reused');
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cachedUrl: 'https://example.org/old', ok: true, cadenceHours: 168, observedAt: new Date(0).toISOString(), nowMs: 1000 })) throw new Error('URL changes must invalidate cached source observations');
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
 if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
@@ -36,6 +40,9 @@ if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', ca
 if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, ok: false })).length !== 0) {
   throw new Error('failed cached observations must not be used for conditional requests');
 }
+if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, observed_at: futureObservedAt }, fixedNowMs)).length !== 0) {
+  throw new Error('future-dated cached observations must not seed conditional request headers');
+}
 const revalidated = reuseNotModifiedSourceObservation(
   { id: 'test-source', url: cachedObservation.source_url },
   cachedObservation,
@@ -57,6 +64,13 @@ if (reuseNotModifiedSourceObservation(
   { finalUrl: cachedObservation.source_url, etag: null, lastModified: null },
   new Date(1000).toISOString(),
 ) !== null) throw new Error('304 response without cached evidence must remain unverified');
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  { ...cachedObservation, observed_at: futureObservedAt },
+  { finalUrl: cachedObservation.source_url, etag: '"v2"', lastModified: null },
+  new Date(fixedNowMs).toISOString(),
+  fixedNowMs,
+) !== null) throw new Error('304 response must not reuse future-dated cached evidence');
 
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
