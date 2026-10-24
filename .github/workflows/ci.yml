@@ -85,6 +85,9 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: Canonical NFT registry seed regression tests
+        run: npm run test:asset-registry-seed
+
       - name: Governed capability catalog regression tests
         run: npm run test:capability-authorization
 

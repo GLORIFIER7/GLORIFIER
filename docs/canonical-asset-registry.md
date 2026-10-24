@@ -51,11 +51,11 @@ The canonical asset registry also records the two owner-designated Ethereum NFT 
 | Canonical asset ID | Standard | OpenSea reference | Deployment record | Status |
 |---|---|---|---|---|
 | `glorifier-erc721` | ERC-721 | [glorifier7](https://opensea.io/collection/glorifier7) | Ethereum Mainnet contract `0xd62eb4963423f6e224af0bcccabf75f566fb9ad7` | NOT VERIFIED |
-| `glorifier-erc1155` | ERC-1155 | [glorifier1](https://opensea.io/collection/glorifier1) | Contract address not yet established from evidence | PENDING CONTRACT ADDRESS |
+| `glorifier-erc1155` | ERC-1155 | [glorifier1](https://opensea.io/collection/glorifier1) | Ethereum Mainnet contract `0x355C94e4b6B353421De956e87D643bB036d6a417` | NOT VERIFIED |
 
-The collection-to-standard mapping above reflects the owner's explicit confirmation. The ERC-721 contract address is a previously supplied address and remains `not_verified` until independently checked against Ethereum. An OpenSea collection slug is not a contract address, so no ERC-1155 deployment row is created until its contract address is established.
+The collection-to-standard mapping above reflects the owner's explicit confirmation. The ERC-721 contract address is a previously supplied address and remains `not_verified` until independently checked against Ethereum. The ERC-1155 address `0x355C94e4b6B353421De956e87D643bB036d6a417` was supplied by the owner and is recorded as an unverified Ethereum Mainnet deployment; its ERC-1155 bytecode/interface and relationship to the OpenSea collection have not yet been independently verified.
 
-These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent and records metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry.
+These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent: it inserts missing NFT identities/deployment records but does not overwrite existing canonical metadata or evidence on conflict. It records owner-supplied metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry. Regression tests cover the two collection identities, the single known ERC-721 deployment, pending ERC-1155 address, and conflict-preservation behavior.
 
 ## API
 

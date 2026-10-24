@@ -472,9 +472,13 @@ async function seedCanonicalGLRRegistry() {
  * Seed the known GLORIFIER NFT collection identities into the canonical registry.
  * This records owner-supplied identity claims only; it does not assert on-chain verification.
  * Unknown ERC-1155 contract identifiers remain pending instead of being guessed from an OpenSea slug.
+ * Existing canonical records and independently collected evidence are preserved on subsequent initialization.
  */
-async function seedCanonicalNFTRegistry() {
-  const db = getPostgresPool();
+type CanonicalNFTRegistryQueryClient = {
+  query: (sql: string, values?: any[]) => Promise<any>;
+};
+
+export async function seedCanonicalNFTRegistry(db: CanonicalNFTRegistryQueryClient = getPostgresPool()) {
   const assets = [
     {
       assetId: 'glorifier-erc721',
@@ -494,8 +498,9 @@ async function seedCanonicalNFTRegistry() {
         standard: 'ERC-1155',
         openseaCollectionUrl: 'https://opensea.io/collection/glorifier1',
         identitySource: 'owner-confirmed-in-conversation',
-        verificationStatus: 'pending_contract_address',
-        note: 'OpenSea collection slug is not a contract address. Resolve the actual Ethereum contract address before creating a deployment record.'
+        verificationStatus: 'not_verified',
+        contractAddressSource: 'owner-supplied-in-conversation',
+        note: 'The ERC-1155 contract address was supplied by the owner; independently verify the contract standard and collection relationship on Ethereum before upgrading status.'
       }
     }
   ];
@@ -503,11 +508,7 @@ async function seedCanonicalNFTRegistry() {
     await db.query(`INSERT INTO canonical_asset_registry
       (asset_id,namespace,name,symbol,asset_class,canonical_status,decimals,supply_policy,canonical_metadata)
       VALUES($1,'glorifier-nft','GLORIFIER',$2,'other','active',NULL,'collection-defined',$3)
-      ON CONFLICT(asset_id) DO UPDATE SET
-        namespace=EXCLUDED.namespace,name=EXCLUDED.name,symbol=EXCLUDED.symbol,
-        asset_class=EXCLUDED.asset_class,canonical_status=EXCLUDED.canonical_status,
-        decimals=EXCLUDED.decimals,supply_policy=EXCLUDED.supply_policy,
-        canonical_metadata=EXCLUDED.canonical_metadata,updated_at=NOW()`,
+      ON CONFLICT(asset_id) DO NOTHING`,
       [asset.assetId, asset.symbol, JSON.stringify(asset.metadata)]);
   }
 
@@ -517,14 +518,7 @@ async function seedCanonicalNFTRegistry() {
      status,explorer,source_verification_status,verification_mode,evidence)
     VALUES($1,$2,$3,'evm','evm:1',1,'contract',$4,$4,NULL,NULL,NULL,
       'not_verified','Etherscan','not_verified','owner-supplied-reference',$5)
-    ON CONFLICT(deployment_id) DO UPDATE SET
-      network=EXCLUDED.network,network_family=EXCLUDED.network_family,network_id=EXCLUDED.network_id,
-      chain_id=EXCLUDED.chain_id,identifier_type=EXCLUDED.identifier_type,
-      contract_address=EXCLUDED.contract_address,asset_identifier=EXCLUDED.asset_identifier,
-      deployment_transaction=EXCLUDED.deployment_transaction,deployment_block=EXCLUDED.deployment_block,
-      status=EXCLUDED.status,explorer=EXCLUDED.explorer,
-      source_verification_status=EXCLUDED.source_verification_status,
-      verification_mode=EXCLUDED.verification_mode,evidence=EXCLUDED.evidence,updated_at=NOW()`,
+    ON CONFLICT(deployment_id) DO NOTHING`,
     [
       'glorifier-erc721-ethereum-mainnet',
       'glorifier-erc721',
@@ -537,6 +531,28 @@ async function seedCanonicalNFTRegistry() {
         verificationStatus: 'not_verified',
         deploymentTransactionStatus: 'not_recorded',
         note: 'The supplied successful transaction was a call to this contract, not evidence that this transaction deployed the contract.'
+      })
+    ]);
+
+  await db.query(`INSERT INTO canonical_asset_deployments
+    (deployment_id,asset_id,network,network_family,network_id,chain_id,identifier_type,
+     contract_address,asset_identifier,program_id,deployment_transaction,deployment_block,
+     status,explorer,source_verification_status,verification_mode,evidence)
+    VALUES($1,$2,$3,'evm','evm:1',1,'contract',$4,$4,NULL,NULL,NULL,
+      'not_verified','Etherscan','not_verified','owner-supplied-reference',$5)
+    ON CONFLICT(deployment_id) DO NOTHING`,
+    [
+      'glorifier-erc1155-ethereum-mainnet',
+      'glorifier-erc1155',
+      'Ethereum Mainnet',
+      '0x355C94e4b6B353421De956e87D643bB036d6a417',
+      JSON.stringify({
+        standard: 'ERC-1155',
+        openseaCollectionUrl: 'https://opensea.io/collection/glorifier1',
+        contractAddressSource: 'owner-supplied-in-conversation',
+        verificationStatus: 'not_verified',
+        deploymentTransactionStatus: 'not_recorded',
+        note: 'Owner-supplied contract reference only; no independent chain or OpenSea relationship verification has been recorded.'
       })
     ]);
 }
