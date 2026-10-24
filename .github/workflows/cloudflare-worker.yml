@@ -138,7 +138,7 @@ jobs:
           output="$(mktemp)"
           trap 'rm -f "$output"' EXIT
           status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' https://glorifier.glorifier.workers.dev/api/app-state)"
-          printf '%s %s\\n' "$status" "/api/app-state (unauthenticated)"
+          printf '%s %s\n' "$status" "/api/app-state (unauthenticated)"
           STATUS="$status" node - "$output" <<'NODE'
           const fs = require("node:fs");
           const status = Number(process.env.STATUS);
