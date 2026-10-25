@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const registryPath = new URL('../docs/architecture/interoperability-capabilities.json', import.meta.url);
 const schemaPath = new URL('../docs/architecture/interoperability-capabilities.schema.json', import.meta.url);
+const openApiPath = new URL('../docs/architecture/openapi/glorifier-neural-adapter.openapi.json', import.meta.url);
 const allowedStatuses = new Set([
   'VERIFIED',
   'PARTIALLY VERIFIED',
@@ -13,6 +14,7 @@ const evidenceKinds = new Set(['source', 'documentation', 'schema', 'automated-t
 
 const registry = JSON.parse(await readFile(registryPath, 'utf8'));
 const schema = JSON.parse(await readFile(schemaPath, 'utf8'));
+const openApi = JSON.parse(await readFile(openApiPath, 'utf8'));
 const errors = [];
 
 const requireText = (value, field, context) => {
@@ -32,6 +34,30 @@ if (!Array.isArray(registry.statusVocabulary) || registry.statusVocabulary.lengt
 }
 if (!Array.isArray(registry.capabilities) || registry.capabilities.length === 0) {
   errors.push('capabilities must be a non-empty array.');
+}
+
+
+if (openApi.openapi !== '3.1.0') errors.push('Neural adapter OpenAPI document must use OpenAPI 3.1.0.');
+const taskOperation = openApi.paths?.['/api/neural/v1/tasks']?.post;
+const taskRequestSchema = openApi.components?.schemas?.TaskRequest;
+if (!taskOperation) errors.push('OpenAPI contract must define POST /api/neural/v1/tasks.');
+if (!taskOperation?.security?.some((entry) => Object.hasOwn(entry, 'bearerAuth'))) {
+  errors.push('Neural task endpoint must declare bearerAuth.');
+}
+if (taskRequestSchema?.properties?.task?.maxLength !== 20000) {
+  errors.push('TaskRequest.task must cap text at the Neural API limit of 20,000 characters.');
+}
+if (taskRequestSchema?.properties?.action_class?.maxLength !== 64) {
+  errors.push('TaskRequest.action_class must cap at the Neural API limit of 64 characters.');
+}
+if (taskRequestSchema?.additionalProperties !== false || !taskRequestSchema?.required?.includes('task')) {
+  errors.push('TaskRequest must require task and forbid unknown properties to match GLORIFIER-NEURAL.');
+}
+if (!taskOperation?.responses?.['413'] || !taskOperation?.responses?.['415']) {
+  errors.push('Neural task API contract must document oversized-body and unsupported-media-type errors.');
+}
+if (!String(taskOperation?.description || '').includes('65,536 bytes')) {
+  errors.push('Neural task API contract must document the 65,536-byte request-body limit.');
 }
 
 const ids = new Set();
