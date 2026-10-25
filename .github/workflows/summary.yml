@@ -6,6 +6,9 @@ on:
 
 jobs:
   summary:
+    # Public issues can be opened by anyone. Only spend Copilot requests for
+    # issues opened by repository owners, members, or collaborators.
+    if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) }}
     runs-on: ubuntu-latest
     permissions:
       issues: read
@@ -17,8 +20,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install GitHub Copilot CLI
-        run: npm install -g @github/copilot
+      - name: Install pinned GitHub Copilot CLI
+        run: npm install -g @github/copilot@1.0.88
 
       - name: Run AI inference
         id: inference
