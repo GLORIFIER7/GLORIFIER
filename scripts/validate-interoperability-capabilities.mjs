@@ -44,6 +44,22 @@ if (!taskOperation) errors.push('OpenAPI contract must define POST /api/neural/v
 if (!taskOperation?.security?.some((entry) => Object.hasOwn(entry, 'bearerAuth'))) {
   errors.push('Neural task endpoint must declare bearerAuth.');
 }
+if (!taskOperation?.parameters?.some((entry) => entry.$ref === '#/components/parameters/CorrelationId')) {
+  errors.push('Neural task endpoint must declare the optional correlation ID header.');
+}
+if (openApi.components?.parameters?.CorrelationId?.schema?.format !== 'uuid') {
+  errors.push('The shared correlation ID parameter must be documented as a UUID.');
+}
+for (const [path, pathItem] of Object.entries(openApi.paths || {})) {
+  for (const [method, operation] of Object.entries(pathItem || {})) {
+    if (!['get', 'head', 'post'].includes(method) || !operation?.responses) continue;
+    for (const [statusCode, response] of Object.entries(operation.responses)) {
+      if (!response?.headers?.['X-Correlation-ID']) {
+        errors.push(`OpenAPI ${method.toUpperCase()} ${path} response ${statusCode} must document X-Correlation-ID.`);
+      }
+    }
+  }
+}
 if (taskRequestSchema?.properties?.task?.maxLength !== 20000) {
   errors.push('TaskRequest.task must cap text at the Neural API limit of 20,000 characters.');
 }
