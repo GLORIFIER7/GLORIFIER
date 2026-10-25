@@ -4,7 +4,7 @@
     "title": "GLORIFIER Neural Adapter API",
     "version": "0.1.0",
     "summary": "Versioned public Worker boundary for the separately deployed GLORIFIER-NEURAL service.",
-    "description": "This specification documents the GLORIFIER Cloudflare Worker adapter, not a claim that a live Neural origin is configured. Task bodies are limited to 65,536 bytes (64 KiB), matching the current GLORIFIER-NEURAL request middleware. Worker-side bearer-shape checking is not identity validation; the Neural service validates the bearer token. Readiness remains HTTP 503 while required providers are unverified."
+    "description": "This specification documents the GLORIFIER Cloudflare Worker adapter, not a claim that a live Neural origin is configured. Task bodies are limited to 65,536 bytes (64 KiB), matching the current GLORIFIER-NEURAL request middleware. Worker-side bearer-shape checking is not identity validation; the Neural service validates the bearer token. Readiness remains HTTP 503 while required providers are unverified. Every adapter response includes X-Correlation-ID. A canonical UUID supplied by the caller is propagated unchanged; invalid values are replaced with a server-generated UUID."
   },
   "servers": [
     {
@@ -38,6 +38,15 @@
                   "$ref": "#/components/schemas/NeuralHealthResponse"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "502": {
@@ -46,6 +55,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -58,9 +76,23 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
       },
       "head": {
         "operationId": "headNeuralHealth",
@@ -70,15 +102,47 @@
         "summary": "Check the availability of the Neural health endpoint.",
         "responses": {
           "200": {
-            "description": "Health endpoint was reached; response body is omitted."
+            "description": "Health endpoint was reached; response body is omitted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           },
           "502": {
-            "description": "Upstream request failed."
+            "description": "Upstream request failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Origin is missing, invalid, or not allowlisted."
+            "description": "Origin is missing, invalid, or not allowlisted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
       }
     },
     "/api/neural/ready": {
@@ -98,6 +162,15 @@
                   "$ref": "#/components/schemas/NeuralReadyResponse"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "502": {
@@ -106,6 +179,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -118,9 +200,23 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
       },
       "head": {
         "operationId": "headNeuralReadiness",
@@ -130,15 +226,47 @@
         "summary": "Check the availability of the Neural readiness endpoint.",
         "responses": {
           "200": {
-            "description": "Neural readiness returned HTTP 200; response body is omitted."
+            "description": "Neural readiness returned HTTP 200; response body is omitted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           },
           "502": {
-            "description": "Upstream request failed."
+            "description": "Upstream request failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Neural dependency readiness or origin availability failed."
+            "description": "Neural dependency readiness or origin availability failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
       }
     },
     "/api/neural/v1/tasks": {
@@ -179,6 +307,15 @@
                   "$ref": "#/components/schemas/TaskResponse"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "202": {
@@ -187,6 +324,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -199,6 +345,15 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "401": {
@@ -207,6 +362,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -219,6 +383,15 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "415": {
@@ -227,6 +400,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -239,6 +421,15 @@
                   "$ref": "#/components/schemas/ValidationError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "429": {
@@ -249,6 +440,13 @@
                   "type": "integer"
                 },
                 "description": "Seconds until the current rate-limit window resets."
+              },
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
               }
             },
             "content": {
@@ -267,6 +465,15 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           },
           "503": {
@@ -277,9 +484,23 @@
                   "$ref": "#/components/schemas/AdapterError"
                 }
               }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
       }
     }
   },
@@ -481,6 +702,18 @@
           }
         },
         "additionalProperties": true
+      }
+    },
+    "parameters": {
+      "CorrelationId": {
+        "name": "X-Correlation-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional canonical UUID used to correlate the public Worker request with the Neural service and audit events. Invalid values are replaced with a generated UUID.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
       }
     }
   }
