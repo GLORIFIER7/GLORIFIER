@@ -75,3 +75,47 @@ jobs:
         run: docker build --pull -f Dockerfile -t glorifier:ci .
       - name: Build Ubuntu 24.04 production image
         run: docker build --pull -f Dockerfile.ubuntu -t glorifier-ubuntu:ci .
+
+      - name: Smoke-test distroless image health and graceful shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="glorifier-distroless-smoke"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$container" -p 127.0.0.1:13000:3000 glorifier:ci >/dev/null
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/health > /tmp/glorifier-distroless-health.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+          node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-distroless-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          docker stop --time 10 "$container" >/dev/null
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
+          test "$exit_code" = "0"
+
+      - name: Smoke-test Ubuntu image health and graceful shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="glorifier-ubuntu-smoke"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$container" -p 127.0.0.1:13001:3000 glorifier-ubuntu:ci >/dev/null
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:13001/api/health > /tmp/glorifier-ubuntu-health.json; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+          node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-ubuntu-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          docker stop --time 10 "$container" >/dev/null
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
+          test "$exit_code" = "0"
