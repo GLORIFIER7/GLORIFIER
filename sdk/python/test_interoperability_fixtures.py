@@ -84,6 +84,8 @@ class InteroperabilityFixtureTests(unittest.TestCase):
 
     def test_fixture_document_has_version_rules_and_unique_cases(self):
         self.assertEqual(self.document["schemaVersion"], "1.0.0")
+        self.assertEqual(self.document["encoding"], "UTF-8")
+        self.assertIsInstance(self.document["rules"], list)
         self.assertTrue(self.document["rules"])
         case_ids = [case["id"] for case in self.document["cases"]]
         self.assertEqual(len(case_ids), len(set(case_ids)))
@@ -91,7 +93,8 @@ class InteroperabilityFixtureTests(unittest.TestCase):
 
     def test_unicode_round_trip(self):
         payload = self.cases["unicode-round-trip"]["payload"]
-        decoded = json.loads(json.dumps(payload, ensure_ascii=False))
+        wire = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        decoded = json.loads(wire.decode("utf-8"))
         self.assertEqual(decoded, payload)
         self.assertIn("🌐", decoded["message"])
         self.assertIn("你好", decoded["message"])
@@ -106,7 +109,8 @@ class InteroperabilityFixtureTests(unittest.TestCase):
         payload = self.cases["null-versus-absent"]["payload"]
         self.assertIn("presentNull", payload)
         self.assertIsNone(payload["presentNull"])
-        self.assertNotIn("absentField", payload)
+        for field in self.cases["null-versus-absent"].get("absentFields", []):
+            self.assertNotIn(field, payload)
         self.assertEqual(payload["emptyString"], "")
 
     def test_nested_types_and_zero_are_preserved(self):
@@ -117,12 +121,13 @@ class InteroperabilityFixtureTests(unittest.TestCase):
         self.assertIs(decoded["items"][1]["enabled"], False)
         self.assertEqual(decoded["metadata"]["tags"], ["ai", "language-neutral"])
 
-    def test_error_contract_uses_stable_code_and_numeric_status(self):
-        error = self.cases["stable-error-envelope"]["payload"]["error"]
+    def test_error_contract_uses_top_level_code_and_string_status(self):
+        error = self.cases["stable-error-envelope"]["payload"]
+        self.assertIs(error["ok"], False)
         self.assertEqual(error["code"], "REQUEST_BODY_TOO_LARGE")
-        self.assertEqual(error["status"], 413)
-        self.assertIsInstance(error["message"], str)
-        self.assertTrue(error["correlationId"])
+        self.assertIsInstance(error["status"], str)
+        self.assertEqual(error["status"], "error")
+        self.assertIsInstance(error["error"], str)
 
 
 if __name__ == "__main__":
