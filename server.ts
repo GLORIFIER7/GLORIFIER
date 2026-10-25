@@ -847,7 +847,11 @@ app.get('/api/binance/health', requireOwner, async (_req: Request, res: Response
   return res.status(httpStatus).json({ ok: verification.safeForReadOnly && verification.evidenceRecorded, verification });
 });
 
+let backendInitialized = false;
+let backendInitializationInProgress = false;
+
 app.get('/api/health/ready', async (_req: Request, res: Response) => {
+  if (!backendInitialized) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'Backend initialization is incomplete' });
   if (!process.env.DATABASE_URL) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'DATABASE_URL is not configured' });
   try { await getPostgresPool().query('SELECT 1'); return res.json({ ok: true, status: 'ready', timestamp: new Date().toISOString() }); }
   catch (error) { return apiError(res, 503, 'Backend dependencies are not ready', error); }
@@ -3769,11 +3773,28 @@ async function startServer() {
   // A slow database, provider, or connection registry must not prevent the
   // container from serving health and readiness endpoints.
   const initializeBackgroundServices = async () => {
-    try {
-      await initializeBackend();
-    } catch (error) {
-      console.warn('[BackendInit] startup initialization deferred:', error instanceof Error ? error.message : error);
-    }
+    const initializeBackendWithReadiness = async (): Promise<void> => {
+      if (backendInitializationInProgress || backendInitialized) return;
+      backendInitializationInProgress = true;
+      try {
+        await initializeBackend();
+        backendInitialized = true;
+        console.log('[BackendInit] backend initialization completed; readiness enabled.');
+      } catch (error) {
+        backendInitialized = false;
+        console.warn('[BackendInit] startup initialization deferred; readiness remains disabled:', error instanceof Error ? error.message : error);
+      } finally {
+        backendInitializationInProgress = false;
+      }
+    };
+    await initializeBackendWithReadiness();
+
+    // Retry a failed backend initialization without blocking the HTTP listener.
+    // Readiness remains 503 until schema/state initialization actually completes.
+    setInterval(() => {
+      if (!backendInitialized) void initializeBackendWithReadiness();
+    }, 30000);
+
     try {
       await reconcileIntegrationControlPlane('backend-startup');
     } catch (error) {

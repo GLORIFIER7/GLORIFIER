@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T14:09:30Z",
+  "updatedAt": "2026-10-25T14:20:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -169,7 +169,7 @@
       "title": "Container image builds",
       "boundary": "OCI images defined by Dockerfile and Dockerfile.ubuntu",
       "scope": "container-build",
-      "status": "PARTIALLY VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
       ],
@@ -200,14 +200,20 @@
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678095",
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:37:07Z",
-          "notes": "Both image builds succeeded, but the distroless health/graceful-shutdown job failed: the first health request reset the connection and subsequent requests were refused. This workflow revision did not capture the container process logs, so the exact runtime exception is not established. Source checks on Ubuntu 22.04/24.04 passed, but this does not verify container runtime behavior."
+          "notes": "Historical failure: both images built, but the distroless health/graceful-shutdown smoke test failed on this earlier workflow revision. Superseded for the tested targets by the successful fresh run recorded below; retain as historical regression evidence."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40200919759",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 source checks; Ubuntu 24.04 x86_64 Docker builder and distroless/Ubuntu runtime smoke tests",
+          "observedAt": "2026-10-25T14:14:00Z",
+          "notes": "Fresh run passed all three jobs. TypeScript, capability-registry validation, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build/static output checks passed on Ubuntu 22.04 and 24.04. Both distroless and Ubuntu 24.04 images built and passed /api/health payload and graceful-shutdown smoke tests. This verifies CI behavior for these named x86_64 targets only; it does not establish live provider/RPC readiness or production deployment status."
         }
       ],
       "limitations": [
-        "The recorded distroless runtime smoke test failed even though both images built; image build success is not runtime evidence.",
-        "PR #476 proposes opening the HTTP listener before optional backend/database/provider reconciliation so health checks are not blocked by startup integrations; the fresh Linux/container workflow must pass before runtime capability status can be upgraded.",
-        "Both images must pass health payload assertions and graceful-shutdown checks on a fresh run before this capability is VERIFIED.",
-        "No multi-architecture build is claimed."
+        "Verification is limited to GitHub-hosted x86_64 targets named in the evidence; no multi-architecture claim is made.",
+        "CI container health and graceful-shutdown tests do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability.",
+        "No production deployment was performed as part of this verification."
       ]
     },
     {
