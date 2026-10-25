@@ -270,6 +270,14 @@ async function run(): Promise<void> {
     assert.equal(await invalidBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
     assert.equal(capturedRequest, null, 'invalid backend origins must fail closed without making a request');
 
+    const nonstandardBackendPort = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/nonstandard-port'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test:8443' },
+    );
+    assert.equal(nonstandardBackendPort.status, 502);
+    assert.equal(await nonstandardBackendPort.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
+    assert.equal(capturedRequest, null, 'nonstandard HTTPS ports must be rejected before backend egress');
+
     upstreamResponse = new Response('{"ok":false,"error":"not found"}', {
       status: 404,
       headers: { 'Content-Type': 'application/json' },
@@ -355,6 +363,13 @@ async function run(): Promise<void> {
     const neuralInvalidOrigin = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test' });
     assert.equal(neuralInvalidOrigin.status, 503);
     assert.equal(await neuralInvalidOrigin.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
+
+    const neuralNonstandardPort = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test:8443' },
+    );
+    assert.equal(neuralNonstandardPort.status, 503);
+    assert.equal(await neuralNonstandardPort.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
 
     capturedRequest = null;
     const neuralMissingAllowlist = await worker.fetch(
