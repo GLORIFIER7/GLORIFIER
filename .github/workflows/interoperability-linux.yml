@@ -60,6 +60,11 @@ jobs:
         run: npm run lint
       - name: Test Worker and interoperability boundaries
         run: npm run test:cloudflare-worker
+      - name: Run chain-specific read-only transfer verifier test vectors
+        run: |
+          npm run test:glr-ethereum-verifier
+          npm run test:glr-bnb-verifier
+          npm run test:glr-solana-verifier
       - name: Build frontend
         run: npm run build:frontend
       - name: Verify static output
