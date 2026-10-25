@@ -10,6 +10,7 @@ type TestEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -320,6 +321,42 @@ async function run(): Promise<void> {
     );
     assert.equal(unavailable.status, 502);
     assert.equal(await unavailable.json().then((body: { ok?: boolean; code?: string }) => body.code), 'UPSTREAM_UNAVAILABLE');
+
+
+    // Neural adapter exposes only the three documented routes, never a generic proxy.
+    capturedRequest = null;
+    const neuralNotConfigured = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: undefined });
+    assert.equal(neuralNotConfigured.status, 503);
+    assert.equal(await neuralNotConfigured.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null);
+
+    const neuralInvalidOrigin = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test' });
+    assert.equal(neuralInvalidOrigin.status, 503);
+    assert.equal(await neuralInvalidOrigin.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
+
+    const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(neuralTaskNoAuth.status, 401);
+    assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
+
+    upstreamResponse = new Response('{"status":"not-ready"}', { status: 503, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'must-not-forward=yes' } });
+    const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
+    assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
+    assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
+
+    upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
+    const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST', headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' }, body: '{"task":"summarize"}',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(neuralTask.status, 202);
+    assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks');
+    assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer caller-token', 'caller token must be forwarded unchanged');
+    assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
+
+    const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(neuralUnknown.status, 404, 'unmapped Neural namespace paths must not fall through to the legacy backend');
+    assert.equal(await neuralUnknown.json().then((body: { code?: string }) => body.code), 'NEURAL_ROUTE_NOT_FOUND');
+    assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready', 'unknown routes must not trigger another upstream request');
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {

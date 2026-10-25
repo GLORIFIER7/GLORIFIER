@@ -11,6 +11,7 @@ type CloudflareEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -204,6 +205,55 @@ const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv)
   }
 };
 
+
+const neuralOrigin = (value?: string): string | null => {
+  const candidate = configured(value);
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+};
+
+const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
+  const mapping: Record<string, { upstreamPath: string; methods: readonly string[] }> = {
+    '/api/neural/health': { upstreamPath: '/health', methods: ['GET', 'HEAD'] },
+    '/api/neural/ready': { upstreamPath: '/ready', methods: ['GET', 'HEAD'] },
+    '/api/neural/v1/tasks': { upstreamPath: '/v1/tasks', methods: ['POST'] },
+  };
+  const route = mapping[pathname];
+  if (!route) return Response.json({ ok: false, code: 'NEURAL_ROUTE_NOT_FOUND' }, { status: 404, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (!route.methods.includes(request.method)) return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { Allow: route.methods.join(', '), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (pathname === '/api/neural/v1/tasks' && !/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
+    return Response.json({ ok: false, code: 'AUTHENTICATION_REQUIRED' }, { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  }
+  const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
+  if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  const headers = new Headers();
+  const accept = request.headers.get('accept');
+  if (accept) headers.set('accept', accept);
+  const contentType = request.headers.get('content-type');
+  if (contentType && pathname === '/api/neural/v1/tasks') headers.set('content-type', contentType);
+  const authorization = request.headers.get('authorization');
+  if (authorization && pathname === '/api/neural/v1/tasks') headers.set('authorization', authorization);
+  const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
+  if (request.method === 'POST') init.body = request.body;
+  try {
+    const upstream = await fetch(new Request(new URL(route.upstreamPath, origin), init));
+    const responseHeaders = new Headers();
+    const upstreamType = upstream.headers.get('content-type');
+    if (upstreamType) responseHeaders.set('content-type', upstreamType);
+    responseHeaders.set('Cache-Control', 'no-store');
+    responseHeaders.set('X-Content-Type-Options', 'nosniff');
+    return new Response(request.method === 'HEAD' ? null : upstream.body, { status: upstream.status, headers: responseHeaders });
+  } catch {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_UPSTREAM_UNAVAILABLE' }, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  }
+};
+
 const isBackendPath = (pathname: string): boolean =>
   /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
@@ -279,6 +329,10 @@ const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL, backendOrigi
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
+
+    if (incomingUrl.pathname.startsWith('/api/neural/')) {
+      return neuralRoute(request, incomingUrl.pathname, env);
+    }
 
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
     if (incomingUrl.pathname === '/api/health') {
