@@ -70,6 +70,24 @@ jobs:
             console.log("Worker, assets, and Supabase exact-count probe passed; authentication and AI were not probed");
           ' "$body"
 
+      - name: Check unauthenticated access to protected app-state API
+        run: |
+          set -euo pipefail
+          url="https://glorifier.glorifier.workers.dev/api/app-state"
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          status="$(curl -sS -o "$body" -w "%{http_code}" --max-time 15 "$url")"
+          echo "Unauthenticated protected API HTTP status: $status"
+          case "$status" in
+            401|403)
+              echo "Protected API correctly rejected an unauthenticated request"
+              ;;
+            *)
+              echo "::error::Expected HTTP 401 or 403 from the protected app-state endpoint; received HTTP $status"
+              exit 1
+              ;;
+          esac
+
       - name: Check configured application health endpoint
         if: ${{ env.GLORIFIER_HEALTH_URL != '' }}
         run: |
