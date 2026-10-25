@@ -50,7 +50,7 @@ Fresh external fetches were performed against `https://glorifier.glorifier.worke
 
 These results supersede older smoke-test observations in this document. A successful `/api/health` response is not evidence of database, authentication, or backend readiness. The reports and runtime-verification failures remain production blockers.
 
-## Latest live smoke-test evidence (2026-10-25)
+## Latest live smoke-test evidence (2026-10-26)
 
 A later read-only production check, recorded in [Issue #432 comment](https://github.com/GLORIFIER7/GLORIFIER/issues/432#issuecomment-6400491311), supersedes the 2026-10-24 failure observations for the two endpoints below. These checks were recorded externally; this documentation update did not run or deploy them.
 
