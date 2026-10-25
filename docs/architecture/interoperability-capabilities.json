@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T13:34:00Z",
+  "updatedAt": "2026-10-25T13:37:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -33,6 +33,20 @@
           "targetEnvironment": "main commit 51e41003f5c1e3883cf3c834eaad5a1f80079ac2; cimg/node:24.16.0 Linux Docker executor",
           "observedAt": "2026-10-25T13:17:49.628Z",
           "notes": "This historical green run covered npm ci, lint/type-check, Worker tests, frontend build, and output check before this branch's body-limit changes; it is not evidence of live Neural readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -46,7 +60,7 @@
       "title": "Neural task JSON media type and request-size boundary",
       "boundary": "Public Worker POST /api/neural/v1/tasks",
       "scope": "request-validation-and-body-size-limit",
-      "status": "NOT VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "Mocked Worker unit tests",
         "Cloudflare Worker runtime after reviewed rollout"
@@ -65,6 +79,20 @@
           "targetEnvironment": "Repository branch fix/issue-471-interoperability-hardening",
           "observedAt": null,
           "notes": "Implementation caps buffered task bodies at 1 MiB, accepts JSON media types, and rejects oversized bodies with HTTP 413."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -102,7 +130,7 @@
       "title": "Node.js source checks on supported Ubuntu CI targets",
       "boundary": "Source build, Worker tests, type-check and static output",
       "scope": "linux-source-ci",
-      "status": "NOT VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted ubuntu-22.04 x86_64",
         "GitHub-hosted ubuntu-24.04 x86_64"
@@ -114,6 +142,20 @@
           "targetEnvironment": "Ubuntu 22.04 and 24.04 x86_64; Node version from .node-version",
           "observedAt": null,
           "notes": "The new workflow defines this test matrix; results are pending a successful workflow run."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -126,7 +168,7 @@
       "title": "Container image builds",
       "boundary": "OCI images defined by Dockerfile and Dockerfile.ubuntu",
       "scope": "container-build",
-      "status": "NOT VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
       ],
@@ -151,6 +193,13 @@
           "targetEnvironment": "Ubuntu 24.04 runtime image definition",
           "observedAt": null,
           "notes": "Source definition only; image behavior is not yet live-verified."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678095",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:36:06Z",
+          "notes": "Both the distroless and Ubuntu 24.04 image builds succeeded; the two runtime health/graceful-shutdown smoke tests were still running at the time of this registry update."
         }
       ],
       "limitations": [
@@ -181,6 +230,13 @@
           "targetEnvironment": "GitHub Actions; Python 3.11 and 3.12",
           "observedAt": null,
           "notes": "The workflow declares the matrix, but its successful execution is not asserted here."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249468/job/121183679722",
+          "targetEnvironment": "GitHub-hosted Python 3.11 unit-test job, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:26Z",
+          "notes": "Python SDK standard-library contract unit tests passed; Python 3.12 matrix job passed separately."
         }
       ],
       "limitations": [
@@ -204,6 +260,13 @@
           "targetEnvironment": "Mock EVM JSON-RPC responses",
           "observedAt": null,
           "notes": "Test vectors cover exact amount, payer, recipient, confirmations, unsafe RPC origins, and duplicate transfer events."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -227,6 +290,13 @@
           "targetEnvironment": "Mock BNB JSON-RPC responses",
           "observedAt": null,
           "notes": "Test vectors cover chain ID, exact amount, payer, recipient, and disabled configuration."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -250,6 +320,13 @@
           "targetEnvironment": "Mock Solana JSON-RPC responses",
           "observedAt": null,
           "notes": "Test vectors cover mint, decimals, finalized state, and unsafe RPC URLs."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
@@ -308,7 +385,7 @@
       "title": "Exact-host egress allowlists for backend and Neural APIs",
       "boundary": "Cloudflare Worker outbound requests to the configured backend and GLORIFIER-NEURAL origins",
       "scope": "mocked-contract-test",
-      "status": "NOT VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "Mocked Worker unit tests; deploy-time configuration review required"
       ],
@@ -326,6 +403,20 @@
           "targetEnvironment": "Mocked Worker unit test harness; CI run pending for the latest branch commit",
           "observedAt": null,
           "notes": "Regression tests reject missing or mismatched allowlists and assert backend redirects are requested in manual mode."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
         }
       ],
       "limitations": [
