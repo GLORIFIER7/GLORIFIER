@@ -1,0 +1,156 @@
+name: Interoperability Linux validation
+
+on:
+  pull_request:
+    paths:
+      - "src/worker.ts"
+      - "src/worker.test.ts"
+      - "src/lib/a2a-runtime.ts"
+      - "server.ts"
+      - "sdk/python/**"
+      - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/openapi/**"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/neural-engine-integration.md"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - ".github/workflows/interoperability-linux.yml"
+      - "Dockerfile"
+      - "Dockerfile.ubuntu"
+      - "package.json"
+      - "package-lock.json"
+      - ".node-version"
+      - ".env.example"
+  push:
+    branches: [main]
+    paths:
+      - "src/worker.ts"
+      - "src/worker.test.ts"
+      - "src/lib/a2a-runtime.ts"
+      - "server.ts"
+      - "sdk/python/**"
+      - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/openapi/**"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/neural-engine-integration.md"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - ".github/workflows/interoperability-linux.yml"
+      - "Dockerfile"
+      - "Dockerfile.ubuntu"
+      - "package.json"
+      - "package-lock.json"
+      - ".node-version"
+      - ".env.example"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-source-matrix:
+    name: Source checks (${{ matrix.os }}, x86_64)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install lockfile dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate capability registry and evidence
+        run: node scripts/validate-interoperability-capabilities.mjs
+      - name: Type-check
+        run: npm run lint
+      - name: Test Worker and interoperability boundaries
+        run: npm run test:cloudflare-worker
+      - name: Run chain-specific read-only transfer verifier test vectors
+        run: |
+          npm run test:glr-ethereum-verifier
+          npm run test:glr-bnb-verifier
+          npm run test:glr-solana-verifier
+      - name: Build frontend
+        run: npm run build:frontend
+      - name: Verify static output
+        run: test -s dist/index.html
+
+  linux-container-builds:
+    name: Container builds (Ubuntu 24.04, x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build distroless production image
+        run: docker build --pull -f Dockerfile -t glorifier:ci .
+      - name: Build Ubuntu 24.04 production image
+        run: docker build --pull -f Dockerfile.ubuntu -t glorifier-ubuntu:ci .
+
+      - name: Smoke-test distroless image health and graceful shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="glorifier-distroless-smoke"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$container" -p 127.0.0.1:13000:3000 glorifier:ci >/dev/null
+          ready=0
+          for ((attempt=1; attempt<=30; attempt++)); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/health > /tmp/glorifier-distroless-health.json; then
+              ready=1
+              break
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]]; then
+              echo "::error::Distroless container exited before /api/health became ready."
+              docker logs "$container" || true
+              docker inspect --format '{{json .State}}' "$container" || true
+              exit 1
+            fi
+            sleep 2
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo "::error::Timed out waiting for distroless /api/health."
+            docker logs "$container" || true
+            docker inspect --format '{{json .State}}' "$container" || true
+            exit 1
+          fi
+          node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-distroless-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          docker stop --time 10 "$container" >/dev/null
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
+          test "$exit_code" = "0"
+
+      - name: Smoke-test Ubuntu image health and graceful shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="glorifier-ubuntu-smoke"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$container" -p 127.0.0.1:13001:3000 glorifier-ubuntu:ci >/dev/null
+          ready=0
+          for ((attempt=1; attempt<=30; attempt++)); do
+            if curl --fail --silent --show-error http://127.0.0.1:13001/api/health > /tmp/glorifier-ubuntu-health.json; then
+              ready=1
+              break
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]]; then
+              echo "::error::Ubuntu container exited before /api/health became ready."
+              docker logs "$container" || true
+              docker inspect --format '{{json .State}}' "$container" || true
+              exit 1
+            fi
+            sleep 2
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo "::error::Timed out waiting for Ubuntu /api/health."
+            docker logs "$container" || true
+            docker inspect --format '{{json .State}}' "$container" || true
+            exit 1
+          fi
+          node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-ubuntu-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          docker stop --time 10 "$container" >/dev/null
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
+          test "$exit_code" = "0"

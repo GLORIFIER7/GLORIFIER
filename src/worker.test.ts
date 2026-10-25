@@ -10,7 +10,9 @@ type TestEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
+  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -32,6 +34,8 @@ function getCapturedRequest(): Request {
 
 const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
+  GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
+  GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
   ASSETS: {
     async fetch() {
       assetCalls += 1;
@@ -241,6 +245,23 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://api.example.test/api/configurable-backend?mode=probe');
 
     capturedRequest = null;
+    const missingBackendAllowlist = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/allowlist-missing'),
+      { ...env, GLORIFIER_BACKEND_ALLOWED_HOSTS: undefined },
+    );
+    assert.equal(missingBackendAllowlist.status, 502);
+    assert.equal(await missingBackendAllowlist.json().then((body: { code?: string }) => body.code), 'BACKEND_EGRESS_ALLOWLIST_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'backend egress must fail closed if no explicit allowlist exists');
+
+    const nonAllowlistedBackend = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/host-not-allowed'),
+      { ...env, GLORIFIER_BACKEND_ALLOWED_HOSTS: 'other.example.test' },
+    );
+    assert.equal(nonAllowlistedBackend.status, 502);
+    assert.equal(await nonAllowlistedBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_ALLOWLISTED');
+    assert.equal(capturedRequest, null, 'backend requests must not reach hosts outside the exact allowlist');
+
+    capturedRequest = null;
     const invalidBackendResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/invalid-backend-config'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: 'http://insecure.example.test' },
@@ -248,6 +269,14 @@ async function run(): Promise<void> {
     assert.equal(invalidBackendResponse.status, 502);
     assert.equal(await invalidBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
     assert.equal(capturedRequest, null, 'invalid backend origins must fail closed without making a request');
+
+    const nonstandardBackendPort = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/nonstandard-port'),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test:8443' },
+    );
+    assert.equal(nonstandardBackendPort.status, 502);
+    assert.equal(await nonstandardBackendPort.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
+    assert.equal(capturedRequest, null, 'nonstandard HTTPS ports must be rejected before backend egress');
 
     upstreamResponse = new Response('{"ok":false,"error":"not found"}', {
       status: 404,
@@ -308,6 +337,7 @@ async function run(): Promise<void> {
       getCapturedRequest().url,
       'https://api.example.test/auth/provider/start',
     );
+    assert.equal(getCapturedRequest().redirect, 'manual', 'backend redirects must not cause the Worker to follow a second outbound request');
     assert.equal(assetCalls, assetCallsBeforeAuth, 'auth routes must not fall through to the SPA assets');
 
     upstreamResponse = new Response('{"ok":true}', {
@@ -334,22 +364,103 @@ async function run(): Promise<void> {
     assert.equal(neuralInvalidOrigin.status, 503);
     assert.equal(await neuralInvalidOrigin.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
 
+    const neuralNonstandardPort = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test:8443' },
+    );
+    assert.equal(neuralNonstandardPort.status, 503);
+    assert.equal(await neuralNonstandardPort.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
+
+    capturedRequest = null;
+    const neuralMissingAllowlist = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined },
+    );
+    assert.equal(neuralMissingAllowlist.status, 503);
+    assert.equal(await neuralMissingAllowlist.json().then((body: { code?: string }) => body.code), 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'Neural egress must fail closed without an allowlist');
+
+    const neuralHostNotAllowed = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'another.example.test' },
+    );
+    assert.equal(neuralHostNotAllowed.status, 503);
+    assert.equal(await neuralHostNotAllowed.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_ALLOWLISTED');
+    assert.equal(capturedRequest, null, 'Neural requests must not reach hosts outside the exact allowlist');
+
     const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralTaskNoAuth.status, 401);
     assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
+
+    capturedRequest = null;
+    const declaredOversizeBody = new Uint8Array(65_536 + 1);
+    const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer caller-token',
+        'Content-Type': 'application/json',
+        'Content-Length': String(declaredOversizeBody.byteLength),
+      },
+      body: declaredOversizeBody,
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(declaredOversizeTask.status, 413, 'declared oversized task bodies must be rejected before upstream forwarding');
+    assert.equal(await declaredOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
+    assert.equal(capturedRequest, null, 'declared oversized bodies must never reach Neural');
+
+    capturedRequest = null;
+    const streamedOversizeBody = new Uint8Array(65_536 + 1);
+    const streamedOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+      body: streamedOversizeBody,
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(streamedOversizeTask.status, 413, 'actual streamed size must be enforced even without a trusted Content-Length');
+    assert.equal(await streamedOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
+    assert.equal(capturedRequest, null, 'oversized streamed bodies must never reach Neural');
+
+    capturedRequest = null;
+    const unsupportedTaskMediaType = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'text/plain' },
+      body: '{"task":"summarize"}',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(unsupportedTaskMediaType.status, 415, 'task requests must use JSON media types');
+    assert.equal(await unsupportedTaskMediaType.json().then((body: { code?: string }) => body.code), 'UNSUPPORTED_MEDIA_TYPE');
+    assert.equal(capturedRequest, null, 'non-JSON task bodies must never reach Neural');
+
+    capturedRequest = null;
+    const malformedJsonTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+      body: '{"task":',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(malformedJsonTask.status, 400, 'invalid JSON must be rejected locally');
+    assert.equal(await malformedJsonTask.json().then((body: { code?: string }) => body.code), 'INVALID_JSON_BODY');
+    assert.equal(capturedRequest, null, 'malformed JSON must never reach Neural');
 
     upstreamResponse = new Response('{"status":"not-ready"}', { status: 503, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'must-not-forward=yes' } });
     const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
     assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
+    assert.match(neuralReady.headers.get('x-correlation-id') || '', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    assert.equal(getCapturedRequest().headers.get('x-correlation-id'), neuralReady.headers.get('x-correlation-id'), 'the same correlation ID must cross the Worker and Neural boundary');
     assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
 
     upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
+    const callerCorrelationId = '550e8400-e29b-41d4-a716-446655440000';
     const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
-      method: 'POST', headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' }, body: '{"task":"summarize"}',
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer caller-token',
+        'Content-Type': 'application/json',
+        'X-Correlation-ID': callerCorrelationId,
+      },
+      body: '{"task":"summarize"}',
     }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralTask.status, 202);
     assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks');
+    assert.equal(neuralTask.headers.get('x-correlation-id'), callerCorrelationId);
+    assert.equal(getCapturedRequest().headers.get('x-correlation-id'), callerCorrelationId, 'validated correlation ID must be forwarded unchanged');
     assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer caller-token', 'caller token must be forwarded unchanged');
     assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 

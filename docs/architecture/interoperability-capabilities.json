@@ -1,0 +1,439 @@
+{
+  "schemaVersion": "1.0.0",
+  "updatedAt": "2026-10-25T13:44:00Z",
+  "statusVocabulary": [
+    "VERIFIED",
+    "PARTIALLY VERIFIED",
+    "NOT VERIFIED",
+    "DEGRADED",
+    "NOT OBSERVABLE"
+  ],
+  "capabilities": [
+    {
+      "id": "worker.neural-route-contract",
+      "title": "GLORIFIER Worker Neural route contract",
+      "boundary": "GLORIFIER control plane to the separately deployed GLORIFIER-NEURAL execution plane",
+      "scope": "mocked-contract-test",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker test harness",
+        "CircleCI Linux Docker executor"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Mocked Worker runtime; no live Neural origin",
+          "observedAt": null,
+          "notes": "Contract tests cover explicit routes, auth failure, origin validation, timeout mapping, readiness status, and upstream cookie non-forwarding."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://circleci.com/gh/GLORIFIER7/GLORIFIER/225",
+          "targetEnvironment": "main commit 51e41003f5c1e3883cf3c834eaad5a1f80079ac2; cimg/node:24.16.0 Linux Docker executor",
+          "observedAt": "2026-10-25T13:17:49.628Z",
+          "notes": "This historical green run covered npm ci, lint/type-check, Worker tests, frontend build, and output check before this branch's body-limit changes; it is not evidence of live Neural readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "The upstream is mocked in unit tests.",
+        "The new request-body limit tests in this branch still require a green run.",
+        "No live staging or production Neural origin has been probed."
+      ]
+    },
+    {
+      "id": "worker.neural-task-request-boundary",
+      "title": "Neural task JSON media type and request-size boundary",
+      "boundary": "Public Worker POST /api/neural/v1/tasks",
+      "scope": "request-validation-and-body-size-limit",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker unit tests",
+        "Cloudflare Worker runtime after reviewed rollout"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Branch test harness; CI pending for this change",
+          "observedAt": null,
+          "notes": "Tests are added for unsupported media type, declared oversized content length, and actual oversized request bodies without trusting Content-Length."
+        },
+        {
+          "kind": "source",
+          "reference": "src/worker.ts",
+          "targetEnvironment": "Repository branch fix/issue-471-interoperability-hardening",
+          "observedAt": null,
+          "notes": "Implementation caps buffered task bodies at 65,536 bytes (64 KiB), matching Neural, accepts JSON media types, and rejects oversized bodies with HTTP 413."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "Do not treat this capability as verified until the branch CI completes successfully.",
+        "No production configuration or deployment is performed by this change."
+      ]
+    },
+    {
+      "id": "neural.runtime-live-readiness",
+      "title": "Live GLORIFIER-NEURAL health and readiness",
+      "boundary": "Configured HTTPS origin from Worker to Neural service",
+      "scope": "live-runtime-probe",
+      "status": "NOT OBSERVABLE",
+      "targetEnvironments": [
+        "Staging",
+        "Production"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/neural-engine-integration.md#current-evidence",
+          "targetEnvironment": "Staging and production",
+          "observedAt": null,
+          "notes": "Repository documentation explicitly distinguishes the adapter implementation from evidence of a reachable deployed Neural origin."
+        }
+      ],
+      "limitations": [
+        "No verified GLORIFIER_NEURAL_ORIGIN or authorized live probe was provided.",
+        "The Worker adapter must remain unavailable when its origin is missing or invalid.",
+        "Provider readiness is not implied by process health."
+      ]
+    },
+    {
+      "id": "linux.source-runtime-matrix",
+      "title": "Node.js source checks on supported Ubuntu CI targets",
+      "boundary": "Source build, Worker tests, type-check and static output",
+      "scope": "linux-source-ci",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted ubuntu-22.04 x86_64",
+        "GitHub-hosted ubuntu-24.04 x86_64"
+      ],
+      "evidence": [
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/interoperability-linux.yml",
+          "targetEnvironment": "Ubuntu 22.04 and 24.04 x86_64; Node version from .node-version",
+          "observedAt": null,
+          "notes": "The new workflow defines this test matrix; results are pending a successful workflow run."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "The declared test matrix is limited to the named GitHub-hosted x86_64 targets.",
+        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS.",
+        "The production server had an eager database-backed A2A initializer; this branch now gates it on DATABASE_URL and requires an image health smoke test to pass."
+      ]
+    },
+    {
+      "id": "linux.container-builds",
+      "title": "Container image builds",
+      "boundary": "OCI images defined by Dockerfile and Dockerfile.ubuntu",
+      "scope": "container-build",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
+      ],
+      "evidence": [
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/interoperability-linux.yml",
+          "targetEnvironment": "Dockerfile and Dockerfile.ubuntu build job",
+          "observedAt": null,
+          "notes": "Image build steps are defined by the workflow; no successful run is recorded yet."
+        },
+        {
+          "kind": "source",
+          "reference": "Dockerfile",
+          "targetEnvironment": "Debian Trixie build stage and distroless Node.js 22 runtime",
+          "observedAt": null,
+          "notes": "Source definition only; build and runtime smoke evidence are tracked separately."
+        },
+        {
+          "kind": "source",
+          "reference": "Dockerfile.ubuntu",
+          "targetEnvironment": "Ubuntu 24.04 runtime image definition",
+          "observedAt": null,
+          "notes": "Source definition only; image behavior is not yet live-verified."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678095",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:36:06Z",
+          "notes": "Both the distroless and Ubuntu 24.04 image builds succeeded; the two runtime health/graceful-shutdown smoke tests were still running at the time of this registry update."
+        }
+      ],
+      "limitations": [
+        "Both container images build successfully, but a prior runtime smoke test exposed an A2A startup dependency on DATABASE_URL; the startup gate fix is being validated on the current branch.",
+        "Do not mark the runtime capability verified until both image health probes and graceful-shutdown checks pass on a fresh run.",
+        "No multi-architecture build is claimed."
+      ]
+    },
+    {
+      "id": "sdk.python-contract",
+      "title": "Python Neural HTTP client contract",
+      "boundary": "Python client to the versioned GLORIFIER Worker Neural API",
+      "scope": "cross-language-contract-test",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Python 3.11 and 3.12 unit-test matrix"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "sdk/python/test_glorifier_neural_client.py",
+          "targetEnvironment": "Mocked HTTP client test harness",
+          "observedAt": null,
+          "notes": "Standard-library contract tests exist; current run evidence is not attached to the registry."
+        },
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/python-sdk.yml",
+          "targetEnvironment": "GitHub Actions; Python 3.11 and 3.12",
+          "observedAt": null,
+          "notes": "The workflow declares the matrix, but its successful execution is not asserted here."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249468/job/121183679722",
+          "targetEnvironment": "GitHub-hosted Python 3.11 unit-test job, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:26Z",
+          "notes": "Python SDK standard-library contract unit tests passed; Python 3.12 matrix job passed separately."
+        }
+      ],
+      "limitations": [
+        "No published package/release is claimed.",
+        "No live Neural origin or provider task is exercised by the unit tests."
+      ]
+    },
+    {
+      "id": "blockchain.ethereum-readonly-transfer-verifier",
+      "title": "Ethereum GLR transfer verification contract",
+      "boundary": "Read-only EVM JSON-RPC receipt verification",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock JSON-RPC tests; Ethereum mainnet target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-ethereum-verifier.test.ts",
+          "targetEnvironment": "Mock EVM JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover exact amount, payer, recipient, confirmations, unsafe RPC origins, and duplicate transfer events."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "No live RPC probe is recorded in this registry.",
+        "Signing, minting, transfers and contract writes are outside this verifier and remain gated."
+      ]
+    },
+    {
+      "id": "blockchain.bnb-readonly-transfer-verifier",
+      "title": "BNB Chain GLR transfer verification contract",
+      "boundary": "Read-only EVM JSON-RPC receipt verification for BNB Chain",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock JSON-RPC tests; BNB Chain mainnet target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-bnb-verifier.test.ts",
+          "targetEnvironment": "Mock BNB JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover chain ID, exact amount, payer, recipient, and disabled configuration."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "No live RPC probe is recorded in this registry.",
+        "EVM test coverage does not prove production RPC reachability."
+      ]
+    },
+    {
+      "id": "blockchain.solana-readonly-transfer-verifier",
+      "title": "Solana GLR transfer verification contract",
+      "boundary": "Read-only Solana JSON-RPC Token-2022 transaction verification",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock Solana JSON-RPC tests; live Solana target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-solana-verifier.test.ts",
+          "targetEnvironment": "Mock Solana JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover mint, decimals, finalized state, and unsafe RPC URLs."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "No live Solana RPC probe is recorded in this registry.",
+        "EVM and Solana adapters are independently verified and are not interchangeable."
+      ]
+    },
+    {
+      "id": "protocol.openapi-baseline",
+      "title": "Published OpenAPI and JSON Schema contract baseline",
+      "boundary": "Language-neutral HTTP interoperability boundary",
+      "scope": "protocol-contract",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Repository documentation and public API contract"
+      ],
+      "evidence": [
+        {
+          "kind": "schema",
+          "reference": "docs/architecture/openapi/glorifier-neural-adapter.openapi.json",
+          "targetEnvironment": "Repository JSON OpenAPI 3.1 contract",
+          "observedAt": null,
+          "notes": "Defines the three explicit Neural adapter routes, bearer auth, actual GLORIFIER-NEURAL task properties, 64 KiB maximum body, and bounded error responses."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "scripts/validate-interoperability-capabilities.mjs",
+          "targetEnvironment": "Interoperability Linux validation workflow; current run pending",
+          "observedAt": null,
+          "notes": "Validator checks task operation, bearerAuth, task and action_class length bounds, no additional properties, required task field, 413/415 responses, and documented 65,536-byte body limit."
+        }
+      ],
+      "limitations": [
+        "The OpenAPI document covers only the Neural adapter routes, not every GLORIFIER API.",
+        "The OpenAPI validator must pass on the current branch before this baseline is treated as CI-verified.",
+        "No generated client conformance test or live upstream probe is claimed."
+      ]
+    },
+    {
+      "id": "protocol.a2a-mcp-adapters",
+      "title": "Standards-backed A2A and MCP adapters",
+      "boundary": "Explicit protocol adapters behind GLORIFIER governance",
+      "scope": "protocol-implementation",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Repository implementation and contract tests"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "docs/PROVIDER-NEUTRAL-INTEROPERABILITY.md",
+          "targetEnvironment": "Repository source",
+          "observedAt": null,
+          "notes": "The document separates A2A and MCP roles but does not establish that both adapters have passed interoperability tests."
+        }
+      ],
+      "limitations": [
+        "A protocol mention is not evidence of an implemented adapter.",
+        "No arbitrary proxy or implied provider fallback is authorized."
+      ]
+    },
+    {
+      "id": "worker.exact-egress-host-allowlists",
+      "title": "Exact-host egress allowlists for backend and Neural APIs",
+      "boundary": "Cloudflare Worker outbound requests to the configured backend and GLORIFIER-NEURAL origins",
+      "scope": "mocked-contract-test",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker unit tests; deploy-time configuration review required"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "src/worker.ts",
+          "targetEnvironment": "Branch fix/issue-471-interoperability-hardening",
+          "observedAt": null,
+          "notes": "The Worker requires an independently configured exact-host allowlist for the configured backend and Neural origin, rejects missing/mismatched host lists, uses HTTPS origin validation and manual redirect handling, and bounds upstream requests."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Mocked Worker unit test harness; CI run pending for the latest branch commit",
+          "observedAt": null,
+          "notes": "Regression tests reject missing or mismatched allowlists and assert backend redirects are requested in manual mode."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678228",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:14Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678338",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
+          "observedAt": "2026-10-25T13:35:22Z",
+          "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        }
+      ],
+      "limitations": [
+        "This capability remains NOT VERIFIED until the new test suite passes on the proposed branch.",
+        "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
+        "A hostname allowlist is not evidence that the target service is reachable or healthy."
+      ]
+    }
+  ]
+}

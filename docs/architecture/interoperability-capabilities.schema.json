@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GLORIFIER interoperability capability registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "updatedAt",
+    "statusVocabulary",
+    "capabilities"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "statusVocabulary": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "VERIFIED",
+          "PARTIALLY VERIFIED",
+          "NOT VERIFIED",
+          "DEGRADED",
+          "NOT OBSERVABLE"
+        ]
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "targetEnvironment",
+        "observedAt",
+        "notes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "source",
+            "documentation",
+            "schema",
+            "automated-test",
+            "ci-run",
+            "live-probe"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetEnvironment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedAt": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "boundary",
+        "scope",
+        "status",
+        "targetEnvironments",
+        "evidence",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "PARTIALLY VERIFIED",
+            "NOT VERIFIED",
+            "DEGRADED",
+            "NOT OBSERVABLE"
+          ]
+        },
+        "targetEnvironments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

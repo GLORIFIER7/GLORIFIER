@@ -92,7 +92,11 @@ void initializeCryptographicAssetVerification().catch((error) => console.warn('[
 void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerOAuth] initialization deferred:', error?.message));
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
-initializeA2ARuntime();
+if (process.env.DATABASE_URL) {
+  initializeA2ARuntime();
+} else {
+  console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
+}
 void initializeFederatedA2AV3().catch((error) => console.warn('[FederatedA2A v3] initialization deferred:', error?.message));
 void initializeGLREconomicLayer().catch((error) => console.warn('[GLR Economic Layer] initialization deferred:', error?.message));
 
@@ -3749,9 +3753,36 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Personal Data Monetization Server running on http://0.0.0.0:${PORT}`);
   });
+
+  // Drain active HTTP requests on container/platform termination. A bounded timeout
+  // prevents the process from hanging indefinitely if a client never completes.
+  let shutdownStarted = false;
+  const shutdown = (signal: NodeJS.Signals): void => {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    console.log('[Shutdown] ' + signal + ' received; draining active HTTP requests.');
+    const forceExit = setTimeout(() => {
+      console.error('[Shutdown] Timed out draining HTTP requests; exiting non-zero.');
+      process.exit(1);
+    }, 10000);
+    forceExit.unref();
+    httpServer.close((error?: Error) => {
+      clearTimeout(forceExit);
+      if (error) {
+        console.error('[Shutdown] HTTP server close failed:', error.message);
+        process.exit(1);
+        return;
+      }
+      console.log('[Shutdown] HTTP server drained.');
+      process.exit(0);
+    });
+    httpServer.closeIdleConnections?.();
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer();

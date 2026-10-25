@@ -1,0 +1,720 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GLORIFIER Neural Adapter API",
+    "version": "0.1.0",
+    "summary": "Versioned public Worker boundary for the separately deployed GLORIFIER-NEURAL service.",
+    "description": "This specification documents the GLORIFIER Cloudflare Worker adapter, not a claim that a live Neural origin is configured. Task bodies are limited to 65,536 bytes (64 KiB), matching the current GLORIFIER-NEURAL request middleware. Worker-side bearer-shape checking is not identity validation; the Neural service validates the bearer token. Readiness remains HTTP 503 while required providers are unverified. Every adapter response includes X-Correlation-ID. A canonical UUID supplied by the caller is propagated unchanged; invalid values are replaced with a server-generated UUID."
+  },
+  "servers": [
+    {
+      "url": "https://glorifier.glorifier.workers.dev",
+      "description": "Configured public Worker URL; deployment/environment state must be independently checked."
+    }
+  ],
+  "tags": [
+    {
+      "name": "operations"
+    },
+    {
+      "name": "orchestration"
+    }
+  ],
+  "paths": {
+    "/api/neural/health": {
+      "get": {
+        "operationId": "getNeuralHealth",
+        "tags": [
+          "operations"
+        ],
+        "summary": "Read process health from the configured Neural service.",
+        "description": "Process health does not prove provider or database readiness.",
+        "responses": {
+          "200": {
+            "description": "Neural process health response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeuralHealthResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin is missing, invalid, or not allowlisted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
+      },
+      "head": {
+        "operationId": "headNeuralHealth",
+        "tags": [
+          "operations"
+        ],
+        "summary": "Check the availability of the Neural health endpoint.",
+        "responses": {
+          "200": {
+            "description": "Health endpoint was reached; response body is omitted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream request failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin is missing, invalid, or not allowlisted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
+      }
+    },
+    "/api/neural/ready": {
+      "get": {
+        "operationId": "getNeuralReadiness",
+        "tags": [
+          "operations"
+        ],
+        "summary": "Read Neural dependency readiness.",
+        "description": "The adapter preserves the upstream status. The current Neural implementation returns 503 while provider readiness remains unverified.",
+        "responses": {
+          "200": {
+            "description": "Neural service reports ready; not currently expected until readiness implementation is verified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeuralReadyResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Neural dependencies are not ready or the origin is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
+      },
+      "head": {
+        "operationId": "headNeuralReadiness",
+        "tags": [
+          "operations"
+        ],
+        "summary": "Check the availability of the Neural readiness endpoint.",
+        "responses": {
+          "200": {
+            "description": "Neural readiness returned HTTP 200; response body is omitted.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream request failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Neural dependency readiness or origin availability failed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
+      }
+    },
+    "/api/neural/v1/tasks": {
+      "post": {
+        "operationId": "submitNeuralTask",
+        "tags": [
+          "orchestration"
+        ],
+        "summary": "Submit one governed task to GLORIFIER-NEURAL.",
+        "description": "The Worker requires a bearer-shaped Authorization header and forwards the caller token without replacing it. The Neural service validates identity and policy. JSON only; maximum request body is 65,536 bytes (64 KiB). The adapter never injects a privileged service token. Do not send secret values in task payloads.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Task payload; no more than 65,536 UTF-8 encoded bytes.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Neural task response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Upstream accepted the task asynchronously; returned as-is by the adapter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Caller bearer token is missing or rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the 65,536-byte limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type; JSON is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "JSON is valid but does not match the task request schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Authenticated caller exceeded Neural's process-local task rate limit.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds until the current rate-limit window resets."
+              },
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Neural origin is unavailable, task execution is disabled, or required audit persistence is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdapterError"
+                }
+              }
+            },
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Correlation identifier assigned or validated by the GLORIFIER Worker.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CorrelationId"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "GLORIFIER_API_TOKEN",
+        "description": "Caller-supplied token validated by GLORIFIER-NEURAL. Never use a privileged token in the frontend."
+      }
+    },
+    "schemas": {
+      "TaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "Bounded task prompt; do not include secrets."
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "default": "general"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "default": true
+          },
+          "action_class": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "default": "read_only",
+            "description": "A policy-classification label. Unknown and consequential action classes remain denied or approval-gated by Neural policy."
+          }
+        }
+      },
+      "TaskResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "message"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "FULLY VERIFIED",
+              "VERIFIED",
+              "PARTIALLY VERIFIED",
+              "NOT VERIFIED",
+              "DEGRADED",
+              "NOT OBSERVABLE"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "NeuralHealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PARTIALLY VERIFIED"
+            ]
+          },
+          "service": {
+            "const": "glorifier-neural"
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "NeuralReadyResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "checks",
+          "message"
+        ],
+        "properties": {
+          "status": {
+            "const": "NOT READY"
+          },
+          "checks": {
+            "type": "object",
+            "required": [
+              "providers",
+              "database"
+            ],
+            "properties": {
+              "providers": {
+                "const": "NOT VERIFIED"
+              },
+              "database": {
+                "type": "string",
+                "enum": [
+                  "NOT VERIFIED",
+                  "VERIFIED",
+                  "DEGRADED"
+                ]
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AdapterError": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "const": 65536
+          }
+        },
+        "additionalProperties": true
+      },
+      "ValidationError": {
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "loc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "msg": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "loc",
+                "msg",
+                "type"
+              ]
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "parameters": {
+      "CorrelationId": {
+        "name": "X-Correlation-ID",
+        "in": "header",
+        "required": false,
+        "description": "Optional canonical UUID used to correlate the public Worker request with the Neural service and audit events. Invalid values are replaced with a generated UUID.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

@@ -11,7 +11,9 @@ type CloudflareEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
+  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -23,7 +25,7 @@ const resolveBackendOrigin = (value?: string): string | null => {
   if (!candidate) return null;
   try {
     const url = new URL(candidate);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
       return null;
     }
     return url.origin;
@@ -33,6 +35,22 @@ const resolveBackendOrigin = (value?: string): string | null => {
 };
 
 const configured = (value: string | undefined): string => (value || '').trim();
+
+// Host allowlists are exact-match only; wildcard suffixes and arbitrary URL prefixes
+// are intentionally unsupported. An absent allowlist fails closed.
+const originHostAllowlisted = (origin: string, rawAllowlist?: string): boolean => {
+  const allowedHosts = configured(rawAllowlist)
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowedHosts.length === 0) return false;
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return allowedHosts.includes(hostname);
+  } catch {
+    return false;
+  }
+};
 const identityResponse = (env: CloudflareEnv): Response => {
   const canonicalDomain = configured(env.GLORIFIER_CANONICAL_DOMAIN).toLowerCase();
   const primaryEmail = configured(env.GLORIFIER_ORG_EMAIL).toLowerCase();
@@ -211,14 +229,63 @@ const neuralOrigin = (value?: string): string | null => {
   if (!candidate) return null;
   try {
     const url = new URL(candidate);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
     return url.origin;
   } catch {
     return null;
   }
 };
 
-const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
+const MAX_NEURAL_TASK_BODY_BYTES = 65_536;
+
+class NeuralRequestBodyTooLargeError extends Error {}
+class NeuralRequestBodyInvalidError extends Error {}
+
+const readBoundedNeuralRequestBody = async (request: Request): Promise<ArrayBuffer> => {
+  const declaredLength = request.headers.get('content-length');
+  if (declaredLength !== null) {
+    if (!/^\d+$/.test(declaredLength)) throw new NeuralRequestBodyInvalidError();
+    const parsedLength = Number(declaredLength);
+    if (!Number.isSafeInteger(parsedLength)) throw new NeuralRequestBodyInvalidError();
+    if (parsedLength > MAX_NEURAL_TASK_BODY_BYTES) throw new NeuralRequestBodyTooLargeError();
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return new ArrayBuffer(0);
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_NEURAL_TASK_BODY_BYTES) {
+        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the cap. */ }
+        throw new NeuralRequestBodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body.buffer;
+};
+
+const isJsonContentType = (value: string): boolean => {
+  const mediaType = value.split(';', 1)[0].trim().toLowerCase();
+  return mediaType === 'application/json' ||
+    (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
+};
+
+const neuralRouteImplementation = async (request: Request, pathname: string, env: CloudflareEnv, correlationId: string): Promise<Response> => {
   const mapping: Record<string, { upstreamPath: string; methods: readonly string[] }> = {
     '/api/neural/health': { upstreamPath: '/health', methods: ['GET', 'HEAD'] },
     '/api/neural/ready': { upstreamPath: '/ready', methods: ['GET', 'HEAD'] },
@@ -230,19 +297,65 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   if (pathname === '/api/neural/v1/tasks' && !/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
     return Response.json({ ok: false, code: 'AUTHENTICATION_REQUIRED' }, { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   }
+  if (pathname === '/api/neural/v1/tasks' && !isJsonContentType(request.headers.get('content-type') || '')) {
+    return Response.json({ ok: false, code: 'UNSUPPORTED_MEDIA_TYPE' }, {
+      status: 415,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+
   const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
   if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (!configured(env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (!originHostAllowlisted(origin, env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+
+  let taskBody: ArrayBuffer | undefined;
+  if (pathname === '/api/neural/v1/tasks') {
+    try {
+      taskBody = await readBoundedNeuralRequestBody(request);
+    } catch (error) {
+      if (error instanceof NeuralRequestBodyTooLargeError) {
+        return Response.json({ ok: false, code: 'REQUEST_BODY_TOO_LARGE', maxBytes: MAX_NEURAL_TASK_BODY_BYTES }, {
+          status: 413,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      return Response.json({ ok: false, code: 'INVALID_REQUEST_BODY' }, {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+
+    try {
+      JSON.parse(new TextDecoder().decode(taskBody));
+    } catch {
+      return Response.json({ ok: false, code: 'INVALID_JSON_BODY' }, {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+  }
+
   const headers = new Headers();
+  headers.set('x-correlation-id', correlationId);
   const accept = request.headers.get('accept');
   if (accept) headers.set('accept', accept);
-  const contentType = request.headers.get('content-type');
-  if (contentType && pathname === '/api/neural/v1/tasks') headers.set('content-type', contentType);
+  if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
   const authorization = request.headers.get('authorization');
   if (authorization && pathname === '/api/neural/v1/tasks') headers.set('authorization', authorization);
-  const init: RequestInit & { duplex?: 'half' } = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
-  if (request.method === 'POST' && request.body) {
-    init.body = request.body;
-    init.duplex = 'half';
+  const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
+  if (request.method === 'POST' && taskBody !== undefined) {
+    init.body = taskBody;
   }
   try {
     const upstream = await fetch(new Request(new URL(route.upstreamPath, origin), init));
@@ -255,6 +368,22 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   } catch {
     return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_UPSTREAM_UNAVAILABLE' }, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   }
+};
+
+
+const CORRELATION_ID_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
+  const candidate = (request.headers.get('x-correlation-id') || '').trim();
+  const correlationId = CORRELATION_ID_UUID.test(candidate) ? candidate.toLowerCase() : crypto.randomUUID();
+  const upstreamResponse = await neuralRouteImplementation(request, pathname, env, correlationId);
+  const responseHeaders = new Headers(upstreamResponse.headers);
+  responseHeaders.set('X-Correlation-ID', correlationId);
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers: responseHeaders,
+  });
 };
 
 const isBackendPath = (pathname: string): boolean =>
@@ -307,6 +436,7 @@ const createUpstreamRequest = (request: Request, incomingUrl: URL, backendOrigin
     method: request.method,
     headers: requestHeaders,
     redirect: 'manual',
+    signal: AbortSignal.timeout(8000),
   };
   if (hasBody && request.body) {
     requestInit.body = request.body;
@@ -402,6 +532,18 @@ export default {
       return apiError(
         'GLORIFIER_BACKEND_ORIGIN must be a valid HTTPS origin without credentials, path, query, or fragment.',
         'BACKEND_ORIGIN_INVALID',
+      );
+    }
+    if (!configured(env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
+      return apiError(
+        'A reviewed exact-host allowlist must be configured before this Worker can contact the backend.',
+        'BACKEND_EGRESS_ALLOWLIST_NOT_CONFIGURED',
+      );
+    }
+    if (!originHostAllowlisted(backendOrigin, env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
+      return apiError(
+        'The configured backend host is not present in GLORIFIER_BACKEND_ALLOWED_HOSTS.',
+        'BACKEND_ORIGIN_NOT_ALLOWLISTED',
       );
     }
 

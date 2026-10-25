@@ -69,6 +69,10 @@ function sign(h: Omit<A2AHandoff, 'signature'>) {
 
 export function initializeA2ARuntime() {
   if (initialized) return;
+  if (!process.env.DATABASE_URL) {
+    console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
+    return;
+  }
   initialized = true;
   const db = getPostgresPool();
   void db.query(`
