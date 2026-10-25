@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T13:37:00Z",
+  "updatedAt": "2026-10-25T13:41:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -160,7 +160,8 @@
       ],
       "limitations": [
         "The declared test matrix is limited to the named GitHub-hosted x86_64 targets.",
-        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS."
+        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS.",
+        "The production server had an eager database-backed A2A initializer; this branch now gates it on DATABASE_URL and requires an image health smoke test to pass."
       ]
     },
     {
@@ -203,7 +204,8 @@
         }
       ],
       "limitations": [
-        "An image build does not prove a container starts correctly or remains healthy.",
+        "Both container images build successfully, but a prior runtime smoke test exposed an A2A startup dependency on DATABASE_URL; the startup gate fix is being validated on the current branch.",
+        "Do not mark the runtime capability verified until both image health probes and graceful-shutdown checks pass on a fresh run.",
         "No multi-architecture build is claimed."
       ]
     },
