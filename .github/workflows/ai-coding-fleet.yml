@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           git diff --check
           if [ -f package-lock.json ]; then
-            npm ci --ignore-scripts
+            npm ci
           fi
           if node -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)"; then
             npm run lint
