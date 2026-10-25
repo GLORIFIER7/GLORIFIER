@@ -378,7 +378,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
     capturedRequest = null;
-    const declaredOversizeBody = new Uint8Array(1024 * 1024 + 1);
+    const declaredOversizeBody = new Uint8Array(65_536 + 1);
     const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: {
@@ -393,7 +393,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'declared oversized bodies must never reach Neural');
 
     capturedRequest = null;
-    const streamedOversizeBody = new Uint8Array(1024 * 1024 + 1);
+    const streamedOversizeBody = new Uint8Array(65_536 + 1);
     const streamedOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
