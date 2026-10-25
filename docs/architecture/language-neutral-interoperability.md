@@ -91,6 +91,18 @@ A language/runtime should be labelled `VERIFIED` only for the specific version/p
 5. Add further SDKs based on actual use cases, maintaining the same conformance gates.
 6. Publish a tested Linux/runtime matrix and separately verify each blockchain-family adapter (EVM-compatible networks and Solana are not interchangeable).
 
+## Go SDK initial implementation
+
+The stacked branch for the initial Go implementation adds `sdk/go/neuralclient`, a dependency-free client for the existing versioned Worker OpenAPI routes:
+
+- `POST /api/neural/v1/tasks` with the caller-scoped bearer token.
+- `GET /api/neural/health` without forwarding the configured token.
+- `GET /api/neural/ready`, preserving HTTP 503 as a not-ready observation.
+
+The client rejects non-HTTPS destinations except explicitly enabled loopback HTTP, refuses redirects, bounds task and response sizes, uses a finite timeout, validates optional correlation IDs, normalizes API errors, and does not retry task submissions where the wire contract lacks an idempotency key. Tests use mocked HTTP servers and the same shared JSON fixtures consumed by Python.
+
+The Go 1.26.x and 1.27.x CI jobs passed on code commit `13b67952cf19ceacf4ceaa71ada70e654755423b`; the SDK remains unmerged. The passing matrix verifies only those tested Go runtimes and mocked HTTP/JSON contract behavior. It does not prove a live Neural origin, provider readiness, all languages, every AI provider, or a production deployment.
+
 ## Capability registry and Linux test scope
 
 The machine-readable starting registry is [interoperability-capabilities.json](./interoperability-capabilities.json), governed by [its JSON Schema](./interoperability-capabilities.schema.json). The first public control-plane contract is [the Neural adapter OpenAPI 3.1 specification](./openapi/glorifier-neural-adapter.openapi.json); its validator checks the endpoint, auth, task-schema limits, and documented error responses. Run `node scripts/validate-interoperability-capabilities.mjs` to check the status vocabulary, unique capability IDs, target environments, evidence references, timestamp syntax, and the rule that a `VERIFIED` claim must have timestamped test evidence. A live-runtime scope requires a live-probe record.
