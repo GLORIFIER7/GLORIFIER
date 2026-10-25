@@ -33,7 +33,7 @@ The Worker remains responsible for public routing, GLORIFIER identity, policy, a
 | `/api/neural/ready` | `/ready` | GET, HEAD | Preserve 503 until Neural itself reports ready |
 | `/api/neural/v1/tasks` | `/v1/tasks` | POST | Require a non-empty caller bearer token; forward it unchanged; preserve upstream status and JSON body |
 
-Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact paths and methods, reject all other methods with 405, use an explicit HTTPS origin only, and never silently fall back to Railway, Vercel, another provider, or an unconfigured host. Strip hop-by-hop headers, avoid caching responses, enforce a request-body limit at the Worker/edge, and use a bounded upstream timeout. Do not log authorization headers or task bodies.
+Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact paths and methods, reject all other methods with 405, use an explicit HTTPS origin only, and never silently fall back to Railway, Vercel, another provider, or an unconfigured host. Strip hop-by-hop headers, avoid caching responses, and use a bounded upstream timeout. The task endpoint accepts only `application/json` or `application/*+json`, buffers no more than 1 MiB, rejects oversized declared or observed request bodies with `413 REQUEST_BODY_TOO_LARGE`, and rejects unsupported media types with `415 UNSUPPORTED_MEDIA_TYPE`. Do not log authorization headers or task bodies. The corresponding branch tests must pass before this limit is considered verified.
 
 ## Configuration contract
 
