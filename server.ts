@@ -92,7 +92,11 @@ void initializeCryptographicAssetVerification().catch((error) => console.warn('[
 void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerOAuth] initialization deferred:', error?.message));
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
-initializeA2ARuntime();
+if (process.env.DATABASE_URL) {
+  initializeA2ARuntime();
+} else {
+  console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
+}
 void initializeFederatedA2AV3().catch((error) => console.warn('[FederatedA2A v3] initialization deferred:', error?.message));
 void initializeGLREconomicLayer().catch((error) => console.warn('[GLR Economic Layer] initialization deferred:', error?.message));
 
