@@ -97,9 +97,20 @@ jobs:
               ready=1
               break
             fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]]; then
+              echo "::error::Distroless container exited before /api/health became ready."
+              docker logs "$container" || true
+              docker inspect --format '{{json .State}}' "$container" || true
+              exit 1
+            fi
             sleep 2
           done
-          test "$ready" -eq 1
+          if [[ "$ready" -ne 1 ]]; then
+            echo "::error::Timed out waiting for distroless /api/health."
+            docker logs "$container" || true
+            docker inspect --format '{{json .State}}' "$container" || true
+            exit 1
+          fi
           node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-distroless-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
           docker stop --time 10 "$container" >/dev/null
           exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
@@ -119,9 +130,20 @@ jobs:
               ready=1
               break
             fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]]; then
+              echo "::error::Ubuntu container exited before /api/health became ready."
+              docker logs "$container" || true
+              docker inspect --format '{{json .State}}' "$container" || true
+              exit 1
+            fi
             sleep 2
           done
-          test "$ready" -eq 1
+          if [[ "$ready" -ne 1 ]]; then
+            echo "::error::Timed out waiting for Ubuntu /api/health."
+            docker logs "$container" || true
+            docker inspect --format '{{json .State}}' "$container" || true
+            exit 1
+          fi
           node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-ubuntu-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
           docker stop --time 10 "$container" >/dev/null
           exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
