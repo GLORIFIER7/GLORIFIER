@@ -321,7 +321,7 @@ async function run(): Promise<void> {
     );
     assert.equal(unavailable.status, 502);
     assert.equal(await unavailable.json().then((body: { ok?: boolean; code?: string }) => body.code), 'UPSTREAM_UNAVAILABLE');
-
+    shouldThrow = false; // Restore the mocked upstream before testing Neural status forwarding.
 
     // Neural adapter exposes only the three documented routes, never a generic proxy.
     capturedRequest = null;
@@ -357,7 +357,7 @@ async function run(): Promise<void> {
     assert.equal(neuralUnknown.status, 404, 'unmapped Neural namespace paths must not fall through to the legacy backend');
     assert.equal(await neuralUnknown.json().then((body: { code?: string }) => body.code), 'NEURAL_ROUTE_NOT_FOUND');
     assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks', 'unknown routes must not trigger another upstream request');
-    assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready', 'unknown routes must not trigger another upstream request');
+    // The last valid upstream request remains the task request; unknown routes must not replace it.
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
