@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T13:44:00Z",
+  "updatedAt": "2026-10-25T14:09:30Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -199,13 +199,14 @@
           "kind": "ci-run",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40198249420/job/121183678095",
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
-          "observedAt": "2026-10-25T13:36:06Z",
-          "notes": "Both the distroless and Ubuntu 24.04 image builds succeeded; the two runtime health/graceful-shutdown smoke tests were still running at the time of this registry update."
+          "observedAt": "2026-10-25T13:37:07Z",
+          "notes": "Both image builds succeeded, but the distroless health/graceful-shutdown job failed: the first health request reset the connection and subsequent requests were refused. This workflow revision did not capture the container process logs, so the exact runtime exception is not established. Source checks on Ubuntu 22.04/24.04 passed, but this does not verify container runtime behavior."
         }
       ],
       "limitations": [
-        "Both container images build successfully, but a prior runtime smoke test exposed an A2A startup dependency on DATABASE_URL; the startup gate fix is being validated on the current branch.",
-        "Do not mark the runtime capability verified until both image health probes and graceful-shutdown checks pass on a fresh run.",
+        "The recorded distroless runtime smoke test failed even though both images built; image build success is not runtime evidence.",
+        "PR #476 proposes opening the HTTP listener before optional backend/database/provider reconciliation so health checks are not blocked by startup integrations; the fresh Linux/container workflow must pass before runtime capability status can be upgraded.",
+        "Both images must pass health payload assertions and graceful-shutdown checks on a fresh run before this capability is VERIFIED.",
         "No multi-architecture build is claimed."
       ]
     },
