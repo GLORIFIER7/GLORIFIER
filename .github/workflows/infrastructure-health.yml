@@ -94,7 +94,7 @@ jobs:
 
       - name: Report optional application endpoint is not configured
         if: ${{ env.GLORIFIER_HEALTH_URL == '' }}
-        run: echo "Optional application endpoint is not configured; only Cloudflare Worker liveness was verified. No legacy Railway fallback is used."
+        run: echo "Optional application endpoint is not configured; Cloudflare Worker liveness and Supabase operational readiness were verified. Authentication and AI/provider readiness were not probed; no legacy Railway fallback is used."
 
       - name: Open recovery issue on failure
         if: failure()
