@@ -25,7 +25,7 @@ const resolveBackendOrigin = (value?: string): string | null => {
   if (!candidate) return null;
   try {
     const url = new URL(candidate);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
       return null;
     }
     return url.origin;
@@ -229,7 +229,7 @@ const neuralOrigin = (value?: string): string | null => {
   if (!candidate) return null;
   try {
     const url = new URL(candidate);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
     return url.origin;
   } catch {
     return null;
