@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "integration": "GLORIFIER Binance Agent ID",
+  "provider": "Binance Web3",
+  "agent_id_url": "https://web3.binance.com/agent-id/glorifier?src=user_share",
+  "repository": "GLORIFIER7/GLORIFIER",
+  "status": "PARTIALLY_VERIFIED",
+  "evidence": {
+    "agent_id_url_provided_by_owner": true,
+    "authenticated_mcp_session": "NOT_VERIFIED",
+    "wallet_ownership": "NOT_VERIFIED",
+    "transaction_signing": "DISABLED_PENDING_EXPLICIT_APPROVAL"
+  },
+  "wallet_reference": {
+    "address": "0x393c19Ff12e1624181fBF1938b80982b9dfC4277",
+    "network": "Ethereum Mainnet",
+    "chain_id": 1,
+    "source": "Previously supplied by owner; current linkage and control not independently verified"
+  },
+  "mcp": {
+    "endpoint": "https://agent.binance.com/mcp/agentic",
+    "transport": "streamable-http",
+    "authentication": "Complete only through Binance's supported provider flow"
+  },
+  "policy": {
+    "default_access": "READ_ONLY",
+    "allow_withdrawals": false,
+    "allow_trading_without_confirmation": false,
+    "allow_transfers_without_confirmation": false,
+    "allow_signing_without_confirmation": false,
+    "store_credentials_in_repository": false
+  },
+  "last_checked": "2026-10-25",
+  "note": "This record is configuration metadata only. It does not authenticate the Agent ID, prove wallet ownership, or enable transaction execution."
+}

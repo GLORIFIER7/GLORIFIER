@@ -8,6 +8,13 @@ https://agent.binance.com/mcp/agentic
 
 Transport: Streamable HTTP.
 
+## Owner-provided Agent ID reference
+
+- Agent ID: https://web3.binance.com/agent-id/glorifier?src=user_share
+- Machine-readable reference: `integrations/binance-agentic-mcp/agent-id.json`
+- Status: `PARTIALLY_VERIFIED`. The URL was supplied by the owner; authenticated linkage, wallet ownership, and signing capability remain `NOT VERIFIED`.
+- Previously supplied wallet reference: `0x393c19Ff12e1624181fBF1938b80982b9dfC4277` on Ethereum Mainnet (chain ID `1`). This is a reference only, not proof of current connection or control.
+
 ## Security model
 
 - OAuth/authentication is completed through the Binance provider flow.
