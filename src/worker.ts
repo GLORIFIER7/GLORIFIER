@@ -419,6 +419,7 @@ const createUpstreamRequest = (request: Request, incomingUrl: URL, backendOrigin
     method: request.method,
     headers: requestHeaders,
     redirect: 'manual',
+    signal: AbortSignal.timeout(8000),
   };
   if (hasBody && request.body) {
     requestInit.body = request.body;
