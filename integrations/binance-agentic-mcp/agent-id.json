@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "integration": "GLORIFIER Binance Agent ID",
   "provider": "Binance Web3",
   "agent_id_url": "https://web3.binance.com/agent-id/glorifier?src=user_share",
@@ -7,8 +7,11 @@
   "status": "PARTIALLY_VERIFIED",
   "evidence": {
     "agent_id_url_provided_by_owner": true,
-    "authenticated_mcp_session": "NOT_VERIFIED",
+    "public_agent_id_page_inspected": "NOT_VERIFIED",
+    "authenticated_binance_mcp_session": "NOT_VERIFIED",
+    "authenticated_agentic_wallet_session": "NOT_VERIFIED",
     "wallet_ownership": "NOT_VERIFIED",
+    "onchain_wallet_signature": "NOT_PROVIDED",
     "transaction_signing": "DISABLED_PENDING_EXPLICIT_APPROVAL"
   },
   "wallet_reference": {
@@ -20,7 +23,14 @@
   "mcp": {
     "endpoint": "https://agent.binance.com/mcp/agentic",
     "transport": "streamable-http",
-    "authentication": "Complete only through Binance's supported provider flow"
+    "authentication": "Must be completed by the user through Binance's supported authorization flow; this repository does not contain an authenticated session"
+  },
+  "verification_runbook": {
+    "step_1": "Open the Agent ID URL and verify the page's displayed identity and account association while signed in to Binance.",
+    "step_2": "In a supported MCP client, add https://agent.binance.com/mcp/agentic and complete Binance's authorization flow; grant minimum scopes, with trading and transfer scopes omitted unless separately approved.",
+    "step_3": "Capture a non-secret success indicator from the client showing the authenticated session is connected. Do not put tokens, QR pairing codes, auth codes, cookies, or secrets in GitHub.",
+    "step_4": "Verify wallet control separately using a provider-supported signed challenge or another authoritative ownership proof. Do not sign arbitrary messages or transactions just to satisfy this checklist.",
+    "step_5": "Update this registry only after the corresponding evidence is independently observed and reviewed."
   },
   "policy": {
     "default_access": "READ_ONLY",
@@ -31,5 +41,5 @@
     "store_credentials_in_repository": false
   },
   "last_checked": "2026-10-25",
-  "note": "This record is configuration metadata only. It does not authenticate the Agent ID, prove wallet ownership, or enable transaction execution."
+  "note": "Repository metadata is not an authentication mechanism. The public Agent ID URL does not by itself prove account linkage, an authenticated MCP session, or control of the referenced Ethereum address."
 }
