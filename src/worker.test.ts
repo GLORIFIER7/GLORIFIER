@@ -321,7 +321,7 @@ async function run(): Promise<void> {
     );
     assert.equal(unavailable.status, 502);
     assert.equal(await unavailable.json().then((body: { ok?: boolean; code?: string }) => body.code), 'UPSTREAM_UNAVAILABLE');
-
+    shouldThrow = false; // Restore the mocked upstream before testing Neural status forwarding.
 
     // Neural adapter exposes only the three documented routes, never a generic proxy.
     capturedRequest = null;
