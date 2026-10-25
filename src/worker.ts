@@ -236,7 +236,7 @@ const neuralOrigin = (value?: string): string | null => {
   }
 };
 
-const MAX_NEURAL_TASK_BODY_BYTES = 1024 * 1024;
+const MAX_NEURAL_TASK_BODY_BYTES = 65_536;
 
 class NeuralRequestBodyTooLargeError extends Error {}
 class NeuralRequestBodyInvalidError extends Error {}
