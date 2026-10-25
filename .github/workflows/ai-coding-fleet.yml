@@ -2,7 +2,9 @@ name: GLORIFIER 24x7 AI Coding Fleet
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # GitHub may delay scheduled runs during high load. This is a recurring
+    # maintenance trigger, not a hard real-time uptime guarantee.
+    - cron: "17,47 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,18 +33,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Run Codex
+      - name: Run Claude Code
+        id: claude
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          prompt: |
+            ${{ matrix.prompt }}
+
+            Follow AGENTS.md. Keep the change small and reviewable. Never expose,
+            read for disclosure, or modify secrets. Do not deploy, merge, change
+            repository settings, or modify workflow permissions. Run the relevant
+            tests and validation commands. If no safe worthwhile change exists,
+            make no code change.
+
+      - name: Run Codex fallback
         id: codex
-        continue-on-error: true
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ env.ANTHROPIC_API_KEY == '' && env.OPENAI_API_KEY != '' }}
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ env.OPENAI_API_KEY }}
@@ -52,14 +70,36 @@ jobs:
           prompt: |
             ${{ matrix.prompt }}
 
-            Follow AGENTS.md. Keep the change small and reviewable. Never expose or modify secrets. Run npm run lint and npm run build when applicable. If there is no safe worthwhile change, make no code change.
+            Follow AGENTS.md. Keep the change small and reviewable. Never expose,
+            read for disclosure, or modify secrets. Do not deploy, merge, change
+            repository settings, or modify workflow permissions. Run the relevant
+            tests and validation commands. If no safe worthwhile change exists,
+            make no code change.
 
-      - name: Create PR branch
-        if: ${{ env.OPENAI_API_KEY != '' && steps.codex.outcome == 'success' }}
+      - name: Validate proposed changes
+        id: validate
+        if: ${{ steps.claude.outcome == 'success' || steps.codex.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [ -f package-lock.json ]; then
+            npm ci --ignore-scripts
+          fi
+          if node -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)"; then
+            npm run lint
+          fi
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+            npm run build
+          fi
+
+      - name: Create review branch
         id: branch
+        if: ${{ steps.validate.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -68,8 +108,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
           git checkout -b "$BRANCH"
-          git add -A
-          git commit -m "ai(${{ matrix.role }}): autonomous maintenance"
+          # Stage repository changes but explicitly exclude common local secret files.
+          git add -u
+          git add -A -- ':!.env' ':!.env.*' ':!**/.env' ':!**/.env.*' ':!**/*credentials*' ':!**/*secret*'
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --cached --check
+          git commit -m "ai(${{ matrix.role }}): propose reviewed maintenance"
           git push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -79,13 +126,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. Review CI and the diff before merge."
+          gh pr create --base "${{ github.event.repository.default_branch || 'main' }}" \
+            --head "${{ steps.branch.outputs.branch }}" \
+            --title "AI Fleet: ${{ matrix.role }} maintenance" \
+            --body "Automated maintenance proposal. Provider execution and lint/build validation succeeded. Review the complete diff and CI before merge. No automatic merge or deployment is permitted."
 
-      - name: Report Codex capacity limitation
-        if: ${{ steps.codex.outcome == 'failure' }}
-        run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
-
-      - name: Missing API key notice
-        if: ${{ env.OPENAI_API_KEY == '' }}
+      - name: Report missing provider credentials
+        if: ${{ env.ANTHROPIC_API_KEY == '' && env.OPENAI_API_KEY == '' }}
         run: |
-          echo "::warning::OPENAI_API_KEY is not configured. The AI coding fleet is installed but dormant until the GitHub Actions secret is added."
+          echo "::error::No coding provider configured. Add ANTHROPIC_API_KEY (preferred) or OPENAI_API_KEY in repository Actions secrets."
+          exit 1
+
+      - name: Report provider or validation failure
+        if: ${{ (steps.claude.outcome == 'failure' || steps.codex.outcome == 'failure' || steps.validate.outcome == 'failure') }}
+        run: echo "::error::AI Fleet provider execution or validation failed. Inspect this run's logs; no PR should be merged without review."
