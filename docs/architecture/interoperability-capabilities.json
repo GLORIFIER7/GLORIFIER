@@ -1,0 +1,307 @@
+{
+  "schemaVersion": "1.0.0",
+  "updatedAt": "2026-10-25T13:18:00Z",
+  "statusVocabulary": [
+    "VERIFIED",
+    "PARTIALLY VERIFIED",
+    "NOT VERIFIED",
+    "DEGRADED",
+    "NOT OBSERVABLE"
+  ],
+  "capabilities": [
+    {
+      "id": "worker.neural-route-contract",
+      "title": "GLORIFIER Worker Neural route contract",
+      "boundary": "GLORIFIER control plane to the separately deployed GLORIFIER-NEURAL execution plane",
+      "scope": "mocked-contract-test",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker test harness",
+        "CircleCI Linux Docker executor"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Mocked Worker runtime; no live Neural origin",
+          "observedAt": null,
+          "notes": "Contract tests cover explicit routes, auth failure, origin validation, timeout mapping, readiness status, and upstream cookie non-forwarding."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://circleci.com/gh/GLORIFIER7/GLORIFIER/225",
+          "targetEnvironment": "main commit 51e41003f5c1e3883cf3c834eaad5a1f80079ac2; cimg/node:24.16.0 Linux Docker executor",
+          "observedAt": "2026-10-25T13:17:49.628Z",
+          "notes": "This historical green run covered npm ci, lint/type-check, Worker tests, frontend build, and output check before this branch's body-limit changes; it is not evidence of live Neural readiness."
+        }
+      ],
+      "limitations": [
+        "The upstream is mocked in unit tests.",
+        "The new request-body limit tests in this branch still require a green run.",
+        "No live staging or production Neural origin has been probed."
+      ]
+    },
+    {
+      "id": "worker.neural-task-request-boundary",
+      "title": "Neural task JSON media type and request-size boundary",
+      "boundary": "Public Worker POST /api/neural/v1/tasks",
+      "scope": "request-validation-and-body-size-limit",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker unit tests",
+        "Cloudflare Worker runtime after reviewed rollout"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Branch test harness; CI pending for this change",
+          "observedAt": null,
+          "notes": "Tests are added for unsupported media type, declared oversized content length, and actual oversized request bodies without trusting Content-Length."
+        },
+        {
+          "kind": "source",
+          "reference": "src/worker.ts",
+          "targetEnvironment": "Repository branch fix/issue-471-interoperability-hardening",
+          "observedAt": null,
+          "notes": "Implementation caps buffered task bodies at 1 MiB, accepts JSON media types, and rejects oversized bodies with HTTP 413."
+        }
+      ],
+      "limitations": [
+        "Do not treat this capability as verified until the branch CI completes successfully.",
+        "No production configuration or deployment is performed by this change."
+      ]
+    },
+    {
+      "id": "neural.runtime-live-readiness",
+      "title": "Live GLORIFIER-NEURAL health and readiness",
+      "boundary": "Configured HTTPS origin from Worker to Neural service",
+      "scope": "live-runtime-probe",
+      "status": "NOT OBSERVABLE",
+      "targetEnvironments": [
+        "Staging",
+        "Production"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/neural-engine-integration.md#current-evidence",
+          "targetEnvironment": "Staging and production",
+          "observedAt": null,
+          "notes": "Repository documentation explicitly distinguishes the adapter implementation from evidence of a reachable deployed Neural origin."
+        }
+      ],
+      "limitations": [
+        "No verified GLORIFIER_NEURAL_ORIGIN or authorized live probe was provided.",
+        "The Worker adapter must remain unavailable when its origin is missing or invalid.",
+        "Provider readiness is not implied by process health."
+      ]
+    },
+    {
+      "id": "linux.source-runtime-matrix",
+      "title": "Node.js source checks on supported Ubuntu CI targets",
+      "boundary": "Source build, Worker tests, type-check and static output",
+      "scope": "linux-source-ci",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted ubuntu-22.04 x86_64",
+        "GitHub-hosted ubuntu-24.04 x86_64"
+      ],
+      "evidence": [
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/interoperability-linux.yml",
+          "targetEnvironment": "Ubuntu 22.04 and 24.04 x86_64; Node version from .node-version",
+          "observedAt": null,
+          "notes": "The new workflow defines this test matrix; results are pending a successful workflow run."
+        }
+      ],
+      "limitations": [
+        "The declared test matrix is limited to the named GitHub-hosted x86_64 targets.",
+        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS."
+      ]
+    },
+    {
+      "id": "linux.container-builds",
+      "title": "Container image builds",
+      "boundary": "OCI images defined by Dockerfile and Dockerfile.ubuntu",
+      "scope": "container-build",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
+      ],
+      "evidence": [
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/interoperability-linux.yml",
+          "targetEnvironment": "Dockerfile and Dockerfile.ubuntu build job",
+          "observedAt": null,
+          "notes": "Image build steps are defined by the workflow; no successful run is recorded yet."
+        },
+        {
+          "kind": "source",
+          "reference": "Dockerfile",
+          "targetEnvironment": "Debian Trixie build stage and distroless Node.js 22 runtime",
+          "observedAt": null,
+          "notes": "Source definition only; build and runtime smoke evidence are tracked separately."
+        },
+        {
+          "kind": "source",
+          "reference": "Dockerfile.ubuntu",
+          "targetEnvironment": "Ubuntu 24.04 runtime image definition",
+          "observedAt": null,
+          "notes": "Source definition only; image behavior is not yet live-verified."
+        }
+      ],
+      "limitations": [
+        "An image build does not prove a container starts correctly or remains healthy.",
+        "No multi-architecture build is claimed."
+      ]
+    },
+    {
+      "id": "sdk.python-contract",
+      "title": "Python Neural HTTP client contract",
+      "boundary": "Python client to the versioned GLORIFIER Worker Neural API",
+      "scope": "cross-language-contract-test",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Python 3.11 and 3.12 unit-test matrix"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "sdk/python/test_glorifier_neural_client.py",
+          "targetEnvironment": "Mocked HTTP client test harness",
+          "observedAt": null,
+          "notes": "Standard-library contract tests exist; current run evidence is not attached to the registry."
+        },
+        {
+          "kind": "ci-run",
+          "reference": ".github/workflows/python-sdk.yml",
+          "targetEnvironment": "GitHub Actions; Python 3.11 and 3.12",
+          "observedAt": null,
+          "notes": "The workflow declares the matrix, but its successful execution is not asserted here."
+        }
+      ],
+      "limitations": [
+        "No published package/release is claimed.",
+        "No live Neural origin or provider task is exercised by the unit tests."
+      ]
+    },
+    {
+      "id": "blockchain.ethereum-readonly-transfer-verifier",
+      "title": "Ethereum GLR transfer verification contract",
+      "boundary": "Read-only EVM JSON-RPC receipt verification",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock JSON-RPC tests; Ethereum mainnet target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-ethereum-verifier.test.ts",
+          "targetEnvironment": "Mock EVM JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover exact amount, payer, recipient, confirmations, unsafe RPC origins, and duplicate transfer events."
+        }
+      ],
+      "limitations": [
+        "No live RPC probe is recorded in this registry.",
+        "Signing, minting, transfers and contract writes are outside this verifier and remain gated."
+      ]
+    },
+    {
+      "id": "blockchain.bnb-readonly-transfer-verifier",
+      "title": "BNB Chain GLR transfer verification contract",
+      "boundary": "Read-only EVM JSON-RPC receipt verification for BNB Chain",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock JSON-RPC tests; BNB Chain mainnet target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-bnb-verifier.test.ts",
+          "targetEnvironment": "Mock BNB JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover chain ID, exact amount, payer, recipient, and disabled configuration."
+        }
+      ],
+      "limitations": [
+        "No live RPC probe is recorded in this registry.",
+        "EVM test coverage does not prove production RPC reachability."
+      ]
+    },
+    {
+      "id": "blockchain.solana-readonly-transfer-verifier",
+      "title": "Solana GLR transfer verification contract",
+      "boundary": "Read-only Solana JSON-RPC Token-2022 transaction verification",
+      "scope": "mocked-chain-test-vectors",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mock Solana JSON-RPC tests; live Solana target is configured separately"
+      ],
+      "evidence": [
+        {
+          "kind": "automated-test",
+          "reference": "src/lib/glr-solana-verifier.test.ts",
+          "targetEnvironment": "Mock Solana JSON-RPC responses",
+          "observedAt": null,
+          "notes": "Test vectors cover mint, decimals, finalized state, and unsafe RPC URLs."
+        }
+      ],
+      "limitations": [
+        "No live Solana RPC probe is recorded in this registry.",
+        "EVM and Solana adapters are independently verified and are not interchangeable."
+      ]
+    },
+    {
+      "id": "protocol.openapi-baseline",
+      "title": "Published OpenAPI and JSON Schema contract baseline",
+      "boundary": "Language-neutral HTTP interoperability boundary",
+      "scope": "protocol-contract",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Repository documentation and public API contract"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/language-neutral-interoperability.md#current-evidence-boundary",
+          "targetEnvironment": "Repository main branch",
+          "observedAt": null,
+          "notes": "Current documentation describes this as a target contract; it does not claim a published OpenAPI specification exists."
+        }
+      ],
+      "limitations": [
+        "No authoritative OpenAPI document was located in the reviewed paths.",
+        "Do not claim generated language bindings are supported until schema and conformance checks exist."
+      ]
+    },
+    {
+      "id": "protocol.a2a-mcp-adapters",
+      "title": "Standards-backed A2A and MCP adapters",
+      "boundary": "Explicit protocol adapters behind GLORIFIER governance",
+      "scope": "protocol-implementation",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Repository implementation and contract tests"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "docs/PROVIDER-NEUTRAL-INTEROPERABILITY.md",
+          "targetEnvironment": "Repository source",
+          "observedAt": null,
+          "notes": "The document separates A2A and MCP roles but does not establish that both adapters have passed interoperability tests."
+        }
+      ],
+      "limitations": [
+        "A protocol mention is not evidence of an implemented adapter.",
+        "No arbitrary proxy or implied provider fallback is authorized."
+      ]
+    }
+  ]
+}
