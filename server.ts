@@ -851,8 +851,8 @@ let backendInitialized = false;
 let backendInitializationInProgress = false;
 
 app.get('/api/health/ready', async (_req: Request, res: Response) => {
-  if (!backendInitialized) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'Backend initialization is incomplete' });
   if (!process.env.DATABASE_URL) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'DATABASE_URL is not configured' });
+  if (!backendInitialized) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'Backend initialization is incomplete' });
   try { await getPostgresPool().query('SELECT 1'); return res.json({ ok: true, status: 'ready', timestamp: new Date().toISOString() }); }
   catch (error) { return apiError(res, 503, 'Backend dependencies are not ready', error); }
 });
@@ -3711,12 +3711,47 @@ app.post('/api/agent-miner/run', requireOwner, async (_req: Request, res: Respon
 
 app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endpoint not found'); });
 
-async function initializeBackend() {
-  if (process.env.DATABASE_URL) { try { await initializeAgentMinerState(); await restoreAgentMinerState(); } catch (error) { console.warn('[AgentMinerState] initialization deferred:', error instanceof Error ? error.message : error); } }
-  if (process.env.DATABASE_URL) { try { await initializeGeasReconciliation(); } catch (error) { console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error); } }
-  if (!process.env.DATABASE_URL) { console.warn('[BackendInit] DATABASE_URL is not configured; database-backed APIs will remain unavailable.'); return; }
-  const initializers: Array<[string, () => Promise<unknown>]> = [['revenue ledger', initializeRevenueLedger],['economic operating system', initializeEconomicOperatingSystem],['business model', initializeBusinessModel],['internet discovery fabric', initializeInternetDiscoveryFabric],['model network', initializeModelNetwork],['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],['mediator', initializeGlorifierMediator],['AI Web Network', initializeAIWebNetwork]];
-  for (const [name, initialize] of initializers) { try { await initialize(); console.log(`[BackendInit] ${name}: ready`); } catch (error) { console.warn(`[BackendInit] ${name}: deferred`, error instanceof Error ? error.message : error); } }
+async function initializeBackend(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not configured; backend initialization cannot complete.');
+  }
+
+  // Persistent schema and state restoration are required before readiness may be
+  // reported. These failures must propagate to the readiness gate and retry loop.
+  await initializeAgentMinerState();
+  await restoreAgentMinerState();
+
+  const failures: string[] = [];
+  try {
+    await initializeGeasReconciliation();
+  } catch (error) {
+    failures.push('GEAS reconciliation');
+    console.warn('[GEASReconciliation] initialization deferred:', error instanceof Error ? error.message : error);
+  }
+
+  const initializers: Array<[string, () => Promise<unknown>]> = [
+    ['revenue ledger', initializeRevenueLedger],
+    ['economic operating system', initializeEconomicOperatingSystem],
+    ['business model', initializeBusinessModel],
+    ['internet discovery fabric', initializeInternetDiscoveryFabric],
+    ['model network', initializeModelNetwork],
+    ['24/7 opportunity discovery', initialize24x7OpportunityDiscovery],
+    ['mediator', initializeGlorifierMediator],
+    ['AI Web Network', initializeAIWebNetwork],
+  ];
+  for (const [name, initialize] of initializers) {
+    try {
+      await initialize();
+      console.log(`[BackendInit] ${name}: ready`);
+    } catch (error) {
+      failures.push(name);
+      console.warn(`[BackendInit] ${name}: deferred`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Backend initialization incomplete: ${failures.join(', ')}`);
+  }
 }
 
 // Vite middleware for dev or static serving for prod
@@ -3773,13 +3808,21 @@ async function startServer() {
   // A slow database, provider, or connection registry must not prevent the
   // container from serving health and readiness endpoints.
   const initializeBackgroundServices = async () => {
+    let backendInitializationRetryTimer: NodeJS.Timeout | undefined;
+    const clearBackendInitializationRetry = (): void => {
+      if (!backendInitializationRetryTimer) return;
+      clearInterval(backendInitializationRetryTimer);
+      backendInitializationRetryTimer = undefined;
+    };
+
     const initializeBackendWithReadiness = async (): Promise<void> => {
       if (backendInitializationInProgress || backendInitialized) return;
       backendInitializationInProgress = true;
       try {
         await initializeBackend();
         backendInitialized = true;
-        console.log('[BackendInit] backend initialization completed; readiness enabled.');
+        clearBackendInitializationRetry();
+        console.log('[BackendInit] required backend initialization completed; readiness enabled.');
       } catch (error) {
         backendInitialized = false;
         console.warn('[BackendInit] startup initialization deferred; readiness remains disabled:', error instanceof Error ? error.message : error);
@@ -3787,13 +3830,21 @@ async function startServer() {
         backendInitializationInProgress = false;
       }
     };
-    await initializeBackendWithReadiness();
 
-    // Retry a failed backend initialization without blocking the HTTP listener.
-    // Readiness remains 503 until schema/state initialization actually completes.
-    setInterval(() => {
-      if (!backendInitialized) void initializeBackendWithReadiness();
-    }, 30000);
+    // Register retries before the first awaited initialization attempt. The timer
+    // is removed as soon as the required initialization succeeds. Missing database
+    // configuration is reported without a noisy retry loop; restart after config.
+    if (process.env.DATABASE_URL) {
+      backendInitializationRetryTimer = setInterval(() => {
+        if (backendInitialized) {
+          clearBackendInitializationRetry();
+          return;
+        }
+        void initializeBackendWithReadiness();
+      }, 30000);
+      backendInitializationRetryTimer.unref();
+    }
+    await initializeBackendWithReadiness();
 
     try {
       await reconcileIntegrationControlPlane('backend-startup');

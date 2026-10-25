@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T14:20:00Z",
+  "updatedAt": "2026-10-25T15:58:41Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -130,7 +130,7 @@
       "title": "Node.js source checks on supported Ubuntu CI targets",
       "boundary": "Source build, Worker tests, type-check and static output",
       "scope": "linux-source-ci",
-      "status": "PARTIALLY VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted ubuntu-22.04 x86_64",
         "GitHub-hosted ubuntu-24.04 x86_64"
@@ -156,12 +156,19 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:22Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40209200837",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; exact tested commit 3eecd2613c066eb1a0c3fce4573900538f48670a",
+          "observedAt": "2026-10-25T15:58:41Z",
+          "notes": "Observed completed Interoperability Linux validation run #42 on the exact tested branch commit: both source-matrix jobs passed capability-registry validation, TypeScript type-check, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build, and static output verification. This verifies only the named source CI targets."
         }
       ],
       "limitations": [
-        "The declared test matrix is limited to the named GitHub-hosted x86_64 targets.",
-        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS.",
-        "The production server had an eager database-backed A2A initializer; this branch now gates it on DATABASE_URL and requires an image health smoke test to pass."
+        "Verification is limited to GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; no Linux ARM64, Alpine, other-distribution, Windows, or macOS claim is made.",
+        "Source CI does not establish live GLORIFIER-NEURAL/provider readiness or real EVM/BNB/Solana RPC reachability.",
+        "No production deployment was performed as part of this verification."
       ]
     },
     {
@@ -171,7 +178,9 @@
       "scope": "container-build",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
+        "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder",
+        "Distroless Node.js 22 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner",
+        "Ubuntu 24.04 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner"
       ],
       "evidence": [
         {
@@ -208,11 +217,19 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 source checks; Ubuntu 24.04 x86_64 Docker builder and distroless/Ubuntu runtime smoke tests",
           "observedAt": "2026-10-25T14:14:00Z",
           "notes": "Fresh run passed all three jobs. TypeScript, capability-registry validation, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build/static output checks passed on Ubuntu 22.04 and 24.04. Both distroless and Ubuntu 24.04 images built and passed /api/health payload and graceful-shutdown smoke tests. This verifies CI behavior for these named x86_64 targets only; it does not establish live provider/RPC readiness or production deployment status."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40209200837",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; distroless and Ubuntu runtime images; exact tested commit 3eecd2613c066eb1a0c3fce4573900538f48670a",
+          "observedAt": "2026-10-25T15:58:41Z",
+          "notes": "Observed completed Interoperability Linux validation run #42: both image builds passed, both containers returned the expected healthy /api/health response, both correctly returned HTTP 503 with DATABASE_URL is not configured from /api/health/ready, and both passed graceful-shutdown smoke tests. This is CI-only evidence for the named x86_64 targets."
         }
       ],
       "limitations": [
-        "Verification is limited to GitHub-hosted x86_64 targets named in the evidence; no multi-architecture claim is made.",
-        "CI container health and graceful-shutdown tests do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability.",
+        "Verification is limited to the named GitHub-hosted Ubuntu 24.04 x86_64 container targets; no multi-architecture build is claimed.",
+        "The no-database smoke test proves the readiness endpoint fails closed when DATABASE_URL is absent; it does not establish live database-backed readiness.",
+        "CI health/readiness checks do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability.",
         "No production deployment was performed as part of this verification."
       ]
     },

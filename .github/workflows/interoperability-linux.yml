@@ -118,6 +118,9 @@ jobs:
             exit 1
           fi
           node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-distroless-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          readiness_status="$(curl --silent --show-error --output /tmp/glorifier-distroless-ready.json --write-out '%{http_code}' http://127.0.0.1:13000/api/health/ready)"
+          test "$readiness_status" = "503"
+          node -e "const fs=require('node:fs');const r=JSON.parse(fs.readFileSync('/tmp/glorifier-distroless-ready.json','utf8'));if(r.ok!==false||r.status!=='not-ready'||r.reason!=='DATABASE_URL is not configured')throw Error('Unexpected readiness payload: '+JSON.stringify(r));"
           docker stop --time 10 "$container" >/dev/null
           exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
           test "$exit_code" = "0"
@@ -151,6 +154,9 @@ jobs:
             exit 1
           fi
           node -e "const fs=require('node:fs');const h=JSON.parse(fs.readFileSync('/tmp/glorifier-ubuntu-health.json','utf8'));if(h.ok!==true||h.status!=='ok')throw Error('Unexpected container health payload: '+JSON.stringify(h));"
+          readiness_status="$(curl --silent --show-error --output /tmp/glorifier-ubuntu-ready.json --write-out '%{http_code}' http://127.0.0.1:13001/api/health/ready)"
+          test "$readiness_status" = "503"
+          node -e "const fs=require('node:fs');const r=JSON.parse(fs.readFileSync('/tmp/glorifier-ubuntu-ready.json','utf8'));if(r.ok!==false||r.status!=='not-ready'||r.reason!=='DATABASE_URL is not configured')throw Error('Unexpected readiness payload: '+JSON.stringify(r));"
           docker stop --time 10 "$container" >/dev/null
           exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$container")"
           test "$exit_code" = "0"
