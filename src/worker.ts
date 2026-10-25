@@ -244,6 +244,8 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
     init.body = request.body;
     init.duplex = 'half';
   }
+  const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
+  if (request.method === 'POST') init.body = request.body;
   try {
     const upstream = await fetch(new Request(new URL(route.upstreamPath, origin), init));
     const responseHeaders = new Headers();
