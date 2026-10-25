@@ -53,11 +53,13 @@ export async function restoreAgentMinerState() {
     computeAuthorized = Boolean(saved.compute_authorized);
     const worker = providers.find((p) => p.id === 'compute-worker');
     if (worker) worker.enabled = computeAuthorized;
-  } catch {
-    // Persistence is advisory; the daemon remains fail-safe and never enables compute by default.
+  } catch (error) {
+    // Fail closed in memory, then propagate the persistence failure so the
+    // backend readiness gate cannot mistake an unsuccessful state restore for success.
     computeAuthorized = false;
     const worker = providers.find((p) => p.id === 'compute-worker');
     if (worker) worker.enabled = false;
+    throw error;
   }
   return getAgentMinerSnapshot();
 }
