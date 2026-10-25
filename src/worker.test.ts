@@ -374,6 +374,16 @@ async function run(): Promise<void> {
     assert.equal(await unsupportedTaskMediaType.json().then((body: { code?: string }) => body.code), 'UNSUPPORTED_MEDIA_TYPE');
     assert.equal(capturedRequest, null, 'non-JSON task bodies must never reach Neural');
 
+    capturedRequest = null;
+    const malformedJsonTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+      body: '{"task":',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(malformedJsonTask.status, 400, 'invalid JSON must be rejected locally');
+    assert.equal(await malformedJsonTask.json().then((body: { code?: string }) => body.code), 'INVALID_JSON_BODY');
+    assert.equal(capturedRequest, null, 'malformed JSON must never reach Neural');
+
     upstreamResponse = new Response('{"status":"not-ready"}', { status: 503, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'must-not-forward=yes' } });
     const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
