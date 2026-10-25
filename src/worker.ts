@@ -218,6 +218,55 @@ const neuralOrigin = (value?: string): string | null => {
   }
 };
 
+const MAX_NEURAL_TASK_BODY_BYTES = 1024 * 1024;
+
+class NeuralRequestBodyTooLargeError extends Error {}
+class NeuralRequestBodyInvalidError extends Error {}
+
+const readBoundedNeuralRequestBody = async (request: Request): Promise<Uint8Array> => {
+  const declaredLength = request.headers.get('content-length');
+  if (declaredLength !== null) {
+    if (!/^\\d+$/.test(declaredLength)) throw new NeuralRequestBodyInvalidError();
+    const parsedLength = Number(declaredLength);
+    if (!Number.isSafeInteger(parsedLength)) throw new NeuralRequestBodyInvalidError();
+    if (parsedLength > MAX_NEURAL_TASK_BODY_BYTES) throw new NeuralRequestBodyTooLargeError();
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_NEURAL_TASK_BODY_BYTES) {
+        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the cap. */ }
+        throw new NeuralRequestBodyTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+};
+
+const isJsonContentType = (value: string): boolean => {
+  const mediaType = value.split(';', 1)[0].trim().toLowerCase();
+  return mediaType === 'application/json' ||
+    (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
+};
+
 const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
   const mapping: Record<string, { upstreamPath: string; methods: readonly string[] }> = {
     '/api/neural/health': { upstreamPath: '/health', methods: ['GET', 'HEAD'] },
@@ -230,19 +279,43 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   if (pathname === '/api/neural/v1/tasks' && !/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
     return Response.json({ ok: false, code: 'AUTHENTICATION_REQUIRED' }, { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   }
+  if (pathname === '/api/neural/v1/tasks' && !isJsonContentType(request.headers.get('content-type') || '')) {
+    return Response.json({ ok: false, code: 'UNSUPPORTED_MEDIA_TYPE' }, {
+      status: 415,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+
   const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
   if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+
+  let taskBody: Uint8Array | undefined;
+  if (pathname === '/api/neural/v1/tasks') {
+    try {
+      taskBody = await readBoundedNeuralRequestBody(request);
+    } catch (error) {
+      if (error instanceof NeuralRequestBodyTooLargeError) {
+        return Response.json({ ok: false, code: 'REQUEST_BODY_TOO_LARGE', maxBytes: MAX_NEURAL_TASK_BODY_BYTES }, {
+          status: 413,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      return Response.json({ ok: false, code: 'INVALID_REQUEST_BODY' }, {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+  }
+
   const headers = new Headers();
   const accept = request.headers.get('accept');
   if (accept) headers.set('accept', accept);
-  const contentType = request.headers.get('content-type');
-  if (contentType && pathname === '/api/neural/v1/tasks') headers.set('content-type', contentType);
+  if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
   const authorization = request.headers.get('authorization');
   if (authorization && pathname === '/api/neural/v1/tasks') headers.set('authorization', authorization);
-  const init: RequestInit & { duplex?: 'half' } = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
-  if (request.method === 'POST' && request.body) {
-    init.body = request.body;
-    init.duplex = 'half';
+  const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
+  if (request.method === 'POST' && taskBody !== undefined) {
+    init.body = taskBody;
   }
   try {
     const upstream = await fetch(new Request(new URL(route.upstreamPath, origin), init));
