@@ -52,6 +52,12 @@ Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact p
 5. Keep provider inference disabled until separately approved and verified. Keep consequential action classes denied; human approval remains mandatory.
 6. Verify required GLORIFIER CI checks and a staging smoke test before proposing production configuration. Production deployment, secrets, provider egress, database migrations, and paid services require separate explicit approval.
 
-## Status
+## Implementation status (updated 2026-10-25)
 
-**Integration status: NOT IMPLEMENTED / NOT VERIFIED.** This document defines the interface and acceptance criteria only. It does not claim a route adapter, deployed Neural service, live provider, secret, or production connection exists. The next code PR must implement the Worker adapter and tests; the subsequent staging PR/change must supply verified non-production configuration.
+**Worker adapter: IMPLEMENTED IN REPOSITORY / NOT FULLY VERIFIED.** PR #469 added the Worker route adapter and tests; PR #470 added the POST streaming `duplex: 'half'` handling and corrected the unknown-route assertion. Both PRs are merged. The adapter is present in `src/worker.ts` on `main`.
+
+**CI evidence:** the combined status for merge commit `44244b272b3178604c24f04d3ec2c97395273421` reports Vercel `success` and CircleCI `failure` (https://circleci.com/gh/GLORIFIER7/GLORIFIER/207). The failure cause has not yet been established from logs. Treat CI as blocking; do not mark this integration verified until the failing job is diagnosed and all required checks pass.
+
+**Runtime configuration and live operation:** no evidence here confirms that `GLORIFIER_NEURAL_ORIGIN` is configured, that a Neural deployment is reachable, or that `/health`, `/ready`, authentication rejection, and a harmless read-only task have passed against staging. No production deployment, secret setup, provider egress, or database write was performed.
+
+**Next steps:** diagnose CircleCI failure; run Worker contract tests and security checks; then configure a reviewed staging origin and perform the staging smoke tests listed above. Keep provider inference and consequential action classes disabled until separately approved and verified.
