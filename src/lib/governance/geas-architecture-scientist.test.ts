@@ -1,4 +1,4 @@
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
 
@@ -40,8 +40,13 @@ if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', ca
 if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, ok: false })).length !== 0) {
   throw new Error('failed cached observations must not be used for conditional requests');
 }
-if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, observed_at: futureObservedAt }, fixedNowMs)).length !== 0) {
-  throw new Error('future-dated cached observations must not seed conditional request headers');
+const futureCachedObservation = { ...cachedObservation, observed_at: futureObservedAt };
+const futureFetchContext = createSourceFetchContext(cachedObservation.source_url, futureCachedObservation, fixedNowMs);
+if (futureFetchContext.nowMs !== fixedNowMs || Date.parse(futureFetchContext.observedAt) !== fixedNowMs) {
+  throw new Error('source fetch context must retain one deterministic clock snapshot');
+}
+if (Object.keys(futureFetchContext.conditionalHeaders).length !== 0) {
+  throw new Error('future-dated cached observations must not seed source fetch conditional headers');
 }
 const revalidated = reuseNotModifiedSourceObservation(
   { id: 'test-source', url: cachedObservation.source_url },
@@ -66,11 +71,11 @@ if (reuseNotModifiedSourceObservation(
 ) !== null) throw new Error('304 response without cached evidence must remain unverified');
 if (reuseNotModifiedSourceObservation(
   { id: 'test-source', url: cachedObservation.source_url },
-  { ...cachedObservation, observed_at: futureObservedAt },
+  futureCachedObservation,
   { finalUrl: cachedObservation.source_url, etag: '"v2"', lastModified: null },
-  new Date(fixedNowMs).toISOString(),
-  fixedNowMs,
-) !== null) throw new Error('304 response must not reuse future-dated cached evidence');
+  futureFetchContext.observedAt,
+  futureFetchContext.nowMs,
+) !== null) throw new Error('304 response must not reuse future-dated cached evidence under the fetch clock snapshot');
 
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
