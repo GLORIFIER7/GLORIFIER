@@ -78,7 +78,7 @@
           "reference": "src/worker.ts",
           "targetEnvironment": "Repository branch fix/issue-471-interoperability-hardening",
           "observedAt": null,
-          "notes": "Implementation caps buffered task bodies at 1 MiB, accepts JSON media types, and rejects oversized bodies with HTTP 413."
+          "notes": "Implementation caps buffered task bodies at 65,536 bytes (64 KiB), matching Neural, accepts JSON media types, and rejects oversized bodies with HTTP 413."
         },
         {
           "kind": "ci-run",
