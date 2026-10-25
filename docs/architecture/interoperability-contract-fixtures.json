@@ -29,6 +29,7 @@
     {
       "id": "null-versus-absent",
       "purpose": "Explicit null is not equivalent to an absent field.",
+      "absentFields": ["absentField"],
       "payload": {
         "presentNull": null,
         "emptyString": ""
@@ -59,14 +60,12 @@
     },
     {
       "id": "stable-error-envelope",
-      "purpose": "Consumers branch on stable code and HTTP status, not localized message text.",
+      "purpose": "Consumers branch on stable code and string status, not localized error text.",
       "payload": {
-        "error": {
-          "code": "REQUEST_BODY_TOO_LARGE",
-          "message": "Request body exceeds configured limit.",
-          "status": 413,
-          "correlationId": "123e4567-e89b-42d3-a456-426614174000"
-        }
+        "ok": false,
+        "status": "error",
+        "code": "REQUEST_BODY_TOO_LARGE",
+        "error": "Request body exceeds configured limit."
       }
     }
   ]
