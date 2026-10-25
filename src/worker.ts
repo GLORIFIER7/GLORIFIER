@@ -223,7 +223,7 @@ const MAX_NEURAL_TASK_BODY_BYTES = 1024 * 1024;
 class NeuralRequestBodyTooLargeError extends Error {}
 class NeuralRequestBodyInvalidError extends Error {}
 
-const readBoundedNeuralRequestBody = async (request: Request): Promise<Uint8Array> => {
+const readBoundedNeuralRequestBody = async (request: Request): Promise<ArrayBuffer> => {
   const declaredLength = request.headers.get('content-length');
   if (declaredLength !== null) {
     if (!/^\d+$/.test(declaredLength)) throw new NeuralRequestBodyInvalidError();
@@ -258,7 +258,7 @@ const readBoundedNeuralRequestBody = async (request: Request): Promise<Uint8Arra
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return body;
+  return body.buffer;
 };
 
 const isJsonContentType = (value: string): boolean => {
