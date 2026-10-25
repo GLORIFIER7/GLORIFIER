@@ -101,4 +101,15 @@ The Neural task adapter accepts `application/json` and `application/*+json` and 
 
 ## Current evidence boundary
 
-The repository contains a TypeScript Worker adapter and a small Python client with standard-library tests, but the presence of code is not proof of live interoperability. The registry separates mock contract tests, CI execution, container builds, and live runtime probes. No deployed Neural origin or production readiness is asserted. The reviewed contract documentation does not establish a published OpenAPI specification or passing A2A/MCP interoperability suite. Upgrade statuses only when linked evidence supports the exact claim and target environment.
+The repository contains a TypeScript Worker adapter and a small Python client with standard-library tests, but the presence of code is not proof of live interoperability. The registry separates mock contract tests, CI execution, container builds, and live runtime probes. No deployed Neural origin or production readiness is asserted. The OpenAPI document exists, but its presence does not prove generated-client compatibility or passing external A2A/MCP interoperability suites. Upgrade statuses only when linked evidence supports the exact claim and target environment.
+
+
+## Shared cross-language conformance fixtures
+
+The canonical starter fixtures are [interoperability-contract-fixtures.json](./interoperability-contract-fixtures.json). They cover UTF-8/Unicode preservation, arbitrary-precision quantities represented as decimal strings, absent-versus-null semantics, nested JSON types, and stable machine-readable error envelopes. The Python SDK workflow runs equivalent assertions on Python 3.10, 3.11, and 3.12.
+
+These are baseline fixtures, not a claim of multi-language certification. Each additional SDK/runtime must consume the same fixture file and pass equivalent encode/decode assertions in its own CI before it can be marked verified. Next targets should be Go and Java/Kotlin, followed by Rust, C#, JavaScript/TypeScript, PHP, Ruby, Swift, and other requested runtimes according to actual use cases. For runtimes without a native SDK, the versioned HTTPS/JSON contract remains the compatibility baseline.
+
+## AI provider interoperability boundary
+
+Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
