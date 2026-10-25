@@ -226,7 +226,7 @@ class NeuralRequestBodyInvalidError extends Error {}
 const readBoundedNeuralRequestBody = async (request: Request): Promise<Uint8Array> => {
   const declaredLength = request.headers.get('content-length');
   if (declaredLength !== null) {
-    if (!/^\\d+$/.test(declaredLength)) throw new NeuralRequestBodyInvalidError();
+    if (!/^\d+$/.test(declaredLength)) throw new NeuralRequestBodyInvalidError();
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength)) throw new NeuralRequestBodyInvalidError();
     if (parsedLength > MAX_NEURAL_TASK_BODY_BYTES) throw new NeuralRequestBodyTooLargeError();
