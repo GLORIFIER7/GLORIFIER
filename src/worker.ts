@@ -239,6 +239,11 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   if (contentType && pathname === '/api/neural/v1/tasks') headers.set('content-type', contentType);
   const authorization = request.headers.get('authorization');
   if (authorization && pathname === '/api/neural/v1/tasks') headers.set('authorization', authorization);
+  const init: RequestInit & { duplex?: 'half' } = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
+  if (request.method === 'POST' && request.body) {
+    init.body = request.body;
+    init.duplex = 'half';
+  }
   const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
   if (request.method === 'POST') init.body = request.body;
   try {
