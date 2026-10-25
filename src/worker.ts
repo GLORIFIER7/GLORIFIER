@@ -289,7 +289,7 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
   if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 
-  let taskBody: Uint8Array | undefined;
+  let taskBody: ArrayBuffer | undefined;
   if (pathname === '/api/neural/v1/tasks') {
     try {
       taskBody = await readBoundedNeuralRequestBody(request);
@@ -301,6 +301,15 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
         });
       }
       return Response.json({ ok: false, code: 'INVALID_REQUEST_BODY' }, {
+        status: 400,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+
+    try {
+      JSON.parse(new TextDecoder().decode(taskBody));
+    } catch {
+      return Response.json({ ok: false, code: 'INVALID_JSON_BODY' }, {
         status: 400,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
