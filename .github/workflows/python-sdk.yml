@@ -1,4 +1,4 @@
-name: GLORIFIER Python SDK
+name: GLORIFIER SDK Conformance
 
 on:
   pull_request:
