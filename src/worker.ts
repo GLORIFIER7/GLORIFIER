@@ -285,7 +285,7 @@ const isJsonContentType = (value: string): boolean => {
     (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
 };
 
-const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
+const neuralRouteImplementation = async (request: Request, pathname: string, env: CloudflareEnv, correlationId: string): Promise<Response> => {
   const mapping: Record<string, { upstreamPath: string; methods: readonly string[] }> = {
     '/api/neural/health': { upstreamPath: '/health', methods: ['GET', 'HEAD'] },
     '/api/neural/ready': { upstreamPath: '/ready', methods: ['GET', 'HEAD'] },
@@ -347,6 +347,7 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   }
 
   const headers = new Headers();
+  headers.set('x-correlation-id', correlationId);
   const accept = request.headers.get('accept');
   if (accept) headers.set('accept', accept);
   if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
@@ -367,6 +368,22 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
   } catch {
     return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_UPSTREAM_UNAVAILABLE' }, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   }
+};
+
+
+const CORRELATION_ID_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
+  const candidate = (request.headers.get('x-correlation-id') || '').trim();
+  const correlationId = CORRELATION_ID_UUID.test(candidate) ? candidate.toLowerCase() : crypto.randomUUID();
+  const upstreamResponse = await neuralRouteImplementation(request, pathname, env, correlationId);
+  const responseHeaders = new Headers(upstreamResponse.headers);
+  responseHeaders.set('X-Correlation-ID', correlationId);
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers: responseHeaders,
+  });
 };
 
 const isBackendPath = (pathname: string): boolean =>
