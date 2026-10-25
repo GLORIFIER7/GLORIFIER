@@ -3717,28 +3717,9 @@ async function initializeBackend() {
 
 // Vite middleware for dev or static serving for prod
 async function startServer() {
-  await initializeBackend();
-  try { await reconcileIntegrationControlPlane('backend-startup'); } catch (error) { console.warn('[IntegrationControlPlane] startup reconciliation deferred:', error); }
-  try { await discoverGlobalProviders('backend-startup'); console.log('[ProviderDiscovery] global provider fabric synchronized.'); } catch (error) { console.warn('[ProviderDiscovery] startup discovery deferred:', error); }
-  try { startGeasArchitectureScientistDaemon(); console.log('[GEASArchitectureScientist] read-only architecture scanner initialized.'); } catch (error) { console.warn('[GEASArchitectureScientist] daemon init deferred:', error); }
-  setInterval(() => {
-    void reconcileIntegrationControlPlane('scheduled-reconciliation').catch(error => console.warn('[IntegrationControlPlane] scheduled reconciliation deferred:', error));
-  }, 5 * 60 * 1000);
-  setInterval(() => {
-    void discoverGlobalProviders('scheduled-provider-discovery').catch(error => console.warn('[ProviderDiscovery] scheduled discovery deferred:', error));
-  }, 10 * 60 * 1000);
-  // Start the 24/7 autonomous scientist multi-agent daemon in the background
-  try {
-    start247ScientistDaemon(runIntelligenceModel);
-    console.log('[ScientistFleet] execution intentionally disabled: no independently verified work or provider-confirmed payouts are configured.');
-  } catch (daemonErr) {
-    console.warn('[ScientistFleet] Daemon init error (deferred):', daemonErr);
-  }
-  try { start24x7OpportunityDiscoveryDaemon(); console.log('[OpportunityDiscovery] 24/7 monetization discovery daemon initialized.'); } catch (error) { console.warn('[OpportunityDiscovery] daemon init deferred:', error); }
-  try { startAgentMinerDaemon(); console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.'); } catch (error) { console.warn('[AgentMiner] daemon init deferred:', error); }
-  try { startAutonomousAuthenticationVerificationDaemon(); } catch (error) { console.warn('[AutonomousVerification] daemon init deferred:', error); }
-  try { startGlobalVerificationFabric(); } catch (error) { console.warn('[GlobalVerificationFabric] daemon init deferred:', error); }
-  try { startGlorifierDaemon(); } catch (error) { console.warn('[GLORIFIERDaemon] daemon init deferred:', error); }
+  // Configure request serving and open the HTTP listener before optional
+  // database/provider initialization. Health must report process state without
+  // waiting for external integrations to be reachable.
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -3783,6 +3764,81 @@ async function startServer() {
   };
   process.once('SIGTERM', () => shutdown('SIGTERM'));
   process.once('SIGINT', () => shutdown('SIGINT'));
+
+  // Startup checks are deliberately asynchronous with respect to the listener.
+  // A slow database, provider, or connection registry must not prevent the
+  // container from serving health and readiness endpoints.
+  const initializeBackgroundServices = async () => {
+    try {
+      await initializeBackend();
+    } catch (error) {
+      console.warn('[BackendInit] startup initialization deferred:', error instanceof Error ? error.message : error);
+    }
+    try {
+      await reconcileIntegrationControlPlane('backend-startup');
+    } catch (error) {
+      console.warn('[IntegrationControlPlane] startup reconciliation deferred:', error);
+    }
+    try {
+      await discoverGlobalProviders('backend-startup');
+      console.log('[ProviderDiscovery] global provider fabric synchronized.');
+    } catch (error) {
+      console.warn('[ProviderDiscovery] startup discovery deferred:', error);
+    }
+    try {
+      startGeasArchitectureScientistDaemon();
+      console.log('[GEASArchitectureScientist] read-only architecture scanner initialized.');
+    } catch (error) {
+      console.warn('[GEASArchitectureScientist] daemon init deferred:', error);
+    }
+
+    setInterval(() => {
+      void reconcileIntegrationControlPlane('scheduled-reconciliation').catch(error => console.warn('[IntegrationControlPlane] scheduled reconciliation deferred:', error));
+    }, 5 * 60 * 1000);
+    setInterval(() => {
+      void discoverGlobalProviders('scheduled-provider-discovery').catch(error => console.warn('[ProviderDiscovery] scheduled discovery deferred:', error));
+    }, 10 * 60 * 1000);
+
+    // Autonomous services retain their existing explicit authorization and safety
+    // gates; starting their daemons does not authorize external financial actions.
+    try {
+      start247ScientistDaemon(runIntelligenceModel);
+      console.log('[ScientistFleet] execution intentionally disabled: no independently verified work or provider-confirmed payouts are configured.');
+    } catch (daemonErr) {
+      console.warn('[ScientistFleet] Daemon init error (deferred):', daemonErr);
+    }
+    try {
+      start24x7OpportunityDiscoveryDaemon();
+      console.log('[OpportunityDiscovery] 24/7 monetization discovery daemon initialized.');
+    } catch (error) {
+      console.warn('[OpportunityDiscovery] daemon init deferred:', error);
+    }
+    try {
+      startAgentMinerDaemon();
+      console.log('[AgentMiner] 24/7 Agent Miner daemon initialized.');
+    } catch (error) {
+      console.warn('[AgentMiner] daemon init deferred:', error);
+    }
+    try {
+      startAutonomousAuthenticationVerificationDaemon();
+    } catch (error) {
+      console.warn('[AutonomousVerification] daemon init deferred:', error);
+    }
+    try {
+      startGlobalVerificationFabric();
+    } catch (error) {
+      console.warn('[GlobalVerificationFabric] daemon init deferred:', error);
+    }
+    try {
+      startGlorifierDaemon();
+    } catch (error) {
+      console.warn('[GLORIFIERDaemon] daemon init deferred:', error);
+    }
+  };
+
+  void initializeBackgroundServices().catch(error => {
+    console.warn('[BackendInit] background services startup deferred:', error instanceof Error ? error.message : error);
+  });
 }
 
 startServer();
