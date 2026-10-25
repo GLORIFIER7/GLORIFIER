@@ -63,7 +63,7 @@ Adapters must be explicit and capability-scoped. A language-neutral API does not
 ## Security and governance invariants
 
 - Default deny for unknown capabilities, methods, action classes, and chain operations.
-- Validate configured origins and use HTTPS; block SSRF, redirects to untrusted hosts, and arbitrary URL proxying.
+- Validate configured origins and use HTTPS; require exact-host egress allowlists for the backend and Neural origins, fail closed when an allowlist is missing or mismatched, and use manual redirect handling so the Worker does not follow untrusted upstream redirects. Do not expose arbitrary URL proxying.
 - Never forward a privileged global token to caller-controlled destinations.
 - Read-only blockchain queries may be exposed through separately approved adapters. Signing, minting, transfers, contract writes, financial actions, and paid RPC usage remain disabled until specifically authorized.
 - Human approval remains required for production changes and consequential or irreversible actions.
