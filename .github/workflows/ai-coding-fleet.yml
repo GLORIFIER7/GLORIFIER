@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: glorifier-ai-fleet-${{ github.ref }}
@@ -16,6 +15,9 @@ concurrency:
 
 jobs:
   coding-fleet:
+    permissions:
+      contents: write
+      pull-requests: write
     strategy:
       fail-fast: false
       max-parallel: 1
