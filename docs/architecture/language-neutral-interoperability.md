@@ -91,6 +91,14 @@ A language/runtime should be labelled `VERIFIED` only for the specific version/p
 5. Add further SDKs based on actual use cases, maintaining the same conformance gates.
 6. Publish a tested Linux/runtime matrix and separately verify each blockchain-family adapter (EVM-compatible networks and Solana are not interchangeable).
 
+## Capability registry and Linux test scope
+
+The machine-readable starting registry is [interoperability-capabilities.json](./interoperability-capabilities.json), governed by [its JSON Schema](./interoperability-capabilities.schema.json). Run `node scripts/validate-interoperability-capabilities.mjs` to check the status vocabulary, unique capability IDs, target environments, evidence references, timestamp syntax, and the rule that a `VERIFIED` claim must have timestamped test evidence. A live-runtime scope requires a live-probe record.
+
+The [Interoperability Linux validation workflow](../../.github/workflows/interoperability-linux.yml) defines source checks on GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 runners, plus builds of the repository's declared container images. The matrix is a bounded support claim only: it does not imply ARM64, Alpine, all Linux distributions, Windows, or macOS support. New target entries remain `NOT VERIFIED` until the workflow produces successful evidence.
+
+The Neural task adapter accepts `application/json` and `application/*+json` and enforces a 1 MiB request-body cap before forwarding. Declared lengths and actual streamed bytes are checked; oversized task requests return `413 REQUEST_BODY_TOO_LARGE`, and unsupported media types return `415 UNSUPPORTED_MEDIA_TYPE`. The branch's regression tests must pass before this boundary is marked verified.
+
 ## Current evidence boundary
 
-The existing GLORIFIER Worker and GLORIFIER-NEURAL integration use different implementation languages and a narrow HTTP boundary, which is a useful starting point. This document itself adds a design contract only. It does not implement SDKs, publish an OpenAPI specification, create language bindings, configure deployments, or verify live interoperability. Track implementation and test evidence in pull requests and CI before upgrading status.
+The repository contains a TypeScript Worker adapter and a small Python client with standard-library tests, but the presence of code is not proof of live interoperability. The registry separates mock contract tests, CI execution, container builds, and live runtime probes. No deployed Neural origin or production readiness is asserted. The reviewed contract documentation does not establish a published OpenAPI specification or passing A2A/MCP interoperability suite. Upgrade statuses only when linked evidence supports the exact claim and target environment.
