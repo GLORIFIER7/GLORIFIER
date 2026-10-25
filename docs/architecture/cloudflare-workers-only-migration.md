@@ -61,6 +61,7 @@ A later read-only production check, recorded in [Issue #432 comment](https://git
 - `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain and primary organization email remain unconfigured.
 - `GET /api/app-state` without credentials: **HTTP 401**, `AUTHENTICATION_REQUIRED`. This confirms the unauthenticated boundary for this route at probe time; it does not verify an authenticated session or backend persistence.
 - `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. These are live configuration failures, not merely untested endpoints; configure only a reviewed HTTPS origin and exact host allowlist after the Neural service is deployed and authorized.
+- The companion [GLORIFIER-NEURAL repository README](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/main/README.md) explicitly describes that service as an implementation starter, not a connected production environment. Its README says `/ready` remains HTTP 503 until provider/database integrations are implemented and verified; its CI runs tests and a local container build but does not deploy or publish an image. Therefore, configuring a Worker origin alone is not a complete fix: the service needs an owner-approved deployment, secret/token setup, provider/egress decision, and reviewed database/audit configuration before readiness can be claimed.
 
 ### Remaining production gates
 
