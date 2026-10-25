@@ -653,6 +653,25 @@ export function buildConditionalRequestHeaders(
   return headers;
 }
 
+export interface SourceFetchContext {
+  /** One clock snapshot shared by conditional request construction and 304 cache validation. */
+  nowMs: number;
+  observedAt: string;
+  conditionalHeaders: Record<string, string>;
+}
+
+export function createSourceFetchContext(
+  sourceUrl: string,
+  cached?: CachedSourceObservation | null,
+  nowMs = Date.now(),
+): SourceFetchContext {
+  return {
+    nowMs,
+    observedAt: new Date(nowMs).toISOString(),
+    conditionalHeaders: buildConditionalRequestHeaders(sourceUrl, cached, nowMs),
+  };
+}
+
 export function reuseNotModifiedSourceObservation(
   source: Pick<ArchitectureSource, 'id' | 'url'>,
   cached: CachedSourceObservation | null | undefined,
@@ -790,14 +809,15 @@ async function fetchCuratedSource(
 }
 
 async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> {
-  const observedAt = new Date().toISOString();
+  const fetchContext = createSourceFetchContext(source.url, cached);
+  const { nowMs, observedAt, conditionalHeaders } = fetchContext;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
     const { response, finalUrl, body } = await fetchCuratedSource(
       source.url,
       controller.signal,
-      buildConditionalRequestHeaders(source.url, cached),
+      conditionalHeaders,
     );
     if (response.status === 304) {
       const revalidated = reuseNotModifiedSourceObservation(
@@ -809,6 +829,7 @@ async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObse
           lastModified: response.headers.get('last-modified'),
         },
         observedAt,
+        nowMs,
       );
       if (revalidated) return revalidated;
       return {
