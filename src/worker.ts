@@ -251,7 +251,7 @@ const readBoundedNeuralRequestBody = async (request: Request): Promise<ArrayBuff
   }
 
   const reader = request.body?.getReader();
-  if (!reader) return new Uint8Array();
+  if (!reader) return new ArrayBuffer(0);
 
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
