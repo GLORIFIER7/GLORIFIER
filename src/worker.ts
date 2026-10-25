@@ -11,7 +11,9 @@ type CloudflareEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
+  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -33,6 +35,22 @@ const resolveBackendOrigin = (value?: string): string | null => {
 };
 
 const configured = (value: string | undefined): string => (value || '').trim();
+
+// Host allowlists are exact-match only; wildcard suffixes and arbitrary URL prefixes
+// are intentionally unsupported. An absent allowlist fails closed.
+const originHostAllowlisted = (origin: string, rawAllowlist?: string): boolean => {
+  const allowedHosts = configured(rawAllowlist)
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowedHosts.length === 0) return false;
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return allowedHosts.includes(hostname);
+  } catch {
+    return false;
+  }
+};
 const identityResponse = (env: CloudflareEnv): Response => {
   const canonicalDomain = configured(env.GLORIFIER_CANONICAL_DOMAIN).toLowerCase();
   const primaryEmail = configured(env.GLORIFIER_ORG_EMAIL).toLowerCase();
@@ -288,6 +306,18 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
 
   const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
   if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (!configured(env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (!originHostAllowlisted(origin, env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
 
   let taskBody: ArrayBuffer | undefined;
   if (pathname === '/api/neural/v1/tasks') {
@@ -484,6 +514,18 @@ export default {
       return apiError(
         'GLORIFIER_BACKEND_ORIGIN must be a valid HTTPS origin without credentials, path, query, or fragment.',
         'BACKEND_ORIGIN_INVALID',
+      );
+    }
+    if (!configured(env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
+      return apiError(
+        'A reviewed exact-host allowlist must be configured before this Worker can contact the backend.',
+        'BACKEND_EGRESS_ALLOWLIST_NOT_CONFIGURED',
+      );
+    }
+    if (!originHostAllowlisted(backendOrigin, env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
+      return apiError(
+        'The configured backend host is not present in GLORIFIER_BACKEND_ALLOWED_HOSTS.',
+        'BACKEND_ORIGIN_NOT_ALLOWLISTED',
       );
     }
 
