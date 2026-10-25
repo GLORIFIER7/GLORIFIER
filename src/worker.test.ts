@@ -338,6 +338,41 @@ async function run(): Promise<void> {
     assert.equal(neuralTaskNoAuth.status, 401);
     assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
+    capturedRequest = null;
+    const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer caller-token',
+        'Content-Type': 'application/json',
+        'Content-Length': String(1024 * 1024 + 1),
+      },
+      body: '{}',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(declaredOversizeTask.status, 413, 'declared oversized task bodies must be rejected before upstream forwarding');
+    assert.equal(await declaredOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
+    assert.equal(capturedRequest, null, 'declared oversized bodies must never reach Neural');
+
+    capturedRequest = null;
+    const streamedOversizeBody = new Uint8Array(1024 * 1024 + 1);
+    const streamedOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+      body: streamedOversizeBody,
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(streamedOversizeTask.status, 413, 'actual streamed size must be enforced even without a trusted Content-Length');
+    assert.equal(await streamedOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
+    assert.equal(capturedRequest, null, 'oversized streamed bodies must never reach Neural');
+
+    capturedRequest = null;
+    const unsupportedTaskMediaType = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'text/plain' },
+      body: '{"task":"summarize"}',
+    }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(unsupportedTaskMediaType.status, 415, 'task requests must use JSON media types');
+    assert.equal(await unsupportedTaskMediaType.json().then((body: { code?: string }) => body.code), 'UNSUPPORTED_MEDIA_TYPE');
+    assert.equal(capturedRequest, null, 'non-JSON task bodies must never reach Neural');
+
     upstreamResponse = new Response('{"status":"not-ready"}', { status: 503, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'must-not-forward=yes' } });
     const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
