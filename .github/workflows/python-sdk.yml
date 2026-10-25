@@ -5,6 +5,7 @@ on:
     paths:
       - "sdk/python/**"
       - "sdk/go/**"
+      - "sdk/go/**"
       - ".github/workflows/python-sdk.yml"
       - "src/worker.ts"
       - "src/worker.test.ts"
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "sdk/python/**"
+      - "sdk/go/**"
       - "sdk/go/**"
       - ".github/workflows/python-sdk.yml"
       - "src/worker.ts"
