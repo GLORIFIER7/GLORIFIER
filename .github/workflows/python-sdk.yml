@@ -9,6 +9,7 @@ on:
       - "src/worker.test.ts"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/interoperability-contract-fixtures.json"
   push:
     branches: [main]
     paths:
@@ -18,18 +19,19 @@ on:
       - "src/worker.test.ts"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/interoperability-contract-fixtures.json"
 
 permissions:
   contents: read
 
 jobs:
   python-sdk-tests:
-    name: Python SDK unit tests
+    name: Python SDK and shared contract fixtures
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +39,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run standard-library unit tests
+      - name: Run standard-library SDK and fixture tests
         working-directory: sdk/python
-        run: python -m unittest -v test_glorifier_neural_client.py
+        run: |
+          python -m unittest -v test_glorifier_neural_client.py
+          python -m unittest -v test_interoperability_fixtures.py
