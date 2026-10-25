@@ -1,0 +1,77 @@
+name: Interoperability Linux validation
+
+on:
+  pull_request:
+    paths:
+      - "src/worker.ts"
+      - "src/worker.test.ts"
+      - "sdk/python/**"
+      - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/neural-engine-integration.md"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - ".github/workflows/interoperability-linux.yml"
+      - "Dockerfile"
+      - "Dockerfile.ubuntu"
+      - "package.json"
+      - "package-lock.json"
+      - ".node-version"
+  push:
+    branches: [main]
+    paths:
+      - "src/worker.ts"
+      - "src/worker.test.ts"
+      - "sdk/python/**"
+      - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/neural-engine-integration.md"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - ".github/workflows/interoperability-linux.yml"
+      - "Dockerfile"
+      - "Dockerfile.ubuntu"
+      - "package.json"
+      - "package-lock.json"
+      - ".node-version"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-source-matrix:
+    name: Source checks (${{ matrix.os }}, x86_64)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install lockfile dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate capability registry and evidence
+        run: node scripts/validate-interoperability-capabilities.mjs
+      - name: Type-check
+        run: npm run lint
+      - name: Test Worker and interoperability boundaries
+        run: npm run test:cloudflare-worker
+      - name: Build frontend
+        run: npm run build:frontend
+      - name: Verify static output
+        run: test -s dist/index.html
+
+  linux-container-builds:
+    name: Container builds (Ubuntu 24.04, x86_64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build distroless production image
+        run: docker build --pull -f Dockerfile -t glorifier:ci .
+      - name: Build Ubuntu 24.04 production image
+        run: docker build --pull -f Dockerfile.ubuntu -t glorifier-ubuntu:ci .
