@@ -6,24 +6,87 @@ other SDKs interoperate; each SDK/runtime must run equivalent assertions.
 import json
 import unittest
 from pathlib import Path
+from typing import Any
 
-FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "docs"
-    / "architecture"
-    / "interoperability-contract-fixtures.json"
+FIXTURE_RELATIVE_PATH = Path(
+    "docs", "architecture", "interoperability-contract-fixtures.json"
 )
+
+
+def find_repository_root(start: Path) -> Path:
+    """Find the repository root from a stable marker, not this test's directory depth."""
+    for candidate in (start, *start.parents):
+        if (
+            (candidate / "package.json").is_file()
+            and (
+                candidate / "docs" / "architecture"
+                / "language-neutral-interoperability.md"
+            ).is_file()
+        ):
+            return candidate
+    raise FileNotFoundError(
+        "Could not locate repository root (expected package.json and "
+        "docs/architecture/language-neutral-interoperability.md) starting from "
+        f"{start}"
+    )
+
+
+REPOSITORY_ROOT = find_repository_root(Path(__file__).resolve().parent)
+FIXTURE_PATH = REPOSITORY_ROOT / FIXTURE_RELATIVE_PATH
 
 
 class InteroperabilityFixtureTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
-        cls.document = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
-        cls.cases = {case["id"]: case for case in cls.document["cases"]}
+    def setUpClass(cls) -> None:
+        if not FIXTURE_PATH.is_file():
+            raise FileNotFoundError(
+                "Canonical interoperability fixture file is missing: "
+                f"{FIXTURE_PATH}"
+            )
+
+        try:
+            fixture_text = FIXTURE_PATH.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise OSError(
+                f"Unable to read interoperability fixtures at {FIXTURE_PATH}: {exc}"
+            ) from exc
+
+        try:
+            cls.document: dict[str, Any] = json.loads(fixture_text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Interoperability fixtures contain invalid JSON at {FIXTURE_PATH}: {exc}"
+            ) from exc
+
+        cases = cls.document.get("cases")
+        if not isinstance(cases, list):
+            raise ValueError(
+                f"Interoperability fixture document must contain a cases array: {FIXTURE_PATH}"
+            )
+
+        case_ids = [case.get("id") if isinstance(case, dict) else None for case in cases]
+        if any(not isinstance(case_id, str) or not case_id for case_id in case_ids):
+            raise ValueError(
+                f"Every interoperability fixture case must have a non-empty string id: {FIXTURE_PATH}"
+            )
+
+        duplicate_ids = sorted(
+            {case_id for case_id in case_ids if case_ids.count(case_id) > 1}
+        )
+        if duplicate_ids:
+            raise ValueError(
+                "Duplicate interoperability fixture case ids: "
+                + ", ".join(duplicate_ids)
+                + f" (source: {FIXTURE_PATH})"
+            )
+
+        cls.cases = {case["id"]: case for case in cases}
 
     def test_fixture_document_has_version_rules_and_unique_cases(self):
         self.assertEqual(self.document["schemaVersion"], "1.0.0")
         self.assertTrue(self.document["rules"])
+        case_ids = [case["id"] for case in self.document["cases"]]
+        self.assertEqual(len(case_ids), len(set(case_ids)))
         self.assertEqual(len(self.cases), len(self.document["cases"]))
 
     def test_unicode_round_trip(self):
