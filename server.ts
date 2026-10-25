@@ -848,6 +848,7 @@ app.get('/api/binance/health', requireOwner, async (_req: Request, res: Response
 });
 
 let backendInitialized = false;
+let backendInitializationInProgress = false;
 
 app.get('/api/health/ready', async (_req: Request, res: Response) => {
   if (!backendInitialized) return res.status(503).json({ ok: false, status: 'not-ready', reason: 'Backend initialization is incomplete' });
@@ -3773,6 +3774,8 @@ async function startServer() {
   // container from serving health and readiness endpoints.
   const initializeBackgroundServices = async () => {
     const initializeBackendWithReadiness = async (): Promise<void> => {
+      if (backendInitializationInProgress || backendInitialized) return;
+      backendInitializationInProgress = true;
       try {
         await initializeBackend();
         backendInitialized = true;
@@ -3780,6 +3783,8 @@ async function startServer() {
       } catch (error) {
         backendInitialized = false;
         console.warn('[BackendInit] startup initialization deferred; readiness remains disabled:', error instanceof Error ? error.message : error);
+      } finally {
+        backendInitializationInProgress = false;
       }
     };
     await initializeBackendWithReadiness();
