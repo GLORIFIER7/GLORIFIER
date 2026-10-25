@@ -97,7 +97,7 @@ The machine-readable starting registry is [interoperability-capabilities.json](.
 
 The [Interoperability Linux validation workflow](../../.github/workflows/interoperability-linux.yml) defines source checks on GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 runners, plus builds of the repository's declared container images. The matrix is a bounded support claim only: it does not imply ARM64, Alpine, all Linux distributions, Windows, or macOS support. New target entries remain `NOT VERIFIED` until the workflow produces successful evidence.
 
-The Neural task adapter accepts `application/json` and `application/*+json` and enforces a 1 MiB request-body cap before forwarding. Declared lengths and actual streamed bytes are checked; oversized task requests return `413 REQUEST_BODY_TOO_LARGE`, and unsupported media types return `415 UNSUPPORTED_MEDIA_TYPE`. The branch's regression tests must pass before this boundary is marked verified.
+The Neural task adapter accepts `application/json` and `application/*+json` and enforces a 65,536-byte (64 KiB) request-body cap before forwarding. Declared lengths and actual streamed bytes are checked; oversized task requests return `413 REQUEST_BODY_TOO_LARGE`, and unsupported media types return `415 UNSUPPORTED_MEDIA_TYPE`. The branch's regression tests must pass before this boundary is marked verified.
 
 ## Current evidence boundary
 
