@@ -85,7 +85,7 @@ jobs:
           trap cleanup EXIT
           docker run -d --name "$container" -p 127.0.0.1:13000:3000 glorifier:ci >/dev/null
           ready=0
-          for attempt in $(seq 1 30); do
+          for ((attempt=1; attempt<=30; attempt++)); do
             if curl --fail --silent --show-error http://127.0.0.1:13000/api/health > /tmp/glorifier-distroless-health.json; then
               ready=1
               break
@@ -107,7 +107,7 @@ jobs:
           trap cleanup EXIT
           docker run -d --name "$container" -p 127.0.0.1:13001:3000 glorifier-ubuntu:ci >/dev/null
           ready=0
-          for attempt in $(seq 1 30); do
+          for ((attempt=1; attempt<=30; attempt++)); do
             if curl --fail --silent --show-error http://127.0.0.1:13001/api/health > /tmp/glorifier-ubuntu-health.json; then
               ready=1
               break
