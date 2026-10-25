@@ -59,6 +59,8 @@ A later read-only production check, recorded in [Issue #432 comment](https://git
 - `GET /api/reports/summary`: **HTTP 200**. The six named operational tables returned exact counts of zero at observation time. This does not prove whole-database emptiness, Neon parity, or revenue status.
 - `GET /api/runtime-verification?probeAi=false`: **HTTP 200**. Worker/assets checks and a Supabase PostgREST exact-count query passed (reported latency: 819 ms). Authentication and AI/provider readiness were not probed.
 - `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain and primary organization email remain unconfigured.
+- `GET /api/app-state` without credentials: **HTTP 401**, `AUTHENTICATION_REQUIRED`. This confirms the unauthenticated boundary for this route at probe time; it does not verify an authenticated session or backend persistence.
+- `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. These are live configuration failures, not merely untested endpoints; configure only a reviewed HTTPS origin and exact host allowlist after the Neural service is deployed and authorized.
 
 ### Remaining production gates
 
