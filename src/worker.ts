@@ -330,7 +330,7 @@ export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
-    if (incomingUrl.pathname === '/api/neural/health' || incomingUrl.pathname === '/api/neural/ready' || incomingUrl.pathname === '/api/neural/v1/tasks') {
+    if (incomingUrl.pathname.startsWith('/api/neural/')) {
       return neuralRoute(request, incomingUrl.pathname, env);
     }
 
