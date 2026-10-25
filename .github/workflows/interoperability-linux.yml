@@ -5,6 +5,7 @@ on:
     paths:
       - "src/worker.ts"
       - "src/worker.test.ts"
+      - "src/lib/a2a-runtime.ts"
       - "server.ts"
       - "sdk/python/**"
       - "docs/architecture/interoperability-capabilities*"
@@ -23,6 +24,7 @@ on:
     paths:
       - "src/worker.ts"
       - "src/worker.test.ts"
+      - "src/lib/a2a-runtime.ts"
       - "server.ts"
       - "sdk/python/**"
       - "docs/architecture/interoperability-capabilities*"
