@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T15:58:41Z",
+  "updatedAt": "2026-10-25T16:24:52.981Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -457,6 +457,33 @@
         "This capability remains NOT VERIFIED until the new test suite passes on the proposed branch.",
         "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
         "A hostname allowlist is not evidence that the target service is reachable or healthy."
+      ]
+    },
+    {
+      "id": "sdk.go-neural-http-client",
+      "title": "Go Neural HTTP client and shared fixture conformance",
+      "boundary": "Go application to the explicitly allowlisted, versioned GLORIFIER Worker Neural HTTP API",
+      "scope": "Go 1.26/1.27 mocked HTTP-client contract tests, JSON fixture interoperability, origin allowlisting, auth boundary, size/time limits and normalized errors",
+      "status": "VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9",
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3"
+      ],
+      "evidence": [
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40211490447",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 runners; Go 1.26.9 and Go 1.27.3; tested PR merge revision includes Go SDK code commit 330bd441e169babf15e3d4c5a1eddb2763dc3866",
+          "observedAt": "2026-10-25T16:24:52.981Z",
+          "notes": "Both Go matrix jobs passed `go test -race -count=1 ./...` and `go vet ./...` after the exact-origin allowlist, empty-query/fragment rejection, readiness error classification, bounded-response tests, caller-token boundary, and shared fixture assertions were present. The same workflow passed Python standard-library client/fixture tests on Python 3.10, 3.11 and 3.12. Go tests use mocked HTTP servers only; this verifies these scoped SDK behaviors, not live service connectivity."
+        }
+      ],
+      "limitations": [
+        "Verification covers the named Go versions and mocked HTTP endpoints only; no live GLORIFIER-NEURAL origin was probed.",
+        "Provider/database readiness, production allowlist configuration, and live OpenAI/Gemini/Anthropic/NVIDIA or other provider integrations remain unverified.",
+        "No programming-language matrix beyond the individually listed CI targets is implied; Python SDK coverage is tracked in sdk.python-contract.",
+        "No A2A/MCP external conformance, production deployment, financial action, or EVM/BNB/Solana RPC reachability is established.",
+        "The Go SDK branch is stacked on PR #479 and has not been merged into main."
       ]
     }
   ]
