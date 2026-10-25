@@ -28,13 +28,13 @@ Allowed deployment states:
 - `degraded`
 - `not_observable`
 
-No registry state may claim verification without evidence from the corresponding chain/explorer reconciliation.
+No registry state may claim verification without evidence from the corresponding chain/explorer reconciliation. During the 2026-10-25 read-only audit, an explorer-level contract-name discrepancy was reported for the Ethereum GLR address (the explorer label reportedly showed `BreakfastBall` while token metadata/source identified `GLORIFIER` / `GLR`). A second GLORIFIER-labelled token candidate, `0x1f8e7FEC258fD1B8A866a323565B276d82EFb353`, was also surfaced in a wallet token query. Neither discrepancy is resolved here; treat the Ethereum GLR canonical identity as partially verified until the address, bytecode, metadata, supply, and deployment transaction are reconciled against independent chain evidence.
 
 ## Current GLR deployments
 
 | Network | Chain ID | Contract | Deployment TX | Status |
 |---|---:|---|---|---|
-| Ethereum Mainnet | 1 | `0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb` | `0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a` | FULLY VERIFIED |
+| Ethereum Mainnet | 1 | `0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb` | `0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a` | PARTIALLY VERIFIED |
 | BNB Smart Chain Mainnet | 56 | `0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804` | `0xf5698f6bbde7ff173be1cbd0bb83da53f03389842c68ca2f6e4e287b89d9bbc0` | FULLY VERIFIED |
 | Solana Mainnet Beta | `solana:mainnet-beta` | `7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9` (Token-2022 mint) | Not selected — conflicting signatures are documented in the provenance review | PARTIALLY VERIFIED |
 
@@ -50,10 +50,10 @@ The canonical asset registry also records the two owner-designated Ethereum NFT 
 
 | Canonical asset ID | Standard | OpenSea reference | Deployment record | Status |
 |---|---|---|---|---|
-| `glorifier-erc721` | ERC-721 | [glorifier7](https://opensea.io/collection/glorifier7) | Ethereum Mainnet contract `0xd62eb4963423f6e224af0bcccabf75f566fb9ad7` | NOT VERIFIED |
-| `glorifier-erc1155` | ERC-1155 | [glorifier1](https://opensea.io/collection/glorifier1) | Ethereum Mainnet contract `0x355C94e4b6B353421De956e87D643bB036d6a417` | NOT VERIFIED |
+| `glorifier-erc721` | ERC-721 | [glorifier7](https://opensea.io/collection/glorifier7) | Ethereum Mainnet contract `0xd62eb4963423f6e224af0bcccabf75f566fb9ad7` | PARTIALLY VERIFIED — contract source/interface reported verified; token mint and ownership not confirmed |
+| `glorifier-erc1155` | ERC-1155 | [glorifier1](https://opensea.io/collection/glorifier1) | Ethereum Mainnet contract `0x355C94e4b6B353421De956e87D643bB036d6a417` | PARTIALLY VERIFIED — contract source/interface reported verified; token IDs, supply and mint controls not confirmed |
 
-The collection-to-standard mapping above reflects the owner's explicit confirmation. The ERC-721 contract address is a previously supplied address and remains `not_verified` until independently checked against Ethereum. The ERC-1155 address `0x355C94e4b6B353421De956e87D643bB036d6a417` was supplied by the owner and is recorded as an unverified Ethereum Mainnet deployment; its ERC-1155 bytecode/interface and relationship to the OpenSea collection have not yet been independently verified.
+The collection-to-standard mapping above reflects the owner's explicit confirmation. A prior Blockscout read-only inspection reported verified source/interface for both contract addresses, including SeaDrop-style contract behavior. This is evidence of contract/interface publication only; it does not establish that an NFT was successfully minted, identify a token ID, prove current ownership, establish collection indexing, or prove that minting is limited to one unique token. The ERC-721 token ID and current owner remain unconfirmed. For ERC-1155, token IDs, balances, total supply, and mint controls remain unconfirmed. Recheck the live Ethereum explorer and transaction/receipt logs before upgrading these statuses.
 
 These are NFT collection identities, separate from the fungible `glr` economic asset. The seed is idempotent: it inserts missing NFT identities/deployment records but does not overwrite existing canonical metadata or evidence on conflict. It records owner-supplied metadata/evidence status; it does not submit blockchain transactions, deploy contracts, mint NFTs, or register assets with Axelar/ENS/any third-party registry. Regression tests cover the two collection identities, the single known ERC-721 deployment, pending ERC-1155 address, and conflict-preservation behavior.
 
