@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "sdk/python/**"
+      - "sdk/go/**"
       - ".github/workflows/python-sdk.yml"
       - "src/worker.ts"
       - "src/worker.test.ts"
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - "sdk/python/**"
+      - "sdk/go/**"
       - ".github/workflows/python-sdk.yml"
       - "src/worker.ts"
       - "src/worker.test.ts"
@@ -44,3 +46,37 @@ jobs:
         run: |
           python -m unittest -v test_glorifier_neural_client.py
           python -m unittest -v test_interoperability_fixtures.py
+
+  go-sdk-tests:
+    name: Optional Go SDK and shared contract tests (${{ matrix.go-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.26.x", "1.27.x"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Detect Go module
+        id: go-module
+        run: |
+          if test -f sdk/go/go.mod; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set up Go
+        if: steps.go-module.outputs.present == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+          cache-dependency-path: sdk/go/go.mod
+      - name: Run Go contract and client tests
+        if: steps.go-module.outputs.present == 'true'
+        working-directory: sdk/go
+        run: go test -race -count=1 ./...
+      - name: Static analysis
+        if: steps.go-module.outputs.present == 'true'
+        working-directory: sdk/go
+        run: go vet ./...
