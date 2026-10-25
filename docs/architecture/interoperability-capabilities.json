@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T16:24:52.981Z",
+  "updatedAt": "2026-10-25T16:56:03.310Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -47,11 +47,17 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:22Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385619",
+          "observedAt": "2026-10-25T16:49:08Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; current main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge Linux source checks and container health/graceful-shutdown smoke tests passed; this remains repository-level evidence, not live Neural readiness."
         }
       ],
       "limitations": [
         "The upstream is mocked in unit tests.",
-        "The new request-body limit tests in this branch still require a green run.",
         "No live staging or production Neural origin has been probed."
       ]
     },
@@ -59,11 +65,11 @@
       "id": "worker.neural-task-request-boundary",
       "title": "Neural task JSON media type and request-size boundary",
       "boundary": "Public Worker POST /api/neural/v1/tasks",
-      "scope": "request-validation-and-body-size-limit",
-      "status": "PARTIALLY VERIFIED",
+      "scope": "mocked Worker request-validation and 65,536-byte body-size boundary tests on current main",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "Mocked Worker unit tests",
-        "Cloudflare Worker runtime after reviewed rollout"
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -93,10 +99,16 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:22Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385619",
+          "observedAt": "2026-10-25T16:49:08Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; current main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge Linux validation passed including TypeScript, Worker regression tests, interoperability contract checks, frontend build, and container health/shutdown tests."
         }
       ],
       "limitations": [
-        "Do not treat this capability as verified until the branch CI completes successfully.",
         "No production configuration or deployment is performed by this change."
       ]
     },
@@ -163,6 +175,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; exact tested commit 3eecd2613c066eb1a0c3fce4573900538f48670a",
           "observedAt": "2026-10-25T15:58:41Z",
           "notes": "Observed completed Interoperability Linux validation run #42 on the exact tested branch commit: both source-matrix jobs passed capability-registry validation, TypeScript type-check, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build, and static output verification. This verifies only the named source CI targets."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385619",
+          "observedAt": "2026-10-25T16:49:08Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Latest post-merge Linux source-matrix jobs passed."
         }
       ],
       "limitations": [
@@ -224,6 +243,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; distroless and Ubuntu runtime images; exact tested commit 3eecd2613c066eb1a0c3fce4573900538f48670a",
           "observedAt": "2026-10-25T15:58:41Z",
           "notes": "Observed completed Interoperability Linux validation run #42: both image builds passed, both containers returned the expected healthy /api/health response, both correctly returned HTTP 503 with DATABASE_URL is not configured from /api/health/ready, and both passed graceful-shutdown smoke tests. This is CI-only evidence for the named x86_64 targets."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385619",
+          "observedAt": "2026-10-25T16:49:08Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Latest post-merge distroless and Ubuntu image builds plus /api/health and graceful-shutdown smoke tests passed."
         }
       ],
       "limitations": [
@@ -238,9 +264,11 @@
       "title": "Python Neural HTTP client contract",
       "boundary": "Python client to the versioned GLORIFIER Worker Neural API",
       "scope": "cross-language-contract-test",
-      "status": "PARTIALLY VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
-        "Python 3.11 and 3.12 unit-test matrix"
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.10",
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.11",
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.12"
       ],
       "evidence": [
         {
@@ -263,11 +291,18 @@
           "targetEnvironment": "GitHub-hosted Python 3.11 unit-test job, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:26Z",
           "notes": "Python SDK standard-library contract unit tests passed; Python 3.12 matrix job passed separately."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385666",
+          "observedAt": "2026-10-25T16:48:40Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Python 3.10/3.11/3.12; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge Python shared-fixture and Neural HTTP-client contract jobs passed on all three listed Python versions."
         }
       ],
       "limitations": [
-        "No published package/release is claimed.",
-        "No live Neural origin or provider task is exercised by the unit tests."
+        "No live Neural origin or provider task is exercised by the unit tests.",
+        "The tests use mocked HTTP endpoints and do not establish live Neural origin or AI provider readiness."
       ]
     },
     {
@@ -383,6 +418,13 @@
           "targetEnvironment": "Interoperability Linux validation workflow; current run pending",
           "observedAt": null,
           "notes": "Validator checks task operation, bearerAuth, task and action_class length bounds, no additional properties, required task field, 413/415 responses, and documented 65,536-byte body limit."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385609",
+          "observedAt": "2026-10-25T16:47:52Z",
+          "targetEnvironment": "Interoperability Contract Validation on main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge OpenAPI and capability-registry contract validation passed."
         }
       ],
       "limitations": [
@@ -427,8 +469,8 @@
         {
           "kind": "source",
           "reference": "src/worker.ts",
-          "targetEnvironment": "Branch fix/issue-471-interoperability-hardening",
-          "observedAt": null,
+          "targetEnvironment": "Main branch source at commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "observedAt": "2026-10-25T16:47:41Z",
           "notes": "The Worker requires an independently configured exact-host allowlist for the configured backend and Neural origin, rejects missing/mismatched host lists, uses HTTPS origin validation and manual redirect handling, and bounds upstream requests."
         },
         {
@@ -451,12 +493,19 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:22Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385619",
+          "observedAt": "2026-10-25T16:49:08Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge Worker origin-validation and security-boundary tests passed; production allowlist configuration has not been inspected."
         }
       ],
       "limitations": [
-        "This capability remains NOT VERIFIED until the new test suite passes on the proposed branch.",
         "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
-        "A hostname allowlist is not evidence that the target service is reachable or healthy."
+        "A hostname allowlist is not evidence that the target service is reachable or healthy.",
+        "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and GLORIFIER_NEURAL_ALLOWED_HOSTS values have not been reviewed; a green mocked test does not prove production configuration or target reachability."
       ]
     },
     {
@@ -466,8 +515,8 @@
       "scope": "Go 1.26/1.27 mocked HTTP-client contract tests, JSON fixture interoperability, origin allowlisting, auth boundary, size/time limits and normalized errors",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9",
-        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3"
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9 on main",
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3 on main"
       ],
       "evidence": [
         {
@@ -476,14 +525,92 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 runners; Go 1.26.9 and Go 1.27.3; tested PR merge revision includes Go SDK code commit 330bd441e169babf15e3d4c5a1eddb2763dc3866",
           "observedAt": "2026-10-25T16:24:52.981Z",
           "notes": "Both Go matrix jobs passed `go test -race -count=1 ./...` and `go vet ./...` after the exact-origin allowlist, empty-query/fragment rejection, readiness error classification, bounded-response tests, caller-token boundary, and shared fixture assertions were present. The same workflow passed Python standard-library client/fixture tests on Python 3.10, 3.11 and 3.12. Go tests use mocked HTTP servers only; this verifies these scoped SDK behaviors, not live service connectivity."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40213385666",
+          "observedAt": "2026-10-25T16:48:40Z",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Go 1.26.9 and Go 1.27.3; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
+          "notes": "Post-merge Go client and shared JSON fixture conformance jobs passed on both listed Go versions."
         }
       ],
       "limitations": [
         "Verification covers the named Go versions and mocked HTTP endpoints only; no live GLORIFIER-NEURAL origin was probed.",
         "Provider/database readiness, production allowlist configuration, and live OpenAI/Gemini/Anthropic/NVIDIA or other provider integrations remain unverified.",
         "No programming-language matrix beyond the individually listed CI targets is implied; Python SDK coverage is tracked in sdk.python-contract.",
-        "No A2A/MCP external conformance, production deployment, financial action, or EVM/BNB/Solana RPC reachability is established.",
-        "The Go SDK branch is stacked on PR #479 and has not been merged into main."
+        "No A2A/MCP external conformance, production deployment, financial action, or EVM/BNB/Solana RPC reachability is established."
+      ]
+    },
+    {
+      "id": "worker.live-runtime-verification",
+      "title": "Live Worker, assets, and Supabase operational dependency probe",
+      "boundary": "Public Cloudflare Worker runtime-verification endpoint to the configured Supabase PostgREST exact-count query",
+      "scope": "live-production-probe",
+      "status": "VERIFIED",
+      "targetEnvironments": [
+        "Production Cloudflare Worker",
+        "Supabase project ymbhbxrobfpqlxhyulbt through PostgREST"
+      ],
+      "evidence": [
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false",
+          "observedAt": "2026-10-25T16:56:03.144Z",
+          "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
+          "notes": "HTTP 200; status verified-for-probed-dependencies; worker and assets checks passed; Supabase exact-count query passed in 819 ms and connectionRegistryRows was 0. Authentication and AI provider probes were explicitly not run."
+        }
+      ],
+      "limitations": [
+        "Evidence covers only the named endpoint and the dependencies it actually probes at the recorded time.",
+        "Authentication and AI/provider calls were not probed; live GLORIFIER-NEURAL readiness, external A2A/MCP conformance, blockchain RPC reachability, and continuous 24/7 availability are not established.",
+        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity."
+      ]
+    },
+    {
+      "id": "worker.live-operational-report",
+      "title": "Live operational summary endpoint contract",
+      "boundary": "Public Cloudflare Worker reports summary endpoint to six Supabase operational tables",
+      "scope": "live-production-probe",
+      "status": "VERIFIED",
+      "targetEnvironments": [
+        "Production Cloudflare Worker",
+        "Supabase project ymbhbxrobfpqlxhyulbt"
+      ],
+      "evidence": [
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/reports/summary",
+          "observedAt": "2026-10-25T16:56:03.310Z",
+          "targetEnvironment": "Production Cloudflare Worker backed by Supabase PostgREST",
+          "notes": "HTTP 200; status operational-data-observed; exact row counts returned for connection approvals/events/registry and intelligence analyses/evidence/reports, all zero. Response explicitly labels revenue not observable and legacy economic summary not ported."
+        }
+      ],
+      "limitations": [
+        "This verifies the endpoint response contract and current exact counts only; it does not prove business revenue or populated production data.",
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked."
+      ]
+    },
+    {
+      "id": "worker.identity-readiness",
+      "title": "Organization identity readiness endpoint",
+      "boundary": "Public Cloudflare Worker identity endpoint and controlled organization-domain configuration",
+      "scope": "live-production-probe",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Production Cloudflare Worker /api/identity"
+      ],
+      "evidence": [
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/identity",
+          "observedAt": null,
+          "targetEnvironment": "Production Cloudflare Worker",
+          "notes": "The latest live request returned HTTP 503. Current code intentionally reports identity not-ready while the canonical domain and primary organization email are not configured; this is not evidence of a healthy/ready identity."
+        }
+      ],
+      "limitations": [
+        "Canonical domain and primary organization email remain intentionally unconfigured; do not bypass identity readiness or invent domain ownership.",
+        "No deployment or configuration change was performed; identity readiness remains unresolved until controlled identity configuration is available and verified."
       ]
     }
   ]
