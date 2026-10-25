@@ -10,7 +10,9 @@ type TestEnv = {
   GLORIFIER_DOMAIN_STATUS?: string;
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
+  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
+  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
 };
@@ -32,6 +34,8 @@ function getCapturedRequest(): Request {
 
 const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
+  GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
+  GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
   ASSETS: {
     async fetch() {
       assetCalls += 1;
@@ -241,6 +245,23 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://api.example.test/api/configurable-backend?mode=probe');
 
     capturedRequest = null;
+    const missingBackendAllowlist = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/allowlist-missing'),
+      { ...env, GLORIFIER_BACKEND_ALLOWED_HOSTS: undefined },
+    );
+    assert.equal(missingBackendAllowlist.status, 502);
+    assert.equal(await missingBackendAllowlist.json().then((body: { code?: string }) => body.code), 'BACKEND_EGRESS_ALLOWLIST_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'backend egress must fail closed if no explicit allowlist exists');
+
+    const nonAllowlistedBackend = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/host-not-allowed'),
+      { ...env, GLORIFIER_BACKEND_ALLOWED_HOSTS: 'other.example.test' },
+    );
+    assert.equal(nonAllowlistedBackend.status, 502);
+    assert.equal(await nonAllowlistedBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_ALLOWLISTED');
+    assert.equal(capturedRequest, null, 'backend requests must not reach hosts outside the exact allowlist');
+
+    capturedRequest = null;
     const invalidBackendResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/invalid-backend-config'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: 'http://insecure.example.test' },
@@ -308,6 +329,7 @@ async function run(): Promise<void> {
       getCapturedRequest().url,
       'https://api.example.test/auth/provider/start',
     );
+    assert.equal(getCapturedRequest().redirect, 'manual', 'backend redirects must not cause the Worker to follow a second outbound request');
     assert.equal(assetCalls, assetCallsBeforeAuth, 'auth routes must not fall through to the SPA assets');
 
     upstreamResponse = new Response('{"ok":true}', {
@@ -333,6 +355,23 @@ async function run(): Promise<void> {
     const neuralInvalidOrigin = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test' });
     assert.equal(neuralInvalidOrigin.status, 503);
     assert.equal(await neuralInvalidOrigin.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
+
+    capturedRequest = null;
+    const neuralMissingAllowlist = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined },
+    );
+    assert.equal(neuralMissingAllowlist.status, 503);
+    assert.equal(await neuralMissingAllowlist.json().then((body: { code?: string }) => body.code), 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'Neural egress must fail closed without an allowlist');
+
+    const neuralHostNotAllowed = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+      { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'another.example.test' },
+    );
+    assert.equal(neuralHostNotAllowed.status, 503);
+    assert.equal(await neuralHostNotAllowed.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_ALLOWLISTED');
+    assert.equal(capturedRequest, null, 'Neural requests must not reach hosts outside the exact allowlist');
 
     const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralTaskNoAuth.status, 401);
