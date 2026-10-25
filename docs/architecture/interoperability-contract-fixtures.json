@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "1.0.0",
+  "purpose": "Language-neutral JSON interoperability fixtures. Every SDK/runtime adapter must preserve these semantics without coercion.",
+  "encoding": "UTF-8",
+  "rules": [
+    "Treat absent fields and explicit null as distinct.",
+    "Preserve arbitrary-precision quantities as canonical decimal strings, never floating-point numbers.",
+    "Preserve Unicode without lossy normalization or replacement.",
+    "Treat machine-readable error codes as stable; human-readable messages are not identifiers."
+  ],
+  "cases": [
+    {
+      "id": "unicode-round-trip",
+      "purpose": "Unicode and punctuation survive UTF-8 JSON round trips.",
+      "payload": {
+        "message": "GLORIFIER — 你好 — مرحبًا — नमस्ते — 🌐",
+        "correlationId": "123e4567-e89b-42d3-a456-426614174000"
+      }
+    },
+    {
+      "id": "large-quantity-string",
+      "purpose": "Arbitrary-precision blockchain/token quantity remains a string.",
+      "payload": {
+        "chainId": "1",
+        "quantity": "10000000000000000000000000000000000000000000000000000000000000000000000000001",
+        "decimals": 18
+      }
+    },
+    {
+      "id": "null-versus-absent",
+      "purpose": "Explicit null is not equivalent to an absent field.",
+      "payload": {
+        "presentNull": null,
+        "emptyString": ""
+      }
+    },
+    {
+      "id": "nested-collections",
+      "purpose": "Nested arrays, objects, booleans and zero remain typed.",
+      "payload": {
+        "items": [
+          {
+            "enabled": true,
+            "count": 0
+          },
+          {
+            "enabled": false,
+            "count": 2
+          }
+        ],
+        "metadata": {
+          "source": "fixture",
+          "tags": [
+            "ai",
+            "language-neutral"
+          ]
+        }
+      }
+    },
+    {
+      "id": "stable-error-envelope",
+      "purpose": "Consumers branch on stable code and HTTP status, not localized message text.",
+      "payload": {
+        "error": {
+          "code": "REQUEST_BODY_TOO_LARGE",
+          "message": "Request body exceeds configured limit.",
+          "status": 413,
+          "correlationId": "123e4567-e89b-42d3-a456-426614174000"
+        }
+      }
+    }
+  ]
+}
