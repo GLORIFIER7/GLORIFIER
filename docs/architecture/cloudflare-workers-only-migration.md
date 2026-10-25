@@ -50,7 +50,24 @@ Fresh external fetches were performed against `https://glorifier.glorifier.worke
 
 These results supersede older smoke-test observations in this document. A successful `/api/health` response is not evidence of database, authentication, or backend readiness. The reports and runtime-verification failures remain production blockers.
 
-## Express route inventory snapshot
+## Latest live smoke-test evidence (2026-10-25)
+
+A later read-only production check, recorded in [Issue #432 comment](https://github.com/GLORIFIER7/GLORIFIER/issues/432#issuecomment-6400491311), supersedes the 2026-10-24 failure observations for the two endpoints below. These checks were recorded externally; this documentation update did not run or deploy them.
+
+- `GET /api/health`: **HTTP 200**. Worker liveness only; backend, authentication, and database dependencies remain `not-probed`.
+- `GET /api/business-model`: **HTTP 200**. Static business-model contract served by the Worker.
+- `GET /api/reports/summary`: **HTTP 200**. The six named operational tables returned exact counts of zero at observation time. This does not prove whole-database emptiness, Neon parity, or revenue status.
+- `GET /api/runtime-verification?probeAi=false`: **HTTP 200**. Worker/assets checks and a Supabase PostgREST exact-count query passed (reported latency: 819 ms). Authentication and AI/provider readiness were not probed.
+- `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain and primary organization email remain unconfigured.
+
+### Remaining production gates
+
+- The protected-route authentication contract and authenticated user/session flow need a live, configured-backend check. The scheduled monitor's unauthenticated `/api/app-state` check is proposed in [PR #483](https://github.com/GLORIFIER7/GLORIFIER/pull/483); it is not yet evidence of successful production authentication.
+- Live Neural/provider readiness, external A2A/MCP conformance, reviewed production egress allowlists, and real EVM/BNB/Solana RPC reachability remain unverified.
+- Neon table/schema inspection has returned HTTP 402 quota exceeded in prior read-only checks. Supabase having six operational tables does not establish schema/data parity. Do not change `DATABASE_URL`, migrate/overwrite records, or add broad RLS policies without verified source-of-truth, permissions, backup/rollback, and per-table parity evidence.
+- Cloudflare is not yet proven to be the only production dependency: unported API/auth routes still require a reviewed backend origin or fail closed, and Vercel/Railway removal requires route-by-route verification.
+
+A passing Worker health endpoint must not be described as full application health or 24/7 availability.
 
 ## Express route inventory snapshot
 
