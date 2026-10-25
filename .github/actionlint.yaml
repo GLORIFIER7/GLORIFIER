@@ -1,0 +1,7 @@
+# GitHub added this permission for Copilot CLI after the repository's pinned
+# actionlint release learned it. Keep the exception scoped to this single
+# workflow and this exact diagnostic; all other workflow checks remain enabled.
+paths:
+  .github/workflows/summary.yml:
+    ignore:
+      - 'unknown permission scope "copilot-requests"'
