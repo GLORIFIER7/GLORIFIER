@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T13:18:00Z",
+  "updatedAt": "2026-10-25T13:34:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -301,6 +301,37 @@
       "limitations": [
         "A protocol mention is not evidence of an implemented adapter.",
         "No arbitrary proxy or implied provider fallback is authorized."
+      ]
+    },
+    {
+      "id": "worker.exact-egress-host-allowlists",
+      "title": "Exact-host egress allowlists for backend and Neural APIs",
+      "boundary": "Cloudflare Worker outbound requests to the configured backend and GLORIFIER-NEURAL origins",
+      "scope": "mocked-contract-test",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Mocked Worker unit tests; deploy-time configuration review required"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "src/worker.ts",
+          "targetEnvironment": "Branch fix/issue-471-interoperability-hardening",
+          "observedAt": null,
+          "notes": "The Worker requires an independently configured exact-host allowlist for the configured backend and Neural origin, rejects missing/mismatched host lists, uses HTTPS origin validation and manual redirect handling, and bounds upstream requests."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Mocked Worker unit test harness; CI run pending for the latest branch commit",
+          "observedAt": null,
+          "notes": "Regression tests reject missing or mismatched allowlists and assert backend redirects are requested in manual mode."
+        }
+      ],
+      "limitations": [
+        "This capability remains NOT VERIFIED until the new test suite passes on the proposed branch.",
+        "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
+        "A hostname allowlist is not evidence that the target service is reachable or healthy."
       ]
     }
   ]
