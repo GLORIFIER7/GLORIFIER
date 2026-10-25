@@ -339,14 +339,15 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
     capturedRequest = null;
+    const declaredOversizeBody = new Uint8Array(1024 * 1024 + 1);
     const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer caller-token',
         'Content-Type': 'application/json',
-        'Content-Length': String(1024 * 1024 + 1),
+        'Content-Length': String(declaredOversizeBody.byteLength),
       },
-      body: '{}',
+      body: declaredOversizeBody,
     }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(declaredOversizeTask.status, 413, 'declared oversized task bodies must be rejected before upstream forwarding');
     assert.equal(await declaredOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
