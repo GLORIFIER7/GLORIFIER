@@ -354,8 +354,9 @@ async function run(): Promise<void> {
     assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 
     const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
-    assert.equal(neuralUnknown.status, 502, 'unmapped paths must not be proxied to Neural');
-    assert.equal(await neuralUnknown.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+    assert.equal(neuralUnknown.status, 404, 'unmapped Neural namespace paths must not fall through to the legacy backend');
+    assert.equal(await neuralUnknown.json().then((body: { code?: string }) => body.code), 'NEURAL_ROUTE_NOT_FOUND');
+    assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready', 'unknown routes must not trigger another upstream request');
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
