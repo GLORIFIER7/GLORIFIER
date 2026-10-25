@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T14:20:00Z",
+  "updatedAt": "2026-10-25T15:54:37Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -159,9 +159,9 @@
         }
       ],
       "limitations": [
-        "The declared test matrix is limited to the named GitHub-hosted x86_64 targets.",
-        "No claim is made for Linux ARM64, Alpine, other distributions, Windows, or macOS.",
-        "The production server had an eager database-backed A2A initializer; this branch now gates it on DATABASE_URL and requires an image health smoke test to pass."
+        "Verification is limited to the named GitHub-hosted Ubuntu 22.04/24.04 x86_64 targets; no Linux ARM64, Alpine, other-distribution, Windows, or macOS claim is made.",
+        "Fresh source and container checks must pass after the current readiness-retry corrections and no-database readiness smoke assertions before claims are upgraded.",
+        "Source and container CI do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability."
       ]
     },
     {
@@ -169,9 +169,11 @@
       "title": "Container image builds",
       "boundary": "OCI images defined by Dockerfile and Dockerfile.ubuntu",
       "scope": "container-build",
-      "status": "VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted ubuntu-24.04 x86_64 Docker builder"
+        "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder",
+        "Distroless Node.js 22 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner",
+        "Ubuntu 24.04 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner"
       ],
       "evidence": [
         {
@@ -211,9 +213,10 @@
         }
       ],
       "limitations": [
-        "Verification is limited to GitHub-hosted x86_64 targets named in the evidence; no multi-architecture claim is made.",
-        "CI container health and graceful-shutdown tests do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability.",
-        "No production deployment was performed as part of this verification."
+        "The last recorded successful container smoke run predates the current readiness-retry corrections and the new no-database readiness assertions; retain PARTIALLY VERIFIED until fresh CI passes on the updated branch.",
+        "CI health and graceful-shutdown tests do not establish live Neural/provider readiness or real EVM/BNB/Solana RPC reachability.",
+        "No production deployment was performed as part of this verification.",
+        "No multi-architecture build is claimed."
       ]
     },
     {
