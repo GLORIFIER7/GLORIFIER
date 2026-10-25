@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T13:41:00Z",
+  "updatedAt": "2026-10-25T13:44:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -341,22 +341,30 @@
       "title": "Published OpenAPI and JSON Schema contract baseline",
       "boundary": "Language-neutral HTTP interoperability boundary",
       "scope": "protocol-contract",
-      "status": "NOT VERIFIED",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "Repository documentation and public API contract"
       ],
       "evidence": [
         {
-          "kind": "documentation",
-          "reference": "docs/architecture/language-neutral-interoperability.md#current-evidence-boundary",
-          "targetEnvironment": "Repository main branch",
+          "kind": "schema",
+          "reference": "docs/architecture/openapi/glorifier-neural-adapter.openapi.json",
+          "targetEnvironment": "Repository JSON OpenAPI 3.1 contract",
           "observedAt": null,
-          "notes": "Current documentation describes this as a target contract; it does not claim a published OpenAPI specification exists."
+          "notes": "Defines the three explicit Neural adapter routes, bearer auth, actual GLORIFIER-NEURAL task properties, 64 KiB maximum body, and bounded error responses."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "scripts/validate-interoperability-capabilities.mjs",
+          "targetEnvironment": "Interoperability Linux validation workflow; current run pending",
+          "observedAt": null,
+          "notes": "Validator checks task operation, bearerAuth, task and action_class length bounds, no additional properties, required task field, 413/415 responses, and documented 65,536-byte body limit."
         }
       ],
       "limitations": [
-        "No authoritative OpenAPI document was located in the reviewed paths.",
-        "Do not claim generated language bindings are supported until schema and conformance checks exist."
+        "The OpenAPI document covers only the Neural adapter routes, not every GLORIFIER API.",
+        "The OpenAPI validator must pass on the current branch before this baseline is treated as CI-verified.",
+        "No generated client conformance test or live upstream probe is claimed."
       ]
     },
     {
