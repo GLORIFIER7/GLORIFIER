@@ -37,7 +37,9 @@ export function createGovernedAction(input:Omit<GovernedAction,'actionId'|'paylo
 }
 export function bindApproval(action:GovernedAction,approverId:string,ttlMs=15*60_000):ApprovalBinding {
   if(!action.humanApprovalRequired) throw new Error('Approval binding is only valid for actions requiring human approval');
-  return {approvalId:'approval-'+randomUUID(),actionId:action.actionId,actionHash:sha256(action),approverId,approvedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+ttlMs).toISOString()};
+  if(typeof approverId !== 'string' || !approverId.trim()) throw new Error('A non-empty human approver ID is required');
+  if(!Number.isSafeInteger(ttlMs) || ttlMs <= 0 || ttlMs > 24*60*60_000) throw new Error('Approval TTL must be a positive integer no greater than 24 hours');
+  return {approvalId:'approval-'+randomUUID(),actionId:action.actionId,actionHash:sha256(action),approverId:approverId.trim(),approvedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+ttlMs).toISOString()};
 }
 export function verifyApprovalBinding(action:GovernedAction,approval:ApprovalBinding){
   return approval.actionId===action.actionId && approval.actionHash===sha256(action) && !approval.revokedAt && Date.parse(approval.expiresAt)>Date.now();
