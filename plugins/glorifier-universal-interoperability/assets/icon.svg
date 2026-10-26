@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+<title id="title">GLORIFIER Interoperability Icon</title>
+<rect width="256" height="256" rx="48" fill="#123B5D"/>
+<g fill="none" stroke="#F7FAFC" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+<path d="M58 78V58H94L112 76"/>
+<path d="M198 78V58H162L144 76"/>
+<path d="M58 178V198H94L112 180"/>
+<path d="M198 178V198H162L144 180"/>
+<path d="M112 76H144V180H112Z"/>
+<path d="M76 128H112M144 128H180"/>
+</g>
+<circle cx="128" cy="128" r="15" fill="#8CCBFF"/>
+</svg>
