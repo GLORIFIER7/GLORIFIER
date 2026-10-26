@@ -1,3 +1,4 @@
+import './geas-focus-invoice-reconciliation.test';
 import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
