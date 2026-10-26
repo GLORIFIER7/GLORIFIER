@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import type { NextFunction, Request, Response } from 'express';
-import { tokenClaimsAuth0Issuer, verifyAuth0AccessToken } from './auth0-token';
+import { configuredAuth0Issuer, tokenClaimsAuth0Issuer, verifyAuth0AccessToken } from './auth0-token';
 
 let adminReady = false;
 
@@ -151,9 +151,10 @@ export const requireOwnerOrInternalService = createRequireOwnerOrInternalService
 export function authenticationStatus() {
   return {
     backendVerification: adminReady,
-    providerConfigured: Boolean(process.env.FIREBASE_PROJECT_ID),
-    provider: 'Firebase Authentication',
-    mode: 'Firebase ID token + revocation check',
+    providerConfigured: Boolean(process.env.FIREBASE_PROJECT_ID) || Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim()),
+    provider: configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim() ? 'Firebase Authentication + Auth0' : 'Firebase Authentication',
+    auth0Configured: Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim()),
+    mode: 'Firebase ID token + revocation check; optional Auth0 RS256 access token',
     ownerBindingConfigured: Boolean(process.env.GLORIFIER_OWNER_UID || process.env.GLORIFIER_OWNER_EMAIL),
     rule: 'Authentication and authorization are evaluated separately.'
   };
