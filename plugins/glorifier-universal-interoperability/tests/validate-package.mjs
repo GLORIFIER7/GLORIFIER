@@ -68,8 +68,8 @@ check("integration descriptor schema is a closed object with required verificati
   assert.equal(timestampRule.type, "string");
   assert.equal(timestampRule.minLength, 1);
   assert.ok(timestampRule.pattern, "timestamp gate must enforce a format pattern without relying only on format annotation");
-  const timestampPattern = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$/;
-  assert.equal(timestampRule.pattern, "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$", "schema pattern must match the reviewed RFC 3339 shape");
+  const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+  assert.equal(timestampRule.pattern, "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$", "schema pattern must match the reviewed RFC 3339 shape");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17Z"), "accepts RFC 3339 UTC timestamp");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17.123+07:00"), "accepts RFC 3339 timestamp with fractional seconds and offset");
   assert.ok(!timestampPattern.test(""), "rejects empty timestamp");
@@ -103,7 +103,7 @@ check("integration descriptor schema is a closed object with required verificati
 check("referenced artwork exists and uses safe inline SVG roots", async () => {
   for (const file of ["assets/logo-light.svg", "assets/logo-dark.svg", "assets/icon.svg"]) {
     const svg = await readFile(path.join(root, file), "utf8");
-    assert.match(svg, /^<svg\s/m, file + ": missing SVG root");
+    assert.match(svg, /^<svg\b/, file + ": SVG root must be the first document content");
     assert.match(svg, /viewBox=/, file + ": missing viewBox");
     assert.doesNotMatch(svg, /<script\b|\bon\w+\s*=|javascript:/i, file + ": active content is not allowed");
   }
