@@ -499,6 +499,18 @@
       "scannerStatus": "discovery-only"
     },
     {
+      "id": "slsa-v1-2",
+      "authority": "SLSA",
+      "domain": "software",
+      "url": "https://slsa.dev/spec/v1.2/",
+      "claimsAllowed": [
+        "build-provenance"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "slsa-specification",
       "authority": "SLSA",
       "domain": "software",
@@ -511,18 +523,6 @@
       "implementationStatus": "not-assessed",
       "scannerStatus": "discovery-only",
       "aliasOf": "slsa-v1-2"
-    },
-    {
-      "id": "slsa-v1-2",
-      "authority": "SLSA",
-      "domain": "software",
-      "url": "https://slsa.dev/spec/v1.2/",
-      "claimsAllowed": [
-        "build-provenance"
-      ],
-      "reviewCadenceDays": 14,
-      "implementationStatus": "not-assessed",
-      "scannerStatus": "active"
     },
     {
       "id": "w3c-prov-o",
