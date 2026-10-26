@@ -98,7 +98,7 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>, registry
         failures.push('canonicalSourceUrl does not match the trusted source registry');
       }
       if (!Array.isArray(trustedSource.claimsAllowed) || trustedSource.claimsAllowed.length === 0
-          || !trustedSource.claimsAllowed.every((claimType) => typeof claimType === 'string' && claimType.trim())) {
+          || !trustedSource.claimsAllowed.every((claimType) => typeof claimType === 'string' && claimType.trim().length > 0)) {
         failures.push('trusted source claimsAllowed must be a non-empty string array');
       } else if (typeof record.claimType === 'string' && !trustedSource.claimsAllowed.includes(record.claimType)) {
         failures.push(`claimType ${record.claimType} is not allowed by the trusted source registry`);
