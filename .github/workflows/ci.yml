@@ -105,6 +105,9 @@ jobs:
       - name: LlamaCloud integration tests
         run: npm run test:llama-cloud
 
+      - name: Auth0 access-token validation regression tests
+        run: npm run test:auth0-token
+
       - name: Internal-service authentication regression tests
         run: npm run test:backend-auth
 
