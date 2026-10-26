@@ -23,7 +23,7 @@ Run the package contract checks with Node.js 22 or newer and npm. The workflow i
 node plugins/glorifier-universal-interoperability/tests/validate-package.mjs
 ```
 
-The repository workflow `.github/workflows/plugin-interoperability.yml` runs these structural checks on relevant pull-request changes and on pushes to this feature branch. These checks validate package structure and selected safety invariants; they do not replace the official Plugin Autopilot validator, a clean-host install, runtime connectivity tests, or provider-specific conformance tests.
+The repository workflow `.github/workflows/plugin-interoperability.yml` runs these structural checks on relevant pull-request changes and on pushes to `main` or the feature branch. These checks validate package structure and selected safety invariants; they do not replace the official Plugin Autopilot validator, a clean-host install, runtime connectivity tests, or provider-specific conformance tests.
 
 ## Verification vocabulary
 
