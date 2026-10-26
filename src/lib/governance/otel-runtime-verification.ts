@@ -23,10 +23,10 @@ export interface OTelSignalObservation {
 export interface OpenTelemetryRuntimeSnapshot {
   observedAt: string;
   resource: {
-    serviceName: string;
-    deploymentEnvironment: string;
-    sdkName: string;
-    sdkVersion: string;
+    'service.name': string;
+    'deployment.environment.name': string;
+    'telemetry.sdk.name': string;
+    'telemetry.sdk.version': string;
   };
   exporter: {
     endpointConfigured: boolean;
@@ -99,10 +99,10 @@ export function assessOpenTelemetryRuntimeEvidence(
   }
 
   const resource = asRecord(snapshot.resource);
-  const serviceName = textValue(resource?.serviceName);
-  const deploymentEnvironment = textValue(resource?.deploymentEnvironment);
-  const sdkName = textValue(resource?.sdkName);
-  const sdkVersion = textValue(resource?.sdkVersion);
+  const serviceName = textValue(resource?.['service.name']);
+  const deploymentEnvironment = textValue(resource?.['deployment.environment.name']);
+  const sdkName = textValue(resource?.['telemetry.sdk.name']);
+  const sdkVersion = textValue(resource?.['telemetry.sdk.version']);
   let resourceComplete = true;
 
   if (!serviceName || /^unknown_service(?::|$)/i.test(serviceName)) {
