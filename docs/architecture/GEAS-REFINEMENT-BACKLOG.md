@@ -38,6 +38,7 @@ The first applicable rule wins. Each result must retain its evidence references,
 - Do not infer conformance from adapter presence.
 ### P1 — reliability, security, provenance
 - Correlate request, policy, model, tool, settlement, delivery, and outcome evidence with trace identifiers.
+- Use the proposed W3C PROV-O crosswalk in `docs/architecture/geas-provenance-crosswalk.md` to model entity/activity/agent lineage; the crosswalk and discovery-only registry entry do not claim runtime conformance.
 - Add SLOs, synthetic end-to-end checks, incident recovery tests, artifact digests, and build provenance.
 - Test resource-level API authorization, rate limits, idempotency, and safe failure behavior.
 ### P1 — business outcomes

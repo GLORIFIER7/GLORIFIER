@@ -473,6 +473,20 @@
       "scannerStatus": "discovery-only"
     },
     {
+      "id": "w3c-prov-o",
+      "authority": "W3C",
+      "domain": "data",
+      "url": "https://www.w3.org/TR/prov-o/",
+      "claimsAllowed": [
+        "evidence-provenance-crosswalk",
+        "provenance-lineage",
+        "artifact-derivation"
+      ],
+      "reviewCadenceDays": 30,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
       "id": "w3c-vc",
       "authority": "W3C",
       "domain": "emerging-technology",
