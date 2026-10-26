@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, LogIn, LogOut, Mail, UserPlus, X } from 'lucide-react';
-import { User } from 'firebase/auth';
-import { getIdToken, loginWithEmail, loginWithSocialProvider, registerWithEmail, resetPassword, logout, SOCIAL_PROVIDER_REGISTRY, SocialProviderId } from '../lib/firebase';
+import { getIdToken, loginWithAuth0, loginWithEmail, loginWithSocialProvider, registerWithEmail, resetPassword, logout, SOCIAL_PROVIDER_REGISTRY, SocialProviderId } from '../lib/firebase';
+type AuthPanelIdentity = { uid: string; email: string | null; displayName: string | null };
 
 interface AuthPanelProps {
-  currentUser: User | null;
+  currentUser: AuthPanelIdentity | null;
 }
 
 const friendlyAuthError = (error: any) => {
@@ -73,6 +73,17 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
     } catch (error) {
       setMessage({ type: 'error', text: friendlyAuthError(error) });
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const auth0Login = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await loginWithAuth0();
+    } catch (error) {
+      setMessage({ type: 'error', text: friendlyAuthError(error) });
       setBusy(false);
     }
   };
@@ -182,6 +193,9 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-2">
+              <button type="button" onClick={auth0Login} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-slate-950 px-4 py-3 text-sm font-semibold text-emerald-300 disabled:opacity-50">
+                <KeyRound className="h-4 w-4" /> Continue with Auth0
+              </button>
               {(Object.entries(SOCIAL_PROVIDER_REGISTRY) as [SocialProviderId, {label:string; enabled:boolean}][]).map(([id, config]) => (
                 <button
                   key={id}
