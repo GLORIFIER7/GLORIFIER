@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import type { NextFunction, Request, Response } from 'express';
+import { tokenClaimsAuth0Issuer, verifyAuth0AccessToken } from './auth0-token';
 
 let adminReady = false;
 
@@ -47,6 +48,21 @@ export async function verifyBearerToken(req: Request): Promise<DecodedIdToken | 
   const token = header.slice('Bearer '.length).trim();
   if (!token) return null;
   try {
+    if (tokenClaimsAuth0Issuer(token)) {
+      const principal = await verifyAuth0AccessToken(token);
+      if (!principal) return null;
+      // Auth0 roles/owner-like claims are intentionally not copied into Firebase custom-claim fields.
+      return {
+        uid: principal.uid,
+        sub: principal.sub,
+        iss: principal.iss,
+        aud: principal.aud,
+        ...(principal.email ? { email: principal.email } : {}),
+        ...(typeof principal.email_verified === 'boolean' ? { email_verified: principal.email_verified } : {}),
+        iat: principal.iat,
+        exp: principal.exp,
+      } as unknown as DecodedIdToken;
+    }
     return await getAdminAuth().verifyIdToken(token, true);
   } catch {
     return null;
