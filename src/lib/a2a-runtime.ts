@@ -110,7 +110,7 @@ function persistTask(task: A2ATask) {
   const db = getPostgresPool();
   void db.query(
     `INSERT INTO a2a_tasks(id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,attempts,max_attempts,result,error,evidence_id,created_at,updated_at)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,attempts=EXCLUDED.attempts,result=EXCLUDED.result,error=EXCLUDED.error,evidence_id=EXCLUDED.evidence_id,updated_at=EXCLUDED.updated_at`,
     [task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability, task.objective,
       task.input ?? null, task.status, task.attempts, task.maxAttempts, task.result ?? null, task.error ?? null,
