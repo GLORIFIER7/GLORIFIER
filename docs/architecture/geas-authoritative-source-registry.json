@@ -175,6 +175,19 @@
       "scannerStatus": "active"
     },
     {
+      "id": "ietf-rfc9110-http-semantics",
+      "authority": "IETF / RFC Editor",
+      "domain": "integration",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "claimsAllowed": [
+        "conditional-fetch-cache-validation",
+        "http-cache-semantics"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
       "id": "ietf-rfcs",
       "authority": "IETF",
       "domain": "integration",
@@ -460,6 +473,19 @@
       "scannerStatus": "active"
     },
     {
+      "id": "owasp-agentic-skills-top10",
+      "authority": "OWASP",
+      "domain": "cybersecurity",
+      "url": "https://owasp.org/projects/agentic-skills-top-10",
+      "claimsAllowed": [
+        "agentic-skill-security",
+        "agent-tool-permission-boundaries"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
       "id": "owasp-api-security",
       "authority": "OWASP",
       "domain": "cybersecurity",
@@ -471,6 +497,32 @@
       "reviewCadenceDays": 30,
       "implementationStatus": "not-assessed",
       "scannerStatus": "discovery-only"
+    },
+    {
+      "id": "slsa-specification",
+      "authority": "SLSA",
+      "domain": "software",
+      "url": "https://slsa.dev/spec/v1.2/",
+      "claimsAllowed": [
+        "build-provenance",
+        "artifact-integrity"
+      ],
+      "reviewCadenceDays": 30,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only",
+      "aliasOf": "slsa-v1-2"
+    },
+    {
+      "id": "slsa-v1-2",
+      "authority": "SLSA",
+      "domain": "software",
+      "url": "https://slsa.dev/spec/v1.2/",
+      "claimsAllowed": [
+        "build-provenance"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
     },
     {
       "id": "w3c-prov-o",
@@ -497,32 +549,6 @@
       "reviewCadenceDays": 14,
       "implementationStatus": "not-assessed",
       "scannerStatus": "active"
-    },
-    {
-      "id": "slsa-v1-2",
-      "authority": "SLSA",
-      "domain": "software",
-      "url": "https://slsa.dev/spec/v1.2/",
-      "claimsAllowed": [
-        "build-provenance"
-      ],
-      "reviewCadenceDays": 14,
-      "implementationStatus": "not-assessed",
-      "scannerStatus": "active"
-    },
-    {
-      "id": "slsa-specification",
-      "authority": "SLSA",
-      "domain": "software",
-      "url": "https://slsa.dev/spec/v1.2/",
-      "claimsAllowed": [
-        "build-provenance",
-        "artifact-integrity"
-      ],
-      "reviewCadenceDays": 30,
-      "implementationStatus": "not-assessed",
-      "scannerStatus": "discovery-only",
-      "aliasOf": "slsa-v1-2"
     }
   ]
 }
