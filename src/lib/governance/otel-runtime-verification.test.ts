@@ -10,10 +10,10 @@ const fresh = new Date(nowMs - 60_000).toISOString();
 const fullSnapshot: OpenTelemetryRuntimeSnapshot = {
   observedAt: fresh,
   resource: {
-    serviceName: 'glorifier-worker',
-    deploymentEnvironment: 'production',
-    sdkName: 'opentelemetry',
-    sdkVersion: '1.0.0',
+    'service.name': 'glorifier-worker',
+    'deployment.environment.name': 'production',
+    'telemetry.sdk.name': 'opentelemetry',
+    'telemetry.sdk.version': '1.0.0',
   },
   exporter: {
     endpointConfigured: true,
@@ -88,7 +88,7 @@ assert.ok(staleSnapshot.failures.some((failure) => failure.includes('snapshot ob
 
 const unknownService = assessOpenTelemetryRuntimeEvidence({
   ...fullSnapshot,
-  resource: { ...fullSnapshot.resource, serviceName: 'unknown_service:node' },
+  resource: { ...fullSnapshot.resource, 'service.name': 'unknown_service:node' },
 }, nowMs);
 assert.equal(unknownService.status, 'partial');
 assert.ok(unknownService.failures.some((failure) => failure.includes('not unknown_service')));
