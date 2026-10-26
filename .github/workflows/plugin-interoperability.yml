@@ -38,7 +38,7 @@ jobs:
           node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/.codex-plugin/plugin.json', 'utf8'))"
           node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json', 'utf8'))"
       - name: Install isolated JSON Schema validator
-        run: npm install --prefix "$RUNNER_TEMP/interop-validator" --no-package-lock --no-save ajv@8
+        run: npm install --prefix "$RUNNER_TEMP/interop-validator" --no-package-lock --no-save ajv@8 ajv-formats@3
       - name: Run package contract checks
         env:
           NODE_PATH: ${{ runner.temp }}/interop-validator/node_modules
