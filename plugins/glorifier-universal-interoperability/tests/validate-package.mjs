@@ -59,6 +59,12 @@ check("integration descriptor schema is a closed object with required verificati
   assert.deepEqual(schema.properties.verification.properties.status.enum, [
     "VERIFIED", "PARTIALLY VERIFIED", "NOT VERIFIED", "DEGRADED", "NOT OBSERVABLE"
   ]);
+  assert.deepEqual(schema.properties.verification.then.required, ["testRef", "timestamp"]);
+  assert.equal(schema.properties.verification.then.properties.testRef.type, "string");
+  assert.equal(schema.properties.verification.then.properties.timestamp.type, "string");
+  const capability = schema.properties.capabilities.items;
+  assert.deepEqual(capability.then.required, ["evidenceRefs"]);
+  assert.equal(capability.then.properties.evidenceRefs.minItems, 1);
 });
 
 check("referenced artwork exists and uses safe inline SVG roots", async () => {
