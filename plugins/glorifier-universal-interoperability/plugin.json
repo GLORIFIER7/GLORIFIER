@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "glorifier-universal-interoperability",
+  "version": "0.1.0",
+  "description": "Discover, normalize, and plan governed interoperability across AI providers, plugins, MCP, A2A, APIs, SDKs, and services.",
+  "author": {
+    "name": "GLORIFIER"
+  },
+  "homepage": "https://github.com/GLORIFIER7/GLORIFIER",
+  "repository": "https://github.com/GLORIFIER7/GLORIFIER",
+  "keywords": [
+    "interoperability",
+    "MCP",
+    "A2A",
+    "AI providers",
+    "API contracts",
+    "governance",
+    "verification"
+  ]
+}

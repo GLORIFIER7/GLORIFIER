@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+<title id="title">GLORIFIER Interoperability</title>
+<rect width="512" height="512" rx="88" fill="#F7FAFC"/>
+<g fill="none" stroke="#123B5D" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+<path d="M132 184V138H194"/>
+<path d="M380 184V138H318"/>
+<path d="M132 328V374H194"/>
+<path d="M380 328V374H318"/>
+<path d="M194 138L224 168"/>
+<path d="M318 138L288 168"/>
+<path d="M194 374L224 344"/>
+<path d="M318 374L288 344"/>
+<path d="M224 168H288V344H224Z"/>
+<path d="M168 256H224"/>
+<path d="M288 256H344"/>
+</g>
+<circle cx="256" cy="256" r="26" fill="#1E78A5"/>
+<circle cx="132" cy="256" r="18" fill="#123B5D"/>
+<circle cx="380" cy="256" r="18" fill="#123B5D"/>
+</svg>
