@@ -26,6 +26,7 @@ export { completeAuth0RedirectSignIn, getAuth0Principal } from './auth/auth0-bro
 
 export const loginWithAuth0 = async () => {
   // Make provider selection deterministic when both providers have persisted sessions.
+  await authPersistenceReady;
   clearAuth0Session();
   await signOut(auth);
   cachedAccessToken = null;
