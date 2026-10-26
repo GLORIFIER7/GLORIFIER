@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GLORIFIER7/GLORIFIER/blob/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
+  "title": "GLORIFIER Integration Descriptor",
+  "description": "Evidence-first normalized descriptor for a discovered plugin, provider, agent, API, SDK, data store, or developer tool. Unknown facts must remain unknown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "displayName",
+    "kind",
+    "source",
+    "connectionState",
+    "protocols",
+    "capabilities",
+    "verification"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._:/-]*$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "plugin",
+        "mcp_server",
+        "model_provider",
+        "agent",
+        "api",
+        "sdk",
+        "data_store",
+        "ci_cd",
+        "observability",
+        "blockchain_read_only_verifier",
+        "other"
+      ]
+    },
+    "source": {
+      "enum": [
+        "runtime_discovery",
+        "repository_manifest",
+        "operator_supplied",
+        "authoritative_catalog",
+        "unknown"
+      ]
+    },
+    "discoveredAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "lastObservedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "connectionState": {
+      "enum": [
+        "discovered",
+        "configured",
+        "authenticated",
+        "reachable",
+        "degraded",
+        "revoked",
+        "unknown"
+      ]
+    },
+    "protocols": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "role"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transport": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "enum": [
+              "client",
+              "server",
+              "peer",
+              "unknown"
+            ]
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "readWrite",
+          "verificationStatus"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inputSchemaRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outputSchemaRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "streaming": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cancellation": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "readWrite": {
+            "enum": [
+              "read_only",
+              "write",
+              "destructive",
+              "unknown"
+            ]
+          },
+          "verificationStatus": {
+            "enum": [
+              "VERIFIED",
+              "PARTIALLY VERIFIED",
+              "NOT VERIFIED",
+              "DEGRADED",
+              "NOT OBSERVABLE"
+            ]
+          }
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mechanism": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requiredScopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secretValuesIncluded": {
+          "const": false
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "riskTier": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical",
+            "unknown"
+          ]
+        },
+        "humanApprovalRequired": {
+          "type": "boolean"
+        },
+        "dataClassifications": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedDestinations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rateLimit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "budgetLimit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtimes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knownLimitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deprecated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "PARTIALLY VERIFIED",
+            "NOT VERIFIED",
+            "DEGRADED",
+            "NOT OBSERVABLE"
+          ]
+        },
+        "testRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "versionTuple": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "environment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "resultSummary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
