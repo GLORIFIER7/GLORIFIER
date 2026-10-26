@@ -26,13 +26,58 @@ const valid = {
   rationale: 'The cited excerpt directly supports the bounded claim.',
 };
 
+const fixedNowMs = Date.parse('2026-10-26T13:00:00.000Z');
 const review = (
   record: Partial<ClaimReviewRecord>,
   sourceRegistry: ClaimSourceRegistry = registry,
-) => validateClaimReview(record, sourceRegistry);
+  nowMs: number = fixedNowMs,
+) => validateClaimReview(record, sourceRegistry, nowMs);
 
 const supported = review(valid);
 assert.equal(supported.admissible, true);
+
+const futureDatedReview = review({
+  ...valid,
+  observedAt: new Date(fixedNowMs + 1).toISOString(),
+});
+assert.equal(futureDatedReview.admissible, false, 'future-dated source observations must not be admitted');
+assert.ok(futureDatedReview.failures.some((failure) => failure.includes('cannot be in the future')));
+assert.equal(futureDatedReview.evidenceRef, null);
+
+const oneDayCadenceRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, reviewCadenceDays: 1 }
+    : source),
+};
+const exactCadenceBoundary = review({
+  ...valid,
+  observedAt: new Date(fixedNowMs - 86_400_000).toISOString(),
+}, oneDayCadenceRegistry);
+assert.equal(exactCadenceBoundary.admissible, true, 'an observation exactly at its cadence boundary remains fresh');
+
+const staleReview = review({
+  ...valid,
+  observedAt: new Date(fixedNowMs - 86_400_001).toISOString(),
+}, oneDayCadenceRegistry);
+assert.equal(staleReview.admissible, false, 'stale source observations must not be admitted');
+assert.ok(staleReview.failures.some((failure) => failure.includes('older than the trusted source review cadence')));
+assert.equal(staleReview.evidenceRef, null);
+
+const invalidCadenceRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, reviewCadenceDays: 0 }
+    : source),
+};
+const invalidCadenceReview = review(valid, invalidCadenceRegistry);
+assert.equal(invalidCadenceReview.admissible, false, 'invalid registry cadence must fail closed');
+assert.ok(invalidCadenceReview.failures.some((failure) => failure.includes('reviewCadenceDays')));
+assert.equal(invalidCadenceReview.evidenceRef, null);
+
+const invalidClockReview = validateClaimReview(valid, registry, Number.NaN);
+assert.equal(invalidClockReview.admissible, false, 'invalid validation clocks must fail closed');
+assert.ok(invalidClockReview.failures.some((failure) => failure.includes('validation clock')));
 
 const whitespaceNormalized = review({
   ...valid,
