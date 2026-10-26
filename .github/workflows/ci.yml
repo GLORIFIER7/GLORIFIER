@@ -129,6 +129,9 @@ jobs:
       - name: Validate interoperability capability registry and OpenAPI contract
         run: node scripts/validate-interoperability-capabilities.mjs
 
+      - name: Validate A2A task persistence SQL bindings
+        run: node scripts/validate-a2a-task-persistence.mjs
+
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
