@@ -1,0 +1,40 @@
+name: GLORIFIER Interoperability Plugin Validation
+
+on:
+  pull_request:
+    paths:
+      - "plugins/glorifier-universal-interoperability/**"
+      - ".github/workflows/plugin-interoperability.yml"
+  push:
+    branches:
+      - "feat/glorifier-universal-interoperability-plugin"
+    paths:
+      - "plugins/glorifier-universal-interoperability/**"
+      - ".github/workflows/plugin-interoperability.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-plugin-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-package:
+    name: Validate plugin package structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parse plugin manifests and schema
+        run: |
+          node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/plugin.json', 'utf8'))"
+          node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/.codex-plugin/plugin.json', 'utf8'))"
+          node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json', 'utf8'))"
+      - name: Run package contract checks
+        run: node plugins/glorifier-universal-interoperability/tests/validate-package.mjs

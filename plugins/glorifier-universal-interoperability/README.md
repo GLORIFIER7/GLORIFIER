@@ -15,6 +15,16 @@ This initial release is **skills-only**. It helps users inventory integrations a
 - `schemas/integration-descriptor.schema.json`: JSON Schema for normalized integration records.
 - `assets/`: product-specific light/dark logo and compact square icon.
 
+## Local validation
+
+Run the dependency-free package contract checks with Node.js 22 or newer:
+
+```sh
+node plugins/glorifier-universal-interoperability/tests/validate-package.mjs
+```
+
+The repository workflow `.github/workflows/plugin-interoperability.yml` runs these structural checks on relevant pull-request changes and on pushes to this feature branch. These checks validate package structure and selected safety invariants; they do not replace the official Plugin Autopilot validator, a clean-host install, runtime connectivity tests, or provider-specific conformance tests.
+
 ## Verification vocabulary
 
 Use `VERIFIED`, `PARTIALLY VERIFIED`, `NOT VERIFIED`, `DEGRADED`, or `NOT OBSERVABLE`. Never infer that discovery means connectivity, that configuration means authentication, or that a passing mock test proves live compatibility.

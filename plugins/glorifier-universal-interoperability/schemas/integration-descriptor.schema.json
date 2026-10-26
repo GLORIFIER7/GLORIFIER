@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/GLORIFIER7/GLORIFIER/blob/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
+  "$id": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
   "title": "GLORIFIER Integration Descriptor",
   "description": "Evidence-first normalized descriptor for a discovered plugin, provider, agent, API, SDK, data store, or developer tool. Unknown facts must remain unknown.",
   "type": "object",
@@ -193,6 +193,35 @@
               "DEGRADED",
               "NOT OBSERVABLE"
             ]
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "if": {
+          "properties": {
+            "verificationStatus": {
+              "enum": ["VERIFIED", "PARTIALLY VERIFIED"]
+            }
+          },
+          "required": ["verificationStatus"]
+        },
+        "then": {
+          "required": ["evidenceRefs"],
+          "properties": {
+            "evidenceRefs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         }
       }
@@ -340,6 +369,29 @@
             "null"
           ],
           "format": "date-time"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["VERIFIED", "PARTIALLY VERIFIED"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["testRef", "timestamp"],
+        "properties": {
+          "testRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "minLength": 1,
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+          }
         }
       }
     }
