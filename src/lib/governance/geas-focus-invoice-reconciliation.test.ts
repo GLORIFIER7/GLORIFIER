@@ -22,6 +22,7 @@ const aligned = reconcileFocusInvoice(input);
 assert.equal(aligned.status, 'RECONCILED');
 assert.equal(aligned.evidenceClass, 'analysis');
 assert.equal(aligned.reconciliationScope, 'provided-dataset-consistency-only');
+assert.equal(aligned.reconciliationBasis, 'non-tax-line-items-only', 'RECONCILED must not imply tax amounts were compared');
 assert.equal(aligned.costAndUsageNonTaxTotal, '30.005');
 assert.equal(aligned.invoiceDetailNonTaxTotal, '30');
 assert.equal(aligned.costAndUsageTaxTotal, '0');
@@ -42,6 +43,7 @@ const missingMapping = reconcileFocusInvoice({
   costAndUsage: input.costAndUsage.filter((row) => row.invoiceDetailId !== 'line-2'),
 });
 assert.equal(missingMapping.status, 'UNKNOWN');
+assert.equal(missingMapping.reconciliationBasis, 'non-tax-line-items-only');
 assert.ok(missingMapping.reasons.some((reason) => reason.includes('not present in both datasets')));
 
 const duplicateInvoiceDetailId = reconcileFocusInvoice({
