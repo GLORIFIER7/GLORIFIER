@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-25T16:56:03.310Z",
+  "updatedAt": "2026-10-26T06:53:00.000Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -611,6 +611,46 @@
       "limitations": [
         "Canonical domain and primary organization email remain intentionally unconfigured; do not bypass identity readiness or invent domain ownership.",
         "No deployment or configuration change was performed; identity readiness remains unresolved until controlled identity configuration is available and verified."
+      ]
+    },
+    {
+      "id": "tool.mintlify-admin-mcp-discovery",
+      "title": "Mintlify Admin MCP documentation discovery",
+      "boundary": "GLORIFIER interoperability inspector evidence collection to the Mintlify documentation deployment `glorifier`",
+      "scope": "Read-only connector discovery of deployment metadata, navigation, and two documentation pages",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "Mintlify Admin MCP connected deployment `glorifier`",
+        "GLORIFIER7/GLORIFIER default branch evidence registry"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "Mintlify deployment `glorifier`, page `index.mdx`",
+          "targetEnvironment": "Mintlify Admin MCP; deployment listing and page read",
+          "observedAt": "2026-10-26T06:53:00.000Z",
+          "notes": "Read-only inspection returned the Introduction page and its placeholder content. This verifies connector access to this page only."
+        },
+        {
+          "kind": "documentation",
+          "reference": "Mintlify deployment `glorifier`, page `quickstart.mdx`",
+          "targetEnvironment": "Mintlify Admin MCP; page read",
+          "observedAt": "2026-10-26T06:53:00.000Z",
+          "notes": "Read-only inspection returned the Quickstart page and its placeholder install/configure/run instructions. The page does not yet document GLORIFIER-specific setup."
+        },
+        {
+          "kind": "source",
+          "reference": "docs/architecture/interoperability-capabilities.schema.json",
+          "targetEnvironment": "GLORIFIER repository default branch",
+          "observedAt": "2026-10-26T06:53:00.000Z",
+          "notes": "The existing capability registry supports evidence kinds, status vocabulary, target environments, and explicit limitations; no schema extension is required for this discovery record."
+        }
+      ],
+      "limitations": [
+        "This is a registry evidence record, not a runtime Mintlify integration in the inspector application.",
+        "No Mintlify API handshake, protocol conformance test, or automated scheduled synchronization was run.",
+        "The inspected Introduction and Quickstart pages contain starter-template placeholders; do not treat them as authoritative GLORIFIER setup documentation.",
+        "No documentation changes were published and no deployment was modified."
       ]
     }
   ]
