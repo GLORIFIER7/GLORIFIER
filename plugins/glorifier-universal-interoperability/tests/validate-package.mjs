@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
+const addFormats = require("ajv-formats").default;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = async (relative) => JSON.parse(await readFile(path.join(root, relative), "utf8"));
@@ -79,6 +80,7 @@ check("integration descriptor schema is a closed object with required verificati
   assert.equal(capability.then.properties.evidenceRefs.minItems, 1);
 
   const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
   const validate = ajv.compile(schema);
   const validDescriptor = {
     id: "provider.example", displayName: "Example Provider", kind: "model_provider",
