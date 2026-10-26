@@ -17,7 +17,7 @@ This initial release is **skills-only**. It helps users inventory integrations a
 
 ## Local validation
 
-Run the dependency-free package contract checks with Node.js 22 or newer:
+Run the package contract checks with Node.js 22 or newer and npm. The workflow installs Ajv 8 into an isolated temporary directory for JSON Schema instance validation:
 
 ```sh
 node plugins/glorifier-universal-interoperability/tests/validate-package.mjs
