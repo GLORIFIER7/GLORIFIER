@@ -78,7 +78,7 @@ assert.ok(duplicateRegistryEntry.failures.some((failure) => failure.includes('ex
 
 const missingRegistry = validateClaimReview(valid, undefined as unknown as ClaimSourceRegistry);
 assert.equal(missingRegistry.admissible, false);
-assert.ok(missingRegistry.failures.some((failure) => failure.includes('trusted source registry is required')));
+assert.ok(missingRegistry.failures.some((failure) => failure.includes('trusted source registry with version and sources is required')));
 assert.equal(missingRegistry.evidenceRef, null);
 
 const unreviewed = review({ ...valid, decision: undefined });
