@@ -8,6 +8,8 @@ on:
       - 'src/lib/governance/geas-architecture-scientist.test.ts'
       - 'src/lib/governance/geas-claim-verification.ts'
       - 'src/lib/governance/geas-claim-verification.test.ts'
+      - 'src/lib/governance/otel-runtime-verification.ts'
+      - 'src/lib/governance/otel-runtime-verification.test.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.test.ts'
       - 'scripts/geas-architecture-*.ts'
@@ -62,6 +64,9 @@ jobs:
 
       - name: Test claim-level evidence admission
         run: npm run test:geas-claim-verification
+
+      - name: Test OpenTelemetry runtime evidence contract
+        run: npm run test:otel-runtime-verification
 
       - name: Test five-state architecture reconciliation
         run: npm run test:geas-state-reconciliation
