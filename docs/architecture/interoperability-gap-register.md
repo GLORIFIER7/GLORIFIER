@@ -60,3 +60,10 @@ This register records gaps from a targeted read-only inspection of the default-b
 - No observed failure != verified success.
 
 Use `NOT VERIFIED` until acceptance evidence exists; use `DEGRADED` only when an actual failed observation supports that state. This register does not authorize deployment, credential changes, external calls, merges, or paid operations.
+
+## Mintlify MCP discovery — 2026-10-26
+
+| ID | Area | Observed evidence | Gap / required remediation | Acceptance evidence |
+|---|---|---|---|---|
+| INT-013 | Mintlify documentation discovery | Mintlify Admin MCP can list the `glorifier` deployment, enumerate its navigation, and read `index.mdx` and `quickstart.mdx`. A PARTIALLY VERIFIED capability record was added to `docs/architecture/interoperability-capabilities.json`. | This proves read-only connector access only. The inspector has not been shown to call Mintlify programmatically at runtime, validate MCP protocol behavior, or synchronize documentation evidence automatically. Both inspected pages still contain starter-template text. | Add a least-privilege Mintlify connector adapter behind the existing inspector contract; redact credentials and page-sensitive metadata; test unavailable/unauthorized responses, pagination, timeouts, stale evidence, and schema validation; retain redacted test/CI evidence. Do not elevate status without those results. |
+
