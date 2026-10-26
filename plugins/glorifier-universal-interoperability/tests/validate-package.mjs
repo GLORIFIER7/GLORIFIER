@@ -70,7 +70,7 @@ check("integration descriptor schema is a closed object with required verificati
   assert.equal(timestampRule.minLength, 1);
   assert.ok(timestampRule.pattern, "timestamp gate must enforce a format pattern without relying only on format annotation");
   const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-  assert.equal(timestampRule.pattern, String.raw\`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$\`, "schema pattern must match the reviewed RFC 3339 shape");
+  assert.equal(timestampRule.pattern, String.raw`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$`, "schema pattern must match the reviewed RFC 3339 shape");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17Z"), "accepts RFC 3339 UTC timestamp");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17.123+07:00"), "accepts RFC 3339 timestamp with fractional seconds and offset");
   assert.ok(!timestampPattern.test(""), "rejects empty timestamp");
