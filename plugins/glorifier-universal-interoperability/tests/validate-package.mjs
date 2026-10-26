@@ -40,10 +40,10 @@ check("every packaged skill has valid frontmatter and required metadata", async 
   ]) {
     const body = await readFile(path.join(root, file), "utf8");
     assert.ok(body.startsWith("---\n"), file + ": missing YAML frontmatter");
-    const header = body.split("---", 3)[1];
+    const header = body.split("---")[1];
     assert.match(header, /^name:\s*[a-z0-9-]+$/m, file + ": invalid/missing name");
     assert.match(header, /^description:\s*.+$/m, file + ": missing description");
-    assert.ok(body.split("---", 3)[2]?.trim().length > 100, file + ": missing skill instructions");
+    assert.ok(body.split("---")[2]?.trim().length > 100, file + ": missing skill instructions");
   }
 });
 
