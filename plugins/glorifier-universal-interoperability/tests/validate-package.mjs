@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const Ajv2020 = require("ajv/dist/2020").default;
+const addFormats = require("ajv-formats").default;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = async (relative) => JSON.parse(await readFile(path.join(root, relative), "utf8"));
@@ -65,7 +69,8 @@ check("integration descriptor schema is a closed object with required verificati
   assert.equal(timestampRule.type, "string");
   assert.equal(timestampRule.minLength, 1);
   assert.ok(timestampRule.pattern, "timestamp gate must enforce a format pattern without relying only on format annotation");
-  const timestampPattern = new RegExp(timestampRule.pattern);
+  const timestampPattern = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$/;
+  assert.equal(timestampRule.pattern, "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$", "schema pattern must match the reviewed RFC 3339 shape");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17Z"), "accepts RFC 3339 UTC timestamp");
   assert.ok(timestampPattern.test("2026-10-26T02:53:17.123+07:00"), "accepts RFC 3339 timestamp with fractional seconds and offset");
   assert.ok(!timestampPattern.test(""), "rejects empty timestamp");
@@ -73,6 +78,29 @@ check("integration descriptor schema is a closed object with required verificati
   const capability = schema.properties.capabilities.items;
   assert.deepEqual(capability.then.required, ["evidenceRefs"]);
   assert.equal(capability.then.properties.evidenceRefs.minItems, 1);
+
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  const validate = ajv.compile(schema);
+  const validDescriptor = {
+    id: "provider.example", displayName: "Example Provider", kind: "model_provider",
+    source: "operator_supplied", connectionState: "configured", protocols: [],
+    capabilities: [{ id: "generate", readWrite: "read_only", verificationStatus: "VERIFIED", evidenceRefs: ["tests/provider-smoke.md"] }],
+    verification: { status: "VERIFIED", testRef: "tests/provider-smoke.md", timestamp: "2026-10-26T02:53:17Z" }
+  };
+  assert.equal(validate(validDescriptor), true, "accepts a representative evidence-backed descriptor");
+  for (const [label, mutate] of [
+    ["missing testRef", (d) => { delete d.verification.testRef; }],
+    ["empty timestamp", (d) => { d.verification.timestamp = ""; }],
+    ["non-date timestamp", (d) => { d.verification.timestamp = "soon"; }],
+    ["impossible calendar timestamp", (d) => { d.verification.timestamp = "2026-99-99T99:99:99Z"; }],
+    ["missing capability evidence", (d) => { delete d.capabilities[0].evidenceRefs; }],
+    ["empty capability evidence", (d) => { d.capabilities[0].evidenceRefs = []; }]
+  ]) {
+    const descriptor = structuredClone(validDescriptor);
+    mutate(descriptor);
+    assert.equal(validate(descriptor), false, "rejects " + label);
+  }
 });
 
 check("referenced artwork exists and uses safe inline SVG roots", async () => {
