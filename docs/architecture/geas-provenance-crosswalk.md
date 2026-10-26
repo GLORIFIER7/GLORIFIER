@@ -22,7 +22,7 @@ Status: **recommendation / analysis only**. The W3C PROV-O source is registered 
 ## Acceptance criteria before promotion
 
 1. Keep `source-available` and `content-matched` classified as analysis.
-2. Bind claim review to a registered source ID, exact canonical URL, registry version, allowed claim type, source snapshot hash, and exact supporting excerpt.
+2. Bind claim review to a registered source ID, exact canonical URL, registry version, allowed claim type, source snapshot hash, and exact supporting excerpt; the observed URL must resolve to the same registered resource (origin, path, and query; trailing-slash normalization only), not merely the same host.
 3. Bind every architecture state independently to its own canonical snapshot hash, evidence references, observation time, and expiry.
 4. Preserve `UNKNOWN` when evidence is missing, stale, contradictory, or not authenticated.
 5. Record workflow run IDs and artifact digests for test/build provenance; do not infer live deployment or production health from CI.

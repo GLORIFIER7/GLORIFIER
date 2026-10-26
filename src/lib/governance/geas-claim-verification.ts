@@ -45,6 +45,11 @@ export interface ClaimReviewResult {
   failures: string[];
 }
 
+function normalizeSourceResource(value: URL): string {
+  const pathname = value.pathname.length > 1 ? value.pathname.replace(/\/+$/, '') : value.pathname;
+  return value.origin + pathname + value.search;
+}
+
 function normalizeExcerpt(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
@@ -77,6 +82,12 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>, registry
   if (!observed) failures.push('observedSourceUrl must be HTTPS without credentials');
   if (canonical && observed && canonical.hostname !== observed.hostname) {
     failures.push('observed source host differs from the curated canonical source host');
+  }
+  // Same-host URLs can still identify different documents. Bind the observed
+  // resource to the registry path and query; ignore fragments and harmless trailing slashes.
+  if (canonical && observed && canonical.hostname === observed.hostname
+      && normalizeSourceResource(canonical) !== normalizeSourceResource(observed)) {
+    failures.push('observedSourceUrl does not match the curated canonical source resource');
   }
 
   // Registry membership and claim scope are prerequisites for admission, not proof of truth.

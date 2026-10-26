@@ -93,6 +93,18 @@ const mismatchedHost = review({
 assert.equal(mismatchedHost.admissible, false);
 assert.ok(mismatchedHost.failures.some((failure) => failure.includes('host differs')));
 
+const sameHostDifferentPathUrl = new URL(trustedSource.url);
+sameHostDifferentPathUrl.pathname = sameHostDifferentPathUrl.pathname.replace(/\/+$/, '') + '/unregistered-path';
+const sameHostDifferentPath = review({ ...valid, observedSourceUrl: sameHostDifferentPathUrl.href });
+assert.equal(sameHostDifferentPath.admissible, false);
+assert.ok(sameHostDifferentPath.failures.some((failure) => failure.includes('does not match the curated canonical source resource')));
+assert.equal(sameHostDifferentPath.evidenceRef, null);
+
+const trailingSlashUrl = new URL(trustedSource.url);
+if (!trailingSlashUrl.pathname.endsWith('/')) trailingSlashUrl.pathname += '/';
+const trailingSlashObserved = review({ ...valid, observedSourceUrl: trailingSlashUrl.href });
+assert.equal(trailingSlashObserved.admissible, true, 'trailing-slash-only URL normalization should remain compatible');
+
 const badHash = review({ ...valid, sourceContentHash: 'not-a-hash' });
 assert.equal(badHash.admissible, false);
 assert.ok(badHash.failures.some((failure) => failure.includes('SHA-256')));
