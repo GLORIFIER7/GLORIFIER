@@ -1,0 +1,26 @@
+{
+  "name": "glorifier-universal-interoperability",
+  "version": "0.1.0",
+  "description": "Discover, normalize, and plan governed interoperability across AI providers, plugins, MCP, A2A, APIs, SDKs, and services.",
+  "author": "GLORIFIER",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "GLORIFIER Interop",
+    "shortDescription": "Plan governed integrations",
+    "longDescription": "Evidence-first discovery and integration planning across plugins, AI providers, MCP, A2A agents, APIs, language SDKs, databases, and developer tools. This skills-only package does not automatically connect services or grant access. Live interoperability must be verified for each configured integration.",
+    "developerName": "GLORIFIER",
+    "category": "developer_tools",
+    "capabilities": [
+      "Inventory plugins, AI providers, agents, APIs, and developer tools",
+      "Normalize integration capabilities and protocol versions",
+      "Plan MCP, A2A, HTTP/OpenAPI, and SDK conformance tests",
+      "Identify security, authorization, and evidence gaps",
+      "Prepare reviewable interoperability implementation plans"
+    ],
+    "defaultPrompt": "Audit an integration inventory and build an evidence-backed interoperability plan.",
+    "logo": "./assets/logo-light.svg",
+    "composerIcon": "./assets/icon.svg",
+    "brandColor": "#123B5D",
+    "brandColorDark": "#8CCBFF"
+  }
+}
