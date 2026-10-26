@@ -7,7 +7,7 @@ on:
       - ".github/workflows/plugin-interoperability.yml"
   push:
     branches:
-      - "feat/glorifier-universal-interoperability-plugin"
+      - "fix/interoperability-plugin-validation"
     paths:
       - "plugins/glorifier-universal-interoperability/**"
       - ".github/workflows/plugin-interoperability.yml"
