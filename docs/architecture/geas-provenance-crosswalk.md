@@ -27,6 +27,7 @@ Status: **recommendation / analysis only**. The W3C PROV-O source is registered 
 4. Preserve `UNKNOWN` when evidence is missing, stale, contradictory, or not authenticated.
 5. Record workflow run IDs and artifact digests for test/build provenance; do not infer live deployment or production health from CI.
 6. Add deterministic tests for broken, missing, duplicated, or mismatched provenance links before treating the crosswalk as implemented.
+7. Bind each scan artifact to its workflow run, tested checkout SHA, source PR head SHA, and base SHA; for pull-request runs, distinguish the synthetic merge commit from the source head and leave missing event data null.
 
 ## Current verification status
 

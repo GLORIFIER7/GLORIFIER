@@ -66,15 +66,32 @@ jobs:
       - name: Test five-state architecture reconciliation
         run: npm run test:geas-state-reconciliation
 
+      - name: Test GEAS GitHub run provenance
+        run: npm run test:geas-run-provenance
+
       - name: Execute authoritative architecture scan
         run: npm run scan:geas-architecture
         env:
           GEAS_SCAN_OUTPUT_DIR: artifacts/geas-architecture
           GEAS_SCAN_PERSIST: 'false'
 
-      - name: Validate scan safety invariant
+      - name: Validate scan safety and run provenance invariants
         run: |
-          node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('artifacts/geas-architecture/latest.json','utf8')); if(x.irreversibleChangesExecuted!==false) process.exit(1); if(x.sourcePolicyVersion!=='GEAS-AUTHORITY-2') process.exit(1); console.log('GEAS scan safety invariant verified')"
+          node <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/geas-architecture/latest.json', 'utf8'));
+          const provenance = result.runProvenance;
+          if (result.irreversibleChangesExecuted !== false) process.exit(1);
+          if (result.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') process.exit(1);
+          if (!provenance || provenance.testedCommitSha !== process.env.GITHUB_SHA) process.exit(1);
+          if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+            const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+            if (provenance.sourceCommitSha !== event.pull_request?.head?.sha) process.exit(1);
+            if (provenance.baseCommitSha !== event.pull_request?.base?.sha) process.exit(1);
+            if (provenance.pullRequestNumber !== event.pull_request?.number) process.exit(1);
+          }
+          console.log('GEAS scan safety and run-provenance invariants verified');
+          NODE
 
       - name: Upload scan evidence
         uses: actions/upload-artifact@v7
