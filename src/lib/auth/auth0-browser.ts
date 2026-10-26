@@ -1,4 +1,4 @@
-type Auth0BrowserPrincipal = { uid: string; email: string | null; displayName: string | null };
+export type Auth0BrowserPrincipal = { uid: string; email: string | null; displayName: string | null };
 
 const ACCESS_TOKEN_KEY = 'glorifier_auth0_access_token';
 const EXPIRES_AT_KEY = 'glorifier_auth0_expires_at';
