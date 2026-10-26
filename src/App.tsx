@@ -44,9 +44,11 @@ import {
   SentinelBotState
 } from './types';
 import type { User } from 'firebase/auth';
+import type { Auth0BrowserPrincipal } from './lib/auth/auth0-browser';
+type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppIdentity | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
   const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
   const [stats, setStats] = useState(initialStats);
@@ -86,12 +88,20 @@ export default function App() {
     void import('./lib/firebase').then(async (firebase) => {
       if (!active) return;
       void firebase.testFirestoreConnection();
+      void firebase.completeAuth0RedirectSignIn().then((auth0User: Auth0BrowserPrincipal | null) => {
+        if (active && auth0User) setCurrentUser(auth0User);
+      }).catch((error) => {
+        console.error('Auth0 redirect sign-in completion failed:', error);
+      });
       void firebase.completeGoogleRedirectSignIn().catch((error) => {
         console.error('Google redirect sign-in completion failed:', error);
       });
       const { onAuthStateChanged } = await import('firebase/auth');
       if (!active) return;
-      unsubscribe = onAuthStateChanged(firebase.auth, (user) => setCurrentUser(user));
+      unsubscribe = onAuthStateChanged(firebase.auth, (user) => {
+        if (user) setCurrentUser(user);
+        else setCurrentUser(firebase.getAuth0Principal() ?? null);
+      });
     }).catch((error) => {
       console.error('Firebase authentication initialization failed:', error);
     });
