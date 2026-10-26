@@ -109,10 +109,10 @@ jobs:
           echo "Local integrity: ${{ steps.integrity.outcome }}"
           echo "Production backend health: ${{ steps.health.outcome }}"
           echo "Authentication guard: ${{ steps.auth_guard.outcome }}"
-          echo "Neon runtime verification: ${{ steps.runtime.outcome }}"
-          if [ "${{ steps.health.outcome }}" != "success" ]; then echo "::warning::Production backend health is unavailable; code integrity is tracked separately."; fi
+          echo "Cloudflare/Supabase runtime verification: ${{ steps.runtime.outcome }}"
+          if [ "${{ steps.health.outcome }}" != "success" ]; then echo "::warning::Cloudflare Worker health is unavailable; code integrity is tracked separately."; fi
           if [ "${{ steps.auth_guard.outcome }}" != "success" ]; then echo "::warning::Authentication boundary verification failed."; fi
-          if [ "${{ steps.runtime.outcome }}" != "success" ]; then echo "::warning::Neon-backed runtime verification failed."; fi
+          if [ "${{ steps.runtime.outcome }}" != "success" ]; then echo "::warning::Cloudflare/Supabase runtime verification failed."; fi
           if [ "${{ steps.integrity.outcome }}" != "success" ] || [ "${{ steps.health.outcome }}" != "success" ] || [ "${{ steps.auth_guard.outcome }}" != "success" ] || [ "${{ steps.runtime.outcome }}" != "success" ]; then
             echo "::error::One or more required integrity, backend health, authentication, or runtime checks failed."
             exit 1
