@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv2020 from "ajv/dist/2020.js";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const Ajv2020 = require("ajv/dist/2020").default;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = async (relative) => JSON.parse(await readFile(path.join(root, relative), "utf8"));
