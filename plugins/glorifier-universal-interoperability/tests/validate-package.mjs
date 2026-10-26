@@ -61,7 +61,15 @@ check("integration descriptor schema is a closed object with required verificati
   ]);
   assert.deepEqual(schema.properties.verification.then.required, ["testRef", "timestamp"]);
   assert.equal(schema.properties.verification.then.properties.testRef.type, "string");
-  assert.equal(schema.properties.verification.then.properties.timestamp.type, "string");
+  const timestampRule = schema.properties.verification.then.properties.timestamp;
+  assert.equal(timestampRule.type, "string");
+  assert.equal(timestampRule.minLength, 1);
+  assert.ok(timestampRule.pattern, "timestamp gate must enforce a format pattern without relying only on format annotation");
+  const timestampPattern = new RegExp(timestampRule.pattern);
+  assert.ok(timestampPattern.test("2026-10-26T02:53:17Z"), "accepts RFC 3339 UTC timestamp");
+  assert.ok(timestampPattern.test("2026-10-26T02:53:17.123+07:00"), "accepts RFC 3339 timestamp with fractional seconds and offset");
+  assert.ok(!timestampPattern.test(""), "rejects empty timestamp");
+  assert.ok(!timestampPattern.test("soon"), "rejects non-date timestamp");
   const capability = schema.properties.capabilities.items;
   assert.deepEqual(capability.then.required, ["evidenceRefs"]);
   assert.equal(capability.then.properties.evidenceRefs.minItems, 1);
