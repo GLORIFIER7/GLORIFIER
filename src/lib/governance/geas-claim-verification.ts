@@ -13,7 +13,9 @@ export type ClaimReviewDecision = 'supported' | 'contradicted' | 'insufficient';
 export interface ClaimReviewRecord {
   claimId: string;
   claim: string;
+  claimType: string;
   sourceId: string;
+  sourceRegistryVersion: string;
   canonicalSourceUrl: string;
   observedSourceUrl: string;
   observedAt: string;
@@ -23,6 +25,17 @@ export interface ClaimReviewRecord {
   reviewer: string;
   decision: ClaimReviewDecision;
   rationale: string;
+}
+
+export interface ClaimReviewSource {
+  id: string;
+  url: string;
+  claimsAllowed: readonly string[];
+}
+
+export interface ClaimSourceRegistry {
+  version: string;
+  sources: readonly ClaimReviewSource[];
 }
 
 export interface ClaimReviewResult {
@@ -36,11 +49,11 @@ function normalizeExcerpt(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-/** Deterministic integrity gate; reviewer authentication and semantic truth are external. */
-export function validateClaimReview(record: Partial<ClaimReviewRecord>): ClaimReviewResult {
+/** Deterministic integrity and source-registry gate; reviewer authentication and semantic truth are external. */
+export function validateClaimReview(record: Partial<ClaimReviewRecord>, registry: ClaimSourceRegistry): ClaimReviewResult {
   const failures: string[] = [];
   const required: Array<keyof ClaimReviewRecord> = [
-    'claimId', 'claim', 'sourceId', 'canonicalSourceUrl', 'observedSourceUrl',
+    'claimId', 'claim', 'claimType', 'sourceId', 'sourceRegistryVersion', 'canonicalSourceUrl', 'observedSourceUrl',
     'observedAt', 'sourceSnapshot', 'sourceContentHash', 'supportingExcerpt', 'reviewer', 'decision', 'rationale',
   ];
   for (const key of required) {
@@ -65,6 +78,34 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>): ClaimRe
   if (canonical && observed && canonical.hostname !== observed.hostname) {
     failures.push('observed source host differs from the curated canonical source host');
   }
+
+  // Registry membership and claim scope are prerequisites for admission, not proof of truth.
+  if (!registry || typeof registry.version !== 'string' || !registry.version.trim() || !Array.isArray(registry.sources)) {
+    failures.push('trusted source registry with version and sources is required');
+  } else {
+    if (typeof record.sourceRegistryVersion === 'string' && record.sourceRegistryVersion !== registry.version) {
+      failures.push('sourceRegistryVersion does not match the trusted source registry');
+    }
+    const matches = registry.sources.filter((source) => source && source.id === record.sourceId);
+    if (matches.length !== 1) {
+      failures.push('sourceId must resolve to exactly one trusted source registry entry');
+    } else {
+      const trustedSource = matches[0];
+      const trustedCanonical = safeHttps(trustedSource.url);
+      if (!trustedCanonical) {
+        failures.push('trusted source registry URL must be valid HTTPS without credentials');
+      } else if (canonical && trustedCanonical.href !== canonical.href) {
+        failures.push('canonicalSourceUrl does not match the trusted source registry');
+      }
+      if (!Array.isArray(trustedSource.claimsAllowed) || trustedSource.claimsAllowed.length === 0
+          || !trustedSource.claimsAllowed.every((claimType) => typeof claimType === 'string' && claimType.trim())) {
+        failures.push('trusted source claimsAllowed must be a non-empty string array');
+      } else if (typeof record.claimType === 'string' && !trustedSource.claimsAllowed.includes(record.claimType)) {
+        failures.push(`claimType ${record.claimType} is not allowed by the trusted source registry`);
+      }
+    }
+  }
+
   if (typeof record.observedAt === 'string' && !Number.isFinite(Date.parse(record.observedAt))) {
     failures.push('observedAt must be a valid timestamp');
   }
@@ -97,13 +138,18 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>): ClaimRe
   const evidenceRef = admissible
     ? 'claim-review-' + createHash('sha256').update(JSON.stringify({
         claimId: record.claimId,
+        claim: record.claim,
+        claimType: record.claimType,
         sourceId: record.sourceId,
+        sourceRegistryVersion: record.sourceRegistryVersion,
         canonicalSourceUrl: record.canonicalSourceUrl,
+        observedSourceUrl: record.observedSourceUrl,
         observedAt: record.observedAt,
         sourceContentHash: record.sourceContentHash,
         supportingExcerpt: record.supportingExcerpt,
         reviewer: record.reviewer,
         decision: record.decision,
+        rationale: record.rationale,
       })).digest('hex').slice(0, 24)
     : null;
 
