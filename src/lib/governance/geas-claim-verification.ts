@@ -31,6 +31,7 @@ export interface ClaimReviewSource {
   id: string;
   url: string;
   claimsAllowed: readonly string[];
+  reviewCadenceDays: number;
 }
 
 export interface ClaimSourceRegistry {
@@ -55,8 +56,13 @@ function normalizeExcerpt(value: string): string {
 }
 
 /** Deterministic integrity and source-registry gate; reviewer authentication and semantic truth are external. */
-export function validateClaimReview(record: Partial<ClaimReviewRecord>, registry: ClaimSourceRegistry): ClaimReviewResult {
+export function validateClaimReview(
+  record: Partial<ClaimReviewRecord>,
+  registry: ClaimSourceRegistry,
+  nowMs: number = Date.now(),
+): ClaimReviewResult {
   const failures: string[] = [];
+  if (!Number.isFinite(nowMs)) failures.push('validation clock must be a finite timestamp');
   const required: Array<keyof ClaimReviewRecord> = [
     'claimId', 'claim', 'claimType', 'sourceId', 'sourceRegistryVersion', 'canonicalSourceUrl', 'observedSourceUrl',
     'observedAt', 'sourceSnapshot', 'sourceContentHash', 'supportingExcerpt', 'reviewer', 'decision', 'rationale',
@@ -113,6 +119,18 @@ export function validateClaimReview(record: Partial<ClaimReviewRecord>, registry
         failures.push('trusted source claimsAllowed must be a non-empty string array');
       } else if (typeof record.claimType === 'string' && !trustedSource.claimsAllowed.includes(record.claimType)) {
         failures.push(`claimType ${record.claimType} is not allowed by the trusted source registry`);
+      }
+      if (!Number.isInteger(trustedSource.reviewCadenceDays) || trustedSource.reviewCadenceDays < 1) {
+        failures.push('trusted source reviewCadenceDays must be a positive integer');
+      } else if (typeof record.observedAt === 'string') {
+        const observedAtMs = Date.parse(record.observedAt);
+        if (Number.isFinite(observedAtMs) && Number.isFinite(nowMs)) {
+          if (observedAtMs > nowMs) {
+            failures.push('observedAt cannot be in the future');
+          } else if (nowMs - observedAtMs > trustedSource.reviewCadenceDays * 86_400_000) {
+            failures.push('source observation is older than the trusted source review cadence');
+          }
+        }
       }
     }
   }
