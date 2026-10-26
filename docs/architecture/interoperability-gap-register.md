@@ -1,0 +1,62 @@
+# Interoperability gap register
+
+Status: **PARTIALLY VERIFIED — audit baseline only; no universal interoperability claim.**
+
+Audit date: 2026-10-26  
+Repository: `GLORIFIER7/GLORIFIER`
+
+This register records gaps from a targeted read-only inspection of the default-branch source. It is not a claim that every source file, workflow, adapter, or remote endpoint was tested. Update each item only with linked source, test, CI, and (where applicable) live-probe evidence.
+
+## Evidence reviewed
+
+- `package.json`: provider and protocol test scripts; TypeScript/Node.js application dependencies.
+- `src/lib/ai/registry.ts`: provider registry, governed fallback policy, bounded retry/cooldown logic, capability-based eligibility, and trace summarization.
+- `src/lib/ai/provider-discovery.ts`: provider inventory, endpoint probes, provider status classification, and discovery metadata.
+- `src/lib/ai/providers/nvidia-provider.test.ts`: mocked NVIDIA chat-completions response; explicitly not live inference evidence.
+- `src/lib/ai/providers/anthropic.test.ts`: mocked Anthropic response and rate-limit behavior.
+- `src/lib/ai/agent-harness.test.ts`: tool authorization and human approval behavior.
+- `src/lib/federated-a2a-v3.test.ts`: lifecycle and governance invariants.
+- `src/lib/asap-bridge.test.ts` and `docs/architecture/asap-protocol-integration.md`: handoff policy tests and explicit absence of live ASAP transport.
+- `docs/architecture/cloudflare-workers-only-migration.md`: documents that the application still has unported backend routes and that Worker health does not prove provider, database, or authentication readiness.
+
+## Gap register
+
+| ID | Area | Observed evidence | Gap / required remediation | Acceptance evidence |
+|---|---|---|---|---|
+| INT-001 | AI provider contract | Registry unifies message generation and provider identity. | Define and test a versioned canonical request/response/error contract, including usage, finish reason, tool calls, structured output, streaming, and multimodal payload limits. | Contract tests for every adapter; schema compatibility tests; deterministic fixtures. |
+| INT-002 | Capability-aware routing | Registry filters on discovery capabilities; discovery declares capability arrays. | Verify each advertised capability against actual model/provider support. Do not infer tool-calling, JSON mode, streaming, or multimodal support from provider identity alone. | Per-model capability evidence with tests; routing rejects unsupported features. |
+| INT-003 | Provider discovery and authorization | Discovery distinguishes configured, authenticated, availability, and authorization states. | Test every status mapping, stale observations, timeouts, malformed JSON, non-JSON errors, and provider-specific model-list formats. Ensure discovery never equates an HTTP success with usable inference unless that is the probe contract. | Unit tests for each status class plus bounded live probes with redacted evidence. |
+| INT-004 | Credential handling | Provider probes use server-side environment variables. | Review every adapter for credentials in URLs, telemetry, exceptions, logs, and persisted metadata. Prefer authorization headers where supported. | Secret-canary tests; log/trace redaction tests; no credentials in URLs or evidence records. |
+| INT-005 | Retry and failover | Registry implements cooldowns and bounded retry/fallback policy. | Classify retryable errors structurally; ensure retries/failover cannot duplicate tool side effects or billable non-idempotent operations. Respect Retry-After and total deadlines. | Deterministic retry matrix, fake clock, attempt ceiling, idempotency tests. |
+| INT-006 | MCP | Agent harness tests tool authorization; no MCP handshake/conformance proof was established in this audit. | Inventory MCP client/server transports, protocol versions, initialization, capability negotiation, tool/resource/prompt schemas, cancellation, timeouts, and error semantics. | Official protocol conformance tests and local end-to-end client/server tests for every supported transport. |
+| INT-007 | A2A | A2A and federated task lifecycle code/tests exist. | Verify agent-card discovery, version negotiation, authenticated identity, task-state mapping, artifact handling, cancellation, retries, duplicate delivery, and remote error mapping against the selected upstream specification version. | Version-pinned conformance fixtures and a controlled two-agent integration test. |
+| INT-008 | ASAP | Adapter seam and policy tests exist; documentation says no live transport is enabled. | Keep feature default-off until a concrete transport includes signature validation, replay protection, idempotency, endpoint allowlists, bounded retries, and audit persistence. | Security tests, upstream schema validation, staging handoff evidence, owner approval. |
+| INT-009 | Language adapters | The inspected root manifests did not include `pyproject.toml`, `Cargo.toml`, or `go.mod`; adapters may exist in subdirectories. | Recursively inventory Python, Rust, Go, JavaScript/TypeScript, and other adapter directories before claiming support. Define one cross-language conformance suite. | Repository-wide path inventory; per-language build/test results; shared golden fixtures. |
+| INT-010 | OpenAPI and schema distribution | No root-level `openapi.yaml` or `mcp.json` was found at the inspected paths. | Search nested directories and generate canonical API/protocol schemas from existing source rather than creating competing contracts. | Schema location documented; drift check in CI; generated schemas validate. |
+| INT-011 | Observability and evidence | Registry tracing summarizes provider attempts/statuses and filters provider IDs. | Verify secret/PII redaction, correlation IDs, stable error codes, latency/usage fields, and evidence links across all providers and protocols. | Redaction tests, trace contract tests, correlation propagation tests. |
+| INT-012 | Runtime proof | Worker migration document records some live endpoint checks but explicitly leaves provider/authentication and other dependencies unprobed. | Keep source tests, mocked tests, CI, live provider inference, and production readiness as distinct evidence levels. | Timestamped endpoint-specific probe records; no inference from Worker liveness to provider readiness. |
+
+## Required implementation order
+
+1. **Inventory and contract:** locate all adapters and existing schemas; avoid creating a parallel contract if one already exists.
+2. **Deterministic tests:** add shared provider/protocol fixtures and failure matrices before modifying adapter behavior.
+3. **Security fixes:** eliminate credential leakage; enforce endpoint allowlists, payload bounds, authorization, and idempotency where applicable.
+4. **Conformance:** validate MCP and A2A implementations against explicit protocol versions and upstream schemas; keep ASAP disabled until its gates pass.
+5. **Language parity:** apply the same contract fixtures to each language adapter that actually exists.
+6. **CI enforcement:** add drift detection and required test commands only after confirming the repository's current workflow conventions.
+7. **Staging verification:** run controlled integration probes with approved credentials; record status, timestamp, model/version, latency, and redacted evidence.
+8. **Release decision:** require human review for secrets, production configuration, merges, deployment, and financial actions.
+
+## Truthful status rules
+
+- Dependency present != adapter conformant.
+- Credential configured != authenticated.
+- Authenticated != inference available.
+- Mocked test pass != live provider pass.
+- Agent card discovered != remote agent trusted.
+- MCP tool-shaped interface != MCP protocol conformance.
+- A2A task lifecycle unit test != cross-agent interoperability.
+- Worker health != application/provider/database readiness.
+- No observed failure != verified success.
+
+Use `NOT VERIFIED` until acceptance evidence exists; use `DEGRADED` only when an actual failed observation supports that state. This register does not authorize deployment, credential changes, external calls, merges, or paid operations.
