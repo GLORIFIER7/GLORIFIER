@@ -140,7 +140,8 @@ export async function completeAuth0RedirectSignIn(): Promise<Auth0BrowserPrincip
       throw new Error('Auth0 returned an incomplete token response.');
     }
     const idClaims = decodeJwtPayload(result.id_token);
-    if (!idClaims || idClaims.iss !== settings.issuer || idClaims.aud !== settings.clientId || idClaims.nonce !== expectedNonce || typeof idClaims.sub !== 'string') {
+    const idAudiences = Array.isArray(idClaims?.aud) ? idClaims.aud : [idClaims?.aud];
+    if (!idClaims || idClaims.iss !== settings.issuer || !idAudiences.includes(settings.clientId) || idClaims.nonce !== expectedNonce || typeof idClaims.sub !== 'string' || typeof idClaims.exp !== 'number' || idClaims.exp <= Math.floor(Date.now() / 1000)) {
       throw new Error('Auth0 ID-token issuer, audience, nonce, or subject did not match the login request.');
     }
     const principal: Auth0BrowserPrincipal = {
