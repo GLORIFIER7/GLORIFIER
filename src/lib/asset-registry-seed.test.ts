@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { seedCanonicalNFTRegistry } from './asset-registry';
 
 type QueryCall = { sql: string; values?: any[] };
@@ -43,7 +44,18 @@ async function run() {
   assert.equal(deploymentCalls[1].values?.[3], '0x355C94e4b6B353421De956e87D643bB036d6a417');
   assert.match(String(deploymentCalls[1].values?.[4]), /owner-supplied-in-conversation/);
 
-  console.log('Canonical NFT registry seed tests passed.');
+  // Guard the canonical documentation against overstating marketplace evidence.
+  const registryDoc = readFileSync('docs/canonical-asset-registry.md', 'utf8');
+  assert.match(registryDoc, /glorifier-erc721[\s\S]*?Token #1 item/);
+  assert.match(registryDoc, /glorifier-erc1155[\s\S]*?Token #1 item/);
+  assert.match(registryDoc, /PARTIALLY VERIFIED — item page observed/);
+  assert.match(registryDoc, /not substitutes for direct chain evidence/);
+  assert.match(registryDoc, /owner-reported status, not chain-verified fact/);
+  assert.match(registryDoc, /do not classify it as a Solana NFT without separate NFT-standard evidence/);
+  assert.match(registryDoc, /ownerOf/);
+  assert.match(registryDoc, /totalSupply/);
+
+  console.log('Canonical NFT registry seed and evidence-guard tests passed.');
 }
 
 run().catch((error) => {
