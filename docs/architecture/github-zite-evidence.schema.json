@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GLORIFIER GitHub-to-Zite evidence record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "repository",
+    "objectType",
+    "externalId",
+    "sourceUrl",
+    "sourceUpdatedAt",
+    "observedAt",
+    "syncStatus",
+    "evidenceStatus",
+    "scope",
+    "evidenceReferences",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "source": {
+      "const": "github"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "objectType": {
+      "enum": [
+        "repository",
+        "issue",
+        "pull_request",
+        "commit",
+        "check_run",
+        "workflow_run"
+      ]
+    },
+    "externalId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "sourceUpdatedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "observedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "syncStatus": {
+      "enum": [
+        "SYNCED",
+        "SKIPPED",
+        "RETRYABLE_ERROR",
+        "PERMANENT_ERROR",
+        "NOT_OBSERVABLE"
+      ]
+    },
+    "evidenceStatus": {
+      "enum": [
+        "VERIFIED",
+        "PARTIALLY VERIFIED",
+        "NOT VERIFIED",
+        "DEGRADED",
+        "NOT OBSERVABLE"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceReferences": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "lastSyncRunId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceState": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceConclusion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
