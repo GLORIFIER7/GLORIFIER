@@ -38,7 +38,8 @@ assert.equal(await verifyAuth0AccessToken(makeToken({ aud: 'wrong-api' }), { env
 assert.equal(await verifyAuth0AccessToken(makeToken({ iss: 'https://attacker.example/' }), { env, fetcher, nowSeconds }), null, 'wrong issuer is rejected');
 assert.equal(await verifyAuth0AccessToken(makeToken({ exp: nowSeconds }), { env, fetcher, nowSeconds }), null, 'expired token is rejected');
 assert.equal(await verifyAuth0AccessToken(makeToken({ nbf: nowSeconds + 1 }), { env, fetcher, nowSeconds }), null, 'not-yet-valid token is rejected');
-assert.equal(await verifyAuth0AccessToken(makeToken({ alg: 'none' }), { env, fetcher, nowSeconds }), null, 'claims cannot override the required RS256 header');
+const otherKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+assert.equal(await verifyAuth0AccessToken(makeToken({}, otherKey), { env, fetcher, nowSeconds }), null, 'invalid RSA signatures are rejected');
 assert.equal(await verifyAuth0AccessToken('not-a-jwt', { env, fetcher, nowSeconds }), null, 'malformed tokens are rejected');
 assert.equal(await verifyAuth0AccessToken(makeToken(), { env: { AUTH0_ISSUER_BASE_URL: issuer } as NodeJS.ProcessEnv, fetcher, nowSeconds }), null, 'missing audience configuration fails closed');
 console.log('Auth0 access-token validation tests passed');
