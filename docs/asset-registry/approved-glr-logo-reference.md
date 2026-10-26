@@ -1,16 +1,16 @@
 # GLORIFIER (GLR) Approved Logo Artwork Reference
 
-**Status: PARTIALLY VERIFIED — owner-designated artwork reference confirmed; file integrity and third-party publication remain unverified.**
+**Status: PARTIALLY VERIFIED — the owner selected these links for reference; content identity, file integrity, and third-party publication remain unverified.**
 
 ## Owner confirmation
 
-On 2026-10-26, the project owner explicitly confirmed that both existing links below are the intended GLORIFIER logo artwork references and that they are correct. Preserve this artwork; do not replace it with generated or unrelated artwork.
+On 2026-10-26, the project owner confirmed that the primary IPFS link and the alternative IPFS InBrowser link are the two links they consider correct for viewing the intended GLORIFIER logo. Preserve the owner's selected artwork; do not replace it with generated or unrelated artwork.
 
 - **Primary content identifier:** `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
 - **Primary gateway:** https://ipfs.io/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv
-- **Alternative gateway:** https://bafybeidhd7qobc7ralefgnkvuom4vs5etkvo3wq4grtaxigfw2ztqfsvb4.ipfs.inbrowser.link/
+- **Owner-approved alternative URL (content identity unverified):** https://bafybeidhd7qobc7ralefgnkvuom4vs5etkvo3wq4grtaxigfw2ztqfsvb4.ipfs.inbrowser.link/
 
-The alternative gateway is recorded as an owner-approved access link. It has not been independently proven here to resolve to byte-identical content as the primary CID.
+**Important CID distinction:** The alternative URL contains a different CID from the primary CID. Different CIDs can identify different IPFS content; the alternative URL must not be described as a verified gateway for the primary CID unless their content is independently compared. The owner approved both URLs as references, but that approval alone does not prove byte-for-byte equivalence.
 
 ## Asset separation
 
@@ -23,9 +23,9 @@ The NFT contract and ERC-20 contract are distinct assets. Selecting NFT artwork 
 
 | Check | Status |
 |---|---|
-| Owner confirms primary and alternative links are intended | VERIFIED — owner confirmation, 2026-10-26 |
+| Owner selected both URLs as intended viewing references | VERIFIED — owner confirmation, 2026-10-26 |
 | Primary CID recorded consistently | RECORDED |
-| Both gateways return identical bytes | NOT VERIFIED |
+| Alternative URL serves the same bytes as primary CID | NOT VERIFIED — different CID in URL |
 | Canonical SHA-256 reconciled against historical records | BLOCKED — prior records contain conflicting hashes |
 | MIME type, dimensions, transparency, and file size independently measured | NOT VERIFIED |
 | Provider-specific derivatives validated | NOT VERIFIED |
@@ -35,11 +35,12 @@ The NFT contract and ERC-20 contract are distinct assets. Selecting NFT artwork 
 ## Next steps
 
 1. Retrieve the primary CID bytes without changing the source artwork.
-2. Compute SHA-256 and record MIME type, dimensions, and byte size; compare against the historical hashes in `erc20-logo-publication.md` and `erc20-logo-verification-evidence.md`.
-3. If the primary content is confirmed, create only provider-specific derivatives from those bytes and record their own hashes.
-4. Submit Etherscan token information only through its official flow after the account owner completes the required ownership verification. Etherscan's published guidance specifies SVG 32×32 or PNG 64×64, and the ordinary token-info update is free.
-5. Check each provider's result independently. Do not claim universal publication from a single submission.
+2. Separately retrieve the alternative URL's bytes and compare the SHA-256 hashes. If retrieval is unavailable, retain the alternative as an unverified reference and do not infer equivalence from the URL.
+3. Record each retrieved file's MIME type, dimensions, byte size, and SHA-256; compare with the historical hashes in `erc20-logo-publication.md` and `erc20-logo-verification-evidence.md`.
+4. If the primary content is confirmed, create only provider-specific derivatives from those bytes and record their own hashes.
+5. Submit Etherscan token information only through its official flow after the account owner completes required ownership verification. Etherscan's published guidance specifies SVG 32×32 or PNG 64×64, and the ordinary token-info update is free.
+6. Check each provider's result independently. Do not claim universal publication from a single submission.
 
 ## Safety boundary
 
-This document records the owner's intended artwork and a verification plan. It does not perform a signature, transaction, mint, transfer, paid submission, secret access, deployment, or registry submission. No third-party publication or full verification is claimed.
+This document records owner intent and a verification plan. It does not perform a signature, transaction, mint, transfer, paid submission, secret access, deployment, or registry submission. No third-party publication or full verification is claimed.
