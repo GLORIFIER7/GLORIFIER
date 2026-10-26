@@ -1,0 +1,47 @@
+name: GitHub-to-Zite evidence contract
+
+on:
+  pull_request:
+    paths:
+      - "docs/architecture/github-zite-*"
+      - ".github/workflows/github-zite-contract.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/architecture/github-zite-*"
+      - ".github/workflows/github-zite-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse evidence schema
+        run: python -m json.tool docs/architecture/github-zite-evidence.schema.json >/dev/null
+      - name: Validate schema and status vocabulary invariants
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const schema = JSON.parse(await readFile('docs/architecture/github-zite-evidence.schema.json', 'utf8'));
+          const capabilitySchema = JSON.parse(await readFile('docs/architecture/interoperability-capabilities.schema.json', 'utf8'));
+          const allowed = capabilitySchema.properties.statusVocabulary.items.enum;
+          if (schema.properties.evidenceStatus.enum.join('|') !== allowed.join('|')) {
+            throw new Error('Evidence status vocabulary must exactly match the canonical interoperability capability schema.');
+          }
+          if (schema.properties.source.const !== 'github') throw new Error('Only GitHub is an accepted source in schema v1.');
+          if (schema.properties.syncStatus.enum.length !== 5) throw new Error('Unexpected syncStatus vocabulary.');
+          const required = new Set(schema.required);
+          for (const field of ['repository', 'objectType', 'externalId', 'sourceUrl', 'observedAt', 'syncStatus', 'evidenceStatus', 'scope', 'evidenceReferences', 'limitations']) {
+            if (!required.has(field)) throw new Error('Missing required field: ' + field);
+          }
+          if (schema.additionalProperties !== false) throw new Error('Unknown fields must be rejected.');
+          console.log('GitHub-to-Zite evidence contract invariants passed.');
+          NODE
+      - name: Assert no secret-shaped literals in new contract files
+        run: |
+          ! grep -nEi 'BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9]{20,}' docs/architecture/github-zite-sync-workflow.md docs/architecture/github-zite-evidence.schema.json
