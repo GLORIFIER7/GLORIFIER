@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/GLORIFIER7/GLORIFIER/blob/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
+  "$id": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
   "title": "GLORIFIER Integration Descriptor",
   "description": "Evidence-first normalized descriptor for a discovered plugin, provider, agent, API, SDK, data store, or developer tool. Unknown facts must remain unknown.",
   "type": "object",
@@ -388,7 +388,9 @@
           },
           "timestamp": {
             "type": "string",
-            "format": "date-time"
+            "minLength": 1,
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
           }
         }
       }
