@@ -126,6 +126,9 @@ jobs:
       - name: Interoperability controls
         run: npx tsx src/lib/governance/interoperability-controls.test.ts
 
+      - name: Validate interoperability capability registry and OpenAPI contract
+        run: node scripts/validate-interoperability-capabilities.mjs
+
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
