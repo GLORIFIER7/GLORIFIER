@@ -57,7 +57,7 @@ export async function verifyBearerToken(req: Request): Promise<DecodedIdToken | 
         sub: principal.sub,
         iss: principal.iss,
         aud: principal.aud,
-        ...(principal.email ? { email: principal.email } : {}),
+        ...(principal.email && principal.email_verified === true ? { email: principal.email } : {}),
         ...(typeof principal.email_verified === 'boolean' ? { email_verified: principal.email_verified } : {}),
         iat: principal.iat,
         exp: principal.exp,
