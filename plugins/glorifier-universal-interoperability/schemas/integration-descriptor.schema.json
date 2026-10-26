@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
+  "$id": "https://github.com/GLORIFIER7/GLORIFIER/blob/main/plugins/glorifier-universal-interoperability/schemas/integration-descriptor.schema.json",
   "title": "GLORIFIER Integration Descriptor",
   "description": "Evidence-first normalized descriptor for a discovered plugin, provider, agent, API, SDK, data store, or developer tool. Unknown facts must remain unknown.",
   "type": "object",
