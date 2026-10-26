@@ -42,6 +42,8 @@ export interface FocusInvoiceReconciliationResult {
   /** A dataset reconciliation is analysis, not proof of invoice authenticity. */
   evidenceClass: 'analysis';
   reconciliationScope: 'provided-dataset-consistency-only';
+  /** RECONCILED applies only to non-tax line items; tax totals are reported, not compared. */
+  reconciliationBasis: 'non-tax-line-items-only';
   invoiceIssuerName: string | null;
   invoiceId: string | null;
   billingCurrency: string | null;
@@ -118,6 +120,7 @@ function unknownResult(
     status: 'UNKNOWN',
     evidenceClass: 'analysis',
     reconciliationScope: 'provided-dataset-consistency-only',
+    reconciliationBasis: 'non-tax-line-items-only',
     invoiceIssuerName,
     invoiceId,
     billingCurrency,
@@ -289,6 +292,7 @@ export function reconcileFocusInvoice(
     status: hasMissingMapping ? 'UNKNOWN' : hasVariance ? 'VARIANCE' : 'RECONCILED',
     evidenceClass: 'analysis',
     reconciliationScope: 'provided-dataset-consistency-only',
+    reconciliationBasis: 'non-tax-line-items-only',
     invoiceIssuerName: issuer,
     invoiceId,
     billingCurrency: currency,
