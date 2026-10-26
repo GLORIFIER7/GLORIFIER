@@ -20,6 +20,9 @@ import {
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { clearAuth0Session, completeAuth0RedirectSignIn, getAuth0AccessToken, loginWithAuth0 } from './auth/auth0-browser';
+
+export { completeAuth0RedirectSignIn, getAuth0Principal, loginWithAuth0 } from './auth/auth0-browser';
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
@@ -81,6 +84,8 @@ export const setAccessToken = (token: string | null) => { cachedAccessToken = to
 
 // Return a short-lived Firebase ID token for backend authentication.
 export const getIdToken = async (): Promise<string | null> => {
+  const auth0Token = getAuth0AccessToken();
+  if (auth0Token) return auth0Token;
   const user = auth.currentUser;
   if (!user) return null;
   return user.getIdToken();
@@ -251,6 +256,7 @@ export const authorizeGoogleWorkspace = async () => {
 
 export const logout = async () => {
   cachedAccessToken = null;
+  clearAuth0Session();
   return await signOut(auth);
 };
 
