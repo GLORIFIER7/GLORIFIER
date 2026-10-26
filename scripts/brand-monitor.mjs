@@ -1,3 +1,5 @@
+import { getBrandTermsUnavailableMessage } from './brand-monitor-status.mjs';
+
 const base = process.env.BRAND_MONITOR_BASE_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'https://glorifier-artificial-intelligence-production.up.railway.app';
 const secret = process.env.BRAND_MONITOR_WEBHOOK_SECRET;
 const githubToken = process.env.GITHUB_TOKEN;
@@ -14,9 +16,10 @@ async function main(){
   const root=base.replace(/\/$/,'');
   const termsResponse=await fetch(root+'/api/brand-monitor/terms');
   if (!termsResponse.ok) {
-    if ((termsResponse.status === 401 || termsResponse.status === 403) && !secret) {
-      console.warn(`Brand monitor is NOT OBSERVABLE: ${root} requires authentication and BRAND_MONITOR_WEBHOOK_SECRET is not configured.`);
-      console.warn('No scan was recorded; configure the webhook secret to enable authenticated monitoring.');
+    const unavailableMessage = getBrandTermsUnavailableMessage(termsResponse.status, Boolean(secret), root);
+    if (unavailableMessage) {
+      console.warn(unavailableMessage);
+      console.warn('No scan was recorded; this run does not establish that brand monitoring is healthy.');
       return;
     }
     throw new Error(`Unable to load brand terms: HTTP ${termsResponse.status}`);
