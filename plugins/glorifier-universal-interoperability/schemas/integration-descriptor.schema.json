@@ -193,6 +193,35 @@
               "DEGRADED",
               "NOT OBSERVABLE"
             ]
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "if": {
+          "properties": {
+            "verificationStatus": {
+              "enum": ["VERIFIED", "PARTIALLY VERIFIED"]
+            }
+          },
+          "required": ["verificationStatus"]
+        },
+        "then": {
+          "required": ["evidenceRefs"],
+          "properties": {
+            "evidenceRefs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         }
       }
@@ -340,6 +369,27 @@
             "null"
           ],
           "format": "date-time"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["VERIFIED", "PARTIALLY VERIFIED"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["testRef", "timestamp"],
+        "properties": {
+          "testRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     }
