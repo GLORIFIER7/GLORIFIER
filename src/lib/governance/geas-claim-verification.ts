@@ -55,6 +55,36 @@ function normalizeExcerpt(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Parse the supported RFC 3339 timestamp subset used by evidence records.
+ * An explicit UTC offset is required; loose Date.parse formats are not evidence timestamps.
+ * Leap-second notation is intentionally rejected because JavaScript Date cannot represent it.
+ */
+function parseRfc3339Timestamp(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = match[8];
+  if (offset.toUpperCase() !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 /** Deterministic integrity and source-registry gate; reviewer authentication and semantic truth are external. */
 export function validateClaimReview(
   record: Partial<ClaimReviewRecord>,
@@ -123,8 +153,8 @@ export function validateClaimReview(
       if (!Number.isInteger(trustedSource.reviewCadenceDays) || trustedSource.reviewCadenceDays < 1) {
         failures.push('trusted source reviewCadenceDays must be a positive integer');
       } else if (typeof record.observedAt === 'string') {
-        const observedAtMs = Date.parse(record.observedAt);
-        if (Number.isFinite(observedAtMs) && Number.isFinite(nowMs)) {
+        const observedAtMs = parseRfc3339Timestamp(record.observedAt);
+        if (observedAtMs !== null && Number.isFinite(nowMs)) {
           if (observedAtMs > nowMs) {
             failures.push('observedAt cannot be in the future');
           } else if (nowMs - observedAtMs > trustedSource.reviewCadenceDays * 86_400_000) {
@@ -135,8 +165,8 @@ export function validateClaimReview(
     }
   }
 
-  if (typeof record.observedAt === 'string' && !Number.isFinite(Date.parse(record.observedAt))) {
-    failures.push('observedAt must be a valid timestamp');
+  if (typeof record.observedAt === 'string' && parseRfc3339Timestamp(record.observedAt) === null) {
+    failures.push('observedAt must be a supported RFC 3339 timestamp with an explicit UTC offset (seconds 00–59)');
   }
   if (typeof record.sourceContentHash === 'string' && !/^[a-f0-9]{64}$/i.test(record.sourceContentHash)) {
     failures.push('sourceContentHash must be a SHA-256 hex digest');
