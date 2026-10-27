@@ -200,6 +200,19 @@
       "scannerStatus": "active"
     },
     {
+      "id": "ietf-rfc3339-timestamps",
+      "authority": "IETF / RFC Editor",
+      "domain": "integration",
+      "url": "https://www.rfc-editor.org/rfc/rfc3339.html",
+      "claimsAllowed": [
+        "timestamp-interoperability",
+        "evidence-freshness"
+      ],
+      "reviewCadenceDays": 30,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
       "id": "iso-42001",
       "authority": "ISO",
       "domain": "governance",
