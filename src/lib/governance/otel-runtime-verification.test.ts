@@ -97,4 +97,35 @@ const invalidClock = assessOpenTelemetryRuntimeEvidence(fullSnapshot, Number.NaN
 assert.equal(invalidClock.status, 'not-observed');
 assert.ok(invalidClock.failures.some((failure) => failure.includes('validation clock')));
 
+
+const ambiguousTimestamp = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  observedAt: '10/26/2026 12:59:00',
+}, nowMs);
+assert.equal(ambiguousTimestamp.status, 'not-observed', 'locale-dependent timestamps must not establish runtime observation');
+assert.ok(ambiguousTimestamp.failures.some((failure) => failure.includes('snapshot observedAt')));
+
+const missingTimezone = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  observedAt: '2026-10-26T12:59:00',
+}, nowMs);
+assert.equal(missingTimezone.status, 'not-observed', 'timestamps without an explicit UTC offset must fail closed');
+
+const impossibleCalendarDate = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  observedAt: '2026-02-30T12:59:00Z',
+}, nowMs);
+assert.equal(impossibleCalendarDate.status, 'not-observed', 'impossible dates must not be normalized into runtime evidence');
+
+const ambiguousSignalTimestamp = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  signals: {
+    ...fullSnapshot.signals,
+    traces: { count: 1, lastObservedAt: '10/26/2026 12:59:00', evidenceRef: 'trace:ambiguous-time' },
+  },
+}, nowMs);
+assert.equal(ambiguousSignalTimestamp.status, 'partial');
+assert.ok(!ambiguousSignalTimestamp.observedSignals.includes('traces'));
+assert.ok(ambiguousSignalTimestamp.failures.some((failure) => failure.includes('traces lastObservedAt')));
+
 process.stdout.write('OpenTelemetry runtime evidence contract tests passed; live exporter authentication remains external.\\n');
