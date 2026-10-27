@@ -10,6 +10,8 @@ on:
       - 'src/lib/governance/geas-claim-verification.test.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.test.ts'
+      - 'src/lib/governance/geas-focus-invoice-reconciliation.ts'
+      - 'src/lib/governance/geas-focus-invoice-reconciliation.test.ts'
       - 'scripts/geas-architecture-*.ts'
       - 'scripts/geas-authority-*.ts'
       - 'scripts/geas-source-cadence-validate.ts'
@@ -63,6 +65,8 @@ jobs:
       - name: Test claim-level evidence admission
         run: npm run test:geas-claim-verification
 
+      - name: Test FOCUS 1.4 invoice reconciliation
+        run: npm run test:geas-focus-invoice-reconciliation
       - name: Test five-state architecture reconciliation
         run: npm run test:geas-state-reconciliation
 
