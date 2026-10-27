@@ -78,6 +78,29 @@ assert.equal(futureSignal.status, 'partial');
 assert.ok(!futureSignal.observedSignals.includes('traces'));
 assert.ok(futureSignal.failures.some((failure) => failure.includes('traces lastObservedAt')));
 
+// Sub-observations must not be newer than the parent snapshot, even when they are
+// individually fresh relative to the validation clock.
+const laterThanSnapshot = new Date(nowMs - 30_000).toISOString();
+const laterExporter = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  exporter: { ...fullSnapshot.exporter, lastExportAt: laterThanSnapshot },
+}, nowMs);
+assert.equal(laterExporter.status, 'partial');
+assert.ok(laterExporter.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
+assert.ok(!laterExporter.evidenceRefs.includes('export:run-100'));
+
+const laterSignal = assessOpenTelemetryRuntimeEvidence({
+  ...fullSnapshot,
+  signals: {
+    ...fullSnapshot.signals,
+    traces: { count: 12, lastObservedAt: laterThanSnapshot, evidenceRef: 'trace:after-snapshot' },
+  },
+}, nowMs);
+assert.equal(laterSignal.status, 'partial');
+assert.ok(!laterSignal.observedSignals.includes('traces'));
+assert.ok(laterSignal.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
+assert.ok(!laterSignal.evidenceRefs.includes('trace:after-snapshot'));
+
 const staleSnapshot = assessOpenTelemetryRuntimeEvidence({
   ...fullSnapshot,
   observedAt: new Date(nowMs - 300_001).toISOString(),
