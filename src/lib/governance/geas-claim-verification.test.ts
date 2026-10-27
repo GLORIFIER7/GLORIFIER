@@ -79,6 +79,23 @@ const invalidClockReview = validateClaimReview(valid, registry, Number.NaN);
 assert.equal(invalidClockReview.admissible, false, 'invalid validation clocks must fail closed');
 assert.ok(invalidClockReview.failures.some((failure) => failure.includes('validation clock')));
 
+
+const ambiguousTimestamp = review({ ...valid, observedAt: '10/18/2026 12:00:00' });
+assert.equal(ambiguousTimestamp.admissible, false, 'locale-dependent date strings must not be accepted as evidence timestamps');
+assert.ok(ambiguousTimestamp.failures.some((failure) => failure.includes('RFC 3339')));
+assert.equal(ambiguousTimestamp.evidenceRef, null);
+
+const missingTimezone = review({ ...valid, observedAt: '2026-10-18T12:00:00' });
+assert.equal(missingTimezone.admissible, false, 'timestamps without an explicit UTC offset must fail closed');
+assert.ok(missingTimezone.failures.some((failure) => failure.includes('RFC 3339')));
+
+const impossibleCalendarDate = review({ ...valid, observedAt: '2026-02-30T12:00:00Z' });
+assert.equal(impossibleCalendarDate.admissible, false, 'calendar rollover must not normalize an impossible observation date');
+assert.ok(impossibleCalendarDate.failures.some((failure) => failure.includes('RFC 3339')));
+
+const equivalentOffsetTimestamp = review({ ...valid, observedAt: '2026-10-18T14:00:00+02:00' });
+assert.equal(equivalentOffsetTimestamp.admissible, true, 'valid timestamps with an explicit numeric UTC offset must remain supported');
+
 const whitespaceNormalized = review({
   ...valid,
   supportingExcerpt: 'The specification\n\tdefines   a versioned interface.',
