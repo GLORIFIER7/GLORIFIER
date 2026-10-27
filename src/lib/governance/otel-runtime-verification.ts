@@ -54,10 +54,39 @@ function textValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function freshTimestamp(value: unknown, nowMs: number, maxAgeMs: number): boolean {
-  if (typeof value !== 'string') return false;
+/**
+ * Accept only an explicit-offset RFC 3339 timestamp subset for runtime evidence.
+ * Loose Date.parse formats and impossible calendar dates are not admissible;
+ * leap-second notation is rejected because JavaScript Date cannot represent it.
+ */
+function parseRfc3339Timestamp(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = match[8];
+  if (offset.toUpperCase() !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
   const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) && timestamp <= nowMs && nowMs - timestamp <= maxAgeMs;
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function freshTimestamp(value: unknown, nowMs: number, maxAgeMs: number): boolean {
+  const timestamp = parseRfc3339Timestamp(value);
+  return timestamp !== null && timestamp <= nowMs && nowMs - timestamp <= maxAgeMs;
 }
 
 function result(
