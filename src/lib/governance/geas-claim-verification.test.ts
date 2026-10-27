@@ -107,6 +107,29 @@ assert.match(supported.evidenceRef ?? '', /^claim-review-[a-f0-9]{24}$/);
 const changedClaim = review({ ...valid, claim: 'A different bounded claim.' });
 assert.notEqual(changedClaim.evidenceRef, supported.evidenceRef, 'evidence references must bind to the exact claim text');
 
+
+const changedCadenceRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, reviewCadenceDays: source.reviewCadenceDays + 1 }
+    : source),
+};
+const changedCadenceReview = review(valid, changedCadenceRegistry);
+assert.equal(changedCadenceReview.admissible, true, 'a still-fresh observation should remain admissible under the revised cadence');
+assert.notEqual(changedCadenceReview.evidenceRef, supported.evidenceRef,
+  'evidence references must bind to the source-specific review cadence');
+
+const changedClaimsRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, claimsAllowed: [...source.claimsAllowed, 'additional-bounded-claim'] }
+    : source),
+};
+const changedClaimsReview = review(valid, changedClaimsRegistry);
+assert.equal(changedClaimsReview.admissible, true);
+assert.notEqual(changedClaimsReview.evidenceRef, supported.evidenceRef,
+  'evidence references must bind to the source-specific claim allowance policy');
+
 const unregisteredSource = review({ ...valid, sourceId: 'unregistered-source' });
 assert.equal(unregisteredSource.admissible, false);
 assert.ok(unregisteredSource.failures.some((failure) => failure.includes('exactly one trusted source registry entry')));

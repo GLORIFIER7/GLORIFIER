@@ -126,6 +126,8 @@ export function validateClaimReview(
     failures.push('observedSourceUrl does not match the curated canonical source resource');
   }
 
+  let sourcePolicyDigest: string | null = null;
+
   // Registry membership and claim scope are prerequisites for admission, not proof of truth.
   if (!registry || typeof registry.version !== 'string' || !registry.version.trim() || !Array.isArray(registry.sources)) {
     failures.push('trusted source registry with version and sources is required');
@@ -138,6 +140,15 @@ export function validateClaimReview(
       failures.push('sourceId must resolve to exactly one trusted source registry entry');
     } else {
       const trustedSource = matches[0];
+      // Bind the evidence reference to the exact source-specific policy used for admission.
+      sourcePolicyDigest = createHash('sha256').update(JSON.stringify({
+        id: trustedSource.id,
+        url: trustedSource.url,
+        claimsAllowed: Array.isArray(trustedSource.claimsAllowed)
+          ? [...trustedSource.claimsAllowed].sort()
+          : trustedSource.claimsAllowed,
+        reviewCadenceDays: trustedSource.reviewCadenceDays,
+      })).digest('hex');
       const trustedCanonical = safeHttps(trustedSource.url);
       if (!trustedCanonical) {
         failures.push('trusted source registry URL must be valid HTTPS without credentials');
@@ -201,6 +212,7 @@ export function validateClaimReview(
         claimType: record.claimType,
         sourceId: record.sourceId,
         sourceRegistryVersion: record.sourceRegistryVersion,
+        sourcePolicyDigest,
         canonicalSourceUrl: record.canonicalSourceUrl,
         observedSourceUrl: record.observedSourceUrl,
         observedAt: record.observedAt,
