@@ -122,7 +122,8 @@ export function assessOpenTelemetryRuntimeEvidence(
   if (!snapshot) failures.push('runtime telemetry snapshot must be an object');
   if (failures.length > 0 || !snapshot) return result('not-observed', [], [], failures);
 
-  if (!freshTimestamp(snapshot.observedAt, nowMs, maxAgeMs)) {
+  const snapshotObservedAtMs = parseRfc3339Timestamp(snapshot.observedAt);
+  if (snapshotObservedAtMs === null || !freshTimestamp(snapshot.observedAt, nowMs, maxAgeMs)) {
     failures.push('snapshot observedAt must be valid, non-future, and fresh');
     return result('not-observed', [], [], failures);
   }
@@ -150,14 +151,17 @@ export function assessOpenTelemetryRuntimeEvidence(
   const exporter = asRecord(snapshot.exporter);
   const endpointConfigured = exporter?.endpointConfigured === true;
   const exportStatus = exporter?.lastExportStatus;
-  const exportAtFresh = freshTimestamp(exporter?.lastExportAt, nowMs, maxAgeMs);
+  const exportAtMs = parseRfc3339Timestamp(exporter?.lastExportAt);
+  const exportAtFresh = exportAtMs !== null
+    && exportAtMs <= snapshotObservedAtMs
+    && freshTimestamp(exporter?.lastExportAt, nowMs, maxAgeMs);
   const exportEvidenceRef = textValue(exporter?.evidenceRef);
   const exporterHealthy = endpointConfigured && exportStatus === 'success' && exportAtFresh && !!exportEvidenceRef;
   const exporterFailureObserved = endpointConfigured && exportStatus === 'failure' && exportAtFresh && !!exportEvidenceRef;
 
   if (!endpointConfigured) failures.push('OTLP/exporter endpoint is not evidenced as configured');
   if (exportStatus !== 'success' && exportStatus !== 'failure') failures.push('exporter status is unknown');
-  if (!exportAtFresh) failures.push('exporter lastExportAt must be valid, non-future, and fresh');
+  if (!exportAtFresh) failures.push('exporter lastExportAt must be valid, non-future, fresh, and no later than snapshot observedAt');
   if (!exportEvidenceRef) failures.push('exporter observation requires an evidenceRef');
 
   const signals = asRecord(snapshot.signals);
@@ -170,11 +174,14 @@ export function assessOpenTelemetryRuntimeEvidence(
       const signal = asRecord(signals[signalName]);
       const count = signal?.count;
       const evidenceRef = textValue(signal?.evidenceRef);
-      const observedAtFresh = freshTimestamp(signal?.lastObservedAt, nowMs, maxAgeMs);
+      const signalObservedAtMs = parseRfc3339Timestamp(signal?.lastObservedAt);
+      const observedAtFresh = signalObservedAtMs !== null
+        && signalObservedAtMs <= snapshotObservedAtMs
+        && freshTimestamp(signal?.lastObservedAt, nowMs, maxAgeMs);
       if (!Number.isSafeInteger(count) || (count as number) <= 0) {
         failures.push(signalName + ' must include a positive observed count');
       }
-      if (!observedAtFresh) failures.push(signalName + ' lastObservedAt must be valid, non-future, and fresh');
+      if (!observedAtFresh) failures.push(signalName + ' lastObservedAt must be valid, non-future, fresh, and no later than snapshot observedAt');
       if (!evidenceRef) failures.push(signalName + ' observation requires an evidenceRef');
       if (Number.isSafeInteger(count) && (count as number) > 0 && observedAtFresh && evidenceRef) {
         observedSignals.push(signalName);
