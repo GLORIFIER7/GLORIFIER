@@ -227,7 +227,10 @@ export function reconcileFocusInvoice(
   if (scales.some((scale) => scale === null)) reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
   if (reasons.length > 0) return unknownResult(issuer, invoiceId, currency, tolerance, reasons);
 
-  const scale = Math.max(toleranceScale, ...(scales as number[]));
+  let scale = toleranceScale;
+  for (const candidateScale of scales) {
+    if (candidateScale !== null && candidateScale > scale) scale = candidateScale;
+  }
   const toleranceUnits = decimalUnits(tolerance, scale);
   const detailIds = new Set<string>();
   for (const row of detailRows) {
@@ -273,7 +276,7 @@ export function reconcileFocusInvoice(
     const usageAmount = usageByDetailId.get(id) ?? 0n;
     const detailAmount = detailById.get(id) ?? 0n;
     const variance = usageAmount - detailAmount;
-    const withinTolerance = absolute(variance) <= toleranceUnits;
+    const withinTolerance = hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
     if (hasUsage && hasDetail && !withinTolerance) {
       hasVariance = true;
       reasons.push('BilledCost variance for InvoiceDetailId ' + id + ' exceeds tolerance');
