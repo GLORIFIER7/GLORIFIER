@@ -115,13 +115,25 @@ for (const [index, capability] of (registry.capabilities || []).entries()) {
     const goodEvidence = evidence.some((item) => {
       const acceptableKind = needsLiveProbe ? item.kind === 'live-probe' :
         ['automated-test', 'ci-run', 'live-probe'].includes(item.kind);
-      return acceptableKind && typeof item.observedAt === 'string' &&
-        Number.isFinite(Date.parse(item.observedAt)) &&
+      const observedAt = typeof item.observedAt === 'string' ? Date.parse(item.observedAt) : NaN;
+      const ageMs = Date.now() - observedAt;
+      const freshEnough = Number.isFinite(observedAt) &&
+        ageMs >= -FUTURE_CLOCK_SKEW_MS &&
+        (!needsLiveProbe || ageMs <= LIVE_EVIDENCE_MAX_AGE_MS);
+      const targetMatches = Array.isArray(capability.targetEnvironments) &&
+        capability.targetEnvironments.some((target) =>
+          typeof target === 'string' &&
+          item.targetEnvironment.toLowerCase().includes(target.toLowerCase()) ||
+          typeof target === 'string' &&
+          target.toLowerCase().includes(item.targetEnvironment.toLowerCase())
+        );
+      return acceptableKind && freshEnough &&
         typeof item.targetEnvironment === 'string' && item.targetEnvironment.trim().length > 0 &&
+        targetMatches &&
         typeof item.reference === 'string' && item.reference.trim().length > 0;
     });
     if (!goodEvidence) {
-      errors.push(`${context}: VERIFIED requires timestamped test evidence; live scopes require a live-probe reference`);
+      errors.push(`${context}: VERIFIED requires timestamped evidence matching a declared target environment; live scopes require a live-probe no older than 24 hours`);
     }
   }
 }
