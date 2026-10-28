@@ -268,10 +268,12 @@ export default function App() {
   const handleUpdatePolicy = (newPolicy: Partial<MonetizationPolicy>) => {
     const updated = { ...policy, ...newPolicy };
     setPolicy(updated);
-    if (currentUser && currentUser.authProvider === 'firebase') {
+    if (currentUser?.authProvider === 'firebase') {
       void import('./services/firestoreService')
         .then(({ saveUserPolicy }) => saveUserPolicy(currentUser.uid, updated))
         .catch(console.error);
+    }
+    if (currentUser) {
       void recordGovernedAction('monetization-policy-change', {
         policy: updated,
         privacyRuntimeEnforcementVerified: false,
