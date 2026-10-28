@@ -1,3 +1,5 @@
+> **Notice (added 2026-10-28):** This registry was last checked on 2026-10-09. A later read-only audit (2026-10-25) is recorded in [`canonical-asset-registry.md`](canonical-asset-registry.md): it reports an explorer-level contract-name discrepancy for the Ethereum GLR address and a second GLORIFIER-labelled token candidate, and treats the Ethereum and Solana deployments as **PARTIALLY VERIFIED** until reconciled against independent chain evidence. The Ethereum and Solana status cells below predate that audit and should not be relied on until this registry is re-checked. Only the BNB Smart Chain row is FULLY VERIFIED in both documents.
+
 # GLORIFIER (GLR) Mainnet Evidence Registry
 
 **Registry status:** Updated after explorer recheck and supplied successful workflow evidence.  
