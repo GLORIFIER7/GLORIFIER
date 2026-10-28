@@ -14,6 +14,8 @@ It never signs, sends, or mutates anything. Usage:
   verify-token2022-devnet-history.py <mint> <output.json> [--fixture <file>]
 """
 import json
+import os
+import re
 import sys
 import time
 import urllib.error
@@ -100,92 +102,116 @@ def token_instructions(t):
     return out
 
 
-def analyze(mint, data):
-    txs = sorted(data["transactions"], key=lambda t: t["slot"])
-    require(txs, "no finalized transaction history for mint")
-    receipts = {}
-    minted = 0
-    for t in txs:
-        require(t["err"] is None, f"failed transaction in mint history: {t['signature']}")
-        for ins in t["instructions"]:
-            typ, info = ins["type"], ins["info"]
-            if info.get("mint") not in (None, mint) and info.get("metadata") != mint:
-                continue
-            require(typ in ALLOWED, f"unexpected instruction {typ} in {t['signature']}")
-            sig = t["signature"]
-            if typ in ("initializeMint", "initializeMint2"):
-                require("creationTransaction" not in receipts, "mint initialized more than once")
-                require(info.get("decimals") == EXPECTED["decimals"], "decimals mismatch")
-                require(info.get("freezeAuthority") in (None, ""), "freeze authority was set at creation")
-                receipts["creationTransaction"] = sig
-            elif typ == "initializeTokenMetadata":
-                require((info.get("name"), info.get("symbol"), info.get("uri")) ==
-                        (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
-                receipts["metadataTransaction"] = sig
-            elif typ.startswith("initializeAccount"):
-                receipts.setdefault("tokenAccountCreationTransaction", sig)
-            elif typ in ("mintTo", "mintToChecked"):
-                amt = info.get("tokenAmount", {}).get("amount", info.get("amount"))
-                minted += int(amt)
-                receipts["mintTransaction"] = sig
-            elif typ == "setAuthority":
-                require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
-                kind = info.get("authorityType")
-                key = {"mintTokens": "mintAuthorityRevocationTransaction",
-                       "freezeAccount": "freezeAuthorityRevocationTransaction",
-                       "metadataPointer": "metadataPointerAuthorityRevocationTransaction"}.get(kind)
-                require(key is not None, f"unexpected authority type {kind}")
-                receipts[key] = sig
-            elif typ == "updateTokenMetadataAuthority":
-                require(info.get("newAuthority") is None, f"metadata authority granted in {sig}")
-                receipts["metadataUpdateAuthorityRevocationTransaction"] = sig
-    require(str(minted) == EXPECTED["baseUnits"], f"total minted {minted} != {EXPECTED['baseUnits']}")
-    receipts.setdefault("freezeAuthorityRevocationTransaction", NEVER_SET)
-    needed = ["creationTransaction", "metadataTransaction", "tokenAccountCreationTransaction", "mintTransaction",
-              "mintAuthorityRevocationTransaction", "freezeAuthorityRevocationTransaction",
-              "metadataUpdateAuthorityRevocationTransaction", "metadataPointerAuthorityRevocationTransaction"]
-    missing = [k for k in needed if k not in receipts]
-    require(not missing, f"missing lifecycle receipts: {missing}")
+AUTHORITY_RECEIPT = {
+    "mintTokens": "mintAuthorityRevocationTransaction",
+    "freezeAccount": "freezeAuthorityRevocationTransaction",
+    "metadataPointer": "metadataPointerAuthorityRevocationTransaction",
+}
+LIFECYCLE = ["creationTransaction", "metadataTransaction", "tokenAccountCreationTransaction", "mintTransaction",
+             "mintAuthorityRevocationTransaction", "freezeAuthorityRevocationTransaction",
+             "metadataUpdateAuthorityRevocationTransaction", "metadataPointerAuthorityRevocationTransaction"]
 
-    acct = data["account"]
+
+def touches_mint(info, mint):
+    return info.get("mint") in (None, mint) or info.get("metadata") == mint
+
+
+def apply_instruction(typ, info, sig, receipts):
+    """Record one instruction's lifecycle effect; return base units minted."""
+    require(typ in ALLOWED, f"unexpected instruction {typ} in {sig}")
+    if typ in ("initializeMint", "initializeMint2"):
+        require("creationTransaction" not in receipts, "mint initialized more than once")
+        require(info.get("decimals") == EXPECTED["decimals"], "decimals mismatch")
+        require(info.get("freezeAuthority") in (None, ""), "freeze authority was set at creation")
+        receipts["creationTransaction"] = sig
+    elif typ == "initializeTokenMetadata":
+        require((info.get("name"), info.get("symbol"), info.get("uri")) ==
+                (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
+        receipts["metadataTransaction"] = sig
+    elif typ.startswith("initializeAccount"):
+        receipts.setdefault("tokenAccountCreationTransaction", sig)
+    elif typ in ("mintTo", "mintToChecked"):
+        receipts["mintTransaction"] = sig
+        return int(info.get("tokenAmount", {}).get("amount", info.get("amount")))
+    elif typ == "setAuthority":
+        require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
+        key = AUTHORITY_RECEIPT.get(info.get("authorityType"))
+        require(key is not None, f"unexpected authority type {info.get('authorityType')}")
+        receipts[key] = sig
+    elif typ == "updateTokenMetadataAuthority":
+        require(info.get("newAuthority") is None, f"metadata authority granted in {sig}")
+        receipts["metadataUpdateAuthorityRevocationTransaction"] = sig
+    return 0
+
+
+def verify_final_state(mint, acct):
     require(acct and acct["owner"] == PROGRAM, "mint not owned by Token-2022")
     st = acct["data"]["parsed"]["info"]
     require(st["decimals"] == EXPECTED["decimals"] and st["supply"] == EXPECTED["baseUnits"], "final supply mismatch")
     require(st["mintAuthority"] is None and st["freezeAuthority"] is None, "final authorities not disabled")
     ext = {e["extension"]: e.get("state", {}) for e in st.get("extensions", [])}
-    require(ext.get("metadataPointer", {}).get("authority") is None, "metadata pointer authority not disabled")
-    require(ext.get("metadataPointer", {}).get("metadataAddress") == mint, "metadata pointer mismatch")
+    pointer = ext.get("metadataPointer", {})
+    require(pointer.get("authority") is None, "metadata pointer authority not disabled")
+    require(pointer.get("metadataAddress") == mint, "metadata pointer mismatch")
     md = ext.get("tokenMetadata", {})
     require(md.get("updateAuthority") is None, "metadata update authority not disabled")
     require((md.get("name"), md.get("symbol"), md.get("uri")) ==
             (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "final metadata mismatch")
 
+
+def analyze(mint, data):
+    txs = sorted(data["transactions"], key=lambda t: t["slot"])
+    require(txs, "no finalized transaction history for mint")
+    receipts, minted = {}, 0
+    for t in txs:
+        require(t["err"] is None, f"failed transaction in mint history: {t['signature']}")
+        for ins in t["instructions"]:
+            if touches_mint(ins["info"], mint):
+                minted += apply_instruction(ins["type"], ins["info"], t["signature"], receipts)
+    require(str(minted) == EXPECTED["baseUnits"], f"total minted {minted} != {EXPECTED['baseUnits']}")
+    receipts.setdefault("freezeAuthorityRevocationTransaction", NEVER_SET)
+    missing = [k for k in LIFECYCLE if k not in receipts]
+    require(not missing, f"missing lifecycle receipts: {missing}")
+    verify_final_state(mint, data["account"])
     return {
         "network": "solana-devnet", "mode": "READ_ONLY_TRANSACTION_HISTORY", "commitment": "finalized",
         "mint": mint, "programId": PROGRAM, "historyComplete": True,
         "signatureCount": len(txs), "signatures": [t["signature"] for t in txs],
-        "totalMintedBaseUnits": str(minted), **{k: receipts[k] for k in needed},
+        "totalMintedBaseUnits": str(minted), **{k: receipts[k] for k in LIFECYCLE},
         "transactionSemanticsVerified": True,
     }
 
 
+REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+
+
+def confined_path(user_path):
+    """Resolve a path and refuse anything outside the repository checkout."""
+    resolved = os.path.realpath(os.path.join(REPO_ROOT, user_path))
+    if os.path.commonpath([resolved, REPO_ROOT]) != REPO_ROOT:
+        raise VerificationError(f"path must stay inside the repository: {user_path}")
+    return resolved
+
+
 def main(argv):
-    if len(argv) not in (3, 5):
+    if len(argv) not in (3, 5) or (len(argv) == 5 and argv[3] != "--fixture"):
         print(__doc__, file=sys.stderr)
         return 2
-    mint, out = argv[1], argv[2]
-    if len(argv) == 5 and argv[3] == "--fixture":
-        with open(argv[4]) as f:
-            data = json.load(f)
-    else:
-        import os
-        data = fetch(os.environ.get("SOLANA_RPC_URL", "https://api.devnet.solana.com"), mint)
+    mint = argv[1]
     try:
+        require(MINT_RE.fullmatch(mint) is not None, "mint is not a base58 address")
+        out = confined_path(argv[2])
+        if len(argv) == 5:
+            with open(confined_path(argv[4]), encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = fetch(os.environ.get("SOLANA_RPC_URL", "https://api.devnet.solana.com"), mint)
         result = analyze(mint, data)
     except VerificationError as e:
         print(f"::error::Transaction-history verification failed: {e}", file=sys.stderr)
         return 1
-    with open(out, "w") as f:
+    with open(out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
         f.write("\n")
     print(f"Verified {result['signatureCount']} finalized transactions for {mint}.")
