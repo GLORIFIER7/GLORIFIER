@@ -21,14 +21,15 @@ jobs:
   gemini:
     if: ${{ github.actor == 'GLORIFIER7' }}
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
+      TASK: ${{ inputs.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout without persisted write credentials
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,10 +38,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run Gemini CLI
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@v0
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
@@ -55,13 +54,12 @@ jobs:
             transfer, spend, or change credentials. Do not claim verification unless the command ran.
             If blocked, make no speculative changes and explain the blocker. Do not merge anything.
       - name: Report missing Gemini key
-        if: ${{ env.GEMINI_API_KEY == '' }}
-        run: echo "::warning::Set the repository Actions secret GEMINI_API_KEY to enable Gemini. No model call was made."
+        if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
+        run: echo "::warning::GEMINI_API_KEY is unavailable to this workflow; no model call was made."
       - name: Create review branch and pull request
-        if: ${{ env.GEMINI_API_KEY != '' }}
+        if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TASK: ${{ inputs.task }}
         shell: bash
         run: |
           if [ -z "$(git status --porcelain)" ]; then
@@ -69,12 +67,17 @@ jobs:
             exit 0
           fi
           git diff --check
+          git add -A
+          if git diff --cached --name-only | grep -E '(^\.github/workflows/|(^|/)\.env($|[./])|(^|/)(secrets|credentials|signing)(/|$)|\.(pem|key|p12|pfx)$)'; then
+            echo "::error::Generated changes include a protected workflow, credential, signing, or environment path. Nothing was pushed."
+            exit 1
+          fi
+          SHORT_TASK="$(printf '%s' "$TASK" | tr '\r\n' '  ' | cut -c1-60)"
           git config user.name "GLORIFIER Gemini Development"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/gemini/${GITHUB_RUN_ID}"
           git checkout -b "$BRANCH"
-          git add -A
-          SHORT_TASK="$(printf "%s" "$TASK" | tr "\\n" " " | cut -c1-60)"
           git commit -m "ai(gemini): $SHORT_TASK"
+          gh auth setup-git
           git push --set-upstream origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. No automatic merge or deployment was performed."
+          gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. Protected workflow, credential, signing, and environment paths are blocked. No automatic merge or deployment was performed."
