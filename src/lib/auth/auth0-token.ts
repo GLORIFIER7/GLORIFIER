@@ -72,7 +72,7 @@ export async function verifyAuth0AccessToken(
     const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
     if (typeof payload.exp !== 'number' || payload.exp <= now) return null;
     if (typeof payload.iat !== 'number' || payload.iat > now + 60) return null;
-    if (typeof payload.nbf === 'number' && payload.nbf > now) return null;
+    if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || payload.nbf > now)) return null;
 
     const fetcher = options.fetcher ?? fetch;
     let entry = jwksCache.get(issuer);
