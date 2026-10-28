@@ -1,0 +1,29 @@
+name: Export GLORIFIER assets-only ZIP
+
+on:
+  push:
+    branches:
+      - tools/export-assets-only-zip
+    paths:
+      - .github/workflows/export-assets-only.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Verify assets directory
+        run: |
+          test -d assets
+          echo "Asset files: $(find assets -type f | wc -l)"
+      - name: Package assets only
+        uses: actions/upload-artifact@v4
+        with:
+          name: GLORIFIER-assets-only
+          path: assets/
+          if-no-files-found: error
+          retention-days: 1
