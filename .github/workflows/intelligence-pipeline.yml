@@ -17,34 +17,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test intelligence endpoint validation
+        run: node --test scripts/validate-intelligence-endpoint.test.mjs
+
       - name: Validate configured intelligence endpoint
         env:
-          INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
-        shell: bash
-        run: |
-          if [ -z "${INTELLIGENCE_URL}" ]; then
-            echo "::error::GLORIFIER_INTELLIGENCE_URL is not configured. No default or legacy endpoint will be contacted."
-            exit 1
-          fi
-          case "${INTELLIGENCE_URL}" in
-            https://*) ;;
-            *)
-              echo "::error::GLORIFIER_INTELLIGENCE_URL must use HTTPS."
-              exit 1
-              ;;
-          esac
+          GLORIFIER_INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
+        run: node scripts/validate-intelligence-endpoint.mjs
 
       - name: Refresh configured intelligence report
         env:
-          INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
+          GLORIFIER_INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
           INTELLIGENCE_KEY: ${{ secrets.INTELLIGENCE_INGEST_KEY }}
         shell: bash
         run: |
           if [ -n "${INTELLIGENCE_KEY}" ]; then
-            curl --fail-with-body --retry 2 --retry-delay 5 -X POST \
+            curl --proto '=https' --fail-with-body --retry 2 --retry-delay 5 -X POST \
               -H "Content-Type: application/json" \
               -H "x-glorifier-intelligence-key: ${INTELLIGENCE_KEY}" \
-              "${INTELLIGENCE_URL}"
+              "${GLORIFIER_INTELLIGENCE_URL}"
           else
-            curl --fail-with-body --retry 2 --retry-delay 5 "${INTELLIGENCE_URL}"
+            curl --proto '=https' --fail-with-body --retry 2 --retry-delay 5 \
+              "${GLORIFIER_INTELLIGENCE_URL}"
           fi
