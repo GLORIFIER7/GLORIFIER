@@ -75,6 +75,30 @@ function findMatchingDelimiter(source: string, start: number, open: string, clos
   throw new Error(`unterminated "${open}" delimiter in scanner source`);
 }
 
+function isValueTerminated(source: string, start: number): boolean {
+  let i = start;
+  while (i < source.length) {
+    if (/\s/.test(source[i])) {
+      i += 1;
+      continue;
+    }
+    if (source[i] === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      if (end < 0) return false;
+      i = end + 2;
+      continue;
+    }
+    if (source[i] === '/' && source[i + 1] === '/') {
+      const end = source.indexOf('\n', i + 2);
+      if (end < 0) return false;
+      i = end + 1;
+      continue;
+    }
+    return source[i] === ',' || source[i] === '}';
+  }
+  return false;
+}
+
 function readTopLevelProperty(
   objectText: string,
   property: 'id' | 'cadenceHours',
@@ -162,14 +186,16 @@ function readTopLevelProperty(
             valueEscaped = true;
             continue;
           }
-          if (valueChar === valueQuote) return value;
+          if (valueChar === valueQuote) return isValueTerminated(objectText, j + 1) ? value : undefined;
           value += valueChar;
         }
         return undefined;
       }
 
-      const numberMatch = /^\d+(?![\w.])/.exec(objectText.slice(valueStart));
-      return numberMatch ? Number(numberMatch[0]) : undefined;
+      const numberMatch = /^\d+/.exec(objectText.slice(valueStart));
+      return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
+        ? Number(numberMatch[0])
+        : undefined;
     }
     i = end - 1;
   }
@@ -245,7 +271,7 @@ function parseScannerSources(sourceText: string): ScannerSource[] {
       }
     }
   }
-  if (depth !== 0 || quote || blockComment) throw new Error('unterminated object, string, or comment in SOURCES array');
+  if (depth !== 0 || quote || blockComment || lineComment) throw new Error('unterminated object, string, or comment in SOURCES array');
   if (objects.length === 0) throw new Error('scanner SOURCES array contains no object entries');
 
   return objects.map((objectText) => {
