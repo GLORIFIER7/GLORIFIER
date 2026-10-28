@@ -151,4 +151,4 @@ assert.equal(ambiguousSignalTimestamp.status, 'partial');
 assert.ok(!ambiguousSignalTimestamp.observedSignals.includes('traces'));
 assert.ok(ambiguousSignalTimestamp.failures.some((failure) => failure.includes('traces lastObservedAt')));
 
-process.stdout.write('OpenTelemetry runtime evidence contract tests passed; live exporter authentication remains external.\\n');
+process.stdout.write('OpenTelemetry runtime evidence contract tests passed; live exporter authentication remains external.\n');
