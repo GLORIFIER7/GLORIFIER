@@ -319,14 +319,14 @@ function verifyParserRejectsCommentOnlyFields(): void {
 
 function verifyParserRejectsComputedFieldValues(): void {
   const fixtures = [
-    \`const SOURCES: ArchitectureSource[] = [{
+    `const SOURCES: ArchitectureSource[] = [{
     id: 'computed' + '-id',
     cadenceHours: 24
-  }];\`,
-    \`const SOURCES: ArchitectureSource[] = [{
+  }];`,
+    `const SOURCES: ArchitectureSource[] = [{
     id: 'computed',
     cadenceHours: 24 * 30
-  }];\`,
+  }];`,
   ];
   for (const fixture of fixtures) {
     let rejected = false;
