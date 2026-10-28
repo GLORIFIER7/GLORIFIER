@@ -173,7 +173,25 @@ function verifyParserHandlesBraceCharacters(): void {
   }
 }
 
+function verifyParserRejectsCommentOnlyFields(): void {
+  const fixture = `const SOURCES: ArchitectureSource[] = [{
+    // id: 'comment-only',
+    // cadenceHours: 24
+    authority: 'Test'
+  }];`;
+  let rejected = false;
+  try {
+    parseScannerSources(fixture);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error('scanner parser accepted id and cadenceHours fields found only in comments');
+  }
+}
+
 verifyParserHandlesBraceCharacters();
+verifyParserRejectsCommentOnlyFields();
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
 const scanner = readFileSync(scannerPath, 'utf8');
