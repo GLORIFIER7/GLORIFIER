@@ -108,9 +108,6 @@ jobs:
       - name: Auth0 access-token validation regression tests
         run: npm run test:auth0-token
 
-      - name: Auth0 access-token verification regression tests
-        run: npm run test:auth0-token
-
       - name: Internal-service authentication regression tests
         run: npm run test:backend-auth
 
