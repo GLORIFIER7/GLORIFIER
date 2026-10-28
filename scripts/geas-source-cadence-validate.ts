@@ -75,6 +75,133 @@ function findMatchingDelimiter(source: string, start: number, open: string, clos
   throw new Error(`unterminated "${open}" delimiter in scanner source`);
 }
 
+function isValueTerminated(source: string, start: number): boolean {
+  let i = start;
+  while (i < source.length) {
+    if (/\s/.test(source[i])) {
+      i += 1;
+      continue;
+    }
+    if (source[i] === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      if (end < 0) return false;
+      i = end + 2;
+      continue;
+    }
+    if (source[i] === '/' && source[i + 1] === '/') {
+      const end = source.indexOf('\n', i + 2);
+      if (end < 0) return false;
+      i = end + 1;
+      continue;
+    }
+    return source[i] === ',' || source[i] === '}';
+  }
+  return false;
+}
+
+function readTopLevelProperty(
+  objectText: string,
+  property: 'id' | 'cadenceHours',
+): string | number | undefined {
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let i = 0; i < objectText.length; i += 1) {
+    const ch = objectText[i];
+    const next = objectText[i + 1];
+
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      lineComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      blockComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch.charCodeAt(0) === 96) {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{' || ch === '[' || ch === '(') {
+      depth += 1;
+      continue;
+    }
+    if (ch === '}' || ch === ']' || ch === ')') {
+      depth -= 1;
+      continue;
+    }
+    if (depth !== 1 || !/[A-Za-z_$]/.test(ch)) continue;
+
+    let end = i + 1;
+    while (end < objectText.length && /[A-Za-z0-9_$]/.test(objectText[end])) end += 1;
+    const key = objectText.slice(i, end);
+    let colon = end;
+    while (colon < objectText.length && /\s/.test(objectText[colon])) colon += 1;
+
+    if (key === property && objectText[colon] === ':') {
+      let valueStart = colon + 1;
+      while (valueStart < objectText.length && /\s/.test(objectText[valueStart])) valueStart += 1;
+
+      if (property === 'id') {
+        const valueQuote = objectText[valueStart];
+        if (valueQuote !== "'" && valueQuote !== '"') return undefined;
+        let value = '';
+        let valueEscaped = false;
+        for (let j = valueStart + 1; j < objectText.length; j += 1) {
+          const valueChar = objectText[j];
+          if (valueEscaped) {
+            value += valueChar;
+            valueEscaped = false;
+            continue;
+          }
+          if (valueChar === '\\') {
+            valueEscaped = true;
+            continue;
+          }
+          if (valueChar === valueQuote) return isValueTerminated(objectText, j + 1) ? value : undefined;
+          value += valueChar;
+        }
+        return undefined;
+      }
+
+      const numberMatch = /^\d+/.exec(objectText.slice(valueStart));
+      return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
+        ? Number(numberMatch[0])
+        : undefined;
+    }
+    i = end - 1;
+  }
+  return undefined;
+}
+
 function parseScannerSources(sourceText: string): ScannerSource[] {
   const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(sourceText);
   if (!declaration) throw new Error('unable to locate the scanner SOURCES declaration');
@@ -144,16 +271,16 @@ function parseScannerSources(sourceText: string): ScannerSource[] {
       }
     }
   }
-  if (depth !== 0 || quote || blockComment) throw new Error('unterminated object, string, or comment in SOURCES array');
+  if (depth !== 0 || quote || blockComment || lineComment) throw new Error('unterminated object, string, or comment in SOURCES array');
   if (objects.length === 0) throw new Error('scanner SOURCES array contains no object entries');
 
   return objects.map((objectText) => {
-    const idMatch = /\bid\s*:\s*(['"])(.*?)\1/s.exec(objectText);
-    const cadenceMatch = /\bcadenceHours\s*:\s*(\d+)\b/.exec(objectText);
-    if (!idMatch || !idMatch[2] || !cadenceMatch) {
+    const id = readTopLevelProperty(objectText, 'id');
+    const cadenceHours = readTopLevelProperty(objectText, 'cadenceHours');
+    if (typeof id !== 'string' || !id || typeof cadenceHours !== 'number') {
       throw new Error('every scanner source must have a string id and numeric cadenceHours');
     }
-    return { id: idMatch[2], cadenceHours: Number(cadenceMatch[1]) };
+    return { id, cadenceHours };
   });
 }
 
@@ -173,7 +300,64 @@ function verifyParserHandlesBraceCharacters(): void {
   }
 }
 
+function verifyParserRejectsCommentOnlyFields(): void {
+  const fixture = `const SOURCES: ArchitectureSource[] = [{
+    // id: 'comment-only',
+    // cadenceHours: 24
+    authority: 'Test'
+  }];`;
+  let rejected = false;
+  try {
+    parseScannerSources(fixture);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error('scanner parser accepted id and cadenceHours fields found only in comments');
+  }
+}
+
+function verifyParserRejectsUnterminatedLineComment(): void {
+  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', cadenceHours: 24 // no terminating newline or visible array close";
+  let rejected = false;
+  try {
+    parseScannerSources(fixture);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error('scanner parser accepted a SOURCES array truncated inside a line comment');
+  }
+}
+
+function verifyParserRejectsComputedFieldValues(): void {
+  const fixtures = [
+    `const SOURCES: ArchitectureSource[] = [{
+    id: 'computed' + '-id',
+    cadenceHours: 24
+  }];`,
+    `const SOURCES: ArchitectureSource[] = [{
+    id: 'computed',
+    cadenceHours: 24 * 30
+  }];`,
+  ];
+  for (const fixture of fixtures) {
+    let rejected = false;
+    try {
+      parseScannerSources(fixture);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error('scanner parser accepted a computed id or cadenceHours expression');
+    }
+  }
+}
+
 verifyParserHandlesBraceCharacters();
+verifyParserRejectsComputedFieldValues();
+verifyParserRejectsUnterminatedLineComment();
+verifyParserRejectsCommentOnlyFields();
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
 const scanner = readFileSync(scannerPath, 'utf8');
