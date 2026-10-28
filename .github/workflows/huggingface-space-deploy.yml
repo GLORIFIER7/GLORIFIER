@@ -99,6 +99,9 @@ jobs:
             '' \
             'Configure application-specific runtime credentials through the Hugging Face Space Settings → Variables and secrets. Never put credentials in repository files.' \
             > "$RUNNER_TEMP/hf-space/README.md"
+          cd "$RUNNER_TEMP/hf-space"
+          git lfs install --local
+          git lfs track "*.jpg" "*.jpeg" "*.png" "*.webp" "*.gif" "*.ico" "*.avif"
 
       - name: Publish source to Hugging Face Space
         shell: bash
@@ -114,5 +117,6 @@ jobs:
           fi
           git commit -m "Deploy GLORIFIER from GitHub ${GITHUB_SHA}"
           auth_header="AUTHORIZATION: Basic $(printf 'user:%s' "$HF_SPACE_WRITE_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth_header" lfs push origin HEAD
           git -c http.extraheader="$auth_header" push origin HEAD:main
           unset auth_header
