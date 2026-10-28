@@ -6,6 +6,16 @@ import { configuredAuth0Issuer, tokenClaimsAuth0Issuer, verifyAuth0AccessToken }
 
 let adminReady = false;
 
+function firebaseConfigurationPresent(): boolean {
+  return Boolean(
+    getApps().length ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ||
+    (process.env.FIREBASE_CLIENT_EMAIL?.trim() && process.env.FIREBASE_PRIVATE_KEY?.trim()) ||
+    process.env.FIREBASE_PROJECT_ID?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
+  );
+}
+
 function getAdminAuth() {
   if (!getApps().length) {
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
@@ -30,7 +40,13 @@ function getAdminAuth() {
 
 export async function initializeAuthenticationBackend() {
   try {
-    getAdminAuth();
+    const auth0Configured = Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim());
+    if (firebaseConfigurationPresent() || !auth0Configured) {
+      getAdminAuth();
+    } else {
+      // Auth0-only deployments must not require Firebase Admin credentials at startup.
+      adminReady = false;
+    }
     return authenticationStatus();
   } catch (error) {
     adminReady = false;
@@ -149,12 +165,18 @@ export function createRequireOwnerOrInternalService(verify: TokenVerifier = veri
 export const requireOwnerOrInternalService = createRequireOwnerOrInternalService();
 
 export function authenticationStatus() {
+  const auth0Configured = Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim());
+  const firebaseConfigured = firebaseConfigurationPresent() || adminReady;
   return {
-    backendVerification: adminReady,
-    providerConfigured: Boolean(process.env.FIREBASE_PROJECT_ID) || Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim()),
-    provider: configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim() ? 'Firebase Authentication + Auth0' : 'Firebase Authentication',
-    auth0Configured: Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim()),
-    mode: 'Firebase ID token + revocation check; optional Auth0 RS256 access token',
+    backendVerification: adminReady || auth0Configured,
+    providerConfigured: firebaseConfigured || auth0Configured,
+    provider: firebaseConfigured && auth0Configured ? 'Firebase Authentication + Auth0' : auth0Configured ? 'Auth0' : 'Firebase Authentication',
+    auth0Configured,
+    mode: firebaseConfigured && auth0Configured
+      ? 'Firebase ID token + revocation check; optional Auth0 RS256 access token'
+      : auth0Configured
+        ? 'Auth0 RS256 access token'
+        : 'Firebase ID token + revocation check',
     ownerBindingConfigured: Boolean(process.env.GLORIFIER_OWNER_UID || process.env.GLORIFIER_OWNER_EMAIL),
     rule: 'Authentication and authorization are evaluated separately.'
   };
