@@ -32,4 +32,20 @@ assert.match(
   'pull request validation must never invoke the production refresh job',
 );
 
-console.log('Intelligence pipeline PR concurrency regression tests passed');
+assert.match(
+  workflow,
+  /Validate configured intelligence endpoint\n\s+if: steps\.endpoint-config\.outputs\.configured == 'true' \|\| github\.event_name != 'schedule'/,
+  'manual dispatches must still fail strictly when the intelligence endpoint is unconfigured',
+);
+assert.match(
+  workflow,
+  /Refresh configured intelligence report\n\s+if: steps\.endpoint-config\.outputs\.configured == 'true'/,
+  'the refresh request must never be sent without a configured endpoint',
+);
+assert.match(
+  workflow,
+  /Intelligence refresh: NOT RUN/,
+  'an unconfigured scheduled run must be reported as NOT RUN rather than a successful refresh',
+);
+
+console.log('Intelligence pipeline workflow policy regression tests passed');
