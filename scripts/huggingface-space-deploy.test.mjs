@@ -14,8 +14,12 @@ assert.match(prepare, /git lfs install --local/, 'the target Space checkout must
 assert.match(prepare, /git lfs track "\*\.jpg" "\*\.jpeg" "\*\.png"/, 'image assets must be tracked as LFS pointers before staging');
 assert.ok(prepare.indexOf('git lfs track') > prepare.indexOf('rsync -a'), 'LFS tracking must apply after repository files are copied into the target checkout');
 assert.match(publish, /git add -A/, 'the publish step must stage the prepared source');
-assert.match(publish, /git lfs push origin HEAD/, 'LFS objects must be uploaded before the Git ref is pushed');
-assert.ok(publish.indexOf('git lfs push origin HEAD') < publish.indexOf('push origin HEAD:main'), 'LFS objects must be uploaded before publishing the branch ref');
+assert.ok(publish.includes('git -c http.extraheader="$auth_header" lfs push origin HEAD'), 'LFS objects must be uploaded before the Git ref is pushed');
+assert.ok(
+  publish.indexOf('git -c http.extraheader="$auth_header" lfs push origin HEAD') <
+    publish.indexOf('git -c http.extraheader="$auth_header" push origin HEAD:main'),
+  'LFS objects must be uploaded before publishing the branch ref',
+);
 assert.match(workflow, /push:\s*\n\s*branches:\s*\[main\]/, 'deployment must remain restricted to main pushes');
 assert.doesNotMatch(workflow, /pull_request:/, 'pull request validation must not trigger an external Space deployment');
 
