@@ -57,10 +57,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          auth_header="AUTHORIZATION: Basic $(printf 'user:%s' "$HF_SPACE_WRITE_TOKEN" | base64 -w0)"
-          git -c http.extraheader="$auth_header" \
+          credential_file="$RUNNER_TEMP/hf-space-credentials"
+          trap 'rm -f "$credential_file"' EXIT
+          umask 077
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
+            | git credential-store --file="$credential_file" store
+          git -c credential.helper="store --file=$credential_file" \
             clone "https://huggingface.co/spaces/$HF_SPACE_ID" "$RUNNER_TEMP/hf-space"
-          unset auth_header
           rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -116,7 +119,6 @@ jobs:
             exit 0
           fi
           git commit -m "Deploy GLORIFIER from GitHub ${GITHUB_SHA}"
-          auth_header="AUTHORIZATION: Basic $(printf 'user:%s' "$HF_SPACE_WRITE_TOKEN" | base64 -w0)"
-          git -c http.extraheader="$auth_header" lfs push origin HEAD
-          git -c http.extraheader="$auth_header" push origin HEAD:main
-          unset auth_header
+          credential_file="$RUNNER_TEMP/hf-space-credentials"
+          git -c credential.helper="store --file=$credential_file" lfs push origin HEAD
+          git -c credential.helper="store --file=$credential_file" push origin HEAD:main
