@@ -9,12 +9,13 @@ on:
       - ".github/workflows/intelligence-pipeline.yml"
       - "scripts/validate-intelligence-endpoint.mjs"
       - "scripts/validate-intelligence-endpoint.test.mjs"
+      - "scripts/intelligence-pipeline-workflow.test.mjs"
 
 permissions:
   contents: read
 
 concurrency:
-  group: glorifier-intelligence-pipeline
+  group: ${{ github.event_name == 'pull_request' && format('glorifier-intelligence-pipeline-pr-{0}', github.event.pull_request.number) || 'glorifier-intelligence-pipeline' }}
   cancel-in-progress: false
 
 jobs:
@@ -27,6 +28,9 @@ jobs:
 
       - name: Test intelligence endpoint validation
         run: node --test scripts/validate-intelligence-endpoint.test.mjs
+
+      - name: Test intelligence pipeline workflow policy
+        run: node scripts/intelligence-pipeline-workflow.test.mjs
 
   refresh-report:
     if: github.event_name != 'pull_request'

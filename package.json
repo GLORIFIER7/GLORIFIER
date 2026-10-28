@@ -25,6 +25,7 @@
     "test:geas-scientist": "tsx src/lib/governance/geas-architecture-scientist.test.ts",
     "test:geas-focus-invoice-reconciliation": "tsx src/lib/governance/geas-focus-invoice-reconciliation.test.ts",
     "test:geas-claim-verification": "tsx src/lib/governance/geas-claim-verification.test.ts",
+    "test:intelligence-pipeline-workflow": "node scripts/intelligence-pipeline-workflow.test.mjs",
     "test:otel-runtime-verification": "tsx src/lib/governance/otel-runtime-verification.test.ts",
     "test:geas-state-reconciliation": "tsx src/lib/governance/geas-architecture-reconciliation.test.ts",
     "daemon:run": "tsx src/lib/glorifier-daemon.ts",
