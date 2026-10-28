@@ -22,6 +22,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
@@ -51,6 +52,8 @@ def require(cond, msg):
 
 
 def rpc(url, method, params):
+    # Only HTTPS RPC endpoints are permitted (no file:, http:, or custom schemes).
+    require(urllib.parse.urlsplit(url).scheme == "https", "SOLANA_RPC_URL must use https")
     req = urllib.request.Request(
         url,
         data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode(),
@@ -58,7 +61,7 @@ def rpc(url, method, params):
     )
     for attempt in range(6):
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 - scheme enforced as https above
                 body = json.load(r)
             break
         except urllib.error.HTTPError as e:
