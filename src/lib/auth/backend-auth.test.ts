@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import type { Request } from 'express';
 import {
+  authenticationStatus,
   createRequireAuthentication,
   createRequireOwnerOrInternalService,
+  initializeAuthenticationBackend,
   isInternalServiceRequest,
   type TokenVerifier,
 } from './backend-auth';
@@ -83,6 +85,33 @@ try {
   assert.equal(isInternalServiceRequest(request({
     'x-glorifier-internal-token': 'test-secret-token',
   })), false, 'missing configured token must fail closed');
+  const authEnvKeys = [
+    'FIREBASE_SERVICE_ACCOUNT_JSON',
+    'FIREBASE_CLIENT_EMAIL',
+    'FIREBASE_PRIVATE_KEY',
+    'FIREBASE_PROJECT_ID',
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    'AUTH0_ISSUER_BASE_URL',
+    'AUTH0_AUDIENCE',
+  ] as const;
+  const priorAuthEnv = Object.fromEntries(authEnvKeys.map((key) => [key, process.env[key]]));
+  try {
+    authEnvKeys.forEach((key) => { delete process.env[key]; });
+    process.env.AUTH0_ISSUER_BASE_URL = 'https://auth0-only.example/';
+    process.env.AUTH0_AUDIENCE = 'https://api.auth0-only.example';
+    await initializeAuthenticationBackend();
+    const auth0OnlyStatus = authenticationStatus();
+    assert.equal(auth0OnlyStatus.provider, 'Auth0', 'Auth0-only configuration must not claim Firebase is configured');
+    assert.equal(auth0OnlyStatus.providerConfigured, true, 'Auth0-only configuration must be accepted as a configured provider');
+    assert.equal(auth0OnlyStatus.backendVerification, true, 'Auth0-only verification must be considered available without Firebase Admin startup');
+  } finally {
+    authEnvKeys.forEach((key) => {
+      const prior = priorAuthEnv[key];
+      if (prior === undefined) delete process.env[key];
+      else process.env[key] = prior;
+    });
+  }
+
   console.log('backend-auth internal service regression tests passed');
 } finally {
   if (previous === undefined) delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;
