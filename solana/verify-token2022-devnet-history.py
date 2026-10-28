@@ -11,7 +11,10 @@ lifecycle semantics without relying on preserved deployment artifacts:
   authority, with no other supply-changing or authority-granting instruction.
 
 It never signs, sends, or mutates anything. Usage:
-  verify-token2022-devnet-history.py <mint> <output.json> [--fixture <file>]
+  verify-token2022-devnet-history.py <mint> [--fixture]
+
+Output is always written to solana/reconciliation-tx-history.json; --fixture reads
+the committed offline fixture solana/evidence/fixtures/glr-devnet-history.json.
 """
 import json
 import os
@@ -183,27 +186,20 @@ def analyze(mint, data):
 
 
 REPO_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+OUTPUT_PATH = os.path.join(REPO_ROOT, "solana", "reconciliation-tx-history.json")
+FIXTURE_PATH = os.path.join(REPO_ROOT, "solana", "evidence", "fixtures", "glr-devnet-history.json")
 MINT_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 
-def confined_path(user_path):
-    """Resolve a path and refuse anything outside the repository checkout."""
-    resolved = os.path.realpath(os.path.join(REPO_ROOT, user_path))
-    if os.path.commonpath([resolved, REPO_ROOT]) != REPO_ROOT:
-        raise VerificationError(f"path must stay inside the repository: {user_path}")
-    return resolved
-
-
 def main(argv):
-    if len(argv) not in (3, 5) or (len(argv) == 5 and argv[3] != "--fixture"):
+    if len(argv) not in (2, 3) or (len(argv) == 3 and argv[2] != "--fixture"):
         print(__doc__, file=sys.stderr)
         return 2
     mint = argv[1]
     try:
         require(MINT_RE.fullmatch(mint) is not None, "mint is not a base58 address")
-        out = confined_path(argv[2])
-        if len(argv) == 5:
-            with open(confined_path(argv[4]), encoding="utf-8") as f:
+        if len(argv) == 3:
+            with open(FIXTURE_PATH, encoding="utf-8") as f:
                 data = json.load(f)
         else:
             data = fetch(os.environ.get("SOLANA_RPC_URL", "https://api.devnet.solana.com"), mint)
@@ -211,7 +207,7 @@ def main(argv):
     except VerificationError as e:
         print(f"::error::Transaction-history verification failed: {e}", file=sys.stderr)
         return 1
-    with open(out, "w", encoding="utf-8") as f:
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
         f.write("\n")
     print(f"Verified {result['signatureCount']} finalized transactions for {mint}.")

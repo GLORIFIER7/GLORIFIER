@@ -165,7 +165,7 @@ if [[ -n "$CREATION_TX" && -n "$METADATA_TX" && -n "$ACCOUNT_TX" && -n "$MINT_TX
   TRANSACTION_SEMANTICS_VERIFIED=true
 else
   echo "::notice::Historical transaction receipts are incomplete in the preserved deployment artifact; attempting independent read-only verification of the complete finalized mint transaction history."
-  if python3 solana/verify-token2022-devnet-history.py "$MINT" solana/reconciliation-tx-history.json \
+  if python3 solana/verify-token2022-devnet-history.py "$MINT" \
     && jq -e --arg mint "$MINT" '.mint == $mint and .commitment == "finalized" and .historyComplete == true and .transactionSemanticsVerified == true' solana/reconciliation-tx-history.json >/dev/null; then
     # Record receipts proven directly from finalized RPC history; nothing is fabricated or inferred from logs.
     jq --slurpfile h solana/reconciliation-tx-history.json '
