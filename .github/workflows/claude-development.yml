@@ -12,7 +12,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 
 concurrency:
   group: claude-development-${{ github.ref }}
@@ -22,13 +21,15 @@ jobs:
   claude:
     if: ${{ github.actor == 'GLORIFIER7' }}
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      HAS_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
       TASK: ${{ inputs.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout without persisted write credentials
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run Claude Code
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -53,17 +54,18 @@ jobs:
             secrets, or cannot be verified, explain the blocker rather than guessing.
             Never read, print, create, or modify secrets or credentials. Never deploy, merge, mint,
             transfer, spend, or change infrastructure. Do not claim tests passed unless they ran.
+            Do not modify workflow files, credentials, signing material, or deployment configuration.
             Create a reviewable pull request for any code changes; never merge it.
           claude_args: |
             --max-turns 10
             --allowedTools Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff)
           base_branch: main
       - name: Missing Claude API key notice
-        if: ${{ env.ANTHROPIC_API_KEY == '' }}
-        run: echo "::warning::Set the repository Actions secret ANTHROPIC_API_KEY to enable Claude. No model call was made."
+        if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
+        run: echo "::warning::ANTHROPIC_API_KEY is unavailable to this workflow; no model call was made."
 
       - name: Create review branch and pull request
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -73,12 +75,17 @@ jobs:
             exit 0
           fi
           git diff --check
-          SHORT_TASK="$(printf "%s" "$TASK" | tr "\\n" " " | cut -c1-60)"
+          git add -A
+          if git diff --cached --name-only | grep -E '(^\.github/workflows/|(^|/)\.env($|[./])|(^|/)(secrets|credentials|signing)(/|$)|\.(pem|key|p12|pfx)$)'; then
+            echo "::error::Generated changes include a protected workflow, credential, signing, or environment path. Nothing was pushed."
+            exit 1
+          fi
+          SHORT_TASK="$(printf '%s' "$TASK" | tr '\r\n' '  ' | cut -c1-60)"
           git config user.name "GLORIFIER Claude Development"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/claude/${GITHUB_RUN_ID}"
           git checkout -b "$BRANCH"
-          git add -A
           git commit -m "ai(claude): $SHORT_TASK"
+          gh auth setup-git
           git push --set-upstream origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "Claude: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Claude workflow. Review the diff and CI checks carefully. No automatic merge or deployment was performed."
+          gh pr create --base main --head "$BRANCH" --title "Claude: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Claude workflow. Review the diff and CI checks carefully. Protected workflow, credential, signing, and environment paths are blocked. No automatic merge or deployment was performed."
