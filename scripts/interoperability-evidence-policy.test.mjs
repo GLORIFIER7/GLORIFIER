@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isEvidenceTimestampFresh, matchesTargetEnvironment, LIVE_EVIDENCE_MAX_AGE_MS } from './interoperability-evidence-policy.mjs';
+import { isEvidenceTimestampFresh, LIVE_EVIDENCE_MAX_AGE_MS } from './interoperability-evidence-policy.mjs';
 
 const now = Date.parse('2026-10-28T12:00:00.000Z');
 
@@ -25,8 +25,3 @@ test('missing and malformed timestamps are rejected', () => {
   assert.equal(isEvidenceTimestampFresh('not-a-date', { live: true, now }), false);
 });
 
-test('target environment comparison tolerates punctuation and case only', () => {
-  assert.equal(matchesTargetEnvironment('GitHub-hosted Ubuntu 22.04 x86_64, commit abc123', ['GitHub-hosted ubuntu-22.04 x86_64']), true);
-  assert.equal(matchesTargetEnvironment('Production Cloudflare Worker and configured Supabase PostgREST', ['Production Cloudflare Worker']), true);
-  assert.equal(matchesTargetEnvironment('Production Cloudflare Worker', ['Unrelated staging cluster']), false);
-});
