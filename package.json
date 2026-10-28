@@ -63,7 +63,8 @@
     "test:opportunity-discovery": "tsx src/lib/24x7-opportunity-discovery.test.ts",
     "test:capability-authorization": "tsx src/lib/capability-authorization.test.ts",
     "test:asset-registry-seed": "tsx src/lib/asset-registry-seed.test.ts",
-    "test:geas-run-provenance": "tsx scripts/geas-architecture-run-provenance.test.ts"
+    "test:geas-run-provenance": "tsx scripts/geas-architecture-run-provenance.test.ts",
+    "test:interoperability-evidence-policy": "node --test scripts/interoperability-evidence-policy.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
