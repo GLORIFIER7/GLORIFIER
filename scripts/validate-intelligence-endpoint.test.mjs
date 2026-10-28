@@ -14,7 +14,8 @@ test('rejects non-HTTPS schemes', () => {
 
 test('rejects malformed URLs and missing hostnames', () => {
   assert.equal(validateIntelligenceEndpoint('not a url').ok, false);
-  assert.equal(validateIntelligenceEndpoint('https:///report').ok, false);
+  assert.equal(validateIntelligenceEndpoint('https://').ok, false);
+  assert.equal(validateIntelligenceEndpoint('https://?q=1').ok, false);
 });
 
 test('rejects embedded credentials', () => {
