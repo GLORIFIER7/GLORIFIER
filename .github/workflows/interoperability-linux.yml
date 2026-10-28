@@ -12,7 +12,7 @@ on:
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
-      - "scripts/validate-interoperability-capabilities.mjs"
+      - "scripts/validate-interoperability-capabilities.mjs"\n      - "scripts/interoperability-evidence-policy.mjs"\n      - "scripts/interoperability-evidence-policy.test.mjs"
       - ".github/workflows/interoperability-linux.yml"
       - "Dockerfile"
       - "Dockerfile.ubuntu"
