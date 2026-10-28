@@ -110,6 +110,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          credential_file="$RUNNER_TEMP/hf-space-credentials"
+          trap 'rm -f "$credential_file"' EXIT
+          umask 077
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
+            | git credential-store --file="$credential_file" store
           cd "$RUNNER_TEMP/hf-space"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
