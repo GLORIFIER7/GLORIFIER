@@ -15,18 +15,3 @@ export function isEvidenceTimestampFresh(observedAt, {
   return !live || ageMs <= maxAgeMs;
 }
 
-function normalizeEnvironment(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-export function matchesTargetEnvironment(evidenceEnvironment, targetEnvironments) {
-  if (typeof evidenceEnvironment !== 'string' || !evidenceEnvironment.trim()) return false;
-  if (!Array.isArray(targetEnvironments) || targetEnvironments.length === 0) return false;
-  const evidence = normalizeEnvironment(evidenceEnvironment);
-  if (!evidence) return false;
-  return targetEnvironments.some((target) => {
-    if (typeof target !== 'string' || !target.trim()) return false;
-    const declared = normalizeEnvironment(target);
-    return declared.length > 0 && (evidence.includes(declared) || declared.includes(evidence));
-  });
-}
