@@ -100,7 +100,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TASK: ${{ inputs.task }}
     steps:
       - name: Fresh checkout for publishing
@@ -143,6 +142,8 @@ jobs:
           "${GITC[@]}" add -A
           "${GITC[@]}" diff --cached --check
       - name: Create review branch and pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
