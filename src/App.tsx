@@ -45,7 +45,7 @@ import {
 } from './types';
 import type { User } from 'firebase/auth';
 import type { Auth0BrowserPrincipal } from './lib/auth/auth0-browser';
-type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null };
+type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null; authProvider: 'firebase' | 'auth0' };
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AppIdentity | null>(null);
@@ -89,7 +89,7 @@ export default function App() {
       if (!active) return;
       void firebase.testFirestoreConnection();
       void firebase.completeAuth0RedirectSignIn().then((auth0User: Auth0BrowserPrincipal | null) => {
-        if (active && auth0User) setCurrentUser(auth0User);
+        if (active && auth0User) setCurrentUser({ ...auth0User, authProvider: 'auth0' });
       }).catch((error) => {
         console.error('Auth0 redirect sign-in completion failed:', error);
         try {
@@ -104,8 +104,11 @@ export default function App() {
       const { onAuthStateChanged } = await import('firebase/auth');
       if (!active) return;
       unsubscribe = onAuthStateChanged(firebase.auth, (user) => {
-        if (user) setCurrentUser(user);
-        else setCurrentUser(firebase.getAuth0Principal() ?? null);
+        if (user) setCurrentUser({ ...user, authProvider: 'firebase' });
+        else {
+          const auth0User = firebase.getAuth0Principal();
+          setCurrentUser(auth0User ? { ...auth0User, authProvider: 'auth0' } : null);
+        }
       });
     }).catch((error) => {
       console.error('Firebase authentication initialization failed:', error);
@@ -188,7 +191,7 @@ export default function App() {
 
   // Load the Firestore compatibility layer only for an authenticated session.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.authProvider === 'auth0') return;
     let cancelled = false;
     let unsubPolicy = () => {};
     let unsubGrants = () => {};
@@ -265,7 +268,7 @@ export default function App() {
   const handleUpdatePolicy = (newPolicy: Partial<MonetizationPolicy>) => {
     const updated = { ...policy, ...newPolicy };
     setPolicy(updated);
-    if (currentUser) {
+    if (currentUser && currentUser.authProvider === 'firebase') {
       void import('./services/firestoreService')
         .then(({ saveUserPolicy }) => saveUserPolicy(currentUser.uid, updated))
         .catch(console.error);
