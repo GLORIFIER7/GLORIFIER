@@ -40,10 +40,18 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('glorifier_google_auth_error');
-      if (!raw) return;
+      const auth0Raw = sessionStorage.getItem('glorifier_auth0_auth_error');
+      if (auth0Raw) {
+        sessionStorage.removeItem('glorifier_auth0_auth_error');
+        const parsed = JSON.parse(auth0Raw);
+        setMessage({ type: 'error', text: friendlyAuthError({ message: parsed?.message }) });
+        setOpen(true);
+        return;
+      }
+      const googleRaw = sessionStorage.getItem('glorifier_google_auth_error');
+      if (!googleRaw) return;
       sessionStorage.removeItem('glorifier_google_auth_error');
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(googleRaw);
       setMessage({ type: 'error', text: friendlyAuthError({ code: parsed?.code, message: parsed?.message }) });
       setOpen(true);
     } catch {}
