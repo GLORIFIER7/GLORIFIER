@@ -20,6 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Test brand monitor unavailable-response handling
+        run: node --test scripts/brand-monitor-status.test.mjs
+
       - name: Run public-source brand scan
         env:
           BRAND_MONITOR_BASE_URL: ${{ secrets.BRAND_MONITOR_BASE_URL }}
