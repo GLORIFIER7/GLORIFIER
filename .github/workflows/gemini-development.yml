@@ -115,14 +115,14 @@ jobs:
           export GIT_CONFIG_NOSYSTEM=1
           export GIT_CONFIG_GLOBAL=/dev/null
           GITC=(git -c core.hooksPath=/dev/null -c core.fsmonitor=false)
-          "${GITC[@]}" apply --index --whitespace=error "$RUNNER_TEMP/ai-artifact/ai-changes.patch"
-          "${GITC[@]}" diff --cached --check
+          # Apply to the clean worktree only. Scan every changed path before staging.
+          "${GITC[@]}" apply --whitespace=error "$RUNNER_TEMP/ai-artifact/ai-changes.patch"
           python - <<'PY'
           import re, subprocess, sys
-          paths = subprocess.check_output(
-              ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-               "diff", "--cached", "--name-only", "-z"]
-          ).decode("utf-8", "surrogateescape").split("\0")
+          git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
+          changed = subprocess.check_output(git + ["diff", "--name-only", "-z"])
+          untracked = subprocess.check_output(git + ["ls-files", "--others", "--exclude-standard", "-z"])
+          paths = (changed + untracked).decode("utf-8", "surrogateescape").split("\0")
           protected = re.compile(
               r"(^|/)\.github/workflows/|(^|/)\.env(?:$|[./])|"
               r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
@@ -132,9 +132,11 @@ jobs:
           )
           blocked = [p for p in paths if p and protected.search(p)]
           if blocked:
-              print("::error::Blocked protected paths: " + ", ".join(repr(p) for p in blocked))
+              print("::error::Blocked protected paths before staging: " + ", ".join(repr(p) for p in blocked))
               sys.exit(1)
           PY
+          "${GITC[@]}" add -A
+          "${GITC[@]}" diff --cached --check
       - name: Create review branch and pull request
         shell: bash
         run: |
