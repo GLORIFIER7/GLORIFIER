@@ -189,6 +189,9 @@ jobs:
       - name: Cloudflare Worker API proxy tests
         run: npm run test:cloudflare-worker
 
+      - name: Hugging Face Space binary asset deployment contract
+        run: npm run test:huggingface-space-deploy
+
       - name: Validate permanent orchestrator JavaScript syntax
         run: node --check scripts/permanent-orchestrator.mjs
 
