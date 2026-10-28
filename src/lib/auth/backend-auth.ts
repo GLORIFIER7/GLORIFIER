@@ -2,8 +2,19 @@ import { timingSafeEqual } from 'node:crypto';
 import { getApps, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import type { NextFunction, Request, Response } from 'express';
+import { configuredAuth0Issuer, tokenClaimsAuth0Issuer, verifyAuth0AccessToken } from './auth0-token';
 
 let adminReady = false;
+
+function firebaseConfigurationPresent(): boolean {
+  return Boolean(
+    getApps().length ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ||
+    (process.env.FIREBASE_CLIENT_EMAIL?.trim() && process.env.FIREBASE_PRIVATE_KEY?.trim()) ||
+    process.env.FIREBASE_PROJECT_ID?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()
+  );
+}
 
 function getAdminAuth() {
   if (!getApps().length) {
@@ -29,7 +40,13 @@ function getAdminAuth() {
 
 export async function initializeAuthenticationBackend() {
   try {
-    getAdminAuth();
+    const auth0Configured = Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim());
+    if (firebaseConfigurationPresent() || !auth0Configured) {
+      getAdminAuth();
+    } else {
+      // Auth0-only deployments must not require Firebase Admin credentials at startup.
+      adminReady = false;
+    }
     return authenticationStatus();
   } catch (error) {
     adminReady = false;
@@ -47,6 +64,24 @@ export async function verifyBearerToken(req: Request): Promise<DecodedIdToken | 
   const token = header.slice('Bearer '.length).trim();
   if (!token) return null;
   try {
+    if (tokenClaimsAuth0Issuer(token)) {
+      const principal = await verifyAuth0AccessToken(token);
+      const configuredAudience = process.env.AUTH0_AUDIENCE?.trim();
+      if (!principal || !configuredAudience) return null;
+      // Auth0 roles/owner-like claims are intentionally not copied into Firebase custom-claim fields.
+      // Normalize the verified audience array to the configured API audience expected by the
+      // existing DecodedIdToken-compatible middleware contract.
+      return {
+        uid: principal.uid,
+        sub: principal.sub,
+        iss: principal.iss,
+        aud: configuredAudience,
+        ...(principal.email && principal.email_verified === true ? { email: principal.email } : {}),
+        ...(typeof principal.email_verified === 'boolean' ? { email_verified: principal.email_verified } : {}),
+        iat: principal.iat,
+        exp: principal.exp,
+      } as unknown as DecodedIdToken;
+    }
     return await getAdminAuth().verifyIdToken(token, true);
   } catch {
     return null;
@@ -133,11 +168,18 @@ export function createRequireOwnerOrInternalService(verify: TokenVerifier = veri
 export const requireOwnerOrInternalService = createRequireOwnerOrInternalService();
 
 export function authenticationStatus() {
+  const auth0Configured = Boolean(configuredAuth0Issuer() && process.env.AUTH0_AUDIENCE?.trim());
+  const firebaseConfigured = firebaseConfigurationPresent() || adminReady;
   return {
-    backendVerification: adminReady,
-    providerConfigured: Boolean(process.env.FIREBASE_PROJECT_ID),
-    provider: 'Firebase Authentication',
-    mode: 'Firebase ID token + revocation check',
+    backendVerification: adminReady || auth0Configured,
+    providerConfigured: firebaseConfigured || auth0Configured,
+    provider: firebaseConfigured && auth0Configured ? 'Firebase Authentication + Auth0' : auth0Configured ? 'Auth0' : 'Firebase Authentication',
+    auth0Configured,
+    mode: firebaseConfigured && auth0Configured
+      ? 'Firebase ID token + revocation check; optional Auth0 RS256 access token'
+      : auth0Configured
+        ? 'Auth0 RS256 access token'
+        : 'Firebase ID token + revocation check',
     ownerBindingConfigured: Boolean(process.env.GLORIFIER_OWNER_UID || process.env.GLORIFIER_OWNER_EMAIL),
     rule: 'Authentication and authorization are evaluated separately.'
   };

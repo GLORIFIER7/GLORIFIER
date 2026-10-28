@@ -44,9 +44,11 @@ import {
   SentinelBotState
 } from './types';
 import type { User } from 'firebase/auth';
+import type { Auth0BrowserPrincipal } from './lib/auth/auth0-browser';
+type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null; authProvider: 'firebase' | 'auth0' };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppIdentity | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
   const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
   const [stats, setStats] = useState(initialStats);
@@ -86,12 +88,28 @@ export default function App() {
     void import('./lib/firebase').then(async (firebase) => {
       if (!active) return;
       void firebase.testFirestoreConnection();
+      void firebase.completeAuth0RedirectSignIn().then((auth0User: Auth0BrowserPrincipal | null) => {
+        if (active && auth0User) setCurrentUser({ ...auth0User, authProvider: 'auth0' });
+      }).catch((error) => {
+        console.error('Auth0 redirect sign-in completion failed:', error);
+        try {
+          sessionStorage.setItem('glorifier_auth0_auth_error', JSON.stringify({
+            message: 'Auth0 sign-in failed. Restart sign-in.'
+          }));
+        } catch {}
+      });
       void firebase.completeGoogleRedirectSignIn().catch((error) => {
         console.error('Google redirect sign-in completion failed:', error);
       });
       const { onAuthStateChanged } = await import('firebase/auth');
       if (!active) return;
-      unsubscribe = onAuthStateChanged(firebase.auth, (user) => setCurrentUser(user));
+      unsubscribe = onAuthStateChanged(firebase.auth, (user) => {
+        if (user) setCurrentUser({ ...user, authProvider: 'firebase' });
+        else {
+          const auth0User = firebase.getAuth0Principal();
+          setCurrentUser(auth0User ? { ...auth0User, authProvider: 'auth0' } : null);
+        }
+      });
     }).catch((error) => {
       console.error('Firebase authentication initialization failed:', error);
     });
@@ -173,7 +191,7 @@ export default function App() {
 
   // Load the Firestore compatibility layer only for an authenticated session.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || currentUser.authProvider === 'auth0') return;
     let cancelled = false;
     let unsubPolicy = () => {};
     let unsubGrants = () => {};
@@ -250,10 +268,12 @@ export default function App() {
   const handleUpdatePolicy = (newPolicy: Partial<MonetizationPolicy>) => {
     const updated = { ...policy, ...newPolicy };
     setPolicy(updated);
-    if (currentUser) {
+    if (currentUser?.authProvider === 'firebase') {
       void import('./services/firestoreService')
         .then(({ saveUserPolicy }) => saveUserPolicy(currentUser.uid, updated))
         .catch(console.error);
+    }
+    if (currentUser) {
       void recordGovernedAction('monetization-policy-change', {
         policy: updated,
         privacyRuntimeEnforcementVerified: false,

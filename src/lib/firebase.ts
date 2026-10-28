@@ -20,6 +20,18 @@ import {
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { clearAuth0Session, getAuth0AccessToken, loginWithAuth0 as startAuth0Login } from './auth/auth0-browser';
+
+export { completeAuth0RedirectSignIn, getAuth0Principal, isAuth0BrowserConfigured } from './auth/auth0-browser';
+
+export const loginWithAuth0 = async () => {
+  // Make provider selection deterministic when both providers have persisted sessions.
+  await authPersistenceReady;
+  clearAuth0Session();
+  await signOut(auth);
+  cachedAccessToken = null;
+  return startAuth0Login();
+};
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
@@ -82,8 +94,8 @@ export const setAccessToken = (token: string | null) => { cachedAccessToken = to
 // Return a short-lived Firebase ID token for backend authentication.
 export const getIdToken = async (): Promise<string | null> => {
   const user = auth.currentUser;
-  if (!user) return null;
-  return user.getIdToken();
+  if (user) return user.getIdToken();
+  return getAuth0AccessToken();
 };
 
 // Central API authentication bridge: attach Firebase ID tokens only to trusted API origins.
@@ -251,6 +263,7 @@ export const authorizeGoogleWorkspace = async () => {
 
 export const logout = async () => {
   cachedAccessToken = null;
+  clearAuth0Session();
   return await signOut(auth);
 };
 

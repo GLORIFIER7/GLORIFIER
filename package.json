@@ -38,6 +38,7 @@
     "test:glr-economic-layer": "tsx src/lib/glr-economic-layer.test.ts",
     "test:payer-identity": "tsx src/lib/auth/payer-identity.test.ts",
     "test:backend-auth": "tsx src/lib/auth/backend-auth.test.ts",
+    "test:auth0-token": "tsx src/lib/auth/auth0-token.test.ts",
     "test:glr-intent-route-contract": "tsx src/lib/auth/glr-intent-route-contract.test.ts",
     "validate:geas-architecture": "tsx scripts/geas-architecture-validate.ts",
     "validate:skills-tree-policy": "node scripts/validate-skills-tree-policy.mjs",

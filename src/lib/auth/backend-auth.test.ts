@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import type { Request } from 'express';
 import {
+  authenticationStatus,
   createRequireAuthentication,
   createRequireOwnerOrInternalService,
+  initializeAuthenticationBackend,
   isInternalServiceRequest,
+  verifyBearerToken,
   type TokenVerifier,
 } from './backend-auth';
 
@@ -83,6 +87,61 @@ try {
   assert.equal(isInternalServiceRequest(request({
     'x-glorifier-internal-token': 'test-secret-token',
   })), false, 'missing configured token must fail closed');
+  const authEnvKeys = [
+    'FIREBASE_SERVICE_ACCOUNT_JSON',
+    'FIREBASE_CLIENT_EMAIL',
+    'FIREBASE_PRIVATE_KEY',
+    'FIREBASE_PROJECT_ID',
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    'AUTH0_ISSUER_BASE_URL',
+    'AUTH0_AUDIENCE',
+  ] as const;
+  const priorAuthEnv = Object.fromEntries(authEnvKeys.map((key) => [key, process.env[key]]));
+  try {
+    authEnvKeys.forEach((key) => { delete process.env[key]; });
+    process.env.AUTH0_ISSUER_BASE_URL = 'https://auth0-only.example/';
+    process.env.AUTH0_AUDIENCE = 'https://api.auth0-only.example';
+    await initializeAuthenticationBackend();
+    const auth0OnlyStatus = authenticationStatus();
+    assert.equal(auth0OnlyStatus.provider, 'Auth0', 'Auth0-only configuration must not claim Firebase is configured');
+    assert.equal(auth0OnlyStatus.providerConfigured, true, 'Auth0-only configuration must be accepted as a configured provider');
+    assert.equal(auth0OnlyStatus.backendVerification, true, 'Auth0-only verification must be considered available without Firebase Admin startup');
+
+    const auth0Issuer = 'https://auth0-only.example/';
+    const auth0Audience = 'https://api.auth0-only.example';
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'auth0-array-aud-test', use: 'sig', alg: 'RS256' };
+    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const tokenHeader = encode({ alg: 'RS256', typ: 'JWT', kid: 'auth0-array-aud-test' });
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const tokenPayload = encode({
+      iss: auth0Issuer,
+      sub: 'auth0|array-audience-user',
+      aud: [auth0Audience, 'https://another-api.example'],
+      iat: nowSeconds - 10,
+      exp: nowSeconds + 300,
+    });
+    const signedData = tokenHeader + '.' + tokenPayload;
+    const token = signedData + '.' + sign('RSA-SHA256', Buffer.from(signedData), privateKey).toString('base64url');
+    const previousFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async () => new Response(JSON.stringify({ keys: [jwk] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const decodedAuth0 = await verifyBearerToken(request({ authorization: 'Bearer ' + token }));
+      assert.equal(decodedAuth0?.aud, auth0Audience, 'Auth0 audience arrays must normalize to the configured API audience in the backend principal');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  } finally {
+    authEnvKeys.forEach((key) => {
+      const prior = priorAuthEnv[key];
+      if (prior === undefined) delete process.env[key];
+      else process.env[key] = prior;
+    });
+  }
+
   console.log('backend-auth internal service regression tests passed');
 } finally {
   if (previous === undefined) delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;

@@ -4,14 +4,14 @@ import {
   ShieldAlert, ArrowUpRight, Coins, Lock, Users,
   Globe, Globe2, Cpu, Bot, Network, FileText, BrainCircuit, Atom, Smartphone, Menu, X
 } from 'lucide-react';
-import type { User } from 'firebase/auth';
+type HeaderIdentity = { uid: string; email: string | null; displayName: string | null };
 const AuthPanel = React.lazy(() => import('./AuthPanel').then((module) => ({ default: module.AuthPanel })));
 
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingOffersCount: number;
-  currentUser: User | null;
+  currentUser: HeaderIdentity | null;
 }
 
 const OFFICIAL_GLORIFIER_LOGO = 'https://ipfs.io/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv';
