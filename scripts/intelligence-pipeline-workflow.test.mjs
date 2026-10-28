@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const workflow = readFileSync(new URL('../.github/workflows/intelligence-pipeline.yml', import.meta.url), 'utf8');
-const concurrency = workflow.match(/concurrency:\n([\s\S]*?)(?=\n(?:jobs:|defaults:|env:))/)?.[1] ?? '';
+let workflow;
+try {
+  workflow = readFileSync(new URL('../.github/workflows/intelligence-pipeline.yml', import.meta.url), 'utf8');
+} catch (error) {
+  throw new Error(`Could not read intelligence-pipeline.yml; verify the workflow exists at the expected path. ${error instanceof Error ? error.message : String(error)}`);
+}
+
+const concurrency = workflow.match(/concurrency:\n([\s\S]*?)(?=\n(?:jobs:|defaults:|env:|on:)|\s*$)/)?.[1] ?? '';
+assert.ok(concurrency.trim().length > 0, 'concurrency block was not found in the workflow file');
 
 assert.match(
   concurrency,
