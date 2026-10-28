@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-26T06:53:00.000Z",
+  "updatedAt": "2026-10-28T00:00:00.000Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -546,7 +546,7 @@
       "title": "Live Worker, assets, and Supabase operational dependency probe",
       "boundary": "Public Cloudflare Worker runtime-verification endpoint to the configured Supabase PostgREST exact-count query",
       "scope": "live-production-probe",
-      "status": "VERIFIED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt through PostgREST"
@@ -563,7 +563,8 @@
       "limitations": [
         "Evidence covers only the named endpoint and the dependencies it actually probes at the recorded time.",
         "Authentication and AI/provider calls were not probed; live GLORIFIER-NEURAL readiness, external A2A/MCP conformance, blockchain RPC reachability, and continuous 24/7 availability are not established.",
-        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity."
+        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity.",
+        "The last recorded live probe is older than the 24-hour freshness window; rerun the read-only probe before claiming VERIFIED."
       ]
     },
     {
@@ -571,7 +572,7 @@
       "title": "Live operational summary endpoint contract",
       "boundary": "Public Cloudflare Worker reports summary endpoint to six Supabase operational tables",
       "scope": "live-production-probe",
-      "status": "VERIFIED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt"
@@ -587,7 +588,8 @@
       ],
       "limitations": [
         "This verifies the endpoint response contract and current exact counts only; it does not prove business revenue or populated production data.",
-        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked."
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked.",
+        "The last recorded live probe is older than the 24-hour freshness window; rerun the read-only probe before claiming VERIFIED."
       ]
     },
     {
