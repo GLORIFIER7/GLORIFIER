@@ -46,6 +46,32 @@ assert.equal(missingMapping.status, 'UNKNOWN');
 assert.equal(missingMapping.reconciliationBasis, 'non-tax-line-items-only');
 assert.ok(missingMapping.reasons.some((reason) => reason.includes('not present in both datasets')));
 
+const zeroAmountMissingMapping = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: input.costAndUsage.filter((row) => row.invoiceDetailId !== 'line-2'),
+  invoiceDetail: input.invoiceDetail.map((row) => row.invoiceDetailId === 'line-2' ? { ...row, billedCost: '0.00' } : row),
+});
+assert.equal(zeroAmountMissingMapping.status, 'UNKNOWN');
+assert.equal(
+  zeroAmountMissingMapping.lineItems.find((item) => item.invoiceDetailId === 'line-2')?.withinTolerance,
+  false,
+  'a missing dataset mapping must not be reported within tolerance even when the present amount is zero',
+);
+
+const largeCount = 70_000;
+const largeUsage = Array.from({ length: largeCount }, (_, index) => ({
+  ...input.costAndUsage[0],
+  invoiceDetailId: 'large-' + index,
+  billedCost: '1.00',
+}));
+const largeDetail = largeUsage.map((row) => ({ ...row }));
+const largeDatasetResult = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: largeUsage,
+  invoiceDetail: largeDetail,
+});
+assert.equal(largeDatasetResult.status, 'RECONCILED', 'large valid FOCUS datasets must not fail due to argument-count limits');
+
 const duplicateInvoiceDetailId = reconcileFocusInvoice({
   ...input,
   invoiceDetail: [...input.invoiceDetail, { ...input.invoiceDetail[0] }],
