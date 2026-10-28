@@ -10,8 +10,7 @@ on:
         default: "Inspect the repository and make one small, test-backed reliability improvement."
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: gemini-development-${{ github.ref }}
@@ -20,13 +19,16 @@ concurrency:
 jobs:
   gemini:
     if: ${{ github.actor == 'GLORIFIER7' }}
+    permissions:
+      contents: read
+    outputs:
+      has_changes: ${{ steps.patch.outputs.has_changes }}
     env:
       HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
-      TASK: ${{ inputs.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout without persisted write credentials
+      - name: Checkout without persisted credentials
         uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -37,7 +39,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run Gemini
+      - name: Run Gemini CLI
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -53,49 +55,101 @@ jobs:
             merging, minting, transfers, spending, infrastructure changes, or credential changes.
             Never read or modify secrets, credentials, workflow files, deployment configuration,
             or infrastructure. Do not claim verification unless the command ran. Do not merge anything.
-            
+            The workflow will publish any permitted changes for review; never merge anything.
+
             BEGIN UNTRUSTED TASK TEXT
             ${{ inputs.task }}
             END UNTRUSTED TASK TEXT
       - name: Report missing Gemini key
         if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
         run: echo "::warning::GEMINI_API_KEY is unavailable to this workflow; no model call was made."
-      - name: Publish isolated review branch and pull request
+      - name: Prepare change patch
+        id: patch
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          # Never run git against the AI-controlled workspace's .git directory.
-          # Create a fresh clone, then copy only working-tree files into it.
-          CLEAN_DIR="$(mktemp -d)"
-          trap 'rm -rf "$CLEAN_DIR"' EXIT
+          # The model job has read-only repository permissions. Git metadata is not trusted.
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false add -N -- .
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --binary --no-ext-diff HEAD > "$RUNNER_TEMP/ai-changes.patch"
+          if [ ! -s "$RUNNER_TEMP/ai-changes.patch" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+      - name: Upload patch for isolated publishing
+        if: ${{ steps.patch.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai-changes.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: gemini
+    if: ${{ needs.gemini.outputs.has_changes == 'true' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TASK: ${{ inputs.task }}
+    steps:
+      - name: Fresh checkout for publishing
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Download model patch
+        uses: actions/download-artifact@v4
+        with:
+          name: gemini-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai-artifact
+      - name: Validate and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
           export GIT_CONFIG_NOSYSTEM=1
           export GIT_CONFIG_GLOBAL=/dev/null
-          git clone --depth 1 --branch main https://github.com/GLORIFIER7/GLORIFIER.git "$CLEAN_DIR/repo"
-          rsync -a --delete --exclude='.git/' --exclude='node_modules/' ./ "$CLEAN_DIR/repo/"
-          cd "$CLEAN_DIR/repo"
-
-          # Git operations run in this clean clone with hooks and fsmonitor disabled.
           GITC=(git -c core.hooksPath=/dev/null -c core.fsmonitor=false)
-          "${GITC[@]}" diff --check
-          "${GITC[@]}" add -A
+          "${GITC[@]}" apply --index --whitespace=error "$RUNNER_TEMP/ai-artifact/ai-changes.patch"
           "${GITC[@]}" diff --cached --check
-          if "${GITC[@]}" diff --cached --name-only -z | tr '\0' '\n' | grep -E '(^|/)\.github/workflows/|(^|/)\.env($|[./])|(^|/)(secrets|credentials|signing)(/|$)|\.(pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$'; then
-            echo "::error::Generated changes include a protected workflow, environment, credential, signing, or key/certificate path. Nothing was pushed."
-            exit 1
-          fi
-          if [ -z "$("${GITC[@]}" status --porcelain)" ]; then
-            echo "Gemini made no repository changes; no PR needed."
+          python - <<'PY'
+          import re, subprocess, sys
+          paths = subprocess.check_output(
+              ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+               "diff", "--cached", "--name-only", "-z"]
+          ).decode("utf-8", "surrogateescape").split("\0")
+          protected = re.compile(
+              r"(^|/)\.github/workflows/|(^|/)\.env(?:$|[./])|"
+              r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
+              r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|"
+              r"p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              re.IGNORECASE,
+          )
+          blocked = [p for p in paths if p and protected.search(p)]
+          if blocked:
+              print("::error::Blocked protected paths: " + ", ".join(repr(p) for p in blocked))
+              sys.exit(1)
+          PY
+      - name: Create review branch and pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false status --porcelain)" ]; then
+            echo "Gemini produced no applicable changes; no PR needed."
             exit 0
           fi
           SHORT_TASK="$(printf '%s' "$TASK" | tr '\r\n' '  ' | cut -c1-60)"
+          GITC=(git -c core.hooksPath=/dev/null -c core.fsmonitor=false)
           "${GITC[@]}" config user.name "GLORIFIER Gemini Development"
           "${GITC[@]}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/gemini/${GITHUB_RUN_ID}"
           "${GITC[@]}" checkout -b "$BRANCH"
-          "${GITC[@]}" -c core.hooksPath=/dev/null commit --no-verify -m "ai(gemini): $SHORT_TASK"
+          "${GITC[@]}" commit --no-verify -m "ai(gemini): $SHORT_TASK"
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           "${GITC[@]}" -c http.https://github.com/.extraheader="$AUTH_HEADER" push --no-verify --set-upstream origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. Publishing runs in a fresh Git checkout, separate from the model workspace; protected workflow, credential, signing, environment, and key/certificate paths are blocked. No automatic merge or deployment was performed."
+          gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. The model job had read-only repository permissions; publishing uses a separate fresh checkout. Protected workflow, credential, signing, environment, and key/certificate paths are blocked. No automatic merge or deployment was performed."
