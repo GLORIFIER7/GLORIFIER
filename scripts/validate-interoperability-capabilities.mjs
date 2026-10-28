@@ -120,13 +120,18 @@ for (const [index, capability] of (registry.capabilities || []).entries()) {
       const freshEnough = Number.isFinite(observedAt) &&
         ageMs >= -FUTURE_CLOCK_SKEW_MS &&
         (!needsLiveProbe || ageMs <= LIVE_EVIDENCE_MAX_AGE_MS);
-      const targetMatches = Array.isArray(capability.targetEnvironments) &&
-        capability.targetEnvironments.some((target) =>
-          typeof target === 'string' &&
-          item.targetEnvironment.toLowerCase().includes(target.toLowerCase()) ||
-          typeof target === 'string' &&
-          target.toLowerCase().includes(item.targetEnvironment.toLowerCase())
-        );
+      const evidenceEnvironment = typeof item.targetEnvironment === 'string'
+        ? normalizeEnvironment(item.targetEnvironment)
+        : '';
+      const targetMatches = evidenceEnvironment.length > 0 &&
+        Array.isArray(capability.targetEnvironments) &&
+        capability.targetEnvironments.some((target) => {
+          if (typeof target !== 'string' || !target.trim()) return false;
+          const declaredEnvironment = normalizeEnvironment(target);
+          return declaredEnvironment.length > 0 &&
+            (evidenceEnvironment.includes(declaredEnvironment) ||
+             declaredEnvironment.includes(evidenceEnvironment));
+        });
       return acceptableKind && freshEnough &&
         typeof item.targetEnvironment === 'string' && item.targetEnvironment.trim().length > 0 &&
         targetMatches &&
