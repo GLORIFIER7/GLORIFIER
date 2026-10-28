@@ -15,6 +15,10 @@ function config() {
   return { issuer: `https://${domain}/`, clientId, audience };
 }
 
+export function isAuth0BrowserConfigured(): boolean {
+  return config() !== null;
+}
+
 function base64Url(bytes: Uint8Array): string {
   let binary = '';
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
