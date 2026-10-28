@@ -48,6 +48,24 @@ const unknownKidToken = makeToken({}, privateKey, 'unpublished-attacker-kid', un
 assert.equal(await verifyAuth0AccessToken(unknownKidToken, { env: unknownKidEnv, fetcher: unknownKidFetcher, nowSeconds }), null, 'unknown signing key is rejected');
 assert.equal(await verifyAuth0AccessToken(unknownKidToken, { env: unknownKidEnv, fetcher: unknownKidFetcher, nowSeconds }), null, 'repeated unknown signing key remains rejected');
 assert.equal(unknownKidFetches, 1, 'repeated unknown kid cannot force repeated JWKS network fetches within the refresh cooldown');
+const concurrentIssuer = 'https://glorifier-concurrent-jwks.example/';
+const concurrentEnv = { AUTH0_ISSUER_BASE_URL: concurrentIssuer, AUTH0_AUDIENCE: audience } as NodeJS.ProcessEnv;
+let concurrentFetches = 0;
+const concurrentFetcher: typeof fetch = async () => {
+  concurrentFetches += 1;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  return new Response(JSON.stringify({ keys: [jwk] }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+const concurrentResults = await Promise.all([
+  verifyAuth0AccessToken(makeToken({}, privateKey, 'test-key', concurrentIssuer), { env: concurrentEnv, fetcher: concurrentFetcher, nowSeconds }),
+  verifyAuth0AccessToken(makeToken({}, privateKey, 'test-key', concurrentIssuer), { env: concurrentEnv, fetcher: concurrentFetcher, nowSeconds }),
+]);
+assert.ok(concurrentResults.every((result) => result !== null), 'parallel valid requests must wait for the shared JWKS refresh');
+assert.equal(concurrentFetches, 1, 'parallel cold-cache requests must share one JWKS fetch');
+
 
 assert.equal(await verifyAuth0AccessToken(makeToken({ aud: 'wrong-api' }), { env, fetcher, nowSeconds }), null, 'wrong audience is rejected');
 assert.equal(await verifyAuth0AccessToken(makeToken({ iss: 'https://attacker.example/' }), { env, fetcher, nowSeconds }), null, 'wrong issuer is rejected');
