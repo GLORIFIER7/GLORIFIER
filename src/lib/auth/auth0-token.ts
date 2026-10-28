@@ -25,6 +25,8 @@ type JwtPayload = Record<string, unknown> & {
 type JwkSet = { keys?: Array<JsonWebKey & { kid?: string; use?: string; alg?: string }> };
 
 const jwksCache = new Map<string, { expiresAt: number; keys: JwkSet['keys'] }>();
+const jwksRefreshAt = new Map<string, number>();
+const JWKS_REFRESH_COOLDOWN_MS = 30_000;
 
 function decodePart<T>(part: string): T {
   return JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as T;
@@ -74,7 +76,19 @@ export async function verifyAuth0AccessToken(
 
     const fetcher = options.fetcher ?? fetch;
     let entry = jwksCache.get(issuer);
-    if (!entry || entry.expiresAt <= Date.now() || !entry.keys?.some((key) => key.kid === header.kid)) {
+    const cacheIsFresh = Boolean(entry && entry.expiresAt > Date.now());
+    const requestedKeyIsCached = cacheIsFresh && entry?.keys?.some((key) => key.kid === header.kid);
+    if (!requestedKeyIsCached) {
+      const refreshStartedAt = Date.now();
+      const lastRefreshAt = jwksRefreshAt.get(issuer) ?? 0;
+      if (refreshStartedAt - lastRefreshAt < JWKS_REFRESH_COOLDOWN_MS) {
+        // Fail closed while a recent refresh is cooling down. Do not trust expired
+        // keys or let attacker-controlled kid values amplify outbound JWKS traffic.
+        return null;
+      }
+      // Record before awaiting the network so concurrent unknown-kid requests share
+      // the same cooldown instead of each starting an outbound request.
+      jwksRefreshAt.set(issuer, refreshStartedAt);
       const response = await fetcher(new URL('.well-known/jwks.json', issuer), {
         method: 'GET',
         headers: { Accept: 'application/json' },
