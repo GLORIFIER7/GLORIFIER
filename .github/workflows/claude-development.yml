@@ -21,6 +21,8 @@ concurrency:
 jobs:
   claude:
     if: ${{ github.actor == 'GLORIFIER7' }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -36,8 +38,6 @@ jobs:
       - name: Run Claude Code
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
         uses: anthropics/claude-code-action@v1
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -60,5 +60,3 @@ jobs:
       - name: Missing Claude API key notice
         if: ${{ env.ANTHROPIC_API_KEY == '' }}
         run: echo "::warning::Set the repository Actions secret ANTHROPIC_API_KEY to enable Claude. No model call was made."
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
