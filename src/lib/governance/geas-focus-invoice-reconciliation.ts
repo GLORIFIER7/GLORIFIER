@@ -86,7 +86,11 @@ function decimalScale(value: unknown): number | null {
 function decimalUnits(value: string, scale: number): bigint {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) throw new Error('invalid decimal amount');
-  const units = BigInt(match[2] + (match[3] ?? '').padEnd(scale, '0'));
+  const fraction = match[3] ?? '';
+  if (!Number.isInteger(scale) || scale < 0 || fraction.length > scale) {
+    throw new Error('decimal scale is smaller than amount precision');
+  }
+  const units = BigInt(match[2] + fraction.padEnd(scale, '0'));
   return match[1] === '-' ? -units : units;
 }
 
