@@ -20,6 +20,8 @@ concurrency:
 jobs:
   gemini:
     if: ${{ github.actor == 'GLORIFIER7' }}
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -38,7 +40,6 @@ jobs:
         if: ${{ env.GEMINI_API_KEY != '' }}
         uses: google-github-actions/run-gemini-cli@v0
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
@@ -56,12 +57,11 @@ jobs:
       - name: Report missing Gemini key
         if: ${{ env.GEMINI_API_KEY == '' }}
         run: echo "::warning::Set the repository Actions secret GEMINI_API_KEY to enable Gemini. No model call was made."
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: Create review branch and pull request
         if: ${{ env.GEMINI_API_KEY != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK: ${{ inputs.task }}
         shell: bash
         run: |
           if [ -z "$(git status --porcelain)" ]; then
@@ -74,6 +74,7 @@ jobs:
           BRANCH="ai/gemini/${GITHUB_RUN_ID}"
           git checkout -b "$BRANCH"
           git add -A
-          git commit -m "ai(gemini): ${{ inputs.task }}"
+          SHORT_TASK="$(printf "%s" "$TASK" | tr "\\n" " " | cut -c1-60)"
+          git commit -m "ai(gemini): $SHORT_TASK"
           git push --set-upstream origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "Gemini: ${{ inputs.task }}" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. No automatic merge or deployment was performed."
+          gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. No automatic merge or deployment was performed."
