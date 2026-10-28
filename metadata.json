@@ -1,6 +1,8 @@
 {
-  "name": "Personal Data Monetization Platform",
-  "description": "AI-managed personal data monetization and digital footprint manager giving users full governance over tracking data, privacy tiers, buyer licensing, and real-time compensation.",
+  "name": "GLORIFIER",
+  "description": "Provider-neutral AI intelligence orchestration: connects AI providers, agents, tools, data, and compute through one governed control plane with provider failover and truthful evidence.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
