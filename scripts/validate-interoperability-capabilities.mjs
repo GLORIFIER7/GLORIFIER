@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { isEvidenceTimestampFresh, matchesTargetEnvironment } from './interoperability-evidence-policy.mjs';
 
 const registryPath = new URL('../docs/architecture/interoperability-capabilities.json', import.meta.url);
 const schemaPath = new URL('../docs/architecture/interoperability-capabilities.schema.json', import.meta.url);
@@ -115,26 +116,9 @@ for (const [index, capability] of (registry.capabilities || []).entries()) {
     const goodEvidence = evidence.some((item) => {
       const acceptableKind = needsLiveProbe ? item.kind === 'live-probe' :
         ['automated-test', 'ci-run', 'live-probe'].includes(item.kind);
-      const observedAt = typeof item.observedAt === 'string' ? Date.parse(item.observedAt) : NaN;
-      const ageMs = Date.now() - observedAt;
-      const freshEnough = Number.isFinite(observedAt) &&
-        ageMs >= -FUTURE_CLOCK_SKEW_MS &&
-        (!needsLiveProbe || ageMs <= LIVE_EVIDENCE_MAX_AGE_MS);
-      const evidenceEnvironment = typeof item.targetEnvironment === 'string'
-        ? normalizeEnvironment(item.targetEnvironment)
-        : '';
-      const targetMatches = evidenceEnvironment.length > 0 &&
-        Array.isArray(capability.targetEnvironments) &&
-        capability.targetEnvironments.some((target) => {
-          if (typeof target !== 'string' || !target.trim()) return false;
-          const declaredEnvironment = normalizeEnvironment(target);
-          return declaredEnvironment.length > 0 &&
-            (evidenceEnvironment.includes(declaredEnvironment) ||
-             declaredEnvironment.includes(evidenceEnvironment));
-        });
-      return acceptableKind && freshEnough &&
-        typeof item.targetEnvironment === 'string' && item.targetEnvironment.trim().length > 0 &&
-        targetMatches &&
+      const freshEnough = isEvidenceTimestampFresh(item.observedAt, { live: needsLiveProbe });
+      const targetMatches = matchesTargetEnvironment(item.targetEnvironment, capability.targetEnvironments);
+      return acceptableKind && freshEnough && targetMatches &&
         typeof item.reference === 'string' && item.reference.trim().length > 0;
     });
     if (!goodEvidence) {
