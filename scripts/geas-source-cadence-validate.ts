@@ -291,7 +291,26 @@ function verifyParserRejectsCommentOnlyFields(): void {
   }
 }
 
+function verifyParserRejectsComputedFieldValues(): void {
+  const fixtures = [
+    \`const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', cadenceHours: 24 }];\`,
+    \`const SOURCES: ArchitectureSource[] = [{ id: 'computed', cadenceHours: 24 * 30 }];\`,
+  ];
+  for (const fixture of fixtures) {
+    let rejected = false;
+    try {
+      parseScannerSources(fixture);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error('scanner parser accepted a computed id or cadenceHours expression');
+    }
+  }
+}
+
 verifyParserHandlesBraceCharacters();
+verifyParserRejectsComputedFieldValues();
 verifyParserRejectsCommentOnlyFields();
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
