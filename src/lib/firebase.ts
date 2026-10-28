@@ -22,7 +22,7 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { clearAuth0Session, getAuth0AccessToken, loginWithAuth0 as startAuth0Login } from './auth/auth0-browser';
 
-export { completeAuth0RedirectSignIn, getAuth0Principal } from './auth/auth0-browser';
+export { completeAuth0RedirectSignIn, getAuth0Principal, isAuth0BrowserConfigured } from './auth/auth0-browser';
 
 export const loginWithAuth0 = async () => {
   // Make provider selection deterministic when both providers have persisted sessions.
