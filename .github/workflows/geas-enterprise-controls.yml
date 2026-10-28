@@ -26,6 +26,8 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Typecheck
         run: npm run lint
+      - name: Agent action authorization regression tests
+        run: npm run test:agent-control-plane
       - name: GEAS enterprise control tests
         run: npm run test:geas-enterprise-controls
       - name: GEAS reconciliation tests
