@@ -317,6 +317,19 @@ function verifyParserRejectsCommentOnlyFields(): void {
   }
 }
 
+function verifyParserRejectsUnterminatedLineComment(): void {
+  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', cadenceHours: 24 // no terminating newline or visible array close";
+  let rejected = false;
+  try {
+    parseScannerSources(fixture);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error('scanner parser accepted a SOURCES array truncated inside a line comment');
+  }
+}
+
 function verifyParserRejectsComputedFieldValues(): void {
   const fixtures = [
     `const SOURCES: ArchitectureSource[] = [{
@@ -343,6 +356,7 @@ function verifyParserRejectsComputedFieldValues(): void {
 
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedFieldValues();
+verifyParserRejectsUnterminatedLineComment();
 verifyParserRejectsCommentOnlyFields();
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
