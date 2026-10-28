@@ -66,13 +66,16 @@ export async function verifyBearerToken(req: Request): Promise<DecodedIdToken | 
   try {
     if (tokenClaimsAuth0Issuer(token)) {
       const principal = await verifyAuth0AccessToken(token);
-      if (!principal) return null;
+      const configuredAudience = process.env.AUTH0_AUDIENCE?.trim();
+      if (!principal || !configuredAudience) return null;
       // Auth0 roles/owner-like claims are intentionally not copied into Firebase custom-claim fields.
+      // Normalize the verified audience array to the configured API audience expected by the
+      // existing DecodedIdToken-compatible middleware contract.
       return {
         uid: principal.uid,
         sub: principal.sub,
         iss: principal.iss,
-        aud: principal.aud,
+        aud: configuredAudience,
         ...(principal.email && principal.email_verified === true ? { email: principal.email } : {}),
         ...(typeof principal.email_verified === 'boolean' ? { email_verified: principal.email_verified } : {}),
         iat: principal.iat,
