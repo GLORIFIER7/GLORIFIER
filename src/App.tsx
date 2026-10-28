@@ -94,7 +94,7 @@ export default function App() {
         console.error('Auth0 redirect sign-in completion failed:', error);
         try {
           sessionStorage.setItem('glorifier_auth0_auth_error', JSON.stringify({
-            message: error instanceof Error ? error.message : 'Auth0 sign-in failed. Restart sign-in.'
+            message: 'Auth0 sign-in failed. Restart sign-in.'
           }));
         } catch {}
       });
