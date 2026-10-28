@@ -1,4 +1,4 @@
-import { createPublicKey, verify as verifySignature, type JsonWebKey } from 'node:crypto';
+import { createPublicKey, verify as verifySignature } from 'node:crypto';
 
 export interface Auth0Principal {
   uid: string;
@@ -101,7 +101,8 @@ export async function verifyAuth0AccessToken(
       jwksCache.set(issuer, entry);
     }
 
-    const jwk = entry.keys?.find((key) => key.kid === header.kid && key.kty === 'RSA' && (!key.use || key.use === 'sig') && (!key.alg || key.alg === 'RS256'));
+    if (!entry?.keys) return null;
+    const jwk = entry.keys.find((key) => key.kid === header.kid && key.kty === 'RSA' && (!key.use || key.use === 'sig') && (!key.alg || key.alg === 'RS256'));
     if (!jwk) return null;
     const publicKey = createPublicKey({ key: jwk as JsonWebKey, format: 'jwk' });
     const signedData = Buffer.from(`${parts[0]}.${parts[1]}`, 'utf8');
