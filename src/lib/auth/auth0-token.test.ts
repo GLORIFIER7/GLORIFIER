@@ -7,9 +7,9 @@ const audience = 'https://api.glorifier.test';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'test-key', use: 'sig', alg: 'RS256' };
 
-function makeToken(claimOverrides: Record<string, unknown> = {}, signingKey = privateKey) {
+function makeToken(claimOverrides: Record<string, unknown> = {}, signingKey = privateKey, kid = 'test-key') {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const header = encode({ alg: 'RS256', typ: 'JWT', kid: 'test-key' });
+  const header = encode({ alg: 'RS256', typ: 'JWT', kid });
   const payload = encode({
     iss: issuer,
     sub: 'auth0|user-123',
@@ -33,6 +33,19 @@ const principal = await verifyAuth0AccessToken(makeToken({ email: 'user@example.
 assert.equal(principal?.uid, 'auth0|user-123', 'valid Auth0 subject becomes the normalized uid');
 assert.equal(principal?.email, 'user@example.test');
 assert.equal(principal?.email_verified, true);
+
+let unknownKidFetches = 0;
+const unknownKidFetcher: typeof fetch = async () => {
+  unknownKidFetches += 1;
+  return new Response(JSON.stringify({ keys: [jwk] }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+const unknownKidToken = makeToken({}, privateKey, 'unpublished-attacker-kid');
+assert.equal(await verifyAuth0AccessToken(unknownKidToken, { env, fetcher: unknownKidFetcher, nowSeconds }), null, 'unknown signing key is rejected');
+assert.equal(await verifyAuth0AccessToken(unknownKidToken, { env, fetcher: unknownKidFetcher, nowSeconds }), null, 'repeated unknown signing key remains rejected');
+assert.equal(unknownKidFetches, 1, 'repeated unknown kid cannot force repeated JWKS network fetches within the refresh cooldown');
 
 assert.equal(await verifyAuth0AccessToken(makeToken({ aud: 'wrong-api' }), { env, fetcher, nowSeconds }), null, 'wrong audience is rejected');
 assert.equal(await verifyAuth0AccessToken(makeToken({ iss: 'https://attacker.example/' }), { env, fetcher, nowSeconds }), null, 'wrong issuer is rejected');
