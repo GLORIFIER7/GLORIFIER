@@ -11,7 +11,7 @@ assert.ok(publishStart > prepareStart, 'source preparation must precede publicat
 const prepare = workflow.slice(prepareStart, publishStart);
 const publish = workflow.slice(publishStart);
 assert.match(prepare, /git lfs install --local/, 'the target Space checkout must install Git LFS filters');
-assert.match(prepare, /git lfs track "\\*\.jpg" "\\*\.jpeg" "\\*\.png"/, 'image assets must be tracked as LFS pointers before staging');
+assert.match(prepare, /git lfs track "\*\.jpg" "\*\.jpeg" "\*\.png"/, 'image assets must be tracked as LFS pointers before staging');
 assert.ok(prepare.indexOf('git lfs track') > prepare.indexOf('rsync -a'), 'LFS tracking must apply after repository files are copied into the target checkout');
 assert.match(publish, /git add -A/, 'the publish step must stage the prepared source');
 assert.match(publish, /git lfs push origin HEAD/, 'LFS objects must be uploaded before the Git ref is pushed');
