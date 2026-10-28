@@ -114,11 +114,18 @@ export async function completeAuth0RedirectSignIn(): Promise<Auth0BrowserPrincip
   const expectedNonce = sessionStorage.getItem(NONCE_KEY);
   const cleanUrl = window.location.pathname + window.location.hash;
   window.history.replaceState({}, document.title, cleanUrl);
+
+  // Never let an unsolicited or mismatched callback clear an existing session.
+  // OAuth denial responses still carry state and must match the state we issued.
+  if (!returnedState || !expectedState || returnedState !== expectedState) {
+    [STATE_KEY, VERIFIER_KEY, NONCE_KEY].forEach((key) => sessionStorage.removeItem(key));
+    throw new Error('Auth0 callback state validation failed. Restart sign-in.');
+  }
   if (oauthError) {
-    clearAuth0Session();
+    [STATE_KEY, VERIFIER_KEY, NONCE_KEY].forEach((key) => sessionStorage.removeItem(key));
     throw new Error(`Auth0 sign-in failed: ${oauthError}`);
   }
-  if (!settings || !code || !returnedState || returnedState !== expectedState || !verifier || !expectedNonce) {
+  if (!settings || !code || !verifier || !expectedNonce) {
     clearAuth0Session();
     throw new Error('Auth0 callback state validation failed. Restart sign-in.');
   }
