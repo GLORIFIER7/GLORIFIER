@@ -81,6 +81,26 @@ jobs:
             echo "ERROR: Validator accepted a mismatched recovery mint." >&2
             exit 1
           fi
+          # Transaction-history verifier: offline regression tests against real finalized Devnet fixture.
+          python3 solana/verify-token2022-devnet-history.test.py
+          # Fully verified identity with real receipts must pass; a placeholder receipt must fail closed.
+          jq '.transaction_semantics_verified = true
+              | .creation_transaction = "2DcwdGwopPmTJwvSXG6ahDbNumM8FAJTbJwfYdV92t9h4wpDW7WP5SKzbAGw23rSGZHMLTEssysxK5H7ynvC7j5r"
+              | .metadata_transaction = "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p"
+              | .token_account_creation_transaction = "3h7nP39xGNvhSQwHn6FUdUJUGu6ANhegQtWLAR2RGvvrYKZzH3fXmNidVEkYgADeFaFZyoGCkyckiAG4u71HiyYt"
+              | .mint_transaction = "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4"
+              | .authority_revocation_transaction = "5WErARdcBz1KC5XF7xdM8r3uRSYvXvN4k3w2jR9kLp4EzEpeNjZ1iTHRzM2okURggV5xBAGAXEg6CtHXbz3ekHw3"
+              | .freeze_authority_revocation_transaction = "NOT_APPLICABLE_NEVER_SET"
+              | .metadata_update_authority_revocation_transaction = "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn"
+              | .metadata_pointer_authority_revocation_transaction = "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh"
+              | .verification_run_id = "1"' "$temp_identity" > "${temp_identity}.full"
+          bash solana/validate-devnet-identity-contract.sh "${temp_identity}.full" "$temp_recovery"
+          jq '.metadata_transaction = "null"' "${temp_identity}.full" > "${temp_identity}.bad"
+          if bash solana/validate-devnet-identity-contract.sh "${temp_identity}.bad" "$temp_recovery"; then
+            echo "ERROR: Validator accepted transaction_semantics_verified=true with a placeholder receipt." >&2
+            exit 1
+          fi
+          rm -f "${temp_identity}.full" "${temp_identity}.bad"
 
       - name: Type-check
         run: npm run lint

@@ -153,6 +153,11 @@ TRANSACTION_SEMANTICS_VERIFIED="$(jq -r '.transactionSemanticsVerified // false'
 if [[ "$TRANSACTION_SEMANTICS_VERIFIED" == "true" ]]; then
   for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
     TX="$(jq -r --arg field "$FIELD" '.[$field] // empty' solana/deployment-provenance.json)"
+    if [[ "$FIELD" == "freezeAuthorityRevocationTransaction" && "$TX" == "NOT_APPLICABLE_NEVER_SET" ]]; then
+      # Valid only when the finalized history proved the freeze authority was never initialized.
+      jq -e '.receiptSource == "FINALIZED_RPC_TRANSACTION_HISTORY"' solana/deployment-provenance.json >/dev/null
+      continue
+    fi
     [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
   done
 else
