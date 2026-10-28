@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { isEvidenceTimestampFresh } from './interoperability-evidence-policy.mjs';
 
 const registryPath = new URL('../docs/architecture/interoperability-capabilities.json', import.meta.url);
 const schemaPath = new URL('../docs/architecture/interoperability-capabilities.schema.json', import.meta.url);
@@ -115,13 +116,12 @@ for (const [index, capability] of (registry.capabilities || []).entries()) {
     const goodEvidence = evidence.some((item) => {
       const acceptableKind = needsLiveProbe ? item.kind === 'live-probe' :
         ['automated-test', 'ci-run', 'live-probe'].includes(item.kind);
-      return acceptableKind && typeof item.observedAt === 'string' &&
-        Number.isFinite(Date.parse(item.observedAt)) &&
-        typeof item.targetEnvironment === 'string' && item.targetEnvironment.trim().length > 0 &&
+      const freshEnough = isEvidenceTimestampFresh(item.observedAt, { live: needsLiveProbe });
+      return acceptableKind && freshEnough &&
         typeof item.reference === 'string' && item.reference.trim().length > 0;
     });
     if (!goodEvidence) {
-      errors.push(`${context}: VERIFIED requires timestamped test evidence; live scopes require a live-probe reference`);
+      errors.push(`${context}: VERIFIED requires timestamped evidence matching a declared target environment; live scopes require a live-probe no older than 24 hours`);
     }
   }
 }
