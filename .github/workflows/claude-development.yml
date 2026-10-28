@@ -23,6 +23,7 @@ jobs:
     if: ${{ github.actor == 'GLORIFIER7' }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      TASK: ${{ inputs.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -60,3 +61,24 @@ jobs:
       - name: Missing Claude API key notice
         if: ${{ env.ANTHROPIC_API_KEY == '' }}
         run: echo "::warning::Set the repository Actions secret ANTHROPIC_API_KEY to enable Claude. No model call was made."
+
+      - name: Create review branch and pull request
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Claude made no repository changes; no PR needed."
+            exit 0
+          fi
+          git diff --check
+          SHORT_TASK="$(printf "%s" "$TASK" | tr "\\n" " " | cut -c1-60)"
+          git config user.name "GLORIFIER Claude Development"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="ai/claude/${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "ai(claude): $SHORT_TASK"
+          git push --set-upstream origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" --title "Claude: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Claude workflow. Review the diff and CI checks carefully. No automatic merge or deployment was performed."
