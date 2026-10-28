@@ -74,23 +74,25 @@ If blocked, make no speculative changes and explain the blocker. Do not merge an
           rsync -a --delete --exclude='.git/' --exclude='node_modules/' ./ "$CLEAN_DIR/repo/"
           cd "$CLEAN_DIR/repo"
 
-          # Block workflow, environment, credential, signing, and common key/certificate files.
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --check
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false add -A
-          if git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --cached --name-only -z | tr '\0' '\n' | grep -E '(^|/)\.github/workflows/|(^|/)\.env($|[./])|(^|/)(secrets|credentials|signing)(/|$)|\.(pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$'; then
+          # Git operations run in this clean clone with hooks and fsmonitor disabled.
+          GITC=(git -c core.hooksPath=/dev/null -c core.fsmonitor=false)
+          "${GITC[@]}" diff --check
+          "${GITC[@]}" add -A
+          "${GITC[@]}" diff --cached --check
+          if "${GITC[@]}" diff --cached --name-only -z | tr '\0' '\n' | grep -E '(^|/)\.github/workflows/|(^|/)\.env($|[./])|(^|/)(secrets|credentials|signing)(/|$)|\.(pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$'; then
             echo "::error::Generated changes include a protected workflow, environment, credential, signing, or key/certificate path. Nothing was pushed."
             exit 1
           fi
-          if [ -z "$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false status --porcelain)" ]; then
+          if [ -z "$("${GITC[@]}" status --porcelain)" ]; then
             echo "Gemini made no repository changes; no PR needed."
             exit 0
           fi
           SHORT_TASK="$(printf '%s' "$TASK" | tr '\r\n' '  ' | cut -c1-60)"
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false config user.name "GLORIFIER Gemini Development"
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          "${GITC[@]}" config user.name "GLORIFIER Gemini Development"
+          "${GITC[@]}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/gemini/${GITHUB_RUN_ID}"
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false checkout -b "$BRANCH"
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.hooksPath=/dev/null commit --no-verify -m "ai(gemini): $SHORT_TASK"
+          "${GITC[@]}" checkout -b "$BRANCH"
+          "${GITC[@]}" -c core.hooksPath=/dev/null commit --no-verify -m "ai(gemini): $SHORT_TASK"
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c http.https://github.com/.extraheader="$AUTH_HEADER" push --no-verify --set-upstream origin "$BRANCH"
+          "${GITC[@]}" -c http.https://github.com/.extraheader="$AUTH_HEADER" push --no-verify --set-upstream origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" --title "Gemini: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Gemini workflow. Review the diff and CI checks carefully. Publishing runs in a fresh Git checkout, separate from the model workspace; protected workflow, credential, signing, environment, and key/certificate paths are blocked. No automatic merge or deployment was performed."
