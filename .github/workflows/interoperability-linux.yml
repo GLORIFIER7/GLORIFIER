@@ -12,7 +12,9 @@ on:
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
-      - "scripts/validate-interoperability-capabilities.mjs"\n      - "scripts/interoperability-evidence-policy.mjs"\n      - "scripts/interoperability-evidence-policy.test.mjs"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - "scripts/interoperability-evidence-policy.mjs"
+      - "scripts/interoperability-evidence-policy.test.mjs"
       - ".github/workflows/interoperability-linux.yml"
       - "Dockerfile"
       - "Dockerfile.ubuntu"
@@ -62,6 +64,8 @@ jobs:
           cache: npm
       - name: Install lockfile dependencies
         run: npm ci --no-audit --no-fund
+      - name: Test evidence freshness policy
+        run: npm run test:interoperability-evidence-policy
       - name: Validate capability registry and evidence
         run: node scripts/validate-interoperability-capabilities.mjs
       - name: Type-check
