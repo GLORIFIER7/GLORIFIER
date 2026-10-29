@@ -14,6 +14,7 @@ const AiScientistFleetConsole = React.lazy(() => import('./components/AiScientis
 const OpportunityDiscoveryDashboard = React.lazy(() => import('./components/OpportunityDiscoveryDashboard').then((module) => ({ default: module.OpportunityDiscoveryDashboard })));
 const ConnectionAuthorizationDashboard = React.lazy(() => import('./components/ConnectionAuthorizationDashboard').then((module) => ({ default: module.ConnectionAuthorizationDashboard })));
 const GeasArchitectureScientistDashboard = React.lazy(() => import('./components/GeasArchitectureScientistDashboard').then((module) => ({ default: module.GeasArchitectureScientistDashboard })));
+const AutonomousCoreWidget = React.lazy(() => import('./components/AutonomousCoreWidget').then((module) => ({ default: module.AutonomousCoreWidget })));
 const MobileDeviceControl = React.lazy(() => import('./components/MobileDeviceControl').then((module) => ({ default: module.MobileDeviceControl })));
 const AgentMinerDashboard = React.lazy(() => import('./components/AgentMinerDashboard').then((module) => ({ default: module.AgentMinerDashboard })));
 const AgentNetworkDashboard = React.lazy(() => import('./components/AgentNetworkDashboard').then((module) => ({ default: module.AgentNetworkDashboard })));
@@ -50,7 +51,7 @@ type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null; a
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AppIdentity | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','geas_architecture','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
+  const validTabs = new Set(['overview','geas_architecture','autonomous_core','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -494,6 +495,7 @@ export default function App() {
           />
         )}
         {activeTab === 'geas_architecture' && <GeasArchitectureScientistDashboard />}
+        {activeTab === 'autonomous_core' && <AutonomousCoreWidget />}
         {activeTab === 'ai_ceo' && <AICeoControl />}
         {activeTab === 'integrations' && <IntegrationControl />}
         {activeTab === 'agent_network' && <AgentNetworkDashboard />}
