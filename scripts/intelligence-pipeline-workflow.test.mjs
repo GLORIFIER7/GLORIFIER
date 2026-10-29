@@ -33,9 +33,8 @@ assert.match(
 );
 
 
-assert.match(
-  workflow,
-  /name: Intelligence refresh \\(\$\\{\\{ vars\\.GLORIFIER_INTELLIGENCE_URL && 'configured' \\|\\| 'NOT RUN - endpoint unconfigured' \\}\\}\\)/,
+assert.ok(
+  workflow.includes("name: Intelligence refresh (${{ vars.GLORIFIER_INTELLIGENCE_URL && 'configured' || 'NOT RUN - endpoint unconfigured' }})"),
   'the job name must make an unconfigured scheduled refresh visibly NOT RUN',
 );
 assert.match(
