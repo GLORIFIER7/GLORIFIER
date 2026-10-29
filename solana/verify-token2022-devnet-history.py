@@ -59,6 +59,7 @@ def rpc(url, method, params):
         data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode(),
         headers={"Content-Type": "application/json"},
     )
+    body = None
     for attempt in range(6):
         try:
             with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 - scheme enforced as https above
@@ -66,8 +67,13 @@ def rpc(url, method, params):
             break
         except urllib.error.HTTPError as e:
             if e.code != 429 or attempt == 5:
-                raise
+                raise VerificationError(f"RPC {method} HTTP error: {e.code}") from e
             time.sleep(2 ** attempt)
+        except urllib.error.URLError as e:
+            if attempt == 5:
+                raise VerificationError(f"RPC {method} unavailable after retries: {e.reason}") from e
+            time.sleep(2 ** attempt)
+    require(body is not None, f"RPC {method} did not return a response after retries")
     require("error" not in body, f"RPC {method} error: {body.get('error')}")
     return body["result"]
 
@@ -125,28 +131,43 @@ def touches_mint(info, mint):
 def apply_instruction(typ, info, sig, receipts):
     """Record one instruction's lifecycle effect; return base units minted."""
     require(typ in ALLOWED, f"unexpected instruction {typ} in {sig}")
-    if typ in ("initializeMint", "initializeMint2"):
+    if typ == "initializeMetadataPointer":
+        require("metadataPointerInitializationTransaction" not in receipts,
+                f"metadata pointer initialized more than once in {sig}")
+        receipts["metadataPointerInitializationTransaction"] = sig
+    elif typ in ("initializeMint", "initializeMint2"):
         require("creationTransaction" not in receipts, "mint initialized more than once")
         require(info.get("decimals") == EXPECTED["decimals"], "decimals mismatch")
         require(info.get("freezeAuthority") in (None, ""), "freeze authority was set at creation")
         receipts["creationTransaction"] = sig
     elif typ == "initializeTokenMetadata":
+        require("metadataTransaction" not in receipts, "token metadata initialized more than once")
         require((info.get("name"), info.get("symbol"), info.get("uri")) ==
                 (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
         receipts["metadataTransaction"] = sig
     elif typ.startswith("initializeAccount"):
-        receipts.setdefault("tokenAccountCreationTransaction", sig)
+        require("tokenAccountCreationTransaction" not in receipts,
+                "more than one token-account initialization found in mint history")
+        receipts["tokenAccountCreationTransaction"] = sig
     elif typ in ("mintTo", "mintToChecked"):
+        require("mintTransaction" not in receipts,
+                "multiple mintTo/mintToChecked instructions found; expected one mint transaction")
+        amount = info.get("tokenAmount", {}).get("amount", info.get("amount"))
+        require(amount is not None and str(amount).isdigit(),
+                f"mintTo/mintToChecked missing or invalid amount field in {sig}")
         receipts["mintTransaction"] = sig
-        return int(info.get("tokenAmount", {}).get("amount", info.get("amount")))
+        return int(amount)
     elif typ == "setAuthority":
         require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
         key = AUTHORITY_RECEIPT.get(info.get("authorityType"))
         require(key is not None, f"unexpected authority type {info.get('authorityType')}")
+        require(key not in receipts, f"duplicate {info.get('authorityType')} revocation in {sig}")
         receipts[key] = sig
     elif typ == "updateTokenMetadataAuthority":
         require(info.get("newAuthority") is None, f"metadata authority granted in {sig}")
-        receipts["metadataUpdateAuthorityRevocationTransaction"] = sig
+        key = "metadataUpdateAuthorityRevocationTransaction"
+        require(key not in receipts, f"duplicate metadata update authority revocation in {sig}")
+        receipts[key] = sig
     return 0
 
 
