@@ -73,6 +73,12 @@ def rpc(url, method, params):
             if attempt == 5:
                 raise VerificationError(f"RPC {method} unavailable after retries: {e.reason}") from e
             time.sleep(2 ** attempt)
+        except (OSError, ValueError) as e:
+            # Response-body reads and JSON decoding can fail after urlopen succeeds.
+            # Retry these transient/invalid responses, then fail closed with a stable error.
+            if attempt == 5:
+                raise VerificationError(f"RPC {method} response unavailable or invalid after retries: {e}") from e
+            time.sleep(2 ** attempt)
     require(body is not None, f"RPC {method} did not return a response after retries")
     require("error" not in body, f"RPC {method} error: {body.get('error')}")
     return body["result"]
@@ -146,9 +152,10 @@ def apply_instruction(typ, info, sig, receipts):
                 (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
         receipts["metadataTransaction"] = sig
     elif typ.startswith("initializeAccount"):
-        require("tokenAccountCreationTransaction" not in receipts,
-                "more than one token-account initialization found in mint history")
-        receipts["tokenAccountCreationTransaction"] = sig
+        # The mint's complete history includes token accounts created for later holders.
+        # Preserve the first observed account-creation receipt; additional accounts are not
+        # extra mint operations and must not make the lifecycle verifier fail.
+        receipts.setdefault("tokenAccountCreationTransaction", sig)
     elif typ in ("mintTo", "mintToChecked"):
         require("mintTransaction" not in receipts,
                 "multiple mintTo/mintToChecked instructions found; expected one mint transaction")
