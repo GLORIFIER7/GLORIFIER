@@ -12,6 +12,8 @@ on:
       - "solana/verify-token2022-devnet-history.py"
       - "solana/token-config.json"
       - "solana/token.json"
+      - "solana/reconciliation-tx-history.json"
+      - "solana/reconciliation-evidence.json"
   workflow_dispatch:
     inputs:
       confirm:
@@ -270,6 +272,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          jq -e '.transactionSemanticsVerified == true and .commitment == "finalized" and .finalized == true' solana/reconciliation-evidence.json >/dev/null
           chmod +x solana/publish-verified-devnet-identity.sh
           ./solana/publish-verified-devnet-identity.sh
 
