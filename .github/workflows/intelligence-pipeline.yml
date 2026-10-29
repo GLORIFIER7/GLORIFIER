@@ -49,7 +49,7 @@ jobs:
           {
             echo "## Intelligence report refresh"
             echo ""
-            echo 'Skipped: repository variable `GLORIFIER_INTELLIGENCE_URL` is not configured.'
+            printf 'Skipped: repository variable `%s` is not configured.\n' 'GLORIFIER_INTELLIGENCE_URL'
             echo "Configure a verified HTTPS endpoint in repository Variables to enable refresh."
             echo "No secret values were read or changed by this step."
           } >> "$GITHUB_STEP_SUMMARY"
