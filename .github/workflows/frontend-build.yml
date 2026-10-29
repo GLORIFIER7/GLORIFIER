@@ -1,4 +1,4 @@
-name: GLORIFIER Vercel Production Build Verification
+name: GLORIFIER Frontend Build Verification
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: glorifier-vercel-build-${{ github.event.pull_request.number || github.ref }}
+  group: glorifier-frontend-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,5 +42,5 @@ jobs:
       - name: Build
         run: npm run build:frontend
 
-      - name: Verify Vite output
+      - name: Verify frontend build output
         run: test -f dist/index.html && test -s dist/index.html
