@@ -149,20 +149,14 @@ test "${FOUND}" -eq 1 || {
   exit 1
 }
 
+# Validate every lifecycle receipt from the independent finalized-RPC history,
+# not from the older deployment artifact alone.
 TRANSACTION_SEMANTICS_VERIFIED="$(jq -r '.transactionSemanticsVerified // false' solana/reconciliation-evidence.json)"
 test "$TRANSACTION_SEMANTICS_VERIFIED" = "true" || {
   echo "::error::Transaction-level semantics are not verified; refusing to publish canonical identity."
   exit 1
 }
-for FIELD in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction metadataPointerAuthorityRevocationTransaction; do
-  TX="$(jq -r --arg field "$FIELD" '.[$field] // empty' solana/deployment-provenance.json)"
-  if [[ "$FIELD" == "freezeAuthorityRevocationTransaction" && "$TX" == "NOT_APPLICABLE_NEVER_SET" ]]; then
-    # Accept only when finalized transaction history proves freeze authority was never initialized.
-    jq -e '.receiptSource == "FINALIZED_RPC_TRANSACTION_HISTORY"' solana/deployment-provenance.json >/dev/null
-    continue
-  fi
-  [[ "$TX" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]]
-done
+bash solana/validate-finalized-transaction-evidence.sh solana/reconciliation-evidence.json
 
 METADATA_SHA256="$(jq -r '.offChainMetadataSha256' solana/reconciliation-evidence.json)"
 [[ "$METADATA_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -191,6 +185,7 @@ jq --arg mint "$MINT" \
   | .metadata_update_authority_revocation_transaction=$metadata_auth
   | .metadata_pointer_authority_revocation_transaction=$metadata_pointer_auth
   | .metadata_sha256=$metadata_sha256
+  | .total_minted_base_units=$total_minted_base_units
   | .status="VERIFIED_ON_CHAIN"
   | .transaction_semantics_verified=($transaction_semantics_verified == "true")
   | .verification_run_id=$run_id
@@ -205,6 +200,7 @@ jq -e --arg mint "$MINT" --arg metadata_sha256 "$METADATA_SHA256" '
   .status == "VERIFIED_ON_CHAIN"
   and .canonical_mint == $mint
   and .metadata_sha256 == $metadata_sha256
+  and .total_minted_base_units == "1000000000000000000"
   and .verification_run_id
   and .verification_run_url
   and .verified_at
