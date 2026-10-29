@@ -26,6 +26,9 @@ for (const path of generatedPaths) {
     cwd: repositoryRoot,
     encoding: 'utf8',
   });
+  if (result.error) {
+    throw new Error(`Failed to spawn 'git check-ignore' for path "${path}": ${result.error.message}`);
+  }
   assert.equal(
     result.status,
     0,
