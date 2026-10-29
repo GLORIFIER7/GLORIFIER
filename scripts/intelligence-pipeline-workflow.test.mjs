@@ -28,14 +28,14 @@ assert.match(
 );
 assert.match(
   workflow,
-  /refresh-report:\n\s+if: github\.event_name != 'pull_request'/,
+  /refresh-report:\n(?:\s+name:.*\n)?\s+if: github\.event_name != 'pull_request'/,
   'pull request validation must never invoke the production refresh job',
 );
 
 
 assert.match(
   workflow,
-  /name: Intelligence refresh \\(\$\\{\\{ vars\\.GLORIFIER_INTELLIGENCE_URL != '' && 'configured' \\|\\| 'NOT RUN - endpoint unconfigured' \\}\\}\\)/,
+  /name: Intelligence refresh \\(\$\\{\\{ vars\\.GLORIFIER_INTELLIGENCE_URL && 'configured' \\|\\| 'NOT RUN - endpoint unconfigured' \\}\\}\\)/,
   'the job name must make an unconfigured scheduled refresh visibly NOT RUN',
 );
 assert.match(
