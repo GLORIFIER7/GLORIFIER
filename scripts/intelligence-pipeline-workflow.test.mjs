@@ -32,4 +32,21 @@ assert.match(
   'pull request validation must never invoke the production refresh job',
 );
 
+
+assert.match(
+  workflow,
+  /name: Intelligence refresh \\(\$\\{\\{ vars\\.GLORIFIER_INTELLIGENCE_URL != '' && 'configured' \\|\\| 'NOT RUN - endpoint unconfigured' \\}\\}\\)/,
+  'the job name must make an unconfigured scheduled refresh visibly NOT RUN',
+);
+assert.match(
+  workflow,
+  /Validate configured intelligence endpoint\\n\\s+if: vars\\.GLORIFIER_INTELLIGENCE_URL != '' \\|\\| github\\.event_name == 'workflow_dispatch'/,
+  'manual dispatch must validate strictly while an unconfigured scheduled run skips validation',
+);
+assert.match(
+  workflow,
+  /Refresh configured intelligence report\\n\\s+if: vars\\.GLORIFIER_INTELLIGENCE_URL != ''\\s*(?:\\r?\\n|$)/,
+  'the refresh request must remain gated on a configured endpoint',
+);
+
 console.log('Intelligence pipeline PR concurrency regression tests passed');
