@@ -164,7 +164,27 @@ if [[ -n "$CREATION_TX" && -n "$METADATA_TX" && -n "$ACCOUNT_TX" && -n "$MINT_TX
   verify_tx "metadata-pointer-authority" "$METADATA_POINTER_AUTH_TX" 'SetAuthority'
   TRANSACTION_SEMANTICS_VERIFIED=true
 else
-  echo "::notice::Historical transaction receipts are incomplete in the preserved deployment artifact; continuing with finalized on-chain state plus immutable exact-mint provenance without fabricating receipts."
+  echo "::notice::Historical transaction receipts are incomplete in the preserved deployment artifact; attempting independent read-only verification of the complete finalized mint transaction history."
+  if python3 solana/verify-token2022-devnet-history.py "$MINT" \
+    && jq -e --arg mint "$MINT" '.mint == $mint and .commitment == "finalized" and .historyComplete == true and .transactionSemanticsVerified == true' solana/reconciliation-tx-history.json >/dev/null; then
+    # Record only receipts proven from finalized RPC history; no signatures are fabricated.
+    jq --slurpfile h solana/reconciliation-tx-history.json '
+      .creationTransaction = $h[0].creationTransaction
+      | .metadataTransaction = $h[0].metadataTransaction
+      | .tokenAccountCreationTransaction = $h[0].tokenAccountCreationTransaction
+      | .mintTransaction = $h[0].mintTransaction
+      | .mintAuthorityRevocationTransaction = $h[0].mintAuthorityRevocationTransaction
+      | .freezeAuthorityRevocationTransaction = $h[0].freezeAuthorityRevocationTransaction
+      | .metadataUpdateAuthorityRevocationTransaction = $h[0].metadataUpdateAuthorityRevocationTransaction
+      | .metadataPointerAuthorityRevocationTransaction = $h[0].metadataPointerAuthorityRevocationTransaction
+      | .receiptSource = "FINALIZED_RPC_TRANSACTION_HISTORY"
+    ' solana/deployment-provenance.json > solana/deployment-provenance.json.tmp
+    mv solana/deployment-provenance.json.tmp solana/deployment-provenance.json
+    METADATA_POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)"
+    TRANSACTION_SEMANTICS_VERIFIED=true
+  else
+    echo "::warning::Independent transaction-history verification did not pass; transaction-level semantics remain unverified. Continuing with finalized on-chain state plus immutable exact-mint provenance without fabricating receipts."
+  fi
 fi
 
 cat > solana/reconciliation-evidence.json <<EOF
