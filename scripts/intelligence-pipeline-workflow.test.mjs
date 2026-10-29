@@ -39,9 +39,14 @@ assert.match(
 );
 assert.match(
   workflow,
-  /Refresh configured intelligence report\n\s+if: steps\.endpoint-config\.outputs\.configured == 'true'/,
-  'the refresh request must never be sent without a configured endpoint',
+  /Refresh configured intelligence report\n\s+if: steps\.endpoint-config\.outputs\.configured == 'true'\s*(?:\r?\n|$)/,
+  'the refresh request must never be sent without a configured endpoint and the condition must not have a permissive suffix',
 );
+assert.ok(
+  workflow.includes("name: Intelligence refresh (${{ vars.GLORIFIER_INTELLIGENCE_URL != '' && 'configured' || 'NOT RUN - endpoint unconfigured' }})"),
+  'the job name must expose when the scheduled refresh is NOT RUN due to missing configuration',
+);
+
 assert.match(
   workflow,
   /Intelligence refresh: NOT RUN/,
