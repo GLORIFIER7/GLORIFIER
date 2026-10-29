@@ -28,8 +28,24 @@ assert.match(
 );
 assert.match(
   workflow,
-  /refresh-report:\n\s+if: github\.event_name != 'pull_request'/,
+  /refresh-report:\n(?:\s+name:.*\n)?\s+if: github\.event_name != 'pull_request'/,
   'pull request validation must never invoke the production refresh job',
+);
+
+
+assert.ok(
+  workflow.includes("name: Intelligence refresh (${{ vars.GLORIFIER_INTELLIGENCE_URL && 'configured' || 'NOT RUN - endpoint unconfigured' }})"),
+  'the job name must make an unconfigured scheduled refresh visibly NOT RUN',
+);
+assert.match(
+  workflow,
+  /Validate configured intelligence endpoint\n\s+if: vars\.GLORIFIER_INTELLIGENCE_URL != '' \|\| github\.event_name == 'workflow_dispatch'/,
+  'manual dispatch must validate strictly while an unconfigured scheduled run skips validation',
+);
+assert.match(
+  workflow,
+  /Refresh configured intelligence report\n\s+if: vars\.GLORIFIER_INTELLIGENCE_URL != ''\s*(?:\r?\n|$)/,
+  'the refresh request must remain gated on a configured endpoint',
 );
 
 console.log('Intelligence pipeline PR concurrency regression tests passed');
