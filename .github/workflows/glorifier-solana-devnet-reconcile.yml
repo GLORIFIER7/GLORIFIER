@@ -9,6 +9,7 @@ on:
       - ".github/workflows/glorifier-solana-devnet-reconcile.yml"
       - ".github/workflows/glorifier-solana-devnet.yml"
       - "solana/**/*.sh"
+      - "solana/verify-token2022-devnet-history.py"
       - "solana/token-config.json"
       - "solana/token.json"
   workflow_dispatch:
@@ -87,6 +88,8 @@ jobs:
           bash -n solana/reconcile-token2022-devnet.sh
           bash -n solana/publish-verified-devnet-identity.sh
           bash -n solana/recover-deployment-provenance.sh
+          python3 -m py_compile solana/verify-token2022-devnet-history.py
+          python3 solana/verify-token2022-devnet-history.test.py
           if grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh; then
             echo "::error::Publication script must not push directly to main."
             exit 1
@@ -285,6 +288,7 @@ jobs:
             solana/reconciliation-evidence.json
             solana/reconciliation-metadata.json
             solana/reconciliation-tx-*.json
+            solana/reconciliation-tx-history.json
             solana/deployment-provenance.json
             solana/devnet-resume-evidence.json
             solana/verified-publication.json
