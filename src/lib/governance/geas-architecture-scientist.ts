@@ -623,17 +623,54 @@ export function isSourceObservationDue(cadenceHours: number, observedAt: string 
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
 
+function isAdmissibleCachedSourceObservation(input: {
+  ok: boolean;
+  status: number | null;
+  contentHash: string | null;
+  evidenceExcerpt: string | null;
+  evidenceStatus: string;
+}): boolean {
+  if (input.ok) {
+    const statusIsSuccessful = Number.isInteger(input.status)
+      && ((input.status !== null && input.status >= 200 && input.status < 300) || input.status === 304);
+    if (!statusIsSuccessful || typeof input.contentHash !== 'string'
+        || !/^[a-f0-9]{64}$/i.test(input.contentHash)) return false;
+
+    // Retrieval can establish only availability or a keyword/content match. A cache entry
+    // must never upgrade either into claim verification, even if persisted data is corrupt.
+    if (input.evidenceStatus === 'content-matched') {
+      return typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length > 0;
+    }
+    if (input.evidenceStatus === 'source-available') {
+      return input.evidenceExcerpt == null
+        || (typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length === 0);
+    }
+    return false;
+  }
+
+  if (input.evidenceStatus !== 'not-observed' && input.evidenceStatus !== 'unavailable') return false;
+  if (input.status !== null && (!Number.isInteger(input.status) || (input.status >= 200 && input.status < 300))) return false;
+  if (input.evidenceStatus === 'not-observed' && input.status === null) return false;
+  return true;
+}
+
 export function shouldReuseSourceObservation(input: {
   configuredUrl: string;
   cachedUrl: string | null | undefined;
   ok: boolean;
+  status: number | null;
+  contentHash: string | null;
+  evidenceExcerpt: string | null;
+  evidenceStatus: string;
   cadenceHours: number;
   observedAt: string | null | undefined;
   nowMs?: number;
 }): boolean {
-  // URL changes invalidate prior evidence immediately; failures retry hourly instead of waiting for the normal cadence.
-  if (!input.cachedUrl || input.cachedUrl !== input.configuredUrl) return false;
+  // URL changes or inconsistent/claim-promoting cache records force a new source fetch.
+  if (!input.cachedUrl || input.cachedUrl !== input.configuredUrl
+      || !isAdmissibleCachedSourceObservation(input)) return false;
   const nowMs = input.nowMs ?? Date.now();
+  // Failed observations retry hourly instead of waiting for the normal source cadence.
   if (!input.ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, input.observedAt, nowMs)) return false;
   return !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
 }
@@ -644,7 +681,13 @@ export function buildConditionalRequestHeaders(
   nowMs = Date.now(),
 ): Record<string, string> {
   const headers: Record<string, string> = {};
-  if (!cached || cached.source_url !== configuredUrl || !cached.ok || !cached.content_hash) return headers;
+  if (!cached || cached.source_url !== configuredUrl || !isAdmissibleCachedSourceObservation({
+    ok: cached.ok,
+    status: cached.status,
+    contentHash: cached.content_hash,
+    evidenceExcerpt: cached.evidence_excerpt,
+    evidenceStatus: cached.evidence_status,
+  })) return headers;
   const cachedObservedAt = Date.parse(cached.observed_at);
   // Do not let a clock-skewed or corrupted future observation seed a conditional request.
   if (!Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs) return headers;
@@ -680,13 +723,19 @@ export function reuseNotModifiedSourceObservation(
   nowMs = Date.now(),
 ): SourceObservation | null {
   const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
-  if (!cached || cached.source_url !== source.url || !cached.ok
-      || typeof cached.content_hash !== 'string'
-      || !/^[a-f0-9]{64}$/i.test(cached.content_hash)
+  const newObservedAtMs = Date.parse(observedAt);
+  if (!cached || cached.source_url !== source.url
+      || !isAdmissibleCachedSourceObservation({
+        ok: cached.ok,
+        status: cached.status,
+        contentHash: cached.content_hash,
+        evidenceExcerpt: cached.evidence_excerpt,
+        evidenceStatus: cached.evidence_status,
+      })
       || typeof cached.final_url !== 'string'
       || cached.final_url !== response.finalUrl
       || !Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs
-      || !['source-available', 'content-matched', 'claim-supported', 'not-observed', 'unavailable'].includes(cached.evidence_status)) return null;
+      || !Number.isFinite(newObservedAtMs) || newObservedAtMs > nowMs) return null;
   return {
     sourceId: source.id,
     ok: true,
@@ -1201,7 +1250,18 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
   const nowMs = Date.now();
   const sources = await Promise.all(SOURCES.map(async (source) => {
     const cached = previous.get(source.id);
-    if (cached && shouldReuseSourceObservation({ configuredUrl: source.url, cachedUrl: cached.source_url, ok: cached.ok, cadenceHours: source.cadenceHours, observedAt: cached.observed_at, nowMs })) {
+    if (cached && shouldReuseSourceObservation({
+      configuredUrl: source.url,
+      cachedUrl: cached.source_url,
+      ok: cached.ok,
+      status: cached.status,
+      contentHash: cached.content_hash,
+      evidenceExcerpt: cached.evidence_excerpt,
+      evidenceStatus: cached.evidence_status,
+      cadenceHours: source.cadenceHours,
+      observedAt: cached.observed_at,
+      nowMs,
+    })) {
       return {
         sourceId: source.id,
         ok: cached.ok,
