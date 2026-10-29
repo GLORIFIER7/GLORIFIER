@@ -13,4 +13,21 @@ signing/
 credentials/
 .gemini/
 gha-creds-*.json
-\n# Generated Solana deployment/reconciliation evidence\nsolana/deployment-output.txt\nsolana/deployment-status.txt\nsolana/final-supply.txt\nsolana/final-mint-state.txt\nsolana/mint-account.txt\nsolana/deployment-evidence.json\nsolana/deployment-record.json\nsolana/reconciliation-status.txt\nsolana/reconciliation-account.txt\nsolana/reconciliation-supply.txt\nsolana/reconciliation-mint-state.txt\nsolana/reconciliation-evidence.json\n
+
+# Generated Python bytecode
+__pycache__/
+*.py[cod]
+
+# Generated Solana deployment/reconciliation evidence
+solana/deployment-output.txt
+solana/deployment-status.txt
+solana/final-supply.txt
+solana/final-mint-state.txt
+solana/mint-account.txt
+solana/deployment-evidence.json
+solana/deployment-record.json
+solana/reconciliation-status.txt
+solana/reconciliation-account.txt
+solana/reconciliation-supply.txt
+solana/reconciliation-mint-state.txt
+solana/reconciliation-evidence.json
