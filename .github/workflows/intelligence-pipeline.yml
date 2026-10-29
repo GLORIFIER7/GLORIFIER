@@ -33,6 +33,7 @@ jobs:
         run: node scripts/intelligence-pipeline-workflow.test.mjs
 
   refresh-report:
+    name: Intelligence refresh (${{ vars.GLORIFIER_INTELLIGENCE_URL != '' && 'configured' || 'NOT RUN - endpoint unconfigured' }})
     if: github.event_name != 'pull_request'
     needs: test-endpoint-policy
     runs-on: ubuntu-latest
