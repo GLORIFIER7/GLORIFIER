@@ -9,6 +9,23 @@ const ALLOWED_STATUSES = new Set([
   'NOT OBSERVABLE',
 ]);
 
+// Registry metadata must never contain credential material. Match field names,
+// not arbitrary prose, to avoid false positives in explanatory notes.
+const SECRET_FIELD = /(?:^|[_-])(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|private[_-]?key|authorization|credential(?:[_-]?(?:value|secret|token))?|secret)(?:$|[_-])/i;
+const EXACT_SECRET_FIELD = /^(?:apiKey|api_key|api-key|accessToken|access_token|access-token|refreshToken|refresh_token|refresh-token|clientSecret|client_secret|client-secret|password|privateKey|private_key|private-key|authorization|credential|credentialValue|credential_value|credentialSecret|credentialToken|secret|secretValue|secret_value|tokenValue|token_value)$/i;
+
+function findSecretFields(value, path = '$', findings = []) {
+  if (!value || typeof value !== 'object') return findings;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if (EXACT_SECRET_FIELD.test(key) || SECRET_FIELD.test(key)) {
+      findings.push({ path: childPath, message: 'secret-like field names are forbidden in the evidence registry' });
+    }
+    findSecretFields(child, childPath, findings);
+  }
+  return findings;
+}
+
 export function validateInteroperabilityRegistry(registry) {
   const errors = [];
   const add = (path, message) => errors.push({ path, message });
@@ -22,12 +39,16 @@ export function validateInteroperabilityRegistry(registry) {
   if (!Array.isArray(registry.statusVocabulary)) {
     add('statusVocabulary', 'must be an array');
   } else {
+    const seenStatuses = new Set();
     for (const [index, status] of registry.statusVocabulary.entries()) {
       if (!ALLOWED_STATUSES.has(status)) add(`statusVocabulary[${index}]`, `unsupported status: ${String(status)}`);
+      if (seenStatuses.has(status)) add(`statusVocabulary[${index}]`, `duplicate status: ${String(status)}`);
+      seenStatuses.add(status);
     }
   }
   if (!Array.isArray(registry.capabilities)) {
     add('capabilities', 'must be an array');
+    errors.push(...findSecretFields(registry));
     return errors;
   }
 
@@ -53,6 +74,9 @@ export function validateInteroperabilityRegistry(registry) {
     if (!Array.isArray(capability.evidence)) {
       add(`${path}.evidence`, 'must be an array; use [] when no evidence exists');
     } else {
+      if (capability.status === 'VERIFIED' && capability.evidence.length === 0) {
+        add(`${path}.evidence`, 'VERIFIED capabilities require at least one evidence reference');
+      }
       for (const [evidenceIndex, evidence] of capability.evidence.entries()) {
         const evidencePath = `${path}.evidence[${evidenceIndex}]`;
         if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
@@ -68,6 +92,7 @@ export function validateInteroperabilityRegistry(registry) {
       }
     }
   }
+  errors.push(...findSecretFields(registry));
   return errors;
 }
 
