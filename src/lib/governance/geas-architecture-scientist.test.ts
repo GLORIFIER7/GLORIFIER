@@ -165,4 +165,34 @@ if (!/^[a-f0-9]{64}$/.test(pkg.actionHash)) throw new Error('action hash invalid
 if (pkg.verificationStatus !== 'UNKNOWN') throw new Error('unverified action must remain UNKNOWN');
 if (model.operatingRule.includes('autonomously apply irreversible production changes') === false) throw new Error('irreversible-change guard missing');
 
+
+const nullStatusNotObserved = { ...failedCacheMetadata, status: null };
+if (shouldReuseSourceObservation({
+  configuredUrl: 'https://example.org',
+  cachedUrl: 'https://example.org',
+  ok: false,
+  ...nullStatusNotObserved,
+  cadenceHours: 336,
+  observedAt: new Date(0).toISOString(),
+  nowMs: 30 * 60 * 1000,
+})) throw new Error('not-observed cache records with a null HTTP status must be rejected');
+
+const revalidatedCacheRow = {
+  ...cachedObservation,
+  status: 304,
+  observed_at: new Date(1000).toISOString(),
+};
+if (!shouldReuseSourceObservation({
+  configuredUrl: revalidatedCacheRow.source_url,
+  cachedUrl: revalidatedCacheRow.source_url,
+  ok: true,
+  status: revalidatedCacheRow.status,
+  contentHash: revalidatedCacheRow.content_hash,
+  evidenceExcerpt: revalidatedCacheRow.evidence_excerpt,
+  evidenceStatus: revalidatedCacheRow.evidence_status,
+  cadenceHours: 336,
+  observedAt: revalidatedCacheRow.observed_at,
+  nowMs: 1000 + 60 * 1000,
+})) throw new Error('a fresh, previously revalidated 304 cache row must be reusable within cadence');
+
 console.log('GEAS architecture scientist refinement tests passed');
