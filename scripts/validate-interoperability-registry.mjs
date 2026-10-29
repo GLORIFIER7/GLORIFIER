@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
+import { isEvidenceTimestampFresh } from './interoperability-evidence-policy.mjs';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 
 const ALLOWED_STATUSES = new Set([
   'VERIFIED',
@@ -8,9 +11,10 @@ const ALLOWED_STATUSES = new Set([
   'DEGRADED',
   'NOT OBSERVABLE',
 ]);
+const ALLOWED_EVIDENCE_KINDS = new Set([
+  'source', 'documentation', 'schema', 'automated-test', 'ci-run', 'live-probe',
+]);
 
-// Registry metadata must never contain credential material. Match field names,
-// not arbitrary prose, to avoid false positives in explanatory notes.
 function isSecretFieldName(key) {
   const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
   return /(?:apikey|token|secret|password|privatekey|authorization|credential)/.test(normalized);
@@ -38,6 +42,9 @@ export function validateInteroperabilityRegistry(registry) {
   if (typeof registry.schemaVersion !== 'string' || !registry.schemaVersion.trim()) {
     add('schemaVersion', 'must be a non-empty string');
   }
+  if (typeof registry.updatedAt !== 'string' || !Number.isFinite(Date.parse(registry.updatedAt))) {
+    add('updatedAt', 'must be a valid ISO date-time');
+  }
   if (!Array.isArray(registry.statusVocabulary)) {
     add('statusVocabulary', 'must be an array');
   } else {
@@ -47,9 +54,13 @@ export function validateInteroperabilityRegistry(registry) {
       if (seenStatuses.has(status)) add(`statusVocabulary[${index}]`, `duplicate status: ${String(status)}`);
       seenStatuses.add(status);
     }
+    if (seenStatuses.size !== ALLOWED_STATUSES.size ||
+        [...ALLOWED_STATUSES].some((status) => !seenStatuses.has(status))) {
+      add('statusVocabulary', 'must contain each allowed status exactly once');
+    }
   }
-  if (!Array.isArray(registry.capabilities)) {
-    add('capabilities', 'must be an array');
+  if (!Array.isArray(registry.capabilities) || registry.capabilities.length === 0) {
+    add('capabilities', 'must be a non-empty array');
     errors.push(...findSecretFields(registry));
     return errors;
   }
@@ -73,24 +84,54 @@ export function validateInteroperabilityRegistry(registry) {
     if (!ALLOWED_STATUSES.has(capability.status)) {
       add(`${path}.status`, `unsupported status: ${String(capability.status)}`);
     }
+    if (!Array.isArray(capability.targetEnvironments) || capability.targetEnvironments.length === 0 ||
+        capability.targetEnvironments.some((item) => typeof item !== 'string' || !item.trim())) {
+      add(`${path}.targetEnvironments`, 'must identify at least one exact environment');
+    }
+    if (!Array.isArray(capability.limitations) || capability.limitations.length === 0 ||
+        capability.limitations.some((item) => typeof item !== 'string' || !item.trim())) {
+      add(`${path}.limitations`, 'must be explicit and non-empty');
+    }
     if (!Array.isArray(capability.evidence)) {
       add(`${path}.evidence`, 'must be an array; use [] when no evidence exists');
-    } else {
-      if (capability.status === 'VERIFIED' && capability.evidence.length === 0) {
-        add(`${path}.evidence`, 'VERIFIED capabilities require at least one evidence reference');
+      continue;
+    }
+    for (const [evidenceIndex, evidence] of capability.evidence.entries()) {
+      const evidencePath = `${path}.evidence[${evidenceIndex}]`;
+      if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+        add(evidencePath, 'must be an object');
+        continue;
       }
-      for (const [evidenceIndex, evidence] of capability.evidence.entries()) {
-        const evidencePath = `${path}.evidence[${evidenceIndex}]`;
-        if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
-          add(evidencePath, 'must be an object');
-          continue;
-        }
-        if (typeof evidence.kind !== 'string' || !evidence.kind.trim()) {
-          add(`${evidencePath}.kind`, 'must be a non-empty string');
-        }
-        if (typeof evidence.reference !== 'string' || !evidence.reference.trim()) {
-          add(`${evidencePath}.reference`, 'must be a non-empty string');
-        }
+      if (!ALLOWED_EVIDENCE_KINDS.has(evidence.kind)) {
+        add(`${evidencePath}.kind`, `unsupported evidence kind: ${String(evidence.kind)}`);
+      }
+      if (typeof evidence.reference !== 'string' || !evidence.reference.trim()) {
+        add(`${evidencePath}.reference`, 'must be a non-empty string');
+      }
+      if (typeof evidence.targetEnvironment !== 'string' || !evidence.targetEnvironment.trim()) {
+        add(`${evidencePath}.targetEnvironment`, 'must be a non-empty string');
+      }
+      if (typeof evidence.notes !== 'string' || !evidence.notes.trim()) {
+        add(`${evidencePath}.notes`, 'must be a non-empty string');
+      }
+      if (evidence.observedAt !== null &&
+          (typeof evidence.observedAt !== 'string' || !Number.isFinite(Date.parse(evidence.observedAt)))) {
+        add(`${evidencePath}.observedAt`, 'must be null or a valid date-time');
+      }
+    }
+    if (capability.status === 'VERIFIED') {
+      const needsLiveProbe = /live|production|staging/i.test(capability.scope);
+      const hasFreshEvidence = capability.evidence.some((evidence) => {
+        if (!evidence || typeof evidence !== 'object') return false;
+        const acceptableKind = needsLiveProbe ? evidence.kind === 'live-probe' :
+          ['automated-test', 'ci-run', 'live-probe'].includes(evidence.kind);
+        return acceptableKind &&
+          isEvidenceTimestampFresh(evidence.observedAt, { live: needsLiveProbe }) &&
+          typeof evidence.reference === 'string' && evidence.reference.trim() &&
+          typeof evidence.targetEnvironment === 'string' && evidence.targetEnvironment.trim();
+      });
+      if (!hasFreshEvidence) {
+        add(`${path}.evidence`, 'VERIFIED requires fresh timestamped test/CI evidence; live scopes require a live-probe no older than 24 hours');
       }
     }
   }
@@ -118,6 +159,5 @@ async function main() {
   console.log(`Interoperability registry valid: ${registry.capabilities.length} capability record(s); status labels are controlled.`);
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  await main();
-}
+const entrypoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;
+if (entrypoint === import.meta.url) await main();
