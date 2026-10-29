@@ -39,3 +39,5 @@ solana/reconciliation-mainnet-*.txt
 solana/reconciliation-mainnet-*.json
 solana/resume-*.txt
 solana/resume-*.json
+
+solana/reconciliation-tx-history.json

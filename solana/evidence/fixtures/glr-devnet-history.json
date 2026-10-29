@@ -1,0 +1,193 @@
+{
+ "transactions": [
+  {
+   "signature": "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh",
+   "slot": 508688791,
+   "blockTime": 1791431979,
+   "err": null,
+   "instructions": [
+    {
+     "type": "setAuthority",
+     "info": {
+      "authority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "authorityType": "metadataPointer",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "newAuthority": null
+     }
+    }
+   ]
+  },
+  {
+   "signature": "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn",
+   "slot": 508660529,
+   "blockTime": 1791425238,
+   "err": null,
+   "instructions": [
+    {
+     "type": "updateTokenMetadataAuthority",
+     "info": {
+      "metadata": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "newAuthority": null,
+      "updateAuthority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc"
+     }
+    }
+   ]
+  },
+  {
+   "signature": "5WErARdcBz1KC5XF7xdM8r3uRSYvXvN4k3w2jR9kLp4EzEpeNjZ1iTHRzM2okURggV5xBAGAXEg6CtHXbz3ekHw3",
+   "slot": 508645262,
+   "blockTime": 1791421594,
+   "err": null,
+   "instructions": [
+    {
+     "type": "setAuthority",
+     "info": {
+      "authority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "authorityType": "mintTokens",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "newAuthority": null
+     }
+    }
+   ]
+  },
+  {
+   "signature": "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4",
+   "slot": 508645216,
+   "blockTime": 1791421583,
+   "err": null,
+   "instructions": [
+    {
+     "type": "mintToChecked",
+     "info": {
+      "account": "4tXUd6FicpQdbXB6GWnyEeDaVzGjp69oDwPTqD6vrQhS",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "mintAuthority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "tokenAmount": {
+       "amount": "1000000000000000000",
+       "decimals": 9,
+       "uiAmount": 1000000000.0,
+       "uiAmountString": "1000000000"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "signature": "3h7nP39xGNvhSQwHn6FUdUJUGu6ANhegQtWLAR2RGvvrYKZzH3fXmNidVEkYgADeFaFZyoGCkyckiAG4u71HiyYt",
+   "slot": 508645208,
+   "blockTime": 1791421581,
+   "err": null,
+   "instructions": [
+    {
+     "type": "getAccountDataSize",
+     "info": {
+      "extensionTypes": [
+       "immutableOwner"
+      ],
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd"
+     }
+    },
+    {
+     "type": "initializeImmutableOwner",
+     "info": {
+      "account": "4tXUd6FicpQdbXB6GWnyEeDaVzGjp69oDwPTqD6vrQhS"
+     }
+    },
+    {
+     "type": "initializeAccount3",
+     "info": {
+      "account": "4tXUd6FicpQdbXB6GWnyEeDaVzGjp69oDwPTqD6vrQhS",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "owner": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc"
+     }
+    }
+   ]
+  },
+  {
+   "signature": "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p",
+   "slot": 508645157,
+   "blockTime": 1791421569,
+   "err": null,
+   "instructions": [
+    {
+     "type": "initializeTokenMetadata",
+     "info": {
+      "metadata": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "mintAuthority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "name": "GLORIFIER",
+      "symbol": "GLR",
+      "updateAuthority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
+     }
+    }
+   ]
+  },
+  {
+   "signature": "2DcwdGwopPmTJwvSXG6ahDbNumM8FAJTbJwfYdV92t9h4wpDW7WP5SKzbAGw23rSGZHMLTEssysxK5H7ynvC7j5r",
+   "slot": 508645152,
+   "blockTime": 1791421568,
+   "err": null,
+   "instructions": [
+    {
+     "type": "initializeMetadataPointer",
+     "info": {
+      "authority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "metadataAddress": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd"
+     }
+    },
+    {
+     "type": "initializeMint",
+     "info": {
+      "decimals": 9,
+      "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+      "mintAuthority": "EMRfUhC3SbFNU5iPKotQuRukG1LyVFwNh9RuH9HZwwnc",
+      "rentSysvar": "SysvarRent111111111111111111111111111111111"
+     }
+    }
+   ]
+  }
+ ],
+ "account": {
+  "data": {
+   "parsed": {
+    "info": {
+     "decimals": 9,
+     "extensions": [
+      {
+       "extension": "metadataPointer",
+       "state": {
+        "authority": null,
+        "metadataAddress": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd"
+       }
+      },
+      {
+       "extension": "tokenMetadata",
+       "state": {
+        "additionalMetadata": [],
+        "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+        "name": "GLORIFIER",
+        "symbol": "GLR",
+        "updateAuthority": null,
+        "uri": "https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
+       }
+      }
+     ],
+     "freezeAuthority": null,
+     "isInitialized": true,
+     "mintAuthority": null,
+     "supply": "1000000000000000000"
+    },
+    "type": "mint"
+   },
+   "program": "spl-token-2022",
+   "space": 407
+  },
+  "executable": false,
+  "lamports": 2717800,
+  "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "rentEpoch": 18446744073709551615,
+  "space": 407
+ }
+}
