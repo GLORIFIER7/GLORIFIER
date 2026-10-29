@@ -11,6 +11,12 @@ jobs:
           name: Install locked dependencies
           command: npm ci --no-audit --no-fund
       - run:
+          name: Test MCP interoperability registry policy
+          command: npm run test:interoperability-registry
+      - run:
+          name: Validate MCP interoperability registry
+          command: npm run validate:interoperability-registry
+      - run:
           name: Type-check
           command: npm run lint
       - run:
