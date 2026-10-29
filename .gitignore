@@ -31,3 +31,11 @@ solana/reconciliation-account.txt
 solana/reconciliation-supply.txt
 solana/reconciliation-mint-state.txt
 solana/reconciliation-evidence.json
+
+# Generated outputs from mainnet reconciliation/resume workflows
+solana/deployment-mainnet-*.txt
+solana/deployment-mainnet-*.json
+solana/reconciliation-mainnet-*.txt
+solana/reconciliation-mainnet-*.json
+solana/resume-*.txt
+solana/resume-*.json
