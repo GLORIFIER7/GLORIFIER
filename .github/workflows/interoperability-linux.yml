@@ -9,6 +9,9 @@ on:
       - "server.ts"
       - "sdk/python/**"
       - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/mcp-reference-conformance.md"
+      - "scripts/validate-interoperability-registry.mjs"
+      - "scripts/validate-interoperability-registry.test.mjs"
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
@@ -66,6 +69,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Test evidence freshness policy
         run: npm run test:interoperability-evidence-policy
+      - name: Test MCP interoperability registry policy
+        run: npm run test:interoperability-registry
+      - name: Validate MCP interoperability registry
+        run: npm run validate:interoperability-registry
       - name: Validate capability registry and evidence
         run: node scripts/validate-interoperability-capabilities.mjs
       - name: Type-check
