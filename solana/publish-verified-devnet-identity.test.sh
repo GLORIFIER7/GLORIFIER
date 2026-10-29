@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Regression: final-state-only reconciliation must never publish canonical identity.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-cat > "$TMP/reconciliation-evidence.json" <<'JSON'
+mkdir -p "$TMP/solana"
+cat > "$TMP/solana/reconciliation-evidence.json" <<'JSON'
 {
   "status":"VERIFIED_ON_CHAIN","mode":"RECONCILIATION_READ_ONLY","network":"solana-devnet",
   "programId":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb","name":"GLORIFIER","symbol":"GLR",
@@ -21,4 +20,4 @@ if (cd "$TMP" && GITHUB_ACTIONS=true GH_TOKEN=not-a-real-token bash "$ROOT/solan
   echo "publisher incorrectly accepted incomplete transaction semantics" >&2
   exit 1
 fi
-echo "Publisher correctly rejects unverified transaction semantics."
+echo "Publisher correctly rejects incomplete transaction semantics."
