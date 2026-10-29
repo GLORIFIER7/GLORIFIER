@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-28T00:00:00.000Z",
+  "updatedAt": "2026-10-29T03:45:21Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -117,7 +117,7 @@
       "title": "Live GLORIFIER-NEURAL health and readiness",
       "boundary": "Configured HTTPS origin from Worker to Neural service",
       "scope": "live-runtime-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "DEGRADED",
       "targetEnvironments": [
         "Staging",
         "Production"
@@ -129,6 +129,20 @@
           "targetEnvironment": "Staging and production",
           "observedAt": null,
           "notes": "Repository documentation explicitly distinguishes the adapter implementation from evidence of a reachable deployed Neural origin."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/health",
+          "observedAt": "2026-10-29T03:45:21Z",
+          "targetEnvironment": "Production Cloudflare Worker to GLORIFIER-NEURAL",
+          "notes": "HTTP 503 with NEURAL_ORIGIN_NOT_CONFIGURED. The adapter fails closed; no deployed Neural health/readiness is established."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/ready",
+          "observedAt": "2026-10-29T03:45:21Z",
+          "targetEnvironment": "Production Cloudflare Worker to GLORIFIER-NEURAL",
+          "notes": "HTTP 503 with NEURAL_ORIGIN_NOT_CONFIGURED. A real approved origin and exact-host allowlist are required before live readiness can pass."
         }
       ],
       "limitations": [
@@ -546,7 +560,7 @@
       "title": "Live Worker, assets, and Supabase operational dependency probe",
       "boundary": "Public Cloudflare Worker runtime-verification endpoint to the configured Supabase PostgREST exact-count query",
       "scope": "live-production-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt through PostgREST"
@@ -558,13 +572,19 @@
           "observedAt": "2026-10-25T16:56:03.144Z",
           "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
           "notes": "HTTP 200; status verified-for-probed-dependencies; worker and assets checks passed; Supabase exact-count query passed in 819 ms and connectionRegistryRows was 0. Authentication and AI provider probes were explicitly not run."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false",
+          "observedAt": "2026-10-29T03:45:21Z",
+          "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
+          "notes": "HTTP 200; status verified-for-probed-dependencies. Worker/assets and Supabase exact-count query passed. Authentication and AI were explicitly not probed; this is not full application or provider readiness."
         }
       ],
       "limitations": [
         "Evidence covers only the named endpoint and the dependencies it actually probes at the recorded time.",
         "Authentication and AI/provider calls were not probed; live GLORIFIER-NEURAL readiness, external A2A/MCP conformance, blockchain RPC reachability, and continuous 24/7 availability are not established.",
-        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity.",
-        "The last recorded live probe is older than the 24-hour freshness window; rerun the read-only probe before claiming VERIFIED."
+        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity."
       ]
     },
     {
@@ -572,7 +592,7 @@
       "title": "Live operational summary endpoint contract",
       "boundary": "Public Cloudflare Worker reports summary endpoint to six Supabase operational tables",
       "scope": "live-production-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt"
@@ -584,12 +604,18 @@
           "observedAt": "2026-10-25T16:56:03.310Z",
           "targetEnvironment": "Production Cloudflare Worker backed by Supabase PostgREST",
           "notes": "HTTP 200; status operational-data-observed; exact row counts returned for connection approvals/events/registry and intelligence analyses/evidence/reports, all zero. Response explicitly labels revenue not observable and legacy economic summary not ported."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/reports/summary",
+          "observedAt": "2026-10-29T03:45:21Z",
+          "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
+          "notes": "HTTP 200; status operational-data-observed; exact counts returned for all six operational tables, each currently zero rows. Revenue remains not observable and legacy economic summary remains not ported."
         }
       ],
       "limitations": [
         "This verifies the endpoint response contract and current exact counts only; it does not prove business revenue or populated production data.",
-        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked.",
-        "The last recorded live probe is older than the 24-hour freshness window; rerun the read-only probe before claiming VERIFIED."
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked."
       ]
     },
     {
@@ -608,6 +634,13 @@
           "observedAt": null,
           "targetEnvironment": "Production Cloudflare Worker",
           "notes": "The latest live request returned HTTP 503. Current code intentionally reports identity not-ready while the canonical domain and primary organization email are not configured; this is not evidence of a healthy/ready identity."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/identity",
+          "observedAt": "2026-10-29T03:45:21Z",
+          "targetEnvironment": "Production Cloudflare Worker",
+          "notes": "HTTP 503; response is explicitly not-ready because canonical domain, primary organization email, and verified domain status are not configured. No identity readiness is claimed."
         }
       ],
       "limitations": [
