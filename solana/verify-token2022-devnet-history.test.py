@@ -1,5 +1,6 @@
 """Offline regression tests for verify-token2022-devnet-history.py (no network)."""
-import copy, importlib.util, json, pathlib, unittest
+import copy, importlib.util, io, json, pathlib, unittest
+from unittest.mock import patch
 
 HERE = pathlib.Path(__file__).parent
 spec = importlib.util.spec_from_file_location("v", HERE / "verify-token2022-devnet-history.py")
@@ -49,6 +50,30 @@ class HistoryTests(unittest.TestCase):
 
     def test_final_state_mismatch_fails(self):
         d = copy.deepcopy(FIXTURE); d["account"]["data"]["parsed"]["info"]["mintAuthority"] = "x"; self.assertFails(d)
+
+
+    def test_additional_token_account_does_not_break_complete_history(self):
+        d = copy.deepcopy(FIXTURE)
+        tx, instruction = find(d, "initializeAccount")
+        extra = copy.deepcopy(instruction)
+        extra["info"]["account"] = "AdditionalHolderTokenAccount"
+        tx["instructions"].append(extra)
+        result = v.analyze(MINT, d)
+        self.assertTrue(result["transactionSemanticsVerified"])
+        self.assertEqual(result["tokenAccountCreationTransaction"], tx["signature"])
+
+    def test_rpc_retries_body_read_oserror(self):
+        successful_response = io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}')
+        with patch.object(v.urllib.request, "urlopen", side_effect=[OSError("socket read reset"), successful_response]), \\
+             patch.object(v.time, "sleep"):
+            self.assertEqual(v.rpc("https://rpc.example", "getHealth", []), {"ok": True})
+
+    def test_rpc_json_decode_failure_ends_as_verification_error(self):
+        invalid_responses = [io.BytesIO(b'not-json') for _ in range(6)]
+        with patch.object(v.urllib.request, "urlopen", side_effect=invalid_responses), \\
+             patch.object(v.time, "sleep"):
+            with self.assertRaisesRegex(v.VerificationError, "response unavailable or invalid after retries"):
+                v.rpc("https://rpc.example", "getHealth", [])
 
 
 if __name__ == "__main__":
