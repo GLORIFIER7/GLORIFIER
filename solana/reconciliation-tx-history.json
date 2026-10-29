@@ -1,0 +1,31 @@
+{
+  "network": "solana-devnet",
+  "mode": "READ_ONLY_TRANSACTION_HISTORY",
+  "commitment": "finalized",
+  "mint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
+  "programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "historyComplete": true,
+  "signatureCount": 7,
+  "signatures": [
+    "2DcwdGwopPmTJwvSXG6ahDbNumM8FAJTbJwfYdV92t9h4wpDW7WP5SKzbAGw23rSGZHMLTEssysxK5H7ynvC7j5r",
+    "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p",
+    "3h7nP39xGNvhSQwHn6FUdUJUGu6ANhegQtWLAR2RGvvrYKZzH3fXmNidVEkYgADeFaFZyoGCkyckiAG4u71HiyYt",
+    "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4",
+    "5WErARdcBz1KC5XF7xdM8r3uRSYvXvN4k3w2jR9kLp4EzEpeNjZ1iTHRzM2okURggV5xBAGAXEg6CtHXbz3ekHw3",
+    "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn",
+    "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh"
+  ],
+  "totalMintedBaseUnits": "1000000000000000000",
+  "creationTransaction": "2DcwdGwopPmTJwvSXG6ahDbNumM8FAJTbJwfYdV92t9h4wpDW7WP5SKzbAGw23rSGZHMLTEssysxK5H7ynvC7j5r",
+  "metadataTransaction": "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p",
+  "tokenAccountCreationTransaction": "3h7nP39xGNvhSQwHn6FUdUJUGu6ANhegQtWLAR2RGvvrYKZzH3fXmNidVEkYgADeFaFZyoGCkyckiAG4u71HiyYt",
+  "mintTransaction": "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4",
+  "mintAuthorityRevocationTransaction": "5WErARdcBz1KC5XF7xdM8r3uRSYvXvN4k3w2jR9kLp4EzEpeNjZ1iTHRzM2okURggV5xBAGAXEg6CtHXbz3ekHw3",
+  "freezeAuthorityRevocationTransaction": "NOT_APPLICABLE_NEVER_SET",
+  "metadataUpdateAuthorityRevocationTransaction": "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn",
+  "metadataPointerAuthorityRevocationTransaction": "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh",
+  "transactionSemanticsVerified": true,
+  "observedAt": "2026-10-29T03:43:37Z",
+  "rpcEndpoint": "https://api.devnet.solana.com",
+  "verificationMethod": "repository script solana/verify-token2022-devnet-history.py; read-only finalized RPC"
+}
