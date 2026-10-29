@@ -13,7 +13,6 @@ on:
       - "solana/token-config.json"
       - "solana/token.json"
       - "solana/reconciliation-tx-history.json"
-      - "solana/reconciliation-evidence.json"
   workflow_dispatch:
     inputs:
       confirm:
@@ -89,9 +88,11 @@ jobs:
           set -euo pipefail
           bash -n solana/reconcile-token2022-devnet.sh
           bash -n solana/publish-verified-devnet-identity.sh
+          bash -n solana/validate-finalized-transaction-evidence.sh
           bash -n solana/recover-deployment-provenance.sh
           python3 -m py_compile solana/verify-token2022-devnet-history.py
           python3 solana/verify-token2022-devnet-history.test.py
+          bash solana/validate-finalized-transaction-evidence.test.sh
           bash solana/publish-verified-devnet-identity.test.sh
           if grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh; then
             echo "::error::Publication script must not push directly to main."

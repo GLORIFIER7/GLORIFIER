@@ -25,5 +25,6 @@
   "transaction_semantics_verified": true,
   "transaction_history_verified_at": "2026-10-29T03:43:37Z",
   "transaction_history_source": "FINALIZED_RPC_TRANSACTION_HISTORY",
-  "transaction_history_signature_count": 7
+  "transaction_history_signature_count": 7,
+  "total_minted_base_units": "1000000000000000000"
 }
