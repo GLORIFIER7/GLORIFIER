@@ -12,10 +12,22 @@ if (!isSourceObservationDue(24, new Date(0).toISOString(), 24 * 60 * 60 * 1000))
 const fixedNowMs = 1000;
 const futureObservedAt = new Date(fixedNowMs + 1).toISOString();
 if (!isSourceObservationDue(24, futureObservedAt, fixedNowMs)) throw new Error('future-dated source observations must force revalidation');
-if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: true, cadenceHours: 336, observedAt: futureObservedAt, nowMs: fixedNowMs })) throw new Error('future-dated observations must not be reused');
-if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cachedUrl: 'https://example.org/old', ok: true, cadenceHours: 168, observedAt: new Date(0).toISOString(), nowMs: 1000 })) throw new Error('URL changes must invalidate cached source observations');
-if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
-if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
+const validCacheMetadata = {
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  evidenceExcerpt: 'matching excerpt',
+  evidenceStatus: 'content-matched',
+};
+const failedCacheMetadata = {
+  status: 404,
+  contentHash: 'b'.repeat(64),
+  evidenceExcerpt: null,
+  evidenceStatus: 'not-observed',
+};
+if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: true, ...validCacheMetadata, cadenceHours: 336, observedAt: futureObservedAt, nowMs: fixedNowMs })) throw new Error('future-dated observations must not be reused');
+if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cachedUrl: 'https://example.org/old', ok: true, ...validCacheMetadata, cadenceHours: 168, observedAt: new Date(0).toISOString(), nowMs: 1000 })) throw new Error('URL changes must invalidate cached source observations');
+if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
+if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
 if (stripHtml('<main>  alpha &amp; beta </main>') !== 'alpha and beta') throw new Error('HTML normalization failed');
 
 const cachedObservation = {
@@ -39,6 +51,33 @@ if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', ca
 }
 if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, ok: false })).length !== 0) {
   throw new Error('failed cached observations must not be used for conditional requests');
+}
+const forgedClaimSupportedCache = { ...cachedObservation, evidence_status: 'claim-supported' as const };
+if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, forgedClaimSupportedCache)).length !== 0) {
+  throw new Error('claim-supported cache records must not seed conditional source requests');
+}
+if (shouldReuseSourceObservation({
+  configuredUrl: cachedObservation.source_url,
+  cachedUrl: forgedClaimSupportedCache.source_url,
+  ok: forgedClaimSupportedCache.ok,
+  status: forgedClaimSupportedCache.status,
+  contentHash: forgedClaimSupportedCache.content_hash,
+  evidenceExcerpt: forgedClaimSupportedCache.evidence_excerpt,
+  evidenceStatus: forgedClaimSupportedCache.evidence_status,
+  cadenceHours: 336,
+  observedAt: forgedClaimSupportedCache.observed_at,
+  nowMs: 1000,
+})) throw new Error('cached source retrieval must never promote claim-supported evidence');
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  forgedClaimSupportedCache,
+  { finalUrl: cachedObservation.source_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must reject claim-supported cache records');
+const malformedContentMatchCache = { ...cachedObservation, evidence_excerpt: '   ' };
+if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, malformedContentMatchCache)).length !== 0) {
+  throw new Error('content-matched cache records require a non-empty evidence excerpt');
 }
 const futureCachedObservation = { ...cachedObservation, observed_at: futureObservedAt };
 const futureFetchContext = createSourceFetchContext(cachedObservation.source_url, futureCachedObservation, fixedNowMs);
