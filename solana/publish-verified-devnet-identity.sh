@@ -162,15 +162,16 @@ METADATA_SHA256="$(jq -r '.offChainMetadataSha256' solana/reconciliation-evidenc
 [[ "$METADATA_SHA256" =~ ^[0-9a-f]{64}$ ]]
 
 jq --arg mint "$MINT" \
-   --arg creation "$(jq -r '.creationTransaction' solana/deployment-provenance.json)" \
-   --arg metadata "$(jq -r '.metadataTransaction' solana/deployment-provenance.json)" \
-   --arg account "$(jq -r '.tokenAccountCreationTransaction' solana/deployment-provenance.json)" \
-   --arg mint_tx "$(jq -r '.mintTransaction' solana/deployment-provenance.json)" \
-   --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
-   --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
-   --arg metadata_auth "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
-   --arg metadata_pointer_auth "$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/deployment-provenance.json)" \
+   --arg creation "$(jq -r '.creationTransaction' solana/reconciliation-evidence.json)" \
+   --arg metadata "$(jq -r '.metadataTransaction' solana/reconciliation-evidence.json)" \
+   --arg account "$(jq -r '.tokenAccountCreationTransaction' solana/reconciliation-evidence.json)" \
+   --arg mint_tx "$(jq -r '.mintTransaction' solana/reconciliation-evidence.json)" \
+   --arg mint_auth "$(jq -r '.mintAuthorityRevocationTransaction' solana/reconciliation-evidence.json)" \
+   --arg freeze_auth "$(jq -r '.freezeAuthorityRevocationTransaction' solana/reconciliation-evidence.json)" \
+   --arg metadata_auth "$(jq -r '.metadataUpdateAuthorityRevocationTransaction' solana/reconciliation-evidence.json)" \
+   --arg metadata_pointer_auth "$(jq -r '.metadataPointerAuthorityRevocationTransaction' solana/reconciliation-evidence.json)" \
    --arg metadata_sha256 "$METADATA_SHA256" \
+   --arg total_minted_base_units "$(jq -r '.totalMintedBaseUnits' solana/reconciliation-evidence.json)" \
    --arg transaction_semantics_verified "$TRANSACTION_SEMANTICS_VERIFIED" \
    --arg run_id "$GITHUB_RUN_ID" \
    --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
