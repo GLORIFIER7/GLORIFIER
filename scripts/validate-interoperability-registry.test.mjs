@@ -126,3 +126,19 @@ test('CLI rejects malformed JSON with a non-zero exit code', () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('CLI rejects structurally invalid registry data with a non-zero exit code', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'glorifier-mcp-registry-'));
+  try {
+    const input = join(directory, 'registry.json');
+    const invalid = validRegistry();
+    invalid.capabilities[0].evidence[0].kind = 'unknown-kind';
+    writeFileSync(input, JSON.stringify(invalid));
+    const script = fileURLToPath(new URL('./validate-interoperability-registry.mjs', import.meta.url));
+    const result = spawnSync(process.execPath, [script, input], { encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /unsupported evidence kind/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
