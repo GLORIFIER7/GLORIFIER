@@ -11,14 +11,16 @@ const ALLOWED_STATUSES = new Set([
 
 // Registry metadata must never contain credential material. Match field names,
 // not arbitrary prose, to avoid false positives in explanatory notes.
-const SECRET_FIELD = /(?:^|[_-])(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|private[_-]?key|authorization|credential(?:[_-]?(?:value|secret|token))?|secret)(?:$|[_-])/i;
-const EXACT_SECRET_FIELD = /^(?:apiKey|api_key|api-key|accessToken|access_token|access-token|refreshToken|refresh_token|refresh-token|clientSecret|client_secret|client-secret|password|privateKey|private_key|private-key|authorization|credential|credentialValue|credential_value|credentialSecret|credentialToken|secret|secretValue|secret_value|tokenValue|token_value)$/i;
+function isSecretFieldName(key) {
+  const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  return /(?:apikey|token|secret|password|privatekey|authorization|credential)/.test(normalized);
+}
 
 function findSecretFields(value, path = '$', findings = []) {
   if (!value || typeof value !== 'object') return findings;
   for (const [key, child] of Object.entries(value)) {
     const childPath = `${path}.${key}`;
-    if (EXACT_SECRET_FIELD.test(key) || SECRET_FIELD.test(key)) {
+    if (isSecretFieldName(key)) {
       findings.push({ path: childPath, message: 'secret-like field names are forbidden in the evidence registry' });
     }
     findSecretFields(child, childPath, findings);
