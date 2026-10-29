@@ -57,7 +57,13 @@ class HistoryTests(unittest.TestCase):
         tx, instruction = find(d, "initializeAccount")
         extra = copy.deepcopy(instruction)
         extra["info"]["account"] = "AdditionalHolderTokenAccount"
-        tx["instructions"].append(extra)
+        d["transactions"].append({
+            "signature": "AdditionalHolderAccountInitializationSignature",
+            "slot": max(item["slot"] for item in d["transactions"]) + 1,
+            "blockTime": 1791431980,
+            "err": None,
+            "instructions": [extra],
+        })
         result = v.analyze(MINT, d)
         self.assertTrue(result["transactionSemanticsVerified"])
         self.assertEqual(result["tokenAccountCreationTransaction"], tx["signature"])
