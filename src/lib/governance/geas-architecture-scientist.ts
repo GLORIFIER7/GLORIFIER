@@ -681,7 +681,7 @@ export function buildConditionalRequestHeaders(
   nowMs = Date.now(),
 ): Record<string, string> {
   const headers: Record<string, string> = {};
-  if (!cached || cached.source_url !== configuredUrl || !isAdmissibleCachedSourceObservation({
+  if (!cached || cached.source_url !== configuredUrl || !cached.ok || !isAdmissibleCachedSourceObservation({
     ok: cached.ok,
     status: cached.status,
     contentHash: cached.content_hash,
@@ -724,7 +724,7 @@ export function reuseNotModifiedSourceObservation(
 ): SourceObservation | null {
   const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
   const newObservedAtMs = Date.parse(observedAt);
-  if (!cached || cached.source_url !== source.url
+  if (!cached || cached.source_url !== source.url || !cached.ok
       || !isAdmissibleCachedSourceObservation({
         ok: cached.ok,
         status: cached.status,
