@@ -33,6 +33,7 @@ jobs:
         run: node scripts/intelligence-pipeline-workflow.test.mjs
 
   refresh-report:
+    name: Intelligence refresh (${{ vars.GLORIFIER_INTELLIGENCE_URL != '' && 'configured' || 'NOT RUN - endpoint unconfigured' }})
     if: github.event_name != 'pull_request'
     needs: test-endpoint-policy
     runs-on: ubuntu-latest
@@ -55,7 +56,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate configured intelligence endpoint
-        if: vars.GLORIFIER_INTELLIGENCE_URL != ''
+        if: vars.GLORIFIER_INTELLIGENCE_URL != '' || github.event_name == 'workflow_dispatch'
         env:
           GLORIFIER_INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
         run: node scripts/validate-intelligence-endpoint.mjs
