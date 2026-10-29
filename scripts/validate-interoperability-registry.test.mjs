@@ -37,6 +37,26 @@ test('requires evidence references to be explicit', () => {
   assert.ok(validateInteroperabilityRegistry(registry).some((e) => e.path.endsWith('.reference')));
 });
 
+test('VERIFIED capabilities require evidence', () => {
+  const registry = validRegistry();
+  registry.capabilities[0].status = 'VERIFIED';
+  registry.capabilities[0].evidence = [];
+  assert.ok(validateInteroperabilityRegistry(registry).some((e) => e.message.includes('require at least one evidence reference')));
+});
+
+test('rejects secret-like fields anywhere in registry objects', () => {
+  const registry = validRegistry();
+  registry.capabilities[0].auth = { clientSecret: 'must-not-be-here' };
+  const errors = validateInteroperabilityRegistry(registry);
+  assert.ok(errors.some((e) => e.path.endsWith('.auth.clientSecret')));
+});
+
+test('rejects duplicate status vocabulary entries', () => {
+  const registry = validRegistry();
+  registry.statusVocabulary.push('VERIFIED');
+  assert.ok(validateInteroperabilityRegistry(registry).some((e) => e.message.includes('duplicate status')));
+});
+
 test('rejects a non-object registry and missing evidence arrays', () => {
   assert.ok(validateInteroperabilityRegistry(null).length > 0);
   const registry = validRegistry();
