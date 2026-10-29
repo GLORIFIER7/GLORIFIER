@@ -41,12 +41,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Report missing intelligence endpoint configuration
+        if: vars.GLORIFIER_INTELLIGENCE_URL == ''
+        shell: bash
+        run: |
+          echo "::warning::GLORIFIER_INTELLIGENCE_URL is not configured; report refresh was skipped."
+          {
+            echo "## Intelligence report refresh"
+            echo ""
+            printf 'Skipped: repository variable `%s` is not configured.\n' 'GLORIFIER_INTELLIGENCE_URL'
+            echo "Configure a verified HTTPS endpoint in repository Variables to enable refresh."
+            echo "No secret values were read or changed by this step."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Validate configured intelligence endpoint
+        if: vars.GLORIFIER_INTELLIGENCE_URL != ''
         env:
           GLORIFIER_INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
         run: node scripts/validate-intelligence-endpoint.mjs
 
       - name: Refresh configured intelligence report
+        if: vars.GLORIFIER_INTELLIGENCE_URL != ''
         env:
           GLORIFIER_INTELLIGENCE_URL: ${{ vars.GLORIFIER_INTELLIGENCE_URL }}
           INTELLIGENCE_KEY: ${{ secrets.INTELLIGENCE_INGEST_KEY }}
