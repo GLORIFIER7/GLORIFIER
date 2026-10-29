@@ -52,18 +52,20 @@ These results supersede older smoke-test observations in this document. A succes
 
 ## Latest live smoke-test evidence (2026-10-29)
 
-Fresh read-only probes against `https://glorifier.glorifier.workers.dev` were observed at **2026-10-29T03:45:21Z**. These observations supersede the older 2026-10-24 and 2026-10-26 response codes below; they do not establish full production readiness.
+Fresh read-only probes against `https://glorifier.glorifier.workers.dev` were observed at **2026-10-29T03:45:21Z**. These observations supersede the older 2026-10-24 and 2026-10-26 response codes recorded above; they do not establish full production readiness.
 
 - `GET /api/health`: **HTTP 200**. Worker liveness only; backend, authentication, and database dependencies remain `not-probed`.
 - `GET /api/business-model`: **HTTP 200**. Static business-model contract served by the Worker.
 - `GET /api/runtime-verification?probeAi=false`: **HTTP 200**. Worker/assets and a Supabase PostgREST exact-count query passed. Authentication and AI/provider readiness were explicitly not probed.
 - `GET /api/reports/summary`: **HTTP 200**. Exact counts were returned for all six operational tables; all counts were zero at observation time. This does not prove whole-database emptiness, Neon parity, or revenue status.
 - `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain, primary organization email, and verified domain status are not configured.
-- `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. The Worker fails closed; GLORIFIER-NEURAL is not live-ready.
+- `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. The Worker fails closed before contacting an upstream. GLORIFIER-NEURAL integration readiness is unavailable and remains unverified; this response alone does not establish the service's own runtime state.
 
 ### Database security and parity
 
-On 2026-10-29, the Supabase migration `explicit_client_role_denials` was applied and recorded as migration version `20261029034619`. It adds restrictive `USING (false)` / `WITH CHECK (false)` policies for the `anon` and `authenticated` roles on the six operational tables. The policies do not grant client access and do not disable RLS. A follow-up `pg_policies` query confirmed all six policies, and the Supabase security advisor returned no findings.
+On 2026-10-29, the Supabase migration `explicit_client_role_denials` was applied and recorded as migration version `20261029034619`. It adds restrictive `USING (false)` / `WITH CHECK (false)` policies for the `anon` and `authenticated` roles on the six operational tables. The policies do not grant client access and do not disable RLS. A follow-up `pg_policies` query confirmed all six policies, and the Supabase security advisor returned no findings. The current live database also showed RLS enabled and no table-level SELECT/INSERT/UPDATE/DELETE grants for either client role.
+
+A follow-up migration is proposed in PR #539 to make the policy invariant self-enforcing: explicitly enable RLS on every target table, drop/recreate the migration-owned policy to avoid trusting a same-named but weaker policy, and assert the exact restrictive policy attributes. It has **not** been applied to production. The rollback plan is to remove only this named restrictive policy after confirming that client-role grants remain absent and RLS remains enabled; never disable RLS as rollback.
 
 This does **not** prove the Neon and Supabase databases are in parity. The Neon project `frosty-leaf-46030505` still reports its default `main` branch `br-raspy-pine-b5vgf50e` as archived. No branch restore, database migration, data copy, or sync change was performed in this audit because Neon SQL access, authoritative source ownership, and backup/rollback requirements remain unresolved.
 
