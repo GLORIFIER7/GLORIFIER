@@ -92,6 +92,7 @@ jobs:
           bash -n solana/recover-deployment-provenance.sh
           python3 -m py_compile solana/verify-token2022-devnet-history.py
           python3 solana/verify-token2022-devnet-history.test.py
+          bash solana/publish-verified-devnet-identity.test.sh
           if grep -Fq 'git push origin HEAD:main' solana/publish-verified-devnet-identity.sh; then
             echo "::error::Publication script must not push directly to main."
             exit 1
