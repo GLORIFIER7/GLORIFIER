@@ -46,9 +46,10 @@ test('VERIFIED capabilities require evidence', () => {
 
 test('rejects secret-like fields anywhere in registry objects', () => {
   const registry = validRegistry();
-  registry.capabilities[0].auth = { clientSecret: 'must-not-be-here' };
+  registry.capabilities[0].auth = { clientSecret: 'must-not-be-here', github_token: 'also-forbidden' };
   const errors = validateInteroperabilityRegistry(registry);
   assert.ok(errors.some((e) => e.path.endsWith('.auth.clientSecret')));
+  assert.ok(errors.some((e) => e.path.endsWith('.auth.github_token')));
 });
 
 test('rejects duplicate status vocabulary entries', () => {
