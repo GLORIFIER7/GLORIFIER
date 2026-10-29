@@ -92,9 +92,6 @@ export function validateInteroperabilityRegistry(registry) {
         capability.limitations.some((item) => typeof item !== 'string' || !item.trim())) {
       add(`${path}.limitations`, 'must be explicit and non-empty');
     }
-    if (!Number.isFinite(Date.parse(capability.updatedAt))) {
-      add(`${path}.updatedAt`, 'must be a valid date-time');
-    }
     if (!Array.isArray(capability.evidence)) {
       add(`${path}.evidence`, 'must be an array; use [] when no evidence exists');
       continue;
