@@ -39,12 +39,12 @@ assert.ok(
 );
 assert.match(
   workflow,
-  /Validate configured intelligence endpoint\\n\\s+if: vars\\.GLORIFIER_INTELLIGENCE_URL != '' \\|\\| github\\.event_name == 'workflow_dispatch'/,
+  /Validate configured intelligence endpoint\n\s+if: vars\.GLORIFIER_INTELLIGENCE_URL != '' \|\| github\.event_name == 'workflow_dispatch'/,
   'manual dispatch must validate strictly while an unconfigured scheduled run skips validation',
 );
 assert.match(
   workflow,
-  /Refresh configured intelligence report\\n\\s+if: vars\\.GLORIFIER_INTELLIGENCE_URL != ''\\s*(?:\\r?\\n|$)/,
+  /Refresh configured intelligence report\n\s+if: vars\.GLORIFIER_INTELLIGENCE_URL != ''\s*(?:\r?\n|$)/,
   'the refresh request must remain gated on a configured endpoint',
 );
 
