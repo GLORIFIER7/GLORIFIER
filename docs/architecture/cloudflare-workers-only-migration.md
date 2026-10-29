@@ -50,18 +50,24 @@ Fresh external fetches were performed against `https://glorifier.glorifier.worke
 
 These results supersede older smoke-test observations in this document. A successful `/api/health` response is not evidence of database, authentication, or backend readiness. The reports and runtime-verification failures remain production blockers.
 
-## Latest live smoke-test evidence (2026-10-26)
+## Latest live smoke-test evidence (2026-10-29)
 
-A later read-only production check, recorded in [Issue #432 comment](https://github.com/GLORIFIER7/GLORIFIER/issues/432#issuecomment-6400491311), supersedes the 2026-10-24 failure observations for the two endpoints below. These checks were recorded externally; this documentation update did not run or deploy them.
+Fresh read-only probes against `https://glorifier.glorifier.workers.dev` were observed at **2026-10-29T03:45:21Z**. These observations supersede the older 2026-10-24 and 2026-10-26 response codes below; they do not establish full production readiness.
 
 - `GET /api/health`: **HTTP 200**. Worker liveness only; backend, authentication, and database dependencies remain `not-probed`.
 - `GET /api/business-model`: **HTTP 200**. Static business-model contract served by the Worker.
-- `GET /api/reports/summary`: **HTTP 200**. The six named operational tables returned exact counts of zero at observation time. This does not prove whole-database emptiness, Neon parity, or revenue status.
-- `GET /api/runtime-verification?probeAi=false`: **HTTP 200**. Worker/assets checks and a Supabase PostgREST exact-count query passed (reported latency: 819 ms). Authentication and AI/provider readiness were not probed.
-- `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain and primary organization email remain unconfigured.
-- `GET /api/app-state` without credentials: **HTTP 401**, `AUTHENTICATION_REQUIRED`. This confirms the unauthenticated boundary for this route at probe time; it does not verify an authenticated session or backend persistence.
-- `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. These are live configuration failures, not merely untested endpoints; configure only a reviewed HTTPS origin and exact host allowlist after the Neural service is deployed and authorized.
-- The companion [GLORIFIER-NEURAL repository README](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/main/README.md) explicitly describes that service as an implementation starter, not a connected production environment. Its README says `/ready` remains HTTP 503 until provider/database integrations are implemented and verified; its CI runs tests and a local container build but does not deploy or publish an image. Therefore, configuring a Worker origin alone is not a complete fix: the service needs an owner-approved deployment, secret/token setup, provider/egress decision, and reviewed database/audit configuration before readiness can be claimed.
+- `GET /api/runtime-verification?probeAi=false`: **HTTP 200**. Worker/assets and a Supabase PostgREST exact-count query passed. Authentication and AI/provider readiness were explicitly not probed.
+- `GET /api/reports/summary`: **HTTP 200**. Exact counts were returned for all six operational tables; all counts were zero at observation time. This does not prove whole-database emptiness, Neon parity, or revenue status.
+- `GET /api/identity`: **HTTP 503**, intentionally not-ready because the canonical domain, primary organization email, and verified domain status are not configured.
+- `GET /api/neural/health` and `GET /api/neural/ready`: **HTTP 503**, `NEURAL_ORIGIN_NOT_CONFIGURED`. The Worker fails closed; GLORIFIER-NEURAL is not live-ready.
+
+### Database security and parity
+
+On 2026-10-29, the Supabase migration `explicit_client_role_denials` was applied and recorded as migration version `20261029034619`. It adds restrictive `USING (false)` / `WITH CHECK (false)` policies for the `anon` and `authenticated` roles on the six operational tables. The policies do not grant client access and do not disable RLS. A follow-up `pg_policies` query confirmed all six policies, and the Supabase security advisor returned no findings.
+
+This does **not** prove the Neon and Supabase databases are in parity. The Neon project `frosty-leaf-46030505` still reports its default `main` branch `br-raspy-pine-b5vgf50e` as archived. No branch restore, database migration, data copy, or sync change was performed in this audit because Neon SQL access, authoritative source ownership, and backup/rollback requirements remain unresolved.
+
+The live runtime endpoints are working for the specific checks above, but the application is not yet fully ready: identity is unconfigured, Neural origin/readiness is unavailable, and database parity is unverified.
 
 ### Remaining production gates
 
