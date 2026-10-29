@@ -54,7 +54,7 @@ class HistoryTests(unittest.TestCase):
 
     def test_additional_token_account_does_not_break_complete_history(self):
         d = copy.deepcopy(FIXTURE)
-        tx, instruction = find(d, "initializeAccount")
+        tx, instruction = find(d, "initializeAccount3")
         extra = copy.deepcopy(instruction)
         extra["info"]["account"] = "AdditionalHolderTokenAccount"
         d["transactions"].append({
