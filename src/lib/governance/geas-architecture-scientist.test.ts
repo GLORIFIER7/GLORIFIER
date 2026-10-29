@@ -49,9 +49,23 @@ if (conditionalHeaders['If-None-Match'] !== '"v1"' || conditionalHeaders['If-Mod
 if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', cachedObservation)).length !== 0) {
   throw new Error('URL changes must suppress conditional request headers');
 }
-if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, { ...cachedObservation, ok: false })).length !== 0) {
+const failedHttpCache = {
+  ...cachedObservation,
+  ok: false,
+  status: 404,
+  evidence_excerpt: null,
+  evidence_status: 'not-observed' as const,
+};
+if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, failedHttpCache)).length !== 0) {
   throw new Error('failed cached observations must not be used for conditional requests');
 }
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  failedHttpCache,
+  { finalUrl: cachedObservation.source_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must not promote a failed source observation');
 const forgedClaimSupportedCache = { ...cachedObservation, evidence_status: 'claim-supported' as const };
 if (Object.keys(buildConditionalRequestHeaders(cachedObservation.source_url, forgedClaimSupportedCache)).length !== 0) {
   throw new Error('claim-supported cache records must not seed conditional source requests');
