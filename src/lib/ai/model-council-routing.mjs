@@ -44,15 +44,16 @@ export function resolveModelCouncilProviderIds({
   activeModels,
   availableProviderIds,
 }) {
-  const requested = providerIds !== undefined
-    ? providerIds
-    : Array.isArray(activeModels)
-      ? activeModels.map((modelId) => (
-          typeof modelId === 'string'
-            ? (Object.hasOwn(LEGACY_MODEL_PROVIDER_IDS, modelId) ? LEGACY_MODEL_PROVIDER_IDS[modelId] : modelId)
-            : modelId
-        ))
-      : providerIds;
+  let requested = providerIds;
+  if (providerIds === undefined && Array.isArray(activeModels)) {
+    requested = activeModels.map((modelId) => {
+      if (typeof modelId !== 'string') return modelId;
+      if (Object.hasOwn(LEGACY_MODEL_PROVIDER_IDS, modelId)) {
+        return LEGACY_MODEL_PROVIDER_IDS[modelId];
+      }
+      return modelId;
+    });
+  }
   return validateModelCouncilProviderIds(requested, availableProviderIds);
 }
 
@@ -159,11 +160,14 @@ export async function executeModelCouncilProviders({
   timeoutMs = DEFAULT_MODEL_COUNCIL_TIMEOUT_MS,
 }) {
   const legacyProviderSelection = !Array.isArray(participants);
-  const selected = Array.isArray(participants)
-    ? participants
-    : Array.isArray(providerIds)
-      ? providerIds.map((providerId) => ({ providerId, modelId: undefined }))
-      : [];
+  let selected;
+  if (Array.isArray(participants)) {
+    selected = participants;
+  } else if (Array.isArray(providerIds)) {
+    selected = providerIds.map((providerId) => ({ providerId, modelId: undefined }));
+  } else {
+    selected = [];
+  }
   if (selected.length === 0) {
     throw new RangeError('At least one validated provider/model selection is required.');
   }
@@ -226,6 +230,13 @@ export async function executeModelCouncilProviders({
     .map(({ providerId, modelId, code }) => ({ providerId, modelId, code }));
   const providerDiversity = new Set(successful.map((entry) => entry.provider)).size;
 
+  let status = 'unavailable';
+  if (successful.length === selected.length) {
+    status = 'complete';
+  } else if (successful.length > 0) {
+    status = 'partial';
+  }
+
   return {
     requestedParticipants: selected.map(({ providerId, modelId }) => ({ providerId, modelId: modelId ?? null })),
     requestedProviderIds: [...new Set(selected.map(({ providerId }) => providerId))],
@@ -233,10 +244,6 @@ export async function executeModelCouncilProviders({
     failures,
     participantCount: successful.length,
     providerDiversity,
-    status: successful.length === selected.length
-      ? 'complete'
-      : successful.length > 0
-        ? 'partial'
-        : 'unavailable',
+    status,
   };
 }
