@@ -103,7 +103,7 @@ BEGIN
   END IF;
 
   IF ARRAY(
-    SELECT tablename
+    SELECT tablename::text
     FROM pg_policies
     WHERE schemaname = 'public'
       AND policyname = 'glorifier_deny_client_roles'
