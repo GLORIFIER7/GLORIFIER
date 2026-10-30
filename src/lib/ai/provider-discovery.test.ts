@@ -52,9 +52,14 @@ try {
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
   assert.equal(
-    requests.some((request) => request.method !== 'GET' || request.url.endsWith('/chat/completions')),
+    requests.some((request) => request.method !== 'GET'),
     false,
-    'provider discovery must not issue billable inference requests',
+    'provider discovery must not issue billable non-GET requests',
+  );
+  assert.equal(
+    requests.some((request) => request.url.endsWith('/chat/completions')),
+    false,
+    'provider discovery must not call inference endpoints',
   );
 } finally {
   globalThis.fetch = originalFetch;
