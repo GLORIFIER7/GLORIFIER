@@ -62,3 +62,20 @@ export async function persistConnectionApprovalAtomically(
   }
   return result.rows[0];
 }
+
+
+/** Cache successful schema initialization and allow a failed attempt to retry. */
+export function createMemoizedAsyncInitializer(initializer: () => Promise<unknown>): () => Promise<void> {
+  let initialization: Promise<void> | null = null;
+  return () => {
+    if (initialization) return initialization;
+    initialization = Promise.resolve()
+      .then(initializer)
+      .then(() => undefined)
+      .catch((error) => {
+        initialization = null;
+        throw error;
+      });
+    return initialization;
+  };
+}
