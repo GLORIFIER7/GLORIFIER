@@ -330,7 +330,7 @@ export async function executeA2ATask(
         task.input ? `Input: ${JSON.stringify(task.input)}` : '',
         'Return an evidence-aware artifact. Never claim an external action happened unless external evidence proves it.',
         'Explicitly distinguish observation, inference, proposed action, and verification.'
-      ].filter(Boolean).join('\\n');
+      ].filter(Boolean).join('\n');
 
       const result = await executor(prompt, { taskId: task.id, agentId: target, capability: task.capability });
       if (!result) throw new Error('No configured provider available for this agent task');
