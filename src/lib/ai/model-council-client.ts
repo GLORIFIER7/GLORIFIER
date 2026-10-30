@@ -168,6 +168,12 @@ export async function submitAuthenticatedModelCouncilRequest(input: {
     || typeof raw.agenda !== 'string'
     || typeof raw.timestamp !== 'string'
     || !Array.isArray(raw.participants)
+    || typeof raw.participantCount !== 'number'
+    || !Number.isFinite(raw.participantCount)
+    || raw.participantCount < 0
+    || typeof raw.providerDiversity !== 'number'
+    || !Number.isFinite(raw.providerDiversity)
+    || raw.providerDiversity < 0
     || typeof raw.unifiedConsensus !== 'string'
   ) {
     throw new ModelCouncilClientError('Council response did not satisfy the expected response contract.', failures, response.status);
