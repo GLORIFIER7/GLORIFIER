@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { executeThroughProviderRegistry } from './registry.ts';
+import { discoverGlobalProviders } from './provider-discovery.ts';
 
 const envKeys = [
   'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_AUTHORIZED',
@@ -78,7 +79,7 @@ try {
   );
   assert.ok(autoRequest, 'auto must use the configured provider model rather than the literal auto sentinel');
 
-  const beforeStrictOpenAI = providerRequests.filter((request) => request.method === 'POST').length;
+  const beforeStrictOpenAI = providerRequests.length;
   const strictOpenAIResult = await executeThroughProviderRegistry({
     requiredProvider: 'openai',
     model: 'auto',
@@ -86,10 +87,29 @@ try {
   });
   assert.equal(strictOpenAIResult.provider, 'provider-registry-exhausted');
   assert.deepEqual(strictOpenAIResult.attemptedProviders, [], 'strict provider constraints must not fall back to another connected provider');
+  assert.ok(strictOpenAIResult.errors.some((error) => error.toLowerCase().includes('openai') && error.toLowerCase().includes('required provider')));
+  assert.equal(strictOpenAIResult.providerStatuses.openai, 'unavailable');
   assert.equal(
-    providerRequests.filter((request) => request.method === 'POST').length,
+    providerRequests.length,
     beforeStrictOpenAI,
-    'an unavailable required provider must not trigger inference on another provider',
+    'an unavailable required provider must fail fast without refreshing or probing alternate providers',
+  );
+
+  process.env.META_AUTHORIZED = 'false';
+  await discoverGlobalProviders('provider-registry-unauthorized-regression', { persistConnections: false });
+  const beforeUnauthorizedMeta = providerRequests.length;
+  const strictMetaResult = await executeThroughProviderRegistry({
+    requiredProvider: 'meta',
+    model: 'auto',
+    messages,
+  });
+  assert.equal(strictMetaResult.provider, 'provider-registry-exhausted');
+  assert.ok(strictMetaResult.errors.some((error) => error.toLowerCase().includes('meta') && error.toLowerCase().includes('required provider')));
+  assert.equal(strictMetaResult.providerStatuses.meta, 'unavailable');
+  assert.equal(
+    providerRequests.length,
+    beforeUnauthorizedMeta,
+    'a connected but unauthorized required provider must not refresh or execute through another provider',
   );
 
   assert.equal(
