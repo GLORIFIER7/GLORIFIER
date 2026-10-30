@@ -16,7 +16,7 @@ export function resolveModelCouncilProviderIds({
   activeModels,
   availableProviderIds,
 }) {
-  const requested = Array.isArray(providerIds)
+  const requested = providerIds !== undefined
     ? providerIds
     : Array.isArray(activeModels)
       ? activeModels.map((modelId) => (
