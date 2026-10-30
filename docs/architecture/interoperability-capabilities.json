@@ -235,7 +235,7 @@
       "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder",
-        "Distroless Node.js 22 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner",
+        "Distroless Node.js 24 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner",
         "Ubuntu 24.04 runtime image on the GitHub-hosted Ubuntu 24.04 x86_64 runner"
       ],
       "evidence": [
@@ -249,7 +249,7 @@
         {
           "kind": "source",
           "reference": "Dockerfile",
-          "targetEnvironment": "Debian Trixie build stage and distroless Node.js 22 runtime",
+          "targetEnvironment": "Debian Trixie build stage and distroless Node.js 24 runtime",
           "observedAt": null,
           "notes": "Source definition only; build and runtime smoke evidence are tracked separately."
         },

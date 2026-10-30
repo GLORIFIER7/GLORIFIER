@@ -6,6 +6,8 @@ on:
     paths:
       - "Dockerfile"
       - "Dockerfile.ubuntu"
+      - "Dockerfile.orchestrator.ubuntu"
+      - "scripts/permanent-orchestrator.mjs"
       - ".dockerignore"
       - "package.json"
       - "package-lock.json"
@@ -42,8 +44,31 @@ jobs:
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
 
+      - name: Verify primary image Node.js runtime
+        run: |
+          docker run --rm glorifier/glorifier:pr-${{ github.event.pull_request.number }} -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1); console.log("Verified production Node.js runtime: " + process.versions.node)'
+
       - name: Build Ubuntu runtime image
         run: docker build --pull --file Dockerfile.ubuntu --tag glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }} .
+
+      - name: Build permanent orchestrator runtime image
+        run: docker build --pull --file Dockerfile.orchestrator.ubuntu --tag glorifier/orchestrator:pr-${{ github.event.pull_request.number }} .
+
+      - name: Verify orchestrator runtime is non-root and Node.js 24
+        run: |
+          image=glorifier/orchestrator:pr-${{ github.event.pull_request.number }}
+          docker run --rm --entrypoint node "$image" -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12) || process.getuid?.() === 0) process.exit(1); console.log(JSON.stringify({node: process.versions.node, uid: process.getuid()}))'
+          docker run --rm --entrypoint node "$image" --check /app/scripts/permanent-orchestrator.mjs
+
+      - name: Block permanent orchestrator image with high or critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: glorifier/orchestrator:pr-${{ github.event.pull_request.number }}
+          format: table
+          exit-code: "1"
+          vuln-type: os,library
+          version: v0.76.0
+          severity: HIGH,CRITICAL
 
       - name: Smoke test Ubuntu runtime health endpoint
         shell: bash
