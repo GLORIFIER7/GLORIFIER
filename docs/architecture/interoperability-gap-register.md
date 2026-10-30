@@ -90,16 +90,18 @@ A new approved read-only production probe is required before any of those live c
 
 This source review pins the standards targets for the next implementation work. It does **not** promote either adapter to VERIFIED.
 
-### A2A target: specification 1.0.0
+### A2A target: specification 1.0.1
 
 - Normative discovery URI: `/.well-known/agent-card.json`.
 - An A2A server MUST publish an Agent Card describing identity, capabilities, skills, authentication requirements, and its supported interfaces.
 - Each advertised interface must accurately declare the endpoint URL, protocol binding, and protocol version. Do not advertise an interface until its wire endpoint actually implements it.
-- Current GLORIFIER source exposes `/.well-known/a2a-agent-card.json` with a GLORIFIER-specific manifest and capability list. This is a proprietary discovery document, not an A2A 1.0 Agent Card: it does not establish the standard URI, required Agent Card shape, or an A2A 1.0 message/task binding.
-- Existing `/api/a2a/tasks` and federated task lifecycle code remain GLORIFIER-specific APIs. Their presence and unit tests do not establish A2A 1.0 interoperability.
+- Current GLORIFIER source exposes `/.well-known/a2a-agent-card.json` with a GLORIFIER-specific manifest and capability list. This is a proprietary discovery document, not an A2A 1.0.1 Agent Card: it does not establish the standard URI, required Agent Card shape, or an A2A 1.0 message/task binding.
+- Existing `/api/a2a/tasks` and federated task lifecycle code remain GLORIFIER-specific APIs. Their presence and unit tests do not establish A2A 1.0.1 interoperability.
 - The Cloudflare Worker does not currently serve the standard Agent Card or an A2A 1.0 message/task endpoint natively. Do not route an unverified A2A path through an arbitrary backend or claim production availability.
 
-Normative source: [A2A 1.0.0 specification — Agent Card discovery and supported interfaces](https://github.com/a2aproject/A2A/blob/main/docs/specification.md#8-agent-discovery-the-agent-card). Acceptance requires a pinned schema/fixture set, standard discovery route, at least one genuinely implemented binding, version negotiation, authenticated/authorized task handling, task state/error mapping, cancellation semantics where advertised, and a controlled two-agent test.
+Normative source: [A2A 1.0.1 specification — Agent Card discovery and supported interfaces](https://github.com/a2aproject/A2A/blob/3303592588e388e62e0f69f701af531d2f4e3991/docs/specification.md#8-agent-discovery-the-agent-card).
+
+Reproducible upstream snapshot: repository commit `3303592588e388e62e0f69f701af531d2f4e3991` (release tag `v1.0.1`); `docs/specification.md` Git blob SHA-1 `382185a53b312cd6a60f5ac536ec5a356437ce77`. The full commit and blob identifiers, not the moving default branch, define this audit reference. Acceptance requires a pinned schema/fixture set, standard discovery route, at least one genuinely implemented binding, version negotiation, authenticated/authorized task handling, task state/error mapping, cancellation semantics where advertised, and a controlled two-agent test.
 
 ### MCP target: specification revision 2026-07-28
 
@@ -108,7 +110,9 @@ Normative source: [A2A 1.0.0 specification — Agent Card discovery and supporte
 - The conformance plan must not assume the older initialize/notifications/initialized sequence is mandatory for the selected stateless Streamable HTTP design. Legacy stdio compatibility is a separate transport concern.
 - Current GLORIFIER evidence establishes no MCP server transport, discovery operation, capability negotiation, tool/resource/prompt RPC, or official conformance result. The agent harness's tool authorization is not MCP conformance.
 
-Normative source: [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/discover.mdx). Acceptance requires a revision-pinned protocol fixture suite, implemented transport and discovery, tools/list and tools/call behavior where tools are advertised, authorization/error/cancellation/timeout/body-size tests, and a real client/server integration test using local fixtures.
+Normative source: [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx).
+
+Reproducible upstream snapshot: repository commit `b488c16623e5202a3961e551886044577ae0f096`; `docs/specification/2026-07-28/server/discover.mdx` Git blob SHA-1 `f6fc1acf974819d99338d2be25ad953fcb9e57a6`. The selected MCP reference-server examples are pinned to repository commit `cabf72d388c0b9a82d4ac77aee1843c215a23e8b` (2026-10-28). Acceptance requires a revision-pinned protocol fixture suite, implemented transport and discovery, tools/list and tools/call behavior where tools are advertised, authorization/error/cancellation/timeout/body-size tests, and a real client/server integration test using local fixtures.
 
 ### Explicit non-claims
 
