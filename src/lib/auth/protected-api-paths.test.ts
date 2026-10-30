@@ -9,6 +9,8 @@ const protectedPaths = [
   '/API/economy/GLR/INTENTS/intent-123',
   '/api/economy/glr/intents/intent-123/',
   '/api/payouts',
+  '/api/a2a/tasks',
+  '/api/federated-a2a/v3/tasks',
   '/API/AUTH/SESSION',
 ];
 
@@ -25,6 +27,9 @@ for (const path of [
   '/economy/glr/intent',
   '/economy/glr/intentss/intent-123',
   '/economy/glr',
+  '/a2a/task',
+  '/a2a/tasks-export',
+  '/federated-a2a/v3/tasks-export',
   '/public/status',
 ]) {
   assert.equal(isProtectedApiReadPath(path), false, `unexpected protected-path match: ${path}`);
