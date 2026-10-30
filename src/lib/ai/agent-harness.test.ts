@@ -14,6 +14,8 @@ import type { PostgresAgentStateStore } from '../agent-state-store';
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
+assert.equal(getAgentHarnessPersistenceStatus().mode, 'uninitialized');
+await assert.rejects(() => createAgentSession('must-fail-before-harness-init'), /still initializing/);
 assert.equal(await initializeAgentHarnessPersistence(), false);
 assert.deepEqual(getAgentHarnessPersistenceStatus(), {
   mode: 'memory-fallback',
