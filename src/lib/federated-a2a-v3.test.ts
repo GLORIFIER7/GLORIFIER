@@ -6,6 +6,7 @@ if(!p.humanAuthorityRemainsHighest||p.automaticFinancialTransfers||p.automaticIr
 const t=createFederatedA2ATask({requesterAgentId:'ai-ceo',capability:'research',objective:'test'});
 if (listFederatedA2ATasks(100).length !== 0) throw new Error('missing requester must fail closed unless all-task access is explicit');
 if (listFederatedA2ATasks(100, '').length !== 0) throw new Error('blank requester must fail closed');
+if (listFederatedA2ATasks(100, undefined, true).length < 2) throw new Error('explicit all-task access must preserve administrative listing');
 if(t.state!=='DISCOVERED'||t.attempt!==0||t.evidenceRefs.length!==0) throw new Error('task');
 
 const aliceTask = createFederatedA2ATask({ requesterAgentId: 'alice-uid', capability: 'research', objective: 'older private task' });
