@@ -185,7 +185,7 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
   }
 
   if (networkIdentity && chainIdentity && networkIdentity !== chainIdentity) {
-    errors.push('network and chainId do not identify the same supported network');
+    errors.push('network and chain ID do not identify the same supported network');
   }
 
   const identity = chainIdentity ?? networkIdentity;
@@ -209,7 +209,10 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
   }
 
   if (!isValidLogoUri(logo?.uri)) {
-    errors.push('logo URI must be a valid IPFS CID reference or HTTPS URL with a host');
+    const uriValue = typeof logo?.uri === 'string' ? logo.uri.trim() : '';
+    errors.push(uriValue.startsWith('https://')
+      ? 'logo URI must be a valid HTTPS URL with a hostname'
+      : 'logo URI must contain a valid IPFS CID or HTTPS URL with a hostname');
   }
   const logoSha256 = typeof logo?.sha256 === 'string' ? logo.sha256 : '';
   if (logo?.sha256 && !SHA256.test(logoSha256)) {
