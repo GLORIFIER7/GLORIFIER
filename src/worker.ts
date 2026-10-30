@@ -480,7 +480,7 @@ export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
-    if (incomingUrl.pathname.replace(/\\/+$/, '') === A2A_JSONRPC_PATH) {
+    if (incomingUrl.pathname.replace(/\/+$/, '') === A2A_JSONRPC_PATH) {
       // Canonicalize the accepted trailing-slash form before route matching.
       incomingUrl.pathname = A2A_JSONRPC_PATH;
       const errorResponse = (
