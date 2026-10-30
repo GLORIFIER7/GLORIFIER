@@ -157,6 +157,27 @@ jobs:
       - name: Agent harness approval tests
         run: npm run test:harness
 
+      - name: Durable agent state store tests
+        run: npm run test:agent-state-store
+
+      - name: Agent task persistence fallback tests
+        run: npm run test:agent-runtime
+
+      - name: A2A task-list authorization regression tests
+        run: npm run test:a2a-runtime
+
+      - name: Federated A2A requester-isolation regression tests
+        run: npm run test:federated-a2a-v3
+
+      - name: Agent persistence bootstrap tests
+        run: npm run test:agent-persistence-bootstrap
+
+      - name: Atomic connection approval persistence tests
+        run: npm run test:connection-approval
+
+      - name: Governance loop failure recovery tests
+        run: npm run test:governance-loop
+
       - name: Anthropic provider integration tests
         run: npm run test:anthropic
 
@@ -258,3 +279,42 @@ jobs:
 
       - name: Build bundled production server
         run: npm run build:server
+
+  agent-state-postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: glorifier_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d glorifier_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: PostgreSQL agent state store integration tests
+        run: npm run test:agent-state-store-integration
+        env:
+          AGENT_STATE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glorifier_test
+

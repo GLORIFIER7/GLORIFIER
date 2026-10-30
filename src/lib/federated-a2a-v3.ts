@@ -25,6 +25,49 @@ const AUDIT='glorifier_federated_a2a_audit';
 const ENVELOPES='glorifier_federated_a2a_envelopes';
 const memory=new Map<string,FederatedA2ATask>();
 
+export type FederatedA2AQuery = (
+  sql: string,
+  values?: unknown[],
+) => Promise<{ rows: Array<Record<string, unknown>> }>;
+
+function parseJsonValue(value: unknown, fallback: unknown): unknown {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function timestamp(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(String(value ?? ''));
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
+
+function taskFromDatabaseRow(row: Record<string, unknown>): FederatedA2ATask {
+  return {
+    id: String(row.id),
+    requesterAgentId: String(row.requester_agent_id),
+    targetAgentId: row.target_agent_id == null ? null : String(row.target_agent_id),
+    capability: String(row.capability),
+    objective: String(row.objective),
+    input: parseJsonValue(row.input, null),
+    state: String(row.state) as FederatedA2ATaskState,
+    attempt: Number(row.attempt ?? 0),
+    maxAttempts: Number(row.max_attempts ?? 3),
+    parentTaskId: row.parent_task_id == null ? null : String(row.parent_task_id),
+    createdAt: timestamp(row.created_at),
+    updatedAt: timestamp(row.updated_at),
+    evidenceRefs: parseJsonValue(row.evidence_refs, []) as string[],
+    auditRefs: parseJsonValue(row.audit_refs, []) as string[],
+    ...(row.result == null ? {} : { result: parseJsonValue(row.result, null) }),
+    ...(row.error == null ? {} : { error: String(row.error) }),
+  };
+}
+
+const postgresFederatedA2AQuery: FederatedA2AQuery = async (sql, values = []) => {
+  const result = await getPostgresPool().query(sql, values as any[]);
+  return { rows: result.rows as Array<Record<string, unknown>> };
+};
+
 function secret(){return String(process.env.GLORIFIER_A2A_SIGNING_SECRET||'').trim();}
 function canonical(v:unknown){return JSON.stringify(v);}
 function unsignedEnvelope(e: FederatedA2AEnvelope){const {signature:_,...u}=e; return u;}
@@ -38,11 +81,11 @@ async function audit(taskId:string, state:FederatedA2ATaskState, actor:string, d
   return id;
 }
 async function persist(task:FederatedA2ATask){
-  memory.set(task.id,task);
   await getPostgresPool().query(`INSERT INTO ${TASKS}(id,requester_agent_id,target_agent_id,capability,objective,input,state,attempt,max_attempts,parent_task_id,evidence_refs,audit_refs,result,error,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$16)
   ON CONFLICT(id) DO UPDATE SET target_agent_id=EXCLUDED.target_agent_id,state=EXCLUDED.state,attempt=EXCLUDED.attempt,evidence_refs=EXCLUDED.evidence_refs,audit_refs=EXCLUDED.audit_refs,result=EXCLUDED.result,error=EXCLUDED.error,updated_at=EXCLUDED.updated_at`,
   [task.id,task.requesterAgentId,task.targetAgentId,task.capability,task.objective,JSON.stringify(task.input??null),task.state,task.attempt,task.maxAttempts,task.parentTaskId,JSON.stringify(task.evidenceRefs),JSON.stringify(task.auditRefs),JSON.stringify(task.result??null),task.error??null,task.createdAt,task.updatedAt]);
+  memory.set(task.id,task);
 }
 export async function initializeFederatedA2AV3(){
   await getPostgresPool().query(`CREATE TABLE IF NOT EXISTS ${TASKS}(
@@ -55,6 +98,11 @@ export async function initializeFederatedA2AV3(){
     CREATE INDEX IF NOT EXISTS idx_fa2a_audit_task ON ${AUDIT}(task_id,created_at DESC);
     CREATE TABLE IF NOT EXISTS ${ENVELOPES}(envelope_id TEXT PRIMARY KEY,task_id TEXT NOT NULL,from_agent_id TEXT NOT NULL,to_agent_id TEXT NOT NULL,envelope JSONB NOT NULL,created_at TIMESTAMPTZ NOT NULL);
   `);
+  const restored = await getPostgresPool().query(`SELECT * FROM ${TASKS} ORDER BY updated_at DESC LIMIT 500`);
+  for (const row of restored.rows as Array<Record<string, unknown>>) {
+    const task = taskFromDatabaseRow(row);
+    memory.set(task.id, task);
+  }
 }
 export function getFederatedA2AV3Policy(){
   return {architecture:'GLORIFIER_FEDERATED_A2A_V3',version:FEDERATED_A2A_V3_VERSION,lifecycle:FEDERATED_A2A_V3_LIFECYCLE,
@@ -64,14 +112,64 @@ export function getFederatedA2AV3Policy(){
     humanAuthorityRemainsHighest:true, automaticFinancialTransfers:false, automaticIrreversibleProductionChanges:false,
     automaticCredentialRotation:false, truthBoundary:'Task execution, registration, or network presence never proves economic truth or external completion.'} as const;
 }
-export function createFederatedA2ATask(input:{requesterAgentId:string;targetAgentId?:string;capability:string;objective:string;input?:unknown;parentTaskId?:string;maxAttempts?:number}){
+export async function createFederatedA2ATask(
+  input:{requesterAgentId:string;targetAgentId?:string;capability:string;objective:string;input?:unknown;parentTaskId?:string;maxAttempts?:number},
+  persistTask?: (task:FederatedA2ATask) => Promise<void>,
+): Promise<FederatedA2ATask> {
   const now=new Date().toISOString(), capability=input.capability.trim().toLowerCase();
   const task:FederatedA2ATask={id:'fa2a-'+crypto.randomUUID(),requesterAgentId:input.requesterAgentId,targetAgentId:input.targetAgentId||null,capability,objective:input.objective,input:input.input??null,state:'DISCOVERED',attempt:0,maxAttempts:Math.max(1,Math.min(5,input.maxAttempts||3)),parentTaskId:input.parentTaskId||null,createdAt:now,updatedAt:now,evidenceRefs:[],auditRefs:[]};
-  memory.set(task.id,task); void persist(task).catch(()=>{});
+  if (persistTask) await persistTask(task);
+  else if (process.env.DATABASE_URL) await persist(task);
+  memory.set(task.id,task);
   return task;
 }
 export function getFederatedA2ATask(id:string){return memory.get(id)||null;}
-export function listFederatedA2ATasks(limit=50){return [...memory.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,Math.min(100,Math.max(1,limit)));}
+export function listFederatedA2ATasks(limit=50, requesterAgentId?: string, allowAll = false){
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;
+  if (requesterAgentId !== undefined && !requester) return [];
+  if (!requester && !allowAll) return [];
+  return [...memory.values()]
+    .filter((task) => allowAll || task.requesterAgentId === requester)
+    .sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
+    .slice(0,Math.min(100,Math.max(1,Number.isFinite(limit) ? Math.floor(limit) : 50)));
+}
+export async function listFederatedA2ATasksFromStore(
+  limit = 50,
+  requesterAgentId?: string,
+  allowAll = false,
+  query: FederatedA2AQuery = postgresFederatedA2AQuery,
+): Promise<FederatedA2ATask[]> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;
+  if (requesterAgentId !== undefined && !requester) return [];
+  if (!requester && !allowAll) return [];
+  const boundedLimit = Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
+  const result = await query(
+    requester && !allowAll
+      ? `SELECT * FROM ${TASKS} WHERE requester_agent_id = $1 ORDER BY created_at DESC LIMIT $2`
+      : `SELECT * FROM ${TASKS} ORDER BY created_at DESC LIMIT $1`,
+    requester && !allowAll ? [requester, boundedLimit] : [boundedLimit],
+  );
+  return result.rows.map(taskFromDatabaseRow);
+}
+
+export async function getFederatedA2ATaskFromStore(
+  id: string,
+  requesterAgentId?: string,
+  allowAll = false,
+  query: FederatedA2AQuery = postgresFederatedA2AQuery,
+): Promise<FederatedA2ATask | null> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;
+  if (requesterAgentId !== undefined && !requester) return null;
+  if (!requester && !allowAll) return null;
+  const result = await query(
+    requester && !allowAll
+      ? `SELECT * FROM ${TASKS} WHERE id = $1 AND requester_agent_id = $2 LIMIT 1`
+      : `SELECT * FROM ${TASKS} WHERE id = $1 LIMIT 1`,
+    requester && !allowAll ? [id, requester] : [id],
+  );
+  return result.rows[0] ? taskFromDatabaseRow(result.rows[0]) : null;
+}
+
 export async function authorizeFederatedA2ATask(taskId:string,actor:string,humanApproved=false){
   const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
   const route=routeAgentCapability(task.capability);

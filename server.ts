@@ -18,7 +18,9 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
+import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
+import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
@@ -73,7 +75,7 @@ import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAss
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
-import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
+import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
   getScientistFleet, 
@@ -2483,25 +2485,68 @@ app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {
   res.json({ ok: true, policy: getFederatedA2AV3Policy() });
 });
 
-app.get('/api/federated-a2a/v3/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listFederatedA2ATasks(), policy: getFederatedA2AV3Policy() });
+app.get('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  try {
+    const tasks = process.env.DATABASE_URL
+      ? await listFederatedA2ATasksFromStore(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks)
+      : listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
+    return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task listing unavailable', error);
+  }
 });
 
-app.get('/api/federated-a2a/v3/tasks/:id', (req: Request, res: Response) => {
-  const task = getFederatedA2ATask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
-  return res.json({ ok: true, task });
+app.get('/api/federated-a2a/v3/tasks/:id', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  try {
+    const task = process.env.DATABASE_URL
+      ? await getFederatedA2ATaskFromStore(String(req.params.id), mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks)
+      : getFederatedA2ATask(String(req.params.id));
+    if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+      return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+    }
+    return res.json({ ok: true, task });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task lookup unavailable', error);
+  }
 });
 
 app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
   const body = req.body || {};
-  if (!body.capability || !body.objective) return res.status(400).json({ ok: false, error: 'capability and objective are required' });
-  const task = createFederatedA2ATask({
-    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
-    targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
-    capability: String(body.capability), objective: String(body.objective), input: body.input,
-    parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
-  });
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  const requestedRequester = body.requesterAgentId ?? (isInternalServiceRequest(req) ? 'glorifier-internal-service' : undefined);
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
+  if (!requesterAgentId) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  if (typeof body.capability !== 'string' || !body.capability.trim()
+    || typeof body.objective !== 'string' || !body.objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  }
+  let task;
+  try {
+    task = await createFederatedA2ATask({
+      requesterAgentId,
+      targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
+      capability: body.capability, objective: body.objective, input: body.input,
+      parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
+    });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task persistence unavailable', error);
+  }
   return res.status(201).json({ ok: true, task, next: 'AUTHORIZED' });
 });
 
@@ -2571,48 +2616,58 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
   res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
 });
 
-// Authentication is enforced once by the shared /api middleware above.
 app.get('/api/a2a/tasks', (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
-  const requesterAgentId = String(auth?.uid || '').trim();
-  const owner = auth ? isOwner(auth) : false;
-  const tasks = listA2ATasks().filter((task) =>
-    owner || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
-  );
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  const tasks = listA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
 app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
-  const task = getA2ATask(String(req.params.id));
   const auth = (req as AuthenticatedRequest).auth;
-  const requesterAgentId = String(auth?.uid || '').trim();
-  const owner = auth ? isOwner(auth) : false;
-  if (!task || (!owner && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  const task = getA2ATask(String(req.params.id));
+  if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
     return res.status(404).json({ ok: false, error: 'A2A task not found' });
   }
   return res.json({ ok: true, task });
 });
 
 app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
-  const requesterAgentId = String((req as any).auth?.uid || '').trim();
-  if (!requesterAgentId) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   const body = req.body || {};
-  if (!body.capability || !body.objective) {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  const requestedRequester = body.requesterAgentId ?? (isInternalServiceRequest(req) ? 'glorifier-internal-service' : undefined);
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
+  if (!requesterAgentId) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  if (typeof body.capability !== 'string' || !body.capability.trim()
+    || typeof body.objective !== 'string' || !body.objective.trim()) {
     return res.status(400).json({ ok: false, error: 'capability and objective are required' });
   }
   const task = createA2ATask({
     requesterAgentId,
     targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
-    capability: String(body.capability),
-    objective: String(body.objective),
+    capability: body.capability,
+    objective: body.objective,
     input: body.input,
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  const auth = (req as AuthenticatedRequest).auth;
-  const authenticatedOwner = auth ? isOwner(auth) : false;
-  const ownerApproved = isAuthorizedA2AExecution(authenticatedOwner, body.approval);
-  if (!ownerApproved) {
+  // The approval string is not a credential: the verified owner identity is
+  // checked independently before any provider execution is authorized.
+  const humanApproved = isAuthorizedA2AExecution(Boolean(auth && isOwner(auth)), body.approval);
+  if (!humanApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
@@ -2662,19 +2717,55 @@ app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
   res.json(agentManifest());
 });
 
-app.get('/api/agents/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listAgentTasks() });
+app.get('/api/agents/tasks', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  try {
+    // Apply requester scope inside the store before LIMIT so busy tenants cannot
+    // hide another requester's older tasks from that requester's own list.
+    const tasks = await listAgentTasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
+    return res.json({ ok: true, tasks: tasks.map((task) => ({ ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) })) });
+  } catch (error) {
+    return apiError(res, 503, 'Durable agent task listing unavailable', error);
+  }
 });
 
-app.get('/api/agents/tasks/:id', (req: Request, res: Response) => {
-  const task = getAgentTask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
-  res.json({ ok: true, task });
+app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  try {
+    const task = await getAgentTask(String(req.params.id));
+    if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+      return res.status(404).json({ ok: false, error: 'Task not found' });
+    }
+    return res.json({ ok: true, task: { ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) } });
+  } catch (error) {
+    return apiError(res, 503, 'Durable agent task lookup unavailable', error);
+  }
 });
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
-  const { capability, objective, input, requester = 'human-owner', connectionId } = req.body || {};
-  if (!capability || !objective) return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  const { capability, objective, input, requester: requestedRequester, connectionId } = req.body || {};
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const internalServiceRequest = isInternalServiceRequest(req);
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || internalServiceRequest);
+  const defaultRequester = requestedRequester ?? (internalServiceRequest ? 'glorifier-internal-service' : 'human-owner');
+  const requester = resolveAgentTaskRequester(requesterUid, defaultRequester, mayOverrideRequester);
+  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability and objective must be non-empty strings' });
+  }
+  if (!requester) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
 
   let approvalRequired = false;
   if (connectionId) {
@@ -2684,52 +2775,143 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     if (connection.status !== 'authorized') {
       return res.status(409).json({ ok: false, error: 'Connection is not authorized', connection });
     }
-    if (approvalRequired) {
-      await requestConnectionApproval(String(connectionId), String(requester), 'agent-task', [String(capability)]);
-    }
   }
 
-  const task = createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
-  if (approvalRequired) {
-    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
-  }
-  updateAgentTask(task.id, { status: 'running' });
-
-  // Route through the existing model runtime without exposing provider credentials.
+  let task;
   try {
-    const prompt = [
-      'You are an AI agent participating in the GLORIFIER AI-to-AI runtime.',
-      `Requester: ${requester}`,
-      `Requested capability: ${capability}`,
-      `Objective: ${objective}`,
-      input ? `Input: ${JSON.stringify(input)}` : '',
-      'Return a concise, evidence-aware result suitable for another agent to consume.',
-      'Do not claim actions were executed unless they actually were.'
-    ].filter(Boolean).join('\n');
+    task = await createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
+  } catch (error) {
+    return apiError(res, 503, 'Agent task persistence is not ready', error);
+  }
+  if (approvalRequired) {
+    let approvalId: string;
+    try {
+      task = await requireAgentTaskUpdate(task.id, { status: 'awaiting-approval' });
+      const approval = await requestConnectionApproval(String(connectionId), requester, 'agent-task', [capability], task.id);
+      approvalId = String(approval.id);
+    } catch (error) {
+      try {
+        await requireAgentTaskUpdate(task.id, { status: 'failed', error: 'Human approval request could not be created.' });
+      } catch (persistenceError) {
+        console.error('[AgentTask] Could not persist failed state after approval-request failure:', persistenceError);
+      }
+      return apiError(res, 503, 'Human approval request could not be created', error);
+    }
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId, humanApprovalRequired: true });
+  }
 
-    const preferredProvider: 'gemini' | 'openai' = (capability.includes('research') || capability.includes('recovery') || capability.includes('gemini'))
-      ? 'gemini'
-      : 'openai';
+  try {
+    await requireAgentTaskUpdate(task.id, { status: 'running' });
+  } catch (error) {
+    console.error('[AgentTask] Could not persist running state before inference:', error);
+    return res.status(503).json({
+      ok: false,
+      taskId: task.id,
+      status: 'queued',
+      error: 'Task was created but could not be marked running durably; inference was not started.',
+    });
+  }
 
-    const result = await runIntelligenceModel(preferredProvider, prompt, {
+  const prompt = [
+    'You are an AI agent participating in the GLORIFIER AI-to-AI runtime.',
+    `Requester: ${requester}`,
+    `Requested capability: ${capability}`,
+    `Objective: ${objective}`,
+    input ? `Input: ${JSON.stringify(input)}` : '',
+    'Return a concise, evidence-aware result suitable for another agent to consume.',
+    'Do not claim actions were executed unless they actually were.'
+  ].filter(Boolean).join('\n');
+
+  const preferredProvider: 'gemini' | 'openai' = (capability.includes('research') || capability.includes('recovery') || capability.includes('gemini'))
+    ? 'gemini'
+    : 'openai';
+
+  let result;
+  try {
+    result = await withAgentTaskHeartbeat(task.id, () => runIntelligenceModel(preferredProvider, prompt, {
       jsonMode: false,
       systemInstruction: 'You are an autonomous AI specialist in the GLORIFIER A2A network. Produce high-fidelity, verified, evidence-backed artifacts.'
-    });
-
-    if (!result) {
-      updateAgentTask(task.id, { status: 'failed', error: 'No configured AI provider available or all inference attempts failed' });
-      return res.status(503).json({ ok: false, task: getAgentTask(task.id) });
-    }
-
-    updateAgentTask(task.id, {
-      status: 'completed',
-      result: { providerModel: result.model, artifact: result.text }
-    });
-    return res.json({ ok: true, task: getAgentTask(task.id) });
+    }));
   } catch (error) {
-    updateAgentTask(task.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
-    return res.status(500).json({ ok: false, task: getAgentTask(task.id) });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[AgentTask] Inference failed:', message);
+    try {
+      const failedTask = await requireAgentTaskUpdate(task.id, { status: 'failed', error: message });
+      return res.status(500).json({
+        ok: false,
+        task: failedTask,
+        inferenceStatus: 'failed',
+        error: 'Provider inference failed.',
+      });
+    } catch (persistenceError) {
+      console.error('[AgentTask] Could not persist inference failure state:', persistenceError);
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'failed',
+        taskStatePersistence: 'unavailable',
+        error: 'Provider inference failed and the task failure state could not be persisted.',
+      });
+    }
   }
+
+  if (!result) {
+    try {
+      const failedTask = await updateAgentTask(task.id, {
+        status: 'failed',
+        error: 'No configured AI provider available or all inference attempts failed',
+      });
+      if (!failedTask) {
+        return res.status(503).json({ ok: false, taskId: task.id, error: 'No provider response; task record could not be read after failure update.' });
+      }
+      return res.status(503).json({ ok: false, task: failedTask });
+    } catch (error) {
+      console.error('[AgentTask] Could not persist no-provider failure:', error);
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'no-provider-response',
+        taskStatePersistence: 'failed',
+        error: 'No provider response was returned and the failure state could not be persisted.',
+      });
+    }
+  }
+
+  const completedPatch = {
+    status: 'completed' as const,
+    result: { providerModel: result.model, artifact: result.text },
+  };
+  try {
+    const completedTask = await updateAgentTask(task.id, completedPatch);
+    if (!completedTask) {
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'completed',
+        taskStatePersistence: 'missing',
+        result: completedPatch.result,
+        error: 'Inference completed, but the task record was not found for durable completion.',
+      });
+    }
+    return res.json({ ok: true, task: completedTask });
+  } catch (error) {
+    console.error('[AgentTask] Inference completed but task result persistence failed:', error);
+    return res.status(503).json({
+      ok: false,
+      taskId: task.id,
+      inferenceStatus: 'completed',
+      taskStatePersistence: 'failed',
+      result: completedPatch.result,
+      error: 'Inference completed, but the task result could not be persisted. The result is included in this response only.',
+    });
+  }
+});
+app.get('/api/agents/persistence', (_req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    tasks: getAgentRuntimePersistenceStatus(),
+    harnessSessions: getAgentHarnessPersistenceStatus(),
+  });
 });
 
 app.get('/api/agents/capabilities', (_req: Request, res: Response) => {
@@ -3791,6 +3973,11 @@ app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endp
 
 async function initializeBackend(): Promise<void> {
   if (!process.env.DATABASE_URL) {
+    await initializeAgentStateFallbackWhenDatabaseMissing(
+      process.env.DATABASE_URL,
+      initializeAgentRuntimePersistence,
+      initializeAgentHarnessPersistence,
+    );
     throw new Error('DATABASE_URL is not configured; backend initialization cannot complete.');
   }
 
@@ -3808,6 +3995,9 @@ async function initializeBackend(): Promise<void> {
   }
 
   const initializers: Array<[string, () => Promise<unknown>]> = [
+    ['federated A2A v3 persistence', initializeFederatedA2AV3],
+    ['agent task persistence', initializeAgentRuntimePersistence],
+    ['agent harness session persistence', initializeAgentHarnessPersistence],
     ['revenue ledger', initializeRevenueLedger],
     ['economic operating system', initializeEconomicOperatingSystem],
     ['business model', initializeBusinessModel],

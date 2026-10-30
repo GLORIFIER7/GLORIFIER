@@ -1,5 +1,8 @@
 import { getCapabilityPolicy, listCapabilityPolicies } from './capability-authorization';
 import { newId } from './new-id';
+import { createPostgresAgentStateStore } from './agent-state-store';
+import type { PostgresAgentStateStore } from './agent-state-store';
+import { initializeOptionalPostgresAgentStore } from './agent-persistence-bootstrap';
 
 export type AgentCard = {
   id: string;
@@ -22,10 +25,64 @@ export type AgentTask = {
   connectionId?: string;
   approvalRequired?: boolean;
   createdAt: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  updatedAt: string;
+  status: 'queued' | 'awaiting-approval' | 'running' | 'completed' | 'failed';
   result?: unknown;
   error?: string;
 };
+
+/**
+ * Agent task records are private to their authenticated requester by default.
+ * Only a verified owner or authenticated internal service may bypass this scope.
+ */
+export type RequesterScopedAgentTask = {
+  requester?: unknown;
+  requesterAgentId?: unknown;
+};
+
+function taskRequesterIdentity(task: RequesterScopedAgentTask): string {
+  const requester = typeof task.requester === 'string' ? task.requester.trim() : '';
+  if (requester) return requester;
+  return typeof task.requesterAgentId === 'string' ? task.requesterAgentId.trim() : '';
+}
+
+export function canAccessAgentTask(
+  task: RequesterScopedAgentTask,
+  requesterUid?: string,
+  allowAll = false,
+): boolean {
+  if (allowAll) return true;
+  const requester = typeof requesterUid === 'string' ? requesterUid.trim() : '';
+  const owner = taskRequesterIdentity(task);
+  return Boolean(requester && owner && owner === requester);
+}
+
+export function filterAgentTasksByRequester<T extends RequesterScopedAgentTask>(
+  tasks: readonly T[],
+  requesterUid?: string,
+  allowAll = false,
+): T[] {
+  if (allowAll) return [...tasks];
+  const requester = typeof requesterUid === 'string' ? requesterUid.trim() : '';
+  if (!requester) return [];
+  return tasks.filter((task) => taskRequesterIdentity(task) === requester);
+}
+
+/**
+ * Ignore caller-supplied attribution unless the request is backed by a verified
+ * owner identity or the shared internal-service credential.
+ */
+export function resolveAgentTaskRequester(
+  authenticatedUid?: string,
+  requestedRequester?: unknown,
+  allowOverride = false,
+): string | null {
+  const uid = typeof authenticatedUid === 'string' ? authenticatedUid.trim() : '';
+  const requested = typeof requestedRequester === 'string' ? requestedRequester.trim() : '';
+  if (allowOverride && requested) return requested;
+  return uid || null;
+}
+
 
 const agents: AgentCard[] = [
   { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern', 'governed-agent-commerce', 'economic-routing'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
@@ -40,7 +97,66 @@ const agents: AgentCard[] = [
   { id: 'finance-scientist', name: 'GLORIFIER Finance Scientist', role: 'institutional-finance-intelligence', capabilities: ['portfolio-intelligence', 'multi-asset-risk', 'scenario-analysis', 'stress-testing', 'capital-allocation', 'valuation', 'financial-forensics', 'liquidity-analysis'], endpoint: '/api/agents/finance-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' }
 ];
 
+type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks' | 'heartbeatRunningTask'>;
+
+const TASK_HEARTBEAT_INTERVAL_MS = 60_000;
+const TASK_STALE_AFTER_MS = 30 * 60_000;
+
+export type AgentTaskRecoveryObservation = {
+  state: 'not-running' | 'heartbeat-current' | 'heartbeat-overdue' | 'startup-recovery-eligible' | 'unknown';
+  lastUpdatedAt: string;
+  ageMs: number | null;
+};
+
 const tasks = new Map<string, AgentTask>();
+let persistence: AgentRuntimePersistence | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentRuntimePersistence(storeOverride?: AgentRuntimePersistence): Promise<boolean> {
+  persistenceMode = 'uninitialized';
+  const store = await initializeOptionalPostgresAgentStore(
+    process.env.DATABASE_URL,
+    storeOverride,
+    createPostgresAgentStateStore,
+  );
+  if (!store) {
+    persistence = null;
+    persistenceMode = 'memory-fallback';
+    return false;
+  }
+  const recovered = await store.recoverInterruptedTasks(TASK_STALE_AFTER_MS / 60_000);
+  // PostgreSQL is the durable source of truth; avoid retaining a duplicate
+  // in-process copy of every task after persistence is enabled.
+  tasks.clear();
+  persistence = store;
+  persistenceMode = 'postgres';
+  if (recovered > 0) {
+    console.warn(`[AgentRuntime] marked ${recovered} interrupted task(s) failed; automatic replay is disabled.`);
+  }
+  return true;
+}
+
+export function getAgentRuntimePersistenceStatus() {
+  return {
+    mode: persistenceMode,
+    durable: persistenceMode === 'postgres',
+    cachedTasks: persistence ? 0 : tasks.size,
+    recoveryPolicy: {
+      staleAfterMinutes: TASK_STALE_AFTER_MS / 60_000,
+      heartbeatIntervalMs: TASK_HEARTBEAT_INTERVAL_MS,
+      heartbeatCoverage: ['agent-task-inference', 'governance-cycle'],
+      startupRecoveryOnly: true,
+      interruptedWithinGracePeriodMayRemainRunning: true,
+      automaticReplay: false,
+    },
+  };
+}
+
+function assertAgentRuntimeReady(): void {
+  if (persistenceMode === 'uninitialized') {
+    throw new Error('Agent task persistence is still initializing; retry after backend readiness.');
+  }
+}
 const capabilityOwners: Record<string, string[]> = {
   research: ['research-scientist','market-scientist'],
   engineering: ['engineering-scientist','software-architect','api-scientist'],
@@ -109,28 +225,125 @@ export function evaluateAgentCapability(capability: string, humanApproved = fals
   return { allowed: true, requiresHumanApproval: policy.requiresHumanApproval, reason: 'policy_allowed' as const, policy };
 }
 
-export function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>) {
+export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>): Promise<AgentTask> {
+  assertAgentRuntimeReady();
+  if (typeof input.requester !== 'string' || !input.requester.trim()) {
+    throw new Error('requester must be a non-empty string.');
+  }
   const task: AgentTask = {
     id: newId('task'),
     ...input,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     status: 'queued'
   };
-  tasks.set(task.id, task);
+  // Persist before exposing a newly accepted task to the caller.
+  if (persistence) await persistence.save('task', task);
+  else tasks.set(task.id, task);
   return task;
 }
 
-export function updateAgentTask(id: string, patch: Partial<AgentTask>) {
-  const task = tasks.get(id);
-  if (!task) return null;
-  const updated = { ...task, ...patch };
+export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Promise<AgentTask | null> {
+  assertAgentRuntimeReady();
+  const current = persistence
+    ? await persistence.get<AgentTask>('task', id)
+    : tasks.get(id) || null;
+  if (!current) return null;
+  const updated = { ...current, ...patch, ...(patch.status === 'completed' ? { error: undefined } : {}), id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
+  // A database failure is returned to the route; uncommitted state is not reported as durable.
+  if (persistence) {
+    await persistence.save('task', updated);
+    return updated;
+  }
   tasks.set(id, updated);
   return updated;
 }
 
-export function getAgentTask(id: string) { return tasks.get(id) || null; }
-export function listAgentTasks(limit = 50) {
-  return [...tasks.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+export function getAgentTaskRecoveryObservation(
+  task: Pick<AgentTask, 'status' | 'updatedAt'>,
+  now = Date.now(),
+): AgentTaskRecoveryObservation {
+  if (task.status !== 'running') {
+    return { state: 'not-running', lastUpdatedAt: task.updatedAt, ageMs: null };
+  }
+  const updatedAt = Date.parse(task.updatedAt);
+  if (!Number.isFinite(updatedAt)) {
+    return { state: 'unknown', lastUpdatedAt: task.updatedAt, ageMs: null };
+  }
+  const ageMs = Math.max(0, now - updatedAt);
+  const state = ageMs <= TASK_HEARTBEAT_INTERVAL_MS * 2
+    ? 'heartbeat-current'
+    : ageMs < TASK_STALE_AFTER_MS
+      ? 'heartbeat-overdue'
+      : 'startup-recovery-eligible';
+  return { state, lastUpdatedAt: task.updatedAt, ageMs };
+}
+
+export async function heartbeatAgentTask(id: string): Promise<boolean> {
+  assertAgentRuntimeReady();
+  if (persistence) return persistence.heartbeatRunningTask(id);
+  const current = tasks.get(id);
+  if (!current || current.status !== 'running') return false;
+  tasks.set(id, { ...current, updatedAt: new Date().toISOString() });
+  return true;
+}
+
+/**
+ * Keeps a running task's lease fresh while its work is active. Heartbeat
+ * failures are logged but do not interrupt the work being monitored.
+ */
+export async function withAgentTaskHeartbeat<T>(
+  taskId: string,
+  operation: () => Promise<T>,
+  intervalMs = 60_000,
+): Promise<T> {
+  let pendingHeartbeat: Promise<void> | null = null;
+  const timer = setInterval(() => {
+    if (pendingHeartbeat) return;
+    pendingHeartbeat = heartbeatAgentTask(taskId)
+      .then(() => undefined)
+      .catch((error) => {
+        console.warn(`[AgentRuntime] heartbeat failed for running task ${taskId}:`, error);
+      })
+      .finally(() => {
+        pendingHeartbeat = null;
+      });
+  }, Math.max(5, intervalMs));
+  timer.unref?.();
+
+  try {
+    return await operation();
+  } finally {
+    clearInterval(timer);
+    // Do not hold completed work open on a slow database request. The heartbeat
+    // handler is already rejection-safe, and SQL only updates tasks still running.
+  }
+}
+
+export async function requireAgentTaskUpdate(id: string, patch: Partial<AgentTask>): Promise<AgentTask> {
+  const updated = await updateAgentTask(id, patch);
+  if (!updated) throw new Error(`Agent task ${id} no longer exists; refusing to continue.`);
+  return updated;
+}
+
+export async function getAgentTask(id: string): Promise<AgentTask | null> {
+  assertAgentRuntimeReady();
+  if (persistence) return persistence.get<AgentTask>('task', id);
+  return tasks.get(id) || null;
+}
+
+export async function listAgentTasks(limit = 50, requester?: string, allowAll = false): Promise<AgentTask[]> {
+  assertAgentRuntimeReady();
+  const normalizedRequester = typeof requester === 'string' ? requester.trim() : undefined;
+  if (requester !== undefined && !normalizedRequester) return [];
+  if (!normalizedRequester && !allowAll) return [];
+  if (persistence) {
+    return persistence.list<AgentTask>('task', limit, normalizedRequester, allowAll);
+  }
+  return [...tasks.values()]
+    .filter((task) => allowAll || task.requester === normalizedRequester)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, Math.max(1, Math.min(500, limit)));
 }
 
 export function agentManifest() {

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { createPostgresAgentStateStore } from '../agent-state-store';
+import type { PostgresAgentStateStore } from '../agent-state-store';
+import { initializeOptionalPostgresAgentStore } from '../agent-persistence-bootstrap';
 
 /**
  * GLORIFIER Agent Harness
@@ -66,7 +69,99 @@ export interface AgentHarnessPolicy {
   noSyntheticSuccess: true;
 }
 
+type AgentHarnessPersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'save' | 'incrementSessionTurn'>;
+
+/**
+ * An action completed, but the resulting session state could not be persisted.
+ * Callers must preserve the result and must not retry the external action blindly.
+ */
+export class AgentTurnPersistenceError<T = unknown> extends Error {
+  readonly persisted = false;
+  readonly actionCompleted = true;
+
+  constructor(
+    readonly sessionId: string,
+    readonly result: T,
+    readonly persistenceError: unknown,
+  ) {
+    super('Agent action completed, but session state could not be persisted. Do not retry the action blindly.');
+    this.name = 'AgentTurnPersistenceError';
+  }
+}
+
+function normalizeContextTokens(contextTokens: number): number {
+  if (!Number.isFinite(contextTokens) || contextTokens < 0) {
+    throw new Error('contextTokens must be a finite, non-negative number.');
+  }
+  const normalized = Math.floor(contextTokens);
+  if (!Number.isSafeInteger(normalized)) {
+    throw new Error('contextTokens must normalize to a safe integer.');
+  }
+  return normalized;
+}
+
 const sessions = new Map<string, AgentSession>();
+const sessionTurnLocks = new Map<string, Promise<void>>();
+
+async function withSessionTurnLock<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = sessionTurnLocks.get(sessionId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const queued = previous.then(() => gate);
+  sessionTurnLocks.set(sessionId, queued);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (sessionTurnLocks.get(sessionId) === queued) sessionTurnLocks.delete(sessionId);
+  }
+}
+let persistence: AgentHarnessPersistence | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentHarnessPersistence(storeOverride?: AgentHarnessPersistence): Promise<boolean> {
+  persistenceMode = 'uninitialized';
+  const store = await initializeOptionalPostgresAgentStore(
+    process.env.DATABASE_URL,
+    storeOverride,
+    createPostgresAgentStateStore,
+  );
+  if (!store) {
+    persistence = null;
+    persistenceMode = 'memory-fallback';
+    return false;
+  }
+  // Durable reads are served directly from PostgreSQL; do not hydrate a second
+  // unbounded in-process copy of every persisted session.
+  sessions.clear();
+  persistence = store;
+  persistenceMode = 'postgres';
+  return true;
+}
+
+export function getAgentHarnessPersistenceStatus() {
+  return {
+    mode: persistenceMode,
+    durable: persistenceMode === 'postgres',
+    cachedSessions: persistence ? 0 : sessions.size,
+  };
+}
+
+function assertAgentHarnessReady(): void {
+  if (persistenceMode === 'uninitialized') {
+    throw new Error('Agent harness persistence is still initializing; retry after backend readiness.');
+  }
+}
+
+async function saveSession(session: AgentSession): Promise<void> {
+  assertAgentHarnessReady();
+  if (persistence) {
+    await persistence.save('session', session);
+    return;
+  }
+  sessions.set(session.id, session);
+}
 
 export function getAgentHarnessPolicy(): AgentHarnessPolicy {
   return {
@@ -84,17 +179,22 @@ export function getAgentHarnessPolicy(): AgentHarnessPolicy {
   };
 }
 
-export function createAgentSession(
+export async function createAgentSession(
   agentId: string,
   options: { maxContextTokens?: number; sessionId?: string } = {},
-): AgentSession {
+): Promise<AgentSession> {
   const now = new Date().toISOString();
   const maxContextTokens = Number.isFinite(options.maxContextTokens)
     ? Math.max(1_000, Math.floor(options.maxContextTokens as number))
     : 32_000;
 
+  const sessionId = options.sessionId || `session-${randomUUID()}`;
+  if (options.sessionId && await getAgentSession(sessionId)) {
+    throw new Error(`Agent session already exists: ${sessionId}`);
+  }
+
   const session: AgentSession = {
-    id: options.sessionId || `session-${randomUUID()}`,
+    id: sessionId,
     agentId,
     createdAt: now,
     updatedAt: now,
@@ -104,33 +204,48 @@ export function createAgentSession(
     status: 'active',
     compactionRecommended: false,
   };
-  sessions.set(session.id, session);
+  await saveSession(session);
   return session;
 }
 
-export function getAgentSession(sessionId: string): AgentSession | null {
+export async function getAgentSession(sessionId: string): Promise<AgentSession | null> {
+  assertAgentHarnessReady();
+  if (persistence) return persistence.get<AgentSession>('session', sessionId);
   return sessions.get(sessionId) || null;
 }
 
-export function recordAgentTurn(sessionId: string, contextTokens: number): AgentSession {
-  const session = sessions.get(sessionId);
-  if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
+export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
+  assertAgentHarnessReady();
+  const nextContextTokens = normalizeContextTokens(contextTokens);
 
-  const nextContextTokens = Math.max(0, Math.floor(contextTokens));
-  const updated: AgentSession = {
-    ...session,
-    updatedAt: new Date().toISOString(),
-    turnCount: session.turnCount + 1,
-    contextTokens: nextContextTokens,
-    compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
-  };
+  if (persistence) {
+    const updated = await persistence.incrementSessionTurn<AgentSession>(sessionId, nextContextTokens);
+    if (!updated) throw new Error(`Unknown agent session: ${sessionId}`);
+    return updated;
+  }
 
-  sessions.set(sessionId, updated);
-  return updated;
+  return withSessionTurnLock(sessionId, async () => {
+    const session = await getAgentSession(sessionId);
+    if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
+    const updated: AgentSession = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      turnCount: session.turnCount + 1,
+      contextTokens: nextContextTokens,
+      status: 'active',
+      compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
+    };
+    await saveSession(updated);
+    return updated;
+  });
 }
 
 export function shouldCompactContext(session: AgentSession): boolean {
   return session.compactionRecommended || session.contextTokens >= Math.floor(session.maxContextTokens * 0.8);
+}
+
+function requiresHumanApprovalForTool(request: AgentToolRequest): boolean {
+  return request.requiresApproval === true || request.risk === 'high' || request.risk === 'irreversible';
 }
 
 export function authorizeToolRequest(
@@ -146,10 +261,7 @@ export function authorizeToolRequest(
     };
   }
 
-  const requiresHumanApproval =
-    request.requiresApproval === true ||
-    request.risk === 'high' ||
-    request.risk === 'irreversible';
+  const requiresHumanApproval = requiresHumanApprovalForTool(request);
 
   const approvalMatches =
     humanApproval?.toolId === request.id &&
@@ -191,32 +303,70 @@ export async function executeAgentTurn<T>(options: {
   humanApproval?: HumanToolApproval;
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
+  // Fail closed before authorizing or starting any side effect.
+  assertAgentHarnessReady();
+  const normalizedContextTokens = normalizeContextTokens(options.contextTokens);
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
   const toolRequests = filterDeferredTools(options.tools || []);
 
   for (const tool of toolRequests) {
     const decision = authorizeToolRequest(tool, approvedCapabilities, options.humanApproval);
     if (!decision.allowed) {
+      const current = await getAgentSession(options.session.id) || options.session;
       const session = {
-        ...options.session,
+        ...current,
         updatedAt: new Date().toISOString(),
         status: 'waiting-approval' as const,
       };
-      sessions.set(session.id, session);
+      await saveSession(session);
       throw new Error(`${decision.requiresHumanApproval ? 'Tool approval required' : 'Tool authorization denied'}: ${tool.name} — ${decision.reason}`);
     }
   }
 
-  // The harness never receives secrets as part of this interface. Provider
-  // credentials remain in the provider/connection layer.
-  const result = await options.run();
-  if (options.humanApproval) {
-    const approvedSession = sessions.get(options.session.id) || options.session;
-    sessions.set(options.session.id, {
+  // Persist the approval before invoking the tool/model. If execution fails or
+  // the process exits mid-run, the durable session still records who authorized it.
+  const verifiedApproval = options.humanApproval && toolRequests.some((tool) =>
+    requiresHumanApprovalForTool(tool) &&
+    authorizeToolRequest(tool, approvedCapabilities, options.humanApproval).allowed
+  ) ? options.humanApproval : undefined;
+  if (verifiedApproval) {
+    const approvedSession = await getAgentSession(options.session.id) || options.session;
+    await saveSession({
       ...approvedSession,
-      lastHumanApproval: options.humanApproval,
+      updatedAt: new Date().toISOString(),
+      status: 'active',
+      lastHumanApproval: verifiedApproval,
     });
   }
-  const session = recordAgentTurn(options.session.id, options.contextTokens);
-  return { result, session };
+
+  // The harness never receives secrets as part of this interface. Provider
+  // credentials remain in the provider/connection layer.
+  let result: T;
+  try {
+    result = await options.run();
+  } catch (error) {
+    try {
+      const current = await getAgentSession(options.session.id) || options.session;
+      await saveSession({
+        ...current,
+        updatedAt: new Date().toISOString(),
+        status: 'failed',
+      });
+    } catch (persistenceError) {
+      console.error('[AgentHarness] Could not persist failed session state; preserving original execution error.', {
+        executionError: error instanceof Error ? error.message : String(error),
+        persistenceError: persistenceError instanceof Error ? persistenceError.message : String(persistenceError),
+      });
+    }
+    throw error;
+  }
+
+  try {
+    const session = await recordAgentTurn(options.session.id, normalizedContextTokens);
+    return { result, session };
+  } catch (error) {
+    // The external action already completed. Surface its result explicitly so
+    // an API caller can reconcile state instead of blindly repeating a side effect.
+    throw new AgentTurnPersistenceError(options.session.id, result, error);
+  }
 }

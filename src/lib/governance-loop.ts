@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 import { aiOrchestrator } from './ai/orchestrator';
 import { runSpecialistCouncil } from './ai/specialist-council';
-import { routeAgentCapability, createAgentTask, updateAgentTask } from './agent-runtime';
+import { routeAgentCapability, createAgentTask, updateAgentTask, withAgentTaskHeartbeat } from './agent-runtime';
+import { withGovernanceTaskFailureRecovery } from './governance-task-failure';
 import { getGlorifierAiTrustStandard, evaluateGlorifierAiTrustConformance } from './ai/trust-standard';
 import { getWindsorSocialGatewayStatus, getWindsorSocialData } from './windsor-social-gateway';
 import { buildComplianceAssessment } from './compliance-policy';
@@ -10,6 +11,11 @@ import { getAssetsScientistPolicy, buildAssetAssessment } from './assets-scienti
 import { getGlorifierCoherentSystemPolicy } from './gats-policy';
 
 const query = (text: string, values?: unknown[]) => getPostgresPool().query(text, values);
+
+/** Treat missing and whitespace-only governance requesters as the human owner fallback. */
+export function normalizeGovernanceRequester(requester?: string): string {
+  return typeof requester === 'string' ? requester.trim() || 'human-owner' : 'human-owner';
+}
 
 export type GovernanceStage = 'ceo' | 'policy' | 'compliance' | 'assets' | 'specialists' | 'trust' | 'evidence' | 'governed-action' | 'completed' | 'blocked';
 
@@ -83,121 +89,131 @@ export async function runGovernanceCycle(input: {
   const windsor = windsorEnabled ? getWindsorSocialGatewayStatus() : null;
   const reversible = input.reversible === true;
 
-  const task = createAgentTask({
+  const task = await createAgentTask({
     capability,
     objective,
     input: { evidenceRefs, reversible },
-    requester: input.requester || 'human-owner',
+    requester: normalizeGovernanceRequester(input.requester),
     approvalRequired: true
   });
-  updateAgentTask(task.id, { status: 'running' });
+  await updateAgentTask(task.id, { status: 'running' });
 
-  // 1. AI CEO selects the executive/provider context.
-  const executive = aiOrchestrator.executive();
+  const executeGovernanceCycle = async (): Promise<GovernanceCycle> => {
+    // 1. AI CEO selects the executive/provider context.
+    const executive = aiOrchestrator.executive();
 
-  // 2. Policy Scientist establishes the policy/governance interpretation.
-  const coherentPolicy = getGlorifierCoherentSystemPolicy();
-  const policy = {
-    status: 'policy-reviewed',
-    source: 'GLORIFIER GATS Governance Policy + Policy Scientist',
-    humanAuthority: true,
-    irreversibleActionsApprovalGated: true,
-    coherentSystem: coherentPolicy
+    // 2. Policy Scientist establishes the policy/governance interpretation.
+    const coherentPolicy = getGlorifierCoherentSystemPolicy();
+    const policy = {
+      status: 'policy-reviewed',
+      source: 'GLORIFIER GATS Governance Policy + Policy Scientist',
+      humanAuthority: true,
+      irreversibleActionsApprovalGated: true,
+      coherentSystem: coherentPolicy
+    };
+
+    // 3. Compliance Scientist maps requirements to controls and evidence.
+    const compliance = buildComplianceAssessment({
+      objective,
+      evidenceRefs,
+      applicableRequirements: ['GATS governance policy', 'applicable AI/data/security requirements']
+    });
+
+    // 4. Assets Scientist evaluates asset implications when the capability/objective is asset-related.
+    const assetRelated = capability === 'assets' || capability === 'asset-intelligence' || capability === 'asset-risk' ||
+      /asset|portfolio|holding|valuation|ownership|crypto|stock|bond|etf|gaming|iot/i.test(objective);
+    const assets = assetRelated
+      ? buildAssetAssessment({ assetRef: objective, assetClass: capability === 'assets' ? 'other' : capability, evidenceRefs })
+      : { status: 'not-applicable', policy: getAssetsScientistPolicy().id };
+
+    // 5. Capability-first delegation to the Specialist Council.
+    const routing = routeAgentCapability(capability);
+    const baseRoles = routing.specialists.length ? routing.specialists : [];
+    const collaborationRoles = ['policy-scientist', 'compliance-scientist', ...(assetRelated ? ['assets-scientist'] : [])];
+    const selectedRoles = input.roles?.length ? input.roles : [...new Set([...collaborationRoles, ...baseRoles])];
+    const council = await runSpecialistCouncil({ objective, roles: selectedRoles, standingMission: false });
+
+    // 6. GATS trust gate evaluates the governance state before any action proposal.
+    const trust = evaluateGlorifierAiTrustConformance();
+    const trustGatePassed = trust.status === 'conformant-self-attestation' && trust.controls.every((c) => c.status === 'implemented');
+
+    // 7. Evidence is explicit. References are recorded, never inferred. Windsor observations are source evidence only.
+    let windsorEvidence: unknown = null;
+    if (windsorEnabled && windsor?.configured) {
+      try {
+        const platforms = ['facebook','linkedin','tiktok'] as const;
+        const observations = [];
+        for (const platform of platforms) {
+          try { observations.push(await getWindsorSocialData(platform, ['date','source'], 'last_30d')); }
+          catch (error: any) { observations.push({ platform, status: 'unavailable', error: error?.message || String(error) }); }
+        }
+        windsorEvidence = { source: 'windsor.ai', observations, economicTruth: 'NOT VERIFIED; source observations are not revenue evidence' };
+      } catch (error: any) { windsorEvidence = { source: 'windsor.ai', status: 'error', error: error?.message || String(error) }; }
+    }
+    const evidenceId = `gev-${crypto.randomUUID()}`;
+    const evidence = {
+      id: evidenceId,
+      status: (evidenceRefs.length || windsorEvidence) ? 'recorded' as const : 'missing' as const,
+      references: [...evidenceRefs, ...(windsorEvidence ? ['windsor.ai:social-observations'] : [])],
+      windsor: windsorEvidence
+    };
+
+    // 6. Governed action is a proposal only. No irreversible execution is performed here.
+    const actionStatus = trustGatePassed && evidence.references.length ? 'approval-required' as const : 'blocked' as const;
+    const action = {
+      status: actionStatus,
+      reversible,
+      executionEnabled: false as const,
+      humanApprovalRequired: true as const
+    };
+
+    const stage: GovernanceStage = actionStatus === 'approval-required' ? 'governed-action' : 'blocked';
+    const cycle: GovernanceCycle = {
+      id: `gcycle-${crypto.randomUUID()}`,
+      taskId: task.id,
+      objective,
+      capability,
+      stage,
+      executive,
+      policy,
+      routing,
+      council,
+      trust: {
+        ...trust,
+        gatePassed: trustGatePassed,
+        rule: 'GATS trust controls gate consequential actions.'
+      },
+      compliance,
+      assets,
+      evidence,
+      action,
+      createdAt: new Date().toISOString()
+    };
+
+    await query(
+      `INSERT INTO glorifier_governance_cycles
+        (id,task_id,objective,capability,stage,executive,policy,routing,council,trust,compliance,assets,evidence,action)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb)`,
+      [cycle.id, cycle.taskId, cycle.objective, cycle.capability, cycle.stage,
+        JSON.stringify(cycle.executive), JSON.stringify(cycle.policy), JSON.stringify(cycle.routing), JSON.stringify(cycle.council),
+        JSON.stringify(cycle.trust), JSON.stringify(cycle.compliance), JSON.stringify(cycle.assets), JSON.stringify({ ...cycle.evidence, windsor: windsorEvidence }), JSON.stringify(cycle.action)]
+    );
+
+    await updateAgentTask(task.id, {
+      status: actionStatus === 'blocked' ? 'failed' : 'completed',
+      result: cycle
+    });
+
+    return cycle;
   };
 
-  // 3. Compliance Scientist maps requirements to controls and evidence.
-  const compliance = buildComplianceAssessment({
-    objective,
-    evidenceRefs,
-    applicableRequirements: ['GATS governance policy', 'applicable AI/data/security requirements']
-  });
-
-  // 4. Assets Scientist evaluates asset implications when the capability/objective is asset-related.
-  const assetRelated = capability === 'assets' || capability === 'asset-intelligence' || capability === 'asset-risk' ||
-    /asset|portfolio|holding|valuation|ownership|crypto|stock|bond|etf|gaming|iot/i.test(objective);
-  const assets = assetRelated
-    ? buildAssetAssessment({ assetRef: objective, assetClass: capability === 'assets' ? 'other' : capability, evidenceRefs })
-    : { status: 'not-applicable', policy: getAssetsScientistPolicy().id };
-
-  // 5. Capability-first delegation to the Specialist Council.
-  const routing = routeAgentCapability(capability);
-  const baseRoles = routing.specialists.length ? routing.specialists : [];
-  const collaborationRoles = ['policy-scientist', 'compliance-scientist', ...(assetRelated ? ['assets-scientist'] : [])];
-  const selectedRoles = input.roles?.length ? input.roles : [...new Set([...collaborationRoles, ...baseRoles])];
-  const council = await runSpecialistCouncil({ objective, roles: selectedRoles, standingMission: false });
-
-  // 6. GATS trust gate evaluates the governance state before any action proposal.
-  const trust = evaluateGlorifierAiTrustConformance();
-  const trustGatePassed = trust.status === 'conformant-self-attestation' && trust.controls.every((c) => c.status === 'implemented');
-
-  // 7. Evidence is explicit. References are recorded, never inferred. Windsor observations are source evidence only.
-  let windsorEvidence: unknown = null;
-  if (windsorEnabled && windsor?.configured) {
-    try {
-      const platforms = ['facebook','linkedin','tiktok'] as const;
-      const observations = [];
-      for (const platform of platforms) {
-        try { observations.push(await getWindsorSocialData(platform, ['date','source'], 'last_30d')); }
-        catch (error: any) { observations.push({ platform, status: 'unavailable', error: error?.message || String(error) }); }
-      }
-      windsorEvidence = { source: 'windsor.ai', observations, economicTruth: 'NOT VERIFIED; source observations are not revenue evidence' };
-    } catch (error: any) { windsorEvidence = { source: 'windsor.ai', status: 'error', error: error?.message || String(error) }; }
-  }
-  const evidenceId = `gev-${crypto.randomUUID()}`;
-  const evidence = {
-    id: evidenceId,
-    status: (evidenceRefs.length || windsorEvidence) ? 'recorded' as const : 'missing' as const,
-    references: [...evidenceRefs, ...(windsorEvidence ? ['windsor.ai:social-observations'] : [])],
-    windsor: windsorEvidence
-  };
-
-  // 6. Governed action is a proposal only. No irreversible execution is performed here.
-  const actionStatus = trustGatePassed && evidence.references.length ? 'approval-required' as const : 'blocked' as const;
-  const action = {
-    status: actionStatus,
-    reversible,
-    executionEnabled: false as const,
-    humanApprovalRequired: true as const
-  };
-
-  const stage: GovernanceStage = actionStatus === 'approval-required' ? 'governed-action' : 'blocked';
-  const cycle: GovernanceCycle = {
-    id: `gcycle-${crypto.randomUUID()}`,
-    taskId: task.id,
-    objective,
-    capability,
-    stage,
-    executive,
-    policy,
-    routing,
-    council,
-    trust: {
-      ...trust,
-      gatePassed: trustGatePassed,
-      rule: 'GATS trust controls gate consequential actions.'
-    },
-    compliance,
-    assets,
-    evidence,
-    action,
-    createdAt: new Date().toISOString()
-  };
-
-  await query(
-    `INSERT INTO glorifier_governance_cycles
-      (id,task_id,objective,capability,stage,executive,policy,routing,council,trust,compliance,assets,evidence,action)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb)`,
-    [cycle.id, cycle.taskId, cycle.objective, cycle.capability, cycle.stage,
-      JSON.stringify(cycle.executive), JSON.stringify(cycle.policy), JSON.stringify(cycle.routing), JSON.stringify(cycle.council),
-      JSON.stringify(cycle.trust), JSON.stringify(cycle.compliance), JSON.stringify(cycle.assets), JSON.stringify({ ...cycle.evidence, windsor: windsorEvidence }), JSON.stringify(cycle.action)]
+  return withAgentTaskHeartbeat(task.id, () =>
+    withGovernanceTaskFailureRecovery(
+      task.id,
+      executeGovernanceCycle,
+      (taskId, message) => updateAgentTask(taskId, { status: 'failed', error: message }),
+    ),
   );
-
-  updateAgentTask(task.id, {
-    status: actionStatus === 'blocked' ? 'failed' : 'completed',
-    result: cycle
-  });
-
-  return cycle;
 }
 
 export async function listGovernanceCycles(limit = 50) {
