@@ -58,13 +58,18 @@ assert.match(
 
 assert.match(
   server,
-  /app\.get\('\/api\/a2a\/tasks'[\s\S]*?listA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid\)/,
+  /app\.get\('\/api\/a2a\/tasks'[\s\S]*?listA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid, mayReadAllTasks\)/,
   'legacy A2A task listing must be scoped to the authenticated requester',
 );
 assert.match(
   server,
-  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?listFederatedA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid\)/,
+  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?listFederatedA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid, mayReadAllTasks\)/,
   'federated A2A task listing must be scoped to the authenticated requester',
+);
+assert.match(
+  server,
+  /app\.get\('\/api\/agents\/tasks'[\s\S]*?listAgentTasks\(50, mayReadAllTasks \? undefined : requesterUid, mayReadAllTasks\)/,
+  'agent task listing must pass an explicit owner/internal-service grant for unscoped reads',
 );
 assert.match(
   server,
