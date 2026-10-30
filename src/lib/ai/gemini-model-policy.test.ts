@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { resolveGeminiModelCandidates } from './providers/gemini.ts';
+import { GeminiProvider, resolveGeminiModelCandidates } from './providers/gemini.ts';
 
 assert.deepEqual(
   resolveGeminiModelCandidates('gemini-explicit-model', 'gemini-configured-model'),
@@ -23,3 +23,28 @@ assert.deepEqual(resolveGeminiModelCandidates(undefined, 'AUTO'), ['gemini-3.1-f
 assert.deepEqual(resolveGeminiModelCandidates(undefined, '  auto  '), ['gemini-3.1-flash-lite']);
 
 console.log('Gemini model policy tests: PASS');
+
+const previousGeminiKey = process.env.GEMINI_API_KEY;
+const previousFetch = globalThis.fetch;
+try {
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  let capturedRequest;
+  globalThis.fetch = (async (_input, init) => {
+    capturedRequest = init;
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: 'Gemini abort-signal test response' }] } }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  const abortController = new AbortController();
+  const response = await new GeminiProvider().generate({
+    messages: [{ role: 'user', content: 'Verify abort forwarding.' }],
+    model: 'gemini-3.1-flash-lite',
+    signal: abortController.signal,
+  });
+  assert.equal(response.provider, 'gemini');
+  assert.equal(capturedRequest?.signal, abortController.signal);
+} finally {
+  globalThis.fetch = previousFetch;
+  if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = previousGeminiKey;
+}
