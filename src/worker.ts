@@ -207,7 +207,7 @@ class OpenSeaResponseTooLargeError extends Error {}
 const readBoundedOpenSeaResponse = async (response: Response): Promise<unknown> => {
   const declaredLength = response.headers.get('content-length');
   if (declaredLength !== null) {
-    if (!/^\\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length');
+    if (!declaredLength || !Array.from(declaredLength).every((character) => character >= '0' && character <= '9')) throw new Error('Invalid OpenSea content length');
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length');
     if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
