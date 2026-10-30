@@ -84,7 +84,9 @@ BEGIN
     AND d.defaclobjtype IN ('r', 'S', 'f')
     AND grantee.rolname = 'service_role';
 
-  IF service_role_object_types IS DISTINCT FROM ARRAY['S', 'f', 'r']::text[] THEN
+  IF service_role_object_types IS NULL
+    OR cardinality(service_role_object_types) <> 3
+    OR NOT (service_role_object_types @> ARRAY['S', 'f', 'r']::text[]) THEN
     RAISE EXCEPTION 'service_role default grants missing; found %', service_role_object_types;
   END IF;
 
