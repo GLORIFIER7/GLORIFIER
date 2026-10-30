@@ -9,6 +9,7 @@ assert.deepEqual(
       configured: true,
       availability: 'available',
       authorization: 'configured',
+      authenticated: true,
       models: ['gpt-4o', 'shared-model', '  '],
     },
     {
@@ -17,7 +18,7 @@ assert.deepEqual(
       configured: true,
       availability: 'available',
       authorization: 'configured',
-      models: ['meta-model', 'shared-model'],
+      models: ['meta-model', ' shared-model '],
     },
     {
       id: 'qwen',
@@ -44,21 +45,40 @@ assert.deepEqual(
       models: ['not-configured-model'],
     },
     {
+      id: 'fallback-id',
+      name: '',
+      configured: true,
+      availability: 'available',
+      authorization: 'configured',
+      authenticated: true,
+      models: ['fallback-model'],
+    },
+    {
+      id: 'bad-model-list',
+      name: 'Bad model list',
+      configured: true,
+      availability: 'available',
+      authorization: 'configured',
+      authenticated: true,
+      models: 'not-an-array' as unknown as string[],
+    },
+    {
       id: 'nvidia',
       name: 'NVIDIA',
       configured: true,
       availability: 'available',
       authorization: 'configured',
+      authenticated: false,
       models: ['nvidia/test-model'],
     },
   ]),
   [
     { model: 'gpt-4o', providers: ['OpenAI'] },
+    { model: 'fallback-model', providers: ['fallback-id'] },
     { model: 'meta-model', providers: ['Meta'] },
-    { model: 'nvidia/test-model', providers: ['NVIDIA'] },
     { model: 'shared-model', providers: ['Meta', 'OpenAI'] },
   ],
-  'only models from configured, available, explicitly authorized providers are shown; duplicates are grouped',
+  'only authenticated configured providers are shown; model IDs are trimmed, grouped, and provider names fall back to IDs',
 );
 
 assert.deepEqual(
