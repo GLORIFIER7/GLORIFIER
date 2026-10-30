@@ -6,11 +6,23 @@ on:
       - 'agent-network/**'
       - 'docs/**'
       - '.github/workflows/architecture-contract-validation.yml'
+      - 'scripts/interoperability-protocol-boundaries.test.mjs'
+      - 'scripts/validate-interoperability-registry.mjs'
+      - 'scripts/validate-interoperability-registry.test.mjs'
+      - 'scripts/interoperability-evidence-policy.mjs'
+      - 'scripts/interoperability-evidence-policy.test.mjs'
+      - 'package.json'
   pull_request:
     paths:
       - 'agent-network/**'
       - 'docs/**'
       - '.github/workflows/architecture-contract-validation.yml'
+      - 'scripts/interoperability-protocol-boundaries.test.mjs'
+      - 'scripts/validate-interoperability-registry.mjs'
+      - 'scripts/validate-interoperability-registry.test.mjs'
+      - 'scripts/interoperability-evidence-policy.mjs'
+      - 'scripts/interoperability-evidence-policy.test.mjs'
+      - 'package.json'
 
 permissions:
   contents: read
@@ -36,6 +48,13 @@ jobs:
                   json.load(f)
               print(f"valid JSON: {p}")
           PY
+
+      - name: Validate interoperability registry and pinned protocol boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/validate-interoperability-registry.test.mjs scripts/interoperability-protocol-boundaries.test.mjs
+          node scripts/validate-interoperability-registry.mjs
 
       - name: Reject obvious secret material
         shell: bash

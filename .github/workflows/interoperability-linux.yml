@@ -12,12 +12,14 @@ on:
       - "docs/architecture/mcp-reference-conformance.md"
       - "scripts/validate-interoperability-registry.mjs"
       - "scripts/validate-interoperability-registry.test.mjs"
+      - "scripts/interoperability-protocol-boundaries.test.mjs"
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
       - "scripts/validate-interoperability-capabilities.mjs"
       - "scripts/interoperability-evidence-policy.mjs"
       - "scripts/interoperability-evidence-policy.test.mjs"
+      - "scripts/interoperability-protocol-boundaries.test.mjs"
       - ".github/workflows/interoperability-linux.yml"
       - "Dockerfile"
       - "Dockerfile.ubuntu"
@@ -74,6 +76,8 @@ jobs:
         run: npm run test:interoperability-evidence-policy
       - name: Test MCP interoperability registry policy
         run: npm run test:interoperability-registry
+      - name: Test pinned A2A and MCP protocol boundaries
+        run: npm run test:interoperability-protocol-boundaries
       - name: Validate MCP interoperability registry
         run: npm run validate:interoperability-registry
       - name: Validate capability registry and evidence
