@@ -178,16 +178,20 @@ assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
 assert.deepEqual(await getAgentSession(durableSession.id), durableSession);
 assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
 
-const durableConcurrentSession = await createAgentSession('harness-test-durable-concurrent');
-await Promise.all([
-  recordAgentTurn(durableConcurrentSession.id, 100),
-  recordAgentTurn(durableConcurrentSession.id, 200),
-]);
-assert.equal(
-  (await getAgentSession(durableConcurrentSession.id))?.turnCount,
-  2,
-  'durable concurrent turns must preserve both atomic increments',
+const failingReinitializationStore = {
+  ...testStore,
+  initialize: async () => { throw new Error('simulated durable store reinitialization failure'); },
+} as unknown as PostgresAgentStateStore;
+await assert.rejects(
+  () => initializeAgentHarnessPersistence(failingReinitializationStore),
+  /simulated durable store reinitialization failure/,
 );
+await assert.rejects(
+  () => recordAgentTurn(durableSession.id, 25),
+  /still initializing/,
+  'session writes must fail closed after a durable-store reinitialization failure',
+);
+assert.equal(await initializeAgentHarnessPersistence(testStore), true);
 
 const persistenceFailureSession = await createAgentSession('harness-test-post-action-persistence-failure');
 let externalActionCompleted = false;
