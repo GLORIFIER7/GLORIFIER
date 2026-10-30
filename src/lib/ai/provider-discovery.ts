@@ -42,10 +42,18 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   else if(d.id==='ollama') result=await fetchJson(endpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(endpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   let availability=classify(result.response.status,result.text);
-  const models=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
+  const rawModels=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
+  const models=d.id==='gemini'
+    ? rawModels.map((model:string)=>model.replace(/^models\//,''))
+    : rawModels;
 
-  // Discovery is read-only: a successful /models request does not claim inference success.
-  // Actual model inference is verified only by a separately authorized user request.
+  // NVIDIA model-list access only proves endpoint reachability, not credential validity
+  // for inference. The explicit authorization flag remains separate; the first actual
+  // inference is attempted only as part of a separately authorized user request.
+  if(d.id==='nvidia') {
+   const authorized=env('NVIDIA_AUTHORIZED')==='true';
+   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:authorized?'configured':'pending'};
+  }
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
