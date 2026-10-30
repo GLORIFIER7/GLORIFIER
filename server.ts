@@ -1123,7 +1123,7 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
         ok: false,
         error: 'No selected provider returned a usable response. Check provider configuration, authorization, quota, and availability.',
         requestedParticipants: council.requestedParticipants,
-      requestedProviderIds: council.requestedProviderIds,
+        requestedProviderIds: council.requestedProviderIds,
         participantCount: 0,
         providerDiversity: 0,
         failures: council.failures,
@@ -1161,8 +1161,8 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
       const synthesisProvider = synthesisParticipant.provider;
       const synthesisModel = synthesisParticipant.model;
       const evidencePacket = council.participants.map((participant) =>
-        `[${participant.provider}/${participant.model}]\\n${participant.text}`
-      ).join('\\n\\n');
+        `[${participant.provider}/${participant.model}]\n${participant.text}`
+      ).join('\n\n');
       try {
         const synthesisResponse = await aiOrchestrator.generate({
           provider: synthesisProvider,
@@ -1178,11 +1178,11 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
                 'Do not state that consensus exists merely because multiple responses were received.',
                 'Do not invent facts, sources, test results, approvals, or verified outcomes.',
                 'No action is authorized by this synthesis; humans retain final authority.'
-              ].join('\\n')
+              ].join('\n')
             },
             {
               role: 'user',
-              content: `Agenda: ${topic}\\n\\nIndependent provider responses:\\n${evidencePacket}`
+              content: `Agenda: ${topic}\n\nIndependent provider responses:\n${evidencePacket}`
             }
           ],
           temperature: 0.1
@@ -1207,6 +1207,7 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
       participants,
       participantCount: council.participantCount,
       providerDiversity: council.providerDiversity,
+      requestedParticipants: council.requestedParticipants,
       requestedProviderIds: council.requestedProviderIds,
       councilStatus: council.status,
       failures: council.failures,
@@ -2171,8 +2172,8 @@ async function runIntelligenceModel(
 
   const preferredProvider = provider === 'openai' ? 'openai' : 'gemini';
   const requestPrompt = jsonMode
-    ? systemInstruction + '\\nReturn valid JSON only.\\n\\n' + prompt
-    : systemInstruction + '\\n\\n' + prompt;
+    ? systemInstruction + '\nReturn valid JSON only.\n\n' + prompt
+    : systemInstruction + '\n\n' + prompt;
 
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
