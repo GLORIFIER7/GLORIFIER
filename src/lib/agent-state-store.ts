@@ -93,9 +93,13 @@ export class PostgresAgentStateStore {
       `UPDATE glorifier_agent_state
        SET status = 'failed',
            payload = jsonb_set(
-             jsonb_set(payload, '{status}', '"failed"'::jsonb),
-             '{error}',
-             to_jsonb($1::text)
+             jsonb_set(
+               jsonb_set(payload, '{status}', '"failed"'::jsonb),
+               '{error}',
+               to_jsonb($1::text)
+             ),
+             '{updatedAt}',
+             to_jsonb(to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
            ),
            updated_at = NOW()
        WHERE kind = 'task'
