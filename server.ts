@@ -2651,7 +2651,7 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     input ? `Input: ${JSON.stringify(input)}` : '',
     'Return a concise, evidence-aware result suitable for another agent to consume.',
     'Do not claim actions were executed unless they actually were.'
-  ].filter(Boolean).join('\\n');
+  ].filter(Boolean).join('\n');
 
   const preferredProvider: 'gemini' | 'openai' = (capability.includes('research') || capability.includes('recovery') || capability.includes('gemini'))
     ? 'gemini'
