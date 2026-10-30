@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getPostgresPool } from '../db/postgres';
-import { PostgresAgentStateStore } from '../agent-state-store';
+import { createPostgresAgentStateStore } from '../agent-state-store';
 
 /**
  * GLORIFIER Agent Harness
@@ -79,10 +78,7 @@ export async function initializeAgentHarnessPersistence(): Promise<boolean> {
     return false;
   }
 
-  const store = new PostgresAgentStateStore(async (sql, values) => {
-    const result = await getPostgresPool().query(sql, values as any[]);
-    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
-  });
+  const store = createPostgresAgentStateStore();
   await store.initialize();
   const restored = await store.list<AgentSession>('session', 500);
   sessions.clear();
