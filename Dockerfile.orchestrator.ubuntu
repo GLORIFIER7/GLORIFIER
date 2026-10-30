@@ -7,18 +7,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false
 
+COPY docker/orchestrator-security-patches/package.json docker/orchestrator-security-patches/package-lock.json /tmp/npm-security-patches/
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
  && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 15)) process.exit(1)' \
  && npm install --global npm@12.2.1 --ignore-scripts --no-audit --no-fund \
- && npm install --prefix /tmp/npm-security-patches --no-save --ignore-scripts --no-audit --no-fund undici@6.29.1 brace-expansion@5.0.12 \
+ && npm ci --prefix /tmp/npm-security-patches --ignore-scripts --no-audit --no-fund \
  && mkdir -p /usr/lib/node_modules/npm/node_modules \
- && rm -rf /usr/lib/node_modules/npm/node_modules/undici /usr/lib/node_modules/npm/node_modules/brace-expansion \
+ && rm -rf /usr/lib/node_modules/npm/node_modules/undici /usr/lib/node_modules/npm/node_modules/brace-expansion /usr/lib/node_modules/npm/node_modules/balanced-match \
  && cp -a /tmp/npm-security-patches/node_modules/. /usr/lib/node_modules/npm/node_modules/ \
  && rm -rf /tmp/npm-security-patches \
- && node -e 'const root="/usr/lib/node_modules/npm/node_modules/"; const expected={"undici":"6.29.1","brace-expansion":"5.0.12"}; for (const [name, version] of Object.entries(expected)) { const actual = require(root + name + "/package.json").version; if (actual !== version) throw new Error(name + " expected " + version + " but found " + actual); }' \
+ && node -e 'const root="/usr/lib/node_modules/npm/node_modules/"; const expected={"undici":"6.29.1","brace-expansion":"5.0.12","balanced-match":"4.0.4"}; for (const [name, version] of Object.entries(expected)) { const actual = require(root + name + "/package.json").version; if (actual !== version) throw new Error(name + " expected " + version + " but found " + actual); }' \
  && npm --version \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
