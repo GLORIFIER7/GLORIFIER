@@ -15,9 +15,11 @@ The current GLORIFIER integration intentionally does not exchange or use the sco
 
 ## Worker routes
 
-- `GET /api/opensea/health` — performs an authenticated read-only lookup of the `glorifier7` collection and reports whether the API key was accepted.
+- `GET /api/opensea/health` — performs an authenticated, uncached read-only lookup of the `glorifier7` collection and reports whether the API key was accepted. It bypasses the edge cache so key rotation/revocation is observed on the next probe.
 - `GET /api/opensea/collections/glorifier7` — returns public collection metadata for the ERC-721 collection.
 - `GET /api/opensea/collections/glorifier1` — returns public collection metadata for the ERC-1155 collection.
+
+Collection metadata responses use a 60-second Cloudflare edge cache to reduce API-key quota usage. The health route is never cached.
 
 Only the two registered GLORIFIER collection slugs are accepted. Routes reject other methods and unknown slugs. Upstream errors, rate limits, timeouts, and malformed responses are reported without exposing credentials or upstream response bodies.
 
