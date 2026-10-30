@@ -17,7 +17,8 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, initializeAgentRuntimePersistence } from './src/lib/agent-runtime';
+import { initializeAgentHarnessPersistence } from './src/lib/ai/agent-harness';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
@@ -2584,14 +2585,23 @@ app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
   res.json(agentManifest());
 });
 
-app.get('/api/agents/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listAgentTasks() });
+app.get('/api/agents/tasks', async (_req: Request, res: Response) => {
+  try {
+    const tasks = await listAgentTasks();
+    return res.json({ ok: true, tasks });
+  } catch (error) {
+    return apiError(res, 503, 'Durable agent task listing unavailable', error);
+  }
 });
 
-app.get('/api/agents/tasks/:id', (req: Request, res: Response) => {
-  const task = getAgentTask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
-  res.json({ ok: true, task });
+app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
+  try {
+    const task = await getAgentTask(String(req.params.id));
+    if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
+    return res.json({ ok: true, task });
+  } catch (error) {
+    return apiError(res, 503, 'Durable agent task lookup unavailable', error);
+  }
 });
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
@@ -2611,11 +2621,11 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     }
   }
 
-  const task = createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
+  const task = await createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
   if (approvalRequired) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
-  updateAgentTask(task.id, { status: 'running' });
+  await updateAgentTask(task.id, { status: 'running' });
 
   // Route through the existing model runtime without exposing provider credentials.
   try {
@@ -2639,18 +2649,18 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     });
 
     if (!result) {
-      updateAgentTask(task.id, { status: 'failed', error: 'No configured AI provider available or all inference attempts failed' });
-      return res.status(503).json({ ok: false, task: getAgentTask(task.id) });
+      await updateAgentTask(task.id, { status: 'failed', error: 'No configured AI provider available or all inference attempts failed' });
+      return res.status(503).json({ ok: false, task: await getAgentTask(task.id) });
     }
 
-    updateAgentTask(task.id, {
+    await updateAgentTask(task.id, {
       status: 'completed',
       result: { providerModel: result.model, artifact: result.text }
     });
-    return res.json({ ok: true, task: getAgentTask(task.id) });
+    return res.json({ ok: true, task: await getAgentTask(task.id) });
   } catch (error) {
-    updateAgentTask(task.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
-    return res.status(500).json({ ok: false, task: getAgentTask(task.id) });
+    await updateAgentTask(task.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({ ok: false, task: await getAgentTask(task.id) });
   }
 });
 
@@ -3730,6 +3740,8 @@ async function initializeBackend(): Promise<void> {
   }
 
   const initializers: Array<[string, () => Promise<unknown>]> = [
+    ['agent task persistence', initializeAgentRuntimePersistence],
+    ['agent harness session persistence', initializeAgentHarnessPersistence],
     ['revenue ledger', initializeRevenueLedger],
     ['economic operating system', initializeEconomicOperatingSystem],
     ['business model', initializeBusinessModel],
