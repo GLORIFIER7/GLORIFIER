@@ -72,7 +72,7 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
       redirect: 'manual',
       signal: AbortSignal.timeout(8000),
       // Bound public collection requests at the Cloudflare edge to conserve API quota.
-      ...(useEdgeCache ? { cf: { cacheTtl: 60, cacheEverything: true } } : {}),
+      cf: useEdgeCache ? { cacheTtl: 60, cacheEverything: true } : { cacheTtl: 0, cacheEverything: true },
     };
     const endpoint = COLLECTION_ENDPOINTS[slug];
     if (!endpoint) {
