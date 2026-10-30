@@ -1,5 +1,5 @@
 # GLORIFIER Permanent Orchestrator — Ubuntu LTS runtime
-# Ubuntu 24.04 LTS (Noble) + Node.js 22
+# Ubuntu 24.04 LTS (Noble) + Node.js 24
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -9,8 +9,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
- && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+ && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
+ && node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
  && node --version \
  && npm --version \
  && apt-get clean \
