@@ -1,4 +1,4 @@
-name: GLORIFIER Bot — Locked Dependency Guardian
+name: GLORIFIER Bot — Dependency Guardian
 
 on:
   pull_request:
@@ -23,7 +23,9 @@ concurrency:
 
 jobs:
   validate-locked-dependencies:
-    name: Validate committed dependency lockfile
+    # Keep the historical check label for branch-rule compatibility.
+    # This job validates only; it no longer refreshes dependency versions.
+    name: Prepare and test safe dependency refresh
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
