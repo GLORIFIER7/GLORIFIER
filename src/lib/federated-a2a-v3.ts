@@ -71,7 +71,13 @@ export function createFederatedA2ATask(input:{requesterAgentId:string;targetAgen
   return task;
 }
 export function getFederatedA2ATask(id:string){return memory.get(id)||null;}
-export function listFederatedA2ATasks(limit=50){return [...memory.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,Math.min(100,Math.max(1,limit)));}
+export function listFederatedA2ATasks(limit=50, requesterAgentId?: string){
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  return [...memory.values()]
+    .filter((task) => !requester || task.requesterAgentId === requester)
+    .sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
+    .slice(0,Math.min(100,Math.max(1,Number.isFinite(limit) ? Math.floor(limit) : 50)));
+}
 export async function authorizeFederatedA2ATask(taskId:string,actor:string,humanApproved=false){
   const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
   const route=routeAgentCapability(task.capability);
