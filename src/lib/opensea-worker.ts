@@ -5,12 +5,12 @@ const COLLECTION_ENDPOINTS: Readonly<Record<string, URL>> = Object.freeze({
 const ALLOWED_COLLECTION_SLUGS = new Set(Object.keys(COLLECTION_ENDPOINTS));
 const MAX_OPENSEA_RESPONSE_BYTES = 1_048_576;
 
-class OpenSeaResponseTooLargeError extends Error {};
+class OpenSeaResponseTooLargeError extends Error {}
 
 const readBoundedOpenSeaJson = async (response: Response): Promise<unknown> => {
   const declaredLength = response.headers.get('content-length');
   if (declaredLength !== null) {
-    if (!/^\\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length.');
+    if (!/^\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length.');
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length.');
     if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
@@ -99,7 +99,7 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
   }
   if (upstream.status === 429) {
     const retryAfter = upstream.headers.get('retry-after');
-    const validRetryAfter = retryAfter && (/^\\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter))) ? retryAfter : undefined;
+    const validRetryAfter = retryAfter && (/^\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter))) ? retryAfter : undefined;
     return {
       status: 503,
       error: failure(503, 'OPENSEA_RATE_LIMITED', 'OpenSea rate-limited the request. Retry after the provider limit resets.',
