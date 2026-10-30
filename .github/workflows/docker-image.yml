@@ -43,6 +43,10 @@ jobs:
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
 
+      - name: Verify primary image Node.js runtime
+        run: |
+          docker run --rm glorifier/glorifier:pr-${{ github.event.pull_request.number }} -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1); console.log("Verified production Node.js runtime: " + process.versions.node)'
+
       - name: Build Ubuntu runtime image
         run: docker build --pull --file Dockerfile.ubuntu --tag glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }} .
 
