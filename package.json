@@ -72,7 +72,8 @@
     "validate:interoperability-registry": "node scripts/validate-interoperability-registry.mjs",
     "test:token-branding-bridge": "node --test --import tsx/esm src/lib/token-branding-bridge.test.ts",
     "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs",
-    "test:provider-routing": "tsx src/lib/ai/registry-routing.test.ts"
+    "test:provider-routing": "tsx src/lib/ai/registry-routing.test.ts",
+    "test:provider-model-catalog": "tsx src/lib/ai/provider-model-catalog.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
