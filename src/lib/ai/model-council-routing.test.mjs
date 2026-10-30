@@ -304,10 +304,12 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(managementSource, /const agendaToRun = customAgenda\.trim\(\) \|\| selectedTopic;/);
   assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
   assert.match(managementSource, /Provider-backed Nodes/);
+  assert.match(managementSource, /Submit an agenda with \{activeProviderNodeCount\} enabled provider-backed nodes/);
   assert.match(managementSource, /failureSummary/);
   assert.match(modalSource, /discoverConfiguredModelCouncilParticipants/);
   assert.match(modalSource, /submitAuthenticatedModelCouncilRequest/);
   assert.match(modalSource, /Provider execution failures/);
+  assert.match(modalSource, /p\.provider === 'openai'/);
   assert.match(modalSource, /setCouncilResult\(result\)/);
 });
 
