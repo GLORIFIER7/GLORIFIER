@@ -73,6 +73,11 @@ assert.match(
 );
 assert.match(
   server,
+  /app\.post\('\/api\/agents\/tasks'[\s\S]*?const defaultRequester = requestedRequester \?\? \(internalServiceRequest \? 'glorifier-internal-service' : 'human-owner'\)/,
+  'internal agent task creation must be attributed to the internal service when no requester is supplied',
+);
+assert.match(
+  server,
   /app\.post\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?const requestedRequester = body\.requesterAgentId \?\? \(isInternalServiceRequest\(req\) \? 'glorifier-internal-service' : undefined\)[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
   'federated A2A requester identity must be derived from authenticated context',
 );
