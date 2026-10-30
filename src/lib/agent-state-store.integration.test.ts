@@ -40,6 +40,22 @@ try {
     compactionRecommended: false,
   };
   await store.save('session', session);
+  const replacedSession = { ...session, agentId: 'integration-test-upsert' };
+  await store.save('session', replacedSession);
+  assert.equal((await store.get<typeof session>('session', session.id))?.agentId, 'integration-test-upsert', 'save must exercise the SQL upsert path');
+
+  const newestSession = {
+    ...session,
+    id: 'integration-session-newest',
+    updatedAt: new Date(Date.now() + 1_000).toISOString(),
+  };
+  await store.save('session', newestSession);
+  assert.deepEqual(
+    (await store.list<typeof session>('session', 1)).map((entry) => entry.id),
+    [newestSession.id],
+    'list must filter by kind, order by updated_at, and honor its limit',
+  );
+  assert.deepEqual(await store.list('task', 10), [], 'task listing must not return session rows');
 
   const increments = await Promise.all([
     store.incrementSessionTurn<typeof session>(session.id, 100),
@@ -76,6 +92,11 @@ try {
   await store.save('task', recentTask);
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
   assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
+  assert.deepEqual(
+    (await store.list<typeof recentTask>('task', 1)).map((entry) => entry.id),
+    [recentTask.id],
+    'task listing must return the newest task row and respect the result limit',
+  );
   await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
   assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
 
