@@ -24,6 +24,7 @@ export type AgentTask = {
   connectionId?: string;
   approvalRequired?: boolean;
   createdAt: string;
+  updatedAt: string;
   status: 'queued' | 'running' | 'completed' | 'failed';
   result?: unknown;
   error?: string;
@@ -146,6 +147,7 @@ export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objec
     id: newId('task'),
     ...input,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     status: 'queued'
   };
   // Persist before exposing a newly accepted task to the caller.
