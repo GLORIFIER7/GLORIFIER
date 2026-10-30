@@ -19,6 +19,7 @@ import {
 import { MonetizationPolicy, DataFootprintSource, AiBrokerChatMessage } from '../types';
 import { AiPolicyOptimizerModal } from './AiPolicyOptimizerModal';
 import { AllAiCollaborationModal } from './AllAiCollaborationModal';
+import { buildProviderModelOptions, type ProviderDiscoveryModelSource } from '../lib/ai/provider-model-catalog';
 
 interface AiBrokerConsoleProps {
   policy: MonetizationPolicy;
@@ -33,7 +34,12 @@ export const AiBrokerConsole: React.FC<AiBrokerConsoleProps> = ({
   footprints,
   onApplySuggestedAction
 }) => {
-  const [selectedModel, setSelectedModel] = useState<string>(policy.aiModel || 'gpt-4o');
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    const savedModel = policy.aiModel;
+    return savedModel && savedModel !== 'all-models' && savedModel !== 'consensus' ? savedModel : 'auto';
+  });
+  const [discoveredModelOptions, setDiscoveredModelOptions] = useState<ReturnType<typeof buildProviderModelOptions>>([]);
+  const [providerCatalogStatus, setProviderCatalogStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [showOptimizerModal, setShowOptimizerModal] = useState(false);
   const [showCollaborationModal, setShowCollaborationModal] = useState(false);
 
@@ -62,9 +68,37 @@ Choose an action to request a backend response. Any returned claim must be check
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadProviderCatalog = async () => {
+      try {
+        const response = await fetch('/api/providers/discovery', {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Provider discovery returned HTTP ${response.status}`);
+        const payload = await response.json() as { ok?: boolean; providers?: unknown };
+        if (payload.ok !== true || !Array.isArray(payload.providers)) {
+          throw new Error('Provider discovery response did not match its contract.');
+        }
+        setDiscoveredModelOptions(
+          buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]),
+        );
+        setProviderCatalogStatus('ready');
+      } catch {
+        if (!controller.signal.aborted) setProviderCatalogStatus('unavailable');
+      }
+    };
+
+    void loadProviderCatalog();
+    return () => controller.abort();
+  }, []);
+
   const handleModelChange = (newModel: string) => {
     setSelectedModel(newModel);
-    onUpdatePolicy({ aiModel: newModel as any });
+    onUpdatePolicy({ aiModel: newModel });
   };
 
   const handleApplyOptimization = (optimizedPolicy: Partial<MonetizationPolicy>, rationale: string) => {
@@ -100,8 +134,8 @@ Choose an action to request a backend response. Any returned claim must be check
   const quickPrompts = [
     'Invite all artificial intelligence models to collaborate on my data strategy',
     'Run AI Policy Optimizer to tune my epsilon and privacy tier',
-    'Have GPT-4o negotiate a +25% rate for my developer code telemetry',
-    'GPT & Gemini Audit: Scan my search and browsing streams for quasi-identifiers',
+    'Ask the configured AI provider to propose a +25% rate for my developer code telemetry',
+    'Request a multi-provider audit of my search and browsing streams for quasi-identifiers',
     'Draft a strict CCPA / GDPR statutory clawback demand letter',
   ];
 
@@ -116,8 +150,6 @@ Choose an action to request a backend response. Any returned claim must be check
 
     if (lower.includes('collaborat') || lower.includes('invite all') || lower.includes('all ai') || lower.includes('all artificial') || lower.includes('council')) {
       setShowCollaborationModal(true);
-      setSelectedModel('all-models');
-      onUpdatePolicy({ aiModel: 'all-models' as any });
     }
 
     const userMsg: AiBrokerChatMessage = {
@@ -193,90 +225,65 @@ Choose an action to request a backend response. Any returned claim must be check
                   <h3 className="text-sm font-bold text-white">DataSovereign AI Broker</h3>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                    {selectedModel === 'all-models' ? 'ALL AI COUNCIL' : selectedModel.toUpperCase()}
+                    {selectedModel === 'auto' ? 'AUTO ROUTING' : selectedModel.toUpperCase()}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  {selectedModel === 'all-models' 
-                    ? 'All AI Models Collaborative Council (OpenAI GPT-4o (availability not verified) + Google Gemini (availability not verified) + Meta LLaMA)' 
-                    : selectedModel === 'gemini-3.8-flash'
-                    ? 'Google Gemini 3.8 Flash Low-Latency Multimodal Reasoning'
-                    : selectedModel === 'consensus'
-                    ? 'Dual-Consensus Cross-Validation (GPT-4o + Gemini 3.8 Flash)'
-                    : 'OpenAI GPT-4o Autonomous Reasoning & Valuation Engine'}
+                  {selectedModel === 'auto'
+                    ? 'Provider-neutral routing using eligible configured provider defaults'
+                    : `Model preference: ${selectedModel} · successful inference is not guaranteed by discovery`}
                 </p>
               </div>
             </div>
 
-            {/* Model Selector Pills in Header */}
+            {/* Dynamic model catalogue from server-side provider discovery */}
             <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800 flex-wrap">
+              <label htmlFor="ai-broker-model-select" className="sr-only">AI model preference</label>
+              <select
+                id="ai-broker-model-select"
+                aria-label="AI model preference"
+                value={selectedModel}
+                onChange={(e) => handleModelChange(e.target.value)}
+                className="max-w-[240px] bg-slate-950 border border-slate-700 rounded-md px-2 py-1.5 text-[10px] font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="auto">Auto — configured provider default</option>
+                {!discoveredModelOptions.some((option) => option.model === selectedModel) && selectedModel !== 'auto' && (
+                  <option value={selectedModel}>Saved preference: {selectedModel} (not in discovery)</option>
+                )}
+                {discoveredModelOptions.map((option) => (
+                  <option key={option.model} value={option.model}>
+                    {option.model} — {option.providers.join(', ')}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                onClick={() => handleModelChange('gpt-4o')}
-                className={`text-[10px] font-semibold px-2.5 py-1 rounded transition-colors ${
-                  selectedModel === 'gpt-4o'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="OpenAI GPT-4o: Flagship multimodal intelligence for high-stakes contract and yield negotiations"
+                onClick={() => setShowCollaborationModal(true)}
+                className="text-[10px] font-semibold px-2 py-1 rounded transition-colors text-slate-300 hover:text-white"
+                title="Open the multi-provider council request. Actual participant responses are reported by the council endpoint."
               >
-                GPT-4o
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModelChange('gpt-4o-mini')}
-                className={`text-[10px] font-semibold px-2.5 py-1 rounded transition-colors ${
-                  selectedModel === 'gpt-4o-mini'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="OpenAI GPT-4o-mini: Fast, low-latency micro-screening"
-              >
-                GPT-4o mini
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModelChange('gemini-3.8-flash')}
-                className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors ${
-                  selectedModel === 'gemini-3.8-flash'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Google Gemini 3.8 Flash Engine"
-              >
-                Gemini
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModelChange('consensus')}
-                className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors ${
-                  selectedModel === 'consensus'
-                    ? 'bg-emerald-500 text-slate-950 shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Consensus requested (not verified): Synthesize analysis from both GPT-4o and Gemini 3.8 Flash"
-              >
-                Consensus
+                Council
               </button>
               <button
                 type="button"
                 id="invite-all-ai-models-btn"
-                onClick={() => {
-                  handleModelChange('all-models');
-                  setShowCollaborationModal(true);
-                }}
-                className={`text-[10px] font-semibold px-2.5 py-1 rounded transition-all flex items-center gap-1.5 cursor-pointer ${
-                  selectedModel === 'all-models'
-                    ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 text-slate-950 shadow-md font-bold'
-                    : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20'
-                }`}
-                title="Invite All AI Models to Collaborate (OpenAI GPT-4o + Google Gemini 3.8 Flash + Meta LLaMA 3.3)"
+                onClick={() => setShowCollaborationModal(true)}
+                className="text-[10px] font-semibold px-2.5 py-1 rounded transition-all flex items-center gap-1.5 cursor-pointer bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20"
+                title="Request a review from configured AI providers; participation and consensus are not guaranteed."
               >
                 <Users className="w-3 h-3" />
-                <span>Collaborate (All AI)</span>
+                <span>Collaborate</span>
               </button>
             </div>
-          </div>
+            <p className="mt-1 text-[9px] text-slate-500" role="status" aria-live="polite">
+              {providerCatalogStatus === 'loading'
+                ? 'Loading configured provider model discovery…'
+                : providerCatalogStatus === 'unavailable'
+                  ? 'Provider discovery unavailable. The saved model preference is retained; live availability is unknown.'
+                  : discoveredModelOptions.length
+                    ? `${discoveredModelOptions.length} discovered model IDs. Discovery does not verify successful inference.`
+                    : 'No configured, authorized model IDs were discovered. Auto routing will use eligible provider defaults.'}
+            </p>          </div>
         </div>
 
         {/* Message Thread */}
@@ -639,28 +646,16 @@ Choose an action to request a backend response. Any returned claim must be check
               Configured AI provider preference
             </div>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-              {selectedModel === 'all-models'
-                ? 'Model selection (not live consensus)'
-                : selectedModel === 'gpt-4o'
-                ? 'OpenAI GPT-4o'
-                : selectedModel === 'gpt-4o-mini'
-                ? 'OpenAI GPT-4o mini'
-                : selectedModel === 'consensus'
-                ? 'Dual Consensus'
-                : 'Google Gemini'}
+              {selectedModel === 'auto' ? 'Automatic provider selection' : 'Model preference (not inference verification)'}
             </span>
           </div>
           <div className="space-y-1.5 text-[11px] text-slate-400">
             <div className="flex justify-between border-b border-slate-800/60 pb-1">
               <span>Selected provider configuration:</span>
               <span className="text-slate-200 font-mono font-medium">
-                {selectedModel === 'all-models'
-                  ? 'OpenAI + Gemini + Meta LLaMA'
-                  : selectedModel === 'consensus'
-                  ? 'GPT-4o & Gemini 3.8 Flash'
-                  : selectedModel === 'gemini-3.8-flash'
-                  ? 'Gemini 3.8 Flash'
-                  : 'OpenAI GPT-4o'}
+                {selectedModel === 'auto'
+                  ? 'Automatic provider routing'
+                  : `${selectedModel} · ${discoveredModelOptions.find((option) => option.model === selectedModel)?.providers.join(', ') || 'not in current discovery'}`}
               </span>
             </div>
             <div className="flex justify-between border-b border-slate-800/60 pb-1">
@@ -674,7 +669,7 @@ Choose an action to request a backend response. Any returned claim must be check
             <div className="flex justify-between pt-0.5">
               <span>Negotiation Capability:</span>
               <span className="text-slate-200">
-                {selectedModel === 'all-models' ? 'Multi-provider request path (participation and consensus NOT VERIFIED)' : 'Counter-offer policy settings (execution not verified)'}
+                {selectedModel === 'auto' ? 'Automatic provider selection; actual provider is shown with each response' : 'Selected model preference; execution and provider availability are not guaranteed'}
               </span>
             </div>
           </div>
