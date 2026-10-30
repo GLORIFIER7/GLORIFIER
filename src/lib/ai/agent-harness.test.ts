@@ -191,6 +191,20 @@ await assert.rejects(
   /still initializing/,
   'session writes must fail closed after a durable-store reinitialization failure',
 );
+let executedAfterFailedReinitialize = false;
+await assert.rejects(
+  () => executeAgentTurn({
+    session: durableSession,
+    contextTokens: 25,
+    run: async () => {
+      executedAfterFailedReinitialize = true;
+      return 'must-not-run';
+    },
+  }),
+  /still initializing/,
+  'the harness must reject before starting an external action when persistence is uninitialized',
+);
+assert.equal(executedAfterFailedReinitialize, false);
 assert.equal(await initializeAgentHarnessPersistence(testStore), true);
 
 const persistenceFailureSession = await createAgentSession('harness-test-post-action-persistence-failure');
