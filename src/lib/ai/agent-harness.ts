@@ -71,6 +71,24 @@ export interface AgentHarnessPolicy {
 
 type AgentHarnessPersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'save'>;
 
+/**
+ * An action completed, but the resulting session state could not be persisted.
+ * Callers must preserve the result and must not retry the external action blindly.
+ */
+export class AgentTurnPersistenceError<T = unknown> extends Error {
+  readonly persisted = false;
+  readonly actionCompleted = true;
+
+  constructor(
+    readonly sessionId: string,
+    readonly result: T,
+    readonly persistenceError: unknown,
+  ) {
+    super('Agent action completed, but session state could not be persisted. Do not retry the action blindly.');
+    this.name = 'AgentTurnPersistenceError';
+  }
+}
+
 const sessions = new Map<string, AgentSession>();
 let persistence: AgentHarnessPersistence | null = null;
 let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
@@ -311,6 +329,12 @@ export async function executeAgentTurn<T>(options: {
     throw error;
   }
 
-  const session = await recordAgentTurn(options.session.id, options.contextTokens);
-  return { result, session };
+  try {
+    const session = await recordAgentTurn(options.session.id, options.contextTokens);
+    return { result, session };
+  } catch (error) {
+    // The external action already completed. Surface its result explicitly so
+    // an API caller can reconcile state instead of blindly repeating a side effect.
+    throw new AgentTurnPersistenceError(options.session.id, result, error);
+  }
 }
