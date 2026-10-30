@@ -303,6 +303,8 @@ export async function executeAgentTurn<T>(options: {
   humanApproval?: HumanToolApproval;
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
+  // Fail closed before authorizing or starting any side effect.
+  assertAgentHarnessReady();
   const normalizedContextTokens = normalizeContextTokens(options.contextTokens);
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
   const toolRequests = filterDeferredTools(options.tools || []);
