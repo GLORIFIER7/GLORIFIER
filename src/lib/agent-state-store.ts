@@ -96,17 +96,20 @@ export class PostgresAgentStateStore {
    * locking ensures concurrent requests cannot overwrite each other's count.
    */
   async incrementSessionTurn<T>(id: string, contextTokens: number): Promise<T | null> {
-    const normalizedContextTokens = Math.floor(contextTokens);
+    if (!Number.isSafeInteger(contextTokens) || contextTokens < 0) {
+      throw new Error('contextTokens must be a non-negative safe integer.');
+    }
+    const normalizedContextTokens = contextTokens;
     const result = await this.query(
       `UPDATE glorifier_agent_state
        SET status = 'active',
            payload = payload || jsonb_build_object(
              'status', 'active',
              'turnCount', COALESCE((payload->>'turnCount')::integer, 0) + 1,
-             'contextTokens', $2::integer,
+             'contextTokens', $2::bigint,
              'updatedAt', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
              'compactionRecommended',
-               $2::integer >= floor(COALESCE((payload->>'maxContextTokens')::numeric, 32000) * 0.8)
+               $2::bigint >= floor(COALESCE((payload->>'maxContextTokens')::numeric, 32000) * 0.8)
            ),
            updated_at = NOW()
        WHERE kind = 'session' AND id = $1
