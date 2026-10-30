@@ -157,6 +157,9 @@ jobs:
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
 
+      - name: Federated A2A requester-isolation regression tests
+        run: npm run test:federated-a2a-v3
+
       - name: Agent persistence bootstrap tests
         run: npm run test:agent-persistence-bootstrap
 
