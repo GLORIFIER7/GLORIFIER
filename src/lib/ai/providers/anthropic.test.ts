@@ -23,12 +23,14 @@ try {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
 
+  const abortController = new AbortController();
   const response = await provider.generate({
     messages: [
       { role: 'system', content: 'You are a governed assistant.' },
       { role: 'user', content: 'Return a test response.' },
     ],
     temperature: 0.2,
+    signal: abortController.signal,
   });
 
   assert.equal(response.provider, 'anthropic');
@@ -42,6 +44,7 @@ try {
   assert.equal(body.messages[0].role, 'user');
   assert.equal(body.temperature, undefined);
   assert.equal(captured?.headers?.['x-api-key'], 'test-anthropic-key');
+  assert.equal(captured?.signal, abortController.signal);
 
   globalThis.fetch = (async () => new Response('rate limited', { status: 429 })) as typeof fetch;
   await assert.rejects(
