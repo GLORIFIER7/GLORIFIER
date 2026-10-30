@@ -34,6 +34,7 @@ export class PostgresAgentStateStore {
 
   async initialize(): Promise<void> {
     await this.query(`
+      SELECT pg_advisory_xact_lock(hashtext('glorifier_agent_state_schema_v1')::bigint);
       CREATE TABLE IF NOT EXISTS glorifier_agent_state (
         kind TEXT NOT NULL CHECK (kind IN ('task', 'session')),
         id TEXT NOT NULL,
@@ -85,6 +86,33 @@ export class PostgresAgentStateStore {
       .map((row) => row.payload)
       .filter((payload) => payload !== undefined && payload !== null)
       .map((payload) => (typeof payload === 'string' ? JSON.parse(payload) : payload) as T);
+  }
+
+  /**
+   * Atomically increments one session turn in PostgreSQL. Row-level UPDATE
+   * locking ensures concurrent requests cannot overwrite each other's count.
+   */
+  async incrementSessionTurn<T>(id: string, contextTokens: number): Promise<T | null> {
+    const normalizedContextTokens = Math.floor(contextTokens);
+    const result = await this.query(
+      `UPDATE glorifier_agent_state
+       SET status = 'active',
+           payload = payload || jsonb_build_object(
+             'status', 'active',
+             'turnCount', COALESCE((payload->>'turnCount')::integer, 0) + 1,
+             'contextTokens', $2::integer,
+             'updatedAt', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+             'compactionRecommended',
+               $2::integer >= floor(COALESCE((payload->>'maxContextTokens')::numeric, 32000) * 0.8)
+           ),
+           updated_at = NOW()
+       WHERE kind = 'session' AND id = $1
+       RETURNING payload`,
+      [id, normalizedContextTokens],
+    );
+    const payload = result.rows[0]?.payload;
+    if (payload === undefined || payload === null) return null;
+    return (typeof payload === 'string' ? JSON.parse(payload) : payload) as T;
   }
 
   async recoverInterruptedTasks(): Promise<number> {
