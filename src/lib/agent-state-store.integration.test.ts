@@ -52,6 +52,8 @@ try {
   );
   const persistedSession = await store.get<typeof session>('session', session.id);
   assert.equal(persistedSession?.turnCount, 2);
+  const largeCounterSession = await store.incrementSessionTurn<typeof session>(session.id, 2_147_483_648);
+  assert.equal(largeCounterSession?.contextTokens, 2_147_483_648, 'BIGINT-backed context counters must exceed int32');
   assert.ok(
     persistedSession?.contextTokens === 100 || persistedSession?.contextTokens === 200,
     'the final context token count must come from one complete atomic update',
