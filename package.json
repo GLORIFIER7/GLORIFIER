@@ -66,7 +66,8 @@
     "test:geas-run-provenance": "tsx scripts/geas-architecture-run-provenance.test.ts",
     "test:interoperability-evidence-policy": "node --test scripts/interoperability-evidence-policy.test.mjs",
     "test:interoperability-registry": "node --test scripts/validate-interoperability-registry.test.mjs",
-    "validate:interoperability-registry": "node scripts/validate-interoperability-registry.mjs"
+    "validate:interoperability-registry": "node scripts/validate-interoperability-registry.mjs",
+    "test:token-branding-bridge": "tsx src/lib/token-branding-bridge.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
