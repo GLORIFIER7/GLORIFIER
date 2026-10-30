@@ -290,3 +290,17 @@ test('model council response attribution validates both provider and selected mo
     'gpt-4o',
   ), false);
 });
+
+test('both council UIs submit exact configured model pairs and expose provider failures', async () => {
+  const managementSource = await readFile(new URL('../../components/AiModelsCollaborationManagement.tsx', import.meta.url), 'utf8');
+  const modalSource = await readFile(new URL('../../components/AllAiCollaborationModal.tsx', import.meta.url), 'utf8');
+  assert.match(managementSource, /fetch\('\/api\/ai\/registry'\)/);
+  assert.match(managementSource, /participants,/);
+  assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
+  assert.match(managementSource, /Provider-backed Nodes/);
+  assert.match(managementSource, /failureSummary/);
+  assert.match(modalSource, /fetch\('\/api\/ai\/registry'\)/);
+  assert.match(modalSource, /participants,/);
+  assert.match(modalSource, /Provider execution failures/);
+  assert.match(modalSource, /raw\.unifiedConsensus/);
+});
