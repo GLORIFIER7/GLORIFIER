@@ -3,6 +3,7 @@ import {
   buildA2AAgentCard,
   createA2AJsonRpcHandler,
   A2A_PROTOCOL_VERSION,
+  isCompatibleA2AProtocolVersion,
   type A2ACreateTaskInput,
   type A2ATaskLike,
 } from './a2a-v1';
@@ -91,7 +92,7 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
     const requestedVersion = req.get('A2A-Version') || String(req.query['A2A-Version'] || '');
     // The protocol defines an omitted version as 0.3; this interface only
     // advertises 1.0, so reject omitted and unsupported versions explicitly.
-    if ((requestedVersion || '0.3') !== A2A_PROTOCOL_VERSION) {
+    if (!isCompatibleA2AProtocolVersion(requestedVersion)) {
       return res.status(400).type('application/problem+json').json({
         type: 'https://a2a-protocol.org/errors/version-not-supported',
         title: 'Protocol Version Not Supported',
