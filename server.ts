@@ -2444,7 +2444,9 @@ app.get('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
   try {
-    const tasks = await listFederatedA2ATasksFromStore(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
+    const tasks = process.env.DATABASE_URL
+      ? await listFederatedA2ATasksFromStore(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks)
+      : listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
     return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
   } catch (error) {
     return apiError(res, 503, 'Federated A2A v3 task listing unavailable', error);
@@ -2459,8 +2461,12 @@ app.get('/api/federated-a2a/v3/tasks/:id', async (req: Request, res: Response) =
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
   try {
-    const task = await getFederatedA2ATaskFromStore(String(req.params.id), mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
-    if (!task) return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+    const task = process.env.DATABASE_URL
+      ? await getFederatedA2ATaskFromStore(String(req.params.id), mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks)
+      : getFederatedA2ATask(String(req.params.id));
+    if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+      return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+    }
     return res.json({ ok: true, task });
   } catch (error) {
     return apiError(res, 503, 'Federated A2A v3 task lookup unavailable', error);
@@ -2481,12 +2487,17 @@ app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
     || typeof body.objective !== 'string' || !body.objective.trim()) {
     return res.status(400).json({ ok: false, error: 'capability and objective are required' });
   }
-  const task = createFederatedA2ATask({
-    requesterAgentId,
-    targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
-    capability: body.capability, objective: body.objective, input: body.input,
-    parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
-  });
+  let task;
+  try {
+    task = await createFederatedA2ATask({
+      requesterAgentId,
+      targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
+      capability: body.capability, objective: body.objective, input: body.input,
+      parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
+    });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task persistence unavailable', error);
+  }
   return res.status(201).json({ ok: true, task, next: 'AUTHORIZED' });
 });
 
