@@ -34,7 +34,7 @@ assert.deepEqual(card.defaultInputModes, ['text/plain', 'application/json']);
 assert.deepEqual(card.defaultOutputModes, ['application/json']);
 assert.ok(card.skills.some((skill) => skill.id === 'governed-task-intake'));
 assert.ok(card.securitySchemes.bearer.httpAuthSecurityScheme);
-assert.deepEqual(card.securityRequirements, [{ schemes: { bearer: { list: [] } } }]);
+assert.deepEqual(card.securityRequirements, [{ bearer: [] }]);
 
 assert.throws(() => buildA2AAgentCard('http://example.com'), /HTTPS/);
 assert.throws(() => buildA2AAgentCard('https://user:pass@example.com'), /credentials/);
@@ -72,6 +72,9 @@ const submittedTask = submitResult.task;
 assert.equal(submittedTask.id, 'a2a-task-1');
 assert.equal(submittedTask.status.state, 'TASK_STATE_SUBMITTED');
 assert.match(submittedTask.status.message.parts[0].text, /human approval/i);
+assert.equal(submittedTask.status.message.role, 'ROLE_AGENT');
+assert.equal(submittedTask.status.message.contextId, 'a2a-task-1');
+assert.equal(submittedTask.status.message.taskId, 'a2a-task-1');
 assert.equal(created.length, 1);
 assert.equal(created[0].requesterAgentId, 'verified-user-42');
 assert.equal(created[0].capability, 'a2a-message-intake');
