@@ -63,7 +63,6 @@ jobs:
           vuln-type: os,library
           version: v0.76.0
           severity: HIGH,CRITICAL
-          skip-setup-trivy: true
 
       - name: Smoke test Ubuntu runtime health endpoint
         shell: bash
