@@ -35,6 +35,23 @@ const query: AgentStateQuery = async (sql, values = []) => {
         .map((row) => ({ payload: row.payload })),
     };
   }
+  if (sql.includes('UPDATE glorifier_agent_state') && sql.includes('RETURNING payload')) {
+    const [id, contextTokens] = values as [string, number];
+    const row = rows.get(`session:${id}`);
+    if (!row) return { rows: [], rowCount: 0 };
+    const current = row.payload as Record<string, unknown>;
+    const updatedAt = new Date().toISOString();
+    const updated = {
+      ...current,
+      status: 'active',
+      turnCount: Number(current.turnCount || 0) + 1,
+      contextTokens,
+      updatedAt,
+      compactionRecommended: contextTokens >= Math.floor(Number(current.maxContextTokens || 32_000) * 0.8),
+    };
+    rows.set(`session:${id}`, { ...row, status: 'active', payload: updated, updated_at: updatedAt });
+    return { rows: [{ payload: updated }], rowCount: 1 };
+  }
   if (sql.includes('UPDATE glorifier_agent_state')) {
     let recovered = 0;
     const staleBefore = Date.now() - 30 * 60 * 1000;
@@ -61,6 +78,11 @@ const query: AgentStateQuery = async (sql, values = []) => {
 const store = new PostgresAgentStateStore(query);
 await store.initialize();
 
+assert.ok(statements.some((sql) => sql.includes('pg_advisory_xact_lock')), 'schema initialization must serialize concurrent DDL');
+assert.ok(
+  statements[0].indexOf('pg_advisory_xact_lock') < statements[0].indexOf('CREATE TABLE IF NOT EXISTS'),
+  'the transaction-scoped schema lock must be acquired before DDL',
+);
 assert.ok(statements.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS glorifier_agent_state')));
 assert.ok(statements.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_glorifier_agent_state_kind_updated')));
 
@@ -119,5 +141,17 @@ const session = {
 await store.save('session', session);
 assert.deepEqual(await store.get<typeof session>('session', session.id), session);
 assert.deepEqual(await store.list<typeof session>('session', 10), [session]);
+const concurrentTurns = await Promise.all([
+  store.incrementSessionTurn<typeof session>(session.id, 100),
+  store.incrementSessionTurn<typeof session>(session.id, 250),
+]);
+assert.deepEqual(
+  concurrentTurns.map((entry) => entry?.turnCount).sort(),
+  [1, 2],
+  'atomic increments must preserve concurrent session turns',
+);
+assert.equal((await store.get<typeof session>('session', session.id))?.turnCount, 2);
+assert.ok(statements.some((sql) => sql.includes('RETURNING payload')));
+
 
 console.log('durable agent state store tests: PASS');
