@@ -1,6 +1,19 @@
 import type { A2ATask } from './a2a-runtime';
 
 export const A2A_PROTOCOL_VERSION = '1.0' as const;
+
+/** Accept patch releases within the advertised Major.Minor A2A protocol. */
+export function isCompatibleA2AProtocolVersion(requestedVersion?: string): boolean {
+  const version = (requestedVersion || '0.3').trim();
+  if (version.length > 32) return false;
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(version);
+  return Boolean(match && `${match[1]}.${match[2]}` === A2A_PROTOCOL_VERSION);
+}
+
+/** A caller-provided approval value is meaningful only with verified owner identity. */
+export function isAuthorizedA2AExecution(authenticatedOwner: boolean, approval: unknown): boolean {
+  return authenticatedOwner && approval === 'approved';
+}
 export const A2A_JSONRPC_PATH = '/api/a2a/v1' as const;
 export const A2A_AGENT_CARD_PATH = '/.well-known/agent-card.json' as const;
 export const A2A_MAX_MESSAGE_TEXT_CHARS = 20_000;
@@ -161,9 +174,9 @@ function statusFor(task: A2ATaskLike): {
     case 'completed':
       return { state: 'TASK_STATE_COMPLETED', message: 'The task completed. Any available result is included as an artifact.' };
     case 'failed':
-      return { state: 'TASK_STATE_FAILED', message: task.error || 'The task failed.' };
+      return { state: 'TASK_STATE_FAILED', message: 'The task failed.' };
     case 'blocked':
-      return { state: 'TASK_STATE_REJECTED', message: task.error || 'The task was blocked by GLORIFIER governance.' };
+      return { state: 'TASK_STATE_REJECTED', message: 'The task was blocked by GLORIFIER governance.' };
   }
 }
 
