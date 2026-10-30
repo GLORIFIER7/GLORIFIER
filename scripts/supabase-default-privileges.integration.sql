@@ -9,20 +9,20 @@ DO $role$ BEGIN CREATE ROLE supabase_admin NOLOGIN; EXCEPTION WHEN duplicate_obj
 
 -- Reproduce the risky defaults observed in the connected Supabase project.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated, service_role, PUBLIC;
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon, authenticated, service_role, PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL PRIVILEGES ON SEQUENCES TO anon, authenticated, service_role, PUBLIC;
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO anon, authenticated, service_role, PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT ALL PRIVILEGES ON FUNCTIONS TO anon, authenticated, service_role, PUBLIC;
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role, PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres
   GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated, service_role;
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT ALL PRIVILEGES ON SEQUENCES TO anon, authenticated, service_role;
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT ALL PRIVILEGES ON FUNCTIONS TO anon, authenticated, service_role;
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
 
 -- Preserve exact owner, namespace, object type, and ACL for platform defaults.
 CREATE TEMP TABLE glorifier_supabase_admin_acl_before ON COMMIT DROP AS
