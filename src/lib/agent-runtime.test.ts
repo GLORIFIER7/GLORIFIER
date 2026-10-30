@@ -4,6 +4,7 @@ import {
   createAgentTask,
   getAgentTask,
   getAgentRuntimePersistenceStatus,
+  getAgentTaskRecoveryObservation,
   heartbeatAgentTask,
   withAgentTaskHeartbeat,
   initializeAgentRuntimePersistence,
@@ -51,6 +52,20 @@ try {
   assert.equal(getAgentRuntimePersistenceStatus().mode, 'memory-fallback');
   assert.equal(getAgentRuntimePersistenceStatus().durable, false);
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
+
+  const recoveryNow = Date.now();
+  assert.equal(
+    getAgentTaskRecoveryObservation({ status: 'running', updatedAt: new Date(recoveryNow - 30_000).toISOString() }, recoveryNow).state,
+    'heartbeat-current',
+  );
+  assert.equal(
+    getAgentTaskRecoveryObservation({ status: 'running', updatedAt: new Date(recoveryNow - 5 * 60_000).toISOString() }, recoveryNow).state,
+    'heartbeat-overdue',
+  );
+  assert.equal(
+    getAgentTaskRecoveryObservation({ status: 'running', updatedAt: new Date(recoveryNow - 31 * 60_000).toISOString() }, recoveryNow).state,
+    'startup-recovery-eligible',
+  );
   assert.deepEqual(getAgentRuntimePersistenceStatus().recoveryPolicy, {
     staleAfterMinutes: 30,
     heartbeatIntervalMs: 60_000,
