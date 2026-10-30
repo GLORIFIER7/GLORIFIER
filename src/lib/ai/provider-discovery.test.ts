@@ -71,6 +71,17 @@ try {
   assert.equal(afterInference?.authenticated, true, 'only successful, separately authorized inference promotes NVIDIA authentication');
   assert.equal(afterInference?.authorization, 'configured');
   assert.ok(afterInference?.models.includes('nvidia/inference-confirmed-only'), 'successful inference must add the exact model ID used by the inference check');
+  await discoverGlobalProviders('provider-discovery-refresh-regression-test', { persistConnections: false });
+  const afterReadOnlyRefresh = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(afterReadOnlyRefresh?.authenticated, true, 'read-only refresh must preserve an earlier successful inference proof for the unchanged key and endpoint');
+  assert.equal(afterReadOnlyRefresh?.authorization, 'configured');
+  assert.ok(afterReadOnlyRefresh?.models.includes('nvidia/inference-confirmed-only'));
+
+  process.env.NVIDIA_API_KEY = 'rotated-nvidia-test-key';
+  await discoverGlobalProviders('provider-discovery-rotated-key-regression-test', { persistConnections: false });
+  const afterCredentialRotation = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(afterCredentialRotation?.authenticated, false, 'a credential change must invalidate prior inference proof');
+  assert.equal(afterCredentialRotation?.authorization, 'pending');
 
   const gemini = providers.find((provider) => provider.id === 'gemini');
   assert.ok(gemini, 'Gemini discovery entry must exist');
