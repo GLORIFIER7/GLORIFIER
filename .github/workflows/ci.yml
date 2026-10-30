@@ -316,7 +316,8 @@ jobs:
       - name: PostgreSQL agent state store integration tests
         run: npm run test:agent-state-store-integration
         env:
-          AGENT_STATE_TEST_DATABASE_URL: postgresql://postgres@localhost:5432/glorifier_test
+          AGENT_STATE_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
+          PGUSER: postgres
 
 
   supabase-default-privileges-integration:
@@ -356,4 +357,5 @@ jobs:
       - name: Verify Supabase default privilege migration on PostgreSQL
         run: npm run test:supabase-default-privileges
         env:
-          SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL: postgresql://postgres@localhost:5432/glorifier_test
+          SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
+          PGUSER: postgres
