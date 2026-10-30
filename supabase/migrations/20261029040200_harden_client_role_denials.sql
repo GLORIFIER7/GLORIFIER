@@ -57,13 +57,13 @@ $$;
 -- Prevent future postgres-owned public objects from inheriting client access.
 -- Preserve service_role for the Cloudflare server-side application path.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE ALL PRIVILEGES ON TABLES FROM anon, authenticated;
+  REVOKE ALL PRIVILEGES ON TABLES FROM anon, authenticated, PUBLIC;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE ALL PRIVILEGES ON SEQUENCES FROM anon, authenticated;
+  REVOKE ALL PRIVILEGES ON SEQUENCES FROM anon, authenticated, PUBLIC;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  REVOKE ALL PRIVILEGES ON FUNCTIONS FROM anon, authenticated;
+  REVOKE ALL PRIVILEGES ON FUNCTIONS FROM anon, authenticated, PUBLIC;
 
 -- PostgreSQL grants EXECUTE to PUBLIC globally by default. A schema-scoped
 -- REVOKE cannot remove that global default, so revoke it at the role level.
@@ -88,7 +88,7 @@ BEGIN
       AND d.defaclobjtype IN ('r', 'S', 'f')
       AND (grantee.rolname IN ('anon', 'authenticated') OR acl.grantee = 0)
   ) THEN
-    RAISE EXCEPTION 'Client roles retain postgres public-schema default privileges';
+    RAISE EXCEPTION 'Client roles or PUBLIC retain postgres public-schema default privileges';
   END IF;
 
   IF EXISTS (
