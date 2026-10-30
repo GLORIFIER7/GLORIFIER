@@ -634,6 +634,26 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().method, 'POST');
     assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { action: 'observe' });
 
+    upstreamResponse = new Response(JSON.stringify({ id: '123' }), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+        Location: '/api/items/123',
+      },
+    });
+    const createdResource = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'resource' }),
+      }),
+      env,
+    );
+    assert.equal(createdResource.status, 201, 'a successful creation response must not be converted to a redirect-policy error');
+    assert.equal(createdResource.headers.get('location'), '/api/items/123', 'a non-redirect Location resource reference must retain its HTTP semantics');
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, '/api/items');
+
     upstreamResponse = new Response(null, {
       status: 302,
       headers: {
