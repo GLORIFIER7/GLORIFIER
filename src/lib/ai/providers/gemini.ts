@@ -45,7 +45,7 @@ export class GeminiProvider implements AIProvider {
   }
 
   models() {
-    return [process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'];
+    return resolveGeminiModelCandidates(undefined, process.env.GEMINI_MODEL);
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
