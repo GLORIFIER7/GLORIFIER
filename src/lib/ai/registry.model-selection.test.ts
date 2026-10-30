@@ -39,4 +39,17 @@ assert.equal(
   'an empty model list is unknown, not permission to silently use an arbitrary default',
 );
 
+const geminiProvider: AIProvider = {
+  id: 'gemini',
+  name: 'Google Gemini',
+  status: () => 'connected',
+  models: () => ['gemini-3.1-flash-lite'],
+  generate: async () => ({ provider: 'gemini', model: 'gemini-3.1-flash-lite', text: 'ok' }),
+};
+assert.equal(
+  isProviderModelEligible(geminiProvider, 'gemini-2.5-flash', ['models/gemini-2.5-flash']),
+  true,
+  'Gemini resource names must compare using their canonical model IDs',
+);
+
 console.log('provider model-selection behavior tests: PASS');
