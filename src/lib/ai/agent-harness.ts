@@ -260,12 +260,19 @@ export async function executeAgentTurn<T>(options: {
   try {
     result = await options.run();
   } catch (error) {
-    const current = await getAgentSession(options.session.id) || options.session;
-    await saveSession({
-      ...current,
-      updatedAt: new Date().toISOString(),
-      status: 'failed',
-    });
+    try {
+      const current = await getAgentSession(options.session.id) || options.session;
+      await saveSession({
+        ...current,
+        updatedAt: new Date().toISOString(),
+        status: 'failed',
+      });
+    } catch (persistenceError) {
+      console.error('[AgentHarness] Could not persist failed session state; preserving original execution error.', {
+        executionError: error instanceof Error ? error.message : String(error),
+        persistenceError: persistenceError instanceof Error ? persistenceError.message : String(persistenceError),
+      });
+    }
     throw error;
   }
 
