@@ -35,6 +35,15 @@ const query: AgentStateQuery = async (sql, values = []) => {
         .map((row) => ({ payload: row.payload })),
     };
   }
+  if (sql.includes('UPDATE glorifier_agent_state') && sql.includes('RETURNING id')) {
+    const [id] = values as [string];
+    const row = rows.get(`task:${id}`);
+    if (!row || row.status !== 'running') return { rows: [], rowCount: 0 };
+    const updatedAt = new Date().toISOString();
+    const updatedPayload = { ...(row.payload as Record<string, unknown>), updatedAt };
+    rows.set(`task:${id}`, { ...row, payload: updatedPayload, updated_at: updatedAt });
+    return { rows: [{ id }], rowCount: 1 };
+  }
   if (sql.includes('UPDATE glorifier_agent_state') && sql.includes('RETURNING payload')) {
     const [id, contextTokens] = values as [string, number];
     const row = rows.get(`session:${id}`);
@@ -109,6 +118,11 @@ const recentRunning = {
   updatedAt: new Date().toISOString(),
 };
 await store.save('task', recentRunning);
+assert.equal(await store.heartbeatRunningTask(recentRunning.id), true);
+assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
+assert.ok(Date.parse((await store.get<typeof recentRunning>('task', recentRunning.id))?.updatedAt || '') >= Date.parse(recentRunning.updatedAt));
+await store.save('task', { ...recentRunning, status: 'completed', updatedAt: new Date().toISOString() });
+assert.equal(await store.heartbeatRunningTask(recentRunning.id), false, 'a late heartbeat must not resurrect a completed task');
 assert.equal(await store.recoverInterruptedTasks(), 1);
 const recoverySql = statements[statements.length - 1] || '';
 assert.match(recoverySql, /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
