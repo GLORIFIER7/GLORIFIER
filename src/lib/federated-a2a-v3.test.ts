@@ -3,7 +3,7 @@ const p=getFederatedA2AV3Policy();
 if(FEDERATED_A2A_V3_VERSION!=='G-A2A-TASK-3.0') throw new Error('version');
 if(JSON.stringify(p.lifecycle)!==JSON.stringify(FEDERATED_A2A_V3_LIFECYCLE)) throw new Error('lifecycle');
 if(!p.humanAuthorityRemainsHighest||p.automaticFinancialTransfers||p.automaticIrreversibleProductionChanges||p.automaticCredentialRotation) throw new Error('governance');
-const t=createFederatedA2ATask({requesterAgentId:'ai-ceo',capability:'research',objective:'test'});
+const t=await createFederatedA2ATask({requesterAgentId:'ai-ceo',capability:'research',objective:'test'}, async () => {});
 if (listFederatedA2ATasks(100).length !== 0) throw new Error('missing requester must fail closed unless all-task access is explicit');
 if (listFederatedA2ATasks(100, '').length !== 0) throw new Error('blank requester must fail closed');
 const initialAdminPage = listFederatedA2ATasks(100, undefined, true);
@@ -12,10 +12,10 @@ if (initialAdminPage.length !== 1 || initialAdminPage[0].id !== t.id) {
 }
 if(t.state!=='DISCOVERED'||t.attempt!==0||t.evidenceRefs.length!==0) throw new Error('task');
 
-const aliceTask = createFederatedA2ATask({ requesterAgentId: 'alice-uid', capability: 'research', objective: 'older private task' });
+const aliceTask = await createFederatedA2ATask({ requesterAgentId: 'alice-uid', capability: 'research', objective: 'older private task' }, async () => {});
 await new Promise((resolve) => setTimeout(resolve, 2));
 for (let index = 0; index < 55; index += 1) {
-  createFederatedA2ATask({ requesterAgentId: 'bob-uid', capability: 'research', objective: 'newer task ' + index });
+  await createFederatedA2ATask({ requesterAgentId: 'bob-uid', capability: 'research', objective: 'newer task ' + index }, async () => {});
 }
 const alicePage = listFederatedA2ATasks(1, 'alice-uid');
 if (alicePage.length !== 1 || alicePage[0].id !== aliceTask.id) {
@@ -71,3 +71,17 @@ if (deniedUnscoped.length !== 0 || dbCalls.length !== 2) {
   throw new Error('unscoped federated task listing must fail closed without querying PostgreSQL');
 }
 console.log('FEDERATED_A2A_V3_DURABLE_READ_TEST_OK');
+
+
+let releaseDurableCreate!: () => void;
+let createFinished = false;
+const delayedCreate = createFederatedA2ATask(
+  { requesterAgentId: 'durable-user', capability: 'research', objective: 'wait for durable commit' },
+  () => new Promise<void>((resolve) => { releaseDurableCreate = resolve; }),
+).then((task) => { createFinished = true; return task; });
+await Promise.resolve();
+if (createFinished) throw new Error('federated task creation must wait for durable persistence before returning');
+releaseDurableCreate();
+const durablyCreated = await delayedCreate;
+if (!durablyCreated.id || !createFinished) throw new Error('federated task creation must resolve after persistence completes');
+console.log('FEDERATED_A2A_V3_DURABLE_CREATE_TEST_OK');
