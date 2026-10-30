@@ -390,6 +390,22 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
 const isBackendPath = (pathname: string): boolean =>
   pathname === A2A_AGENT_CARD_PATH || /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
+function hasBearerAuthorization(value: string | null): boolean {
+  const header = value?.trim() || '';
+  if (!header || header.length > 8192) return false;
+
+  const separator = header.indexOf(' ');
+  if (separator <= 0 || header.slice(0, separator).toLowerCase() !== 'bearer') return false;
+
+  const token = header.slice(separator + 1).trim();
+  if (!token) return false;
+  for (const character of token) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x20 || code === 0x7f) return false;
+  }
+  return true;
+}
+
 const hasSessionCredential = (request: Request): boolean => {
   const authorization = request.headers.get('authorization')?.trim() || '';
   if (/^Bearer\s+\S+$/i.test(authorization)) return true;
@@ -473,7 +489,7 @@ export default {
       if (request.method !== 'POST') {
         return errorResponse(405, -32600, 'A2A JSON-RPC endpoint accepts POST only.');
       }
-      if (!/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
+      if (!hasBearerAuthorization(request.headers.get('authorization'))) {
         return errorResponse(401, -32600, 'Authentication is required.');
       }
       if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
