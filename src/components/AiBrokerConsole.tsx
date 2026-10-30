@@ -38,6 +38,7 @@ export const AiBrokerConsole: React.FC<AiBrokerConsoleProps> = ({
   const savedModelPreference = useRef(normalizeSavedModelPreference(policy.aiModel));
   const hasUserSelectedModel = useRef(false);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const selectedModelRef = useRef<string>('auto');
   const [discoveredModelOptions, setDiscoveredModelOptions] = useState<ReturnType<typeof buildProviderModelOptions>>([]);
   const [providerCatalogStatus, setProviderCatalogStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [showOptimizerModal, setShowOptimizerModal] = useState(false);
@@ -87,10 +88,11 @@ Choose an action to request a backend response. Any returned claim must be check
       setDiscoveredModelOptions(options);
       const resolution = reconcileDiscoveredModelPreference(
         savedModelPreference.current,
-        selectedModel,
+        selectedModelRef.current,
         hasUserSelectedModel.current,
         discoveredModels,
       );
+      selectedModelRef.current = resolution.model;
       setSelectedModel(resolution.model);
       if (resolution.persistModel) {
         // Keep the shared policy used by offer evaluation aligned with the
@@ -101,6 +103,7 @@ Choose an action to request a backend response. Any returned claim must be check
     } catch {
       if (!signal?.aborted) {
         hasUserSelectedModel.current = false;
+        selectedModelRef.current = 'auto';
         setSelectedModel('auto');
         // The request path now uses Auto, so shared policy must not retain a
         // stale explicit model after discovery becomes unavailable.
@@ -123,6 +126,7 @@ Choose an action to request a backend response. Any returned claim must be check
     );
     hasUserSelectedModel.current = true;
     savedModelPreference.current = executableModel;
+    selectedModelRef.current = executableModel;
     setSelectedModel(executableModel);
     onUpdatePolicy({ aiModel: executableModel });
   };
@@ -174,6 +178,7 @@ Choose an action to request a backend response. Any returned claim must be check
       discoveredModelOptions.map((option) => option.model),
     );
     if (executableModel !== selectedModel) {
+      selectedModelRef.current = executableModel;
       setSelectedModel(executableModel);
       onUpdatePolicy({ aiModel: executableModel });
     }
