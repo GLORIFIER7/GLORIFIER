@@ -751,7 +751,7 @@ interface ModelExecutionParams {
 }
 
 async function runModelExecution({
-  model = 'gpt-4o',
+  model,
   systemPrompt,
   userPrompt,
   temperature = 0.4,
@@ -2049,7 +2049,6 @@ async function runIntelligenceModel(
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
     preferredProvider,
-    model: preferredProvider === 'openai' ? 'gpt-4o' : 'gemini-3.8-flash',
     temperature: 0.1,
   });
 
