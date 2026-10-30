@@ -24,10 +24,13 @@ export interface AgentStateRecord {
  *
  * The store deliberately persists task/session records only. It does not
  * schedule tasks, replay work, authorize tools, or perform provider actions.
- * Only "running" tasks stale for at least 30 minutes are marked failed on
- * startup to avoid changing the state of another healthy replica's recent
- * work. Tasks are never automatically replayed because an interrupted action
- * may already have caused an external side effect.
+ * "Running" tasks with no successful heartbeat for at least 30 minutes
+ * are marked failed during startup recovery. The long-running inference and
+ * governance execution paths heartbeat every minute while active; heartbeat
+ * updates are conditional on status still being "running". A task interrupted
+ * less than 30 minutes before a restart can remain running until a later
+ * startup. Tasks are never automatically replayed because an interrupted
+ * action may already have caused an external side effect.
  */
 export class PostgresAgentStateStore {
   constructor(private readonly query: AgentStateQuery) {}
