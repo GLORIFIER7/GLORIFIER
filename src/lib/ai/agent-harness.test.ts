@@ -47,6 +47,7 @@ assert.equal(missingCapability.allowed, false);
 assert.equal(missingCapability.requiresHumanApproval, false);
 
 const session = await createAgentSession('harness-test');
+await assert.rejects(() => import('./agent-harness.ts').then(({ recordAgentTurn }) => recordAgentTurn(session.id, Number.POSITIVE_INFINITY)), /finite/);
 await assert.rejects(
   () => createAgentSession('harness-test-duplicate', { sessionId: session.id }),
   /already exists/,
@@ -66,6 +67,7 @@ const result = await executeAgentTurn({
   approvedCapabilities: capability,
   humanApproval: approval,
   run: async () => {
+    assert.equal((await getAgentSession(approvedSession.id))?.lastHumanApproval?.toolId, dangerous.id, 'approval must be durable before execution begins');
     executed = true;
     return 'executed';
   },
