@@ -37,6 +37,26 @@ export class ModelCouncilClientError extends Error {
   }
 }
 
+export function selectConfiguredParticipantsForProviders(
+  configuredParticipants: readonly ModelCouncilSelection[],
+  providerIds: readonly string[],
+): { participants: ModelCouncilSelection[]; unavailableProviders: string[] } {
+  const firstByProvider = new Map<string, ModelCouncilSelection>();
+  for (const participant of configuredParticipants) {
+    if (!firstByProvider.has(participant.providerId)) {
+      firstByProvider.set(participant.providerId, participant);
+    }
+  }
+  const participants: ModelCouncilSelection[] = [];
+  const unavailableProviders: string[] = [];
+  for (const providerId of providerIds) {
+    const participant = firstByProvider.get(providerId);
+    if (participant) participants.push(participant);
+    else unavailableProviders.push(providerId);
+  }
+  return { participants, unavailableProviders };
+}
+
 export function normalizeModelCouncilFailures(value: unknown): ModelCouncilProviderFailure[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry): ModelCouncilProviderFailure[] => {
