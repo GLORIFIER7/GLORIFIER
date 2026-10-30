@@ -1050,7 +1050,7 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
 // Provider-selected AI council endpoint.
 // Each participant is pinned to one exact requested provider/model pair; failures never trigger implicit substitution.
 // Outputs remain advisory and cannot authorize consequential actions.
-app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, async (req: Request, res: Response) => {
+app.post('/api/ai/council', requireOwnerOrInternalService, aiCouncilRateLimit, async (req: Request, res: Response) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const topic = typeof body.agenda === 'string' && body.agenda.trim()
     ? body.agenda.trim()
