@@ -6,6 +6,7 @@ on:
     paths:
       - "Dockerfile"
       - "Dockerfile.ubuntu"
+      - "Dockerfile.orchestrator.ubuntu"
       - ".dockerignore"
       - "package.json"
       - "package-lock.json"
@@ -44,6 +45,9 @@ jobs:
 
       - name: Build Ubuntu runtime image
         run: docker build --pull --file Dockerfile.ubuntu --tag glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }} .
+
+      - name: Build permanent orchestrator runtime image
+        run: docker build --pull --file Dockerfile.orchestrator.ubuntu --tag glorifier/orchestrator:pr-${{ github.event.pull_request.number }} .
 
       - name: Smoke test Ubuntu runtime health endpoint
         shell: bash
