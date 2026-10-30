@@ -13,7 +13,7 @@ const fixture = readFileSync('scripts/supabase-default-privileges.integration.sq
 assert.equal(fixture.length, 2, 'integration SQL must contain exactly one migration marker');
 
 const migration = readFileSync(
-  'supabase/migrations/20261029040200_harden_client_role_denials.sql',
+  'supabase/migrations/20261030125059_harden_client_role_denials.sql',
   'utf8',
 );
 const client = new pg.Client({ connectionString });
