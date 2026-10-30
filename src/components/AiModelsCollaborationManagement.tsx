@@ -194,49 +194,76 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, weight: newWeight } : n));
   };
 
-  // Run Collaborative Council across all active models
+  // Run the exact configured model selected for each enabled provider node.
   const handleConveneCouncil = async () => {
-    const agendaToRun = customAgenda.trim() || selectedTopic;
-    const selectedProviderIds = nodes
-      .filter(n => n.enabled && n.providerId)
-      .map(n => n.providerId as string);
+    setCouncilResult(null);
+    setStatusFeedback(null);
+    const selectedProviderNodes = nodes.filter(
+      (node): node is ModelNodeConfig & { providerId: string } => node.enabled && Boolean(node.providerId)
+    );
 
-    if (selectedProviderIds.length === 0) {
+    if (selectedProviderNodes.length === 0) {
       setStatusFeedback('Enable at least one provider-backed model (GPT, Claude, Gemini, Meta, or another configured provider) before convening the council.');
       return;
     }
 
     setIsRunningCouncil(true);
-    setCouncilResult(null);
-    setStatusFeedback(null);
-
     try {
+      const registryResponse = await fetch('/api/ai/registry');
+      if (!registryResponse.ok) throw new Error(`Provider registry request failed (HTTP ${registryResponse.status}).`);
+      const registryPayload = await registryResponse.json();
+      const registryProviders = Array.isArray(registryPayload.providers) ? registryPayload.providers : [];
+      const unavailableProviders: string[] = [];
+      const participants = selectedProviderNodes.flatMap((node) => {
+        const provider = registryProviders.find((entry: any) => entry.id === node.providerId);
+        const modelId = Array.isArray(provider?.models) ? provider.models[0] : undefined;
+        if (provider?.status !== 'connected' || typeof modelId !== 'string' || !modelId.trim()) {
+          unavailableProviders.push(node.providerId);
+          return [];
+        }
+        return [{ providerId: node.providerId, modelId }];
+      });
+
+      if (participants.length === 0) {
+        throw new Error('None of the enabled provider nodes currently exposes a configured model. Configure provider credentials and model IDs first.');
+      }
+
       const res = await fetch('/api/ai/council', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agenda: agendaToRun,
-          providerIds: selectedProviderIds,
+          participants,
           currentPolicy: policy,
           footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
         })
       });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: CouncilConsensusResult & {
         participantCount?: number;
         providerDiversity?: number;
-        failures?: Array<{ providerId: string; code: string }>;
+        failures?: Array<{ providerId: string; modelId?: string | null; code: string }>;
       } = await res.json();
+      const failures = Array.isArray(data.failures) ? data.failures : [];
+      const failureSummary = failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+      if (!res.ok) {
+        throw new Error([
+          data.error || `Council request failed (HTTP ${res.status}).`,
+          failureSummary ? `Provider failures: ${failureSummary}.` : '',
+        ].filter(Boolean).join(' '));
+      }
+
       setCouncilResult(data);
       const responseCount = data.participantCount ?? data.participants.length;
       const providerCount = data.providerDiversity ?? new Set(data.participants.map(p => p.provider)).size;
-      const failureCount = data.failures?.length ?? 0;
-      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s). ${failureCount} selected provider(s) failed. Numeric consensus and policy directives remain unverified and are not fabricated.`);
+      const omittedSummary = unavailableProviders.length
+        ? ` Not configured and omitted: ${unavailableProviders.join(', ')}.`
+        : '';
+      const failureNotice = failureSummary ? ` Provider failures: ${failureSummary}.` : '';
+      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s), using explicitly selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain unverified.`);
     } catch (err) {
       console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
-      setStatusFeedback('Council execution failed or no selected provider was available. Check the provider registry and credentials; no fallback provider or synthetic response was substituted.');
+      setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No provider fallback or synthetic response was substituted.');
     } finally {
       setIsRunningCouncil(false);
     }
@@ -274,6 +301,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
   };
 
   const activeNodeCount = nodes.filter(n => n.enabled).length;
+  const activeProviderNodeCount = nodes.filter(n => n.enabled && Boolean(n.providerId)).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -307,6 +335,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
               <div className="text-[11px] text-slate-400 font-mono uppercase">Enabled Configurations</div>
               <div className="text-lg font-bold text-emerald-400 font-mono">{activeNodeCount} / {nodes.length}</div>
+            </div>
+            <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <div className="text-[11px] text-slate-400 font-mono uppercase">Provider-backed Nodes</div>
+              <div className="text-lg font-bold text-teal-400 font-mono">{activeProviderNodeCount}</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
               <div className="text-[11px] text-slate-400 font-mono uppercase">Quorum Target · Unverified</div>
