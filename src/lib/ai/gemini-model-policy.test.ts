@@ -48,3 +48,34 @@ try {
   if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
   else process.env.GEMINI_API_KEY = previousGeminiKey;
 }
+
+const previousConfiguredGeminiModel = process.env.GEMINI_MODEL;
+const fallbackFetch = globalThis.fetch;
+try {
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  process.env.GEMINI_MODEL = 'configured-fallback-model';
+  const requestedUrls: string[] = [];
+  globalThis.fetch = (async (input) => {
+    requestedUrls.push(String(input));
+    return new Response(JSON.stringify({
+      error: { code: 429, message: 'Quota exceeded', status: 'RESOURCE_EXHAUSTED' },
+    }), { status: 429, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  let failedAsExpected = false;
+  try {
+    await new GeminiProvider().generate({
+      messages: [{ role: 'user', content: 'Use only the explicitly requested model.' }],
+      model: 'explicit-requested-model',
+    });
+  } catch {
+    failedAsExpected = true;
+  }
+  assert.equal(failedAsExpected, true);
+  assert.equal(requestedUrls.length, 1, 'an explicit model may be retried only by policy, never replaced by a configured fallback');
+  assert.match(requestedUrls[0], /explicit-requested-model/);
+  assert.doesNotMatch(requestedUrls[0], /configured-fallback-model/);
+} finally {
+  globalThis.fetch = fallbackFetch;
+  if (previousConfiguredGeminiModel === undefined) delete process.env.GEMINI_MODEL;
+  else process.env.GEMINI_MODEL = previousConfiguredGeminiModel;
+}
