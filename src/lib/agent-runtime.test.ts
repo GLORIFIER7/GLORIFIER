@@ -35,6 +35,19 @@ assert.equal(resolveAgentTaskRequester('owner-uid', 'delegated-agent', true), 'd
 assert.equal(resolveAgentTaskRequester(undefined, 'internal-agent', true), 'internal-agent', 'authenticated internal services may provide service identity');
 assert.equal(resolveAgentTaskRequester(undefined, 'human-owner'), null, 'no authenticated requester or internal authority must fail closed');
 
+const federatedAccessFixtures = [
+  { id: 'fa2a-alice', requesterAgentId: 'alice-uid' },
+  { id: 'fa2a-bob', requesterAgentId: 'bob-uid' },
+];
+assert.equal(canAccessAgentTask(federatedAccessFixtures[0], 'alice-uid'), true);
+assert.equal(canAccessAgentTask(federatedAccessFixtures[1], 'alice-uid'), false);
+assert.deepEqual(
+  filterAgentTasksByRequester(federatedAccessFixtures, 'alice-uid').map((task) => task.id),
+  ['fa2a-alice'],
+  'A2A requesterAgentId must receive the same private-by-default task scope as AgentTask.requester',
+);
+assert.equal(resolveAgentTaskRequester('alice-uid', 'bob-uid'), 'alice-uid', 'ordinary A2A callers cannot spoof requesterAgentId');
+
 const previousDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
 
