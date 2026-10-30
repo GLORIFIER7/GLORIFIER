@@ -56,15 +56,34 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
-export function recordProviderInferenceVerification(providerId: string): void {
+export function recordProviderInferenceVerification(providerId: string, modelId?: string): void {
  if (providerId !== 'nvidia' || env('NVIDIA_AUTHORIZED') !== 'true') return;
- const current = snapshot.get(providerId);
- if (!current) return;
+ const definition = definitions.find((candidate) => candidate.id === providerId);
+ if (!definition) return;
+ const current = snapshot.get(providerId) || {
+  id: definition.id,
+  name: definition.name,
+  kind: definition.kind,
+  endpoint: endpointFor(definition),
+  configured: true,
+  authenticated: false,
+  availability: 'unreachable' as const,
+  capabilities: definition.capabilities,
+  models: [],
+  latencyMs: null,
+  lastCheckedAt: null,
+  cooldownUntil: null,
+  reason: 'Inference has not yet been verified.',
+  authorization: 'pending' as const,
+ };
+ const models = modelId ? [...new Set([...current.models, modelId.trim()].filter(Boolean))] : current.models;
  snapshot.set(providerId, {
   ...current,
+  configured: true,
   authenticated: true,
   availability: 'available',
   authorization: 'configured',
+  models,
   reason: null,
   lastCheckedAt: new Date().toISOString(),
  });
