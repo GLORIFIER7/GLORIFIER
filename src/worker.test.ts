@@ -118,6 +118,7 @@ async function run(): Promise<void> {
       env,
     );
     assert.equal(a2aMethodNotAllowed.status, 405);
+    assert.equal(a2aMethodNotAllowed.headers.get('allow'), 'POST');
     assert.equal(capturedRequest, null);
 
     const a2aMissingAuth = await worker.fetch(
@@ -129,6 +130,7 @@ async function run(): Promise<void> {
       env,
     );
     assert.equal(a2aMissingAuth.status, 401);
+    assert.equal(a2aMissingAuth.headers.get('www-authenticate'), 'Bearer');
     assert.equal(capturedRequest, null, 'unauthenticated A2A requests must not reach the backend');
 
     for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\ttoken']) {
@@ -204,7 +206,7 @@ async function run(): Promise<void> {
     const a2aUpstreamRequest = getCapturedRequest();
     assert.equal(new URL(a2aUpstreamRequest.url).origin, 'https://api.example.test');
     assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
-    assert.equal(a2aUpstreamRequest.headers.get('authorization'), 'Bearer caller-token');
+    assert.equal(a2aUpstreamRequest.headers.get('authorization'), 'Bearer caller-token', 'mixed-case bearer schemes must be canonicalized before backend forwarding');
     assert.equal(a2aUpstreamRequest.headers.get('content-type'), 'application/json');
     assert.equal(a2aUpstreamRequest.headers.get('a2a-version'), '1.0', 'the negotiated A2A protocol version must cross the Worker boundary');
     assert.equal(a2aUpstreamRequest.headers.get('cookie'), null, 'A2A proxy must not forward caller cookies');
