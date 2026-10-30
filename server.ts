@@ -2575,7 +2575,7 @@ app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
+app.post('/api/a2a/tasks', requireOwnerOrInternalService, async (req: Request, res: Response) => {
   const body = req.body || {};
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
@@ -2598,11 +2598,11 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  // Request-body approval is accepted only when the authenticated identity is
-  // independently verified as the owner; other callers remain approval-gated.
-  const authenticatedOwner = Boolean(auth && isOwner(auth));
-  const ownerApproved = isAuthorizedA2AExecution(authenticatedOwner, body.approval);
-  if (!ownerApproved) {
+  // The approval string is not a credential: the verified owner identity is
+  // checked independently before any provider execution is authorized.
+  const humanApproved = Boolean(auth && isOwner(auth)
+    && String(body.approval || '').toLowerCase() === 'approved');
+  if (!humanApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
