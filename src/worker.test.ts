@@ -786,20 +786,6 @@ async function run(): Promise<void> {
     assert.equal(new URL(getCapturedRequest().url).pathname, '/api/test-routing');
     assert.equal(new URL(getCapturedRequest().url).searchParams.get('target'), 'https://evil.example/path');
 
-    upstreamResponse = new Response('{"ok":true}', {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-    upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
-    const openSeaServerError = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
-      openSeaEnv,
-    );
-    assert.equal(openSeaServerError.status, 502);
-    const openSeaServerErrorBody = await openSeaServerError.json() as { code?: string; upstreamStatus?: number };
-    assert.equal(openSeaServerErrorBody.code, 'OPENSEA_UPSTREAM_ERROR');
-    assert.equal('upstreamStatus' in openSeaServerErrorBody, false, 'provider internals must not be disclosed');
-
     shouldThrow = true;
     const unavailable = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-unavailable'),
@@ -929,6 +915,16 @@ async function run(): Promise<void> {
 
     // OpenSea public collection lookup uses the application API key only.
     const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
+    upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    const openSeaServerError = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaServerError.status, 502);
+    const openSeaServerErrorBody = await openSeaServerError.json() as { code?: string; upstreamStatus?: number };
+    assert.equal(openSeaServerErrorBody.code, 'OPENSEA_UPSTREAM_ERROR');
+    assert.equal('upstreamStatus' in openSeaServerErrorBody, false, 'provider internals must not be disclosed');
+
     upstreamResponse = new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
