@@ -191,7 +191,7 @@ async function run(): Promise<void> {
     assert.equal(a2aUpstreamRequest.headers.get('content-type'), 'application/json');
     assert.equal(a2aUpstreamRequest.headers.get('cookie'), null, 'A2A proxy must not forward caller cookies');
     assert.equal(a2aUpstreamRequest.headers.get('x-private-header'), null, 'A2A proxy must not forward unrelated headers');
-    assert.match(await a2aUpstreamRequest.text(), /message\\/send/);
+    assert.match(await a2aUpstreamRequest.text(), /message\/send/);
 
     const healthAssetCallsBefore = assetCalls;
     const workerHealth = await worker.fetch(
