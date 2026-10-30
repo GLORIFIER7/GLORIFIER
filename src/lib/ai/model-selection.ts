@@ -22,10 +22,36 @@ export function resolveExecutableModelPreference(
  * Independent compute has its own model-selection path. Only automatic routing
  * may use it; explicit model or provider constraints must fail closed.
  */
-export function isIndependentComputeFallbackAllowed(
-  model?: string,
-  requiredProvider?: string,
-): boolean {
-  const normalized = normalizeSavedModelPreference(model);
-  return !requiredProvider && normalized === 'auto';
+export interface ModelSelectionResolution {
+  model: string;
+  persistModel: boolean;
+  savedPreferenceUnavailable: boolean;
+}
+
+/**
+ * Resolve the model actually executable after discovery. When the saved or
+ * selected model is not advertised, use Auto and tell the caller to sync the
+ * executable preference into shared policy so other components do not use a
+ * stale explicit model.
+ */
+export function reconcileDiscoveredModelPreference(
+  savedPreference: unknown,
+  currentSelection: unknown,
+  hasUserSelectedModel: boolean,
+  discoveredModels: readonly string[],
+): ModelSelectionResolution {
+  const preferred = hasUserSelectedModel ? currentSelection : savedPreference;
+  const normalizedPreferred = normalizeSavedModelPreference(preferred);
+  const model = resolveExecutableModelPreference(normalizedPreferred, discoveredModels);
+  const unavailable = normalizedPreferred !== 'auto' && model === 'auto';
+  return {
+    model,
+    persistModel: model !== normalizedPreferred,
+    savedPreferenceUnavailable: !hasUserSelectedModel && unavailable,
+  };
+}
+
+export function modelPreferenceLabel(value: unknown): string {
+  const normalized = normalizeSavedModelPreference(value);
+  return normalized === 'auto' ? 'automatic provider routing' : normalized;
 }
