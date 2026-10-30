@@ -496,6 +496,9 @@ export const executeThroughProviderRegistry = async (
     let reason: string | undefined;
     if (!adapter) reason = 'unknown provider';
     else if (!connectedAdapter) reason = 'not connected (credentials or adapter unavailable)';
+    else if (entry && executionRequest.capability && !entry.capabilities.includes(executionRequest.capability)) {
+      reason = `does not advertise requested capability "${executionRequest.capability}"`;
+    }
     else if (!isProviderEligible(connectedAdapter, discovery, executionRequest.capability)) {
       reason = entry?.authorization === 'not-configured' || !entry
         ? 'not configured or not authorized'
