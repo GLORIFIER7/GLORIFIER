@@ -68,6 +68,10 @@ try {
   };
   await store.save('task', staleTask);
   await store.save('task', recentTask);
+  assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
+  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
+  await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
+  assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
 
   assert.equal(await store.recoverInterruptedTasks(), 1);
   const recovered = await store.get<typeof staleTask & { error?: string }>('task', staleTask.id);
