@@ -8,6 +8,7 @@ type TestEnv = CloudflareEnv;
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
 const requestedUrls: string[] = [];
+let openSeaResponseQueue: Response[] | null = null;
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
   headers: { 'Content-Type': 'application/json' },
@@ -39,6 +40,9 @@ async function run(): Promise<void> {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
+    if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
+      return openSeaResponseQueue.shift() as Response;
+    }
     return upstreamResponse;
   }) as typeof fetch;
 
@@ -1038,6 +1042,94 @@ async function run(): Promise<void> {
     shouldThrow = false;
     assert.equal(openSeaUnavailable.status, 502);
     assert.equal(await openSeaUnavailable.json().then((body: { code?: string }) => body.code), 'OPENSEA_UPSTREAM_UNAVAILABLE');
+
+
+    // The GLORIFIER OpenSea username must be resolved to the canonical wallet address
+    // before retrieving that account's owned collections.
+    const openSeaAccountStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'GLORIFIER', ens_name: 'glorifier.eth' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ collections: [{ collection: 'glorifier-services', name: 'GLORIFIER Services' }], next: 'next-cursor-1' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const openSeaAccountCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=25&after=cursor-one'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaAccountCollections.status, 200);
+    const openSeaAccountBody = await openSeaAccountCollections.json() as {
+      ok?: boolean;
+      account?: { username?: string; address?: string; ens_name?: string | null };
+      collections?: Array<{ collection?: string; name?: string }>;
+      next?: string | null;
+    };
+    assert.equal(openSeaAccountBody.ok, true);
+    assert.equal(openSeaAccountBody.account?.username, 'GLORIFIER');
+    assert.equal(openSeaAccountBody.account?.address, '0x1234567890abcdef1234567890abcdef12345678');
+    assert.equal(openSeaAccountBody.collections?.[0]?.collection, 'glorifier-services');
+    assert.equal(openSeaAccountBody.next, 'next-cursor-1');
+    assert.deepEqual(requestedUrls.slice(openSeaAccountStart), [
+      'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER',
+      'https://api.opensea.io/api/v2/account/0x1234567890abcdef1234567890abcdef12345678/collections?limit=25&after=cursor-one',
+    ]);
+    assert.equal(openSeaResponseQueue.length, 0);
+    openSeaResponseQueue = null;
+
+    // An account lookup that resolves to a different username must not enumerate that wallet.
+    const openSeaMismatchStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'not-glorifier', ens_name: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const openSeaAccountMismatch = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaAccountMismatch.status, 409);
+    assert.equal(await openSeaAccountMismatch.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_IDENTITY_MISMATCH');
+    assert.equal(requestedUrls.length, openSeaMismatchStart + 1, 'a mismatched identity must not trigger the collections request');
+    openSeaResponseQueue = null;
+
+    // Account identifiers and pagination inputs are validated before any provider call.
+    const openSeaInvalidLimitStart = requestedUrls.length;
+    const openSeaInvalidLimit = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=0'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaInvalidLimit.status, 400);
+    assert.equal(await openSeaInvalidLimit.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_PAGE_LIMIT');
+    assert.equal(requestedUrls.length, openSeaInvalidLimitStart);
+
+    const openSeaInvalidAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER%2Fother/collections'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaInvalidAccount.status, 400);
+    assert.equal(await openSeaInvalidAccount.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER');
+
+    // Direct resolution exposes the account record without assuming a collection slug.
+    const openSeaResolveStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'GLORIFIER', ens_name: 'glorifier.eth' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const openSeaResolvedAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaResolvedAccount.status, 200);
+    assert.equal(await openSeaResolvedAccount.json().then((body: { account?: { username?: string } }) => body.account?.username), 'GLORIFIER');
+    assert.equal(requestedUrls[openSeaResolveStart], 'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER');
+    openSeaResponseQueue = null;
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
