@@ -2621,11 +2621,20 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     }
   }
 
-  const task = await createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
+  let task;
+  try {
+    task = await createAgentTask({ capability, objective, input, requester, connectionId: connectionId ? String(connectionId) : undefined, approvalRequired });
+  } catch (error) {
+    return apiError(res, 503, 'Agent task persistence is not ready', error);
+  }
   if (approvalRequired) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
-  await updateAgentTask(task.id, { status: 'running' });
+  try {
+    await updateAgentTask(task.id, { status: 'running' });
+  } catch (error) {
+    return apiError(res, 503, 'Agent task state could not be persisted before execution', error);
+  }
 
   // Route through the existing model runtime without exposing provider credentials.
   try {
