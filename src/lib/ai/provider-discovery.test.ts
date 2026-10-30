@@ -59,7 +59,7 @@ try {
   assert.ok(nvidia, 'NVIDIA discovery entry must exist');
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
   assert.equal(nvidia.authenticated, false, 'NVIDIA model-list access must not claim inference authentication');
-  assert.equal(nvidia.authorization, 'configured', 'the explicit authorization flag is represented separately');
+  assert.equal(nvidia.authorization, 'pending', 'read-only model discovery must not mark NVIDIA inference authorization as verified');
   assert.match(nvidia.reason || '', /inference verification requires a separately authorized user request/i);
 
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
