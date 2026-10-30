@@ -51,7 +51,9 @@ function redactProviderDiagnostic(value: string): string {
   if (secret) safe = safe.split(secret).join('[REDACTED]');
  }
  safe = safe
-  .replace(/([?&](?:key|api[_-]?key|access[_-]?token|token|secret|password)=)[^&#\s]+/gi, '$1[REDACTED]')
+  .replace(/(https?:\/\/)[^/\s@]+@/gi, '$1[REDACTED]@')
+  .replace(/(https?:\/\/[^\s"'<>?#]+)\?[^\s"'<>#]*/gi, '$1?[REDACTED]')
+  .replace(/([?&](?:key|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|credential|signature|token|secret|password)=)[^&#\s]+/gi, '$1[REDACTED]')
   .replace(/((?:api[_-]?key|access[_-]?token|token|secret|password)\s*[:=]\s*["']?)[^"'&,\s}]+/gi, '$1[REDACTED]')
   .replace(/((?:authorization\s*:\s*bearer\s+|bearer\s+))[A-Za-z0-9._~+/=-]+/gi, '$1[REDACTED]');
  return safe.slice(0, 300);
