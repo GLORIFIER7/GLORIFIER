@@ -2537,7 +2537,7 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   });
   const approvalRequired = true;
   if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
-    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId: approval.id, humanApprovalRequired: true });
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId, humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
     'gemini',
@@ -2628,9 +2628,11 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     return apiError(res, 503, 'Agent task persistence is not ready', error);
   }
   if (approvalRequired) {
+    let approvalId: string;
     try {
       task = await requireAgentTaskUpdate(task.id, { status: 'awaiting-approval' });
       const approval = await requestConnectionApproval(String(connectionId), requester, 'agent-task', [capability], task.id);
+      approvalId = String(approval.id);
     } catch (error) {
       try {
         await requireAgentTaskUpdate(task.id, { status: 'failed', error: 'Human approval request could not be created.' });
