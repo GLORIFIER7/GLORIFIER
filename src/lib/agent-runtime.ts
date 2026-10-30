@@ -157,7 +157,9 @@ export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objec
 }
 
 export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Promise<AgentTask | null> {
-  const current = tasks.get(id) || (persistence ? await persistence.get<AgentTask>('task', id) : null);
+  const current = persistence
+    ? await persistence.get<AgentTask>('task', id)
+    : tasks.get(id) || null;
   if (!current) return null;
   const updated = { ...current, ...patch, id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
   // A database failure is returned to the route; uncommitted state is not reported as durable.
@@ -167,11 +169,13 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
 }
 
 export async function getAgentTask(id: string): Promise<AgentTask | null> {
-  const cached = tasks.get(id);
-  if (cached) return cached;
-  const restored = persistence ? await persistence.get<AgentTask>('task', id) : null;
-  if (restored) tasks.set(id, restored);
-  return restored;
+  if (persistence) {
+    const restored = await persistence.get<AgentTask>('task', id);
+    if (restored) tasks.set(id, restored);
+    else tasks.delete(id);
+    return restored;
+  }
+  return tasks.get(id) || null;
 }
 
 export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
