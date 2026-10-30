@@ -161,7 +161,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
   initialTabSection
 }) => {
   const [nodes, setNodes] = useState<ModelNodeConfig[]>(INITIAL_NODES);
-  const [consensusThreshold, setConsensusThreshold] = useState<number>(85); // Required agreement %
+  const [consensusThreshold, setConsensusThreshold] = useState<number>(85); // Display-only target; server-side quorum enforcement is not implemented.
   const [collaborationMode, setCollaborationMode] = useState<'council-weighted' | 'strict-unanimous' | 'peer-debate'>('council-weighted');
   const [activeTabSection, setActiveTabSection] = useState<'orchestration' | 'council_session' | 'rules' | 'work_with_gpt'>(initialTabSection || 'work_with_gpt');
   
@@ -219,7 +219,6 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
           providerIds: selectedProviderIds,
           currentPolicy: policy,
           footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
-          consensusThreshold
         })
       });
 
@@ -310,7 +309,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
               <div className="text-lg font-bold text-emerald-400 font-mono">{activeNodeCount} / {nodes.length}</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <div className="text-[11px] text-slate-400 font-mono uppercase">Consensus Quorum</div>
+              <div className="text-[11px] text-slate-400 font-mono uppercase">Quorum Target · Unverified</div>
               <div className="text-lg font-bold text-teal-400 font-mono">{consensusThreshold}%</div>
             </div>
           </div>
@@ -771,7 +770,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
             {/* Quorum Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Required Council Quorum:</span>
+                <span className="text-slate-400">Requested quorum (not enforced):</span>
                 <span className="text-teal-400 font-bold">{consensusThreshold}%</span>
               </div>
               <input
