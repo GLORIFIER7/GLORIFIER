@@ -97,6 +97,14 @@ try {
 
   process.env.META_AUTHORIZED = 'false';
   await discoverGlobalProviders('provider-registry-unauthorized-regression', { persistConnections: false });
+  const beforeUnauthorizedDynamicModel = providerRequests.filter((request) => request.method === 'POST').length;
+  const unauthorizedDynamicModel = await executeThroughProviderRegistry({ model: 'qwen-dynamic', messages });
+  assert.equal(unauthorizedDynamicModel.provider, 'provider-registry-exhausted');
+  assert.equal(
+    providerRequests.filter((request) => request.method === 'POST').length,
+    beforeUnauthorizedDynamicModel,
+    'a discovered dynamic model must not execute when its provider authorization is revoked',
+  );
   const beforeUnauthorizedMeta = providerRequests.length;
   const strictMetaResult = await executeThroughProviderRegistry({
     requiredProvider: 'meta',
