@@ -12,6 +12,11 @@ import { getGlorifierCoherentSystemPolicy } from './gats-policy';
 
 const query = (text: string, values?: unknown[]) => getPostgresPool().query(text, values);
 
+/** Treat missing and whitespace-only governance requesters as the human owner fallback. */
+export function normalizeGovernanceRequester(requester?: string): string {
+  return typeof requester === 'string' ? requester.trim() || 'human-owner' : 'human-owner';
+}
+
 export type GovernanceStage = 'ceo' | 'policy' | 'compliance' | 'assets' | 'specialists' | 'trust' | 'evidence' | 'governed-action' | 'completed' | 'blocked';
 
 export interface GovernanceCycle {
@@ -88,7 +93,7 @@ export async function runGovernanceCycle(input: {
     capability,
     objective,
     input: { evidenceRefs, reversible },
-    requester: input.requester || 'human-owner',
+    requester: normalizeGovernanceRequester(input.requester),
     approvalRequired: true
   });
   await updateAgentTask(task.id, { status: 'running' });
