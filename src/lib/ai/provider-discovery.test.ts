@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { discoverGlobalProviders } from './provider-discovery.ts';
+import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, recordProviderInferenceVerification } from './provider-discovery.ts';
 
 const environmentKeys = [
   'QWEN_API_KEY',
@@ -64,6 +64,13 @@ try {
   assert.match(nvidia.reason || '', /inference verification requires a separately authorized user request/i);
 
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
+  const beforeInference = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(beforeInference?.authorization, 'pending');
+  recordProviderInferenceVerification('nvidia', 'nvidia/test-model');
+  const afterInference = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(afterInference?.authenticated, true, 'only successful, separately authorized inference promotes NVIDIA authentication');
+  assert.equal(afterInference?.authorization, 'configured');
+  assert.ok(afterInference?.models.includes('nvidia/test-model'));
 
   const gemini = providers.find((provider) => provider.id === 'gemini');
   assert.ok(gemini, 'Gemini discovery entry must exist');
