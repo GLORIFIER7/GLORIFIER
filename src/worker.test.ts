@@ -446,6 +446,12 @@ async function run(): Promise<void> {
       );
     }
     upstreamResponse = previousRuntimeResponse;
+    assert.equal(
+      capturedRequest?.url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+      'the last configuration-only probe must be the Supabase request',
+    );
+    capturedRequest = null;
 
     const nativeReportsWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
