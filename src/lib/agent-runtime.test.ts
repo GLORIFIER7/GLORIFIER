@@ -175,6 +175,27 @@ try {
   );
   assert.notEqual(olderTask.id, newerTask.id);
 
+  // The requester filter must run before the in-memory limit too. A user's
+  // older tasks must not be hidden by another user's newer task volume.
+  const aliceOlderTask = await createAgentTask({
+    capability: 'research',
+    objective: 'Older Alice task must remain visible.',
+    requester: 'alice-uid',
+  });
+  for (let index = 0; index < 55; index += 1) {
+    await createAgentTask({
+      capability: 'research',
+      objective: `Newer Bob task ${index}.`,
+      requester: 'bob-uid',
+    });
+  }
+  assert.deepEqual(
+    (await listAgentTasks(10, 'alice-uid')).map((entry) => entry.id),
+    [aliceOlderTask.id],
+    'requester filtering must precede the memory-fallback list limit',
+  );
+  assert.equal((await listAgentTasks(10, 'bob-uid')).length, 10);
+
   await assert.rejects(
     () => requireAgentTaskUpdate('missing-task', { status: 'running' }),
     /Agent task missing-task no longer exists/,
