@@ -4,6 +4,7 @@ import {
   discoverConfiguredModelCouncilParticipants,
   formatModelCouncilFailures,
   ModelCouncilClientError,
+  selectConfiguredParticipantsForProviders,
   submitAuthenticatedModelCouncilRequest,
 } from './model-council-client.ts';
 
@@ -44,6 +45,14 @@ test('shared model council client discovers, authenticates, validates, and norma
     { providerId: 'openai', modelId: 'gpt-4.1' },
     { providerId: 'anthropic', modelId: 'claude-sonnet-5' },
   ]);
+
+  assert.deepEqual(selectConfiguredParticipantsForProviders(multiModelSelections, ['openai', 'anthropic', 'meta']), {
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'anthropic', modelId: 'claude-opus-5' },
+    ],
+    unavailableProviders: ['meta'],
+  });
 
   let capturedUrl = '';
   let capturedInit: RequestInit | undefined;
