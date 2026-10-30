@@ -88,7 +88,7 @@ function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<strin
  */
 function parseRfc3339Timestamp(value: unknown): number | null {
   if (typeof value !== 'string') return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
   if (!match) return null;
 
   const year = Number(match[1]);
