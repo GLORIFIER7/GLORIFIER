@@ -48,6 +48,10 @@ assert.equal(missingCapability.requiresHumanApproval, false);
 
 const session = await createAgentSession('harness-test');
 await assert.rejects(
+  () => createAgentSession('harness-test-duplicate', { sessionId: session.id }),
+  /already exists/,
+);
+await assert.rejects(
   () => executeAgentTurn({ session, contextTokens: 100, tools: [dangerous], approvedCapabilities: capability, run: async () => 'must-not-run' }),
   /Tool approval required/,
 );
