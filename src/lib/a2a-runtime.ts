@@ -42,7 +42,7 @@ export interface A2AHandoff {
 
 const memoryTasks = new Map<string, A2ATask>();
 const memoryHandoffs = new Map<string, A2AHandoff>();
-let initialized = false;
+let initializationPromise: Promise<void> | null = null;
 
 function signingSecret() {
   return String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim();
@@ -67,15 +67,13 @@ function sign(h: Omit<A2AHandoff, 'signature'>) {
   return crypto.createHmac('sha256', secret).update(signatureInput(h)).digest('base64url');
 }
 
-export function initializeA2ARuntime() {
-  if (initialized) return;
+export function initializeA2ARuntime(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
-    return;
+    return Promise.resolve();
   }
-  initialized = true;
-  const db = getPostgresPool();
-  void db.query(`
+  if (initializationPromise) return initializationPromise;
+  initializationPromise = getPostgresPool().query(`
     CREATE TABLE IF NOT EXISTS a2a_tasks (
       id TEXT PRIMARY KEY,
       parent_task_id TEXT,
@@ -102,29 +100,44 @@ export function initializeA2ARuntime() {
       envelope JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `).catch(error => console.warn('[A2A] persistence initialization deferred:', error?.message));
+  `).then(() => undefined).catch((error) => {
+    initializationPromise = null;
+    console.warn('[A2A] persistence initialization deferred:', error?.message);
+    throw error;
+  });
+  return initializationPromise;
 }
 
-function persistTask(task: A2ATask) {
-  memoryTasks.set(task.id, task);
-  const db = getPostgresPool();
-  void db.query(
+async function persistTaskDurably(task: A2ATask): Promise<void> {
+  await getPostgresPool().query(
     `INSERT INTO a2a_tasks(id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,attempts,max_attempts,result,error,evidence_id,created_at,updated_at)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
      ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,attempts=EXCLUDED.attempts,result=EXCLUDED.result,error=EXCLUDED.error,evidence_id=EXCLUDED.evidence_id,updated_at=EXCLUDED.updated_at`,
     [task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability, task.objective,
       task.input ?? null, task.status, task.attempts, task.maxAttempts, task.result ?? null, task.error ?? null,
       task.evidenceId ?? null, task.createdAt, task.updatedAt]
-  ).catch(error => console.warn('[A2A] task persistence deferred:', error?.message));
+  );
+}
+
+function persistTask(task: A2ATask) {
+  memoryTasks.set(task.id, task);
+  if (!process.env.DATABASE_URL) return;
+  void persistTaskDurably(task).catch(error =>
+    console.warn('[A2A] task persistence deferred:', error?.message),
+  );
 }
 
 function persistHandoff(h: A2AHandoff) {
   memoryHandoffs.set(h.handoffId, h);
-  const db = getPostgresPool();
-  void db.query(
-    'INSERT INTO a2a_handoffs(handoff_id,task_id,from_agent_id,to_agent_id,envelope) VALUES($1,$2,$3,$4,$5) ON CONFLICT(handoff_id) DO NOTHING',
-    [h.handoffId, h.taskId, h.fromAgentId, h.toAgentId, h]
-  ).catch(error => console.warn('[A2A] handoff persistence deferred:', error?.message));
+  if (!process.env.DATABASE_URL) return;
+  try {
+    void getPostgresPool().query(
+      'INSERT INTO a2a_handoffs(handoff_id,task_id,from_agent_id,to_agent_id,envelope) VALUES($1,$2,$3,$4,$5) ON CONFLICT(handoff_id) DO NOTHING',
+      [h.handoffId, h.taskId, h.fromAgentId, h.toAgentId, h]
+    ).catch(error => console.warn('[A2A] handoff persistence deferred:', error?.message));
+  } catch (error) {
+    console.warn('[A2A] handoff persistence deferred:', error instanceof Error ? error.message : 'database unavailable');
+  }
 }
 
 export function getA2AProtocolManifest() {
@@ -154,7 +167,7 @@ export function discoverA2ACapabilities() {
   }));
 }
 
-export function createA2ATask(input: {
+type CreateA2ATaskInput = {
   requesterAgentId: string;
   targetAgentId?: string;
   capability: string;
@@ -162,9 +175,11 @@ export function createA2ATask(input: {
   input?: unknown;
   parentTaskId?: string;
   maxAttempts?: number;
-}) {
+};
+
+function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
   const now = new Date().toISOString();
-  const task: A2ATask = {
+  return {
     id: `a2a-${crypto.randomUUID()}`,
     parentTaskId: input.parentTaskId || null,
     requesterAgentId: input.requesterAgentId,
@@ -178,7 +193,22 @@ export function createA2ATask(input: {
     createdAt: now,
     updatedAt: now
   };
+}
+
+export function createA2ATask(input: CreateA2ATaskInput) {
+  const task = buildA2ATask(input);
   persistTask(task);
+  return task;
+}
+
+export async function createA2ATaskForProtocol(input: CreateA2ATaskInput): Promise<A2ATask> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('A2A persistent task storage is not configured.');
+  }
+  await initializeA2ARuntime();
+  const task = buildA2ATask(input);
+  await persistTaskDurably(task);
+  memoryTasks.set(task.id, task);
   return task;
 }
 
@@ -194,6 +224,52 @@ export function listA2ATasks(limit = 50, requesterAgentId?: string, allowAll = f
     .filter((task) => allowAll || task.requesterAgentId === requester)
     .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, Math.max(1, Math.min(100, Number.isFinite(limit) ? Math.floor(limit) : 50)));
+export async function getA2ATaskForProtocol(id: string): Promise<A2ATask | null> {
+  const cached = memoryTasks.get(id);
+  if (cached) return cached;
+  if (!process.env.DATABASE_URL) return null;
+
+  await initializeA2ARuntime();
+  const result = await getPostgresPool().query(
+    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,attempts,max_attempts,result,error,evidence_id,created_at,updated_at
+     FROM a2a_tasks WHERE id = $1 LIMIT 1`,
+    [id],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+
+  const validStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded'];
+  if (!validStatuses.includes(row.status)) throw new Error('Persisted A2A task has an unknown status.');
+
+  const toIso = (value: unknown, field: string): string => {
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (!Number.isFinite(date.getTime())) throw new Error(`Persisted A2A task has an invalid ${field} timestamp.`);
+    return date.toISOString();
+  };
+
+  const task: A2ATask = {
+    id: String(row.id),
+    parentTaskId: row.parent_task_id === null ? null : String(row.parent_task_id),
+    requesterAgentId: String(row.requester_agent_id),
+    targetAgentId: row.target_agent_id === null ? null : String(row.target_agent_id),
+    capability: String(row.capability),
+    objective: String(row.objective),
+    input: row.input ?? null,
+    status: row.status,
+    attempts: Number(row.attempts),
+    maxAttempts: Number(row.max_attempts),
+    createdAt: toIso(row.created_at, 'created_at'),
+    updatedAt: toIso(row.updated_at, 'updated_at'),
+    ...(row.result === null || row.result === undefined ? {} : { result: row.result }),
+    ...(row.error === null || row.error === undefined ? {} : { error: String(row.error) }),
+    ...(row.evidence_id === null || row.evidence_id === undefined ? {} : { evidenceId: String(row.evidence_id) }),
+  };
+  memoryTasks.set(task.id, task);
+  return task;
+}
+
+export function listA2ATasks(limit = 50) {
+  return [...memoryTasks.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).slice(0, Math.min(100, limit));
 }
 
 export function createSignedHandoff(task: A2ATask, toAgentId: string, payload: unknown, ttlSeconds = 300) {
@@ -262,7 +338,7 @@ export async function executeA2ATask(
         task.input ? `Input: ${JSON.stringify(task.input)}` : '',
         'Return an evidence-aware artifact. Never claim an external action happened unless external evidence proves it.',
         'Explicitly distinguish observation, inference, proposed action, and verification.'
-      ].filter(Boolean).join('\\n');
+      ].filter(Boolean).join('\n');
 
       const result = await executor(prompt, { taskId: task.id, agentId: target, capability: task.capability });
       if (!result) throw new Error('No configured provider available for this agent task');

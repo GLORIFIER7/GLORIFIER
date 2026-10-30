@@ -13,6 +13,8 @@ const protectedPaths = [
   '/API/AGENTS/TASKS/task-123',
   '/api/a2a/tasks',
   '/api/federated-a2a/v3/tasks',
+  '/api/a2a/tasks',
+  '/API/A2A/TASKS/task-123',
   '/API/AUTH/SESSION',
 ];
 

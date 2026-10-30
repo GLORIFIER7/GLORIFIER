@@ -12,6 +12,8 @@ const PROTECTED_READ_PREFIXES = [
   '/auth/session',
   // Payment-intent reads expose payer/payee and settlement metadata; require identity.
   '/economy/glr/intents',
+  // Legacy A2A task reads expose requester-scoped state and require authentication.
+  '/a2a/tasks',
 ] as const;
 
 /**
