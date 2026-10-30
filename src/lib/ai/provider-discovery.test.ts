@@ -4,6 +4,9 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, recordProv
 const environmentKeys = [
   'QWEN_API_KEY',
   'QWEN_BASE_URL',
+  'META_API_KEY',
+  'META_BASE_URL',
+  'META_AUTHORIZED',
   'GEMINI_API_KEY',
   'GEMINI_AUTHORIZED',
   'NVIDIA_API_KEY',
@@ -15,10 +18,14 @@ const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.e
 const originalFetch = globalThis.fetch;
 const requests: Array<{ url: string; method: string }> = [];
 let nvidiaProbeStatus = 200;
+let metaProbeStatus = 400;
 
 try {
   process.env.QWEN_API_KEY = 'test-qwen-key';
   process.env.QWEN_BASE_URL = '';
+  process.env.META_API_KEY = 'test-meta-api-key-secret';
+  process.env.META_BASE_URL = 'https://meta-user:meta-password@meta.example.test/v1?api_key=meta-url-secret';
+  process.env.META_AUTHORIZED = 'true';
   process.env.GEMINI_API_KEY = 'test-gemini-key';
   process.env.GEMINI_AUTHORIZED = 'true';
   process.env.NVIDIA_API_KEY = 'test-nvidia-key';
@@ -33,11 +40,15 @@ try {
     const hostname = new URL(url).hostname;
     const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
-      : nvidiaProbeStatus >= 400
-        ? { error: { message: 'NVIDIA credential rejected' } }
-        : { data: [{ id: 'nvidia/test-model' }] };
+      : hostname === 'meta.example.test'
+        ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
+        : nvidiaProbeStatus >= 400
+          ? { error: { message: 'NVIDIA credential rejected' } }
+          : { data: [{ id: 'nvidia/test-model' }] };
+    const status = hostname === 'generativelanguage.googleapis.com' ? 200
+      : hostname === 'meta.example.test' ? metaProbeStatus : nvidiaProbeStatus;
     return new Response(JSON.stringify(payload), {
-      status: hostname === 'generativelanguage.googleapis.com' ? 200 : nvidiaProbeStatus,
+      status,
       headers: { 'content-type': 'application/json' },
     });
   }) as typeof fetch;
@@ -48,6 +59,7 @@ try {
   const ids = new Set(providers.map((provider) => provider.id));
   const qwen = providers.find((provider) => provider.id === 'qwen');
   const nvidia = providers.find((provider) => provider.id === 'nvidia');
+  const meta = providers.find((provider) => provider.id === 'meta');
 
   assert.equal(ids.has('qwen'), true, 'Qwen must be represented in discovery');
   assert.equal(ids.has('openai'), true, 'OpenAI discovery remains registered');
@@ -58,6 +70,28 @@ try {
   assert.equal(qwen.configured, false, 'Qwen without a base URL must remain unconfigured');
   assert.equal(qwen.availability, 'unconfigured');
   assert.match(qwen.reason || '', /QWEN_BASE_URL/, 'configuration guidance must name the required environment variable');
+
+  assert.ok(meta, 'Meta discovery entry must exist');
+  assert.equal(meta.availability, 'error', 'a malformed-credential response remains an endpoint error');
+  assert.equal(meta.authenticated, false, 'HTTP 400 must not be interpreted as successful authentication');
+  assert.equal(meta.authorization, 'configured', 'operator authorization remains distinct from provider authentication');
+  assert.equal(meta.endpoint, 'https://meta.example.test/v1', 'diagnostic endpoints must omit URL credentials and query parameters');
+  assert.equal(meta.reason?.includes('test-meta-api-key-secret'), false, 'provider error messages must redact echoed API credentials');
+  assert.equal(meta.reason?.includes('meta-url-secret'), false, 'provider diagnostics must not expose endpoint query credentials');
+  assert.match(meta.reason || '', /\\[REDACTED\\]/, 'redacted provider errors should remain diagnosable');
+
+  metaProbeStatus = 429;
+  const afterRateLimit = await discoverGlobalProviders('provider-discovery-rate-limit-auth-regression', { persistConnections: false });
+  const rateLimitedMeta = afterRateLimit.find((provider) => provider.id === 'meta');
+  assert.equal(rateLimitedMeta?.availability, 'rate_limited');
+  assert.equal(rateLimitedMeta?.authenticated, false, 'HTTP 429 does not prove successful model-list authentication');
+
+  metaProbeStatus = 503;
+  const afterServerError = await discoverGlobalProviders('provider-discovery-server-error-auth-regression', { persistConnections: false });
+  const unavailableMeta = afterServerError.find((provider) => provider.id === 'meta');
+  assert.equal(unavailableMeta?.availability, 'unreachable');
+  assert.equal(unavailableMeta?.authenticated, false, 'HTTP 5xx must not be interpreted as successful authentication');
+  metaProbeStatus = 400;
 
   assert.ok(nvidia, 'NVIDIA discovery entry must exist');
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
