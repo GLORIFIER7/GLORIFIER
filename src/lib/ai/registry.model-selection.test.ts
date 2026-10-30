@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { AIProvider } from './types.ts';
 import { isProviderModelEligible, normalizeRequestedModel } from './registry.ts';
-import { normalizeSavedModelPreference, resolveExecutableModelPreference, isIndependentComputeFallbackAllowed } from './model-selection.ts';
+import { normalizeSavedModelPreference, resolveExecutableModelPreference } from './model-selection.ts';
 
 const configuredProvider: AIProvider = {
   id: 'openai',
@@ -66,13 +66,26 @@ assert.equal(resolveExecutableModelPreference('gpt-4o', ['gpt-4o']), 'gpt-4o');
 assert.equal(resolveExecutableModelPreference('stale-model', ['gpt-4o']), 'auto', 'undiscovered saved IDs must never remain executable');
 assert.equal(resolveExecutableModelPreference('AUTO', ['gpt-4o']), 'auto');
 
-assert.equal(isIndependentComputeFallbackAllowed(undefined), true, 'automatic routing may use governed independent compute');
-assert.equal(isIndependentComputeFallbackAllowed('auto'), true);
-assert.equal(isIndependentComputeFallbackAllowed('unknown-model'), false, 'an explicit unavailable model must not silently run on independent compute');
-assert.equal(isIndependentComputeFallbackAllowed(' gpt-4o '), false);
-assert.equal(isIndependentComputeFallbackAllowed('auto', 'openai'), false, 'required-provider requests must never escape to independent compute');
-assert.equal(isIndependentComputeFallbackAllowed('all-models'), true, 'legacy all-models policy sentinel must behave like automatic routing');
-assert.equal(isIndependentComputeFallbackAllowed('consensus'), true, 'legacy consensus policy sentinel must behave like automatic routing');
-assert.equal(isIndependentComputeFallbackAllowed('consensus', 'openai'), false, 'legacy automatic sentinels must not bypass required-provider constraints');
+import { reconcileDiscoveredModelPreference, modelPreferenceLabel } from './model-selection.ts';
+assert.deepEqual(
+  reconcileDiscoveredModelPreference('gpt-4o', 'auto', false, ['gpt-4o']),
+  { model: 'gpt-4o', persistModel: false, savedPreferenceUnavailable: false },
+  'a discovered saved model remains the executable and persisted preference',
+);
+assert.deepEqual(
+  reconcileDiscoveredModelPreference('stale-model', 'auto', false, ['gpt-4o']),
+  { model: 'auto', persistModel: true, savedPreferenceUnavailable: true },
+  'a saved model omitted by successful discovery must resolve to Auto and persist that executable choice',
+);
+assert.deepEqual(
+  reconcileDiscoveredModelPreference('gpt-4o', 'gpt-4o', true, ['gpt-4.1']),
+  { model: 'auto', persistModel: true, savedPreferenceUnavailable: false },
+  'an explicitly selected model that is no longer discoverable must not remain executable',
+);
+assert.equal(modelPreferenceLabel('auto'), 'automatic provider routing');
+assert.equal(modelPreferenceLabel('all-models'), 'automatic provider routing');
+assert.equal(modelPreferenceLabel('consensus'), 'automatic provider routing');
+assert.equal(modelPreferenceLabel('gpt-4o'), 'gpt-4o');
+
 
 console.log('provider model-selection behavior tests: PASS');
