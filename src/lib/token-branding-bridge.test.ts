@@ -4,6 +4,8 @@ import {
   assessBrandingProvider,
   buildTokenBrandingInspection,
   validateTokenBrandingRecord,
+  summarizeProviderAssessments,
+  type ProviderAssessment,
   type BrandingProvider,
   type TokenBrandingRecord
 } from './token-branding-bridge';
@@ -18,7 +20,7 @@ const validToken: TokenBrandingRecord = {
   evidenceStatus: 'VERIFIED',
   logo: {
     uri: 'ipfs://bafybeige7flx4sbd4nbw5vlwgqdvbcethz3tucu6r3ij47vfrl6l34g6vrq',
-    sha256: 'a'.repeat(64),
+    sha256: '042d37e662566528167d0a1024fafbb900d8ba06faa1bfb358ecd8d6a78d8549',
     integrityStatus: 'VERIFIED'
   }
 };
@@ -84,4 +86,122 @@ test('rejects HTTPS logo URLs without a hostname', () => {
 test('rejects malformed IPFS content identifiers', () => {
   const invalid = { ...validToken, logo: { ...validToken.logo, uri: 'ipfs://not-a-cid' } };
   assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('valid IPFS CID')));
+});
+
+
+const validSolanaToken: TokenBrandingRecord = {
+  ...validToken,
+  assetId: 'glr-solana-mainnet',
+  network: 'Solana Mainnet Beta',
+  chainId: 'solana:mainnet-beta',
+  standard: 'Token-2022',
+  contractOrMint: '7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9'
+};
+
+test('accepts the canonical Solana Mainnet Beta Token-2022 identity', () => {
+  assert.deepEqual(validateTokenBrandingRecord(validSolanaToken), []);
+});
+
+test('rejects Solana Devnet from production branding inspection', () => {
+  const devnet = {
+    ...validSolanaToken,
+    network: 'Solana Devnet',
+    chainId: 'solana:devnet'
+  };
+  assert.ok(validateTokenBrandingRecord(devnet).some((item) => /devnet|unsupported production network|unsupported Solana cluster/i.test(item)));
+});
+
+test('rejects non-canonical token standards for BNB and Solana deployments', () => {
+  const bnbWithErc20 = {
+    ...validToken,
+    network: 'BNB Smart Chain',
+    chainId: 56,
+    standard: 'ERC-20',
+    contractOrMint: '0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804'
+  };
+  const solanaWithSpl = { ...validSolanaToken, standard: 'SPL Token' };
+  assert.ok(validateTokenBrandingRecord(bnbWithErc20).some((item) => /BEP-20/.test(item)));
+  assert.ok(validateTokenBrandingRecord(solanaWithSpl).some((item) => /Token-2022/.test(item)));
+});
+
+test('rejects Solana mint strings that do not decode to exactly 32 bytes', () => {
+  const invalid = { ...validSolanaToken, contractOrMint: 'z'.repeat(32) };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => /32-byte/.test(item)));
+});
+
+test('rejects a bare IPFS scheme without a content identifier', () => {
+  const invalid = { ...validToken, logo: { ...validToken.logo, uri: 'ipfs://' } };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => /IPFS CID/.test(item)));
+});
+
+test('provider requirements require human confirmation instead of READY_FOR_REVIEW', () => {
+  const apiProvider: BrandingProvider = {
+    ...freeManualProvider,
+    mode: 'api',
+    requirements: ['owner verification'],
+    feeStatus: 'FREE'
+  };
+  const result = assessBrandingProvider(validToken, apiProvider);
+  assert.equal(result.status, 'MANUAL_ACTION_REQUIRED');
+  assert.ok(result.blockers.some((item) => item.includes('owner verification')));
+});
+
+test('NOT_CONFIGURED results contain only provider-configuration blockers', () => {
+  const invalidToken = { ...validToken, contractOrMint: 'invalid' };
+  const disabledProvider = { ...freeManualProvider, enabled: false };
+  const result = assessBrandingProvider(invalidToken, disabledProvider);
+  assert.equal(result.status, 'NOT_CONFIGURED');
+  assert.deepEqual(result.blockers, ['provider adapter is not enabled']);
+});
+
+test('inspection computes token validation once and shares the result across providers', () => {
+  let tokenSymbolReads = 0;
+  const observedToken = new Proxy(validToken, {
+    get(target, property, receiver) {
+      if (property === 'tokenSymbol') tokenSymbolReads += 1;
+      return Reflect.get(target, property, receiver);
+    }
+  });
+  buildTokenBrandingInspection([observedToken], [
+    freeManualProvider,
+    { ...freeManualProvider, id: 'second', name: 'Second provider' }
+  ]);
+  assert.equal(tokenSymbolReads, 1);
+});
+
+test('provider summaries aggregate worst-case status and retain per-token evidence', () => {
+  const ready: ProviderAssessment = {
+    providerId: 'example',
+    providerName: 'Example',
+    mode: 'api',
+    status: 'READY_FOR_REVIEW',
+    blockers: [],
+    publicationStatus: 'NOT_SUBMITTED'
+  };
+  const blocked: ProviderAssessment = {
+    ...ready,
+    status: 'BLOCKED',
+    blockers: ['token evidence is not verified']
+  };
+  const summaries = summarizeProviderAssessments([
+    { assetId: 'glr-eth', network: 'Ethereum Mainnet', providers: [ready] },
+    { assetId: 'glr-base', network: 'Base Mainnet', providers: [blocked] }
+  ]);
+  assert.equal(summaries.length, 1);
+  assert.equal(summaries[0].status, 'BLOCKED');
+  assert.equal(summaries[0].tokenCount, 2);
+  assert.deepEqual(
+    summaries[0].tokenAssessments.map((item) => item.status),
+    ['READY_FOR_REVIEW', 'BLOCKED']
+  );
+});
+
+
+test('reports a missing chain ID once without a redundant expected-chain diagnostic', () => {
+  const missingChainId = { ...validToken, chainId: '' };
+  const errors = validateTokenBrandingRecord(missingChainId);
+  assert.deepEqual(
+    errors.filter((item) => /chain ?id/i.test(item)),
+    ['chainId is required']
+  );
 });
