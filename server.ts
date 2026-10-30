@@ -13,7 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { isIndependentComputeFallbackAllowed } from './src/lib/ai/model-selection';
+import { isIndependentComputeFallbackAllowed, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
@@ -762,7 +762,7 @@ async function runModelExecution({
   temperature = 0.4,
   jsonMode = false
 }: ModelExecutionParams): Promise<{ text: string; modelUsed: string; provider: string; executionStatus: 'success' | 'unavailable'; providerStatus: Record<string, 'connected' | 'unavailable' | 'error'>; providerErrors: string[]; computeError?: string }> {
-  const chosenModel = model || 'auto';
+  const chosenModel = normalizeSavedModelPreference(model);
 
   // AI CEO -> Provider Registry -> authenticated providers.
   // The registry is the single provider-selection boundary; it never fabricates output.
@@ -802,6 +802,11 @@ async function runModelExecution({
   }
 
   if (!isIndependentComputeFallbackAllowed(chosenModel, requiredProvider)) {
+    console.warn('[ModelExecution] Independent compute fallback suppressed.', {
+      requestedModel: chosenModel,
+      requiredProvider: requiredProvider || null,
+      providerErrorCount: registryResult.errors.length,
+    });
     return {
       text: '',
       modelUsed: chosenModel,
@@ -1410,7 +1415,7 @@ app.post('/api/ai/role', async (req: Request, res: Response) => {
 app.post('/api/ai/broker-chat', async (req: Request, res: Response) => {
   try {
     const { message, currentPolicy, footprintsSummary, model } = req.body;
-    const chosenModel = model || currentPolicy?.aiModel || 'gpt-4o';
+    const chosenModel = model || currentPolicy?.aiModel || 'auto';
 
     const systemPrompt = `You are DataSovereign AI running on ${chosenModel}, an expert autonomous personal data broker and privacy agent representing the user.
 Your mission is to defend the user's digital sovereignty across the entire internet, enforce mathematical differential privacy (Laplacian noise, epsilon \u03b5 levels), calculate fair-market data compensation, negotiate with data buyers (e.g., AI frontier labs, market analytics, biomedical researchers), and eliminate unconsented broker tracking (Acxiom, Experian, Meta, Google).
@@ -1470,7 +1475,7 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
 app.post('/api/ai/evaluate-offer', async (req: Request, res: Response) => {
   try {
     const { offer, userPolicy, model } = req.body;
-    const chosenModel = model || userPolicy?.aiModel || 'gpt-4o';
+    const chosenModel = model || userPolicy?.aiModel || 'auto';
 
     const prompt = `Evaluate this data purchase offer for a user who owns their digital footprint:
 Buyer: ${offer.buyerName} (${offer.buyerCategory})
@@ -1532,7 +1537,7 @@ Return a valid JSON object with:
 app.post('/api/ai/audit-footprint', async (req: Request, res: Response) => {
   try {
     const { category, sourceName, sampleData, model } = req.body;
-    const chosenModel = model || 'gpt-4o';
+    const chosenModel = model || 'auto';
 
     const prompt = `Perform a privacy leakage and monetization audit on this data stream:
 Source: ${sourceName} (${category})
