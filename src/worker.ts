@@ -480,7 +480,9 @@ export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
-    if (incomingUrl.pathname === A2A_JSONRPC_PATH) {
+    if (incomingUrl.pathname.replace(/\\/+$/, '') === A2A_JSONRPC_PATH) {
+      // Canonicalize the accepted trailing-slash form before route matching.
+      incomingUrl.pathname = A2A_JSONRPC_PATH;
       const errorResponse = (
         status: number,
         code: number,
@@ -528,7 +530,9 @@ export default {
       if (a2aVersion) headers.set('A2A-Version', a2aVersion);
       // Forward only the auth token and protocol headers. Cookies and unrelated
       // caller headers are intentionally not carried into the backend service.
-      request = new Request(request.url, { method: 'POST', headers, body });
+      const canonicalA2AUrl = new URL(request.url);
+      canonicalA2AUrl.pathname = A2A_JSONRPC_PATH;
+      request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
