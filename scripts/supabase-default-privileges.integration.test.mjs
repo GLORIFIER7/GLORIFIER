@@ -6,18 +6,17 @@ import pg from 'pg';
 const connectionString = process.env.SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL;
 const migrationPath = 'supabase/migrations/20261029040200_harden_client_role_denials.sql';
 
-if (!connectionString) {
-  throw new Error('SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is required; this integration test must not be skipped.');
-}
+assert.ok(
+  connectionString,
+  'SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is required; this integration test must not be skipped.',
+);
 
 test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async () => {
     const client = new pg.Client({ connectionString });
     await client.connect();
 
-    let transactionStarted = false;
     try {
       await client.query('BEGIN');
-      transactionStarted = true;
 
       await client.query(`
         DO $role$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $role$;
@@ -173,10 +172,7 @@ test('hardens future postgres-owned public defaults without changing service_rol
         service_function: true,
       }, 'objects created after the migration must deny client roles and preserve service_role');
     } finally {
-      try {
-        if (transactionStarted) await client.query('ROLLBACK');
-      } finally {
-        await client.end();
-      }
+      await client.query('ROLLBACK').catch(() => {});
+      await client.end();
     }
   });
