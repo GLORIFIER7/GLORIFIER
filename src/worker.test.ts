@@ -124,7 +124,7 @@ async function run(): Promise<void> {
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 'x', method: 'tasks/get', params: { id: 'x' } }),
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'x', method: 'GetTask', params: { id: 'x' } }),
       }),
       env,
     );
@@ -139,7 +139,7 @@ async function run(): Promise<void> {
             Authorization: malformedAuthorization,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 'auth-invalid', method: 'tasks/get', params: { id: 'x' } }),
+          body: JSON.stringify({ jsonrpc: '2.0', id: 'auth-invalid', method: 'GetTask', params: { id: 'x' } }),
         }),
         env,
       );
@@ -209,7 +209,7 @@ async function run(): Promise<void> {
     assert.equal(a2aUpstreamRequest.headers.get('a2a-version'), '1.0', 'the negotiated A2A protocol version must cross the Worker boundary');
     assert.equal(a2aUpstreamRequest.headers.get('cookie'), null, 'A2A proxy must not forward caller cookies');
     assert.equal(a2aUpstreamRequest.headers.get('x-private-header'), null, 'A2A proxy must not forward unrelated headers');
-    assert.match(await a2aUpstreamRequest.text(), /message\/send/);
+    assert.match(await a2aUpstreamRequest.text(), /SendMessage/);
 
     const healthAssetCallsBefore = assetCalls;
     const workerHealth = await worker.fetch(
