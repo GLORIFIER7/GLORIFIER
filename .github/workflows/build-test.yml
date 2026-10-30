@@ -38,3 +38,11 @@ jobs:
         run: npm run test:interoperability-evidence-policy
       - name: AI provider council routing tests
         run: npm run test:ai-council-routing
+      - name: Shared authenticated AI council client tests
+        run: npm run test:model-council-client
+      - name: Provider abort and exact-model tests
+        run: npm run test:provider-abort
+      - name: Gemini explicit model policy tests
+        run: npm run test:gemini-model-policy
+      - name: Anthropic provider abort tests
+        run: npm run test:anthropic

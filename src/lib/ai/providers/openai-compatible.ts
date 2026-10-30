@@ -56,6 +56,7 @@ export class OpenAICompatibleProvider implements AIProvider {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
+      signal: request.signal,
       body: JSON.stringify({
         model,
         messages: request.messages,

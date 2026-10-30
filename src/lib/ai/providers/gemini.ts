@@ -45,7 +45,7 @@ export class GeminiProvider implements AIProvider {
   }
 
   models() {
-    return [process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'];
+    return resolveGeminiModelCandidates(undefined, process.env.GEMINI_MODEL);
   }
 
   async generate(request: AIRequest): Promise<AIResponse> {
@@ -64,6 +64,7 @@ export class GeminiProvider implements AIProvider {
             model,
             contents: prompt.contents,
             config: {
+              ...(request.signal ? { abortSignal: request.signal } : {}),
               systemInstruction: prompt.systemInstruction,
               ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
               ...(request.maxTokens === undefined ? {} : { maxOutputTokens: request.maxTokens }),
@@ -77,6 +78,7 @@ export class GeminiProvider implements AIProvider {
           };
         } catch (err: any) {
           lastError = err;
+          if (request.signal?.aborted) break;
           const errMsg = err?.message || String(err);
           const status = err?.status || err?.code || (errMsg.includes('503') ? 503 : (errMsg.includes('429') ? 429 : 0));
           const isQuota = status === 429 || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED');

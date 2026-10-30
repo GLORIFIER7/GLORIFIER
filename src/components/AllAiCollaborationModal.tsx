@@ -17,6 +17,8 @@ import {
   Lock
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult } from '../types';
+import { getIdToken } from '../lib/firebase';
+import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, type ModelCouncilProviderFailure, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AllAiCollaborationModalProps {
   isOpen: boolean;
@@ -61,6 +63,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const [isConvening, setIsConvening] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [councilResult, setCouncilResult] = useState<CouncilConsensusResult | null>(null);
+  const [providerFailures, setProviderFailures] = useState<ModelCouncilProviderFailure[]>([]);
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -69,49 +73,37 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const handleConveneCouncil = async () => {
     setIsConvening(true);
     setCouncilResult(null);
+    setProviderFailures([]);
+    setStatusFeedback(null);
     setActiveStep(1);
 
-    // Progress reflects the request lifecycle only; provider participation is not inferred.
-
     try {
-      const res = await fetch('/api/ai/council', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agenda: currentTopic,
-          currentPolicy: policy,
-          footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized }))
-        })
-      });
+      const participants = await discoverConfiguredModelCouncilParticipants();
+      if (participants.length === 0) {
+        setStatusFeedback('No configured provider model is currently available. Configure at least one provider credential and model before starting the council.');
+        return;
+      }
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = await res.json();
-      const participants = Array.isArray(raw.participants)
-        ? raw.participants.map((p: any, index: number) => ({
-            modelId: String(p.model || p.id || p.provider || `participant-${index + 1}`),
-            name: String(p.title || p.model || p.provider || 'Unnamed participant'),
-            provider: String(p.provider || 'Provider not reported'),
-            role: String(p.title || 'Specialist perspective'),
-            color: 'cyan',
-            badge: String(p.status || 'Response returned'),
-            status: 'completed' as const,
-            output: String(p.output || 'No output returned.'),
-            perspective: String(p.output || 'No perspective returned.')
-          }))
-        : [];
-      const normalized: CouncilConsensusResult = {
-        agenda: String(raw.agenda || currentTopic),
-        timestamp: String(raw.timestamp || new Date().toISOString()),
+      const result = await submitAuthenticatedModelCouncilRequest({
+        agenda: currentTopic,
         participants,
-        unifiedConsensus: String(raw.synthesis?.output || 'No synthesis was returned. Multiple responses do not by themselves establish consensus.'),
-        consensusScore: typeof raw.consensusScore === 'number' ? raw.consensusScore : null,
-        recommendedEpsilon: typeof raw.recommendedEpsilon === 'number' ? raw.recommendedEpsilon : null,
-        recommendedFloorUsd: typeof raw.recommendedFloorUsd === 'number' ? raw.recommendedFloorUsd : null,
-        actionDirectives: Array.isArray(raw.actionDirectives) ? raw.actionDirectives.filter((x: unknown): x is string => typeof x === 'string') : []
-      };
-      setCouncilResult(normalized);
+        currentPolicy: policy,
+        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        getToken: getIdToken,
+      });
+      setProviderFailures(result.failures);
+      setCouncilResult(result);
+      setStatusFeedback(`Received ${result.participantCount} response(s) from ${result.providerDiversity} provider(s). Exact registry model IDs were requested; live execution is evidenced only by returned participants.`);
     } catch (err) {
       console.warn('Council endpoint unavailable; no consensus result was produced.', err);
+      setCouncilResult(null);
+      if (err instanceof ModelCouncilClientError) {
+        setProviderFailures(err.failures);
+        const failureSummary = formatModelCouncilFailures(err.failures);
+        setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
+      } else {
+        setStatusFeedback('Council execution failed. No consensus result was produced.');
+      }
     } finally {
       setIsConvening(false);
       setActiveStep(0);
@@ -163,7 +155,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                The council endpoint selects eligible providers at request time. Actual participants and returned outputs are displayed after execution; no zero-knowledge enclave is claimed here.
+                The shared council client selects configured provider/model pairs at request time. The endpoint validates them; actual participants and returned outputs are displayed after execution. No zero-knowledge enclave is claimed here.
               </p>
             </div>
           </div>
@@ -294,6 +286,24 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             </div>
           )}
 
+          {statusFeedback && (
+            <output aria-live="polite" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              {statusFeedback}
+            </output>
+          )}
+          {providerFailures.length > 0 && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+              <div className="font-semibold mb-1">Provider execution failures</div>
+              <ul className="list-disc pl-5 space-y-1">
+                {providerFailures.map((failure, index) => (
+                  <li key={`${failure.providerId}-${failure.modelId || 'unknown'}-${index}`}>
+                    {failure.providerId}{failure.modelId ? `/${failure.modelId}` : ''}: {failure.code}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Results Section */}
           {councilResult && !isConvening && (
             <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -306,10 +316,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   {councilResult.participants.map((p) => {
-                    const isGpt = p.modelId === 'gpt-4o';
-                    const isGemini = p.modelId === 'gemini-3.8-flash';
-                    const isLlama = p.modelId === 'llama-3.3';
-
+                    const isGpt = p.provider === 'openai';
+                    const isGemini = p.provider === 'gemini';
+                    
                     const borderClass = isGpt 
                       ? 'border-emerald-500/40 bg-emerald-950/10' 
                       : isGemini 

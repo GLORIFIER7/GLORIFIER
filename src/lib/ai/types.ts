@@ -2,7 +2,7 @@ export type AIProviderId = 'openai' | 'gemini' | 'meta' | string;
 export type AIProviderStatus = 'connected' | 'disconnected' | 'error' | 'unavailable';
 
 export interface AIMessage { role: 'system' | 'user' | 'assistant'; content: string; }
-export interface AIRequest { messages: AIMessage[]; model?: string; temperature?: number; maxTokens?: number; }
+export interface AIRequest { messages: AIMessage[]; model?: string; temperature?: number; maxTokens?: number; signal?: AbortSignal; }
 
 export interface ResponseEvaluation { score: number; passed: boolean; reasons: string[]; }
 

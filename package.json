@@ -87,7 +87,9 @@
     "test:governance-loop": "tsx src/lib/governance-loop.test.ts",
     "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",
     "test:supabase-default-privileges": "node scripts/supabase-default-privileges.integration.test.mjs",
-    "test:ai-council-routing": "node --test src/lib/ai/model-council-routing.test.mjs"
+    "test:ai-council-routing": "node --test src/lib/ai/model-council-routing.test.mjs",
+    "test:model-council-client": "tsx src/lib/ai/model-council-client.test.ts",
+    "test:provider-abort": "tsx src/lib/ai/providers/provider-abort.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

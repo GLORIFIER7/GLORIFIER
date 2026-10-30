@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelCollaborationParticipant } from '../types';
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
+import { getIdToken } from '../lib/firebase';
+import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, selectConfiguredParticipantsForProviders, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -194,49 +196,58 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, weight: newWeight } : n));
   };
 
-  // Run Collaborative Council across all active models
+  // Run the exact configured model selected for each enabled provider node.
   const handleConveneCouncil = async () => {
     const agendaToRun = customAgenda.trim() || selectedTopic;
-    const selectedProviderIds = nodes
-      .filter(n => n.enabled && n.providerId)
-      .map(n => n.providerId as string);
+    setCouncilResult(null);
+    setStatusFeedback(null);
+    const selectedProviderNodes = nodes.filter(
+      (node): node is ModelNodeConfig & { providerId: string } => node.enabled && Boolean(node.providerId)
+    );
 
-    if (selectedProviderIds.length === 0) {
+    if (selectedProviderNodes.length === 0) {
       setStatusFeedback('Enable at least one provider-backed model (GPT, Claude, Gemini, Meta, or another configured provider) before convening the council.');
       return;
     }
 
     setIsRunningCouncil(true);
-    setCouncilResult(null);
-    setStatusFeedback(null);
-
     try {
-      const res = await fetch('/api/ai/council', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agenda: agendaToRun,
-          providerIds: selectedProviderIds,
-          currentPolicy: policy,
-          footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
-        })
-      });
+      const configuredParticipants = await discoverConfiguredModelCouncilParticipants();
+      const { participants, unavailableProviders } = selectConfiguredParticipantsForProviders(
+        configuredParticipants,
+        selectedProviderNodes.map((node) => node.providerId),
+      );
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: CouncilConsensusResult & {
-        participantCount?: number;
-        providerDiversity?: number;
-        failures?: Array<{ providerId: string; code: string }>;
-      } = await res.json();
+      if (participants.length === 0) {
+        throw new Error('None of the enabled provider nodes currently exposes a configured model. Configure provider credentials and model IDs first.');
+      }
+
+      const data = await submitAuthenticatedModelCouncilRequest({
+        agenda: agendaToRun,
+        participants,
+        currentPolicy: policy,
+        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        getToken: getIdToken,
+      });
+      const failures = data.failures;
       setCouncilResult(data);
-      const responseCount = data.participantCount ?? data.participants.length;
-      const providerCount = data.providerDiversity ?? new Set(data.participants.map(p => p.provider)).size;
-      const failureCount = data.failures?.length ?? 0;
-      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s). ${failureCount} selected provider(s) failed. Numeric consensus and policy directives remain unverified and are not fabricated.`);
+      const responseCount = data.participantCount;
+      const providerCount = data.providerDiversity;
+      const omittedSummary = unavailableProviders.length
+        ? ` Not configured and omitted: ${unavailableProviders.join(', ')}.`
+        : '';
+      const failureSummary = formatModelCouncilFailures(failures);
+      const failureNotice = failureSummary ? ` Provider failures: ${failureSummary}.` : '';
+      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s), using explicitly selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain unverified.`);
     } catch (err) {
       console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
-      setStatusFeedback('Council execution failed or no selected provider was available. Check the provider registry and credentials; no fallback provider or synthetic response was substituted.');
+      if (err instanceof ModelCouncilClientError) {
+        const failureSummary = formatModelCouncilFailures(err.failures);
+        setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
+      } else {
+        setStatusFeedback('Council execution failed. No provider fallback or synthetic response was substituted.');
+      }
     } finally {
       setIsRunningCouncil(false);
     }
@@ -274,6 +285,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
   };
 
   const activeNodeCount = nodes.filter(n => n.enabled).length;
+  const activeProviderNodeCount = nodes.filter(n => n.enabled && Boolean(n.providerId)).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -298,7 +310,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
-                Configure intended roles and voting weights for these model IDs. Live provider availability, participation, privacy enforcement, and consensus behavior are NOT VERIFIED.
+                Configure provider roles and voting weights. The council resolves the exact configured model IDs from the server registry at request time; local-only research roles are not sent as provider participants. Live inference and consensus remain NOT VERIFIED.
               </p>
             </div>
           </div>
@@ -307,6 +319,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
               <div className="text-[11px] text-slate-400 font-mono uppercase">Enabled Configurations</div>
               <div className="text-lg font-bold text-emerald-400 font-mono">{activeNodeCount} / {nodes.length}</div>
+            </div>
+            <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+              <div className="text-[11px] text-slate-400 font-mono uppercase">Provider-backed Nodes</div>
+              <div className="text-lg font-bold text-teal-400 font-mono">{activeProviderNodeCount}</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
               <div className="text-[11px] text-slate-400 font-mono uppercase">Quorum Target · Unverified</div>
@@ -398,7 +414,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 Frontier AI Model Collaboration Matrix
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Enable or disable individual artificial intelligence models and customize their voting influence in sovereign data decisions.
+                Enable or disable provider-backed nodes and local research roles. Provider-backed nodes execute the exact model advertised by their configured provider; voting weights remain display-only.
               </p>
             </div>
 
@@ -538,7 +554,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                   Initiate Multi-Model Deliberation Council
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Submit an agenda with {activeNodeCount} enabled model IDs to the backend. Actual provider participation and agreement are NOT VERIFIED until responses are recorded.
+                  Submit an agenda with {activeProviderNodeCount} enabled provider-backed nodes to the backend. Actual provider participation and agreement are NOT VERIFIED until responses are recorded.
                 </p>
               </div>
 

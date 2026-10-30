@@ -20,6 +20,21 @@ jobs:
           name: Type-check
           command: npm run lint
       - run:
+          name: AI council routing tests
+          command: npm run test:ai-council-routing
+      - run:
+          name: Shared authenticated council client tests
+          command: npm run test:model-council-client
+      - run:
+          name: Provider abort forwarding tests
+          command: npm run test:provider-abort
+      - run:
+          name: Gemini explicit model policy tests
+          command: npm run test:gemini-model-policy
+      - run:
+          name: Anthropic provider tests
+          command: npm run test:anthropic
+      - run:
           name: Test Cloudflare Worker
           command: npm run test:cloudflare-worker
       - run:

@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
-import { isIP } from 'node:net';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { isIP } from 'node:net';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
@@ -13,7 +13,9 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { executeModelCouncilProviders, validateModelCouncilProviderIds } from './src/lib/ai/model-council-routing.mjs';
+import { resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
+import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
+import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
@@ -141,9 +143,9 @@ const geasRateLimit = (req: Request, res: Response, next: express.NextFunction) 
 
 
 
+// The hosting ingress overwrites X-Real-IP. Validate it for broad per-client
+// throttles; the paid-council limiter separately keys on the observed socket peer.
 const rateLimitKeyGenerator = (req: Request): string => {
-  // Railway public ingress overwrites X-Real-IP. Prefer the validated address without
-  // trusting an arbitrary X-Forwarded-For chain or enabling Express trust proxy globally.
   const platformClientIp = req.get('x-real-ip')?.trim();
   const clientIp = platformClientIp && isIP(platformClientIp)
     ? platformClientIp
@@ -163,6 +165,21 @@ const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
     retryable: true,
   }));
 };
+
+// Bound metered provider fan-out to two council starts per minute per owner principal.
+const aiCouncilRateLimit = createModelCouncilRateLimit({
+  windowMs: 60_000,
+  limit: 2,
+  handler: (_req, res) => {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({
+      ok: false,
+      error: 'AI council usage is limited to two requests per minute per authenticated principal.'
+    });
+  },
+  production: process.env.NODE_ENV === 'production',
+  singleInstanceConfirmed: process.env.AI_COUNCIL_SINGLE_INSTANCE === 'true',
+});
 
 // Recognized rate-limiting middleware runs before body parsing and all route handlers.
 const appWideRateLimit = rateLimit({
@@ -1040,59 +1057,30 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
 });
 
 // Provider-selected AI council endpoint.
-// Each participant is pinned to one requested provider; failures never trigger implicit substitution.
+// Each participant is pinned to one exact requested provider/model pair; failures never trigger implicit substitution.
 // Outputs remain advisory and cannot authorize consequential actions.
-app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) => {
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const topic = typeof body.agenda === 'string' && body.agenda.trim()
-    ? body.agenda.trim()
-    : 'Review GLORIFIER architecture, reliability, privacy, and provider interoperability.';
-  if (topic.length > 4000) {
-    return res.status(413).json({ ok: false, error: 'Council agenda must be 4,000 characters or fewer.' });
-  }
+function normalizeModelCouncilTopic(body: Record<string, unknown>): string {
+  const agenda = body.agenda;
+  if (typeof agenda === 'string' && agenda.trim()) return agenda.trim();
+  return 'Review GLORIFIER architecture, reliability, privacy, and provider interoperability.';
+}
 
-  // Backward compatibility for the existing UI IDs; actual provider/model
-  // attribution is always taken from the provider response, never from the UI label.
-  const legacyModelProviders: Record<string, string> = {
-    'gpt-4o': 'openai',
-    'gemini-3.8-flash': 'gemini',
-    'llama-3.3': 'meta'
-  };
-  const requestedProviderIds = Array.isArray(body.providerIds)
-    ? body.providerIds
-    : Array.isArray(body.activeModels)
-      ? body.activeModels.map((modelId: unknown) =>
-          typeof modelId === 'string' ? legacyModelProviders[modelId] : undefined
-        ).filter((providerId: unknown): providerId is string => typeof providerId === 'string')
-      : [];
-
-  let providerIds: string[];
-  const providerRegistry = aiOrchestrator.registry();
-  try {
-    providerIds = validateModelCouncilProviderIds(
-      requestedProviderIds,
-      providerRegistry.map((provider) => provider.id)
-    );
-  } catch (error) {
-    return res.status(400).json({
-      ok: false,
-      error: error instanceof Error ? error.message : 'Invalid provider selection.'
-    });
-  }
-
-  const floor = Number.isFinite(body.currentPolicy?.minimumMonthlyFloorUsd)
-    ? body.currentPolicy.minimumMonthlyFloorUsd
-    : null;
-  const epsilon = Number.isFinite(body.currentPolicy?.globalEpsilon)
-    ? body.currentPolicy.globalEpsilon
-    : null;
+function buildModelCouncilMessages(topic: string, body: Record<string, unknown>) {
+  const currentPolicy = body.currentPolicy && typeof body.currentPolicy === 'object'
+    ? body.currentPolicy as Record<string, unknown>
+    : {};
+  const floorValue = currentPolicy.minimumMonthlyFloorUsd;
+  const epsilonValue = currentPolicy.globalEpsilon;
+  const floor = typeof floorValue === 'number' && Number.isFinite(floorValue) ? floorValue : null;
+  const epsilon = typeof epsilonValue === 'number' && Number.isFinite(epsilonValue) ? epsilonValue : null;
+  const footprintCount = Array.isArray(body.footprints) ? body.footprints.length : 0;
   const policyContext = [
     floor === null ? 'Minimum monthly floor: not supplied.' : `Minimum monthly floor: $${floor}/month.`,
     epsilon === null ? 'Privacy epsilon: not supplied.' : `Privacy epsilon: ${epsilon}.`,
-    `Footprint records supplied: ${Array.isArray(body.footprints) ? body.footprints.length : 0} (record contents are not forwarded to providers).`
+    `Footprint records supplied: ${footprintCount} (record contents are not forwarded to providers).`,
   ].join('\n');
 
-  const councilMessages = [
+  return [
     {
       role: 'system' as const,
       content: [
@@ -1101,134 +1089,57 @@ app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) =
         'Separate evidence, assumptions, hypotheses, and unresolved questions.',
         'Do not invent tests, sources, provider executions, consensus, revenue, ownership, or verified outcomes.',
         'Your response is advisory. Humans retain final authority over code changes, merges, secrets, deployments, and financial or blockchain actions.',
-        policyContext
-      ].join('\n')
+        policyContext,
+      ].join('\n'),
     },
-    { role: 'user' as const, content: topic }
+    { role: 'user' as const, content: topic },
   ];
+}
+
+app.post('/api/ai/council', requireOwnerOrInternalService, aiCouncilRateLimit, async (req: Request, res: Response) => {
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const topic = normalizeModelCouncilTopic(body);
+  if (topic.length > 4000) {
+    return res.status(413).json({ ok: false, error: 'Council agenda must be 4,000 characters or fewer.' });
+  }
+
+  const providerRegistry = aiOrchestrator.registry();
+  let selectedParticipants: Array<{ providerId: string; modelId: string }>;
+  try {
+    selectedParticipants = resolveModelCouncilParticipants({
+      participants: body.participants,
+      providerIds: body.providerIds,
+      activeModels: body.activeModels,
+      availableProviders: providerRegistry,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Invalid provider/model selection.',
+    });
+  }
 
   try {
-    const council = await executeModelCouncilProviders({
-      providerIds,
-      messages: councilMessages,
-      generate: (providerId, messages) => aiOrchestrator.generate({
+    const execution = await executeModelCouncilRequest({
+      participants: selectedParticipants,
+      messages: buildModelCouncilMessages(topic, body),
+      topic,
+      timeoutMs: 45_000,
+      generate: (providerId, modelId, messages, signal) => aiOrchestrator.generate({
         provider: providerId,
+        model: modelId,
         messages,
-        temperature: 0.2
-      })
+        temperature: 0.2,
+        signal,
+      }),
     });
-
-    if (!council.participantCount) {
-      return res.status(503).json({
-        ok: false,
-        error: 'No selected provider returned a usable response. Check provider configuration, authorization, quota, and availability.',
-        requestedProviderIds: council.requestedProviderIds,
-        participantCount: 0,
-        providerDiversity: 0,
-        failures: council.failures,
-        syntheticOutput: false
-      });
-    }
-
-    const providerColors: Record<string, string> = {
-      openai: 'emerald',
-      gemini: 'teal',
-      anthropic: 'purple',
-      meta: 'cyan',
-      nvidia: 'amber'
-    };
-    const participants = council.participants.map((participant) => ({
-      modelId: `${participant.provider}/${participant.model}`,
-      name: participant.model,
-      provider: participant.provider,
-      role: 'Independent provider analysis',
-      color: providerColors[participant.provider] || 'amber',
-      badge: 'Live provider response',
-      status: 'completed' as const,
-      output: participant.text,
-      perspective: 'Independent provider output; not, by itself, proof of consensus.',
-      latencyMs: participant.latencyMs
-    }));
-
-    let synthesis: { provider: string; model: string; output: string } | null = null;
-    let unifiedConsensus = council.providerDiversity >= 2
-      ? 'Independent provider responses were received. Cross-provider synthesis was not completed; no consensus is claimed.'
-      : 'A response from only one provider was received. Independent multi-provider consensus is unavailable.';
-    if (council.providerDiversity >= 2) {
-      const synthesisProvider = council.participants[0].provider;
-      const evidencePacket = council.participants.map((participant) =>
-        `[${participant.provider}/${participant.model}]\n${participant.text}`
-      ).join('\n\n');
-      try {
-        const synthesisResponse = await aiOrchestrator.generate({
-          provider: synthesisProvider,
-          messages: [
-            {
-              role: 'system',
-              content: [
-                'You are the GLORIFIER advisory synthesis reviewer.',
-                'Compare the independently returned provider analyses.',
-                'Identify agreement, disagreement, contradictions, uncertainty, missing evidence, and next verification steps.',
-                'Do not state that consensus exists merely because multiple responses were received.',
-                'Do not invent facts, sources, test results, approvals, or verified outcomes.',
-                'No action is authorized by this synthesis; humans retain final authority.'
-              ].join('\n')
-            },
-            {
-              role: 'user',
-              content: `Agenda: ${topic}\n\nIndependent provider responses:\n${evidencePacket}`
-            }
-          ],
-          temperature: 0.1
-        });
-        if (synthesisResponse.text?.trim()) {
-          synthesis = {
-            provider: synthesisResponse.provider,
-            model: synthesisResponse.model,
-            output: synthesisResponse.text.trim()
-          };
-          unifiedConsensus = synthesis.output;
-        }
-      } catch {
-        // Keep the independent results, but do not imply that synthesis succeeded.
-      }
-    }
-
-    return res.json({
-      ok: true,
-      agenda: topic,
-      timestamp: new Date().toISOString(),
-      participants,
-      participantCount: council.participantCount,
-      providerDiversity: council.providerDiversity,
-      requestedProviderIds: council.requestedProviderIds,
-      councilStatus: council.status,
-      failures: council.failures,
-      synthesis,
-      synthesisStatus: synthesis ? 'completed' : 'not-completed',
-      unifiedConsensus,
-      // Quantified agreement and policy recommendations require their own validated
-      // methodology. Never derive or fabricate them from the mere presence of outputs.
-      consensusScore: null,
-      recommendedEpsilon: null,
-      recommendedFloorUsd: null,
-      actionDirectives: [],
-      governance: {
-        selectedProvidersOnly: true,
-        actualProviderAttribution: true,
-        noImplicitProviderFallback: true,
-        noSyntheticOutput: true,
-        consensusNotInferredFromResponseCount: true,
-        humanFinalAuthority: true,
-        evidenceFirst: true
-      }
-    });
+    return res.status(execution.status).json(execution.body);
   } catch (error) {
     console.error('[AI-to-AI] council execution error:', error);
     return res.status(503).json({
       ok: false,
       error: 'AI-to-AI council execution unavailable',
-      syntheticOutput: false
+      syntheticOutput: false,
     });
   }
 });
@@ -2165,8 +2076,8 @@ async function runIntelligenceModel(
 
   const preferredProvider = provider === 'openai' ? 'openai' : 'gemini';
   const requestPrompt = jsonMode
-    ? systemInstruction + '\\nReturn valid JSON only.\\n\\n' + prompt
-    : systemInstruction + '\\n\\n' + prompt;
+    ? systemInstruction + '\nReturn valid JSON only.\n\n' + prompt
+    : systemInstruction + '\n\n' + prompt;
 
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
