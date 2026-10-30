@@ -637,7 +637,7 @@ async function run(): Promise<void> {
     upstreamResponse = new Response(null, {
       status: 302,
       headers: {
-        Location: 'https://api.example.test/auth/provider/callback?state=test',
+        Location: 'https://api.example.test/auth/broker/callback?state=test',
       },
     });
     const assetCallsBeforeAuth = assetCalls;
@@ -648,7 +648,7 @@ async function run(): Promise<void> {
     assert.equal(authRedirect.status, 302);
     assert.equal(
       authRedirect.headers.get('location'),
-      'https://glorifier.glorifier.workers.dev/auth/provider/callback?state=test',
+      'https://glorifier.glorifier.workers.dev/auth/broker/callback?state=test',
       'backend auth redirects must be rewritten to the current public origin',
     );
     assert.equal(
@@ -661,7 +661,7 @@ async function run(): Promise<void> {
     upstreamResponse = new Response(null, {
       status: 302,
       headers: {
-        Location: 'https://api.example.test/auth/provider/callback?state=approved&next=https%3A%2F%2Fevil.example#untrusted-fragment',
+        Location: 'https://api.example.test/auth/broker/callback?state=approved&next=https%3A%2F%2Fevil.example#untrusted-fragment',
       },
     });
     const sanitizedAuthRedirect = await worker.fetch(
@@ -671,7 +671,7 @@ async function run(): Promise<void> {
     assert.equal(sanitizedAuthRedirect.status, 302);
     assert.equal(
       sanitizedAuthRedirect.headers.get('location'),
-      'https://glorifier.glorifier.workers.dev/auth/provider/callback?state=approved',
+      'https://glorifier.glorifier.workers.dev/auth/broker/callback?state=approved',
       'same-origin redirects must use a Worker-approved route and only approved OAuth callback parameters',
     );
 
