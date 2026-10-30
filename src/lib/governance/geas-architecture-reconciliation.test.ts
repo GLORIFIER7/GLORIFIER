@@ -136,6 +136,8 @@ const invalidTimestampValues = [
   '2026-02-30T23:00:00Z',
   '2026-10-21T23:00:00+24:00',
   '2026-10-21T23:00:00-00:00',
+  '2026-10-21t23:00:00Z',
+  '2026-10-21T23:00:00z',
 ];
 for (const observedAt of invalidTimestampValues) {
   const invalidTimestamp = reconcileArchitectureStates({
