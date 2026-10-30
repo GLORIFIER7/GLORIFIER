@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult } from '../types';
 import { getIdToken } from '../lib/firebase';
-import { discoverConfiguredModelCouncilParticipants, ModelCouncilClientError, type ModelCouncilProviderFailure, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
+import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, type ModelCouncilProviderFailure, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AllAiCollaborationModalProps {
   isOpen: boolean;
@@ -99,7 +99,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       setCouncilResult(null);
       if (err instanceof ModelCouncilClientError) {
         setProviderFailures(err.failures);
-        const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+        const failureSummary = formatModelCouncilFailures(err.failures);
         setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
       } else {
         setStatusFeedback('Council execution failed. No consensus result was produced.');
@@ -287,9 +287,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
           )}
 
           {statusFeedback && (
-            <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <output aria-live="polite" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
               {statusFeedback}
-            </div>
+            </output>
           )}
           {providerFailures.length > 0 && (
             <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
@@ -318,8 +318,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                   {councilResult.participants.map((p) => {
                     const isGpt = p.provider === 'openai';
                     const isGemini = p.provider === 'gemini';
-                    const isLlama = p.provider === 'meta';
-
+                    
                     const borderClass = isGpt 
                       ? 'border-emerald-500/40 bg-emerald-950/10' 
                       : isGemini 
