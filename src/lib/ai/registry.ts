@@ -345,7 +345,7 @@ const tryRefreshedProviders = async (
   discovery: Map<string, DiscoveredProvider>,
   state: ProviderExecutionState,
 ): Promise<{ response: import('./types').AIResponse; provider: string } | undefined> => {
-  const refreshed = getConnectedProviders().filter((provider) => {
+  const refreshed = filterRequiredProvider(getConnectedProviders(), request.requiredProvider).filter((provider) => {
     if (!isProviderEligibleAfterRefresh(provider, discovery, request.capability, state.attemptedProviders)) {
       return false;
     }
