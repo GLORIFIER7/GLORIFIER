@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2589,7 +2589,7 @@ app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
 app.get('/api/agents/tasks', async (_req: Request, res: Response) => {
   try {
     const tasks = await listAgentTasks();
-    return res.json({ ok: true, tasks });
+    return res.json({ ok: true, tasks: tasks.map((task) => ({ ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) })) });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task listing unavailable', error);
   }
@@ -2599,7 +2599,7 @@ app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
   try {
     const task = await getAgentTask(String(req.params.id));
     if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
-    return res.json({ ok: true, task });
+    return res.json({ ok: true, task: { ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) } });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task lookup unavailable', error);
   }
