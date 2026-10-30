@@ -529,9 +529,9 @@
         {
           "kind": "documentation",
           "reference": "docs/architecture/interoperability-gap-register.md#protocol-conformance-boundary-review--2026-10-30",
-          "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; A2A 1.0.0 specification target",
+          "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; A2A 1.0.1 specification target",
           "observedAt": "2026-10-30T03:59:28Z",
-          "notes": "Source review found only a GLORIFIER-specific A2A discovery document and task API. The standard /.well-known/agent-card.json, AgentCard supportedInterfaces, and A2A 1.0 message/task binding are not established. This is gap evidence, not conformance evidence."
+          "notes": "Source review found only a GLORIFIER-specific A2A discovery document and task API. The standard /.well-known/agent-card.json, AgentCard supportedInterfaces, and A2A 1.0.1 message/task binding are not established. This is gap evidence, not conformance evidence."
         },
         {
           "kind": "documentation",
@@ -562,7 +562,8 @@
         "The MCP target is pinned to 2026-07-28, but no MCP server transport, server/discover, tools/list, or tools/call implementation is established.",
         "Agent-harness tool authorization is not MCP protocol conformance.",
         "A2A and MCP remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
-        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in this documentation-only review."
+        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in this documentation-only review.",
+        "No arbitrary proxy or implied provider fallback is authorized."
       ]
     },
     {
