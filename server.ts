@@ -74,7 +74,7 @@ import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAss
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
-import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
+import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
   getScientistFleet, 
@@ -2436,29 +2436,35 @@ app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {
   res.json({ ok: true, policy: getFederatedA2AV3Policy() });
 });
 
-app.get('/api/federated-a2a/v3/tasks', (req: Request, res: Response) => {
+app.get('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
   const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const tasks = listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
-  return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
+  try {
+    const tasks = await listFederatedA2ATasksFromStore(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
+    return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task listing unavailable', error);
+  }
 });
 
-app.get('/api/federated-a2a/v3/tasks/:id', (req: Request, res: Response) => {
+app.get('/api/federated-a2a/v3/tasks/:id', async (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
   const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const task = getFederatedA2ATask(String(req.params.id));
-  if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
-    return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+  try {
+    const task = await getFederatedA2ATaskFromStore(String(req.params.id), mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
+    if (!task) return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+    return res.json({ ok: true, task });
+  } catch (error) {
+    return apiError(res, 503, 'Federated A2A v3 task lookup unavailable', error);
   }
-  return res.json({ ok: true, task });
 });
 
 app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
@@ -3929,6 +3935,7 @@ async function initializeBackend(): Promise<void> {
   }
 
   const initializers: Array<[string, () => Promise<unknown>]> = [
+    ['federated A2A v3 persistence', initializeFederatedA2AV3],
     ['agent task persistence', initializeAgentRuntimePersistence],
     ['agent harness session persistence', initializeAgentHarnessPersistence],
     ['revenue ledger', initializeRevenueLedger],
