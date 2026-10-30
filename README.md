@@ -71,7 +71,7 @@ See [SECURITY.md](SECURITY.md) for reporting security concerns.
 
 ## Getting started
 
-Requirements: a supported Node.js version and npm. From a checkout of this repository:
+Requirements: Node.js `24.12.0` or newer and npm. From a checkout of this repository:
 
 ```bash
 npm ci
