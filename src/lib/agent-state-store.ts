@@ -115,6 +115,27 @@ export class PostgresAgentStateStore {
     return (typeof payload === 'string' ? JSON.parse(payload) : payload) as T;
   }
 
+  /**
+   * Refreshes the lease timestamp only while the task is still running.
+   * The status predicate prevents a late heartbeat from reverting completion.
+   */
+  async heartbeatRunningTask(id: string): Promise<boolean> {
+    const result = await this.query(
+      `UPDATE glorifier_agent_state
+       SET payload = jsonb_set(
+             payload,
+             '{updatedAt}',
+             to_jsonb(to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+             true
+           ),
+           updated_at = NOW()
+       WHERE kind = 'task' AND id = $1 AND status = 'running'
+       RETURNING id`,
+      [id],
+    );
+    return result.rows.length > 0 || (result.rowCount ?? 0) > 0;
+  }
+
   async recoverInterruptedTasks(): Promise<number> {
     const error = 'Task was stale in running state for more than 30 minutes during recovery; automatic replay is disabled.';
     const result = await this.query(
