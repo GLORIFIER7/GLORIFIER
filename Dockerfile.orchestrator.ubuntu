@@ -16,8 +16,7 @@ RUN apt-get update \
  && npm install --prefix /tmp/npm-security-patches --no-save --ignore-scripts --no-audit --no-fund undici@6.29.1 brace-expansion@5.0.12 \
  && mkdir -p /usr/lib/node_modules/npm/node_modules \
  && rm -rf /usr/lib/node_modules/npm/node_modules/undici /usr/lib/node_modules/npm/node_modules/brace-expansion \
- && cp -a /tmp/npm-security-patches/node_modules/undici /usr/lib/node_modules/npm/node_modules/undici \
- && cp -a /tmp/npm-security-patches/node_modules/brace-expansion /usr/lib/node_modules/npm/node_modules/brace-expansion \
+ && cp -a /tmp/npm-security-patches/node_modules/. /usr/lib/node_modules/npm/node_modules/ \
  && rm -rf /tmp/npm-security-patches \
  && node -e 'const root="/usr/lib/node_modules/npm/node_modules/"; const expected={"undici":"6.29.1","brace-expansion":"5.0.12"}; for (const [name, version] of Object.entries(expected)) { const actual = require(root + name + "/package.json").version; if (actual !== version) throw new Error(name + " expected " + version + " but found " + actual); }' \
  && npm --version \
