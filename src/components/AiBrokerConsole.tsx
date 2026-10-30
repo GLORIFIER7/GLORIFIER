@@ -304,8 +304,8 @@ Choose an action to request a backend response. Any returned claim must be check
                   : savedModelPreference.current !== 'auto' && selectedModel === 'auto'
                     ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; automatic routing is active.'
                     : discoveredModelOptions.length
-                      ? discoveredModelOptions.length + ' inference-authenticated model IDs discovered. Discovery does not guarantee successful inference.'
-                      : 'No inference-authenticated model IDs were discovered. Auto routing may use eligible provider defaults.'}
+                      ? discoveredModelOptions.length + ' authenticated provider model IDs discovered. Discovery does not guarantee successful inference.'
+                      : 'No authenticated provider model IDs were discovered. Auto routing may use eligible provider defaults.'}
               </p>
               <button
                 type="button"
