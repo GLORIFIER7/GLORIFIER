@@ -6,6 +6,8 @@ on:
       - "src/worker.ts"
       - "src/worker.test.ts"
       - "src/lib/a2a-runtime.ts"
+      - "src/lib/a2a-v1.test.ts"
+      - "src/lib/a2a-v1.ts"
       - "server.ts"
       - "sdk/python/**"
       - "docs/architecture/interoperability-capabilities*"
@@ -33,6 +35,8 @@ on:
       - "src/worker.ts"
       - "src/worker.test.ts"
       - "src/lib/a2a-runtime.ts"
+      - "src/lib/a2a-v1.test.ts"
+      - "src/lib/a2a-v1.ts"
       - "server.ts"
       - "sdk/python/**"
       - "docs/architecture/interoperability-capabilities*"
@@ -76,6 +80,8 @@ jobs:
         run: npm run test:interoperability-evidence-policy
       - name: Test MCP interoperability registry policy
         run: npm run test:interoperability-registry
+      - name: Test A2A 1.0 JSON-RPC adapter contract
+        run: npm run test:a2a-v1
       - name: Test pinned A2A and MCP protocol boundaries
         run: npm run test:interoperability-protocol-boundaries
       - name: Validate MCP interoperability registry
