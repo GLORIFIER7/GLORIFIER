@@ -234,7 +234,7 @@ const openSeaCollectionResponse = async (request: Request, slug: string, env: Cl
       return Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders });
     }
     if (!upstream.ok) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR', upstreamStatus: upstream.status }, { status: 502, headers });
+      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers });
     }
     const contentType = upstream.headers.get('content-type') || '';
     if (!contentType.toLowerCase().includes('application/json')) {
