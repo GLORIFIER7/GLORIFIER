@@ -28,6 +28,14 @@ const providers: AIProvider[] = [
   ...compatibleProviders.map((config) => new OpenAICompatibleProvider(config)),
 ];
 
+/**
+ * Explicit model selections are strict: never silently substitute a provider's
+ * default model when the requested model is not advertised by that provider.
+ */
+export function isProviderModelEligible(provider: AIProvider, requestedModel?: string): boolean {
+  return !requestedModel || provider.models().includes(requestedModel);
+}
+
 const providerCooldownUntil = new Map<string, number>();
 const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
