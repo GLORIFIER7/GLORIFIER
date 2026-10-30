@@ -186,4 +186,4 @@ const asyncCreated = await asyncCreateHandler({
 });
 const asyncSubmittedTask = asyncCreated.result as { status: { state: string; message: { parts: Array<{ text: string }> } } };
 assert.equal(asyncSubmittedTask.status.state, 'submitted');
-assert.equal(asyncSubmittedTask.status.message.parts[0].text.includes('human approval'), true);
+assert.match(asyncSubmittedTask.status.message.parts[0].text, /human approval/i);
