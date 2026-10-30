@@ -24,7 +24,7 @@ const query: AgentStateQuery = async (sql, values = []) => {
     return { rows: [], rowCount: 1 };
   }
   if (sql.includes('SELECT payload FROM glorifier_agent_state')) {
-    const [kind, idOrLimit] = values as [string, string | number];
+    const [kind, idOrLimit, requester] = values as [string, string | number, string | undefined];
     if (sql.includes('WHERE kind = $1 AND id = $2')) {
       const row = rows.get(`${kind}:${idOrLimit}`);
       return { rows: row ? [{ payload: row.payload }] : [] };
@@ -32,6 +32,7 @@ const query: AgentStateQuery = async (sql, values = []) => {
     return {
       rows: [...rows.values()]
         .filter((row) => row.kind === kind)
+        .filter((row) => !requester || (row.payload as Record<string, unknown>).requester === requester)
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
         .slice(0, Number(idOrLimit))
         .map((row) => ({ payload: row.payload })),
@@ -110,6 +111,31 @@ const task = {
 await store.save('task', task);
 assert.deepEqual(await store.get<typeof task>('task', task.id), task);
 assert.deepEqual(await store.list<typeof task>('task', 10), [task]);
+
+// Requester filtering must occur in SQL before LIMIT, not after a global page
+// has already been selected. A much newer task from Bob must not hide Alice's.
+const aliceOlderTask = {
+  ...task,
+  id: 'task-alice-older',
+  requester: 'alice-uid',
+  updatedAt: '2026-10-29T10:00:00.000Z',
+};
+const bobNewerTask = {
+  ...task,
+  id: 'task-bob-newer',
+  requester: 'bob-uid',
+  updatedAt: '2026-10-30T10:00:00.000Z',
+};
+await store.save('task', aliceOlderTask);
+await store.save('task', bobNewerTask);
+assert.deepEqual(
+  (await store.list<typeof task>('task', 1, 'alice-uid')).map((entry) => entry.id),
+  [aliceOlderTask.id],
+  'the per-requester filter must apply before the list limit',
+);
+const requesterListSql = statements[statements.length - 1] || '';
+assert.match(requesterListSql, /payload->>'requester'\s*=\s*\$3/);
+assert.deepEqual(queryValues[queryValues.length - 1], ['task', 1, 'alice-uid']);
 
 const running = { ...task, id: 'task-running', status: 'running' };
 await store.save('task', running);
