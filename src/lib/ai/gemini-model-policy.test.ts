@@ -50,6 +50,7 @@ try {
 }
 
 const previousConfiguredGeminiModel = process.env.GEMINI_MODEL;
+const previousGeminiKeyForFallback = process.env.GEMINI_API_KEY;
 const fallbackFetch = globalThis.fetch;
 try {
   process.env.GEMINI_API_KEY = 'test-gemini-key';
@@ -78,4 +79,6 @@ try {
   globalThis.fetch = fallbackFetch;
   if (previousConfiguredGeminiModel === undefined) delete process.env.GEMINI_MODEL;
   else process.env.GEMINI_MODEL = previousConfiguredGeminiModel;
+  if (previousGeminiKeyForFallback === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = previousGeminiKeyForFallback;
 }
