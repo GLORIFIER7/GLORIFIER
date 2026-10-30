@@ -64,7 +64,13 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
-export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] { return definitions.map(d=>snapshot.get(d.id)||{id:d.id,name:d.name,kind:d.kind,endpoint:endpointFor(d),configured:Boolean(d.keyEnv?env(d.keyEnv):true),authenticated:false,availability:d.keyEnv&&env(d.keyEnv)?'unreachable':'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:null,cooldownUntil:null,reason:'Not probed yet.',authorization:d.keyEnv&&env(d.keyEnv)?'pending':'not-configured'}); }
+export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
+ return definitions.map(d=>{
+  const endpoint=endpointFor(d);
+  const configured=Boolean((d.keyEnv?env(d.keyEnv):true)&&endpoint);
+  return snapshot.get(d.id)||{id:d.id,name:d.name,kind:d.kind,endpoint,configured,authenticated:false,availability:configured?'unreachable':'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:null,cooldownUntil:null,reason:'Not probed yet.',authorization:configured?'pending':'not-configured'};
+ });
+}
 export function getEligibleGlobalProviders(capability?:string) { return getGlobalProviderDiscoverySnapshot().filter(p=>p.configured&&p.authenticated&&p.availability==='available'&&(!capability||p.capabilities.includes(capability))); }
 export async function discoverGlobalProviders(
   actor = 'provider-discovery',
