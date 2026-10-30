@@ -64,6 +64,7 @@ export class GeminiProvider implements AIProvider {
             model,
             contents: prompt.contents,
             config: {
+              ...(request.signal ? { abortSignal: request.signal } : {}),
               systemInstruction: prompt.systemInstruction,
               ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
               ...(request.maxTokens === undefined ? {} : { maxOutputTokens: request.maxTokens }),
