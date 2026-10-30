@@ -205,6 +205,7 @@ async function run(): Promise<void> {
     assert.equal(new URL(a2aUpstreamRequest.url).origin, 'https://api.example.test');
     assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
 
+    capturedRequest = null;
     const a2aTrailingSlashForwarded = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
         method: 'POST',
