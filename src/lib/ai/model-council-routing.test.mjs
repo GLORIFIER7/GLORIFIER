@@ -16,7 +16,7 @@ test('provider selection requires at least one known provider', () => {
 test('provider selection rejects blank, duplicate, and excessive provider IDs', () => {
   assert.throws(() => validateModelCouncilProviderIds(['openai', ' '], knownProviders), /non-empty/i);
   assert.throws(() => validateModelCouncilProviderIds(['openai', 'openai'], knownProviders), /duplicate/i);
-  assert.throws(() => validateModelCouncilProviderIds(knownProviders, knownProviders), /maximum/i);
+  assert.throws(() => validateModelCouncilProviderIds(knownProviders, knownProviders), /at most/i);
 });
 
 test('provider selection trims IDs and preserves the owner-selected order', () => {
