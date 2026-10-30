@@ -2432,23 +2432,48 @@ app.get('/api/federated-a2a/v3/policy', (_req: Request, res: Response) => {
   res.json({ ok: true, policy: getFederatedA2AV3Policy() });
 });
 
-app.get('/api/federated-a2a/v3/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listFederatedA2ATasks(), policy: getFederatedA2AV3Policy() });
+app.get('/api/federated-a2a/v3/tasks', (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  const tasks = filterAgentTasksByRequester(listFederatedA2ATasks(), requesterUid, mayReadAllTasks);
+  return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
 });
 
 app.get('/api/federated-a2a/v3/tasks/:id', (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
   const task = getFederatedA2ATask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+  if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+    return res.status(404).json({ ok: false, error: 'Federated A2A v3 task not found' });
+  }
   return res.json({ ok: true, task });
 });
 
 app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
   const body = req.body || {};
-  if (!body.capability || !body.objective) return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, body.requesterAgentId, mayOverrideRequester);
+  if (!requesterAgentId) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  if (typeof body.capability !== 'string' || !body.capability.trim()
+    || typeof body.objective !== 'string' || !body.objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  }
   const task = createFederatedA2ATask({
-    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    requesterAgentId,
     targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
-    capability: String(body.capability), objective: String(body.objective), input: body.input,
+    capability: body.capability, objective: body.objective, input: body.input,
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined, maxAttempts: body.maxAttempts
   });
   return res.status(201).json({ ok: true, task, next: 'AUTHORIZED' });
@@ -2511,32 +2536,58 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
   res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listA2ATasks(), protocol: getA2AProtocolManifest() });
+app.get('/api/a2a/tasks', (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  const tasks = filterAgentTasksByRequester(listA2ATasks(), requesterUid, mayReadAllTasks);
+  return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
 app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
   const task = getA2ATask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+    return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  }
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
+app.post('/api/a2a/tasks', requireOwnerOrInternalService, async (req: Request, res: Response) => {
   const body = req.body || {};
-  if (!body.capability || !body.objective) {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, body.requesterAgentId, mayOverrideRequester);
+  if (!requesterAgentId) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
+  if (typeof body.capability !== 'string' || !body.capability.trim()
+    || typeof body.objective !== 'string' || !body.objective.trim()) {
     return res.status(400).json({ ok: false, error: 'capability and objective are required' });
   }
   const task = createA2ATask({
-    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    requesterAgentId,
     targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
-    capability: String(body.capability),
-    objective: String(body.objective),
+    capability: body.capability,
+    objective: body.objective,
     input: body.input,
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  const approvalRequired = true;
-  if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
+  // A request-body string is not an approval credential. Only an authenticated
+  // owner may authorize execution in this request; internal service callers and
+  // other authenticated identities receive a pending task.
+  const humanApproved = Boolean(auth && isOwner(auth) && String(body.approval || '').toLowerCase() === 'approved');
+  if (!humanApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
