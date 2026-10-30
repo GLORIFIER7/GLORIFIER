@@ -14,6 +14,7 @@ const envKeys = [
 const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
 const providerRequests: Array<{ method: string; url: string; body?: Record<string, unknown> }> = [];
+let metaModelListStatus = 200;
 
 try {
   for (const key of envKeys) delete process.env[key];
@@ -33,7 +34,7 @@ try {
     if (method === 'GET' && url.endsWith('/models')) {
       return new Response(JSON.stringify({
         data: [{ id: 'meta-default' }, { id: 'qwen-dynamic' }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }), { status: metaModelListStatus, headers: { 'content-type': 'application/json' } });
     }
     if (method === 'POST' && url.endsWith('/chat/completions')) {
       return new Response(JSON.stringify({
@@ -137,6 +138,24 @@ try {
     beforeUnauthorizedMeta,
     'a connected but unauthorized required provider must not refresh or execute through another provider',
   );
+
+  for (const failingStatus of [400, 429, 503]) {
+    metaModelListStatus = failingStatus;
+    await discoverGlobalProviders(`provider-registry-model-list-${failingStatus}-regression`, { persistConnections: false });
+    const beforeFailedDiscoveryInference = providerRequests.filter((request) => request.method === 'POST').length;
+    const failedDiscoveryResult = await executeThroughProviderRegistry({
+      requiredProvider: 'meta',
+      model: 'auto',
+      messages,
+    });
+    assert.equal(failedDiscoveryResult.provider, 'provider-registry-exhausted', `HTTP ${failingStatus} discovery must block provider execution`);
+    assert.equal(
+      providerRequests.filter((request) => request.method === 'POST').length,
+      beforeFailedDiscoveryInference,
+      `HTTP ${failingStatus} model-list results must not reach inference even when operator authorization is configured`,
+    );
+  }
+  metaModelListStatus = 200;
 
   assert.equal(
     providerRequests.some((request) => request.body?.model === 'auto'),
