@@ -332,10 +332,16 @@ export async function getAgentTask(id: string): Promise<AgentTask | null> {
   return tasks.get(id) || null;
 }
 
-export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
+export async function listAgentTasks(limit = 50, requester?: string): Promise<AgentTask[]> {
   assertAgentRuntimeReady();
-  if (persistence) return persistence.list<AgentTask>('task', limit);
-  return [...tasks.values()].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0, Math.max(1, Math.min(500, limit)));
+  const normalizedRequester = typeof requester === 'string' ? requester.trim() : '';
+  if (persistence) {
+    return persistence.list<AgentTask>('task', limit, normalizedRequester || undefined);
+  }
+  return [...tasks.values()]
+    .filter((task) => !normalizedRequester || task.requester === normalizedRequester)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, Math.max(1, Math.min(500, limit)));
 }
 
 export function agentManifest() {
