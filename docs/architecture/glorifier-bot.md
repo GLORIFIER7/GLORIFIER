@@ -6,6 +6,7 @@
 
 - The **Locked Dependency Guardian** runs on pull requests targeting `main` that change its workflow, Dependabot configuration, or npm manifests/lockfile, and on a weekly schedule or manual dispatch.
 - It validates the event's checked-out ref using `npm ci --ignore-scripts --no-audit`, `npm audit`, the repository type-check, and the build. Checkout does not persist the GitHub token in the local Git configuration. The workflow has read-only repository permissions and does not resolve new package versions or write to the repository.
+- The historical workflow and job check-run labels are retained for compatibility with any existing branch rules. The job label still says “Prepare and test safe dependency refresh,” but the implemented workflow is validation-only and performs no dependency refresh.
 - GitHub's native Dependabot is the update mechanism for npm and GitHub Actions. It checks both ecosystems weekly and proposes reviewable pull requests with dependency and security labels.
 - The guardian uses the committed `package-lock.json`; a manifest/lockfile mismatch fails at `npm ci`. This statement applies to the guardian workflow only: other CI workflows must be assessed independently, and this change does not establish lockfile-only installation across every repository workflow.
 - The bot does not auto-merge, deploy, modify secrets, transfer assets, trade, rotate credentials, or delete production data.
