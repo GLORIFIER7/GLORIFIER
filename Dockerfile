@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build dependencies in a disposable stage; ship only the app and Node runtime.
-FROM node:22-trixie-slim AS build
+FROM node:24-trixie-slim AS build
 
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
@@ -9,18 +9,18 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts --no-audit --no-fund
+RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
+ && npm ci --ignore-scripts --no-audit --no-fund
 
 COPY . .
 # Bundle the TypeScript server while esbuild is still installed. The runtime
 # image prunes devDependencies, so it must not launch the server through tsx.
 RUN npm run build \
- && npm run build:server \
  && npm prune --omit=dev --no-audit --no-fund \
  && npm cache clean --force
 
 # Minimal, non-root runtime; the image has no shell or package manager.
-FROM gcr.io/distroless/nodejs22-debian13:nonroot
+FROM gcr.io/distroless/nodejs24-debian13:nonroot
 
 ENV NODE_ENV=production \
     PORT=3000

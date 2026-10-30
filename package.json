@@ -2,11 +2,14 @@
   "name": "@glorifier7/glorifier",
   "private": false,
   "version": "0.2.1",
+  "engines": {
+    "node": ">=24.12.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "npm run build:frontend",
-    "start": "tsx server.ts",
+    "build": "npm run build:frontend && npm run build:server",
+    "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
@@ -82,8 +85,7 @@
     "test:agent-persistence-bootstrap": "tsx src/lib/agent-persistence-bootstrap.test.ts",
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
     "test:governance-loop": "tsx src/lib/governance-loop.test.ts",
-    "test:a2a-v1": "tsx src/lib/a2a-v1.test.ts",
-        "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
+    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -104,7 +106,6 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "vite": "^8.3.5",
-    "tsx": "^4.23.15",
     "@capacitor/device": "^8.0.3"
   },
   "devDependencies": {
@@ -120,7 +121,8 @@
     "@capacitor/cli": "^8.5.2",
     "cross-env": "^10.1.0",
     "playwright": "^1.63.0",
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "tsx": "^4.23.15"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

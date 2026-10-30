@@ -1,23 +1,30 @@
-# GLORIFIER Permanent Orchestrator — Ubuntu LTS runtime
-# Ubuntu 24.04 LTS (Noble) + Node.js 22
-FROM ubuntu:24.04
+# GLORIFIER Permanent Orchestrator — minimal, reproducible Ubuntu runtime
+# Copy only the Node.js executable from a digest-pinned official Node 24 image.
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    NODE_ENV=production \
-    NPM_CONFIG_UPDATE_NOTIFIER=false \
-    NPM_CONFIG_FUND=false
+    NODE_ENV=production
 
+# Install only the shared libraries needed by the copied Node binary, CA roots
+# for outbound HTTPS, and the tools needed to create a fixed non-root identity.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git \
- && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
- && apt-get install -y --no-install-recommends nodejs \
- && node --version \
- && npm --version \
+ && apt-get install -y --no-install-recommends ca-certificates libstdc++6 libgcc-s1 libatomic1 libssl3t64 zlib1g passwd \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 10001 glorifier \
+ && useradd --system --uid 10001 --gid glorifier --home-dir /app --no-create-home --shell /usr/sbin/nologin glorifier \
+ && mkdir -p /app/scripts \
+ && chown -R 10001:10001 /app
+
+COPY --from=node-bins /usr/local/bin/node /usr/local/bin/node
+
+RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1); console.log("Verified Node.js " + process.versions.node)'
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --omit=dev
 COPY scripts/permanent-orchestrator.mjs ./scripts/permanent-orchestrator.mjs
+RUN node --check ./scripts/permanent-orchestrator.mjs
+
+# The supervisor uses Node built-ins only and runs without root privileges.
+USER 10001:10001
 CMD ["node", "scripts/permanent-orchestrator.mjs"]

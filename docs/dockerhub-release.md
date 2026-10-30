@@ -43,8 +43,10 @@ Do not use a Docker Hub account password. If either secret is absent or the acco
 
 ## Runtime notes
 
-- Run as the unprivileged `node` user.
+- Run as a non-root user (Distroless UID `65532` for the primary image; UID `10001` for the Ubuntu runtime image).
 - Container health checks use `/api/health`.
 - `.dockerignore` excludes local environment files, credentials, dependency folders, and generated artifacts.
-- The current server entrypoint uses TypeScript runtime tooling. Runtime dependencies are retained to preserve its present import behavior; reducing the image further should follow a separately tested compiled-server migration.
+- Production images use Node.js 24; the Ubuntu image pins Node.js 24.22.2, and `package.json` declares a minimum of Node.js `24.12.0`.
+- The primary image runs the compiled `dist/server.cjs` entrypoint. Development-only `tsx` is excluded from production dependencies.
+- Pull-request CI builds all three container variants, verifies the primary image runtime Node version, smoke-tests the Ubuntu runtime health endpoint, and blocks HIGH/CRITICAL Trivy findings for each image. The permanent orchestrator image uses only the Node.js built-in runtime APIs, with Node and Ubuntu image digests pinned, no npm dependency tree, and a fixed non-root UID.
 - The workflow blocks publishing on CRITICAL/HIGH vulnerability findings that Trivy reports under its configured policy. It does not claim that a scan proves the absence of all vulnerabilities.

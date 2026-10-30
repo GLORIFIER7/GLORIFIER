@@ -1,9 +1,9 @@
 # Reproducible Ubuntu runtime with pinned OCI image digests.
 # Refresh these digests deliberately through a reviewed dependency update.
 # This pinned stage supplies only the Node.js runtime binary to Ubuntu.
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS node-bins
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
 
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build-deps
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build-deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
@@ -12,10 +12,9 @@ FROM build-deps AS build
 COPY . .
 # Build both the frontend and the bundled server while esbuild is available.
 # The runtime stage intentionally omits devDependencies and therefore tsx.
-RUN npm run build \
- && npm run build:server
+RUN npm run build
 
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS production-deps
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS production-deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
@@ -35,7 +34,8 @@ RUN apt-get update \
  && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
 
 COPY --from=node-bins /usr/local/bin/node /usr/local/bin/node
-RUN mkdir -p /app && chown 10001:10001 /app
+RUN /usr/local/bin/node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
+ && mkdir -p /app && chown 10001:10001 /app
 WORKDIR /app
 COPY --from=production-deps --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/dist ./dist
@@ -45,6 +45,5 @@ COPY --from=build --chown=10001:10001 /app/package.json ./package.json
 
 USER 10001:10001
 EXPOSE 3000
-RUN /usr/local/bin/node --version
 # Keep the runtime entrypoint independent of npm and the dev-only tsx package.
 CMD ["node", "dist/server.cjs"]

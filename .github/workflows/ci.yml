@@ -274,11 +274,8 @@ jobs:
       - name: Validate permanent orchestrator JavaScript syntax
         run: node --check scripts/permanent-orchestrator.mjs
 
-      - name: Production frontend build
+      - name: Production frontend and server build
         run: npm run build
-
-      - name: Build bundled production server
-        run: npm run build:server
 
   agent-state-postgres-integration:
     runs-on: ubuntu-latest
