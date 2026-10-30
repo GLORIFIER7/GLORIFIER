@@ -4,6 +4,8 @@ import { discoverGlobalProviders } from './provider-discovery.ts';
 const environmentKeys = [
   'QWEN_API_KEY',
   'QWEN_BASE_URL',
+  'GEMINI_API_KEY',
+  'GEMINI_AUTHORIZED',
   'NVIDIA_API_KEY',
   'NVIDIA_BASE_URL',
   'NVIDIA_MODEL',
@@ -16,6 +18,8 @@ const requests: Array<{ url: string; method: string }> = [];
 try {
   process.env.QWEN_API_KEY = 'test-qwen-key';
   process.env.QWEN_BASE_URL = '';
+  process.env.GEMINI_API_KEY = 'test-gemini-key';
+  process.env.GEMINI_AUTHORIZED = 'true';
   process.env.NVIDIA_API_KEY = 'test-nvidia-key';
   process.env.NVIDIA_BASE_URL = 'https://nvidia.example.test/v1';
   process.env.NVIDIA_MODEL = 'nvidia/test-model';
@@ -25,7 +29,10 @@ try {
     const url = input instanceof Request ? input.url : String(input);
     const method = (init?.method || 'GET').toUpperCase();
     requests.push({ url, method });
-    return new Response(JSON.stringify({ data: [{ id: 'nvidia/test-model' }] }), {
+    const payload = url.includes('generativelanguage.googleapis.com')
+      ? { models: [{ name: 'models/gemini-2.5-flash' }] }
+      : { data: [{ id: 'nvidia/test-model' }] };
+    return new Response(JSON.stringify(payload), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -50,7 +57,13 @@ try {
 
   assert.ok(nvidia, 'NVIDIA discovery entry must exist');
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
+  assert.equal(nvidia.authenticated, false, 'NVIDIA model-list access must not claim inference authentication');
+  assert.equal(nvidia.authorization, 'configured', 'the explicit authorization flag is represented separately');
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
+
+  const gemini = providers.find((provider) => provider.id === 'gemini');
+  assert.ok(gemini, 'Gemini discovery entry must exist');
+  assert.ok(gemini.models.includes('gemini-2.5-flash'), 'Gemini model resource names must be normalized to request model IDs');
   assert.equal(
     requests.some((request) => request.method !== 'GET'),
     false,
