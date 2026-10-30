@@ -2540,17 +2540,21 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
 });
 
 app.get('/api/a2a/tasks', requireAuthentication, (req: Request, res: Response) => {
-  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterAgentId = String(auth?.uid || '').trim();
+  const owner = auth ? isOwner(auth) : false;
   const tasks = listA2ATasks().filter((task) =>
-    isOwner(req) || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
+    owner || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
   );
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
 app.get('/api/a2a/tasks/:id', requireAuthentication, (req: Request, res: Response) => {
   const task = getA2ATask(String(req.params.id));
-  const requesterAgentId = String((req as any).auth?.uid || '').trim();
-  if (!task || (!isOwner(req) && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterAgentId = String(auth?.uid || '').trim();
+  const owner = auth ? isOwner(auth) : false;
+  if (!task || (!owner && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
     return res.status(404).json({ ok: false, error: 'A2A task not found' });
   }
   return res.json({ ok: true, task });
