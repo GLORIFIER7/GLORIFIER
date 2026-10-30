@@ -34,14 +34,14 @@ const missingCapability = authorizeToolRequest(dangerous, new Set(), approval);
 assert.equal(missingCapability.allowed, false);
 assert.equal(missingCapability.requiresHumanApproval, false);
 
-const session = createAgentSession('harness-test');
+const session = await createAgentSession('harness-test');
 await assert.rejects(
   () => executeAgentTurn({ session, contextTokens: 100, tools: [dangerous], approvedCapabilities: capability, run: async () => 'must-not-run' }),
   /Tool approval required/,
 );
-assert.equal(getAgentSession(session.id)?.status, 'waiting-approval');
+assert.equal((await getAgentSession(session.id))?.status, 'waiting-approval');
 
-const approvedSession = createAgentSession('harness-test-approved');
+const approvedSession = await createAgentSession('harness-test-approved');
 let executed = false;
 const result = await executeAgentTurn({
   session: approvedSession,
@@ -57,5 +57,6 @@ const result = await executeAgentTurn({
 assert.equal(executed, true);
 assert.equal(result.result, 'executed');
 assert.equal(result.session.lastHumanApproval?.toolId, dangerous.id);
+assert.equal((await getAgentSession(approvedSession.id))?.turnCount, 1);
 
 console.log('agent-harness approval state-machine tests: PASS');
