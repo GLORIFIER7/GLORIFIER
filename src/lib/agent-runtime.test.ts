@@ -93,16 +93,21 @@ try {
   assert.equal((await getAgentTask(task.id))?.status, 'running');
   assert.ok(Date.parse((await getAgentTask(task.id))?.updatedAt || '') >= Date.parse(firstHeartbeat));
 
+  const beforeWrappedHeartbeat = (await getAgentTask(task.id))?.updatedAt || '';
   const heartbeatResult = await withAgentTaskHeartbeat(
     task.id,
     async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 30));
       return 'heartbeat-wrapped-result';
     },
     5,
   );
   assert.equal(heartbeatResult, 'heartbeat-wrapped-result');
   assert.equal((await getAgentTask(task.id))?.status, 'running');
+  assert.ok(
+    Date.parse((await getAgentTask(task.id))?.updatedAt || '') > Date.parse(beforeWrappedHeartbeat),
+    'the heartbeat wrapper must refresh the persisted task timestamp while work is active',
+  );
 
   const failed = await updateAgentTask(task.id, { status: 'failed', error: 'test failure' });
   assert.equal(failed?.status, 'failed');
@@ -157,9 +162,16 @@ try {
   );
 
   const durableRecords = new Map<string, unknown>();
+  let hangNextHeartbeat = false;
+  let releaseHangingHeartbeat: (() => void) | undefined;
   const durableStore = {
     initialize: async () => undefined,
     recoverInterruptedTasks: async () => 0,
+    heartbeatRunningTask: async () => {
+      if (!hangNextHeartbeat) return true;
+      await new Promise<void>((resolve) => { releaseHangingHeartbeat = resolve; });
+      return true;
+    },
     list: async <T>() => [...durableRecords.values()] as T[],
     get: async <T>(_kind: 'task' | 'session', id: string) => (durableRecords.get(id) as T | undefined) ?? null,
     save: async (_kind: 'task' | 'session', record: { id: string }) => {
@@ -181,6 +193,27 @@ try {
   assert.equal((await getAgentTask(durableTask.id))?.status, 'running');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === durableTask.id), true);
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
+  hangNextHeartbeat = true;
+  const nonBlockingHeartbeatOperation = withAgentTaskHeartbeat(
+    durableTask.id,
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return 'operation-finished-with-hanging-heartbeat';
+    },
+    5,
+  );
+  const nonBlockingHeartbeatResult = await Promise.race([
+    nonBlockingHeartbeatOperation,
+    new Promise<string>((resolve) => setTimeout(() => resolve('heartbeat-timeout'), 150)),
+  ]);
+  hangNextHeartbeat = false;
+  releaseHangingHeartbeat?.();
+  await nonBlockingHeartbeatOperation;
+  assert.equal(
+    nonBlockingHeartbeatResult,
+    'operation-finished-with-hanging-heartbeat',
+    'a slow heartbeat must not block completion of the monitored operation',
+  );
 
   await assert.rejects(
     () => createAgentTask({
