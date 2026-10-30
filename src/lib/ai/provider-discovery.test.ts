@@ -45,7 +45,11 @@ try {
     const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
       : hostname === 'meta.example.test'
-        ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
+        ? metaProbeStatus < 400
+          ? { data: [{ id: 'meta/test-model' }] }
+          : metaProbeStatus === 400
+            ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
+            : { error: { message: 'temporary provider failure' } }
         : nvidiaProbeStatus >= 400
           ? { error: { message: 'NVIDIA credential rejected' } }
           : { data: [{ id: 'nvidia/test-model' }] };
@@ -89,12 +93,14 @@ try {
   const rateLimitedMeta = afterRateLimit.find((provider) => provider.id === 'meta');
   assert.equal(rateLimitedMeta?.availability, 'rate_limited');
   assert.equal(rateLimitedMeta?.authenticated, false, 'HTTP 429 does not prove successful model-list authentication');
+  assert.equal(rateLimitedMeta?.reason?.includes('test-meta-api-key-secret'), false, 'HTTP 429 diagnostics must not expose provider credentials');
 
   metaProbeStatus = 503;
   const afterServerError = await discoverGlobalProviders('provider-discovery-server-error-auth-regression', { persistConnections: false });
   const unavailableMeta = afterServerError.find((provider) => provider.id === 'meta');
   assert.equal(unavailableMeta?.availability, 'unreachable');
   assert.equal(unavailableMeta?.authenticated, false, 'HTTP 5xx must not be interpreted as successful authentication');
+  assert.equal(unavailableMeta?.reason?.includes('test-meta-api-key-secret'), false, 'HTTP 5xx diagnostics must not expose provider credentials');
   metaProbeStatus = 400;
   metaProbeThrows = true;
   const afterNetworkError = await discoverGlobalProviders('provider-discovery-network-error-redaction-regression', { persistConnections: false });
@@ -110,7 +116,6 @@ try {
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
   assert.equal(nvidia.authenticated, false, 'NVIDIA model-list access must not claim inference authentication');
   assert.equal(nvidia.authorization, 'pending', 'read-only model discovery must not mark NVIDIA inference authorization as verified');
-  assert.equal(nvidia.authenticated, false, 'a successful models list is not inference authentication');
   assert.match(nvidia.reason || '', /inference verification requires a separately authorized user request/i);
 
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
