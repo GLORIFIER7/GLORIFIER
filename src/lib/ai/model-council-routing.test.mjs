@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import express from 'express';
-import { createModelCouncilRateLimit } from './model-council-rate-limit.mjs';
+import { createModelCouncilRateLimit, resolveIngressClientAddress } from './model-council-rate-limit.mjs';
 import { executeModelCouncilRequest } from './model-council-execution.mjs';
 import assert from 'node:assert/strict';
 import {
@@ -433,4 +433,13 @@ test('model council execution returns a non-synthetic 503 when every selected pr
   assert.equal(result.body.syntheticOutput, false);
   assert.equal(result.body.failures[0].code, 'provider_execution_failed');
   assert.equal(JSON.stringify(result.body).includes('raw upstream error'), false);
+});
+
+test('ingress quota key uses direct socket peer and ignores forwarded headers and req.ip', () => {
+  const address = resolveIngressClientAddress({
+    socket: { remoteAddress: '192.0.2.25' },
+    ip: '203.0.113.99',
+    get: () => '198.51.100.42',
+  });
+  assert.equal(address, '192.0.2.25');
 });
