@@ -786,6 +786,16 @@ async function run(): Promise<void> {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
+    upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    const openSeaServerError = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaServerError.status, 502);
+    const openSeaServerErrorBody = await openSeaServerError.json() as { code?: string; upstreamStatus?: number };
+    assert.equal(openSeaServerErrorBody.code, 'OPENSEA_UPSTREAM_ERROR');
+    assert.equal('upstreamStatus' in openSeaServerErrorBody, false, 'provider internals must not be disclosed');
+
     shouldThrow = true;
     const unavailable = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-unavailable'),
@@ -945,6 +955,16 @@ async function run(): Promise<void> {
       openSeaEnv,
     );
     assert.equal(openSeaInvalidSlug.status, 400, 'invalid collection slugs must be rejected locally');
+    assert.equal(await openSeaInvalidSlug.json().then((body: { code?: string }) => body.code), 'INVALID_COLLECTION_SLUG');
+
+    // A one-character collection slug is valid and must not be rejected by validation.
+    upstreamResponse = new Response(JSON.stringify({ collection: 'a' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const openSeaSingleCharacterSlug = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/a'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaSingleCharacterSlug.status, 200);
+    assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/a');
 
     const openSeaWrongMethod = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'POST' }),
