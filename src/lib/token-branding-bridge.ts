@@ -140,7 +140,8 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
   const normalizedNetwork = networkName.toLowerCase();
   if (!networkName) errors.push('network is required');
 
-  if (typeof record.tokenSymbol !== 'string' || !record.tokenSymbol.trim()) errors.push('tokenSymbol is required');
+  const tokenSymbol = record.tokenSymbol;
+  if (typeof tokenSymbol !== 'string' || !tokenSymbol.trim()) errors.push('tokenSymbol is required');
   if (typeof record.contractOrMint !== 'string' || !record.contractOrMint.trim()) errors.push('contractOrMint is required');
   if (typeof record.standard !== 'string' || !record.standard.trim()) errors.push('standard is required');
 

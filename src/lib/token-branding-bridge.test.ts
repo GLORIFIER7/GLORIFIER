@@ -81,7 +81,7 @@ const validSolanaToken: TokenBrandingRecord = {
 };
 
 test('rejects chain ID and token-standard mismatches for a named network', () => {
-  const mismatched = { ...validToken, chainId: 56, standard: 'BEP-20' };
+  const mismatched = { ...validToken, chainId: 56, standard: 'ERC-20' };
   const errors = validateTokenBrandingRecord(mismatched);
   assert.ok(errors.some((item) => item.includes('chainId')));
   assert.ok(errors.some((item) => item.includes('standard')));
