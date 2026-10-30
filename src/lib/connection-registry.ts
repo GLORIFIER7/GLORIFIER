@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
+import { persistConnectionApprovalAtomically } from './connection-approval';
 
 export type ConnectionAuthType = 'oauth2' | 'oidc' | 'api_key' | 'service_account' | 'webhook' | 'public';
 export type ConnectionStatus = 'discovered' | 'pending_authorization' | 'authorized' | 'degraded' | 'revoked' | 'expired' | 'disabled';
@@ -57,10 +58,13 @@ export async function initializeConnectionRegistry() {
       scope JSONB NOT NULL DEFAULT '[]',
       action TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
+      related_task_id TEXT,
       decided_by TEXT,
       decided_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE connection_approvals ADD COLUMN IF NOT EXISTS related_task_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_connection_approvals_related_task ON connection_approvals(related_task_id);
   `);
 }
 
@@ -108,17 +112,29 @@ export async function recordConnectionEvent(connectionId: string, eventType: str
   return { id, connectionId, eventType, actor, details };
 }
 
-export async function requestConnectionApproval(connectionId: string, requestedBy: string, action: string, scope: string[]) {
+export async function requestConnectionApproval(
+  connectionId: string,
+  requestedBy: string,
+  action: string,
+  scope: string[],
+  relatedTaskId?: string,
+) {
   await initializeConnectionRegistry();
   const connection = await getConnection(connectionId);
   if (!connection) throw new Error('Connection not found');
-  const id = `approval-${crypto.randomUUID()}`;
-  const r = await getPostgresPool().query(
-    'INSERT INTO connection_approvals(id,connection_id,requested_by,scope,action) VALUES($1,$2,$3,$4,$5) RETURNING *',
-    [id,connectionId,requestedBy,JSON.stringify(scope),action]
+  const db = getPostgresPool();
+  return persistConnectionApprovalAtomically(
+    (sql, values) => db.query(sql, values as any[]),
+    {
+      approvalId: `approval-${crypto.randomUUID()}`,
+      eventId: `ce-${crypto.randomUUID()}`,
+      connectionId,
+      requestedBy,
+      action,
+      scope,
+      relatedTaskId,
+    },
   );
-  await recordConnectionEvent(connectionId,'approval_requested',requestedBy,{approvalId:id,action,scope});
-  return r.rows[0];
 }
 
 export async function verifyConnection(id: string, actor = 'connection-manager') {
