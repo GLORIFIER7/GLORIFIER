@@ -239,6 +239,178 @@ const readBoundedOpenSeaResponse = async (response: Response): Promise<unknown> 
   return JSON.parse(new TextDecoder().decode(body));
 };
 
+type OpenSeaReadResult = { ok: true; data: unknown } | { ok: false; response: Response };
+
+const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaReadResult> => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  let upstream: Response;
+  try {
+    upstream = await fetch(endpoint, {
+      method: 'GET',
+      headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(7000),
+    });
+  } catch {
+    return { ok: false, response: Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers }) };
+  }
+
+  if (upstream.status === 401 || upstream.status === 403) {
+    return { ok: false, response: Response.json({ ok: false, status: 'unauthorized', code: 'OPENSEA_AUTHENTICATION_FAILED' }, { status: 502, headers }) };
+  }
+  if (upstream.status === 404) {
+    return { ok: false, response: Response.json({ ok: false, status: 'not-found', code: 'OPENSEA_RESOURCE_NOT_FOUND' }, { status: 404, headers }) };
+  }
+  if (upstream.status === 429) {
+    const retryAfter = upstream.headers.get('retry-after');
+    const retryHeaders = retryAfter && Number.isInteger(Number(retryAfter)) && Number(retryAfter) >= 0 ? { ...headers, 'Retry-After': retryAfter } : headers;
+    return { ok: false, response: Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders }) };
+  }
+  if (!upstream.ok) {
+    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers }) };
+  }
+  if (!(upstream.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers }) };
+  }
+  try {
+    return { ok: true, data: await readBoundedOpenSeaResponse(upstream) };
+  } catch (error) {
+    const code = error instanceof OpenSeaResponseTooLargeError ? 'OPENSEA_RESPONSE_TOO_LARGE' : 'OPENSEA_INVALID_RESPONSE';
+    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code }, { status: 502, headers }) };
+  }
+};
+
+const isOpenSeaAccountIdentifier = (identifier: string): boolean =>
+  identifier.length >= 1 &&
+  identifier.length <= 256 &&
+  /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/.test(identifier);
+
+const openSeaApiKeyOrResponse = (env: CloudflareEnv): string | Response => {
+  const apiKey = configured(env.OPENSEA_API_KEY);
+  if (!apiKey) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_API_KEY_NOT_CONFIGURED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  return apiKey;
+};
+
+const openSeaResolveAccount = async (identifier: string, apiKey: string): Promise<OpenSeaReadResult> => {
+  const endpoint = new URL(`https://api.opensea.io/api/v2/accounts/resolve/${encodeURIComponent(identifier)}`);
+  const result = await openSeaReadJson(endpoint, apiKey);
+  if (!result.ok) return result;
+  const account = result.data;
+  if (!account || typeof account !== 'object' || Array.isArray(account)) {
+    return {
+      ok: false,
+      response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_ACCOUNT_RESPONSE' }, {
+        status: 502,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      }),
+    };
+  }
+  const record = account as Record<string, unknown>;
+  if (typeof record.address !== 'string' || !record.address.trim() || record.address.length > 256 ||
+      /[\u0000-\u0020\u007f]/.test(record.address)) {
+    return {
+      ok: false,
+      response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_ACCOUNT_RESPONSE' }, {
+        status: 502,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      }),
+    };
+  }
+  return result;
+};
+
+const openSeaAccountResolveResponse = async (request: Request, identifier: string, env: CloudflareEnv): Promise<Response> => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } });
+  }
+  if (!isOpenSeaAccountIdentifier(identifier)) {
+    return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, { status: 400, headers });
+  }
+  const configuredKey = openSeaApiKeyOrResponse(env);
+  if (configuredKey instanceof Response) return configuredKey;
+  const result = await openSeaResolveAccount(identifier, configuredKey);
+  if (!result.ok) return result.response;
+  const source = result.data as Record<string, unknown>;
+  const account = {
+    address: source.address,
+    username: typeof source.username === 'string' ? source.username : null,
+    ens_name: typeof source.ens_name === 'string' ? source.ens_name : null,
+  };
+  return request.method === 'HEAD'
+    ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
+    : Response.json({ ok: true, source: 'opensea-api-v2', account }, { headers });
+};
+
+const openSeaAccountCollectionsResponse = async (
+  request: Request,
+  identifier: string,
+  env: CloudflareEnv,
+): Promise<Response> => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } });
+  }
+  if (!isOpenSeaAccountIdentifier(identifier)) {
+    return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, { status: 400, headers });
+  }
+  const url = new URL(request.url);
+  const limits = url.searchParams.getAll('limit');
+  const cursors = url.searchParams.getAll('after');
+  if (limits.length > 1 || cursors.length > 1) {
+    return Response.json({ ok: false, code: 'INVALID_OPENSEA_PAGINATION' }, { status: 400, headers });
+  }
+  const rawLimit = limits[0] ?? '50';
+  if (!/^[1-9][0-9]*$/.test(rawLimit) || Number(rawLimit) > 50) {
+    return Response.json({ ok: false, code: 'INVALID_OPENSEA_PAGE_LIMIT' }, { status: 400, headers });
+  }
+  const after = cursors[0];
+  if (after !== undefined && (!after || after.length > 1024 || /[\u0000-\u001f\u007f]/.test(after))) {
+    return Response.json({ ok: false, code: 'INVALID_OPENSEA_PAGE_CURSOR' }, { status: 400, headers });
+  }
+
+  const configuredKey = openSeaApiKeyOrResponse(env);
+  if (configuredKey instanceof Response) return configuredKey;
+  const resolved = await openSeaResolveAccount(identifier, configuredKey);
+  if (!resolved.ok) return resolved.response;
+  const account = resolved.data as Record<string, unknown>;
+  const resolvedUsername = typeof account.username === 'string' ? account.username : '';
+  if (!resolvedUsername || resolvedUsername.toLowerCase() !== identifier.toLowerCase()) {
+    return Response.json({ ok: false, status: 'identity-mismatch', code: 'OPENSEA_ACCOUNT_IDENTITY_MISMATCH' }, { status: 409, headers });
+  }
+
+  const endpoint = new URL(`https://api.opensea.io/api/v2/account/${encodeURIComponent(account.address as string)}/collections`);
+  endpoint.searchParams.set('limit', rawLimit);
+  if (after !== undefined) endpoint.searchParams.set('after', after);
+  const collectionsResult = await openSeaReadJson(endpoint, configuredKey);
+  if (!collectionsResult.ok) return collectionsResult.response;
+  const collectionPayload = collectionsResult.data;
+  if (!collectionPayload || typeof collectionPayload !== 'object' || Array.isArray(collectionPayload) ||
+      !Array.isArray((collectionPayload as Record<string, unknown>).collections)) {
+    return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_COLLECTIONS_RESPONSE' }, { status: 502, headers });
+  }
+  const listing = collectionPayload as { collections: unknown[]; next?: unknown };
+  const responseBody = {
+    ok: true,
+    source: 'opensea-api-v2',
+    account: {
+      address: account.address,
+      username: resolvedUsername,
+      ens_name: typeof account.ens_name === 'string' ? account.ens_name : null,
+    },
+    collections: listing.collections,
+    next: typeof listing.next === 'string' ? listing.next : null,
+  };
+  return request.method === 'HEAD'
+    ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
+    : Response.json(responseBody, { headers });
+};
+
 const openSeaCollectionResponse = async (request: Request, slug: string, env: CloudflareEnv): Promise<Response> => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -690,6 +862,31 @@ export default {
       const canonicalA2AUrl = new URL(request.url);
       canonicalA2AUrl.pathname = A2A_JSONRPC_PATH;
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
+    }
+
+    const openSeaAccountsPrefix = '/api/opensea/accounts/';
+    if (incomingUrl.pathname.startsWith(openSeaAccountsPrefix)) {
+      const segments = incomingUrl.pathname.slice(openSeaAccountsPrefix.length).split('/');
+      let identifier: string;
+      try {
+        if (segments[0] === 'resolve' && segments.length === 2) {
+          identifier = decodeURIComponent(segments[1]);
+          return openSeaAccountResolveResponse(request, identifier, env);
+        }
+        if (segments.length === 2 && segments[1] === 'collections') {
+          identifier = decodeURIComponent(segments[0]);
+          return openSeaAccountCollectionsResponse(request, identifier, env);
+        }
+      } catch {
+        return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
+          status: 400,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      return Response.json({ ok: false, code: 'OPENSEA_ACCOUNT_ROUTE_NOT_FOUND' }, {
+        status: 404,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
     }
 
     const openSeaCollectionPrefix = '/api/opensea/collections/';
