@@ -322,7 +322,10 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(modalSource, /Provider execution failures/);
   assert.match(modalSource, /p\.provider === 'openai'/);
   assert.match(modalSource, /setCouncilResult\(result\)/);
+  assert.match(modalSource, /setCouncilResult\(null\);\s*setProviderFailures\(\[\]\);\s*setStatusFeedback\(null\);/);
+  assert.match(modalSource, /catch \(err\) \{[\s\S]*?setCouncilResult\(null\);[\s\S]*?setStatusFeedback\(/);
   assert.match(modalSource, /Council execution failed\. No consensus result was produced/);
+  assert.match(managementSource, /catch \(err\) \{[\s\S]*?setCouncilResult\(null\);[\s\S]*?setStatusFeedback\(/);
 });
 
 test('council UI clients delegate owner-token handling to the shared client', async () => {
