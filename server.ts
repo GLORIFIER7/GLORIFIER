@@ -1231,11 +1231,6 @@ app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) =
       syntheticOutput: false
     });
   }
-});le',
-      details: error instanceof Error ? error.message : String(error),
-      syntheticOutput: false
-    });
-  }
 });
 
 // LlamaCloud document retrieval — server-side credential, owner/internal-service authorization.
