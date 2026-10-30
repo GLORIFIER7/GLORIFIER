@@ -13,7 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { executeModelCouncilProviders, resolveModelCouncilProviderIds } from './src/lib/ai/model-council-routing.mjs';
+import { executeModelCouncilProviders, isValidModelCouncilResponse, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
 import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
@@ -1059,20 +1059,21 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
     return res.status(413).json({ ok: false, error: 'Council agenda must be 4,000 characters or fewer.' });
   }
 
-  // Resolve legacy UI model IDs without silently dropping unknown selections.
-  // A request containing any unsupported model is rejected as a whole.
-  let providerIds: string[];
+  // Validate exact provider/model pairs against the live server-side registry.
+  // Legacy provider-only requests select each provider's first advertised model.
+  let selectedParticipants: Array<{ providerId: string; modelId: string }>;
   const providerRegistry = aiOrchestrator.registry();
   try {
-    providerIds = resolveModelCouncilProviderIds({
+    selectedParticipants = resolveModelCouncilParticipants({
+      participants: body.participants,
       providerIds: body.providerIds,
       activeModels: body.activeModels,
-      availableProviderIds: providerRegistry.map((provider) => provider.id),
+      availableProviders: providerRegistry,
     });
   } catch (error) {
     return res.status(400).json({
       ok: false,
-      error: error instanceof Error ? error.message : 'Invalid provider selection.'
+      error: error instanceof Error ? error.message : 'Invalid provider/model selection.'
     });
   }
 
@@ -1105,12 +1106,15 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
 
   try {
     const council = await executeModelCouncilProviders({
-      providerIds,
+      participants: selectedParticipants,
       messages: councilMessages,
-      generate: (providerId, messages) => aiOrchestrator.generate({
+      timeoutMs: 45_000,
+      generate: (providerId, modelId, messages, signal) => aiOrchestrator.generate({
         provider: providerId,
+        model: modelId,
         messages,
-        temperature: 0.2
+        temperature: 0.2,
+        signal
       })
     });
 
@@ -1118,7 +1122,8 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
       return res.status(503).json({
         ok: false,
         error: 'No selected provider returned a usable response. Check provider configuration, authorization, quota, and availability.',
-        requestedProviderIds: council.requestedProviderIds,
+        requestedParticipants: council.requestedParticipants,
+      requestedProviderIds: council.requestedProviderIds,
         participantCount: 0,
         providerDiversity: 0,
         failures: council.failures,
@@ -1135,6 +1140,7 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
     };
     const participants = council.participants.map((participant) => ({
       modelId: `${participant.provider}/${participant.model}`,
+      model: participant.model,
       name: participant.model,
       provider: participant.provider,
       role: 'Independent provider analysis',
@@ -1151,13 +1157,17 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
       ? 'Independent provider responses were received. Cross-provider synthesis was not completed; no consensus is claimed.'
       : 'A response from only one provider was received. Independent multi-provider consensus is unavailable.';
     if (council.providerDiversity >= 2) {
-      const synthesisProvider = council.participants[0].provider;
+      const synthesisParticipant = council.participants[0];
+      const synthesisProvider = synthesisParticipant.provider;
+      const synthesisModel = synthesisParticipant.model;
       const evidencePacket = council.participants.map((participant) =>
-        `[${participant.provider}/${participant.model}]\n${participant.text}`
-      ).join('\n\n');
+        `[${participant.provider}/${participant.model}]\\n${participant.text}`
+      ).join('\\n\\n');
       try {
         const synthesisResponse = await aiOrchestrator.generate({
           provider: synthesisProvider,
+          model: synthesisModel,
+          signal: AbortSignal.timeout(45_000),
           messages: [
             {
               role: 'system',
@@ -1168,16 +1178,16 @@ app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, a
                 'Do not state that consensus exists merely because multiple responses were received.',
                 'Do not invent facts, sources, test results, approvals, or verified outcomes.',
                 'No action is authorized by this synthesis; humans retain final authority.'
-              ].join('\n')
+              ].join('\\n')
             },
             {
               role: 'user',
-              content: `Agenda: ${topic}\n\nIndependent provider responses:\n${evidencePacket}`
+              content: `Agenda: ${topic}\\n\\nIndependent provider responses:\\n${evidencePacket}`
             }
           ],
           temperature: 0.1
         });
-        if (synthesisResponse.text?.trim()) {
+        if (isValidModelCouncilResponse(synthesisResponse, synthesisProvider, synthesisModel)) {
           synthesis = {
             provider: synthesisResponse.provider,
             model: synthesisResponse.model,
