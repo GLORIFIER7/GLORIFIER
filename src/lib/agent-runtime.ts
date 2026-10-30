@@ -46,6 +46,15 @@ const agents: AgentCard[] = [
 
 type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks' | 'heartbeatRunningTask'>;
 
+const TASK_HEARTBEAT_INTERVAL_MS = 60_000;
+const TASK_STALE_AFTER_MS = 30 * 60_000;
+
+export type AgentTaskRecoveryObservation = {
+  state: 'not-running' | 'heartbeat-current' | 'heartbeat-overdue' | 'startup-recovery-eligible' | 'unknown';
+  lastUpdatedAt: string;
+  ageMs: number | null;
+};
+
 const tasks = new Map<string, AgentTask>();
 let persistence: AgentRuntimePersistence | null = null;
 let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
@@ -80,8 +89,8 @@ export function getAgentRuntimePersistenceStatus() {
     durable: persistenceMode === 'postgres',
     cachedTasks: persistence ? 0 : tasks.size,
     recoveryPolicy: {
-      staleAfterMinutes: 30,
-      heartbeatIntervalMs: 60_000,
+      staleAfterMinutes: TASK_STALE_AFTER_MS / 60_000,
+      heartbeatIntervalMs: TASK_HEARTBEAT_INTERVAL_MS,
       heartbeatCoverage: ['agent-task-inference', 'governance-cycle'],
       startupRecoveryOnly: true,
       interruptedWithinGracePeriodMayRemainRunning: true,
@@ -195,6 +204,26 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
   }
   tasks.set(id, updated);
   return updated;
+}
+
+export function getAgentTaskRecoveryObservation(
+  task: Pick<AgentTask, 'status' | 'updatedAt'>,
+  now = Date.now(),
+): AgentTaskRecoveryObservation {
+  if (task.status !== 'running') {
+    return { state: 'not-running', lastUpdatedAt: task.updatedAt, ageMs: null };
+  }
+  const updatedAt = Date.parse(task.updatedAt);
+  if (!Number.isFinite(updatedAt)) {
+    return { state: 'unknown', lastUpdatedAt: task.updatedAt, ageMs: null };
+  }
+  const ageMs = Math.max(0, now - updatedAt);
+  const state = ageMs <= TASK_HEARTBEAT_INTERVAL_MS * 2
+    ? 'heartbeat-current'
+    : ageMs < TASK_STALE_AFTER_MS
+      ? 'heartbeat-overdue'
+      : 'startup-recovery-eligible';
+  return { state, lastUpdatedAt: task.updatedAt, ageMs };
 }
 
 export async function heartbeatAgentTask(id: string): Promise<boolean> {
