@@ -103,7 +103,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         })
       });
       const raw = await res.json();
-      const failures = Array.isArray(raw.failures)
+      const failures: Array<{ providerId: string; modelId: string | null; code: string }> = Array.isArray(raw.failures)
         ? raw.failures.map((failure: any) => ({
             providerId: String(failure.providerId || 'unknown'),
             modelId: typeof failure.modelId === 'string' ? failure.modelId : null,
@@ -119,8 +119,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         return;
       }
 
-      const participantsReturned = Array.isArray(raw.participants) ? raw.participants : [];
-      const normalizedParticipants = participantsReturned.map((p: any, index: number) => ({
+      const participantsReturned: any[] = Array.isArray(raw.participants) ? raw.participants : [];
+      const normalizedParticipants: CouncilConsensusResult['participants'] = participantsReturned.map((p: any, index: number) => ({
         modelId: String(p.modelId || (p.provider && p.model ? `${p.provider}/${p.model}` : p.provider || `participant-${index + 1}`)),
         name: String(p.name || p.model || p.provider || 'Unnamed participant'),
         provider: String(p.provider || 'Provider not reported'),
