@@ -1042,7 +1042,7 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
 // Provider-neutral AI-to-AI synthesis endpoint.
 // The council dynamically uses every currently executable provider/compute path.
 // No provider is hard-coded as the brain, and no synthetic response is created.
-app.post('/api/ai/council', async (req: Request, res: Response) => {
+app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const topic = typeof body.agenda === 'string' && body.agenda.trim()
     ? body.agenda.trim()
@@ -1063,7 +1063,7 @@ app.post('/api/ai/council', async (req: Request, res: Response) => {
     : Array.isArray(body.activeModels)
       ? body.activeModels.map((modelId: unknown) =>
           typeof modelId === 'string' ? legacyModelProviders[modelId] : undefined
-        ).filter((providerId: unknown) => typeof providerId === 'string')
+        ).filter((providerId: unknown): providerId is string => typeof providerId === 'string')
       : [];
 
   let providerIds: string[];
