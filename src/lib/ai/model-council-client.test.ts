@@ -112,3 +112,39 @@ try {
 assert.equal(authError?.status, 401);
 
 console.log('Model council client tests: PASS');
+
+const multiModelRegistry = new Response(JSON.stringify({
+  providers: [
+    { id: 'openai', status: 'connected', models: ['gpt-4o', '', 'gpt-4.1', 'gpt-4o'] },
+    { id: 'anthropic', status: 'connected', models: ['claude-opus-5', 'claude-sonnet-5'] },
+  ],
+}), { status: 200, headers: { 'content-type': 'application/json' } });
+const multiModelSelections = await discoverConfiguredModelCouncilParticipants(
+  async () => multiModelRegistry.clone(),
+);
+assert.deepEqual(multiModelSelections, [
+  { providerId: 'openai', modelId: 'gpt-4o' },
+  { providerId: 'anthropic', modelId: 'claude-opus-5' },
+  { providerId: 'openai', modelId: 'gpt-4.1' },
+  { providerId: 'anthropic', modelId: 'claude-sonnet-5' },
+]);
+
+let nonJsonError: ModelCouncilClientError | null = null;
+try {
+  await submitAuthenticatedModelCouncilRequest({
+    agenda: 'Review',
+    participants: [{ providerId: 'openai', modelId: 'gpt-4o' }],
+    getToken: async () => 'verified-test-token',
+    fetcher: async () => new Response('upstream proxy error', {
+      status: 502,
+      headers: { 'content-type': 'text/plain' },
+    }),
+  });
+} catch (error) {
+  if (error instanceof ModelCouncilClientError) nonJsonError = error;
+}
+assert.ok(nonJsonError);
+assert.equal(nonJsonError.status, 502);
+assert.match(nonJsonError.message, /non-JSON data/i);
+
+console.log('Model council client multi-model and error tests: PASS');
