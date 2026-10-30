@@ -16,7 +16,7 @@ const failure = (status: number, code: string, message: string, additionalHeader
     headers: { ...additionalHeaders, ...responseHeaders },
   });
 
-const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
+const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boolean): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
   let upstream: Response;
   try {
     const init: RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } } = {
@@ -28,7 +28,7 @@ const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: 
       redirect: 'error',
       signal: AbortSignal.timeout(8000),
       // Bound public collection requests at the Cloudflare edge to conserve API quota.
-      cf: { cacheTtl: 60, cacheEverything: true },
+      ...(useEdgeCache ? { cf: { cacheTtl: 60, cacheEverything: true } } : {}),
     };
     upstream = await fetch(new URL(`${OPENSEA_API_BASE}/collections/${encodeURIComponent(slug)}`), init);
   } catch (error) {
@@ -88,7 +88,8 @@ export const openSeaWorkerRoute = async (
     return failure(503, 'OPENSEA_API_KEY_NOT_CONFIGURED', 'Configure the OPENSEA_API_KEY Worker secret to enable public collection lookups.');
   }
 
-  const result = await fetchCollection(slug, apiKey);
+  // Authentication probes must bypass the shared URL cache so key rotation/revocation is observed immediately.
+  const result = await fetchCollection(slug, apiKey, !isHealthProbe);
   if (result.error) return result.error;
 
   if (isHealthProbe) {
