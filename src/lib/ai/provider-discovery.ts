@@ -52,10 +52,23 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   // inference is attempted only as part of a separately authorized user request.
   if(d.id==='nvidia') {
    const authorized=env('NVIDIA_AUTHORIZED')==='true';
-   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?'NVIDIA credential not verified by read-only model discovery; inference verification requires a separately authorized user request.':reasonFor(result.response.status,result.text,availability),authorization:authorized?'configured':'pending'};
+   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?'NVIDIA credential not verified by read-only model discovery; inference verification requires a separately authorized user request.':reasonFor(result.response.status,result.text,availability),authorization:'pending'};
   }
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
+}
+export function recordProviderInferenceVerification(providerId: string): void {
+ if (providerId !== 'nvidia' || env('NVIDIA_AUTHORIZED') !== 'true') return;
+ const current = snapshot.get(providerId);
+ if (!current) return;
+ snapshot.set(providerId, {
+  ...current,
+  authenticated: true,
+  availability: 'available',
+  authorization: 'configured',
+  reason: null,
+  lastCheckedAt: new Date().toISOString(),
+ });
 }
 export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
  return definitions.map(d=>{
