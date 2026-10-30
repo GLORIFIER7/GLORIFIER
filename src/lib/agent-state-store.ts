@@ -79,11 +79,16 @@ export class PostgresAgentStateStore {
     return (typeof payload === 'string' ? JSON.parse(payload) : payload) as T;
   }
 
-  async list<T>(kind: AgentStateKind, limit = 50): Promise<T[]> {
+  async list<T>(kind: AgentStateKind, limit = 50, requester?: string): Promise<T[]> {
     const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 50;
+    const normalizedRequester = typeof requester === 'string' ? requester.trim() : '';
     const result = await this.query(
-      'SELECT payload FROM glorifier_agent_state WHERE kind = $1 ORDER BY updated_at DESC LIMIT $2',
-      [kind, boundedLimit],
+      normalizedRequester
+        ? `SELECT payload FROM glorifier_agent_state
+           WHERE kind = $1 AND payload->>'requester' = $3
+           ORDER BY updated_at DESC LIMIT $2`
+        : 'SELECT payload FROM glorifier_agent_state WHERE kind = $1 ORDER BY updated_at DESC LIMIT $2',
+      normalizedRequester ? [kind, boundedLimit, normalizedRequester] : [kind, boundedLimit],
     );
     return result.rows
       .map((row) => row.payload)
