@@ -42,6 +42,8 @@ The repository includes a web application, API/server code, AI-provider integrat
 
 **Target deployment shape:** Cloudflare Workers serves the public frontend and all application/API/auth execution; Vercel and Railway are to be removed as production dependencies after route-by-route migration and verified cutover. **Current migration status:** incomplete. The Worker now handles `GET /api/identity` natively on the migration branch; other API/auth routes still depend on the legacy Railway upstream. The existing Worker build/test workflow can pass without proving a production deployment. See [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) for evidence, route inventory, and release gates. Do not treat the target architecture as the current production state until the Cloudflare deployment and critical API/auth/data flows are verified.
 
+**Runtime requirement:** Node.js `24.12.0` or newer is required for the application runtime. The production images and application workflows use Node.js 24 to match the locked Firebase dependency engines.
+
 The repository also uses technologies including React, TypeScript, Node.js, Firebase, PostgreSQL, and GitHub Actions. Actual capabilities depend on configuration, credentials, provider quotas, and runtime health. Confirm the relevant deployment and workflow evidence before describing a service as live or healthy.
 
 ## GLORIFIER Token (GLR)
