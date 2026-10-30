@@ -1,6 +1,6 @@
 # AI Council deployment safety
 
-The AI council can fan out to multiple metered providers and may issue a separate synthesis request. It is restricted to the verified owner or a configured internal service. Owner requests are limited to two starts per minute per authenticated UID; internal-service requests are limited to two starts per minute per validated ingress IP.
+The AI council can fan out to multiple metered providers and may issue a separate synthesis request. It is restricted to the verified owner or a configured internal service. Owner requests are limited to two starts per minute per authenticated UID; internal-service requests are limited to two starts per minute per observed socket-peer IP. Client-supplied `X-Real-IP` and `X-Forwarded-For` headers are ignored; behind a reverse proxy, traffic may share the proxy's peer-IP bucket, which is intentionally conservative.
 
 The current limiter uses the Express process-local memory store. **Do not run the AI council behind multiple backend replicas with this store.** In production (defined as `NODE_ENV=production`), the route fails closed with HTTP 503 unless the deployment explicitly sets. Ensure `NODE_ENV=production` is set in the production backend so this safeguard is active:
 
