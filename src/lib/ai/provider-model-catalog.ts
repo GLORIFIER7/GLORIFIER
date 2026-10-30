@@ -4,7 +4,9 @@ export interface ProviderDiscoveryModelSource {
   configured: boolean;
   availability: string;
   authorization: string;
+  /** True when read-only model discovery did not return 401/403; not inference verification. */
   authenticated: boolean;
+  /** Explicit provider authorization configuration; not proof of inference access. */
   models: string[];
 }
 
@@ -14,9 +16,11 @@ export interface ProviderModelOption {
 }
 
 /**
- * Expose only model IDs advertised by configured, available, explicitly
- * authorized providers whose inference authentication has been verified.
- * A read-only model-list response alone is insufficient to expose an option.
+ * Expose advertised model IDs from configured, available providers with an
+ * explicit authorization setting and a successful read-only model-list response.
+ * Here, authenticated means the model-list endpoint did not return 401/403;
+ * it does not prove inference permission, quota, generation capacity, or success.
+ * The execution registry must independently verify and gate each inference.
  */
 export function buildProviderModelOptions(
   providers: readonly ProviderDiscoveryModelSource[],
