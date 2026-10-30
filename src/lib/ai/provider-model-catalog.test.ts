@@ -18,6 +18,7 @@ assert.deepEqual(
       configured: true,
       availability: 'available',
       authorization: 'configured',
+      authenticated: true,
       models: ['meta-model', ' shared-model '],
     },
     {
@@ -26,6 +27,7 @@ assert.deepEqual(
       configured: true,
       availability: 'available',
       authorization: 'pending',
+      authenticated: false,
       models: ['qwen-model'],
     },
     {
@@ -34,6 +36,7 @@ assert.deepEqual(
       configured: true,
       availability: 'unreachable',
       authorization: 'configured',
+      authenticated: true,
       models: ['offline-model'],
     },
     {
@@ -42,6 +45,7 @@ assert.deepEqual(
       configured: false,
       availability: 'available',
       authorization: 'configured',
+      authenticated: true,
       models: ['not-configured-model'],
     },
     {
