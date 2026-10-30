@@ -2630,49 +2630,106 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
   if (approvalRequired) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
+
   try {
     await updateAgentTask(task.id, { status: 'running' });
   } catch (error) {
-    return apiError(res, 503, 'Agent task state could not be persisted before execution', error);
+    console.error('[AgentTask] Could not persist running state before inference:', error);
+    return res.status(503).json({
+      ok: false,
+      taskId: task.id,
+      status: 'queued',
+      error: 'Task was created but could not be marked running durably; inference was not started.',
+    });
   }
 
-  // Route through the existing model runtime without exposing provider credentials.
+  const prompt = [
+    'You are an AI agent participating in the GLORIFIER AI-to-AI runtime.',
+    `Requester: ${requester}`,
+    `Requested capability: ${capability}`,
+    `Objective: ${objective}`,
+    input ? `Input: ${JSON.stringify(input)}` : '',
+    'Return a concise, evidence-aware result suitable for another agent to consume.',
+    'Do not claim actions were executed unless they actually were.'
+  ].filter(Boolean).join('\\n');
+
+  const preferredProvider: 'gemini' | 'openai' = (capability.includes('research') || capability.includes('recovery') || capability.includes('gemini'))
+    ? 'gemini'
+    : 'openai';
+
+  let result;
   try {
-    const prompt = [
-      'You are an AI agent participating in the GLORIFIER AI-to-AI runtime.',
-      `Requester: ${requester}`,
-      `Requested capability: ${capability}`,
-      `Objective: ${objective}`,
-      input ? `Input: ${JSON.stringify(input)}` : '',
-      'Return a concise, evidence-aware result suitable for another agent to consume.',
-      'Do not claim actions were executed unless they actually were.'
-    ].filter(Boolean).join('\n');
-
-    const preferredProvider: 'gemini' | 'openai' = (capability.includes('research') || capability.includes('recovery') || capability.includes('gemini'))
-      ? 'gemini'
-      : 'openai';
-
-    const result = await runIntelligenceModel(preferredProvider, prompt, {
+    result = await runIntelligenceModel(preferredProvider, prompt, {
       jsonMode: false,
       systemInstruction: 'You are an autonomous AI specialist in the GLORIFIER A2A network. Produce high-fidelity, verified, evidence-backed artifacts.'
     });
-
-    if (!result) {
-      await updateAgentTask(task.id, { status: 'failed', error: 'No configured AI provider available or all inference attempts failed' });
-      return res.status(503).json({ ok: false, task: await getAgentTask(task.id) });
-    }
-
-    await updateAgentTask(task.id, {
-      status: 'completed',
-      result: { providerModel: result.model, artifact: result.text }
-    });
-    return res.json({ ok: true, task: await getAgentTask(task.id) });
   } catch (error) {
-    await updateAgentTask(task.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
-    return res.status(500).json({ ok: false, task: await getAgentTask(task.id) });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[AgentTask] Inference failed:', message);
+    try {
+      await updateAgentTask(task.id, { status: 'failed', error: message });
+    } catch (persistenceError) {
+      console.error('[AgentTask] Could not persist inference failure state:', persistenceError);
+    }
+    return res.status(500).json({
+      ok: false,
+      taskId: task.id,
+      status: 'failed-or-state-persistence-unavailable',
+      error: 'Provider inference failed. Task failure state may require recovery if persistence was unavailable.',
+    });
+  }
+
+  if (!result) {
+    try {
+      const failedTask = await updateAgentTask(task.id, {
+        status: 'failed',
+        error: 'No configured AI provider available or all inference attempts failed',
+      });
+      if (!failedTask) {
+        return res.status(503).json({ ok: false, taskId: task.id, error: 'No provider response; task record could not be read after failure update.' });
+      }
+      return res.status(503).json({ ok: false, task: failedTask });
+    } catch (error) {
+      console.error('[AgentTask] Could not persist no-provider failure:', error);
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'no-provider-response',
+        taskStatePersistence: 'failed',
+        error: 'No provider response was returned and the failure state could not be persisted.',
+      });
+    }
+  }
+
+  const completedPatch = {
+    status: 'completed' as const,
+    result: { providerModel: result.model, artifact: result.text },
+  };
+  try {
+    const completedTask = await updateAgentTask(task.id, completedPatch);
+    if (!completedTask) {
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'completed',
+        taskStatePersistence: 'missing',
+        result: completedPatch.result,
+        error: 'Inference completed, but the task record was not found for durable completion.',
+      });
+    }
+    return res.json({ ok: true, task: completedTask });
+  } catch (error) {
+    console.error('[AgentTask] Inference completed but task result persistence failed:', error);
+    return res.status(503).json({
+      ok: false,
+      taskId: task.id,
+      inferenceStatus: 'completed',
+      taskStatePersistence: 'failed',
+      result: completedPatch.result,
+      error: 'Inference completed, but the task result could not be persisted. The result is included in this response only.',
+    });
   }
 });
-
 app.get('/api/agents/persistence', (_req: Request, res: Response) => {
   res.json({
     ok: true,
