@@ -2,6 +2,7 @@ import { getCapabilityPolicy, listCapabilityPolicies } from './capability-author
 import { newId } from './new-id';
 import { createPostgresAgentStateStore } from './agent-state-store';
 import type { PostgresAgentStateStore } from './agent-state-store';
+import { initializeOptionalPostgresAgentStore } from './agent-persistence-bootstrap';
 
 export type AgentCard = {
   id: string;
@@ -50,15 +51,17 @@ let persistence: AgentRuntimePersistence | null = null;
 let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
 
 export async function initializeAgentRuntimePersistence(storeOverride?: AgentRuntimePersistence): Promise<boolean> {
-  if (!process.env.DATABASE_URL && !storeOverride) {
+  persistenceMode = 'uninitialized';
+  const store = await initializeOptionalPostgresAgentStore(
+    process.env.DATABASE_URL,
+    storeOverride,
+    createPostgresAgentStateStore,
+  );
+  if (!store) {
     persistence = null;
     persistenceMode = 'memory-fallback';
     return false;
   }
-
-  const store = storeOverride ?? createPostgresAgentStateStore();
-  persistenceMode = 'uninitialized';
-  await store.initialize();
   const recovered = await store.recoverInterruptedTasks();
   // PostgreSQL is the durable source of truth; avoid retaining a duplicate
   // in-process copy of every task after persistence is enabled.
