@@ -1039,9 +1039,9 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
   });
 });
 
-// Provider-neutral AI-to-AI synthesis endpoint.
-// The council dynamically uses every currently executable provider/compute path.
-// No provider is hard-coded as the brain, and no synthetic response is created.
+// Provider-selected AI council endpoint.
+// Each participant is pinned to one requested provider; failures never trigger implicit substitution.
+// Outputs remain advisory and cannot authorize consequential actions.
 app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const topic = typeof body.agenda === 'string' && body.agenda.trim()
