@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   A2A_PROTOCOL_VERSION,
+  isCompatibleA2AProtocolVersion,
+  isAuthorizedA2AExecution,
   buildA2AAgentCard,
   createA2AJsonRpcHandler,
   toA2ATask,
@@ -21,6 +23,17 @@ const baseTask = (overrides: Partial<A2ATaskLike> = {}): A2ATaskLike => ({
 
 const card = buildA2AAgentCard('https://glorifier.glorifier.workers.dev', '0.2.1');
 assert.equal(A2A_PROTOCOL_VERSION, '1.0');
+assert.equal(isCompatibleA2AProtocolVersion('1.0'), true);
+assert.equal(isCompatibleA2AProtocolVersion('1.0.1'), true, 'patch versions remain compatible within the same major/minor protocol');
+assert.equal(isCompatibleA2AProtocolVersion('1.0.12'), true);
+assert.equal(isCompatibleA2AProtocolVersion('1.1'), false);
+assert.equal(isCompatibleA2AProtocolVersion('1.0.invalid'), false);
+assert.equal(isCompatibleA2AProtocolVersion(undefined), false, 'omitted protocol version defaults to unsupported 0.3');
+
+assert.equal(isAuthorizedA2AExecution(false, 'approved'), false, 'caller-supplied approval is never sufficient without verified owner identity');
+assert.equal(isAuthorizedA2AExecution(true, 'pending'), false, 'owner identity alone is not an approval');
+assert.equal(isAuthorizedA2AExecution(true, 'approved'), true, 'execution requires authenticated owner identity and explicit approval');
+
 assert.equal(card.name, 'GLORIFIER Services');
 assert.equal(card.version, '0.2.1');
 assert.deepEqual(card.supportedInterfaces, [{
@@ -218,6 +231,12 @@ const unsupportedFilePart = await handler({
 assert.equal((unsupportedFilePart.error as { code: number }).code, -32602, 'unadvertised file parts must be rejected rather than silently discarded');
 
 assert.equal(toA2ATask(baseTask({ status: 'completed' })).status.state, 'TASK_STATE_COMPLETED');
+const failedTaskView = toA2ATask(baseTask({ status: 'failed', error: 'Upstream provider credential rejected: secret details' }));
+assert.equal(failedTaskView.status.message.parts[0].text, 'The task failed.');
+assert.ok(!JSON.stringify(failedTaskView).includes('credential rejected'), 'provider diagnostics must not leak through A2A task status');
+const blockedTaskView = toA2ATask(baseTask({ status: 'blocked', error: 'Internal policy implementation details' }));
+assert.equal(blockedTaskView.status.message.parts[0].text, 'The task was blocked by GLORIFIER governance.');
+
 assert.equal(toA2ATask(baseTask({ status: 'failed', error: 'provider unavailable' })).status.state, 'TASK_STATE_FAILED');
 assert.equal(toA2ATask(baseTask({ status: 'blocked' })).status.state, 'TASK_STATE_REJECTED');
 assert.equal(toA2ATask(baseTask({ status: 'degraded' })).status.state, 'TASK_STATE_WORKING');
