@@ -1,17 +1,31 @@
 export function normalizeSavedModelPreference(value: unknown): string {
-  return typeof value === 'string' ? value : 'auto';
+  if (typeof value !== 'string') return 'auto';
+  const normalized = value.trim();
+  if (!normalized) return 'auto';
+  const sentinel = normalized.toLowerCase();
+  return sentinel === 'auto' || sentinel === 'all-models' || sentinel === 'consensus'
+    ? 'auto'
+    : normalized;
 }
 
 export function resolveExecutableModelPreference(
   candidate: unknown,
   discoveredModels: readonly string[],
 ): string {
-  return typeof candidate === 'string' ? candidate : 'auto';
+  const normalized = normalizeSavedModelPreference(candidate);
+  if (normalized === 'auto') return 'auto';
+  const available = new Set(discoveredModels.map((model) => model.trim()).filter(Boolean));
+  return available.has(normalized) ? normalized : 'auto';
 }
 
+/**
+ * Independent compute has its own model-selection path. Only automatic routing
+ * may use it; explicit model or provider constraints must fail closed.
+ */
 export function isIndependentComputeFallbackAllowed(
   model?: string,
   requiredProvider?: string,
 ): boolean {
-  return true;
+  const normalized = typeof model === 'string' ? model.trim().toLowerCase() : '';
+  return !requiredProvider && (!normalized || normalized === 'auto');
 }
