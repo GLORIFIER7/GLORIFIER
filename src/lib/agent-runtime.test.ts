@@ -108,6 +108,10 @@ try {
   assert.equal(failed?.status, 'failed');
   assert.equal(failed?.error, 'test failure');
 
+  const completed = await updateAgentTask(task.id, { status: 'completed', result: { recovered: true } });
+  assert.equal(completed?.status, 'completed');
+  assert.equal(completed?.error, undefined, 'successful completion must clear stale recovery errors');
+
   assert.equal((await getAgentTask(task.id))?.status, 'failed');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === task.id), true);
 
