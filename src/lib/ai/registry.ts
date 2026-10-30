@@ -55,6 +55,15 @@ export function isProviderModelEligible(
     || discoveredModels.some((advertised) => canonicalModelId(advertised) === canonicalRequestedModel);
 }
 
+export function filterRequiredProvider<T extends { id: string }>(
+  candidates: readonly T[],
+  requiredProvider?: string,
+): T[] {
+  return requiredProvider
+    ? candidates.filter((candidate) => candidate.id === requiredProvider)
+    : [...candidates];
+}
+
 const providerCooldownUntil = new Map<string, number>();
 const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
@@ -163,6 +172,7 @@ export interface ProviderExecutionRequest {
   temperature?: number;
   maxTokens?: number;
   preferredProvider?: AIProviderId;
+  requiredProvider?: AIProviderId;
   capability?: string;
   policy?: Partial<ProviderExecutionPolicy>;
 }
@@ -401,7 +411,7 @@ const resolveExecutionPolicy = (request: ProviderExecutionRequest): ProviderExec
 });
 
 const resolvePreferredProvider = (request: ProviderExecutionRequest): AIProviderId | undefined =>
-  request.preferredProvider || (request.model?.startsWith('gpt') ? 'openai' : undefined);
+  request.requiredProvider || request.preferredProvider || (request.model?.startsWith('gpt') ? 'openai' : undefined);
 
 const createProviderExecutionState = (): ProviderExecutionState => ({
   attemptedProviders: [],
@@ -428,6 +438,7 @@ export const buildProviderRegistryTraceInputs = (request: ProviderExecutionReque
   // Never transmit caller-controlled model/capability text in telemetry.
   hasRequestedModel: Boolean(request.model),
   hasPreferredProvider: Boolean(request.preferredProvider),
+  hasRequiredProvider: Boolean(request.requiredProvider),
   hasCapability: Boolean(request.capability),
   maxTokens: typeof request.maxTokens === 'number' && Number.isFinite(request.maxTokens) ? request.maxTokens : null,
 });
@@ -467,7 +478,7 @@ export const executeThroughProviderRegistry = async (
   };
   const policy = resolveExecutionPolicy(executionRequest);
   assertGovernedFallbackPolicy(policy);
-  const connected = getConnectedProviders();
+  const connected = filterRequiredProvider(getConnectedProviders(), executionRequest.requiredProvider);
   const preferredProvider = resolvePreferredProvider(executionRequest);
   const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const state = createProviderExecutionState();
