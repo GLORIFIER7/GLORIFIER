@@ -78,7 +78,7 @@ try {
   assert.equal(meta.endpoint, 'https://meta.example.test/v1', 'diagnostic endpoints must omit URL credentials and query parameters');
   assert.equal(meta.reason?.includes('test-meta-api-key-secret'), false, 'provider error messages must redact echoed API credentials');
   assert.equal(meta.reason?.includes('meta-url-secret'), false, 'provider diagnostics must not expose endpoint query credentials');
-  assert.match(meta.reason || '', /\\[REDACTED\\]/, 'redacted provider errors should remain diagnosable');
+  assert.equal(meta.reason?.includes('[REDACTED]'), true, 'redacted provider errors should remain diagnosable');
 
   metaProbeStatus = 429;
   const afterRateLimit = await discoverGlobalProviders('provider-discovery-rate-limit-auth-regression', { persistConnections: false });
