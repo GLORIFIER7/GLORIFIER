@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import { isIP } from 'node:net';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -14,7 +13,7 @@ import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { executeModelCouncilProviders, isValidModelCouncilResponse, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
-import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
+import { createModelCouncilRateLimit, resolveIngressClientAddress } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
@@ -142,15 +141,8 @@ const geasRateLimit = (req: Request, res: Response, next: express.NextFunction) 
 
 
 
-const rateLimitKeyGenerator = (req: Request): string => {
-  // Railway public ingress overwrites X-Real-IP. Prefer the validated address without
-  // trusting an arbitrary X-Forwarded-For chain or enabling Express trust proxy globally.
-  const platformClientIp = req.get('x-real-ip')?.trim();
-  const clientIp = platformClientIp && isIP(platformClientIp)
-    ? platformClientIp
-    : req.ip || req.socket.remoteAddress || 'unknown';
-  return ipKeyGenerator(clientIp);
-};
+const rateLimitKeyGenerator = (req: Request): string =>
+  ipKeyGenerator(resolveIngressClientAddress(req));
 
 const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
   res.setHeader('Retry-After', '60');
