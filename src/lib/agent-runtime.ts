@@ -204,7 +204,7 @@ export async function getAgentTask(id: string): Promise<AgentTask | null> {
 export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
   assertAgentRuntimeReady();
   if (persistence) return persistence.list<AgentTask>('task', limit);
-  return [...tasks.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, Math.max(1, Math.min(500, limit)));
+  return [...tasks.values()].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0, Math.max(1, Math.min(500, limit)));
 }
 
 export function agentManifest() {
