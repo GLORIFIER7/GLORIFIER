@@ -16,7 +16,6 @@ COPY . .
 # Bundle the TypeScript server while esbuild is still installed. The runtime
 # image prunes devDependencies, so it must not launch the server through tsx.
 RUN npm run build \
- && npm run build:server \
  && npm prune --omit=dev --no-audit --no-fund \
  && npm cache clean --force
 
