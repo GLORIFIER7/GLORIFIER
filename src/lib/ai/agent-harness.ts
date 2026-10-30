@@ -70,7 +70,7 @@ export interface AgentHarnessPolicy {
 
 const sessions = new Map<string, AgentSession>();
 let persistence: PostgresAgentStateStore | null = null;
-let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = process.env.DATABASE_URL ? 'uninitialized' : 'memory-fallback';
 
 export async function initializeAgentHarnessPersistence(): Promise<boolean> {
   if (!process.env.DATABASE_URL) {
