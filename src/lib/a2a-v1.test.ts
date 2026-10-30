@@ -185,6 +185,38 @@ const oversized = await handler({
 });
 assert.equal((oversized.error as { code: number }).code, -32602);
 
+const exactTextLimit = await handler({
+  jsonrpc: '2.0',
+  id: 53,
+  method: 'SendMessage',
+  params: {
+    message: {
+      messageId: 'exact-limit',
+      role: 'ROLE_USER',
+      parts: [{ text: 'x'.repeat(20_000) }],
+    },
+  },
+});
+assert.equal(exactTextLimit.error, undefined, 'the inclusive 20,000-character message limit must be accepted');
+assert.equal(
+  ((exactTextLimit.result as { task: { status: { state: string } } }).task.status.state),
+  'TASK_STATE_SUBMITTED',
+);
+
+const unsupportedFilePart = await handler({
+  jsonrpc: '2.0',
+  id: 54,
+  method: 'SendMessage',
+  params: {
+    message: {
+      messageId: 'file-part',
+      role: 'ROLE_USER',
+      parts: [{ raw: 'YWJj', mediaType: 'application/octet-stream', filename: 'input.bin' }],
+    },
+  },
+});
+assert.equal((unsupportedFilePart.error as { code: number }).code, -32602, 'unadvertised file parts must be rejected rather than silently discarded');
+
 assert.equal(toA2ATask(baseTask({ status: 'completed' })).status.state, 'TASK_STATE_COMPLETED');
 assert.equal(toA2ATask(baseTask({ status: 'failed', error: 'provider unavailable' })).status.state, 'TASK_STATE_FAILED');
 assert.equal(toA2ATask(baseTask({ status: 'blocked' })).status.state, 'TASK_STATE_REJECTED');
