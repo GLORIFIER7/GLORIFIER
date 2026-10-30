@@ -137,6 +137,23 @@ const testStore = {
     if (failDurableSave) throw new Error('simulated session persistence failure');
     durableSessions.set(record.id, structuredClone(record));
   },
+  incrementSessionTurn: async <T>(_id: string, _contextTokens: number) => {
+    if (failDurableSave) throw new Error('simulated session persistence failure');
+    const current = durableSessions.get(_id) as {
+      id: string; turnCount: number; maxContextTokens: number; [key: string]: unknown;
+    } | undefined;
+    if (!current) return null;
+    const updated = {
+      ...current,
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+      turnCount: current.turnCount + 1,
+      contextTokens: _contextTokens,
+      compactionRecommended: _contextTokens >= Math.floor(current.maxContextTokens * 0.8),
+    };
+    durableSessions.set(_id, structuredClone(updated));
+    return structuredClone(updated) as T;
+  },
 } as unknown as PostgresAgentStateStore;
 
 process.env.DATABASE_URL = 'postgresql://unit-test.invalid/glorifier';
@@ -146,6 +163,17 @@ assert.equal(getAgentHarnessPersistenceStatus().mode, 'postgres');
 assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
 assert.deepEqual(await getAgentSession(durableSession.id), durableSession);
 assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
+
+const durableConcurrentSession = await createAgentSession('harness-test-durable-concurrent');
+await Promise.all([
+  recordAgentTurn(durableConcurrentSession.id, 100),
+  recordAgentTurn(durableConcurrentSession.id, 200),
+]);
+assert.equal(
+  (await getAgentSession(durableConcurrentSession.id))?.turnCount,
+  2,
+  'durable concurrent turns must preserve both atomic increments',
+);
 
 const persistenceFailureSession = await createAgentSession('harness-test-post-action-persistence-failure');
 let externalActionCompleted = false;
