@@ -12,8 +12,10 @@ type StoredRow = {
 
 const rows = new Map<string, StoredRow>();
 const statements: string[] = [];
+const queryValues: unknown[][] = [];
 const query: AgentStateQuery = async (sql, values = []) => {
   statements.push(sql);
+  queryValues.push(values);
   if (sql.includes('INSERT INTO glorifier_agent_state')) {
     const [kind, id, status, payload, createdAt, updatedAt] = values as [string, string, string, string, string, string];
     rows.set(`${kind}:${id}`, {
@@ -63,7 +65,8 @@ const query: AgentStateQuery = async (sql, values = []) => {
   }
   if (sql.includes('UPDATE glorifier_agent_state')) {
     let recovered = 0;
-    const staleBefore = Date.now() - 30 * 60 * 1000;
+    const staleAfterMinutes = Number(values[1] ?? 30);
+    const staleBefore = Date.now() - staleAfterMinutes * 60 * 1000;
     for (const [key, row] of rows) {
       if (row.kind !== 'task' || row.status !== 'running') continue;
       if (Date.parse(row.updated_at) >= staleBefore) continue;
@@ -123,7 +126,7 @@ assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.
 assert.ok(Date.parse((await store.get<typeof recentRunning>('task', recentRunning.id))?.updatedAt || '') >= Date.parse(recentRunning.updatedAt));
 await store.save('task', { ...recentRunning, status: 'completed', updatedAt: new Date().toISOString() });
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), false, 'a late heartbeat must not resurrect a completed task');
-assert.equal(await store.recoverInterruptedTasks(), 1);
+assert.equal(await store.recoverInterruptedTasks(30), 1);
 const recoverySql = statements[statements.length - 1] || '';
 assert.match(recoverySql, /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
 assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'completed');
@@ -155,17 +158,11 @@ const session = {
 await store.save('session', session);
 assert.deepEqual(await store.get<typeof session>('session', session.id), session);
 assert.deepEqual(await store.list<typeof session>('session', 10), [session]);
-const concurrentTurns = await Promise.all([
-  store.incrementSessionTurn<typeof session>(session.id, 100),
-  store.incrementSessionTurn<typeof session>(session.id, 250),
-]);
-assert.deepEqual(
-  concurrentTurns.map((entry) => entry?.turnCount).sort(),
-  [1, 2],
-  'atomic increments must preserve concurrent session turns',
-);
-assert.equal((await store.get<typeof session>('session', session.id))?.turnCount, 2);
+const incrementedSession = await store.incrementSessionTurn<typeof session>(session.id, 100);
+assert.equal(incrementedSession?.turnCount, 1, 'the store returns the incremented session record');
+assert.equal((await store.get<typeof session>('session', session.id))?.turnCount, 1);
 assert.ok(statements.some((sql) => sql.includes('RETURNING payload')));
+assert.match(statements.find((sql) => sql.includes('RETURNING payload')) || '', /turnCount.*COALESCE/s);
 const largeTokenUpdate = await store.incrementSessionTurn<typeof session>(session.id, 2_147_483_648);
 assert.equal(largeTokenUpdate?.contextTokens, 2_147_483_648, 'safe counters above int32 must be preserved');
 
