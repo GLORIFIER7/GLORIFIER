@@ -3,6 +3,7 @@ import { getPostgresPool } from './db/postgres';
 import { aiOrchestrator } from './ai/orchestrator';
 import { runSpecialistCouncil } from './ai/specialist-council';
 import { routeAgentCapability, createAgentTask, updateAgentTask } from './agent-runtime';
+import { withGovernanceTaskFailureRecovery } from './governance-task-failure';
 import { getGlorifierAiTrustStandard, evaluateGlorifierAiTrustConformance } from './ai/trust-standard';
 import { getWindsorSocialGatewayStatus, getWindsorSocialData } from './windsor-social-gateway';
 import { buildComplianceAssessment } from './compliance-policy';
@@ -92,6 +93,7 @@ export async function runGovernanceCycle(input: {
   });
   await updateAgentTask(task.id, { status: 'running' });
 
+  return withGovernanceTaskFailureRecovery(task.id, async () => {
   // 1. AI CEO selects the executive/provider context.
   const executive = aiOrchestrator.executive();
 
@@ -198,6 +200,7 @@ export async function runGovernanceCycle(input: {
   });
 
   return cycle;
+  }, (taskId, message) => updateAgentTask(taskId, { status: 'failed', error: message }));
 }
 
 export async function listGovernanceCycles(limit = 50) {
