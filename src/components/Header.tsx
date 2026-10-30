@@ -33,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'ai_ceo', label: 'AI CEO', icon: BrainCircuit },
     { id: 'integrations', label: 'Intelligence', icon: Globe2 },
     { id: 'agent_network', label: 'AI Agent Network', icon: Network },
+    { id: 'token_branding', label: 'Token Branding Bridge', icon: Coins },
     { id: 'discovery', label: '24/7 Discovery', icon: Zap },
     { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
     { id: 'connections', label: 'Connections', icon: Lock },
