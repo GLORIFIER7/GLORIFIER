@@ -157,3 +157,34 @@ test('shared model council client discovers, authenticates, validates, and norma
   }
   assert.equal(authError?.status, 401);
 });
+
+
+test('shared council client rejects responses missing required participant counters', async () => {
+  const base = {
+    ok: true,
+    agenda: 'Review',
+    timestamp: '2026-10-31T00:00:00.000Z',
+    participants: [],
+    unifiedConsensus: 'No consensus claimed.',
+    participantCount: 0,
+    providerDiversity: 0,
+    failures: [],
+  };
+  for (const field of ['participantCount', 'providerDiversity'] as const) {
+    const invalid = { ...base };
+    delete (invalid as Partial<typeof base>)[field];
+    await assert.rejects(
+      submitAuthenticatedModelCouncilRequest({
+        agenda: 'Review',
+        participants: [{ providerId: 'openai', modelId: 'gpt-4o' }],
+        getToken: async () => 'verified-test-token',
+        fetcher: async () => new Response(JSON.stringify(invalid), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      }),
+      /expected response contract/i,
+      `response missing ${field} must be rejected`,
+    );
+  }
+});
