@@ -1,7 +1,6 @@
 import { getCapabilityPolicy, listCapabilityPolicies } from './capability-authorization';
 import { newId } from './new-id';
-import { getPostgresPool } from './db/postgres';
-import { PostgresAgentStateStore } from './agent-state-store';
+import { createPostgresAgentStateStore } from './agent-state-store';
 
 export type AgentCard = {
   id: string;
@@ -54,10 +53,7 @@ export async function initializeAgentRuntimePersistence(): Promise<boolean> {
     return false;
   }
 
-  const store = new PostgresAgentStateStore(async (sql, values) => {
-    const result = await getPostgresPool().query(sql, values as any[]);
-    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
-  });
+  const store = createPostgresAgentStateStore();
   await store.initialize();
   const recovered = await store.recoverInterruptedTasks();
   const restored = await store.list<AgentTask>('task', 500);
