@@ -41,26 +41,160 @@ export type ProviderAssessment = {
 
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const SOLANA_MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const SHA256 = /^[a-f0-9]{64}$/i;
+const CID_V0 = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/;
+const CID_V1_BASE32 = /^b[a-z2-7]{20,120}$/;
+
+type SupportedNetworkIdentity = {
+  name: string;
+  aliases: string[];
+  chainId: number | 'solana:mainnet-beta';
+  standard: string;
+  addressKind: 'evm' | 'solana';
+};
+
+const SUPPORTED_NETWORKS: SupportedNetworkIdentity[] = [
+  {
+    name: 'Ethereum Mainnet',
+    aliases: ['ethereum mainnet'],
+    chainId: 1,
+    standard: 'ERC-20',
+    addressKind: 'evm'
+  },
+  {
+    name: 'BNB Smart Chain Mainnet',
+    aliases: ['bnb smart chain', 'bnb smart chain mainnet'],
+    chainId: 56,
+    standard: 'BEP-20',
+    addressKind: 'evm'
+  },
+  {
+    name: 'Base Mainnet',
+    aliases: ['base mainnet'],
+    chainId: 8453,
+    standard: 'ERC-20',
+    addressKind: 'evm'
+  },
+  {
+    name: 'Solana Mainnet Beta',
+    aliases: ['solana mainnet beta'],
+    chainId: 'solana:mainnet-beta',
+    standard: 'Token-2022',
+    addressKind: 'solana'
+  }
+];
+
+function isValidSolanaAddress(value: string): boolean {
+  if (!SOLANA_MINT.test(value)) return false;
+
+  let decoded = 0n;
+  for (const character of value) {
+    const digit = BASE58_ALPHABET.indexOf(character);
+    if (digit < 0) return false;
+    decoded = decoded * 58n + BigInt(digit);
+  }
+
+  let decodedByteLength = 0;
+  while (decoded > 0n) {
+    decodedByteLength += 1;
+    decoded >>= 8n;
+  }
+
+  let leadingZeroBytes = 0;
+  while (leadingZeroBytes < value.length && value[leadingZeroBytes] === '1') {
+    leadingZeroBytes += 1;
+  }
+
+  return decodedByteLength + leadingZeroBytes === 32;
+}
+
+function isValidIpfsReference(value: string): boolean {
+  const reference = value.slice('ipfs://'.length);
+  const [cid, ...pathSegments] = reference.split('/');
+  const validCid = CID_V0.test(cid) || CID_V1_BASE32.test(cid);
+  return validCid && pathSegments.every((segment) => segment.length > 0);
+}
+
+function isValidLogoUri(uri: unknown): uri is string {
+  if (typeof uri !== 'string') return false;
+  const value = uri.trim();
+  if (value.startsWith('ipfs://')) return isValidIpfsReference(value);
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:'
+      && Boolean(parsed.hostname)
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
+}
 
 export function validateTokenBrandingRecord(record: TokenBrandingRecord): string[] {
   const errors: string[] = [];
-  if (!record.assetId.trim()) errors.push('assetId is required');
-  if (!record.network.trim()) errors.push('network is required');
-  if (!record.tokenSymbol.trim()) errors.push('tokenSymbol is required');
-  if (!record.contractOrMint.trim()) errors.push('contractOrMint is required');
-  if (record.network.toLowerCase().includes('solana')) {
-    if (!SOLANA_MINT.test(record.contractOrMint)) errors.push('invalid Solana mint address');
-  } else if (!EVM_ADDRESS.test(record.contractOrMint)) {
-    errors.push('invalid EVM contract address');
+  if (typeof record.assetId !== 'string' || !record.assetId.trim()) errors.push('assetId is required');
+
+  const networkName = typeof record.network === 'string' ? record.network.trim() : '';
+  const normalizedNetwork = networkName.toLowerCase();
+  if (!networkName) errors.push('network is required');
+
+  if (typeof record.tokenSymbol !== 'string' || !record.tokenSymbol.trim()) errors.push('tokenSymbol is required');
+  if (typeof record.contractOrMint !== 'string' || !record.contractOrMint.trim()) errors.push('contractOrMint is required');
+  if (typeof record.standard !== 'string' || !record.standard.trim()) errors.push('standard is required');
+
+  if (/devnet|testnet/i.test(networkName)) {
+    errors.push('development and test networks are not supported for production branding');
   }
-  if (!record.logo.uri.startsWith('ipfs://') && !record.logo.uri.startsWith('https://')) {
-    errors.push('logo URI must use ipfs:// or https://');
+
+  const networkIdentity = SUPPORTED_NETWORKS.find((identity) => identity.aliases.includes(normalizedNetwork));
+  if (networkName && !networkIdentity) {
+    errors.push(`unsupported production network: ${networkName}`);
   }
-  if (record.logo.sha256 && !SHA256.test(record.logo.sha256)) {
+
+  const chainId = typeof record.chainId === 'string'
+    ? record.chainId.trim()
+    : String(record.chainId ?? '');
+  if (!chainId) errors.push('chainId is required');
+
+  const chainIdentity = SUPPORTED_NETWORKS.find((identity) => String(identity.chainId) === chainId);
+  if (chainId && !chainIdentity) {
+    errors.push(chainId.startsWith('solana:') ? 'unsupported Solana cluster' : 'unsupported chainId');
+  }
+
+  if (networkIdentity && chainIdentity && networkIdentity !== chainIdentity) {
+    errors.push('network and chainId do not identify the same supported network');
+  }
+
+  const identity = chainIdentity ?? networkIdentity;
+  if (identity && chainId !== String(identity.chainId)) {
+    errors.push(`chainId must be ${identity.chainId} for ${identity.name}`);
+  }
+
+  const standard = typeof record.standard === 'string' ? record.standard.trim().toLowerCase() : '';
+  if (identity && standard !== identity.standard.toLowerCase()) {
+    errors.push(`standard must be ${identity.standard} for ${identity.name}`);
+  }
+
+  if (chainIdentity?.addressKind === 'solana') {
+    if (typeof record.contractOrMint !== 'string' || !isValidSolanaAddress(record.contractOrMint)) {
+      errors.push('invalid Solana mint address (expected a base58-encoded 32-byte address)');
+    }
+  } else if (chainIdentity?.addressKind === 'evm') {
+    if (typeof record.contractOrMint !== 'string' || !EVM_ADDRESS.test(record.contractOrMint)) {
+      errors.push('invalid EVM contract address');
+    }
+  }
+
+  if (!isValidLogoUri(record.logo?.uri)) {
+    errors.push('logo URI must be a valid IPFS CID reference or HTTPS URL with a host');
+  }
+  const logoSha256 = typeof record.logo?.sha256 === 'string' ? record.logo.sha256 : '';
+  if (record.logo?.sha256 && !SHA256.test(logoSha256)) {
     errors.push('logo SHA-256 must be 64 hexadecimal characters');
   }
-  if (record.logo.integrityStatus === 'VERIFIED' && !record.logo.sha256) {
+  if (record.logo?.integrityStatus === 'VERIFIED' && !logoSha256) {
     errors.push('verified logo integrity requires a SHA-256 digest');
   }
   return errors;
@@ -68,25 +202,52 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
 
 export function assessBrandingProvider(
   token: TokenBrandingRecord,
-  provider: BrandingProvider
+  provider: BrandingProvider,
+  precomputedValidationErrors?: string[]
 ): ProviderAssessment {
-  const blockers = validateTokenBrandingRecord(token);
+  if (!provider.enabled || provider.mode === 'unsupported') {
+    return {
+      providerId: provider.id,
+      providerName: provider.name,
+      mode: provider.mode,
+      status: 'NOT_CONFIGURED',
+      blockers: [
+        !provider.enabled
+          ? 'provider adapter is not enabled'
+          : 'no supported submission workflow is configured'
+      ],
+      publicationStatus: 'NOT_SUBMITTED'
+    };
+  }
+
+  const validationErrors = precomputedValidationErrors ?? validateTokenBrandingRecord(token);
+  const blockers = [...validationErrors];
   if (token.evidenceStatus !== 'VERIFIED') {
     blockers.push(`token evidence status is ${token.evidenceStatus}`);
   }
-  if (token.logo.integrityStatus !== 'VERIFIED') {
+  if (token.logo?.integrityStatus !== 'VERIFIED') {
     blockers.push('canonical logo byte integrity is not verified');
   }
-  if (!provider.enabled) blockers.push('provider adapter is not enabled');
   if (provider.feeStatus === 'PAID') blockers.push('paid submission requires separate owner approval');
   if (provider.feeStatus === 'UNKNOWN') blockers.push('provider fee requirements are unknown');
-  if (provider.mode === 'unsupported') blockers.push('no supported submission workflow is configured');
+
+  const requirements = (provider.requirements ?? [])
+    .filter((requirement) => typeof requirement === 'string' && requirement.trim().length > 0);
+  blockers.push(...requirements.map((requirement) => (
+    `provider requirement requires human confirmation: ${requirement.trim()}`
+  )));
+
+  const hasHardBlockers = validationErrors.length > 0
+    || token.evidenceStatus !== 'VERIFIED'
+    || token.logo?.integrityStatus !== 'VERIFIED'
+    || provider.feeStatus === 'PAID'
+    || provider.feeStatus === 'UNKNOWN';
 
   let status: ProviderAssessment['status'];
-  if (!provider.enabled || provider.mode === 'unsupported') status = 'NOT_CONFIGURED';
-  else if (blockers.length > 0) status = 'BLOCKED';
-  else if (provider.mode === 'manual' || provider.mode === 'repository') status = 'MANUAL_ACTION_REQUIRED';
-  else status = 'READY_FOR_REVIEW';
+  if (hasHardBlockers) status = 'BLOCKED';
+  else if (provider.mode === 'manual' || provider.mode === 'repository' || requirements.length > 0) {
+    status = 'MANUAL_ACTION_REQUIRED';
+  } else status = 'READY_FOR_REVIEW';
 
   return {
     providerId: provider.id,
@@ -103,13 +264,18 @@ export function buildTokenBrandingInspection(
   tokens: TokenBrandingRecord[],
   providers: BrandingProvider[]
 ) {
-  const tokenResults = tokens.map((token) => ({
-    assetId: token.assetId,
-    network: token.network,
-    contractOrMint: token.contractOrMint,
-    validationErrors: validateTokenBrandingRecord(token),
-    providers: providers.map((provider) => assessBrandingProvider(token, provider))
-  }));
+  const tokenResults = tokens.map((token) => {
+    const validationErrors = validateTokenBrandingRecord(token);
+    return {
+      assetId: token.assetId,
+      network: token.network,
+      contractOrMint: token.contractOrMint,
+      validationErrors,
+      providers: providers.map((provider) => (
+        assessBrandingProvider(token, provider, validationErrors)
+      ))
+    };
+  });
 
   return {
     generatedAt: new Date().toISOString(),
