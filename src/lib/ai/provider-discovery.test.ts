@@ -14,6 +14,7 @@ const environmentKeys = [
 const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
 const requests: Array<{ url: string; method: string }> = [];
+let nvidiaProbeStatus = 200;
 
 try {
   process.env.QWEN_API_KEY = 'test-qwen-key';
@@ -32,9 +33,11 @@ try {
     const hostname = new URL(url).hostname;
     const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
-      : { data: [{ id: 'nvidia/test-model' }] };
+      : nvidiaProbeStatus >= 400
+        ? { error: { message: 'NVIDIA credential rejected' } }
+        : { data: [{ id: 'nvidia/test-model' }] };
     return new Response(JSON.stringify(payload), {
-      status: 200,
+      status: hostname === 'generativelanguage.googleapis.com' ? 200 : nvidiaProbeStatus,
       headers: { 'content-type': 'application/json' },
     });
   }) as typeof fetch;
@@ -82,6 +85,25 @@ try {
   const afterCredentialRotation = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
   assert.equal(afterCredentialRotation?.authenticated, false, 'a credential change must invalidate prior inference proof');
   assert.equal(afterCredentialRotation?.authorization, 'pending');
+
+  // A fresh 401/403 must revoke any prior inference proof for the same credential.
+  await recordProviderInferenceVerification('nvidia', 'nvidia/inference-confirmed-only');
+  nvidiaProbeStatus = 401;
+  await discoverGlobalProviders('provider-discovery-nvidia-401-revocation', { persistConnections: false });
+  const afterUnauthorizedRefresh = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(afterUnauthorizedRefresh?.availability, 'auth_failure');
+  assert.equal(afterUnauthorizedRefresh?.authenticated, false, 'a fresh 401 must revoke stale inference authentication');
+  assert.equal(afterUnauthorizedRefresh?.authorization, 'pending', 'a fresh 401 must revoke stale authorization');
+  assert.equal(afterUnauthorizedRefresh?.models.includes('nvidia/inference-confirmed-only'), false);
+
+  await recordProviderInferenceVerification('nvidia', 'nvidia/inference-confirmed-only');
+  nvidiaProbeStatus = 403;
+  await discoverGlobalProviders('provider-discovery-nvidia-403-revocation', { persistConnections: false });
+  const afterForbiddenRefresh = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
+  assert.equal(afterForbiddenRefresh?.availability, 'auth_failure');
+  assert.equal(afterForbiddenRefresh?.authenticated, false, 'a fresh 403 must revoke stale inference authentication');
+  assert.equal(afterForbiddenRefresh?.authorization, 'pending', 'a fresh 403 must revoke stale authorization');
+  assert.equal(afterForbiddenRefresh?.models.includes('nvidia/inference-confirmed-only'), false);
 
   const gemini = providers.find((provider) => provider.id === 'gemini');
   assert.ok(gemini, 'Gemini discovery entry must exist');
