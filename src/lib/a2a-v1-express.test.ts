@@ -114,7 +114,7 @@ await withServer(baseDependencies(), async (origin) => {
 await withServer(baseDependencies(), async (origin) => {
   const response = await fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 92, method: 'SendMessage', params: {} }),
   });
   assert.equal(response.status, 400, 'an absent A2A-Version is interpreted as 0.3 and rejected');
@@ -158,8 +158,8 @@ await withServer({
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 'init-failure',
-      method: 'message/send',
-      params: { message: { messageId: 'm', role: 'user', parts: [{ text: 'Test' }] } },
+      method: 'SendMessage',
+      params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'Test' }] } },
     }),
   });
   assert.equal(response.status, 503);
@@ -178,8 +178,8 @@ await withServer({
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 'write-failure',
-      method: 'message/send',
-      params: { message: { messageId: 'm', role: 'user', parts: [{ text: 'Test' }] } },
+      method: 'SendMessage',
+      params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'Test' }] } },
     }),
   });
   assert.equal(response.status, 200);
