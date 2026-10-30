@@ -3,6 +3,46 @@ const COLLECTION_ENDPOINTS: Readonly<Record<string, URL>> = Object.freeze({
   glorifier1: new URL('https://api.opensea.io/api/v2/collections/glorifier1'),
 });
 const ALLOWED_COLLECTION_SLUGS = new Set(Object.keys(COLLECTION_ENDPOINTS));
+const MAX_OPENSEA_RESPONSE_BYTES = 1_048_576;
+
+class OpenSeaResponseTooLargeError extends Error {};
+
+const readBoundedOpenSeaJson = async (response: Response): Promise<unknown> => {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength !== null) {
+    if (!/^\\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length.');
+    const parsedLength = Number(declaredLength);
+    if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length.');
+    if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('OpenSea response body is empty.');
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_OPENSEA_RESPONSE_BYTES) {
+        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the response cap. */ }
+        throw new OpenSeaResponseTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+};
 
 export type OpenSeaWorkerEnv = {
   OPENSEA_API_KEY?: string;
@@ -54,8 +94,17 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
   if (upstream.status === 401 || upstream.status === 403) {
     return { status: 502, error: failure(502, 'OPENSEA_API_KEY_REJECTED', 'OpenSea rejected the configured API key.') };
   }
+  if (upstream.status === 404) {
+    return { status: 404, error: failure(404, 'OPENSEA_COLLECTION_NOT_FOUND', 'OpenSea did not find the requested collection.') };
+  }
   if (upstream.status === 429) {
-    return { status: 503, error: failure(503, 'OPENSEA_RATE_LIMITED', 'OpenSea rate-limited the request. Retry after the provider limit resets.') };
+    const retryAfter = upstream.headers.get('retry-after');
+    const validRetryAfter = retryAfter && (/^\\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter))) ? retryAfter : undefined;
+    return {
+      status: 503,
+      error: failure(503, 'OPENSEA_RATE_LIMITED', 'OpenSea rate-limited the request. Retry after the provider limit resets.',
+        validRetryAfter ? { 'Retry-After': validRetryAfter } : {}),
+    };
   }
   if (!upstream.ok) {
     return { status: 502, error: failure(502, 'OPENSEA_UPSTREAM_ERROR', `OpenSea returned HTTP ${upstream.status}.`) };
@@ -68,9 +117,12 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
 
   let data: unknown;
   try {
-    data = await upstream.json();
-  } catch {
-    return { status: 502, error: failure(502, 'OPENSEA_INVALID_RESPONSE', 'OpenSea returned invalid JSON.') };
+    data = await readBoundedOpenSeaJson(upstream);
+  } catch (error) {
+    if (error instanceof OpenSeaResponseTooLargeError) {
+      return { status: 502, error: failure(502, 'OPENSEA_RESPONSE_TOO_LARGE', 'OpenSea response exceeded the 1 MiB safety limit.') };
+    }
+    return { status: 502, error: failure(502, 'OPENSEA_INVALID_RESPONSE', 'OpenSea returned an invalid or unreadable JSON response.') };
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { status: 502, error: failure(502, 'OPENSEA_INVALID_RESPONSE', 'OpenSea returned an unexpected response shape.') };
