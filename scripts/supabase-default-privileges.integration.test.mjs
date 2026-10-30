@@ -7,13 +7,18 @@ const connectionString = process.env.SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_U
 const migrationPath = 'supabase/migrations/20261029040200_harden_client_role_denials.sql';
 
 if (!connectionString) {
-  test('Supabase default privilege migration integration', { skip: 'SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is not set' }, () => {});
-} else {
-  test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async () => {
+  throw new Error('SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is required; this integration test must not be skipped.');
+}
+
+test(  test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async () => {
     const client = new pg.Client({ connectionString });
     await client.connect();
 
+    let transactionStarted = false;
     try {
+      await client.query('BEGIN');
+      transactionStarted = true;
+
       for (const role of ['anon', 'authenticated', 'service_role', 'supabase_admin']) {
         await client.query(`
           DO $$
@@ -30,11 +35,11 @@ if (!connectionString) {
       // project. service_role is intentionally retained for server-side access.
       await client.query(`
         ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-          GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated, service_role;
+          GRANT ALL PRIVILEGES ON TABLES TO anon, authenticated, service_role, PUBLIC;
         ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-          GRANT ALL PRIVILEGES ON SEQUENCES TO anon, authenticated, service_role;
+          GRANT ALL PRIVILEGES ON SEQUENCES TO anon, authenticated, service_role, PUBLIC;
         ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-          GRANT ALL PRIVILEGES ON FUNCTIONS TO anon, authenticated, service_role;
+          GRANT ALL PRIVILEGES ON FUNCTIONS TO anon, authenticated, service_role, PUBLIC;
         ALTER DEFAULT PRIVILEGES FOR ROLE postgres
           GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
 
@@ -168,7 +173,10 @@ if (!connectionString) {
         service_function: true,
       }, 'objects created after the migration must deny client roles and preserve service_role');
     } finally {
-      await client.end();
+      try {
+        if (transactionStarted) await client.query('ROLLBACK');
+      } finally {
+        await client.end();
+      }
     }
   });
-}
