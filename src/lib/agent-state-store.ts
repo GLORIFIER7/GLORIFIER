@@ -142,8 +142,11 @@ export class PostgresAgentStateStore {
     return result.rows.length > 0 || (result.rowCount ?? 0) > 0;
   }
 
-  async recoverInterruptedTasks(): Promise<number> {
-    const error = 'Task was stale in running state for more than 30 minutes during recovery; automatic replay is disabled.';
+  async recoverInterruptedTasks(staleAfterMinutes = 30): Promise<number> {
+    if (!Number.isSafeInteger(staleAfterMinutes) || staleAfterMinutes < 1 || staleAfterMinutes > 24 * 60) {
+      throw new Error('staleAfterMinutes must be a whole number between 1 and 1440.');
+    }
+    const error = `Task was stale in running state for more than ${staleAfterMinutes} minutes during recovery; automatic replay is disabled.`;
     const result = await this.query(
       `UPDATE glorifier_agent_state
        SET status = 'failed',
@@ -159,8 +162,8 @@ export class PostgresAgentStateStore {
            updated_at = NOW()
        WHERE kind = 'task'
          AND status = 'running'
-         AND updated_at < NOW() - INTERVAL '30 minutes'`,
-      [error],
+         AND updated_at < NOW() - ($2::integer * INTERVAL '1 minute')`,
+      [error, staleAfterMinutes],
     );
     return result.rowCount ?? 0;
   }
