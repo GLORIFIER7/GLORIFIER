@@ -186,8 +186,12 @@ export function getA2ATask(id: string) {
   return memoryTasks.get(id) || null;
 }
 
-export function listA2ATasks(limit = 50) {
-  return [...memoryTasks.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).slice(0, Math.min(100, limit));
+export function listA2ATasks(limit = 50, requesterAgentId?: string) {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  return [...memoryTasks.values()]
+    .filter((task) => !requester || task.requesterAgentId === requester)
+    .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, Math.max(1, Math.min(100, Number.isFinite(limit) ? Math.floor(limit) : 50)));
 }
 
 export function createSignedHandoff(task: A2ATask, toAgentId: string, payload: unknown, ttlSeconds = 300) {
