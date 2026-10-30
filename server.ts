@@ -745,6 +745,7 @@ function getOpenAI(): OpenAI | null {
 interface ModelExecutionParams {
   model?: string;
   preferredProvider?: 'openai' | 'gemini';
+  requiredProvider?: 'openai' | 'gemini';
   systemPrompt: string;
   userPrompt: string;
   temperature?: number;
@@ -754,6 +755,7 @@ interface ModelExecutionParams {
 async function runModelExecution({
   model,
   preferredProvider,
+  requiredProvider,
   systemPrompt,
   userPrompt,
   temperature = 0.4,
@@ -766,6 +768,7 @@ async function runModelExecution({
   const registryResult = await executeThroughProviderRegistry({
     model: chosenModel,
     preferredProvider,
+    requiredProvider,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -773,6 +776,18 @@ async function runModelExecution({
     temperature,
     maxTokens: jsonMode ? 4096 : undefined
   });
+
+  if (requiredProvider && registryResult.provider !== requiredProvider) {
+    return {
+      text: '',
+      modelUsed: 'not-executed',
+      provider: 'none',
+      executionStatus: 'unavailable',
+      providerStatus: registryResult.providerStatuses,
+      providerErrors: registryResult.errors,
+      computeError: 'Strict provider constraint prevented alternate-provider compute fallback.',
+    };
+  }
 
   if (registryResult.response?.text?.trim()) {
     return {
@@ -1615,14 +1630,14 @@ app.post('/api/ai/collaborate-gpt-fix', async (req: Request, res: Response) => {
     const { errorCode, errorMessage, errorSource, codeSnippet } = req.body;
 
     const gptSystemPrompt = `You are OpenAI GPT-4o acting as Principal Systems & Code Architect.
-Your task is to collaborate with Google Gemini to analyze a runtime error, perform root-cause analysis, and provide a surgical, production-ready fix patch.
+You are an OpenAI provider model tasked with collaborating with a Google Gemini provider model to analyze a runtime error, perform root-cause analysis, and provide a surgical, production-ready fix proposal.
 Always provide:
 1. Root Cause Summary
 2. Architectural Recommendation
 3. Concrete Code Patch (in unified diff format)
 4. Verification & Regression Safety check`;
 
-    const geminiSystemPrompt = `You are Google Gemini 3.8 Flash acting as Principal Site Reliability & Cryptographic Privacy Engineer.
+    const geminiSystemPrompt = `You are a Google Gemini provider model acting as Principal Site Reliability & Cryptographic Privacy Engineer.
 Your task is to review the error and collaborate with OpenAI GPT-4o to propose mathematical bounds, rate-limit resilience, and zero-downtime failover logic.`;
 
     const userPrompt = `Error Code: ${errorCode || 'UNKNOWN_RUNTIME_ERR'}
@@ -1635,12 +1650,14 @@ ${codeSnippet || '// No code snippet provided'}`;
     const [gptPromise, geminiPromise] = [
       runModelExecution({
         preferredProvider: 'openai',
+        requiredProvider: 'openai',
         systemPrompt: gptSystemPrompt,
         userPrompt,
         temperature: 0.2
       }),
       runModelExecution({
         preferredProvider: 'gemini',
+        requiredProvider: 'gemini',
         systemPrompt: geminiSystemPrompt,
         userPrompt,
         temperature: 0.2
@@ -1671,8 +1688,8 @@ ${codeSnippet || '// No code snippet provided'}`;
       collaborativeFixProposal: 'Provider analysis only. No executable patch was generated or safety-tested.',
       patchDiff: unifiedPatch,
       collaboratingModels: [
-        ...(gptText ? ['OpenAI GPT-4o'] : []),
-        ...(geminiText ? ['Google Gemini 3.8 Flash'] : [])
+        ...(gptText && gptRes.status === 'fulfilled' ? [`OpenAI (${gptRes.value.modelUsed})`] : []),
+        ...(geminiText && geminiRes.status === 'fulfilled' ? [`Gemini (${geminiRes.value.modelUsed})`] : [])
       ],
       verifiedSafe: false,
       safetyStatus: 'NOT VERIFIED — provider analysis is not a patch safety test',
@@ -1703,8 +1720,8 @@ app.post('/api/ai/work-together-gpt', async (req: Request, res: Response) => {
     const chosenDomain = domain || 'code_engineering';
     const userGoal = taskPrompt || taskTitle || 'Collaborative task with GPT';
 
-    // System prompt for GPT-4o (Lead Co-Worker & Solution Architect)
-    let gptSystem = `You are OpenAI GPT-4o working directly in a collaborative pair-programming and strategic co-working session with the user and Google Gemini.
+    // System prompt for the OpenAI provider (Lead Co-Worker & Solution Architect)
+    let gptSystem = `You are an OpenAI provider model working directly in a collaborative pair-programming and strategic co-working session with the user and Google Gemini.
 Domain: ${chosenDomain}.
 Your responsibility:
 1. Provide the direct, concrete solution, code snippet, mathematical formula, or strategic analysis.
@@ -1712,8 +1729,8 @@ Your responsibility:
 3. Clearly mark code blocks with the appropriate language tags (e.g. \`\`\`typescript, \`\`\`diff, \`\`\`json).
 4. Provide structured reasoning and bullet-point implementation steps.`;
 
-    // System prompt for Gemini 3.8 Flash (Peer Verifier & Cryptographic Co-Pilot)
-    let geminiSystem = `You are Google Gemini 3.8 Flash working together with OpenAI GPT-4o and the user.
+    // System prompt for the Gemini provider (Peer Verifier & Cryptographic Co-Pilot)
+    let geminiSystem = `You are a Google Gemini provider model working together with an OpenAI provider model and the user.
 Domain: ${chosenDomain}.
 Your responsibility:
 1. Peer-review GPT-4o's solution for differential privacy leaks (Laplace bounds ε), runtime edge cases, rate-limit resilience, and compliance.
@@ -1744,12 +1761,14 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
     const [gptRes, geminiRes] = await Promise.allSettled([
       runModelExecution({
         preferredProvider: 'openai',
+        requiredProvider: 'openai',
         systemPrompt: gptSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
       }),
       runModelExecution({
         preferredProvider: 'gemini',
+        requiredProvider: 'gemini',
         systemPrompt: geminiSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
@@ -1766,18 +1785,24 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
       });
     }
 
+    const gptLabel = gptText && gptRes.status === 'fulfilled'
+      ? `OpenAI (${gptRes.value.modelUsed})`
+      : 'OpenAI provider unavailable';
+    const geminiLabel = geminiText && geminiRes.status === 'fulfilled'
+      ? `Gemini (${geminiRes.value.modelUsed})`
+      : 'Gemini provider unavailable';
     const jointArtifact = `### Joint Co-Authored Artifact
 **Task:** ${userGoal}
 **Domain:** ${chosenDomain}
-**Provider evidence:** Only live provider responses returned by this request are included. No agreement or verification is asserted unless both providers actually responded.
+**Provider evidence:** Only the required provider responses returned by this request are included. Each contributor is labelled with its actual returned model. No agreement or verification is asserted unless both providers actually responded.
 
-#### OpenAI GPT response
-${gptText || 'No verified OpenAI response was available.'}
+#### ${gptLabel}
+${gptText || 'No verified OpenAI-provider response was available.'}
 
 ---
 
-#### Gemini response
-${geminiText || 'No verified Gemini response was available.'}`;
+#### ${geminiLabel}
+${geminiText || 'No verified Gemini-provider response was available.'}`;
 
     res.json({
       success: true,
@@ -1787,8 +1812,8 @@ ${geminiText || 'No verified Gemini response was available.'}`;
       geminiPeerReview: geminiText,
       jointArtifact,
       coAuthors: [
-        ...(gptText ? ['OpenAI GPT-4o'] : []),
-        ...(geminiText ? ['Google Gemini 3.8 Flash'] : [])
+        ...(gptText && gptRes.status === 'fulfilled' ? [`OpenAI (${gptRes.value.modelUsed})`] : []),
+        ...(geminiText && geminiRes.status === 'fulfilled' ? [`Gemini (${geminiRes.value.modelUsed})`] : [])
       ],
       consensusScore: null,
       consensusStatus: 'NOT MEASURED — provider agreement has not been independently tested',
