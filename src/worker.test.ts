@@ -351,6 +351,56 @@ async function run(): Promise<void> {
       'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
       'runtime verification must perform only its existing Supabase read-only probe when Neural is not configured',
     );
+    // Runtime configuration reporting must distinguish invalid, blocked, and merely configured states.
+    const neuralConfigurationCases = [
+      {
+        name: 'invalid origin',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test' },
+        expected: { ok: false, status: 'invalid-origin', code: 'NEURAL_ORIGIN_INVALID' },
+      },
+      {
+        name: 'missing allowlist',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined },
+        expected: { ok: false, status: 'allowlist-not-configured', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' },
+      },
+      {
+        name: 'host not allowlisted',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'other.example.test' },
+        expected: { ok: false, status: 'not-allowlisted', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' },
+      },
+      {
+        name: 'origin and allowlist configured',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test' },
+        expected: { ok: null, status: 'configured-not-probed' },
+      },
+    ] as const;
+
+    upstreamResponse = new Response(null, {
+      status: 200,
+      headers: { 'content-range': '0-0/0' },
+    });
+    for (const neuralCase of neuralConfigurationCases) {
+      capturedRequest = null;
+      const runtimeResponse = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+        {
+          ...env,
+          ...neuralCase.env,
+          GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+          GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        },
+      );
+      assert.equal(runtimeResponse.status, 200, neuralCase.name);
+      const runtimeBody = await runtimeResponse.json() as {
+        checks: { neural?: { ok: boolean | null; status: string; code?: string } };
+      };
+      assert.deepEqual(runtimeBody.checks.neural, neuralCase.expected, neuralCase.name);
+      assert.equal(
+        getCapturedRequest().url,
+        'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+        `runtime verification must not make a Neural network request for configuration case: ${neuralCase.name}`,
+      );
+    }
     upstreamResponse = previousRuntimeResponse;
 
     const nativeReportsWithoutSupabase = await worker.fetch(
