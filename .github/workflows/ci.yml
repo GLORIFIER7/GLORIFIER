@@ -241,6 +241,9 @@ jobs:
       - name: Backend internal-service authentication regression tests
         run: npm run test:backend-auth
 
+      - name: AI council provider authorization and routing regression tests
+        run: npm run test:ai-council-routing
+
       - name: GLR payment-intent route authorization contract tests
         run: npm run test:glr-intent-route-contract
 
