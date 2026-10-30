@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process';
-
 const INTERNAL_APP_BASE_URL = String(process.env.RAILWAY_SERVICE_GLORIFIER_ARTIFICIAL_INTELLIGENCE_URL || '').replace(/\/$/, '');
 const APP_BASE_URL = INTERNAL_APP_BASE_URL || 'https://glorifier-artificial-intelligence-production.up.railway.app';
 const APP_HEALTH_URL = process.env.GLORIFIER_APP_HEALTH_URL || `${APP_BASE_URL}/api/health`;
@@ -29,23 +27,6 @@ const AI_CEO = {
 
 function log(event, details = {}) {
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), event, aiCeo: AI_CEO.role, ...details }));
-}
-
-function run(command, args = [], timeoutMs = 25 * 60_000) {
-  try {
-    const output = execFileSync(command, args, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: timeoutMs,
-      env: process.env,
-    });
-    return { ok: true, output };
-  } catch (error) {
-    return {
-      ok: false,
-      output: `${error.stdout || ''}\n${error.stderr || error.message}`.trim(),
-    };
-  }
 }
 
 async function healthCheck() {
