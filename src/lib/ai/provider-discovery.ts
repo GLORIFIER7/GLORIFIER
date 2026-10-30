@@ -9,6 +9,7 @@ const definitions: ProviderDefinition[] = [
  {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
  {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',workspaceIdEnv:'ANTHROPIC_WORKSPACE_ID',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
+ {id:'qwen',name:'Alibaba Qwen',kind:'openai-compatible',endpoint:'',keyEnv:'QWEN_API_KEY',baseUrlEnv:'QWEN_BASE_URL',modelEnv:'QWEN_MODEL',capabilities:['chat','reasoning','code']},
  {id:'xai',name:'xAI',kind:'openai-compatible',endpoint:'https://api.x.ai/v1',keyEnv:'XAI_API_KEY',baseUrlEnv:'XAI_BASE_URL',modelEnv:'XAI_MODEL',defaultModel:'grok-4',capabilities:['chat','reasoning','code']},
  {id:'mistral',name:'Mistral AI',kind:'openai-compatible',endpoint:'https://api.mistral.ai/v1',keyEnv:'MISTRAL_API_KEY',baseUrlEnv:'MISTRAL_BASE_URL',modelEnv:'MISTRAL_MODEL',defaultModel:'mistral-large-latest',capabilities:['chat','reasoning','code']},
  {id:'deepseek',name:'DeepSeek',kind:'openai-compatible',endpoint:'https://api.deepseek.com/v1',keyEnv:'DEEPSEEK_API_KEY',baseUrlEnv:'DEEPSEEK_BASE_URL',modelEnv:'DEEPSEEK_MODEL',defaultModel:'deepseek-reasoner',capabilities:['chat','reasoning','code']},
@@ -28,8 +29,11 @@ function classify(status:number, body:string):ProviderAvailability { if(status==
 function reasonFor(status:number, body:string, availability:ProviderAvailability):string|null { if(availability==='available')return null; if(status===401)return 'invalid_or_expired_api_key'; if(status===403)return 'api_key_forbidden_or_access_denied'; if(status===402||/spend|billing|credit|quota/i.test(body))return 'quota_or_billing_limit'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'provider_service_error'; return body.slice(0,300); }
 async function fetchJson(url:string,headers:Record<string,string>,init:RequestInit={}) { const response=await fetch(url,{...init,headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
 async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
- const configured=Boolean(d.keyEnv ? env(d.keyEnv) : true), endpoint=endpointFor(d), checked=new Date().toISOString();
- if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:'No server-side credential configured.',authorization:'not-configured'};
+ const endpoint=endpointFor(d), checked=new Date().toISOString();
+ const credentialConfigured=Boolean(d.keyEnv ? env(d.keyEnv) : true);
+ const endpointConfigured=Boolean(endpoint);
+ const configured=credentialConfigured && endpointConfigured;
+ if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':'Provider base URL is missing; configure the provider-specific base URL before probing.',authorization:'not-configured'};
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
