@@ -1,12 +1,8 @@
-import { isIP } from 'node:net';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
-/** Resolve the platform-provided client IP without trusting arbitrary forwarded chains. */
+/** Use the observed socket peer; never trust client-supplied forwarded-IP headers. */
 export function resolveIngressClientAddress(req) {
-  const platformClientIp = req.get('x-real-ip')?.trim();
-  return platformClientIp && isIP(platformClientIp)
-    ? platformClientIp
-    : req.ip || req.socket?.remoteAddress || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 /**
