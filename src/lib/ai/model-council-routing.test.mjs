@@ -129,6 +129,7 @@ test('AI council route requires owner authorization and has a principal-scoped s
   );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
   assert.match(serverSource, /singleInstanceConfirmed:\s*process\.env\.AI_COUNCIL_SINGLE_INSTANCE === 'true'/);
+  assert.match(serverSource, /handler:\s*\(_req,\s*res\)\s*=>\s*\{[\s\S]*?error:\s*'AI council usage is limited to two requests per minute/);
   assert.match(serverSource, /model:\s*modelId,\s*messages,[^}]*\bsignal\s*\}/);
   assert.match(serverSource, /isValidModelCouncilResponse\(synthesisResponse,\s*synthesisProvider,\s*synthesisModel\)/);
 });
