@@ -37,8 +37,10 @@ const query: AgentStateQuery = async (sql, values = []) => {
   }
   if (sql.includes('UPDATE glorifier_agent_state')) {
     let recovered = 0;
+    const staleBefore = Date.now() - 30 * 60 * 1000;
     for (const [key, row] of rows) {
       if (row.kind !== 'task' || row.status !== 'running') continue;
+      if (Date.parse(row.updated_at) >= staleBefore) continue;
       const payload = row.payload as Record<string, unknown>;
       const updated = {
         ...payload,
@@ -74,8 +76,17 @@ assert.deepEqual(await store.list<typeof task>('task', 10), [task]);
 
 const running = { ...task, id: 'task-running', status: 'running' };
 await store.save('task', running);
+const recentRunning = {
+  ...task,
+  id: 'task-recent-running',
+  status: 'running',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+await store.save('task', recentRunning);
 assert.equal(await store.recoverInterruptedTasks(), 1);
 assert.match(statements[statements.length - 1] || '', /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
+assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
 assert.match(recovered?.error || '', /automatic replay is disabled/);
