@@ -13,7 +13,7 @@ const responseHeaders = {
 const failure = (status: number, code: string, message: string, additionalHeaders: Record<string, string> = {}): Response =>
   Response.json({ ok: false, provider: 'opensea', status: 'unavailable', code, error: message }, {
     status,
-    headers: { ...responseHeaders, ...additionalHeaders },
+    headers: { ...additionalHeaders, ...responseHeaders },
   });
 
 const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
