@@ -3,7 +3,6 @@ import { AnthropicProvider } from './providers/anthropic';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import type { AIProvider, AIProviderId, ProviderRegistryEntry } from './types';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, recordProviderInferenceVerification, type DiscoveredProvider } from './provider-discovery';
-import { isIndependentComputeFallbackAllowed } from './model-selection';
 import { withLangSmithTrace } from '../observability/langsmith';
 
 const compatibleProviders = [
