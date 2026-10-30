@@ -744,6 +744,7 @@ function getOpenAI(): OpenAI | null {
 // Universal Model Runner supporting GPT-4o, GPT-4o-mini, Gemini, and Dual-Consensus
 interface ModelExecutionParams {
   model?: string;
+  preferredProvider?: 'openai' | 'gemini';
   systemPrompt: string;
   userPrompt: string;
   temperature?: number;
@@ -752,6 +753,7 @@ interface ModelExecutionParams {
 
 async function runModelExecution({
   model,
+  preferredProvider,
   systemPrompt,
   userPrompt,
   temperature = 0.4,
@@ -763,6 +765,7 @@ async function runModelExecution({
   // The registry is the single provider-selection boundary; it never fabricates output.
   const registryResult = await executeThroughProviderRegistry({
     model: chosenModel,
+    preferredProvider,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -1631,13 +1634,13 @@ ${codeSnippet || '// No code snippet provided'}`;
     // Concurrently execute GPT and Gemini for mutual peer-review
     const [gptPromise, geminiPromise] = [
       runModelExecution({
-        model: 'gpt-4o',
+        preferredProvider: 'openai',
         systemPrompt: gptSystemPrompt,
         userPrompt,
         temperature: 0.2
       }),
       runModelExecution({
-        model: 'gemini-3.8-flash',
+        preferredProvider: 'gemini',
         systemPrompt: geminiSystemPrompt,
         userPrompt,
         temperature: 0.2
@@ -1740,13 +1743,13 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
 
     const [gptRes, geminiRes] = await Promise.allSettled([
       runModelExecution({
-        model: 'gpt-4o',
+        preferredProvider: 'openai',
         systemPrompt: gptSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
       }),
       runModelExecution({
-        model: 'gemini-3.8-flash',
+        preferredProvider: 'gemini',
         systemPrompt: geminiSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
