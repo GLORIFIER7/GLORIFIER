@@ -2,7 +2,8 @@ import { GeminiProvider } from './providers/gemini';
 import { AnthropicProvider } from './providers/anthropic';
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import type { AIProvider, AIProviderId, ProviderRegistryEntry } from './types';
-import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, type DiscoveredProvider } from './provider-discovery';
+import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, recordProviderInferenceVerification, type DiscoveredProvider } from './provider-discovery';
+import { isIndependentComputeFallbackAllowed } from './model-selection';
 import { withLangSmithTrace } from '../observability/langsmith';
 
 const compatibleProviders = [
@@ -68,7 +69,9 @@ const providerCooldownUntil = new Map<string, number>();
 const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
   const entry = discovery.get(provider.id);
-  return Boolean(entry?.authorization === 'configured' && (!capability || entry.capabilities.includes(capability)));
+  const explicitlyAuthorizedNvidia = provider.id === 'nvidia' && process.env.NVIDIA_AUTHORIZED === 'true';
+  return Boolean((entry?.authorization === 'configured' || explicitlyAuthorizedNvidia)
+    && (!capability || entry.capabilities.includes(capability)));
 };
 
 const isProviderEligibleAfterRefresh = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability: string | undefined, attemptedProviders: string[]): boolean => {
@@ -77,7 +80,7 @@ const isProviderEligibleAfterRefresh = (provider: AIProvider, discovery: Map<str
   // A separately configured authorization flag may allow the actual user-requested
   // inference attempt to be the credential check; never label discovery authenticated.
   const inferenceMayBeAttempted = entry?.authenticated
-    || (provider.id === 'nvidia' && entry?.authorization === 'configured');
+    || (provider.id === 'nvidia' && process.env.NVIDIA_AUTHORIZED === 'true');
   return Boolean(entry?.availability === 'available' && inferenceMayBeAttempted
     && isProviderEligible(provider, discovery, capability)
     && !isCoolingDown(provider.id)
@@ -300,6 +303,7 @@ const attemptProviderOnce = async (
       state.errors.push(`${provider.id}: empty response${emptyResponseSuffix}`);
       return { retry: false };
     }
+    recordProviderInferenceVerification(provider.id);
     providerCooldownUntil.delete(provider.id);
     providerLastFailure.delete(provider.id);
     return { response, retry: false };
@@ -478,10 +482,32 @@ export const executeThroughProviderRegistry = async (
   };
   const policy = resolveExecutionPolicy(executionRequest);
   assertGovernedFallbackPolicy(policy);
-  const connected = filterRequiredProvider(getConnectedProviders(), executionRequest.requiredProvider);
+  const allConnected = getConnectedProviders();
+  const connected = filterRequiredProvider(allConnected, executionRequest.requiredProvider);
   const preferredProvider = resolvePreferredProvider(executionRequest);
   const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const state = createProviderExecutionState();
+
+  if (executionRequest.requiredProvider) {
+    const requiredId = executionRequest.requiredProvider;
+    const adapter = providers.find((provider) => provider.id === requiredId);
+    const connectedAdapter = allConnected.find((provider) => provider.id === requiredId);
+    const entry = discovery.get(requiredId);
+    let reason: string | undefined;
+    if (!adapter) reason = 'unknown provider';
+    else if (!connectedAdapter) reason = 'not connected (credentials or adapter unavailable)';
+    else if (!isProviderEligible(connectedAdapter, discovery, executionRequest.capability)) {
+      reason = entry?.authorization === 'not-configured' || !entry
+        ? 'not configured or not authorized'
+        : 'not authorized or not yet verified for execution';
+    }
+    if (reason) {
+      state.providerStatuses[requiredId] = 'unavailable';
+      state.errors.push(`${requiredId}: required provider is ${reason}; alternate providers and independent compute are disabled for this request.`);
+      return buildExecutionResult('provider-registry-exhausted', undefined, state);
+    }
+  }
+
   const ordered = [...connected]
     .filter((provider) => {
       if (!isProviderEligible(provider, discovery, executionRequest.capability)) return false;
