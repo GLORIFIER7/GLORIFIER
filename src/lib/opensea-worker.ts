@@ -10,16 +10,16 @@ const responseHeaders = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-const failure = (status: number, code: string, message: string): Response =>
+const failure = (status: number, code: string, message: string, additionalHeaders: Record<string, string> = {}): Response =>
   Response.json({ ok: false, provider: 'opensea', status: 'unavailable', code, error: message }, {
     status,
-    headers: responseHeaders,
+    headers: { ...responseHeaders, ...additionalHeaders },
   });
 
 const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
   let upstream: Response;
   try {
-    upstream = await fetch(new URL(`${OPENSEA_API_BASE}/collections/${encodeURIComponent(slug)}`), {
+    const init: RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } } = {
       method: 'GET',
       headers: {
         'X-API-KEY': apiKey,
@@ -27,7 +27,10 @@ const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: 
       },
       redirect: 'error',
       signal: AbortSignal.timeout(8000),
-    });
+      // Bound public collection requests at the Cloudflare edge to conserve API quota.
+      cf: { cacheTtl: 60, cacheEverything: true },
+    };
+    upstream = await fetch(new URL(`${OPENSEA_API_BASE}/collections/${encodeURIComponent(slug)}`), init);
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
     return {
@@ -70,7 +73,7 @@ export const openSeaWorkerRoute = async (
   env: OpenSeaWorkerEnv,
 ): Promise<Response> => {
   if (request.method !== 'GET') {
-    return failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET only.');
+    return failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET only.', { Allow: 'GET' });
   }
 
   const isHealthProbe = pathname === '/api/opensea/health';
