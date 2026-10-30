@@ -8,7 +8,6 @@ on:
       - "Dockerfile.ubuntu"
       - "Dockerfile.orchestrator.ubuntu"
       - "scripts/permanent-orchestrator.mjs"
-      - "docker/orchestrator-security-patches/**"
       - ".dockerignore"
       - "package.json"
       - "package-lock.json"
@@ -54,6 +53,12 @@ jobs:
 
       - name: Build permanent orchestrator runtime image
         run: docker build --pull --file Dockerfile.orchestrator.ubuntu --tag glorifier/orchestrator:pr-${{ github.event.pull_request.number }} .
+
+      - name: Verify orchestrator runtime is non-root and Node.js 24
+        run: |
+          image=glorifier/orchestrator:pr-${{ github.event.pull_request.number }}
+          docker run --rm --entrypoint node "$image" -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12) || process.getuid?.() === 0) process.exit(1); console.log(JSON.stringify({node: process.versions.node, uid: process.getuid()}))'
+          docker run --rm --entrypoint node "$image" --check /app/scripts/permanent-orchestrator.mjs
 
       - name: Block permanent orchestrator image with high or critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
