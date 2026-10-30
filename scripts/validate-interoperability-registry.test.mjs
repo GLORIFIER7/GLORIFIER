@@ -136,7 +136,7 @@ test('CLI rejects registry paths outside the architecture registry directory', (
     const script = fileURLToPath(new URL('./validate-interoperability-registry.mjs', import.meta.url));
     const result = spawnSync(process.execPath, [script, input], { encoding: 'utf8' });
     assert.equal(result.status, 2, 'out-of-tree CLI paths must be rejected before file contents are parsed');
-    assert.match(result.stderr, /must remain inside docs\\/architecture/);
+    assert.ok(result.stderr.includes('must remain inside docs/architecture'));
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
