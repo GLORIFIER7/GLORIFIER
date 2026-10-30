@@ -287,10 +287,10 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       - name: PostgreSQL agent state store integration tests
         run: npm run test:agent-state-store-integration
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glorifier_test
+          AGENT_STATE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glorifier_test
 
