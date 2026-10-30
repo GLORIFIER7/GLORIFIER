@@ -339,7 +339,7 @@ test('production council execution fails closed without a confirmed single-insta
     const response = await fetch(`http://127.0.0.1:${address.port}/council`, { method: 'POST' });
     assert.equal(response.status, 503);
     const body = await response.json();
-    assert.match(body.error, /shared rate-limit store|single backend instance/i);
+    assert.match(body.error, /shared store|exactly one backend instance/i);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
