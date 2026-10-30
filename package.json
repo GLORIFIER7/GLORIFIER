@@ -87,7 +87,6 @@
     "test:governance-loop": "tsx src/lib/governance-loop.test.ts",
     "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",
     "test:supabase-default-privileges": "node scripts/supabase-default-privileges.integration.test.mjs"
-    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
