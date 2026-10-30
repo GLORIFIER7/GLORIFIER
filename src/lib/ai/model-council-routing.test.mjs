@@ -90,3 +90,28 @@ test('council rejects a response that claims a different provider or contains no
   assert.equal(empty.status, 'unavailable');
   assert.equal(empty.participantCount, 0);
 });
+
+test('legacy model selection rejects unknown IDs instead of silently dropping them', async () => {
+  const { resolveModelCouncilProviderIds } = await import('./model-council-routing.mjs');
+  assert.deepEqual(
+    resolveModelCouncilProviderIds({
+      activeModels: ['gpt-4o', 'claude', 'gemini-3.8-flash'],
+      availableProviderIds: knownProviders,
+    }),
+    ['openai', 'claude', 'gemini'],
+  );
+  assert.throws(
+    () => resolveModelCouncilProviderIds({
+      activeModels: ['gpt-4o', 'unrecognized-model'],
+      availableProviderIds: knownProviders,
+    }),
+    /unknown provider/i,
+  );
+  assert.throws(
+    () => resolveModelCouncilProviderIds({
+      activeModels: ['gpt-4o', 42],
+      availableProviderIds: knownProviders,
+    }),
+    /non-empty string/i,
+  );
+});
