@@ -257,7 +257,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
         const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
         setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
       } else {
-        setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No provider fallback or synthetic response was substituted.');
+        setStatusFeedback('Council execution failed. No provider fallback or synthetic response was substituted.');
       }
     } finally {
       setIsRunningCouncil(false);
