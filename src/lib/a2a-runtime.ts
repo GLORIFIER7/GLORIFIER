@@ -108,22 +108,23 @@ export function initializeA2ARuntime(): Promise<void> {
   return initializationPromise;
 }
 
+async function persistTaskDurably(task: A2ATask): Promise<void> {
+  await getPostgresPool().query(
+    `INSERT INTO a2a_tasks(id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,attempts,max_attempts,result,error,evidence_id,created_at,updated_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,attempts=EXCLUDED.attempts,result=EXCLUDED.result,error=EXCLUDED.error,evidence_id=EXCLUDED.evidence_id,updated_at=EXCLUDED.updated_at`,
+    [task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability, task.objective,
+      task.input ?? null, task.status, task.attempts, task.maxAttempts, task.result ?? null, task.error ?? null,
+      task.evidenceId ?? null, task.createdAt, task.updatedAt]
+  );
+}
+
 function persistTask(task: A2ATask) {
   memoryTasks.set(task.id, task);
   if (!process.env.DATABASE_URL) return;
-  try {
-    const db = getPostgresPool();
-    void db.query(
-      `INSERT INTO a2a_tasks(id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,attempts,max_attempts,result,error,evidence_id,created_at,updated_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,attempts=EXCLUDED.attempts,result=EXCLUDED.result,error=EXCLUDED.error,evidence_id=EXCLUDED.evidence_id,updated_at=EXCLUDED.updated_at`,
-      [task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability, task.objective,
-        task.input ?? null, task.status, task.attempts, task.maxAttempts, task.result ?? null, task.error ?? null,
-        task.evidenceId ?? null, task.createdAt, task.updatedAt]
-    ).catch(error => console.warn('[A2A] task persistence deferred:', error?.message));
-  } catch (error) {
-    console.warn('[A2A] task persistence deferred:', error instanceof Error ? error.message : 'database unavailable');
-  }
+  void persistTaskDurably(task).catch(error =>
+    console.warn('[A2A] task persistence deferred:', error?.message),
+  );
 }
 
 function persistHandoff(h: A2AHandoff) {
@@ -162,7 +163,7 @@ export function discoverA2ACapabilities() {
   }));
 }
 
-export function createA2ATask(input: {
+type CreateA2ATaskInput = {
   requesterAgentId: string;
   targetAgentId?: string;
   capability: string;
@@ -170,9 +171,11 @@ export function createA2ATask(input: {
   input?: unknown;
   parentTaskId?: string;
   maxAttempts?: number;
-}) {
+};
+
+function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
   const now = new Date().toISOString();
-  const task: A2ATask = {
+  return {
     id: `a2a-${crypto.randomUUID()}`,
     parentTaskId: input.parentTaskId || null,
     requesterAgentId: input.requesterAgentId,
@@ -186,7 +189,22 @@ export function createA2ATask(input: {
     createdAt: now,
     updatedAt: now
   };
+}
+
+export function createA2ATask(input: CreateA2ATaskInput) {
+  const task = buildA2ATask(input);
   persistTask(task);
+  return task;
+}
+
+export async function createA2ATaskForProtocol(input: CreateA2ATaskInput): Promise<A2ATask> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('A2A persistent task storage is not configured.');
+  }
+  await initializeA2ARuntime();
+  const task = buildA2ATask(input);
+  await persistTaskDurably(task);
+  memoryTasks.set(task.id, task);
   return task;
 }
 
