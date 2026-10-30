@@ -89,6 +89,20 @@ try {
   assert.equal((await getAgentTask(durableTask.id))?.status, 'running');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === durableTask.id), true);
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
+
+  const failingSaveStore = {
+    initialize: async () => undefined,
+    recoverInterruptedTasks: async () => 1,
+    list: async <T>() => [] as T[],
+    get: async <T>() => null as T | null,
+    save: async () => { throw new Error('simulated durable save failure'); },
+  } as unknown as PostgresAgentStateStore;
+  assert.equal(await initializeAgentRuntimePersistence(failingSaveStore), true);
+  await assert.rejects(
+    () => createAgentTask({ capability: 'research', objective: 'must not be accepted without durable save', requester: 'agent-runtime-test' }),
+    /simulated durable save failure/,
+  );
+  assert.deepEqual(await listAgentTasks(10), [], 'a task whose durable insert failed must not appear as accepted');
 } finally {
   if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = previousDatabaseUrl;
