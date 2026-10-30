@@ -13,7 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { isIndependentComputeFallbackAllowed, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
+import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
@@ -801,7 +801,7 @@ async function runModelExecution({
     };
   }
 
-  if (!isIndependentComputeFallbackAllowed(chosenModel, requiredProvider)) {
+  if (!isIndependentComputeFallbackAllowed(chosenModel, requiredProvider, preferredProvider)) {
     console.warn('[ModelExecution] Independent compute fallback suppressed.', {
       requestedModel: chosenModel,
       requiredProvider: requiredProvider || null,
@@ -1415,13 +1415,14 @@ app.post('/api/ai/role', async (req: Request, res: Response) => {
 app.post('/api/ai/broker-chat', async (req: Request, res: Response) => {
   try {
     const { message, currentPolicy, footprintsSummary, model } = req.body;
-    const chosenModel = model || currentPolicy?.aiModel || 'auto';
+    const chosenModel = normalizeSavedModelPreference(model ?? currentPolicy?.aiModel);
+    const chosenModelLabel = modelPreferenceLabel(chosenModel);
 
-    const systemPrompt = `You are DataSovereign AI running on ${chosenModel}, an expert autonomous personal data broker and privacy agent representing the user.
+    const systemPrompt = `You are DataSovereign AI using ${chosenModelLabel}, an expert autonomous personal data broker and privacy agent representing the user.
 Your mission is to defend the user's digital sovereignty across the entire internet, enforce mathematical differential privacy (Laplacian noise, epsilon \u03b5 levels), calculate fair-market data compensation, negotiate with data buyers (e.g., AI frontier labs, market analytics, biomedical researchers), and eliminate unconsented broker tracking (Acxiom, Experian, Meta, Google).
 Respond directly, concisely (2-3 paragraphs max), strategically, and authoritatively. Highlight concrete dollar values, privacy risks, and specific action steps.
 User's current policy: Floor = $${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo; Mode = ${currentPolicy?.brokerMode || 'balanced'}; Epsilon \u03b5 = ${currentPolicy?.globalEpsilon || 0.35}; AI pretraining allowed: ${currentPolicy?.allowAiModelPretraining ? 'YES' : 'NO'}.
-Active AI Model: ${chosenModel}.
+Active AI Model: ${chosenModelLabel}.
 Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, Health telemetry active'}.`;
 
     const execution = await runModelExecution({
