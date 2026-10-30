@@ -212,7 +212,7 @@ const pendingAcknowledgement = asyncCreateHandler({
   return response;
 });
 await Promise.resolve();
-assert.equal(responseSettled, false, 'message/send must not acknowledge before durable task creation resolves');
+assert.equal(responseSettled, false, 'SendMessage must not acknowledge before durable task creation resolves');
 finishDurableCreate(baseTask({
   requesterAgentId: 'verified-user-async',
   objective: 'Durably record this',
