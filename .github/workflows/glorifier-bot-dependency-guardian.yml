@@ -17,9 +17,8 @@ permissions:
   contents: read
 
 concurrency:
-  # Keep concurrent PR validations independent; only supersede an older run
-  # when a newer commit arrives for the same pull request.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Give each PR its own group; schedule/manual runs get unique run IDs.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -29,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -37,9 +38,9 @@ jobs:
           cache: npm
 
       # npm ci fails if package.json and package-lock.json are out of sync.
-      # Version updates are proposed separately by native Dependabot PRs.
+      # Disable its implicit audit because the explicit audit step is the gate.
       - name: Install exactly the committed lockfile
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit
 
       - name: Audit committed dependencies
         run: npm audit --audit-level=low
