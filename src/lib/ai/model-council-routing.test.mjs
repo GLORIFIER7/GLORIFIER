@@ -296,27 +296,26 @@ test('model council response attribution validates both provider and selected mo
 test('both council UIs submit exact configured model pairs and expose provider failures', async () => {
   const managementSource = await readFile(new URL('../../components/AiModelsCollaborationManagement.tsx', import.meta.url), 'utf8');
   const modalSource = await readFile(new URL('../../components/AllAiCollaborationModal.tsx', import.meta.url), 'utf8');
-  assert.match(managementSource, /fetch\('\/api\/ai\/registry'\)/);
-  assert.match(managementSource, /participants,/);
+  assert.match(managementSource, /discoverConfiguredModelCouncilParticipants/);
+  assert.match(managementSource, /submitAuthenticatedModelCouncilRequest/);
   assert.match(managementSource, /const agendaToRun = customAgenda\.trim\(\) \|\| selectedTopic;/);
   assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
   assert.match(managementSource, /Provider-backed Nodes/);
   assert.match(managementSource, /failureSummary/);
-  assert.match(modalSource, /fetch\('\/api\/ai\/registry'\)/);
-  assert.match(modalSource, /participants,/);
+  assert.match(modalSource, /discoverConfiguredModelCouncilParticipants/);
+  assert.match(modalSource, /submitAuthenticatedModelCouncilRequest/);
   assert.match(modalSource, /Provider execution failures/);
-  assert.match(modalSource, /raw\.unifiedConsensus/);
+  assert.match(modalSource, /setCouncilResult\(result\)/);
 });
 
-test('council UI clients attach verified user tokens to owner-protected execution requests', async () => {
+test('council UI clients delegate owner-token handling to the shared client', async () => {
   const managementSource = await readFile(new URL('../../components/AiModelsCollaborationManagement.tsx', import.meta.url), 'utf8');
   const modalSource = await readFile(new URL('../../components/AllAiCollaborationModal.tsx', import.meta.url), 'utf8');
-  assert.match(managementSource, /getIdToken\(\)/);
-  assert.match(managementSource, /Authorization:\s*`Bearer \$\{token\}`/);
-  assert.match(modalSource, /getIdToken\(\)/);
-  assert.match(modalSource, /Authorization:\s*`Bearer \$\{token\}`/);
+  const clientSource = await readFile(new URL('./model-council-client.ts', import.meta.url), 'utf8');
+  assert.match(managementSource, /getToken:\s*getIdToken/);
+  assert.match(modalSource, /getToken:\s*getIdToken/);
+  assert.match(clientSource, /Authorization:\s*\x60Bearer \$\{token\}\x60/);
 });
-
 test('production council execution fails closed without a confirmed single-instance boundary', async () => {
   const app = express();
   app.use(createModelCouncilRateLimit({
