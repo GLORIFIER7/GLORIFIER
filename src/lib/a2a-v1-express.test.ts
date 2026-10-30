@@ -105,7 +105,9 @@ await withServer({
     }),
   });
   assert.equal(response.status, 503);
-  assert.equal((await response.json() as { code: string }).code, 'A2A_PERSISTENCE_UNAVAILABLE');
+  const body = await response.json() as { error?: { code: number; data?: { code?: string } } };
+  assert.equal(body.error?.code, -32000);
+  assert.equal(body.error?.data?.code, 'A2A_PERSISTENCE_UNAVAILABLE');
 });
 
 await withServer({
