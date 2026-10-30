@@ -66,11 +66,11 @@ try {
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
   const beforeInference = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
   assert.equal(beforeInference?.authorization, 'pending');
-  recordProviderInferenceVerification('nvidia', 'nvidia/test-model');
+  await recordProviderInferenceVerification('nvidia', 'nvidia/inference-confirmed-only');
   const afterInference = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
   assert.equal(afterInference?.authenticated, true, 'only successful, separately authorized inference promotes NVIDIA authentication');
   assert.equal(afterInference?.authorization, 'configured');
-  assert.ok(afterInference?.models.includes('nvidia/test-model'));
+  assert.ok(afterInference?.models.includes('nvidia/inference-confirmed-only'), 'successful inference must add the exact model ID used by the inference check');
 
   const gemini = providers.find((provider) => provider.id === 'gemini');
   assert.ok(gemini, 'Gemini discovery entry must exist');
