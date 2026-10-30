@@ -143,8 +143,13 @@ export async function createAgentSession(
     ? Math.max(1_000, Math.floor(options.maxContextTokens as number))
     : 32_000;
 
+  const sessionId = options.sessionId || `session-${randomUUID()}`;
+  if (options.sessionId && await getAgentSession(sessionId)) {
+    throw new Error(`Agent session already exists: ${sessionId}`);
+  }
+
   const session: AgentSession = {
-    id: options.sessionId || `session-${randomUUID()}`,
+    id: sessionId,
     agentId,
     createdAt: now,
     updatedAt: now,
