@@ -25,7 +25,7 @@ export type AgentTask = {
   approvalRequired?: boolean;
   createdAt: string;
   updatedAt: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'awaiting-approval' | 'running' | 'completed' | 'failed';
   result?: unknown;
   error?: string;
 };
@@ -154,6 +154,9 @@ export function evaluateAgentCapability(capability: string, humanApproved = fals
 
 export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>): Promise<AgentTask> {
   assertAgentRuntimeReady();
+  if (typeof input.requester !== 'string' || !input.requester.trim()) {
+    throw new Error('requester must be a non-empty string.');
+  }
   const task: AgentTask = {
     id: newId('task'),
     ...input,
