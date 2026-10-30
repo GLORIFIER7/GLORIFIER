@@ -4,6 +4,8 @@ import {
   createAgentTask,
   getAgentTask,
   getAgentRuntimePersistenceStatus,
+  heartbeatAgentTask,
+  withAgentTaskHeartbeat,
   initializeAgentRuntimePersistence,
   listAgentTasks,
   updateAgentTask,
@@ -46,7 +48,17 @@ await assert.rejects(
 
 try {
   assert.equal(await initializeAgentRuntimePersistence(), false);
-  assert.deepEqual(getAgentRuntimePersistenceStatus(), { mode: 'memory-fallback', durable: false, cachedTasks: 0 });
+  assert.equal(getAgentRuntimePersistenceStatus().mode, 'memory-fallback');
+  assert.equal(getAgentRuntimePersistenceStatus().durable, false);
+  assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
+  assert.deepEqual(getAgentRuntimePersistenceStatus().recoveryPolicy, {
+    staleAfterMinutes: 30,
+    heartbeatIntervalMs: 60_000,
+    heartbeatCoverage: ['agent-task-inference', 'governance-cycle'],
+    startupRecoveryOnly: true,
+    interruptedWithinGracePeriodMayRemainRunning: true,
+    automaticReplay: false,
+  });
 
   const task = await createAgentTask({
     capability: 'research',
@@ -60,6 +72,22 @@ try {
   const running = await updateAgentTask(task.id, { status: 'running' });
   assert.equal(running?.status, 'running');
   assert.equal(running?.createdAt, task.createdAt);
+
+  const firstHeartbeat = running?.updatedAt || '';
+  assert.equal(await heartbeatAgentTask(task.id), true);
+  assert.equal((await getAgentTask(task.id))?.status, 'running');
+  assert.ok(Date.parse((await getAgentTask(task.id))?.updatedAt || '') >= Date.parse(firstHeartbeat));
+
+  const heartbeatResult = await withAgentTaskHeartbeat(
+    task.id,
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return 'heartbeat-wrapped-result';
+    },
+    5,
+  );
+  assert.equal(heartbeatResult, 'heartbeat-wrapped-result');
+  assert.equal((await getAgentTask(task.id))?.status, 'running');
 
   const failed = await updateAgentTask(task.id, { status: 'failed', error: 'test failure' });
   assert.equal(failed?.status, 'failed');
