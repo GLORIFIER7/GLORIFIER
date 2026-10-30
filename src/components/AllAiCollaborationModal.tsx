@@ -61,6 +61,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const [isConvening, setIsConvening] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [councilResult, setCouncilResult] = useState<CouncilConsensusResult | null>(null);
+  const [providerFailures, setProviderFailures] = useState<Array<{ providerId: string; modelId?: string | null; code: string }>>([]);
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -69,49 +71,78 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const handleConveneCouncil = async () => {
     setIsConvening(true);
     setCouncilResult(null);
+    setProviderFailures([]);
+    setStatusFeedback(null);
     setActiveStep(1);
 
-    // Progress reflects the request lifecycle only; provider participation is not inferred.
-
     try {
+      const registryResponse = await fetch('/api/ai/registry');
+      if (!registryResponse.ok) throw new Error(`Provider registry request failed (HTTP ${registryResponse.status}).`);
+      const registryPayload = await registryResponse.json();
+      const participants = (Array.isArray(registryPayload.providers) ? registryPayload.providers : [])
+        .filter((provider: any) => provider.status === 'connected' && Array.isArray(provider.models) && typeof provider.models[0] === 'string' && provider.models[0].trim())
+        .slice(0, 8)
+        .map((provider: any) => ({ providerId: String(provider.id), modelId: String(provider.models[0]) }));
+
+      if (participants.length === 0) {
+        setStatusFeedback('No configured provider model is currently available. Configure at least one provider credential and model before starting the council.');
+        return;
+      }
+
       const res = await fetch('/api/ai/council', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agenda: currentTopic,
+          participants,
           currentPolicy: policy,
           footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized }))
         })
       });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw = await res.json();
-      const participants = Array.isArray(raw.participants)
-        ? raw.participants.map((p: any, index: number) => ({
-            modelId: String(p.model || p.id || p.provider || `participant-${index + 1}`),
-            name: String(p.title || p.model || p.provider || 'Unnamed participant'),
-            provider: String(p.provider || 'Provider not reported'),
-            role: String(p.title || 'Specialist perspective'),
-            color: 'cyan',
-            badge: String(p.status || 'Response returned'),
-            status: 'completed' as const,
-            output: String(p.output || 'No output returned.'),
-            perspective: String(p.output || 'No perspective returned.')
+      const failures = Array.isArray(raw.failures)
+        ? raw.failures.map((failure: any) => ({
+            providerId: String(failure.providerId || 'unknown'),
+            modelId: typeof failure.modelId === 'string' ? failure.modelId : null,
+            code: String(failure.code || 'provider_execution_failed')
           }))
         : [];
+      setProviderFailures(failures);
+      if (!res.ok) {
+        setStatusFeedback([
+          String(raw.error || `Council request failed (HTTP ${res.status}).`),
+          failures.length ? `Provider failures: ${failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ')}.` : '',
+        ].filter(Boolean).join(' '));
+        return;
+      }
+
+      const participantsReturned = Array.isArray(raw.participants) ? raw.participants : [];
+      const normalizedParticipants = participantsReturned.map((p: any, index: number) => ({
+        modelId: String(p.modelId || (p.provider && p.model ? `${p.provider}/${p.model}` : p.provider || `participant-${index + 1}`)),
+        name: String(p.name || p.model || p.provider || 'Unnamed participant'),
+        provider: String(p.provider || 'Provider not reported'),
+        role: String(p.role || 'Independent provider analysis'),
+        color: String(p.color || 'cyan'),
+        badge: String(p.badge || 'Response returned'),
+        status: 'completed' as const,
+        output: String(p.output || 'No output returned.'),
+        perspective: String(p.perspective || 'Independent provider output; consensus is not implied.'),
+      }));
       const normalized: CouncilConsensusResult = {
         agenda: String(raw.agenda || currentTopic),
         timestamp: String(raw.timestamp || new Date().toISOString()),
-        participants,
-        unifiedConsensus: String(raw.synthesis?.output || 'No synthesis was returned. Multiple responses do not by themselves establish consensus.'),
+        participants: normalizedParticipants,
+        unifiedConsensus: String(raw.unifiedConsensus || raw.synthesis?.output || 'No synthesis was returned. Multiple responses do not by themselves establish consensus.'),
         consensusScore: typeof raw.consensusScore === 'number' ? raw.consensusScore : null,
         recommendedEpsilon: typeof raw.recommendedEpsilon === 'number' ? raw.recommendedEpsilon : null,
         recommendedFloorUsd: typeof raw.recommendedFloorUsd === 'number' ? raw.recommendedFloorUsd : null,
         actionDirectives: Array.isArray(raw.actionDirectives) ? raw.actionDirectives.filter((x: unknown): x is string => typeof x === 'string') : []
       };
       setCouncilResult(normalized);
+      setStatusFeedback(`Received ${normalizedParticipants.length} response(s) from ${raw.providerDiversity ?? new Set(normalizedParticipants.map(p => p.provider)).size} provider(s). Exact registry model IDs were requested; live execution is evidenced only by returned participants.`);
     } catch (err) {
       console.warn('Council endpoint unavailable; no consensus result was produced.', err);
+      setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No consensus result was produced.');
     } finally {
       setIsConvening(false);
       setActiveStep(0);
@@ -291,6 +322,24 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
               <p className="text-[11px] text-slate-400">
                 Request lifecycle only. Provider execution, model participation, and consensus are NOT VERIFIED.
               </p>
+            </div>
+          )}
+
+          {statusFeedback && (
+            <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              {statusFeedback}
+            </div>
+          )}
+          {providerFailures.length > 0 && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+              <div className="font-semibold mb-1">Provider execution failures</div>
+              <ul className="list-disc pl-5 space-y-1">
+                {providerFailures.map((failure, index) => (
+                  <li key={`${failure.providerId}-${failure.modelId || 'unknown'}-${index}`}>
+                    {failure.providerId}{failure.modelId ? `/${failure.modelId}` : ''}: {failure.code}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
