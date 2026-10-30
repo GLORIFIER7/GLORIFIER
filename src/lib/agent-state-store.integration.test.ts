@@ -9,7 +9,7 @@ if (!connectionString) {
 
 const pool = new Pool({ connectionString });
 const query: AgentStateQuery = async (sql, values) => {
-  const result = await pool.query(sql, values as unknown[]);
+  const result = values ? await pool.query(sql, values as any[]) : await pool.query(sql);
   return {
     rows: result.rows as Array<Record<string, unknown>>,
     rowCount: result.rowCount,
