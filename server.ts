@@ -17,8 +17,8 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, initializeAgentRuntimePersistence } from './src/lib/agent-runtime';
-import { initializeAgentHarnessPersistence } from './src/lib/ai/agent-harness';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus } from './src/lib/agent-runtime';
+import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
@@ -2671,6 +2671,14 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     await updateAgentTask(task.id, { status: 'failed', error: error instanceof Error ? error.message : String(error) });
     return res.status(500).json({ ok: false, task: await getAgentTask(task.id) });
   }
+});
+
+app.get('/api/agents/persistence', (_req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    tasks: getAgentRuntimePersistenceStatus(),
+    harnessSessions: getAgentHarnessPersistenceStatus(),
+  });
 });
 
 app.get('/api/agents/capabilities', (_req: Request, res: Response) => {
