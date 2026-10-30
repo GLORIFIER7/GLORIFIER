@@ -796,6 +796,39 @@ async function run(): Promise<void> {
     assert.equal(openSeaServerErrorBody.code, 'OPENSEA_UPSTREAM_ERROR');
     assert.equal('upstreamStatus' in openSeaServerErrorBody, false, 'provider internals must not be disclosed');
 
+    upstreamResponse = new Response(JSON.stringify({ collection: 'missing' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    const openSeaNotFound = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/missing'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaNotFound.status, 404);
+    assert.equal(await openSeaNotFound.json().then((body: { code?: string }) => body.code), 'OPENSEA_COLLECTION_NOT_FOUND');
+
+    upstreamResponse = new Response(JSON.stringify({ collection: 'glorifier7' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const openSeaHead = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'HEAD' }),
+      openSeaEnv,
+    );
+    assert.equal(openSeaHead.status, 200);
+    assert.equal(await openSeaHead.text(), '');
+    assert.equal(openSeaHead.headers.get('content-type'), 'application/json');
+
+    upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    const openSeaInvalidContentType = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaInvalidContentType.status, 502);
+    assert.equal(await openSeaInvalidContentType.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_CONTENT_TYPE');
+
+    upstreamResponse = new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const openSeaOversized = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaOversized.status, 502);
+    assert.equal(await openSeaOversized.json().then((body: { code?: string }) => body.code), 'OPENSEA_RESPONSE_TOO_LARGE');
+
     shouldThrow = true;
     const unavailable = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-unavailable'),
