@@ -1,5 +1,6 @@
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
+import { openSeaWorkerRoute } from './lib/opensea-worker';
 
 export type CloudflareEnv = {
   ASSETS: {
@@ -18,6 +19,9 @@ export type CloudflareEnv = {
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
+  OPENSEA_API_KEY?: string;
+  // Reserved for future wallet-scoped OpenSea features; public collection reads do not use it.
+  OPENSEA_SCOPED_TOKEN?: string;
 };
 
 // Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
@@ -608,6 +612,11 @@ export default {
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
     if (incomingUrl.pathname === '/api/health') {
       return healthResponse(request.method, env);
+    }
+
+    // OpenSea routes are Worker-native and read-only; never proxy these paths to a legacy backend.
+    if (incomingUrl.pathname === '/api/opensea/health' || incomingUrl.pathname.startsWith('/api/opensea/')) {
+      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
     if (incomingUrl.pathname === '/api/reports/summary') {
