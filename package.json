@@ -77,10 +77,9 @@
     "test:a2a-runtime": "tsx src/lib/a2a-runtime.test.ts",
     "test:agent-persistence-bootstrap": "tsx src/lib/agent-persistence-bootstrap.test.ts",
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
-    "test:governance-loop": "tsx src/lib/governance-loop.test.ts"
+    "test:governance-loop": "tsx src/lib/governance-loop.test.ts",
     "test:a2a-v1": "tsx src/lib/a2a-v1.test.ts",
-    "test:a2a-runtime": "tsx src/lib/a2a-runtime.test.ts",
-    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
+        "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
