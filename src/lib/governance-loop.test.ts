@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import { withGovernanceTaskFailureRecovery } from './governance-task-failure.ts';
+import { normalizeGovernanceRequester } from './governance-loop.ts';
+
+assert.equal(normalizeGovernanceRequester(undefined), 'human-owner');
+assert.equal(normalizeGovernanceRequester(''), 'human-owner');
+assert.equal(normalizeGovernanceRequester('   '), 'human-owner', 'whitespace-only requester must use the human-owner fallback');
+assert.equal(normalizeGovernanceRequester('  operator-1  '), 'operator-1', 'non-empty requester values must be trimmed');
 
 const succeeded = await withGovernanceTaskFailureRecovery(
   'task-success',
