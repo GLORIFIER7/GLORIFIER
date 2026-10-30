@@ -91,7 +91,7 @@ assert.deepEqual(
     { model: 'meta-model', providers: ['Meta'] },
     { model: 'shared-model', providers: ['Meta', 'OpenAI'] },
   ],
-  'only authenticated configured providers are shown; model IDs are trimmed, grouped, and provider names fall back to IDs',
+  'model options reflect explicitly authorized model-list discovery only; they do not prove inference permission or capacity',
 );
 
 assert.deepEqual(
