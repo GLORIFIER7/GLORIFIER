@@ -77,7 +77,7 @@ async function testSuccessfulPublicReads(): Promise<void> {
   assert.equal(capturedInit?.redirect, 'manual', 'provider redirects must never be followed');
   assert.ok(capturedInit?.signal instanceof AbortSignal, 'provider requests must have an abort timeout signal');
   assert.equal(healthRequest.headers.get('authorization'), null, 'public reads must not send wallet authorization');
-  assert.equal(capturedCf, undefined, 'health probe must bypass edge cache to observe current API-key validity');
+  assert.deepEqual(capturedCf, { cacheTtl: 0, cacheEverything: true }, 'health probe must expire cache entries immediately to observe current API-key validity');
   assert.equal(healthRequest.headers.get('x-api-key')?.includes('test-scoped-token'), false);
 
   setResponse(new Response(JSON.stringify({ collection: 'glorifier1', name: 'GLORIFIER' }), {
