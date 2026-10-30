@@ -152,6 +152,7 @@ try {
   assert.equal(completed?.error, undefined, 'successful completion must clear stale recovery errors');
 
   assert.equal((await getAgentTask(task.id))?.status, 'completed');
+  assert.deepEqual(await listAgentTasks(10, ''), [], 'an explicitly blank requester must not disable tenant scoping');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === task.id), true);
 
   // Memory fallback and PostgreSQL mode must order tasks by last update, not creation.
