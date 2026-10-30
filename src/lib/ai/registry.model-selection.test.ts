@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { AIProvider } from './types.ts';
 import { isProviderModelEligible, normalizeRequestedModel } from './registry.ts';
-import { normalizeSavedModelPreference, resolveExecutableModelPreference } from './model-selection.ts';
+import { normalizeSavedModelPreference, resolveExecutableModelPreference, isIndependentComputeFallbackAllowed } from './model-selection.ts';
 
 const configuredProvider: AIProvider = {
   id: 'openai',
@@ -86,6 +86,14 @@ assert.equal(modelPreferenceLabel('auto'), 'automatic provider routing');
 assert.equal(modelPreferenceLabel('all-models'), 'automatic provider routing');
 assert.equal(modelPreferenceLabel('consensus'), 'automatic provider routing');
 assert.equal(modelPreferenceLabel('gpt-4o'), 'gpt-4o');
+
+assert.equal(isIndependentComputeFallbackAllowed(undefined), true, 'automatic routing may use independent compute when no provider is pinned');
+assert.equal(isIndependentComputeFallbackAllowed('auto'), true);
+assert.equal(isIndependentComputeFallbackAllowed('unknown-model'), false, 'an explicit unavailable model must not silently run on independent compute');
+assert.equal(isIndependentComputeFallbackAllowed('auto', 'openai'), false, 'a required provider must not escape to independent compute');
+assert.equal(isIndependentComputeFallbackAllowed(undefined, undefined, 'openai'), false, 'a provider-bound request must not escape to independent compute');
+assert.equal(isIndependentComputeFallbackAllowed('all-models'), true, 'legacy automatic sentinel allows only unpinned independent fallback');
+assert.equal(isIndependentComputeFallbackAllowed('consensus', 'openai'), false, 'legacy automatic sentinel must not bypass required provider');
 
 
 console.log('provider model-selection behavior tests: PASS');
