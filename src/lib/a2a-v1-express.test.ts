@@ -74,19 +74,42 @@ await withServer(baseDependencies(), async (origin) => {
 
   const response = await fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 'express-send-1',
-      method: 'message/send',
-      params: { message: { messageId: 'express-message-1', role: 'user', parts: [{ text: 'Review this request' }] } },
+      method: 'SendMessage',
+      params: { message: { messageId: 'express-message-1', role: 'ROLE_USER', parts: [{ text: 'Review this request' }] } },
     }),
   });
   assert.equal(response.status, 200);
-  const body = await response.json() as { id: string; result?: { id: string; status: { state: string } } };
+  const body = await response.json() as { id: string; result?: { task: { id: string; status: { state: string } } } };
   assert.equal(body.id, 'express-send-1');
-  assert.equal(body.result?.id, 'express-a2a-task');
-  assert.equal(body.result?.status.state, 'submitted');
+  assert.equal(body.result?.task.id, 'express-a2a-task');
+  assert.equal(body.result?.task.status.state, 'TASK_STATE_SUBMITTED');
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '0.3' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 91, method: 'SendMessage', params: {} }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/problem+json');
+  const body = await response.json() as { supportedVersions?: string[] };
+  assert.deepEqual(body.supportedVersions, ['1.0']);
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 92, method: 'SendMessage', params: {} }),
+  });
+  assert.equal(response.status, 400, 'an absent A2A-Version is interpreted as 0.3 and rejected');
+  const body = await response.json() as { supportedVersions?: string[] };
+  assert.deepEqual(body.supportedVersions, ['1.0']);
 });
 
 await withServer({
