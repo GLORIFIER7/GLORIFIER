@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult } from '../types';
 import { getIdToken } from '../lib/firebase';
+import { discoverConfiguredModelCouncilParticipants, ModelCouncilClientError, type ModelCouncilProviderFailure, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AllAiCollaborationModalProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const [isConvening, setIsConvening] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(0);
   const [councilResult, setCouncilResult] = useState<CouncilConsensusResult | null>(null);
-  const [providerFailures, setProviderFailures] = useState<Array<{ providerId: string; modelId?: string | null; code: string }>>([]);
+  const [providerFailures, setProviderFailures] = useState<ModelCouncilProviderFailure[]>([]);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -77,75 +78,32 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
     setActiveStep(1);
 
     try {
-      const registryResponse = await fetch('/api/ai/registry');
-      if (!registryResponse.ok) throw new Error(`Provider registry request failed (HTTP ${registryResponse.status}).`);
-      const registryPayload = await registryResponse.json();
-      const participants = (Array.isArray(registryPayload.providers) ? registryPayload.providers : [])
-        .filter((provider: any) => provider.status === 'connected' && Array.isArray(provider.models) && typeof provider.models[0] === 'string' && provider.models[0].trim())
-        .slice(0, 8)
-        .map((provider: any) => ({ providerId: String(provider.id), modelId: String(provider.models[0]) }));
-
+      const participants = await discoverConfiguredModelCouncilParticipants();
       if (participants.length === 0) {
         setStatusFeedback('No configured provider model is currently available. Configure at least one provider credential and model before starting the council.');
         return;
       }
 
-      const token = await getIdToken();
-      if (!token) throw new Error('Authentication required. Sign in with the GLORIFIER owner account to run the AI council.');
-      const res = await fetch('/api/ai/council', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          agenda: currentTopic,
-          participants,
-          currentPolicy: policy,
-          footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized }))
-        })
+      const result = await submitAuthenticatedModelCouncilRequest({
+        agenda: currentTopic,
+        participants,
+        currentPolicy: policy,
+        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        getToken: getIdToken,
       });
-      const raw = await res.json();
-      const failures: Array<{ providerId: string; modelId: string | null; code: string }> = Array.isArray(raw.failures)
-        ? raw.failures.map((failure: any) => ({
-            providerId: String(failure.providerId || 'unknown'),
-            modelId: typeof failure.modelId === 'string' ? failure.modelId : null,
-            code: String(failure.code || 'provider_execution_failed')
-          }))
-        : [];
-      setProviderFailures(failures);
-      if (!res.ok) {
-        setStatusFeedback([
-          String(raw.error || `Council request failed (HTTP ${res.status}).`),
-          failures.length ? `Provider failures: ${failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ')}.` : '',
-        ].filter(Boolean).join(' '));
-        return;
-      }
-
-      const participantsReturned: any[] = Array.isArray(raw.participants) ? raw.participants : [];
-      const normalizedParticipants: CouncilConsensusResult['participants'] = participantsReturned.map((p: any, index: number) => ({
-        modelId: String(p.modelId || (p.provider && p.model ? `${p.provider}/${p.model}` : p.provider || `participant-${index + 1}`)),
-        name: String(p.name || p.model || p.provider || 'Unnamed participant'),
-        provider: String(p.provider || 'Provider not reported'),
-        role: String(p.role || 'Independent provider analysis'),
-        color: String(p.color || 'cyan'),
-        badge: String(p.badge || 'Response returned'),
-        status: 'completed' as const,
-        output: String(p.output || 'No output returned.'),
-        perspective: String(p.perspective || 'Independent provider output; consensus is not implied.'),
-      }));
-      const normalized: CouncilConsensusResult = {
-        agenda: String(raw.agenda || currentTopic),
-        timestamp: String(raw.timestamp || new Date().toISOString()),
-        participants: normalizedParticipants,
-        unifiedConsensus: String(raw.unifiedConsensus || raw.synthesis?.output || 'No synthesis was returned. Multiple responses do not by themselves establish consensus.'),
-        consensusScore: typeof raw.consensusScore === 'number' ? raw.consensusScore : null,
-        recommendedEpsilon: typeof raw.recommendedEpsilon === 'number' ? raw.recommendedEpsilon : null,
-        recommendedFloorUsd: typeof raw.recommendedFloorUsd === 'number' ? raw.recommendedFloorUsd : null,
-        actionDirectives: Array.isArray(raw.actionDirectives) ? raw.actionDirectives.filter((x: unknown): x is string => typeof x === 'string') : []
-      };
-      setCouncilResult(normalized);
-      setStatusFeedback(`Received ${normalizedParticipants.length} response(s) from ${raw.providerDiversity ?? new Set(normalizedParticipants.map(p => p.provider)).size} provider(s). Exact registry model IDs were requested; live execution is evidenced only by returned participants.`);
+      setProviderFailures(result.failures);
+      setCouncilResult(result);
+      setStatusFeedback(`Received ${result.participantCount} response(s) from ${result.providerDiversity} provider(s). Exact registry model IDs were requested; live execution is evidenced only by returned participants.`);
     } catch (err) {
       console.warn('Council endpoint unavailable; no consensus result was produced.', err);
-      setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No consensus result was produced.');
+      setCouncilResult(null);
+      if (err instanceof ModelCouncilClientError) {
+        setProviderFailures(err.failures);
+        const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+        setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
+      } else {
+        setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No consensus result was produced.');
+      }
     } finally {
       setIsConvening(false);
       setActiveStep(0);
