@@ -307,10 +307,11 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
   assert.match(managementSource, /Provider-backed Nodes/);
   assert.match(managementSource, /Submit an agenda with \{activeProviderNodeCount\} enabled provider-backed nodes/);
-  assert.match(managementSource, /failureSummary/);
+  assert.match(managementSource, /formatModelCouncilFailures\(err\.failures\)/);
   assert.match(managementSource, /Council execution failed\. No provider fallback or synthetic response was substituted/);
   assert.match(modalSource, /discoverConfiguredModelCouncilParticipants/);
   assert.match(modalSource, /submitAuthenticatedModelCouncilRequest/);
+  assert.match(modalSource, /formatModelCouncilFailures\(err\.failures\)/);
   assert.match(modalSource, /Provider execution failures/);
   assert.match(modalSource, /p\.provider === 'openai'/);
   assert.match(modalSource, /setCouncilResult\(result\)/);
