@@ -42,12 +42,15 @@ const query: AgentStateQuery = async (sql, values = []) => {
       if (row.kind !== 'task' || row.status !== 'running') continue;
       if (Date.parse(row.updated_at) >= staleBefore) continue;
       const payload = row.payload as Record<string, unknown>;
+      const recoveredAt = new Date().toISOString();
+      const updatesSerializedTimestamp = sql.includes("'{updatedAt}'");
       const updated = {
         ...payload,
         status: 'failed',
         error: 'Process restarted before task completion; automatic replay is disabled.',
+        ...(updatesSerializedTimestamp ? { updatedAt: recoveredAt } : {}),
       };
-      rows.set(key, { ...row, status: 'failed', payload: updated, updated_at: '2026-10-30T00:00:00.000Z' });
+      rows.set(key, { ...row, status: 'failed', payload: updated, updated_at: recoveredAt });
       recovered += 1;
     }
     return { rows: [], rowCount: recovered };
@@ -90,6 +93,16 @@ assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
 assert.match(recovered?.error || '', /automatic replay is disabled/);
+assert.notEqual(recovered?.updatedAt, running.updatedAt, 'recovery must refresh the serialized task timestamp');
+assert.equal(
+  recovered?.updatedAt,
+  rows.get(`task:${running.id}`)?.updated_at,
+  'serialized and indexed task timestamps must remain consistent after recovery',
+);
+assert.ok(
+  statements[statements.length - 1]?.includes("'{updatedAt}'"),
+  'recovery SQL must update the timestamp stored inside the JSON payload',
+);
 
 const session = {
   id: 'session-1',
