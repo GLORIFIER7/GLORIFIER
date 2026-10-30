@@ -3,10 +3,11 @@ export interface ProviderDiscoveryModelSource {
   name: string;
   configured: boolean;
   availability: string;
+  /** Explicit provider authorization configuration; not proof of inference access. */
   authorization: string;
   /** True when read-only model discovery did not return 401/403; not inference verification. */
   authenticated: boolean;
-  /** Explicit provider authorization configuration; not proof of inference access. */
+  /** Advertised model IDs returned by the read-only discovery endpoint. */
   models: string[];
 }
 
