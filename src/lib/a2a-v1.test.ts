@@ -168,3 +168,23 @@ assert.equal(toA2ATask(baseTask({ status: 'blocked' })).status.state, 'rejected'
 assert.equal(toA2ATask(baseTask({ status: 'degraded' })).status.state, 'working');
 
 console.log('A2A 1.0 JSON-RPC contract tests passed.');
+
+const asyncCreateHandler = createA2AJsonRpcHandler({
+  requesterAgentId: 'verified-user-async',
+  async createTask(input) {
+    await Promise.resolve();
+    return baseTask({
+      requesterAgentId: input.requesterAgentId,
+      objective: input.objective,
+    });
+  },
+  getTask: async (id) => id === existing.id ? existing : null,
+});
+const asyncCreated = await asyncCreateHandler({
+  jsonrpc: '2.0',
+  id: 23,
+  method: 'message/send',
+  params: { message: { messageId: 'async-message', role: 'user', parts: [{ text: 'Durably record this' }] } },
+});
+assert.equal(asyncCreated.result.status.state, 'submitted');
+assert.equal(asyncCreated.result.status.message.parts[0].text.includes('human approval'), true);
