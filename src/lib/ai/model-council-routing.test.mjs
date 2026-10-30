@@ -129,6 +129,9 @@ test('AI council route requires owner authorization and has a principal-scoped s
     /app\.post\('\/api\/ai\/council',\s*requireOwnerOrInternalService,\s*aiCouncilRateLimit,/,
   );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
+  assert.match(serverSource, /import \\{ isIP \\} from 'node:net'/);
+  assert.match(serverSource, /req\\.get\\('x-real-ip'\\)/);
+  assert.doesNotMatch(serverSource, /const rateLimitKeyGenerator = \\(req: Request\\): string =>\\s*ipKeyGenerator\\(resolveIngressClientAddress\\(req\\)\\)/);
   assert.match(serverSource, /singleInstanceConfirmed:\s*process\.env\.AI_COUNCIL_SINGLE_INSTANCE === 'true'/);
   assert.match(serverSource, /handler:\s*\(_req,\s*res\)\s*=>\s*\{[\s\S]*?error:\s*'AI council usage is limited to two requests per minute/);
   assert.match(serverSource, /model:\s*modelId,\s*messages,[^}]*\bsignal\s*,?\s*\}/);
@@ -168,6 +171,10 @@ async function withCouncilRateLimit(handler) {
     });
   }
 }
+
+test('internal council IP keys never fall back to proxy-derived req.ip', () => {
+  assert.equal(resolveIngressClientAddress({ socket: {}, ip: '198.51.100.77' }), 'unknown');
+});
 
 test('council rate limit is enforced independently per authenticated principal', async () => {
   await withCouncilRateLimit(async (url) => {
