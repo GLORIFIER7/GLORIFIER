@@ -24,6 +24,7 @@ import {
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelCollaborationParticipant } from '../types';
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
 import { getIdToken } from '../lib/firebase';
+import { discoverConfiguredModelCouncilParticipants, ModelCouncilClientError, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -211,64 +212,48 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
 
     setIsRunningCouncil(true);
     try {
-      const registryResponse = await fetch('/api/ai/registry');
-      if (!registryResponse.ok) throw new Error(`Provider registry request failed (HTTP ${registryResponse.status}).`);
-      const registryPayload = await registryResponse.json();
-      const registryProviders = Array.isArray(registryPayload.providers) ? registryPayload.providers : [];
+      const configuredParticipants = await discoverConfiguredModelCouncilParticipants();
+      const participantsByProvider = new Map(configuredParticipants.map((participant) => [participant.providerId, participant]));
       const unavailableProviders: string[] = [];
       const participants = selectedProviderNodes.flatMap((node) => {
-        const provider = registryProviders.find((entry: any) => entry.id === node.providerId);
-        const modelId = Array.isArray(provider?.models) ? provider.models[0] : undefined;
-        if (provider?.status !== 'connected' || typeof modelId !== 'string' || !modelId.trim()) {
+        const selected = participantsByProvider.get(node.providerId);
+        if (!selected) {
           unavailableProviders.push(node.providerId);
           return [];
         }
-        return [{ providerId: node.providerId, modelId }];
+        return [selected];
       });
 
       if (participants.length === 0) {
         throw new Error('None of the enabled provider nodes currently exposes a configured model. Configure provider credentials and model IDs first.');
       }
 
-      const token = await getIdToken();
-      if (!token) throw new Error('Authentication required. Sign in with the GLORIFIER owner account to run the AI council.');
-      const res = await fetch('/api/ai/council', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          agenda: agendaToRun,
-          participants,
-          currentPolicy: policy,
-          footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
-        })
+      const data = await submitAuthenticatedModelCouncilRequest({
+        agenda: agendaToRun,
+        participants,
+        currentPolicy: policy,
+        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        getToken: getIdToken,
       });
-      const data: CouncilConsensusResult & {
-        participantCount?: number;
-        providerDiversity?: number;
-        error?: string;
-        failures?: Array<{ providerId: string; modelId?: string | null; code: string }>;
-      } = await res.json();
-      const failures = Array.isArray(data.failures) ? data.failures : [];
-      const failureSummary = failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
-      if (!res.ok) {
-        throw new Error([
-          data.error || `Council request failed (HTTP ${res.status}).`,
-          failureSummary ? `Provider failures: ${failureSummary}.` : '',
-        ].filter(Boolean).join(' '));
-      }
-
+      const failures = data.failures;
       setCouncilResult(data);
-      const responseCount = data.participantCount ?? data.participants.length;
-      const providerCount = data.providerDiversity ?? new Set(data.participants.map(p => p.provider)).size;
+      const responseCount = data.participantCount;
+      const providerCount = data.providerDiversity;
       const omittedSummary = unavailableProviders.length
         ? ` Not configured and omitted: ${unavailableProviders.join(', ')}.`
         : '';
+      const failureSummary = failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
       const failureNotice = failureSummary ? ` Provider failures: ${failureSummary}.` : '';
       setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s), using explicitly selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain unverified.`);
     } catch (err) {
       console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
-      setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No provider fallback or synthetic response was substituted.');
+      if (err instanceof ModelCouncilClientError) {
+        const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+        setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
+      } else {
+        setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No provider fallback or synthetic response was substituted.');
+      }
     } finally {
       setIsRunningCouncil(false);
     }
