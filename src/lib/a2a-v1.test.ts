@@ -67,7 +67,7 @@ const submit = await handler({
 });
 assert.equal(submit.id, 'request-1');
 assert.equal(submit.error, undefined);
-const submitResult = submit.result as { task: { id: string; status: { state: string; message: { parts: Array<{ text: string }> } } } };
+const submitResult = submit.result as { task: { id: string; status: { state: string; message: { role: string; contextId: string; taskId: string; parts: Array<{ text: string }> } } } };
 const submittedTask = submitResult.task;
 assert.equal(submittedTask.id, 'a2a-task-1');
 assert.equal(submittedTask.status.state, 'TASK_STATE_SUBMITTED');
