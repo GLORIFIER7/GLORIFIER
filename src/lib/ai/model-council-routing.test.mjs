@@ -129,7 +129,7 @@ test('AI council route requires owner authorization and has a principal-scoped s
   );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
   assert.match(serverSource, /singleInstanceConfirmed:\s*process\.env\.AI_COUNCIL_SINGLE_INSTANCE === 'true'/);
-  assert.match(serverSource, /model:\s*modelId,[\s\S]*?signal/);
+  assert.match(serverSource, /model:\s*modelId,\s*messages,[^}]*\bsignal\s*\}/);
   assert.match(serverSource, /isValidModelCouncilResponse\(synthesisResponse,\s*synthesisProvider,\s*synthesisModel\)/);
 });
 
@@ -337,4 +337,23 @@ test('production council execution fails closed without a confirmed single-insta
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test('legacy activeModels preserves exact model IDs and maps them to their provider', () => {
+  const selected = resolveModelCouncilParticipants({
+    activeModels: ['gpt-4o', 'claude-opus-5'],
+    availableProviders: providerCatalog,
+  });
+  assert.deepEqual(selected, [
+    { providerId: 'openai', modelId: 'gpt-4o' },
+    { providerId: 'anthropic', modelId: 'claude-opus-5' },
+  ]);
+  assert.throws(() => resolveModelCouncilParticipants({
+    activeModels: ['claude'],
+    availableProviders: providerCatalog,
+  }), /unknown model ID/i);
+  assert.throws(() => resolveModelCouncilParticipants({
+    activeModels: ['constructor'],
+    availableProviders: providerCatalog,
+  }), /unknown legacy model ID/i);
 });
