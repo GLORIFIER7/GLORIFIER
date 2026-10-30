@@ -24,7 +24,7 @@ import {
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelCollaborationParticipant } from '../types';
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
 import { getIdToken } from '../lib/firebase';
-import { discoverConfiguredModelCouncilParticipants, ModelCouncilClientError, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
+import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -247,7 +247,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
       const omittedSummary = unavailableProviders.length
         ? ` Not configured and omitted: ${unavailableProviders.join(', ')}.`
         : '';
-      const failureSummary = failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+      const failureSummary = formatModelCouncilFailures(failures);
       const failureNotice = failureSummary ? ` Provider failures: ${failureSummary}.` : '';
       setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s), using explicitly selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain unverified.`);
     } catch (err) {
