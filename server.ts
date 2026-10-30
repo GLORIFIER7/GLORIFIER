@@ -12,7 +12,8 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { executeModelCouncilProviders, isValidModelCouncilResponse, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
+import { resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
+import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
 import { createModelCouncilRateLimit, resolveIngressClientAddress } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
@@ -1050,19 +1051,52 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
 // Provider-selected AI council endpoint.
 // Each participant is pinned to one exact requested provider/model pair; failures never trigger implicit substitution.
 // Outputs remain advisory and cannot authorize consequential actions.
+function normalizeModelCouncilTopic(body: Record<string, unknown>): string {
+  const agenda = body.agenda;
+  if (typeof agenda === 'string' && agenda.trim()) return agenda.trim();
+  return 'Review GLORIFIER architecture, reliability, privacy, and provider interoperability.';
+}
+
+function buildModelCouncilMessages(topic: string, body: Record<string, unknown>) {
+  const currentPolicy = body.currentPolicy && typeof body.currentPolicy === 'object'
+    ? body.currentPolicy as Record<string, unknown>
+    : {};
+  const floorValue = currentPolicy.minimumMonthlyFloorUsd;
+  const epsilonValue = currentPolicy.globalEpsilon;
+  const floor = typeof floorValue === 'number' && Number.isFinite(floorValue) ? floorValue : null;
+  const epsilon = typeof epsilonValue === 'number' && Number.isFinite(epsilonValue) ? epsilonValue : null;
+  const footprintCount = Array.isArray(body.footprints) ? body.footprints.length : 0;
+  const policyContext = [
+    floor === null ? 'Minimum monthly floor: not supplied.' : `Minimum monthly floor: $${floor}/month.`,
+    epsilon === null ? 'Privacy epsilon: not supplied.' : `Privacy epsilon: ${epsilon}.`,
+    `Footprint records supplied: ${footprintCount} (record contents are not forwarded to providers).`,
+  ].join('\\n');
+
+  return [
+    {
+      role: 'system' as const,
+      content: [
+        'You are an independent provider participant in the GLORIFIER AI council.',
+        'Analyze the agenda from technical feasibility, software reliability, cybersecurity, privacy, provider-neutral interoperability, and operational governance perspectives.',
+        'Separate evidence, assumptions, hypotheses, and unresolved questions.',
+        'Do not invent tests, sources, provider executions, consensus, revenue, ownership, or verified outcomes.',
+        'Your response is advisory. Humans retain final authority over code changes, merges, secrets, deployments, and financial or blockchain actions.',
+        policyContext,
+      ].join('\\n'),
+    },
+    { role: 'user' as const, content: topic },
+  ];
+}
+
 app.post('/api/ai/council', requireOwnerOrInternalService, aiCouncilRateLimit, async (req: Request, res: Response) => {
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const topic = typeof body.agenda === 'string' && body.agenda.trim()
-    ? body.agenda.trim()
-    : 'Review GLORIFIER architecture, reliability, privacy, and provider interoperability.';
+  const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const topic = normalizeModelCouncilTopic(body);
   if (topic.length > 4000) {
     return res.status(413).json({ ok: false, error: 'Council agenda must be 4,000 characters or fewer.' });
   }
 
-  // Validate exact provider/model pairs against the live server-side registry.
-  // Legacy provider-only requests select each provider's first advertised model.
-  let selectedParticipants: Array<{ providerId: string; modelId: string }>;
   const providerRegistry = aiOrchestrator.registry();
+  let selectedParticipants: Array<{ providerId: string; modelId: string }>;
   try {
     selectedParticipants = resolveModelCouncilParticipants({
       participants: body.participants,
@@ -1073,169 +1107,31 @@ app.post('/api/ai/council', requireOwnerOrInternalService, aiCouncilRateLimit, a
   } catch (error) {
     return res.status(400).json({
       ok: false,
-      error: error instanceof Error ? error.message : 'Invalid provider/model selection.'
+      error: error instanceof Error ? error.message : 'Invalid provider/model selection.',
     });
   }
 
-  const floor = Number.isFinite(body.currentPolicy?.minimumMonthlyFloorUsd)
-    ? body.currentPolicy.minimumMonthlyFloorUsd
-    : null;
-  const epsilon = Number.isFinite(body.currentPolicy?.globalEpsilon)
-    ? body.currentPolicy.globalEpsilon
-    : null;
-  const policyContext = [
-    floor === null ? 'Minimum monthly floor: not supplied.' : `Minimum monthly floor: $${floor}/month.`,
-    epsilon === null ? 'Privacy epsilon: not supplied.' : `Privacy epsilon: ${epsilon}.`,
-    `Footprint records supplied: ${Array.isArray(body.footprints) ? body.footprints.length : 0} (record contents are not forwarded to providers).`
-  ].join('\n');
-
-  const councilMessages = [
-    {
-      role: 'system' as const,
-      content: [
-        'You are an independent provider participant in the GLORIFIER AI council.',
-        'Analyze the agenda from technical feasibility, software reliability, cybersecurity, privacy, provider-neutral interoperability, and operational governance perspectives.',
-        'Separate evidence, assumptions, hypotheses, and unresolved questions.',
-        'Do not invent tests, sources, provider executions, consensus, revenue, ownership, or verified outcomes.',
-        'Your response is advisory. Humans retain final authority over code changes, merges, secrets, deployments, and financial or blockchain actions.',
-        policyContext
-      ].join('\n')
-    },
-    { role: 'user' as const, content: topic }
-  ];
-
   try {
-    const council = await executeModelCouncilProviders({
+    const execution = await executeModelCouncilRequest({
       participants: selectedParticipants,
-      messages: councilMessages,
+      messages: buildModelCouncilMessages(topic, body),
+      topic,
       timeoutMs: 45_000,
       generate: (providerId, modelId, messages, signal) => aiOrchestrator.generate({
         provider: providerId,
         model: modelId,
         messages,
         temperature: 0.2,
-        signal
-      })
+        signal,
+      }),
     });
-
-    if (!council.participantCount) {
-      return res.status(503).json({
-        ok: false,
-        error: 'No selected provider returned a usable response. Check provider configuration, authorization, quota, and availability.',
-        requestedParticipants: council.requestedParticipants,
-        requestedProviderIds: council.requestedProviderIds,
-        participantCount: 0,
-        providerDiversity: 0,
-        failures: council.failures,
-        syntheticOutput: false
-      });
-    }
-
-    const providerColors: Record<string, string> = {
-      openai: 'emerald',
-      gemini: 'teal',
-      anthropic: 'purple',
-      meta: 'cyan',
-      nvidia: 'amber'
-    };
-    const participants = council.participants.map((participant) => ({
-      modelId: `${participant.provider}/${participant.model}`,
-      model: participant.model,
-      name: participant.model,
-      provider: participant.provider,
-      role: 'Independent provider analysis',
-      color: providerColors[participant.provider] || 'amber',
-      badge: 'Live provider response',
-      status: 'completed' as const,
-      output: participant.text,
-      perspective: 'Independent provider output; not, by itself, proof of consensus.',
-      latencyMs: participant.latencyMs
-    }));
-
-    let synthesis: { provider: string; model: string; output: string } | null = null;
-    let unifiedConsensus = council.providerDiversity >= 2
-      ? 'Independent provider responses were received. Cross-provider synthesis was not completed; no consensus is claimed.'
-      : 'A response from only one provider was received. Independent multi-provider consensus is unavailable.';
-    if (council.providerDiversity >= 2) {
-      const synthesisParticipant = council.participants[0];
-      const synthesisProvider = synthesisParticipant.provider;
-      const synthesisModel = synthesisParticipant.model;
-      const evidencePacket = council.participants.map((participant) =>
-        `[${participant.provider}/${participant.model}]\n${participant.text}`
-      ).join('\n\n');
-      try {
-        const synthesisResponse = await aiOrchestrator.generate({
-          provider: synthesisProvider,
-          model: synthesisModel,
-          signal: AbortSignal.timeout(45_000),
-          messages: [
-            {
-              role: 'system',
-              content: [
-                'You are the GLORIFIER advisory synthesis reviewer.',
-                'Compare the independently returned provider analyses.',
-                'Identify agreement, disagreement, contradictions, uncertainty, missing evidence, and next verification steps.',
-                'Do not state that consensus exists merely because multiple responses were received.',
-                'Do not invent facts, sources, test results, approvals, or verified outcomes.',
-                'No action is authorized by this synthesis; humans retain final authority.'
-              ].join('\n')
-            },
-            {
-              role: 'user',
-              content: `Agenda: ${topic}\n\nIndependent provider responses:\n${evidencePacket}`
-            }
-          ],
-          temperature: 0.1
-        });
-        if (isValidModelCouncilResponse(synthesisResponse, synthesisProvider, synthesisModel)) {
-          synthesis = {
-            provider: synthesisResponse.provider,
-            model: synthesisResponse.model,
-            output: synthesisResponse.text.trim()
-          };
-          unifiedConsensus = synthesis.output;
-        }
-      } catch {
-        // Keep the independent results, but do not imply that synthesis succeeded.
-      }
-    }
-
-    return res.json({
-      ok: true,
-      agenda: topic,
-      timestamp: new Date().toISOString(),
-      participants,
-      participantCount: council.participantCount,
-      providerDiversity: council.providerDiversity,
-      requestedParticipants: council.requestedParticipants,
-      requestedProviderIds: council.requestedProviderIds,
-      councilStatus: council.status,
-      failures: council.failures,
-      synthesis,
-      synthesisStatus: synthesis ? 'completed' : 'not-completed',
-      unifiedConsensus,
-      // Quantified agreement and policy recommendations require their own validated
-      // methodology. Never derive or fabricate them from the mere presence of outputs.
-      consensusScore: null,
-      recommendedEpsilon: null,
-      recommendedFloorUsd: null,
-      actionDirectives: [],
-      governance: {
-        selectedProvidersOnly: true,
-        actualProviderAttribution: true,
-        noImplicitProviderFallback: true,
-        noSyntheticOutput: true,
-        consensusNotInferredFromResponseCount: true,
-        humanFinalAuthority: true,
-        evidenceFirst: true
-      }
-    });
+    return res.status(execution.status).json(execution.body);
   } catch (error) {
     console.error('[AI-to-AI] council execution error:', error);
     return res.status(503).json({
       ok: false,
       error: 'AI-to-AI council execution unavailable',
-      syntheticOutput: false
+      syntheticOutput: false,
     });
   }
 });
