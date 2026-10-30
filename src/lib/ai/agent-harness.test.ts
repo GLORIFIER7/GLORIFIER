@@ -9,11 +9,16 @@ import {
   type AgentToolRequest,
   type HumanToolApproval,
 } from './agent-harness.ts';
+import type { PostgresAgentStateStore } from '../agent-state-store';
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
 assert.equal(await initializeAgentHarnessPersistence(), false);
-assert.deepEqual(getAgentHarnessPersistenceStatus(), { mode: 'memory-fallback', durable: false });
+assert.deepEqual(getAgentHarnessPersistenceStatus(), {
+  mode: 'memory-fallback',
+  durable: false,
+  cachedSessions: 0,
+});
 
 const capability = new Set(['mcp-tool']);
 const lowRisk: AgentToolRequest = { id: 'read-1', name: 'read', risk: 'low', capability: 'mcp-tool' };
@@ -79,4 +84,27 @@ await assert.rejects(
 );
 assert.equal((await getAgentSession(failedSession.id))?.status, 'failed');
 
-console.log('agent-harness approval state-machine tests: PASS');
+// A durable store is the source of truth; persisted sessions must not also
+// accumulate in the process-local fallback cache.
+const durableSessions = new Map<string, unknown>();
+const testStore = {
+  initialize: async () => undefined,
+  list: async <T>() => [] as T[],
+  get: async <T>(_kind: 'task' | 'session', id: string) => (durableSessions.get(id) as T | undefined) ?? null,
+  save: async (_kind: 'task' | 'session', record: { id: string }) => {
+    durableSessions.set(record.id, structuredClone(record));
+  },
+} as unknown as PostgresAgentStateStore;
+
+process.env.DATABASE_URL = 'postgresql://unit-test.invalid/glorifier';
+assert.equal(await initializeAgentHarnessPersistence(testStore), true);
+const durableSession = await createAgentSession('harness-test-durable');
+assert.equal(getAgentHarnessPersistenceStatus().mode, 'postgres');
+assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
+assert.deepEqual(await getAgentSession(durableSession.id), durableSession);
+assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
+
+if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+else process.env.DATABASE_URL = originalDatabaseUrl;
+
+console.log('agent-harness approval and persistence-cache tests: PASS');
