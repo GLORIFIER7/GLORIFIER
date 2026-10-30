@@ -129,11 +129,15 @@ function persistTask(task: A2ATask) {
 
 function persistHandoff(h: A2AHandoff) {
   memoryHandoffs.set(h.handoffId, h);
-  const db = getPostgresPool();
-  void db.query(
-    'INSERT INTO a2a_handoffs(handoff_id,task_id,from_agent_id,to_agent_id,envelope) VALUES($1,$2,$3,$4,$5) ON CONFLICT(handoff_id) DO NOTHING',
-    [h.handoffId, h.taskId, h.fromAgentId, h.toAgentId, h]
-  ).catch(error => console.warn('[A2A] handoff persistence deferred:', error?.message));
+  if (!process.env.DATABASE_URL) return;
+  try {
+    void getPostgresPool().query(
+      'INSERT INTO a2a_handoffs(handoff_id,task_id,from_agent_id,to_agent_id,envelope) VALUES($1,$2,$3,$4,$5) ON CONFLICT(handoff_id) DO NOTHING',
+      [h.handoffId, h.taskId, h.fromAgentId, h.toAgentId, h]
+    ).catch(error => console.warn('[A2A] handoff persistence deferred:', error?.message));
+  } catch (error) {
+    console.warn('[A2A] handoff persistence deferred:', error instanceof Error ? error.message : 'database unavailable');
+  }
 }
 
 export function getA2AProtocolManifest() {
