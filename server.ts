@@ -66,7 +66,9 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
-import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
+import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -94,7 +96,7 @@ void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerO
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 if (process.env.DATABASE_URL) {
-  initializeA2ARuntime();
+  void initializeA2ARuntime().catch((error) => console.warn('[A2A] persistence initialization deferred:', error?.message));
 } else {
   console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
 }
@@ -183,6 +185,8 @@ const apiRateLimit = rateLimit({
 app.disable('x-powered-by');
 app.use(appWideRateLimit);
 app.use('/api', apiRateLimit);
+// Install the same bounded parser and JSON-RPC error mapping used by HTTP contract tests.
+configureA2AJsonRpcBodyParsing(app);
 app.use(express.json({ limit: '10mb' }));
 
 app.use((req: Request, res: Response, next) => {
@@ -2545,6 +2549,15 @@ app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
   res.json({ ok: true, manifest: getA2AProtocolManifest() });
 });
 
+app.use(createA2AExpressRouter({
+  getPublicBaseUrl: () => String(process.env.GLORIFIER_PUBLIC_URL || ''),
+  getAgentVersion: () => process.env.GLORIFIER_AGENT_VERSION || '0.2.1',
+  isPersistenceConfigured: () => Boolean(process.env.DATABASE_URL),
+  initializePersistence: initializeA2ARuntime,
+  createTask: createA2ATaskForProtocol,
+  getTask: getA2ATaskForProtocol,
+}));
+
 app.get('/.well-known/a2a-agent-card.json', (_req: Request, res: Response) => {
   res.json({
     ...agentManifest(),
@@ -2558,23 +2571,37 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
   res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listA2ATasks(), protocol: getA2AProtocolManifest() });
+// Authentication is enforced once by the shared /api middleware above.
+app.get('/api/a2a/tasks', (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterAgentId = String(auth?.uid || '').trim();
+  const owner = auth ? isOwner(auth) : false;
+  const tasks = listA2ATasks().filter((task) =>
+    owner || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
+  );
+  return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
 app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
   const task = getA2ATask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterAgentId = String(auth?.uid || '').trim();
+  const owner = auth ? isOwner(auth) : false;
+  if (!task || (!owner && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
+    return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  }
   return res.json({ ok: true, task });
 });
 
 app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
+  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  if (!requesterAgentId) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   const body = req.body || {};
   if (!body.capability || !body.objective) {
     return res.status(400).json({ ok: false, error: 'capability and objective are required' });
   }
   const task = createA2ATask({
-    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    requesterAgentId,
     targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
     capability: String(body.capability),
     objective: String(body.objective),
@@ -2582,8 +2609,10 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  const approvalRequired = true;
-  if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
+  const auth = (req as AuthenticatedRequest).auth;
+  const authenticatedOwner = auth ? isOwner(auth) : false;
+  const ownerApproved = isAuthorizedA2AExecution(authenticatedOwner, body.approval);
+  if (!ownerApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(

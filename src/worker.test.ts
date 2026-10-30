@@ -1,21 +1,9 @@
 import assert from 'node:assert/strict';
 import worker from './worker.ts';
+import type { CloudflareEnv } from './worker.ts';
+import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
-type TestEnv = {
-  ASSETS: { fetch(request: Request): Promise<Response> };
-  GLORIFIER_CANONICAL_DOMAIN?: string;
-  GLORIFIER_ORG_EMAIL?: string;
-  GLORIFIER_EMAIL_MODE?: string;
-  GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
-  GLORIFIER_DOMAIN_STATUS?: string;
-  GLORIFIER_PUBLIC_URL?: string;
-  GLORIFIER_BACKEND_ORIGIN?: string;
-  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
-  GLORIFIER_NEURAL_ORIGIN?: string;
-  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
-  GLORIFIER_SUPABASE_URL?: string;
-  GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
-};
+type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
@@ -69,6 +57,171 @@ async function run(): Promise<void> {
     assert.equal(missingAsset.status, 404, 'SPA HTML must not be served as a missing JavaScript asset');
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
+
+    capturedRequest = null;
+    const previousA2ACardResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({
+      name: 'GLORIFIER Services',
+      supportedInterfaces: [{
+        url: `https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`,
+        protocolBinding: 'JSONRPC',
+        protocolVersion: '1.0',
+      }],
+      capabilities: { streaming: false, pushNotifications: false },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const a2aCardResponse = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
+      env,
+    );
+    assert.equal(a2aCardResponse.status, 200);
+    const a2aCard = await a2aCardResponse.json() as {
+      name: string;
+      supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
+      capabilities: { streaming: boolean; pushNotifications: boolean };
+    };
+    assert.equal(a2aCard.name, 'GLORIFIER Services');
+    assert.deepEqual(a2aCard.supportedInterfaces, [{
+      url: `https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`,
+      protocolBinding: 'JSONRPC',
+      protocolVersion: '1.0',
+    }]);
+    assert.equal(a2aCard.capabilities.streaming, false);
+    assert.equal(a2aCard.capabilities.pushNotifications, false);
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, A2A_AGENT_CARD_PATH);
+    upstreamResponse = previousA2ACardResponse;
+
+    capturedRequest = null;
+    const a2aCardWithoutBackend = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
+      { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+    );
+    assert.equal(a2aCardWithoutBackend.status, 502, 'A2A discovery must fail closed without a configured backend route');
+    assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null);
+
+    const a2aMethodNotAllowed = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, { method: 'GET' }),
+      env,
+    );
+    assert.equal(a2aMethodNotAllowed.status, 405);
+    assert.equal(a2aMethodNotAllowed.headers.get('allow'), 'POST');
+    assert.equal(capturedRequest, null);
+
+    const a2aTrailingSlashMissingAuth = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'slash-auth', method: 'GetTask', params: { id: 'x' } }),
+      }),
+      env,
+    );
+    assert.equal(a2aTrailingSlashMissingAuth.status, 401, 'trailing slash must not bypass A2A authentication');
+    assert.equal(capturedRequest, null, 'trailing-slash unauthenticated request must not reach backend');
+
+    const a2aMissingAuth = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'x', method: 'GetTask', params: { id: 'x' } }),
+      }),
+      env,
+    );
+    assert.equal(a2aMissingAuth.status, 401);
+    assert.equal(a2aMissingAuth.headers.get('www-authenticate'), 'Bearer');
+    assert.equal(capturedRequest, null, 'unauthenticated A2A requests must not reach the backend');
+
+    for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\ttoken']) {
+      const rejectedAuthorization = await worker.fetch(
+        new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+          method: 'POST',
+          headers: {
+            Authorization: malformedAuthorization,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 'auth-invalid', method: 'GetTask', params: { id: 'x' } }),
+        }),
+        env,
+      );
+      assert.equal(rejectedAuthorization.status, 401, `malformed authorization must be rejected: ${malformedAuthorization}`);
+      assert.equal(capturedRequest, null, 'malformed authorization must not reach the backend');
+    }
+
+    const a2aUnsupportedMediaType = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'text/plain' },
+        body: '{}',
+      }),
+      env,
+    );
+    assert.equal(a2aUnsupportedMediaType.status, 415);
+    assert.equal(capturedRequest, null);
+
+    const a2aOversized = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+        body: ' '.repeat(65_537),
+      }),
+      env,
+    );
+    assert.equal(a2aOversized.status, 413);
+    assert.equal(capturedRequest, null, 'oversized A2A requests must not reach the backend');
+
+    const a2aInvalidJson = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+        body: '{invalid',
+      }),
+      env,
+    );
+    assert.equal(a2aInvalidJson.status, 400);
+    assert.equal(capturedRequest, null);
+
+    capturedRequest = null;
+    const a2aForwarded = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'bEaReR caller-token',
+          'Content-Type': 'application/json',
+          'A2A-Version': '1.0',
+          Cookie: 'session=should-not-forward',
+          'X-Private-Header': 'should-not-forward',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'send-1',
+          method: 'SendMessage',
+          params: { message: { messageId: 'm-1', role: 'ROLE_USER', parts: [{ text: 'Review this' }] } },
+        }),
+      }),
+      env,
+    );
+    assert.equal(a2aForwarded.status, 200);
+    const a2aUpstreamRequest = getCapturedRequest();
+    assert.equal(new URL(a2aUpstreamRequest.url).origin, 'https://api.example.test');
+    assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
+
+    capturedRequest = null;
+    const a2aTrailingSlashForwarded = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'slash-send', method: 'SendMessage', params: { message: { messageId: 'slash-m', role: 'ROLE_USER', parts: [{ text: 'Slash route' }] } } }),
+      }),
+      env,
+    );
+    assert.equal(a2aTrailingSlashForwarded.status, 200);
+    assert.equal(new URL(getCapturedRequest().url).pathname, A2A_JSONRPC_PATH, 'trailing-slash A2A calls must be canonicalized before backend forwarding');
+    assert.equal(a2aUpstreamRequest.headers.get('authorization'), 'Bearer caller-token', 'mixed-case bearer schemes must be canonicalized before backend forwarding');
+    assert.equal(a2aUpstreamRequest.headers.get('content-type'), 'application/json');
+    assert.equal(a2aUpstreamRequest.headers.get('a2a-version'), '1.0', 'the negotiated A2A protocol version must cross the Worker boundary');
+    assert.equal(a2aUpstreamRequest.headers.get('cookie'), null, 'A2A proxy must not forward caller cookies');
+    assert.equal(a2aUpstreamRequest.headers.get('x-private-header'), null, 'A2A proxy must not forward unrelated headers');
+    assert.match(await a2aUpstreamRequest.text(), /SendMessage/);
 
     const healthAssetCallsBefore = assetCalls;
     const workerHealth = await worker.fetch(
