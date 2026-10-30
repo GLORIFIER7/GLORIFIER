@@ -69,8 +69,8 @@ test('governance and exact target metadata are preserved', () => {
   const capability = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
   const sourceAudit = capability.evidence.find((item) => item.reference.includes('interoperability-gap-register.md'));
   assert.ok(sourceAudit, 'source audit evidence must remain present');
-  assert.match(sourceAudit.targetEnvironment, /A2A 1\\.0\\.1 specification target/);
-  assert.match(sourceAudit.notes, /A2A 1\\.0\\.1 message\\/task binding/);
+  assert.match(sourceAudit.targetEnvironment, /A2A 1\.0\.1 specification target/);
+  assert.match(sourceAudit.notes, /A2A 1\.0\.1 message\/task binding/);
   assert.ok(capability.limitations.includes('No arbitrary proxy or implied provider fallback is authorized.'));
 });
 
