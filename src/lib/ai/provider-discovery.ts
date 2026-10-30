@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { registerConnection, recordConnectionEvent } from '../connection-registry.ts';
 
 export type ProviderAvailability = 'available' | 'unconfigured' | 'quota_exhausted' | 'rate_limited' | 'auth_failure' | 'capability_mismatch' | 'unreachable' | 'error';
@@ -23,8 +24,13 @@ const definitions: ProviderDefinition[] = [
  {id:'ollama',name:'Ollama / self-hosted',kind:'self-hosted',endpoint:'http://localhost:11434',keyEnv:'OLLAMA_AUTH_TOKEN',baseUrlEnv:'OLLAMA_BASE_URL',modelEnv:'OLLAMA_MODELS',capabilities:['chat','reasoning','code','self-hosted']}
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
+const inferenceVerifiedConfiguration = new Map<string, string>();
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
+function providerConfigurationFingerprint(d: ProviderDefinition): string {
+ const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\\0');
+ return createHash('sha256').update(material).digest('hex');
+}
 function classify(status:number, body:string):ProviderAvailability { if(status===401||status===403)return 'auth_failure'; if(status===402||status===400&&/spend|billing|credit|quota/i.test(body))return 'quota_exhausted'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'unreachable'; return status>=400?'error':'available'; }
 function reasonFor(status:number, body:string, availability:ProviderAvailability):string|null { if(availability==='available')return null; if(status===401)return 'invalid_or_expired_api_key'; if(status===403)return 'api_key_forbidden_or_access_denied'; if(status===402||/spend|billing|credit|quota/i.test(body))return 'quota_or_billing_limit'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'provider_service_error'; return body.slice(0,300); }
 async function fetchJson(url:string,headers:Record<string,string>,init:RequestInit={}) { const response=await fetch(url,{...init,headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
@@ -77,6 +83,7 @@ export async function recordProviderInferenceVerification(providerId: string, mo
   authorization: 'pending' as const,
  };
  const verifiedAt = new Date().toISOString();
+ inferenceVerifiedConfiguration.set(providerId, providerConfigurationFingerprint(definition));
  const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';
  const models = normalizedModel
   ? [...new Set([...current.models, normalizedModel])]
@@ -143,7 +150,23 @@ export async function discoverGlobalProviders(
   options: { persistConnections?: boolean } = {},
 ) {
   const results = await Promise.all(definitions.map(probe));
-  for (const provider of results) {
+  for (const discoveredProvider of results) {
+    const definition = definitions.find((candidate) => candidate.id === discoveredProvider.id);
+    const previous = snapshot.get(discoveredProvider.id);
+    const sameVerifiedNvidiaConfiguration = discoveredProvider.id === 'nvidia' &&
+      Boolean(definition) &&
+      previous?.authenticated === true &&
+      previous.authorization === 'configured' &&
+      inferenceVerifiedConfiguration.get(discoveredProvider.id) === providerConfigurationFingerprint(definition!);
+    const provider: DiscoveredProvider = sameVerifiedNvidiaConfiguration && previous
+      ? {
+          ...discoveredProvider,
+          authenticated: true,
+          authorization: 'configured',
+          models: [...new Set([...discoveredProvider.models, ...previous.models])],
+          reason: discoveredProvider.availability === 'available' ? null : discoveredProvider.reason,
+        }
+      : discoveredProvider;
     snapshot.set(provider.id, provider);
     if (options.persistConnections === false) continue;
     const connectionId = 'provider-' + provider.id;
