@@ -208,6 +208,7 @@ BEGIN
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'TRUNCATE')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'REFERENCES')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'TRIGGER')
+    OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'MAINTAIN')
     OR has_sequence_privilege('anon', 'public.glorifier_default_acl_probe_seq', 'USAGE')
     OR has_sequence_privilege('anon', 'public.glorifier_default_acl_probe_seq', 'SELECT')
     OR has_sequence_privilege('anon', 'public.glorifier_default_acl_probe_seq', 'UPDATE')
