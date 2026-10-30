@@ -36,7 +36,7 @@ Extend the existing registry validator and CI with deterministic metadata-policy
 
 ## Selected revision notes
 
-The official `2026-07-28` server discovery operation is `server/discover`. The server reports `supportedVersions`, negotiated capabilities, and server identity in its result. The server's identity is self-reported and MUST NOT be used as an authentication or trust decision.
+The official `2026-07-28` server discovery operation is `server/discover`. The server reports `supportedVersions`, its supported capabilities, and server identity in its result. The server's identity is self-reported and MUST NOT be used as an authentication or trust decision.
 
 **Immutable normative source:** [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx). Upstream commit: `b488c16623e5202a3961e551886044577ae0f096`; document Git blob SHA-1: `f6fc1acf974819d99338d2be25ad953fcb9e57a6`.
 
