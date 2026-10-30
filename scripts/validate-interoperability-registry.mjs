@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { isEvidenceTimestampFresh } from './interoperability-evidence-policy.mjs';
-import { pathToFileURL } from 'node:url';
-import { resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const ALLOWED_STATUSES = new Set([
   'VERIFIED',
@@ -157,10 +157,28 @@ export function validateInteroperabilityRegistry(registry) {
   return errors;
 }
 
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const registryRoot = resolve(repositoryRoot, 'docs', 'architecture');
+
+async function resolveRegistryPath(candidate) {
+  const requestedPath = candidate
+    ? (isAbsolute(candidate) ? resolve(candidate) : resolve(repositoryRoot, candidate))
+    : resolve(registryRoot, 'interoperability-capabilities.json');
+  const [canonicalRoot, canonicalPath] = await Promise.all([
+    realpath(registryRoot),
+    realpath(requestedPath),
+  ]);
+  const relativePath = relative(canonicalRoot, canonicalPath);
+  if (!relativePath || relativePath === '..' || relativePath.startsWith('..' + sep) || isAbsolute(relativePath)) {
+    throw new Error('Registry path must remain inside docs/architecture.');
+  }
+  return canonicalPath;
+}
+
 async function main() {
-  const path = process.argv[2] ?? 'docs/architecture/interoperability-capabilities.json';
   let registry;
   try {
+    const path = await resolveRegistryPath(process.argv[2]);
     registry = JSON.parse(await readFile(path, 'utf8'));
   } catch (error) {
     console.error(`Registry read/JSON parse failed: ${error.message}`);

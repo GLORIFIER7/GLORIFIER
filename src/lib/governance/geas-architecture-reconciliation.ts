@@ -52,7 +52,7 @@ function canonical(value: unknown, ancestors = new WeakSet<object>()): string {
       throw new TypeError('Architecture snapshots must contain only plain JSON objects.');
     }
     const object = value as Record<string, unknown>;
-    return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonical(object[key], ancestors)).join(',') + '}';
+    return '{' + Object.keys(object).sort((left, right) => left.localeCompare(right, 'en')).map((key) => JSON.stringify(key) + ':' + canonical(object[key], ancestors)).join(',') + '}';
   } finally {
     ancestors.delete(value);
   }
@@ -72,7 +72,7 @@ function canonicalOrNull(value: unknown): string | null {
 }
 
 function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<string, unknown>): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
+  return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort((leftKey, rightKey) => leftKey.localeCompare(rightKey, 'en'))
     .filter((key) => {
       if (!(key in left) || !(key in right)) return true;
       const leftValue = canonicalOrNull(left[key]);
