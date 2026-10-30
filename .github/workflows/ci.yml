@@ -220,6 +220,12 @@ jobs:
       - name: GEAS five-state architecture timestamp regression tests
         run: npm run test:geas-state-reconciliation
 
+      - name: GEAS trusted-source claim verification tests
+        run: npm run test:geas-claim-verification
+
+      - name: GEAS FOCUS invoice deterministic reconciliation tests
+        run: npm run test:geas-focus-invoice-reconciliation
+
       - name: GEAS enterprise governance controls
         run: npm run test:geas-enterprise-controls
 
