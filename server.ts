@@ -2522,7 +2522,8 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
   res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks', requireAuthentication, (req: Request, res: Response) => {
+// Authentication is enforced once by the shared /api middleware above.
+app.get('/api/a2a/tasks', (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   const requesterAgentId = String(auth?.uid || '').trim();
   const owner = auth ? isOwner(auth) : false;
@@ -2532,7 +2533,7 @@ app.get('/api/a2a/tasks', requireAuthentication, (req: Request, res: Response) =
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks/:id', requireAuthentication, (req: Request, res: Response) => {
+app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
   const task = getA2ATask(String(req.params.id));
   const auth = (req as AuthenticatedRequest).auth;
   const requesterAgentId = String(auth?.uid || '').trim();
