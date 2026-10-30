@@ -944,7 +944,7 @@ async function run(): Promise<void> {
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/INVALID_SLUG'),
       openSeaEnv,
     );
-    assert.ok([400, 404].includes(openSeaInvalidSlug.status), 'invalid collection paths must not be forwarded');
+    assert.equal(openSeaInvalidSlug.status, 400, 'invalid collection slugs must be rejected locally');
 
     const openSeaWrongMethod = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'POST' }),
@@ -963,6 +963,28 @@ async function run(): Promise<void> {
     );
     assert.equal(openSeaUnauthorized.status, 502);
     assert.equal(await openSeaUnauthorized.json().then((body: { code?: string }) => body.code), 'OPENSEA_AUTHENTICATION_FAILED');
+
+
+    upstreamResponse = new Response(JSON.stringify({ detail: 'rate limited' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json', 'Retry-After': '7' },
+    });
+    const openSeaRateLimited = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaRateLimited.status, 429);
+    assert.equal(openSeaRateLimited.headers.get('retry-after'), '7');
+    assert.equal(await openSeaRateLimited.json().then((body: { code?: string }) => body.code), 'OPENSEA_RATE_LIMITED');
+
+    shouldThrow = true;
+    const openSeaUnavailable = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    shouldThrow = false;
+    assert.equal(openSeaUnavailable.status, 502);
+    assert.equal(await openSeaUnavailable.json().then((body: { code?: string }) => body.code), 'OPENSEA_UPSTREAM_UNAVAILABLE');
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
