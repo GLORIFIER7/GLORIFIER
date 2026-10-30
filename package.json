@@ -73,7 +73,7 @@
     "test:token-branding-bridge": "node --test --import tsx/esm src/lib/token-branding-bridge.test.ts",
     "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs",
     "test:provider-routing": "tsx src/lib/ai/registry-routing.test.ts",
-    "test:provider-model-catalog": "tsx src/lib/ai/provider-model-catalog.test.ts"
+    "test:provider-model-catalog": "tsx src/lib/ai/provider-model-catalog.test.ts",
     "test:a2a-v1": "tsx src/lib/a2a-v1.test.ts",
     "test:a2a-runtime": "tsx src/lib/a2a-runtime.test.ts",
     "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
