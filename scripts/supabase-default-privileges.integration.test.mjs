@@ -19,17 +19,12 @@ test('hardens future postgres-owned public defaults without changing service_rol
       await client.query('BEGIN');
       transactionStarted = true;
 
-      for (const role of ['anon', 'authenticated', 'service_role', 'supabase_admin']) {
-        await client.query(`
-          DO $$
-          BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
-              CREATE ROLE ${role} NOLOGIN;
-            END IF;
-          END
-          $$;
-        `);
-      }
+      await client.query(`
+        DO $ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $;
+        DO $ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $;
+        DO $ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $;
+        DO $ BEGIN CREATE ROLE supabase_admin NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $;
+      `);
 
       // Reproduce the risky default grants observed in the connected Supabase
       // project. service_role is intentionally retained for server-side access.
@@ -66,9 +61,14 @@ test('hardens future postgres-owned public defaults without changing service_rol
         'intelligence_evidence',
         'intelligence_reports',
       ];
-      for (const table of protectedTables) {
-        await client.query(`CREATE TABLE public.${table} (id bigint PRIMARY KEY)`);
-      }
+      await client.query(`
+        CREATE TABLE public.connection_approvals (id bigint PRIMARY KEY);
+        CREATE TABLE public.connection_events (id bigint PRIMARY KEY);
+        CREATE TABLE public.connection_registry (id bigint PRIMARY KEY);
+        CREATE TABLE public.intelligence_analyses (id bigint PRIMARY KEY);
+        CREATE TABLE public.intelligence_evidence (id bigint PRIMARY KEY);
+        CREATE TABLE public.intelligence_reports (id bigint PRIMARY KEY);
+      `);
 
       const migration = readFileSync(migrationPath, 'utf8');
       await client.query(migration);
