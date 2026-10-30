@@ -10,7 +10,7 @@ const envKeys = [
   'OPENROUTER_API_KEY', 'HF_TOKEN', 'LLMSRELAY_API_KEY',
   'OLLAMA_AUTH_TOKEN', 'LANGSMITH_TRACING',
 ] as const;
-const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
+const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
 const providerRequests: Array<{ method: string; url: string; body?: Record<string, unknown> }> = [];
 
