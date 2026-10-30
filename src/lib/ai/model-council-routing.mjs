@@ -49,7 +49,7 @@ export function resolveModelCouncilProviderIds({
     : Array.isArray(activeModels)
       ? activeModels.map((modelId) => (
           typeof modelId === 'string'
-            ? (LEGACY_MODEL_PROVIDER_IDS[modelId] ?? modelId)
+            ? (Object.hasOwn(LEGACY_MODEL_PROVIDER_IDS, modelId) ? LEGACY_MODEL_PROVIDER_IDS[modelId] : modelId)
             : modelId
         ))
       : providerIds;
@@ -76,10 +76,24 @@ export function resolveModelCouncilParticipants({
       throw new TypeError('participants must be an array of provider/model selections.');
     }
     requested = participants;
+  } else if (providerIds === undefined && activeModels !== undefined) {
+    if (!Array.isArray(activeModels)) {
+      throw new TypeError('activeModels must be an array of exact model IDs.');
+    }
+    requested = activeModels.map((entry) => {
+      if (typeof entry !== 'string' || !entry.trim()) {
+        throw new TypeError('Every legacy activeModels entry must be a non-empty model ID.');
+      }
+      const modelId = entry.trim();
+      const mappedProviderId = Object.hasOwn(LEGACY_MODEL_PROVIDER_IDS, modelId)
+        ? LEGACY_MODEL_PROVIDER_IDS[modelId]
+        : availableProviders.find((provider) => Array.isArray(provider.models) && provider.models.includes(modelId))?.id;
+      if (!mappedProviderId) throw new RangeError(`Unknown legacy model ID: ${modelId}.`);
+      return { providerId: mappedProviderId, modelId };
+    });
   } else {
     const ids = resolveModelCouncilProviderIds({
       providerIds,
-      activeModels,
       availableProviderIds: availableProviders.map((provider) => provider.id),
     });
     requested = ids.map((providerId) => {
