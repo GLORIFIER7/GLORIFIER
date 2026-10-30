@@ -5,9 +5,12 @@ import type { AIMessage, AIProvider, AIRequest, AIResponse } from '../types';
 export function resolveGeminiModelCandidates(requestedModel?: string, configuredModel?: string): string[] {
   const requested = requestedModel?.trim();
   const configured = configuredModel?.trim();
+  const selectedConfigured = configured && configured.toLowerCase() !== 'auto'
+    ? configured
+    : undefined;
   const selected = requested && requested.toLowerCase() !== 'auto'
     ? requested
-    : configured || 'gemini-3.1-flash-lite';
+    : selectedConfigured || 'gemini-3.1-flash-lite';
   return [selected];
 }
 
