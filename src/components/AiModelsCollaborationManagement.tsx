@@ -243,7 +243,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
       console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
       if (err instanceof ModelCouncilClientError) {
-        const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
+        const failureSummary = formatModelCouncilFailures(err.failures);
         setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
       } else {
         setStatusFeedback('Council execution failed. No provider fallback or synthetic response was substituted.');
