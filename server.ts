@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { isIP } from 'node:net';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
@@ -142,8 +143,15 @@ const geasRateLimit = (req: Request, res: Response, next: express.NextFunction) 
 
 
 
-const rateLimitKeyGenerator = (req: Request): string =>
-  ipKeyGenerator(resolveIngressClientAddress(req));
+// The hosting ingress overwrites X-Real-IP. Validate it for broad per-client
+// throttles; the paid-council limiter separately keys on the observed socket peer.
+const rateLimitKeyGenerator = (req: Request): string => {
+  const platformClientIp = req.get('x-real-ip')?.trim();
+  const clientIp = platformClientIp && isIP(platformClientIp)
+    ? platformClientIp
+    : req.ip || req.socket.remoteAddress || 'unknown';
+  return ipKeyGenerator(clientIp);
+};
 
 const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
   res.setHeader('Retry-After', '60');
