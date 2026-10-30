@@ -138,7 +138,7 @@ const supabaseConfig = (env: CloudflareEnv): { url: URL; key: string } | null =>
   if (!rawUrl || !key) return null;
   try {
     const url = new URL(rawUrl);
-    const isCanonicalSupabaseHost = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.supabase\\.co$/.test(url.hostname);
+    const isCanonicalSupabaseHost = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.supabase\.co$/.test(url.hostname);
     if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !isCanonicalSupabaseHost) return null;
     url.pathname = url.pathname.replace(/\/$/, '');
     return { url, key };
