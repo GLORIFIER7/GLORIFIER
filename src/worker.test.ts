@@ -121,6 +121,17 @@ async function run(): Promise<void> {
     assert.equal(a2aMethodNotAllowed.headers.get('allow'), 'POST');
     assert.equal(capturedRequest, null);
 
+    const a2aTrailingSlashMissingAuth = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'slash-auth', method: 'GetTask', params: { id: 'x' } }),
+      }),
+      env,
+    );
+    assert.equal(a2aTrailingSlashMissingAuth.status, 401, 'trailing slash must not bypass A2A authentication');
+    assert.equal(capturedRequest, null, 'trailing-slash unauthenticated request must not reach backend');
+
     const a2aMissingAuth = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
@@ -206,6 +217,17 @@ async function run(): Promise<void> {
     const a2aUpstreamRequest = getCapturedRequest();
     assert.equal(new URL(a2aUpstreamRequest.url).origin, 'https://api.example.test');
     assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
+
+    const a2aTrailingSlashForwarded = await worker.fetch(
+      new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 'slash-send', method: 'SendMessage', params: { message: { messageId: 'slash-m', role: 'ROLE_USER', parts: [{ text: 'Slash route' }] } } }),
+      }),
+      env,
+    );
+    assert.equal(a2aTrailingSlashForwarded.status, 200);
+    assert.equal(new URL(getCapturedRequest().url).pathname, A2A_JSONRPC_PATH, 'trailing-slash A2A calls must be canonicalized before backend forwarding');
     assert.equal(a2aUpstreamRequest.headers.get('authorization'), 'Bearer caller-token', 'mixed-case bearer schemes must be canonicalized before backend forwarding');
     assert.equal(a2aUpstreamRequest.headers.get('content-type'), 'application/json');
     assert.equal(a2aUpstreamRequest.headers.get('a2a-version'), '1.0', 'the negotiated A2A protocol version must cross the Worker boundary');
