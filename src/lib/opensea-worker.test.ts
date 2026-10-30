@@ -16,6 +16,7 @@ let nextResponse = new Response(JSON.stringify({ collection: 'glorifier7', name:
 });
 let fetchError: Error | null = null;
 let capturedCf: unknown;
+let capturedInit: RequestInit | undefined;
 
 const getCapturedRequest = (): Request => {
   assert.ok(capturedRequest, 'Expected a request to OpenSea');
@@ -25,6 +26,7 @@ const getCapturedRequest = (): Request => {
 async function run(): Promise<void> {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (fetchError) throw fetchError;
+    capturedInit = init;
     capturedCf = init && 'cf' in init ? (init as RequestInit & { cf?: unknown }).cf : undefined;
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     return nextResponse;
@@ -59,6 +61,8 @@ async function run(): Promise<void> {
     assert.equal(outbound.url, 'https://api.opensea.io/api/v2/collections/glorifier7');
     assert.equal(outbound.headers.get('x-api-key'), 'test-personal-api-key');
     assert.equal(outbound.headers.get('accept'), 'application/json');
+    assert.equal(capturedInit?.redirect, 'manual', 'the Worker must not follow provider redirects');
+    assert.ok(capturedInit?.signal instanceof AbortSignal, 'provider requests must have an abort timeout signal');
     assert.equal(outbound.headers.get('authorization'), null, 'public collection reads must not send wallet authorization');
     assert.equal(capturedCf, undefined, 'health probe must bypass edge cache to observe current API-key validity');
     assert.equal(outbound.headers.get('x-api-key')?.includes('test-scoped-token'), false);
@@ -130,6 +134,21 @@ async function run(): Promise<void> {
     const invalidJson = await worker.fetch(new Request('https://glorifier.test/api/opensea/health'), env);
     assert.equal(invalidJson.status, 502);
     assert.equal((await invalidJson.json()).code, 'OPENSEA_INVALID_RESPONSE');
+
+    nextResponse = new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const unexpectedShape = await worker.fetch(new Request('https://glorifier.test/api/opensea/health'), env);
+    assert.equal(unexpectedShape.status, 502);
+    assert.equal((await unexpectedShape.json()).code, 'OPENSEA_INVALID_RESPONSE');
+
+    nextResponse = new Response('redirected', { status: 302, headers: { Location: 'https://attacker.example/collect' } });
+    const redirect = await worker.fetch(new Request('https://glorifier.test/api/opensea/health'), env);
+    assert.equal(redirect.status, 502);
+    assert.equal((await redirect.json()).code, 'OPENSEA_REDIRECT_REJECTED');
+
+    nextResponse = new Response('provider failure', { status: 500 });
+    const genericFailure = await worker.fetch(new Request('https://glorifier.test/api/opensea/health'), env);
+    assert.equal(genericFailure.status, 502);
+    assert.equal((await genericFailure.json()).code, 'OPENSEA_UPSTREAM_ERROR');
 
     fetchError = new Error('simulated timeout');
     fetchError.name = 'TimeoutError';
