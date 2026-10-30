@@ -191,7 +191,9 @@ export function toA2ATask(task: A2ATaskLike) {
       state: mapped.state,
       message: {
         messageId: `status-${task.id}`,
-        role: 'agent',
+        role: 'ROLE_AGENT',
+        contextId: task.parentTaskId || task.id,
+        taskId: task.id,
         parts: [{ text: mapped.message, mediaType: 'text/plain' }],
       },
       timestamp: task.updatedAt,
@@ -210,7 +212,7 @@ function rpcResult(id: string | number, result: unknown): A2AJsonRpcResponse {
 
 function messageText(message: JsonRecord): { text: string; normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> } | null {
   if (message.role !== 'ROLE_USER' || typeof message.messageId !== 'string' || !message.messageId.trim()) return null;
-  if (message.taskId || message.contextId) return null;
+  if (hasOwn(message, 'taskId') || hasOwn(message, 'contextId')) return null;
   if (!Array.isArray(message.parts) || message.parts.length < 1 || message.parts.length > 20) return null;
 
   const normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> = [];
