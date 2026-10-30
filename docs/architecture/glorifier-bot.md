@@ -4,37 +4,35 @@
 
 ## Current implementation
 
-- A scheduled/manual GitHub Actions workflow refreshes npm dependencies within the version ranges already declared by the project, runs the repository type-check and frontend build, and opens a **draft** pull request when dependency files change.
-- GitHub's native Dependabot remains configured for npm and GitHub Actions dependency updates.
+- The **Locked Dependency Guardian** runs on pull requests targeting `main` that change its workflow, Dependabot configuration, or npm manifests/lockfile, and on a weekly schedule or manual dispatch.
+- It validates the event's checked-out ref using `npm ci --ignore-scripts --no-audit`, `npm audit`, the repository type-check, and the build. Checkout does not persist the GitHub token in the local Git configuration. The workflow has read-only repository permissions and does not resolve new package versions or write to the repository.
+- The historical workflow and job check-run labels are retained for compatibility with any existing branch rules. The job label still says “Prepare and test safe dependency refresh,” but the implemented workflow is validation-only and performs no dependency refresh.
+- GitHub's native Dependabot is the update mechanism for npm and GitHub Actions. It checks both ecosystems weekly and proposes reviewable pull requests with dependency and security labels.
+- The guardian uses the committed `package-lock.json`; a manifest/lockfile mismatch fails at `npm ci`. This statement applies to the guardian workflow only: other CI workflows must be assessed independently, and this change does not establish lockfile-only installation across every repository workflow.
 - The bot does not auto-merge, deploy, modify secrets, transfer assets, trade, rotate credentials, or delete production data.
-- Pull requests remain subject to required checks and human review.
+- Dependabot and other pull requests remain subject to repository checks and human review.
 
 ## Identity limitation
 
-A workflow cannot create a new GitHub account or GitHub App identity by itself. Unless a GLORIFIER GitHub App is registered and configured, GitHub will attribute workflow-created pull requests to `github-actions[bot]`, not `GLORIFIER[bot]`. Do not spoof the bot identity by setting only a commit author name.
+The validation workflow creates no pull request and does not claim a custom bot identity. Native Dependabot pull requests are attributed to GitHub's Dependabot bot. A separate GLORIFIER GitHub App can only author pull requests after the app has been installed with narrowly scoped permissions and its installation token has been verified; the workflow must not spoof identity by setting a commit author name.
 
-## To create the true app identity
+## Optional future GLORIFIER App integration
 
-1. Open GitHub in a browser and navigate to **Settings → Developer settings → GitHub Apps → New GitHub App** (or organization settings if creating an organization-owned app).
-2. Set the app name to **GLORIFIER Bot**. GitHub controls the generated bot username; the exact `GLORIFIER[bot]` handle is not guaranteed.
-3. Use the original icon source in `assets/glorifier-bot.svg`; export to PNG if the GitHub upload form requires a raster image.
-4. Grant only the permissions required for the intended scope: **Contents: read/write**, **Pull requests: read/write**, and **Metadata: read-only**. Avoid Administration, Secrets, Actions write, Deployments, and organization-wide permissions.
-5. Install the app only on `GLORIFIER7/GLORIFIER`.
-6. Generate an app private key and store it as repository Actions secrets:
-   - `GLORIFIER_BOT_APP_ID`
-   - `GLORIFIER_BOT_PRIVATE_KEY`
-7. Configure the workflow to mint an installation token with `actions/create-github-app-token` and pass it to the pull-request action. Never commit the private key or print it in logs.
+A future, separately reviewed workflow may use a real GLORIFIER GitHub App for a narrowly scoped PR-only task. Until then, the dependency guardian does not read app credentials or mint installation tokens. Any such workflow must:
 
-The current workflow deliberately uses the built-in `GITHUB_TOKEN`; it does not pretend that a custom app has been created or configured.
+1. Install the app only on the intended repository.
+2. Grant only the permissions required for that task (normally Contents and Pull requests); avoid Administration, Secrets, Deployments, and broad organization permissions.
+3. Store the app ID as a repository variable and the PEM as a repository secret.
+4. Mint a repository-scoped installation token at the last possible step; never commit or print the private key.
+5. Create draft pull requests only. Merging, deployment, secret changes, paid actions, transfers, and production data changes require separate owner approval.
 
 ## Safety and acceptance criteria
 
-- Bot changes are reviewable pull requests, initially draft.
-- Required CI, dependency review, CodeQL, and repository policy gates remain in force.
-- No automatic merge or production deployment.
-- Dependency refreshes stay within existing package semver ranges; major-version upgrades require separate review.
-- The bot fails safely when installation, tests, permissions, or dependencies fail.
-- Report app identity as **NOT CONFIGURED** until a real GitHub App installation token is used and the resulting PR actor is verified.
+- Dependency updates are proposed through native Dependabot pull requests; the committed lockfile is authoritative for this guardian's install and validation.
+- The scheduled/manual/PR guardian validates the selected ref without mutating dependency files.
+- Dependency updates do not auto-merge or deploy production.
+- Major-version upgrades remain subject to separate review.
+- Report a custom GLORIFIER bot identity as **NOT VERIFIED** until a real app-authored action is independently observed.
 
 ## Branding
 
