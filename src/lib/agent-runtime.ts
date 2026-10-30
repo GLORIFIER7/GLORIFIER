@@ -43,23 +43,26 @@ const agents: AgentCard[] = [
   { id: 'finance-scientist', name: 'GLORIFIER Finance Scientist', role: 'institutional-finance-intelligence', capabilities: ['portfolio-intelligence', 'multi-asset-risk', 'scenario-analysis', 'stress-testing', 'capital-allocation', 'valuation', 'financial-forensics', 'liquidity-analysis'], endpoint: '/api/agents/finance-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' }
 ];
 
-const tasks = new Map<string, AgentTask>();
-let persistence: PostgresAgentStateStore | null = null;
-let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = process.env.DATABASE_URL ? 'uninitialized' : 'memory-fallback';
+type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks'>;
 
-export async function initializeAgentRuntimePersistence(): Promise<boolean> {
-  if (!process.env.DATABASE_URL) {
+const tasks = new Map<string, AgentTask>();
+let persistence: AgentRuntimePersistence | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentRuntimePersistence(storeOverride?: AgentRuntimePersistence): Promise<boolean> {
+  if (!process.env.DATABASE_URL && !storeOverride) {
     persistence = null;
     persistenceMode = 'memory-fallback';
     return false;
   }
 
-  const store = createPostgresAgentStateStore();
+  const store = storeOverride ?? createPostgresAgentStateStore();
+  persistenceMode = 'uninitialized';
   await store.initialize();
   const recovered = await store.recoverInterruptedTasks();
-  const restored = await store.list<AgentTask>('task', 500);
+  // PostgreSQL is the durable source of truth; avoid retaining a duplicate
+  // in-process copy of every task after persistence is enabled.
   tasks.clear();
-  for (const task of restored) tasks.set(task.id, task);
   persistence = store;
   persistenceMode = 'postgres';
   if (recovered > 0) {
@@ -69,7 +72,11 @@ export async function initializeAgentRuntimePersistence(): Promise<boolean> {
 }
 
 export function getAgentRuntimePersistenceStatus() {
-  return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
+  return {
+    mode: persistenceMode,
+    durable: persistenceMode === 'postgres',
+    cachedTasks: persistence ? 0 : tasks.size,
+  };
 }
 
 function assertAgentRuntimeReady(): void {
@@ -159,7 +166,7 @@ export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objec
   };
   // Persist before exposing a newly accepted task to the caller.
   if (persistence) await persistence.save('task', task);
-  tasks.set(task.id, task);
+  else tasks.set(task.id, task);
   return task;
 }
 
@@ -171,29 +178,29 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
   if (!current) return null;
   const updated = { ...current, ...patch, id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
   // A database failure is returned to the route; uncommitted state is not reported as durable.
-  if (persistence) await persistence.save('task', updated);
+  if (persistence) {
+    await persistence.save('task', updated);
+    return updated;
+  }
   tasks.set(id, updated);
+  return updated;
+}
+
+export async function requireAgentTaskUpdate(id: string, patch: Partial<AgentTask>): Promise<AgentTask> {
+  const updated = await updateAgentTask(id, patch);
+  if (!updated) throw new Error(`Agent task ${id} no longer exists; refusing to continue.`);
   return updated;
 }
 
 export async function getAgentTask(id: string): Promise<AgentTask | null> {
   assertAgentRuntimeReady();
-  if (persistence) {
-    const restored = await persistence.get<AgentTask>('task', id);
-    if (restored) tasks.set(id, restored);
-    else tasks.delete(id);
-    return restored;
-  }
+  if (persistence) return persistence.get<AgentTask>('task', id);
   return tasks.get(id) || null;
 }
 
 export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
   assertAgentRuntimeReady();
-  if (persistence) {
-    const durableTasks = await persistence.list<AgentTask>('task', limit);
-    for (const task of durableTasks) tasks.set(task.id, task);
-    return durableTasks;
-  }
+  if (persistence) return persistence.list<AgentTask>('task', limit);
   return [...tasks.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, Math.max(1, Math.min(500, limit)));
 }
 
