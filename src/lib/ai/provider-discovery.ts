@@ -30,6 +30,7 @@ const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 
 /** Expose endpoint identity without leaking userinfo, query credentials, or fragments. */
 function safeEndpointForDiagnostics(endpoint: string): string {
+ if (!endpoint.trim()) return '';
  try {
   const parsed = new URL(endpoint);
   parsed.username = '';
@@ -65,14 +66,14 @@ async function fetchJson(url:string,headers:Record<string,string>,init:RequestIn
 async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const requestEndpoint=endpointFor(d), endpoint=safeEndpointForDiagnostics(requestEndpoint), checked=new Date().toISOString();
  const credentialConfigured=Boolean(d.keyEnv ? env(d.keyEnv) : true);
- const endpointConfigured=Boolean(endpoint);
+ const endpointConfigured=Boolean(requestEndpoint);
  const configured=credentialConfigured && endpointConfigured;
  if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':d.baseUrlEnv?`Provider base URL is missing; configure ${d.baseUrlEnv} before probing.`:'Provider endpoint is missing; configure a provider endpoint before probing.',authorization:'not-configured'};
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
   if(d.id==='gemini') result=await fetchJson(requestEndpoint+'/models?key='+encodeURIComponent(env(d.keyEnv)),{accept:'application/json'});
-  else if(d.id==='anthropic') result=await fetchJson(endpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
+  else if(d.id==='anthropic') result=await fetchJson(requestEndpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
   else if(d.id==='ollama') result=await fetchJson(requestEndpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(requestEndpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   let availability=classify(result.response.status,result.text);
