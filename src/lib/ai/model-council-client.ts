@@ -18,6 +18,13 @@ export interface ModelCouncilApiResponse extends CouncilConsensusResult {
   failures: ModelCouncilProviderFailure[];
 }
 
+export function formatModelCouncilFailures(failures: readonly ModelCouncilProviderFailure[]): string {
+  return failures.map((failure) => {
+    const modelSuffix = failure.modelId ? '/' + failure.modelId : '';
+    return failure.providerId + modelSuffix + ' (' + failure.code + ')';
+  }).join(', ');
+}
+
 export class ModelCouncilClientError extends Error {
   readonly failures: ModelCouncilProviderFailure[];
   readonly status: number;
@@ -79,7 +86,8 @@ export async function discoverConfiguredModelCouncilParticipants(
 
   // Round-robin across providers so one provider's large catalog cannot starve others.
   const selections: ModelCouncilSelection[] = [];
-  for (let modelIndex = 0; selections.length < maxParticipants; modelIndex += 1) {
+  let modelIndex = 0;
+  while (selections.length < maxParticipants) {
     let addedAtThisDepth = false;
     for (const group of groups) {
       const modelId = group.modelIds[modelIndex];
@@ -89,6 +97,7 @@ export async function discoverConfiguredModelCouncilParticipants(
       if (selections.length >= maxParticipants) break;
     }
     if (!addedAtThisDepth) break;
+    modelIndex += 1;
   }
   return selections;
 }
