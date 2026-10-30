@@ -2,6 +2,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import express from 'express';
 import { createModelCouncilRateLimit } from './model-council-rate-limit.mjs';
+import { executeModelCouncilRequest } from './model-council-execution.mjs';
 import assert from 'node:assert/strict';
 import {
   executeModelCouncilProviders,
@@ -362,4 +363,72 @@ test('legacy activeModels preserves exact model IDs and maps them to their provi
     activeModels: ['constructor'],
     availableProviders: providerCatalog,
   }), /unknown legacy model ID/i);
+});
+
+test('model council execution maps provider evidence and does not infer consensus from one provider', async () => {
+  const result = await executeModelCouncilRequest({
+    participants: [{ providerId: 'openai', modelId: 'gpt-4o' }],
+    messages: [{ role: 'user', content: 'Review the system.' }],
+    topic: 'Review the system.',
+    timestamp: () => '2026-10-31T00:00:00.000Z',
+    generate: async (providerId, modelId) => ({
+      provider: providerId,
+      model: modelId,
+      text: 'Independent evidence-based output.',
+    }),
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.timestamp, '2026-10-31T00:00:00.000Z');
+  assert.equal(result.body.participants[0].modelId, 'openai/gpt-4o');
+  assert.equal(result.body.participants[0].model, 'gpt-4o');
+  assert.equal(result.body.synthesis, null);
+  assert.match(result.body.unifiedConsensus, /only one provider/i);
+  assert.equal(result.body.governance.noImplicitProviderFallback, true);
+});
+
+test('model council synthesis is pinned to the first successful provider and exact model', async () => {
+  const calls = [];
+  const result = await executeModelCouncilRequest({
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'anthropic', modelId: 'claude-opus-5' },
+    ],
+    messages: [{ role: 'user', content: 'Review the system.' }],
+    topic: 'Review the system.',
+    generate: async (providerId, modelId, messages, signal) => {
+      calls.push({ providerId, modelId, isSynthesis: messages[0].content.includes('synthesis reviewer'), signal });
+      return {
+        provider: providerId,
+        model: modelId,
+        text: messages[0].content.includes('synthesis reviewer')
+          ? 'Evidence comparison: agreement, disagreement, and uncertainty.'
+          : `${providerId} independent output.`,
+      };
+    },
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.providerDiversity, 2);
+  assert.deepEqual(calls.map(({ providerId, modelId, isSynthesis }) => ({ providerId, modelId, isSynthesis })), [
+    { providerId: 'openai', modelId: 'gpt-4o', isSynthesis: false },
+    { providerId: 'anthropic', modelId: 'claude-opus-5', isSynthesis: false },
+    { providerId: 'openai', modelId: 'gpt-4o', isSynthesis: true },
+  ]);
+  assert.ok(calls.every((call) => call.signal instanceof AbortSignal));
+  assert.equal(result.body.synthesis.provider, 'openai');
+  assert.equal(result.body.synthesis.model, 'gpt-4o');
+  assert.equal(result.body.unifiedConsensus, result.body.synthesis.output);
+});
+
+test('model council execution returns a non-synthetic 503 when every selected provider fails', async () => {
+  const result = await executeModelCouncilRequest({
+    participants: [{ providerId: 'gemini', modelId: 'gemini-3.1-flash-lite' }],
+    messages: [{ role: 'user', content: 'Review the system.' }],
+    topic: 'Review the system.',
+    generate: async () => { throw new Error('raw upstream error must not be exposed'); },
+  });
+  assert.equal(result.status, 503);
+  assert.equal(result.body.ok, false);
+  assert.equal(result.body.syntheticOutput, false);
+  assert.equal(result.body.failures[0].code, 'provider_execution_failed');
+  assert.equal(JSON.stringify(result.body).includes('raw upstream error'), false);
 });
