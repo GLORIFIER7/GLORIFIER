@@ -1,5 +1,33 @@
 export const MAX_MODEL_COUNCIL_PROVIDERS = 8;
 
+const LEGACY_MODEL_PROVIDER_IDS = Object.freeze({
+  'gpt-4o': 'openai',
+  'claude': 'anthropic',
+  'gemini-3.8-flash': 'gemini',
+  'llama-3.3': 'meta',
+});
+
+/**
+ * Resolve the council request without silently dropping unsupported selections.
+ * Unknown legacy model IDs are passed to validation and rejected as unknown providers.
+ */
+export function resolveModelCouncilProviderIds({
+  providerIds,
+  activeModels,
+  availableProviderIds,
+}) {
+  const requested = Array.isArray(providerIds)
+    ? providerIds
+    : Array.isArray(activeModels)
+      ? activeModels.map((modelId) => (
+          typeof modelId === 'string'
+            ? (LEGACY_MODEL_PROVIDER_IDS[modelId] ?? modelId)
+            : modelId
+        ))
+      : providerIds;
+  return validateModelCouncilProviderIds(requested, availableProviderIds);
+}
+
 export function validateModelCouncilProviderIds(providerIds, availableProviderIds) {
   if (!Array.isArray(providerIds)) {
     throw new TypeError('providerIds must be an array of registered provider IDs.');
