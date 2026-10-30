@@ -74,6 +74,7 @@ assert.deepEqual(await store.list<typeof task>('task', 10), [task]);
 const running = { ...task, id: 'task-running', status: 'running' };
 await store.save('task', running);
 assert.equal(await store.recoverInterruptedTasks(), 1);
+assert.match(statements.at(-1) || '', /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
 assert.match(recovered?.error || '', /automatic replay is disabled/);
