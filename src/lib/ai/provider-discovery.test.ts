@@ -119,8 +119,6 @@ try {
   assert.equal(malformedMeta?.availability, 'error', 'a 2xx response without a supported model-list array is a protocol error');
   assert.equal(malformedMeta?.authenticated, false, 'a 2xx proxy/error response must not prove provider authentication');
   metaProbeMalformed = false;
-  metaProbeStatus = 400;
-
   metaProbeStatus = 429;
   const afterRateLimit = await discoverGlobalProviders('provider-discovery-rate-limit-auth-regression', { persistConnections: false });
   const rateLimitedMeta = afterRateLimit.find((provider) => provider.id === 'meta');
