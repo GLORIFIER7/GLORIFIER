@@ -74,6 +74,15 @@ export async function initializeAgentRuntimePersistence(): Promise<boolean> {
 export function getAgentRuntimePersistenceStatus() {
   return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
 }
+
+function assertAgentRuntimeReady(): void {
+  if (persistenceMode === 'uninitialized' && !process.env.DATABASE_URL) {
+    persistenceMode = 'memory-fallback';
+  }
+  if (persistenceMode === 'uninitialized') {
+    throw new Error('Agent task persistence is still initializing; retry after backend readiness.');
+  }
+}
 const capabilityOwners: Record<string, string[]> = {
   research: ['research-scientist','market-scientist'],
   engineering: ['engineering-scientist','software-architect','api-scientist'],
@@ -143,6 +152,7 @@ export function evaluateAgentCapability(capability: string, humanApproved = fals
 }
 
 export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>): Promise<AgentTask> {
+  assertAgentRuntimeReady();
   const task: AgentTask = {
     id: newId('task'),
     ...input,
@@ -157,6 +167,7 @@ export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objec
 }
 
 export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Promise<AgentTask | null> {
+  assertAgentRuntimeReady();
   const current = persistence
     ? await persistence.get<AgentTask>('task', id)
     : tasks.get(id) || null;
@@ -169,6 +180,7 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
 }
 
 export async function getAgentTask(id: string): Promise<AgentTask | null> {
+  assertAgentRuntimeReady();
   if (persistence) {
     const restored = await persistence.get<AgentTask>('task', id);
     if (restored) tasks.set(id, restored);
@@ -179,6 +191,7 @@ export async function getAgentTask(id: string): Promise<AgentTask | null> {
 }
 
 export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
+  assertAgentRuntimeReady();
   if (persistence) {
     const durableTasks = await persistence.list<AgentTask>('task', limit);
     for (const task of durableTasks) tasks.set(task.id, task);
