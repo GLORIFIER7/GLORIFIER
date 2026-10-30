@@ -213,7 +213,12 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     setIsRunningCouncil(true);
     try {
       const configuredParticipants = await discoverConfiguredModelCouncilParticipants();
-      const participantsByProvider = new Map(configuredParticipants.map((participant) => [participant.providerId, participant] as const));
+      const participantsByProvider = new Map<string, (typeof configuredParticipants)[number]>();
+      for (const participant of configuredParticipants) {
+        if (!participantsByProvider.has(participant.providerId)) {
+          participantsByProvider.set(participant.providerId, participant);
+        }
+      }
       const unavailableProviders: string[] = [];
       const participants = selectedProviderNodes.flatMap((node) => {
         const selected = participantsByProvider.get(node.providerId);
@@ -560,7 +565,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                   Initiate Multi-Model Deliberation Council
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Submit an agenda with {activeNodeCount} enabled model IDs to the backend. Actual provider participation and agreement are NOT VERIFIED until responses are recorded.
+                  Submit an agenda with {activeProviderNodeCount} enabled provider-backed nodes to the backend. Actual provider participation and agreement are NOT VERIFIED until responses are recorded.
                 </p>
               </div>
 
