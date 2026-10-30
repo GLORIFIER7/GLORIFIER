@@ -7,6 +7,8 @@ on:
       - "src/worker.test.ts"
       - "src/lib/a2a-runtime.ts"
       - "src/lib/a2a-runtime.test.ts"
+      - "src/lib/a2a-v1-express.ts"
+      - "src/lib/a2a-v1-express.test.ts"
       - "src/lib/a2a-v1.ts"
       - "src/lib/a2a-v1.test.ts"
       - "server.ts"
@@ -36,6 +38,8 @@ on:
       - "src/worker.test.ts"
       - "src/lib/a2a-runtime.ts"
       - "src/lib/a2a-runtime.test.ts"
+      - "src/lib/a2a-v1-express.ts"
+      - "src/lib/a2a-v1-express.test.ts"
       - "src/lib/a2a-v1.ts"
       - "src/lib/a2a-v1.test.ts"
       - "server.ts"
@@ -88,6 +92,8 @@ jobs:
         run: npm run test:a2a-v1
       - name: Test A2A runtime prompt formatting
         run: npm run test:a2a-runtime
+      - name: Test A2A Express endpoint routes
+        run: npm run test:a2a-v1-express
       - name: Test pinned A2A and MCP protocol boundaries
         run: npm run test:interoperability-protocol-boundaries
       - name: Validate MCP interoperability registry
