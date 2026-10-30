@@ -98,13 +98,6 @@ try {
   await store.save('task', staleTask);
   await store.save('task', recentTask);
   await store.save('task', recentlyRunningTask);
-  const aliceTask = { ...recentTask, id: 'integration-alice-task', requester: 'alice-uid' };
-  const bobTask = { ...recentTask, id: 'integration-bob-task', requester: 'bob-uid', updatedAt: new Date(Date.now() + 2_000).toISOString() };
-  await store.save('task', aliceTask);
-  await store.save('task', bobTask);
-  assert.deepEqual(await store.list('task', 10), [], 'unscoped PostgreSQL task listing must return no tenants');
-  assert.deepEqual(await store.list('task', 10, ''), [], 'blank PostgreSQL requester must return no tenants');
-  assert.deepEqual((await store.list<typeof aliceTask>('task', 1, 'alice-uid')).map((entry) => entry.id), [aliceTask.id], 'requester filter must be applied before LIMIT');
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
   assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
   assert.deepEqual(
@@ -112,6 +105,16 @@ try {
     [recentTask.id],
     'task listing must return the newest task row and respect the result limit',
   );
+
+  // Keep requester-isolation fixtures after the global ordering assertion so
+  // the deliberately newer Bob task cannot invalidate that independent check.
+  const aliceTask = { ...recentTask, id: 'integration-alice-task', requester: 'alice-uid' };
+  const bobTask = { ...recentTask, id: 'integration-bob-task', requester: 'bob-uid', updatedAt: new Date(Date.now() + 2_000).toISOString() };
+  await store.save('task', aliceTask);
+  await store.save('task', bobTask);
+  assert.deepEqual(await store.list('task', 10), [], 'unscoped PostgreSQL task listing must return no tenants');
+  assert.deepEqual(await store.list('task', 10, ''), [], 'blank PostgreSQL requester must return no tenants');
+  assert.deepEqual((await store.list<typeof aliceTask>('task', 1, 'alice-uid')).map((entry) => entry.id), [aliceTask.id], 'requester filter must be applied before LIMIT');
   await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
   assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
 
