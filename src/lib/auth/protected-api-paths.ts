@@ -4,6 +4,8 @@ const PROTECTED_READ_PREFIXES = [
   '/connections',
   '/llama-cloud',
   '/agents',
+  '/a2a/tasks',
+  '/federated-a2a/v3/tasks',
   '/governance',
   '/control-plane',
   '/app-state',
