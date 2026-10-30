@@ -172,6 +172,9 @@ jobs:
       - name: GEAS state reconciliation tests
         run: npm run test:geas-reconciliation
 
+      - name: GEAS five-state architecture timestamp regression tests
+        run: npm run test:geas-state-reconciliation
+
       - name: GEAS enterprise governance controls
         run: npm run test:geas-enterprise-controls
 
