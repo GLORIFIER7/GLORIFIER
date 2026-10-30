@@ -52,12 +52,21 @@ export function isValidModelCouncilResponse(
   expectedModelId?: string,
 ): response is ModelCouncilResponse;
 export function executeModelCouncilProviders(input: {
-  participants?: readonly ModelCouncilSelection[];
-  providerIds?: readonly string[];
+  participants: readonly ModelCouncilSelection[];
   messages: ModelCouncilMessage[];
   generate: (
     providerId: string,
     modelId: string,
+    messages: ModelCouncilMessage[],
+    signal: AbortSignal,
+  ) => Promise<ModelCouncilResponse>;
+  timeoutMs?: number;
+}): Promise<ModelCouncilExecutionResult>;
+export function executeModelCouncilProviders(input: {
+  providerIds: readonly string[];
+  messages: ModelCouncilMessage[];
+  generate: (
+    providerId: string,
     messages: ModelCouncilMessage[],
     signal: AbortSignal,
   ) => Promise<ModelCouncilResponse>;
