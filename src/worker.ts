@@ -1,5 +1,5 @@
 import { getBusinessModel } from './lib/business-model-contract';
-import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, buildA2AAgentCard } from './lib/a2a-v1';
+import { A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
 type CloudflareEnv = {
   ASSETS: {
@@ -463,40 +463,6 @@ const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL, backendOrigi
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
-
-    if (incomingUrl.pathname === A2A_AGENT_CARD_PATH) {
-      if (request.method !== 'GET' && request.method !== 'HEAD') {
-        return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, {
-          status: 405,
-          headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-        });
-      }
-      const backendOrigin = resolveBackendOrigin(env.GLORIFIER_BACKEND_ORIGIN);
-      if (!backendOrigin || !configured(env.GLORIFIER_BACKEND_ALLOWED_HOSTS) ||
-          !originHostAllowlisted(backendOrigin, env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
-        return Response.json({ ok: false, code: 'A2A_BACKEND_ROUTE_NOT_CONFIGURED' }, {
-          status: 503,
-          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-        });
-      }
-      try {
-        const publicBaseUrl = configured(env.GLORIFIER_PUBLIC_URL) || incomingUrl.origin;
-        const card = buildA2AAgentCard(publicBaseUrl, '0.2.1');
-        return new Response(request.method === 'HEAD' ? null : JSON.stringify(card), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'no-store',
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-      } catch {
-        return Response.json({ ok: false, code: 'A2A_PUBLIC_URL_INVALID' }, {
-          status: 503,
-          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-        });
-      }
-    }
 
     if (incomingUrl.pathname === A2A_JSONRPC_PATH) {
       const errorResponse = (status: number, code: number, message: string) =>
