@@ -33,7 +33,7 @@ export function createModelCouncilRateLimit({
   if (production && !singleInstanceConfirmed) {
     return (_req, res) => res.status(503).json({
       ok: false,
-      error: 'AI council is disabled: configure a shared rate-limit store or confirm a single backend instance with AI_COUNCIL_SINGLE_INSTANCE=true.',
+      error: 'AI council is disabled: confirm this production deployment runs exactly one backend instance and set AI_COUNCIL_SINGLE_INSTANCE=true. Horizontal scaling is unsupported until a shared store is implemented.',
     });
   }
 
