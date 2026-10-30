@@ -51,11 +51,12 @@ try {
   };
   await store.save('session', newestSession);
   assert.deepEqual(
-    (await store.list<typeof session>('session', 1)).map((entry) => entry.id),
+    (await store.list<typeof session>('session', 1, undefined, true)).map((entry) => entry.id),
     [newestSession.id],
     'list must filter by kind, order by updated_at, and honor its limit',
   );
-  assert.deepEqual(await store.list('task', 10), [], 'task listing must not return session rows');
+  assert.deepEqual(await store.list('task', 10), [], 'unscoped task listing must fail closed');
+  assert.deepEqual(await store.list('task', 10, undefined, true), [], 'explicit all-task access must still respect the task kind');
 
   const increments = await Promise.all([
     store.incrementSessionTurn<typeof session>(session.id, 100),
@@ -97,10 +98,17 @@ try {
   await store.save('task', staleTask);
   await store.save('task', recentTask);
   await store.save('task', recentlyRunningTask);
+  const aliceTask = { ...recentTask, id: 'integration-alice-task', requester: 'alice-uid' };
+  const bobTask = { ...recentTask, id: 'integration-bob-task', requester: 'bob-uid', updatedAt: new Date(Date.now() + 2_000).toISOString() };
+  await store.save('task', aliceTask);
+  await store.save('task', bobTask);
+  assert.deepEqual(await store.list('task', 10), [], 'unscoped PostgreSQL task listing must return no tenants');
+  assert.deepEqual(await store.list('task', 10, ''), [], 'blank PostgreSQL requester must return no tenants');
+  assert.deepEqual((await store.list<typeof aliceTask>('task', 1, 'alice-uid')).map((entry) => entry.id), [aliceTask.id], 'requester filter must be applied before LIMIT');
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
   assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
   assert.deepEqual(
-    (await store.list<typeof recentTask>('task', 1)).map((entry) => entry.id),
+    (await store.list<typeof recentTask>('task', 1, undefined, true)).map((entry) => entry.id),
     [recentTask.id],
     'task listing must return the newest task row and respect the result limit',
   );
