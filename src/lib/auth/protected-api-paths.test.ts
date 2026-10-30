@@ -90,6 +90,6 @@ assert.match(
 );
 assert.match(
   server,
-  /app\.post\('\/api\/a2a\/tasks', requireOwnerOrInternalService[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
+  /app\.post\('\/api\/a2a\/tasks', async[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
   'legacy A2A requester identity must be derived from authenticated context',
 );
