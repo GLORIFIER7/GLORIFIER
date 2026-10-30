@@ -95,7 +95,7 @@ interface ParsedEvidenceTimestamp {
  */
 function parseEvidenceTimestamp(value: unknown): ParsedEvidenceTimestamp | null {
   if (typeof value !== 'string') return null;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d+))?(Z|[+-]\\d{2}:\\d{2})$/i.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
   if (!match) return null;
 
   const [, yearText, monthText, dayText, hourText, minuteText, secondText, fractionText, offsetText] = match;
