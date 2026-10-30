@@ -74,10 +74,10 @@ async function assertUnsupportedProtocolVersion(origin: string, version?: string
   assert.deepEqual(body.supportedVersions, ['1.0']);
 }
 
-function postAgentMessage(origin: string, requestId: string): Promise<Response> {
+function postAgentMessage(origin: string, requestId: string, version = '1.0'): Promise<Response> {
   return fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': version },
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: requestId,
@@ -133,6 +133,14 @@ await withServer({
 await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin, '0.3'));
 
 await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin));
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await postAgentMessage(origin, 'patch-version', '1.0.1');
+  assert.equal(response.status, 200, 'a compatible 1.0 patch version must pass protocol negotiation');
+  const body = await response.json() as { id?: string; error?: { code: number } };
+  assert.equal(body.id, 'patch-version');
+  assert.equal(body.error, undefined);
+});
 
 await withServer(baseDependencies(), async (origin) => {
   const response = await fetch(`${origin}/api/a2a/v1`, {
