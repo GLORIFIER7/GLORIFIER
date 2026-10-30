@@ -4,7 +4,8 @@
 
 ## Current implementation
 
-- The scheduled/manual **Locked Dependency Guardian** workflow is validation-only. It installs the exact committed npm lockfile with `npm ci --ignore-scripts`, runs `npm audit`, the repository type-check, and the build. It has read-only repository permissions and does not resolve new package versions or write to the repository.
+- The **Locked Dependency Guardian** runs on pull requests that change its workflow, Dependabot configuration, or npm manifests/lockfile, and on a weekly schedule or manual dispatch.
+- It validates the event's checked-out ref using `npm ci --ignore-scripts`, `npm audit`, the repository type-check, and the build. It has read-only repository permissions and does not resolve new package versions or write to the repository.
 - GitHub's native Dependabot is the update mechanism for npm and GitHub Actions. It checks both ecosystems weekly and proposes reviewable pull requests with dependency and security labels.
 - CI consumes the committed `package-lock.json`; a manifest/lockfile mismatch fails at `npm ci` instead of silently resolving new versions during a build.
 - The bot does not auto-merge, deploy, modify secrets, transfer assets, trade, rotate credentials, or delete production data.
@@ -27,7 +28,7 @@ A future, separately reviewed workflow may use a real GLORIFIER GitHub App for a
 ## Safety and acceptance criteria
 
 - Dependency updates are proposed through native Dependabot pull requests; the committed lockfile is authoritative for CI installs.
-- The scheduled/manual guardian verifies the current lockfile and build without mutating dependency files.
+- The scheduled/manual/PR guardian validates the selected ref without mutating dependency files.
 - Dependency updates do not auto-merge or deploy production.
 - Major-version upgrades remain subject to separate review.
 - Report a custom GLORIFIER bot identity as **NOT VERIFIED** until a real app-authored action is independently observed.
