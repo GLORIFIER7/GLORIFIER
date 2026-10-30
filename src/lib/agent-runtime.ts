@@ -79,6 +79,14 @@ export function getAgentRuntimePersistenceStatus() {
     mode: persistenceMode,
     durable: persistenceMode === 'postgres',
     cachedTasks: persistence ? 0 : tasks.size,
+    recoveryPolicy: {
+      staleAfterMinutes: 30,
+      heartbeatIntervalMs: 60_000,
+      heartbeatCoverage: ['agent-task-inference', 'governance-cycle'],
+      startupRecoveryOnly: true,
+      interruptedWithinGracePeriodMayRemainRunning: true,
+      automaticReplay: false,
+    },
   };
 }
 
