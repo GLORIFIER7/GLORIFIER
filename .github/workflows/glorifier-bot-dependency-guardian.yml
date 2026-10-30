@@ -1,6 +1,14 @@
 name: GLORIFIER Bot — Locked Dependency Guardian
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/glorifier-bot-dependency-guardian.yml
+      - .github/dependabot.yml
+      - package.json
+      - package-lock.json
   workflow_dispatch:
   schedule:
     - cron: "23 4 * * 1"
@@ -19,8 +27,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
