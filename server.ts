@@ -14,6 +14,7 @@ import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { executeModelCouncilProviders, resolveModelCouncilProviderIds } from './src/lib/ai/model-council-routing.mjs';
+import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
@@ -164,22 +165,10 @@ const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
   }));
 };
 
-/**
- * The AI council can fan out to several metered providers and perform an additional
- * synthesis request. Limit requests per authenticated principal, with an IP fallback
- * only for explicitly authenticated internal-service calls.
- */
-const aiCouncilRateLimit = rateLimit({
+// Bound metered provider fan-out to two council starts per minute per owner principal.
+const aiCouncilRateLimit = createModelCouncilRateLimit({
   windowMs: 60_000,
   limit: 2,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const principalId = (req as AuthenticatedRequest).auth?.uid;
-    return principalId
-      ? `ai-council:user:${principalId}`
-      : `ai-council:ip:${rateLimitKeyGenerator(req)}`;
-  },
   handler: rateLimitProblem('AI council usage is limited to two requests per minute per authenticated principal.'),
 });
 
