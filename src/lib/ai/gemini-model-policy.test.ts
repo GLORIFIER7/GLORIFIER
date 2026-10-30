@@ -40,21 +40,32 @@ const previousGeminiKey = process.env.GEMINI_API_KEY;
 const previousFetch = globalThis.fetch;
 try {
   process.env.GEMINI_API_KEY = 'test-gemini-key';
-  let capturedRequest: RequestInit | undefined;
+  let observedSignal: AbortSignal | undefined;
+  let notifyFetchStarted: (() => void) | undefined;
+  const fetchStarted = new Promise<void>((resolve) => { notifyFetchStarted = resolve; });
   globalThis.fetch = (async (_input, init) => {
-    capturedRequest = init;
-    return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'Gemini abort-signal test response' }] } }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    observedSignal = init?.signal as AbortSignal | undefined;
+    notifyFetchStarted?.();
+    return await new Promise<Response>((_resolve, reject) => {
+      if (observedSignal?.aborted) {
+        reject(new DOMException('Request aborted by test.', 'AbortError'));
+        return;
+      }
+      observedSignal?.addEventListener('abort', () => {
+        reject(new DOMException('Request aborted by test.', 'AbortError'));
+      }, { once: true });
+    });
   }) as typeof fetch;
   const abortController = new AbortController();
-  const response = await new GeminiProvider().generate({
+  const generation = new GeminiProvider().generate({
     messages: [{ role: 'user', content: 'Verify abort forwarding.' }],
     model: 'gemini-3.1-flash-lite',
     signal: abortController.signal,
   });
-  assert.equal(response.provider, 'gemini');
-  assert.equal((capturedRequest as RequestInit | undefined)?.signal, abortController.signal);
+  await fetchStarted;
+  abortController.abort();
+  assert.equal(observedSignal?.aborted, true, 'the SDK request signal must inherit caller cancellation');
+  await assert.rejects(generation);
 } finally {
   globalThis.fetch = previousFetch;
   if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
