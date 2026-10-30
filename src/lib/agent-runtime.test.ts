@@ -90,6 +90,15 @@ try {
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === durableTask.id), true);
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
 
+  await assert.rejects(
+    () => createAgentTask({
+      capability: 'research',
+      objective: 'reject an invalid requester type',
+      requester: 42,
+    } as never),
+    /requester must be a non-empty string/,
+  );
+
   const failingSaveStore = {
     initialize: async () => undefined,
     recoverInterruptedTasks: async () => 1,
