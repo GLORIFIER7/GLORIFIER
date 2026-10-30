@@ -70,8 +70,9 @@ const result = await submitAuthenticatedModelCouncilRequest({
   },
 });
 assert.equal(capturedUrl, '/api/ai/council');
-assert.equal(capturedInit?.headers && (capturedInit.headers as Record<string, string>).Authorization, 'Bearer verified-test-token');
-assert.deepEqual(JSON.parse(String(capturedInit?.body)).participants, [{ providerId: 'openai', modelId: 'gpt-4o' }]);
+const requestInit = capturedInit as RequestInit | undefined;
+assert.equal(requestInit?.headers && (requestInit.headers as Record<string, string>).Authorization, 'Bearer verified-test-token');
+assert.deepEqual(JSON.parse(String(requestInit?.body)).participants, [{ providerId: 'openai', modelId: 'gpt-4o' }]);
 assert.equal(result.participants[0].provider, 'openai');
 
 let normalizedError: ModelCouncilClientError | null = null;
