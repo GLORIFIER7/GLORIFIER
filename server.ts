@@ -13,6 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
+import { isIndependentComputeFallbackAllowed } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
@@ -797,6 +798,20 @@ async function runModelExecution({
       executionStatus: 'success',
       providerStatus: registryResult.providerStatuses,
       providerErrors: registryResult.errors
+    };
+  }
+
+  if (!isIndependentComputeFallbackAllowed(chosenModel, requiredProvider)) {
+    return {
+      text: '',
+      modelUsed: chosenModel,
+      provider: 'No verified provider response',
+      executionStatus: 'unavailable',
+      providerStatus: registryResult.providerStatuses,
+      providerErrors: registryResult.errors,
+      computeError: requiredProvider
+        ? 'Strict provider constraint prevented alternate-provider compute fallback.'
+        : 'Explicit model "' + chosenModel + '" was unavailable; independent compute fallback was suppressed to preserve the requested model.',
     };
   }
 
@@ -1733,7 +1748,7 @@ Your responsibility:
     let geminiSystem = `You are a Google Gemini provider model working together with an OpenAI provider model and the user.
 Domain: ${chosenDomain}.
 Your responsibility:
-1. Peer-review GPT-4o's solution for differential privacy leaks (Laplace bounds ε), runtime edge cases, rate-limit resilience, and compliance.
+1. Peer-review the OpenAI provider's solution for differential privacy leaks (Laplace bounds ε), runtime edge cases, rate-limit resilience, and compliance.
 2. Provide complementary optimizations or mathematical verification.
 3. Affirm or refine the consensus recommendation.`;
 
@@ -2077,6 +2092,7 @@ async function runIntelligenceModel(
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
     preferredProvider,
+    requiredProvider: preferredProvider,
     temperature: 0.1,
   });
 
