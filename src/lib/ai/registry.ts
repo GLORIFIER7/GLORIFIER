@@ -327,10 +327,17 @@ const tryRefreshedProviders = async (
   discovery: Map<string, DiscoveredProvider>,
   state: ProviderExecutionState,
 ): Promise<{ response: import('./types').AIResponse; provider: string } | undefined> => {
-  const refreshed = getConnectedProviders().filter((provider) =>
-    isProviderEligibleAfterRefresh(provider, discovery, request.capability, state.attemptedProviders)
-      && isProviderModelEligible(provider, request.model, discovery.get(provider.id)?.models)
-  );
+  const refreshed = getConnectedProviders().filter((provider) => {
+    if (!isProviderEligibleAfterRefresh(provider, discovery, request.capability, state.attemptedProviders)) {
+      return false;
+    }
+    if (!isProviderModelEligible(provider, request.model, discovery.get(provider.id)?.models)) {
+      state.providerStatuses[provider.id] = 'unavailable';
+      state.errors.push(`${provider.id}: requested model "${request.model}" is not advertised by this provider after discovery refresh.`);
+      return false;
+    }
+    return true;
+  });
   for (const provider of refreshed) {
     if (state.attempts >= policy.maxAttempts) break;
     const result = await attemptProviderOnce(provider, request, policy, state, false, false, ' after discovery refresh');
@@ -369,7 +376,7 @@ const tryDiscoveryRefresh = async (
   if (!policy.refreshDiscoveryBeforeExhaustion || policy.maxDiscoveryRefreshes <= 0) return undefined;
   try {
     await (async () => {
-      const refreshed = await discoverGlobalProviders('provider-registry-pre-exhaustion');
+      const refreshed = await discoverGlobalProviders('provider-registry-pre-exhaustion', { persistConnections: false });
       discovery.clear();
       for (const entry of refreshed) discovery.set(entry.id, entry);
     })();
