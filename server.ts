@@ -1070,7 +1070,7 @@ function buildModelCouncilMessages(topic: string, body: Record<string, unknown>)
     floor === null ? 'Minimum monthly floor: not supplied.' : `Minimum monthly floor: $${floor}/month.`,
     epsilon === null ? 'Privacy epsilon: not supplied.' : `Privacy epsilon: ${epsilon}.`,
     `Footprint records supplied: ${footprintCount} (record contents are not forwarded to providers).`,
-  ].join('\\n');
+  ].join('\n');
 
   return [
     {
@@ -1082,7 +1082,7 @@ function buildModelCouncilMessages(topic: string, body: Record<string, unknown>)
         'Do not invent tests, sources, provider executions, consensus, revenue, ownership, or verified outcomes.',
         'Your response is advisory. Humans retain final authority over code changes, merges, secrets, deployments, and financial or blockchain actions.',
         policyContext,
-      ].join('\\n'),
+      ].join('\n'),
     },
     { role: 'user' as const, content: topic },
   ];
