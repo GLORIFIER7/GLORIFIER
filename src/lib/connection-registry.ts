@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
-import { persistConnectionApprovalAtomically } from './connection-approval';
+import { persistConnectionApprovalAtomically, createMemoizedAsyncInitializer } from './connection-approval';
 
 export type ConnectionAuthType = 'oauth2' | 'oidc' | 'api_key' | 'service_account' | 'webhook' | 'public';
 export type ConnectionStatus = 'discovered' | 'pending_authorization' | 'authorized' | 'degraded' | 'revoked' | 'expired' | 'disabled';
@@ -21,7 +21,7 @@ export interface ConnectionRecord {
   metadata: Record<string, unknown>;
 }
 
-export async function initializeConnectionRegistry() {
+const initializeConnectionRegistryOnce = createMemoizedAsyncInitializer(async () => {
   const db = getPostgresPool();
   await db.query(`
     CREATE TABLE IF NOT EXISTS connection_registry (
@@ -64,8 +64,11 @@ export async function initializeConnectionRegistry() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     ALTER TABLE connection_approvals ADD COLUMN IF NOT EXISTS related_task_id TEXT;
-    CREATE INDEX IF NOT EXISTS idx_connection_approvals_related_task ON connection_approvals(related_task_id);
   `);
+});
+
+export function initializeConnectionRegistry(): Promise<void> {
+  return initializeConnectionRegistryOnce();
 }
 
 export async function registerConnection(input: Omit<ConnectionRecord, 'id'> & { id?: string }) {
