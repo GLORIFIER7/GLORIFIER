@@ -697,7 +697,8 @@ export default {
       const responseHeaders = new Headers(upstreamResponse.headers);
       responseHeaders.set('Cache-Control', 'no-store');
       responseHeaders.set('X-Content-Type-Options', 'nosniff');
-      if (!rewriteBackendRedirect(responseHeaders, incomingUrl, backendOrigin, env.GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS)) {
+      const isRedirectResponse = [301, 302, 303, 307, 308].includes(upstreamResponse.status);
+      if (isRedirectResponse && !rewriteBackendRedirect(responseHeaders, incomingUrl, backendOrigin, env.GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS)) {
         return apiError(
           'The backend redirect target is not approved by the Worker redirect policy.',
           'BACKEND_REDIRECT_NOT_ALLOWED',
