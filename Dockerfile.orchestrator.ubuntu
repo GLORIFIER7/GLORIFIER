@@ -11,10 +11,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
  && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
- && node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
+ && node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 15)) process.exit(1)' \
  && npm install --global npm@12.2.1 --ignore-scripts --no-audit --no-fund \
  && npm install --prefix /tmp/npm-security-patches --no-save --ignore-scripts --no-audit --no-fund undici@6.29.1 brace-expansion@5.0.12 \
  && mkdir -p /usr/lib/node_modules/npm/node_modules \
+ && rm -rf /usr/lib/node_modules/npm/node_modules/undici /usr/lib/node_modules/npm/node_modules/brace-expansion \
  && cp -a /tmp/npm-security-patches/node_modules/undici /usr/lib/node_modules/npm/node_modules/undici \
  && cp -a /tmp/npm-security-patches/node_modules/brace-expansion /usr/lib/node_modules/npm/node_modules/brace-expansion \
  && rm -rf /tmp/npm-security-patches \
