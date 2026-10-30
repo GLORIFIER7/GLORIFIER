@@ -58,6 +58,24 @@ try {
   );
   assert.ok(discoveredRequest, 'the explicit discovered model must reach the provider unchanged');
 
+  const beforeCapabilityMismatch = providerRequests.filter((request) => request.method === 'POST').length;
+  const capabilityMismatch = await executeThroughProviderRegistry({
+    requiredProvider: 'meta',
+    capability: 'image-generation',
+    model: 'auto',
+    messages,
+  });
+  assert.equal(capabilityMismatch.provider, 'provider-registry-exhausted');
+  assert.ok(
+    capabilityMismatch.errors.some((error) => error.includes('does not advertise requested capability "image-generation"')),
+    'a required provider without the requested capability must report a capability mismatch, not an authorization failure',
+  );
+  assert.equal(
+    providerRequests.filter((request) => request.method === 'POST').length,
+    beforeCapabilityMismatch,
+    'a provider capability mismatch must fail before inference',
+  );
+
   const beforeUnsupported = providerRequests.filter((request) => request.method === 'POST').length;
   const unsupportedModelResult = await executeThroughProviderRegistry({
     model: 'not-advertised',
