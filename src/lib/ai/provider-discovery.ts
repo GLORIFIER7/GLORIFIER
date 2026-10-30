@@ -56,7 +56,7 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
-export function recordProviderInferenceVerification(providerId: string, modelId?: string): void {
+export async function recordProviderInferenceVerification(providerId: string, modelId?: string): Promise<void> {
  if (providerId !== 'nvidia' || env('NVIDIA_AUTHORIZED') !== 'true') return;
  const definition = definitions.find((candidate) => candidate.id === providerId);
  if (!definition) return;
@@ -76,7 +76,11 @@ export function recordProviderInferenceVerification(providerId: string, modelId?
   reason: 'Inference has not yet been verified.',
   authorization: 'pending' as const,
  };
- const models = modelId ? [...new Set([...current.models, modelId.trim()].filter(Boolean))] : current.models;
+ const verifiedAt = new Date().toISOString();
+ const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';
+ const models = normalizedModel
+  ? [...new Set([...current.models, normalizedModel])]
+  : current.models;
  snapshot.set(providerId, {
   ...current,
   configured: true,
@@ -85,8 +89,46 @@ export function recordProviderInferenceVerification(providerId: string, modelId?
   authorization: 'configured',
   models,
   reason: null,
-  lastCheckedAt: new Date().toISOString(),
+  lastCheckedAt: verifiedAt,
  });
+
+ // Keep the persistent connection registry consistent with the successful,
+ // explicitly authorized NVIDIA inference evidence. Registry write failures
+ // must not erase or misreport the successful provider response.
+ if (!process.env.DATABASE_URL) return;
+ try {
+  const connectionId = 'provider-nvidia';
+  await registerConnection({
+   id: connectionId,
+   provider: providerId,
+   displayName: definition.name,
+   authType: 'api_key',
+   status: 'authorized',
+   scopes: definition.capabilities,
+   risk: 'high',
+   accountRef: null,
+   expiresAt: null,
+   lastVerifiedAt: verifiedAt,
+   requiresHumanApproval: true,
+   metadata: {
+    registryType: 'global-provider',
+    kind: definition.kind,
+    endpoint: endpointFor(definition),
+    availability: 'available',
+    models,
+    lastInferenceModel: normalizedModel || null,
+    inferenceVerified: true,
+    authorization: 'configured',
+   },
+  });
+  await recordConnectionEvent(connectionId, 'provider_inference_verified', 'provider-registry', {
+   modelId: normalizedModel || null,
+   verifiedAt,
+   evidence: 'successful inference response after explicit NVIDIA_AUTHORIZED=true configuration',
+  });
+ } catch (error) {
+  console.warn('[ProviderDiscovery] Could not persist NVIDIA inference verification to the connection registry:', error instanceof Error ? error.message : String(error));
+ }
 }
 export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
  return definitions.map(d=>{
