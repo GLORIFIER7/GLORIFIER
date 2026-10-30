@@ -83,14 +83,14 @@ export async function runGovernanceCycle(input: {
   const windsor = windsorEnabled ? getWindsorSocialGatewayStatus() : null;
   const reversible = input.reversible === true;
 
-  const task = createAgentTask({
+  const task = await createAgentTask({
     capability,
     objective,
     input: { evidenceRefs, reversible },
     requester: input.requester || 'human-owner',
     approvalRequired: true
   });
-  updateAgentTask(task.id, { status: 'running' });
+  await updateAgentTask(task.id, { status: 'running' });
 
   // 1. AI CEO selects the executive/provider context.
   const executive = aiOrchestrator.executive();
@@ -192,7 +192,7 @@ export async function runGovernanceCycle(input: {
       JSON.stringify(cycle.trust), JSON.stringify(cycle.compliance), JSON.stringify(cycle.assets), JSON.stringify({ ...cycle.evidence, windsor: windsorEvidence }), JSON.stringify(cycle.action)]
   );
 
-  updateAgentTask(task.id, {
+  await updateAgentTask(task.id, {
     status: actionStatus === 'blocked' ? 'failed' : 'completed',
     result: cycle
   });
