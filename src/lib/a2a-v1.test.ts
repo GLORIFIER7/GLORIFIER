@@ -34,7 +34,7 @@ assert.deepEqual(card.defaultInputModes, ['text/plain', 'application/json']);
 assert.deepEqual(card.defaultOutputModes, ['application/json']);
 assert.ok(card.skills.some((skill) => skill.id === 'governed-task-intake'));
 assert.ok(card.securitySchemes.bearer.httpAuthSecurityScheme);
-assert.deepEqual(card.securityRequirements, [{ schemes: { bearer: [] } }]);
+assert.deepEqual(card.securityRequirements, [{ schemes: { bearer: { list: [] } } }]);
 
 assert.throws(() => buildA2AAgentCard('http://example.com'), /HTTPS/);
 assert.throws(() => buildA2AAgentCard('https://user:pass@example.com'), /credentials/);
