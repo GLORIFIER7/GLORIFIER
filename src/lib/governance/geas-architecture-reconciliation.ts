@@ -81,6 +81,72 @@ function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<strin
     });
 }
 
+interface ParsedEvidenceTimestamp {
+  /** UTC epoch at the start of the represented second. */
+  epochSecondMs: number;
+  /** Exact fractional second, with insignificant trailing zeroes removed. */
+  fraction: string;
+}
+
+/**
+ * Parse the supported RFC 3339 evidence timestamp subset. A known explicit
+ * UTC offset is required; impossible calendar dates, invalid offsets, and
+ * leap seconds are rejected rather than normalized by Date.parse.
+ */
+function parseEvidenceTimestamp(value: unknown): ParsedEvidenceTimestamp | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, fractionText, offsetText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const daysInMonth = [
+    31,
+    year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28,
+    31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+  ];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = offsetText.toUpperCase() === 'Z' ? 'Z' : offsetText;
+  if (offset !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offsetHour > 23 || offsetMinute > 59 || offset === '-00:00') return null;
+  }
+
+  // Parse only whole seconds; preserve the fractional component separately so
+  // comparisons do not lose precision beyond JavaScript Date's milliseconds.
+  const epochSecondMs = Date.parse(`${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}${offset}`);
+  if (!Number.isFinite(epochSecondMs)) return null;
+  return { epochSecondMs, fraction: (fractionText ?? '').replace(/0+$/, '') };
+}
+
+function compareEvidenceTimestamps(
+  left: ParsedEvidenceTimestamp,
+  right: ParsedEvidenceTimestamp,
+): number {
+  if (left.epochSecondMs !== right.epochSecondMs) {
+    return left.epochSecondMs < right.epochSecondMs ? -1 : 1;
+  }
+  const width = Math.max(left.fraction.length, right.fraction.length);
+  const leftFraction = left.fraction.padEnd(width, '0');
+  const rightFraction = right.fraction.padEnd(width, '0');
+  return leftFraction === rightFraction ? 0 : leftFraction < rightFraction ? -1 : 1;
+}
+
+function evidenceTimestampFromMilliseconds(value: number): ParsedEvidenceTimestamp | null {
+  if (!Number.isFinite(value)) return null;
+  const epochSecondMs = Math.floor(value / 1000) * 1000;
+  const millisecond = value - epochSecondMs;
+  if (!Number.isInteger(millisecond)) return null;
+  return { epochSecondMs, fraction: String(millisecond).padStart(3, '0').replace(/0+$/, '') };
+}
+
 function isFreshStateEvidence(
   evidence: StateEvidence | undefined,
   snapshot: Record<string, unknown> | null | undefined,
@@ -97,10 +163,13 @@ function isFreshStateEvidence(
     return false;
   }
   if (computedHash !== evidence.snapshotHash.toLowerCase()) return false;
-  const observedAt = Date.parse(evidence.observedAt);
-  const validUntil = Date.parse(evidence.validUntil);
-  return Number.isFinite(observedAt) && Number.isFinite(validUntil)
-    && observedAt <= nowMs && validUntil > nowMs && validUntil >= observedAt;
+  const observedAt = parseEvidenceTimestamp(evidence.observedAt);
+  const validUntil = parseEvidenceTimestamp(evidence.validUntil);
+  const now = evidenceTimestampFromMilliseconds(nowMs);
+  return observedAt !== null && validUntil !== null && now !== null
+    && compareEvidenceTimestamps(observedAt, now) <= 0
+    && compareEvidenceTimestamps(validUntil, now) > 0
+    && compareEvidenceTimestamps(validUntil, observedAt) >= 0;
 }
 
 /**

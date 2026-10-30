@@ -127,3 +127,74 @@ const keyOrder = reconcileArchitectureStates({
 assert.equal(keyOrder.status, 'ALIGNED');
 
 process.stdout.write('GEAS five-state snapshot-binding, canonicalization, and freshness tests passed.\\n');
+
+
+const invalidTimestampValues = [
+  '2026-10-21T23:00:00',
+  '10/21/2026 23:00:00',
+  '2026-10-21 23:00:00Z',
+  '2026-02-30T23:00:00Z',
+  '2026-10-21T23:00:00+24:00',
+  '2026-10-21T23:00:00-00:00',
+  '2026-10-21t23:00:00Z',
+  '2026-10-21T23:00:00z',
+];
+for (const observedAt of invalidTimestampValues) {
+  const invalidTimestamp = reconcileArchitectureStates({
+    ...base,
+    evidenceByState: {
+      ...evidenceByState,
+      observed: { ...evidenceByState.observed, observedAt },
+    },
+  }, now);
+  assert.equal(
+    invalidTimestamp.status,
+    'UNKNOWN',
+    `non-canonical or invalid evidence timestamp must fail closed: ${observedAt}`,
+  );
+}
+
+const explicitOffsetEvidence = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: {
+      ...evidenceByState.observed,
+      observedAt: '2026-10-21T23:00:00+05:30',
+      validUntil: '2026-10-23T00:00:00+05:30',
+    },
+  },
+}, now);
+assert.equal(explicitOffsetEvidence.status, 'ALIGNED', 'valid numeric UTC offsets must be accepted');
+
+const subMillisecondFutureEvidence = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: {
+      ...evidenceByState.observed,
+      observedAt: '2026-10-22T00:00:00.0001Z',
+    },
+  },
+}, now);
+assert.equal(
+  subMillisecondFutureEvidence.status,
+  'UNKNOWN',
+  'future evidence below Date millisecond precision must not be admitted',
+);
+
+const subMillisecondValidityEvidence = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: {
+      ...evidenceByState.observed,
+      validUntil: '2026-10-22T00:00:00.0001Z',
+    },
+  },
+}, now);
+assert.equal(
+  subMillisecondValidityEvidence.status,
+  'ALIGNED',
+  'validity extending beyond the current millisecond must remain fresh',
+);
