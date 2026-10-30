@@ -31,6 +31,23 @@ assert.equal(aligned.invoiceDetailGrandTotal, '32.4');
 assert.equal(aligned.lineItems.find((item) => item.invoiceDetailId === 'line-2')?.withinTolerance, true);
 assert.deepEqual(aligned.reasons, []);
 
+const localeSortedIds = ['line-z', 'line-ä', 'line-a'];
+const localeSortedRows = localeSortedIds.map((invoiceDetailId) => ({
+  ...input.costAndUsage[0],
+  invoiceDetailId,
+  billedCost: '1.00',
+}));
+const localeSortedResult = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: localeSortedRows,
+  invoiceDetail: localeSortedRows.map((row) => ({ ...row })),
+});
+assert.deepEqual(
+  localeSortedResult.lineItems.map((item) => item.invoiceDetailId),
+  [...localeSortedIds].sort((left, right) => left.localeCompare(right, 'en')),
+  'invoice line items must use a deterministic locale-aware order for non-ASCII identifiers',
+);
+
 const variance = reconcileFocusInvoice({
   ...input,
   costAndUsage: input.costAndUsage.map((row) => row.invoiceDetailId === 'line-2' ? { ...row, billedCost: '21.00' } : row),

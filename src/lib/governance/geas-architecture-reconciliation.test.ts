@@ -28,6 +28,11 @@ assert.equal(
   hashArchitectureSnapshot({ version: 1, region: 'test' }),
   'snapshot hashes must be stable across object key order',
 );
+assert.equal(
+  hashArchitectureSnapshot({ z: 3, 'ä': 1, a: 2 }),
+  '83ea4fa061f38fe301d2c168a4403fd957cee4e10d4aca58976f30caa40d3cfb',
+  'canonical JSON object keys must use explicit English collation for stable Unicode ordering',
+);
 assert.throws(() => hashArchitectureSnapshot({ value: undefined }), /JSON-compatible values/);
 assert.throws(() => hashArchitectureSnapshot({ value: Number.NaN }), /finite JSON numbers/);
 const circular: Record<string, unknown> = {};

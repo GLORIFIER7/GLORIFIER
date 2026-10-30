@@ -119,6 +119,43 @@ assert.equal(changedCadenceReview.admissible, true, 'a still-fresh observation s
 assert.notEqual(changedCadenceReview.evidenceRef, supported.evidenceRef,
   'evidence references must bind to the source-specific review cadence');
 
+const localeClaimsRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, claimsAllowed: [...source.claimsAllowed, 'z-extra', 'ä-extra', 'a-extra'] }
+    : source),
+};
+const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
+const localeClaimsReview = review(valid, localeClaimsRegistry);
+const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
+  id: localeClaimsSource.id,
+  url: localeClaimsSource.url,
+  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort((left, right) => left.localeCompare(right, 'en')),
+  reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
+})).digest('hex');
+const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({
+  claimId: valid.claimId,
+  claim: valid.claim,
+  claimType: valid.claimType,
+  sourceId: valid.sourceId,
+  sourceRegistryVersion: valid.sourceRegistryVersion,
+  sourcePolicyDigest: expectedLocalePolicyDigest,
+  canonicalSourceUrl: valid.canonicalSourceUrl,
+  observedSourceUrl: valid.observedSourceUrl,
+  observedAt: valid.observedAt,
+  sourceContentHash: valid.sourceContentHash,
+  supportingExcerpt: valid.supportingExcerpt,
+  reviewer: valid.reviewer,
+  decision: valid.decision,
+  rationale: valid.rationale,
+})).digest('hex').slice(0, 24);
+assert.equal(localeClaimsReview.admissible, true);
+assert.equal(
+  localeClaimsReview.evidenceRef,
+  expectedLocaleEvidenceRef,
+  'source-policy digest must use explicit English collation for a stable claim allowance list',
+);
+
 const changedClaimsRegistry: ClaimSourceRegistry = {
   ...registry,
   sources: registry.sources.map((source) => source.id === trustedSource.id
