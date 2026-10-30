@@ -1081,6 +1081,34 @@ async function run(): Promise<void> {
     assert.equal(wrongAccountIdentity.status, 502, 'the resolved account username must match the requested GLORIFIER identity');
     assert.equal(await wrongAccountIdentity.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_IDENTITY_MISMATCH');
 
+
+    upstreamResponses = [];
+    capturedRequest = null;
+    const missingOpenSeaAccountKey = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      { ...env, OPENSEA_API_KEY: undefined } as TestEnv & { OPENSEA_API_KEY?: string },
+    );
+    assert.equal(missingOpenSeaAccountKey.status, 503);
+    assert.equal(capturedRequest, null, 'account resolution must fail closed without the API key');
+
+    upstreamResponses = [];
+    const invalidAccountLimit = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=51'),
+      openSeaEnv,
+    );
+    assert.equal(invalidAccountLimit.status, 400);
+    assert.equal(await invalidAccountLimit.json().then((body: { code?: string }) => body.code), 'INVALID_PAGINATION');
+
+    upstreamResponses = [
+      new Response(JSON.stringify({ detail: 'not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const missingOpenSeaAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      openSeaEnv,
+    );
+    assert.equal(missingOpenSeaAccount.status, 404);
+    assert.equal(await missingOpenSeaAccount.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_NOT_FOUND');
+
     upstreamResponses = [];
     capturedRequest = null;
     const invalidAccountIdentifier = await worker.fetch(
