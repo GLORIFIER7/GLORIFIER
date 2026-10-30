@@ -245,6 +245,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
       const data: CouncilConsensusResult & {
         participantCount?: number;
         providerDiversity?: number;
+        error?: string;
         failures?: Array<{ providerId: string; modelId?: string | null; code: string }>;
       } = await res.json();
       const failures = Array.isArray(data.failures) ? data.failures : [];
