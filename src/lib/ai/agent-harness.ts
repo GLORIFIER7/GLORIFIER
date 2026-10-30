@@ -96,7 +96,17 @@ export function getAgentHarnessPersistenceStatus() {
   return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
 }
 
+function assertAgentHarnessReady(): void {
+  if (persistenceMode === 'uninitialized' && !process.env.DATABASE_URL) {
+    persistenceMode = 'memory-fallback';
+  }
+  if (persistenceMode === 'uninitialized') {
+    throw new Error('Agent harness persistence is still initializing; retry after backend readiness.');
+  }
+}
+
 async function saveSession(session: AgentSession): Promise<void> {
+  assertAgentHarnessReady();
   if (persistence) await persistence.save('session', session);
   sessions.set(session.id, session);
 }
@@ -142,6 +152,7 @@ export async function createAgentSession(
 }
 
 export async function getAgentSession(sessionId: string): Promise<AgentSession | null> {
+  assertAgentHarnessReady();
   if (persistence) {
     const restored = await persistence.get<AgentSession>('session', sessionId);
     if (restored) sessions.set(sessionId, restored);
