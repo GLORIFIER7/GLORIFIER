@@ -447,7 +447,7 @@ async function run(): Promise<void> {
     }
     upstreamResponse = previousRuntimeResponse;
     assert.equal(
-      capturedRequest?.url,
+      getCapturedRequest().url,
       'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
       'the last configuration-only probe must be the Supabase request',
     );
