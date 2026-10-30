@@ -1,3 +1,5 @@
+import { compareCodeUnits } from '../deterministic-string-order';
+
 /**
  * Deterministic FOCUS 1.4 invoice-line reconciliation.
  *
@@ -266,7 +268,7 @@ export function reconcileFocusInvoice(
     detailById.set(id, decimalUnits(row.billedCost, scale));
   }
 
-  const ids = [...new Set([...usageByDetailId.keys(), ...detailById.keys()])].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  const ids = [...new Set([...usageByDetailId.keys(), ...detailById.keys()])].sort(compareCodeUnits);
   const lineItems: FocusInvoiceLineItemReconciliation[] = [];
   let hasMissingMapping = false;
   let hasVariance = false;

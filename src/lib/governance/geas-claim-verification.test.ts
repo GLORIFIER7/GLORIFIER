@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from '../deterministic-string-order';
 import { readFileSync } from 'node:fs';
 import { validateClaimReview, type ClaimReviewRecord, type ClaimSourceRegistry } from './geas-claim-verification';
 
@@ -157,7 +158,7 @@ assert.equal(
 const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
   id: localeClaimsSource.id,
   url: localeClaimsSource.url,
-  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
+  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort(compareCodeUnits),
   reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
 })).digest('hex');
 const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({

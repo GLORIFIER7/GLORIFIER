@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { compareCodeUnits } from '../deterministic-string-order';
 import { reconcileFocusInvoice, type FocusInvoiceCharge } from './geas-focus-invoice-reconciliation';
 
 const input = {
@@ -44,7 +45,7 @@ const localeSortedResult = reconcileFocusInvoice({
 });
 assert.deepEqual(
   localeSortedResult.lineItems.map((item) => item.invoiceDetailId),
-  [...localeSortedIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
+  [...localeSortedIds].sort(compareCodeUnits),
   'invoice line items must use a deterministic locale-aware order for non-ASCII identifiers',
 );
 const reversedLocaleSortedRows = [...localeSortedRows].reverse();
