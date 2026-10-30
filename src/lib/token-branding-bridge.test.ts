@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  assessBrandingProvider,
+  buildTokenBrandingInspection,
+  validateTokenBrandingRecord,
+  type BrandingProvider,
+  type TokenBrandingRecord
+} from './token-branding-bridge';
+
+const validToken: TokenBrandingRecord = {
+  assetId: 'glr',
+  network: 'Ethereum Mainnet',
+  chainId: 1,
+  standard: 'ERC-20',
+  contractOrMint: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
+  tokenSymbol: 'GLR',
+  evidenceStatus: 'VERIFIED',
+  logo: {
+    uri: 'ipfs://bafybeige7flx4sbd4nbw5vlwgqdvbcethz3tucu6r3ij47vfrl6l34g6vrq',
+    sha256: 'a'.repeat(64),
+    integrityStatus: 'VERIFIED'
+  }
+};
+
+const freeManualProvider: BrandingProvider = {
+  id: 'etherscan',
+  name: 'Etherscan',
+  mode: 'manual',
+  requirements: ['owner verification', 'verified source', 'provider-specific image'],
+  feeStatus: 'FREE',
+  enabled: true
+};
+
+test('accepts a valid EVM token and verified logo reference', () => {
+  assert.deepEqual(validateTokenBrandingRecord(validToken), []);
+});
+
+test('rejects malformed addresses and unverified logo hashes', () => {
+  const invalid = {
+    ...validToken,
+    contractOrMint: 'not-an-address',
+    logo: { ...validToken.logo, sha256: 'bad', integrityStatus: 'PENDING' as const }
+  };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('invalid EVM')));
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('64 hexadecimal')));
+});
+
+test('does not mark a manual provider as published or automatically submit', () => {
+  const result = assessBrandingProvider(validToken, freeManualProvider);
+  assert.equal(result.status, 'MANUAL_ACTION_REQUIRED');
+  assert.equal(result.publicationStatus, 'NOT_SUBMITTED');
+});
+
+test('blocks publication readiness when evidence or image integrity is incomplete', () => {
+  const token = {
+    ...validToken,
+    evidenceStatus: 'PARTIALLY_VERIFIED' as const,
+    logo: { ...validToken.logo, integrityStatus: 'PENDING' as const }
+  };
+  const result = assessBrandingProvider(token, freeManualProvider);
+  assert.equal(result.status, 'BLOCKED');
+  assert.ok(result.blockers.some((item) => item.includes('token evidence status')));
+  assert.ok(result.blockers.some((item) => item.includes('byte integrity')));
+});
+
+test('inspection is explicitly read-only and reports zero published logos', () => {
+  const result = buildTokenBrandingInspection([validToken], [freeManualProvider]);
+  assert.equal(result.mode, 'READ_ONLY_INSPECTION');
+  assert.equal(result.publicationClaim, false);
+  assert.equal(result.summary.publishedCount, 0);
+});
