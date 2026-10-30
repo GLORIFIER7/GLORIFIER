@@ -44,7 +44,7 @@ assert.throws(() => buildA2AAgentCard('https://user:pass@example.com'), /credent
 assert.throws(() => buildA2AAgentCard('https://example.com/path'), /origin/);
 
 const created = [];
-const existing = baseTask({ status: 'running' });
+const existing = baseTask({ status: 'running', requesterAgentId: 'verified-user-42' });
 const handler = createA2AJsonRpcHandler({
   requesterAgentId: 'verified-user-42',
   createTask(input) {
@@ -86,6 +86,19 @@ const getTask = await handler({
 });
 assert.equal(getTask.result.status.state, 'working');
 assert.equal(getTask.id, 2);
+
+const privateTaskHandler = createA2AJsonRpcHandler({
+  requesterAgentId: 'other-user',
+  createTask: () => { throw new Error('not used'); },
+  getTask: () => existing,
+});
+const crossUserTask = await privateTaskHandler({
+  jsonrpc: '2.0',
+  id: 22,
+  method: 'tasks/get',
+  params: { id: existing.id },
+});
+assert.equal(crossUserTask.error.code, -32001, 'task lookup must not disclose a different user task');
 
 const missingTask = await handler({
   jsonrpc: '2.0',
