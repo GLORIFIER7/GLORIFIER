@@ -67,6 +67,7 @@ async function run(): Promise<void> {
     });
     const collection = await worker.fetch(new Request('https://glorifier.test/api/opensea/collections/glorifier1'), env);
     assert.equal(collection.status, 200);
+    assert.equal(collection.headers.get('cache-control'), 'public, max-age=60');
     const collectionBody = await collection.json() as { ok: boolean; collectionSlug: string; data: { name: string } };
     assert.equal(collectionBody.ok, true);
     assert.equal(collectionBody.collectionSlug, 'glorifier1');
@@ -90,6 +91,12 @@ async function run(): Promise<void> {
     assert.equal(unknownCollection.status, 404);
     assert.equal((await unknownCollection.json()).code, 'OPENSEA_ROUTE_NOT_FOUND');
     assert.equal(capturedRequest, null, 'unregistered collection slugs must not reach OpenSea');
+
+    capturedRequest = null;
+    const bareNamespace = await worker.fetch(new Request('https://glorifier.test/api/opensea'), env);
+    assert.equal(bareNamespace.status, 404);
+    assert.equal((await bareNamespace.json()).code, 'OPENSEA_ROUTE_NOT_FOUND');
+    assert.equal(capturedRequest, null, 'the bare OpenSea namespace must remain Worker-native and fail closed');
 
     capturedRequest = null;
     const invalidMethod = await worker.fetch(
