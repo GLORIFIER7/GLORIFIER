@@ -150,6 +150,7 @@ export interface MonetizationPolicy {
 
 export interface ModelCollaborationParticipant {
   modelId: string;
+  model?: string;
   name: string;
   provider: string;
   role: string;
