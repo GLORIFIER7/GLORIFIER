@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createPostgresAgentStateStore } from '../agent-state-store';
+import type { PostgresAgentStateStore } from '../agent-state-store';
 
 /**
  * GLORIFIER Agent Harness
