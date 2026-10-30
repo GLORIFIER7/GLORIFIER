@@ -1,9 +1,10 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, listA2ATasks } from './a2a-runtime.ts';
-import { getPostgresPool } from './db/postgres.ts';
+import { createA2ATask, executeA2ATask, listA2ATasks } from './a2a-runtime.ts';
 
 const previousDatabaseUrl = process.env.DATABASE_URL;
-process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:1/glorifier_test';
+const previousSecret = process.env.GLORIFIER_A2A_SIGNING_SECRET;
+delete process.env.DATABASE_URL;
+process.env.GLORIFIER_A2A_SIGNING_SECRET = 'unit-test-a2a-signing-secret';
 
 try {
   const alice = createA2ATask({
@@ -26,22 +27,13 @@ try {
     [alice.id, bob.id].sort(),
     'only an explicit all-task grant may return tasks across requesters',
   );
-  await new Promise((resolve) => setTimeout(resolve, 25));
-  await getPostgresPool().end();
-} finally {
-  if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = previousDatabaseUrl;
-}
+  assert.deepEqual(
+    listA2ATasks(50, 'alice-uid', true).map((task) => task.id).sort(),
+    [alice.id, bob.id].sort(),
+    'an explicit all-task grant must have identical semantics with or without a requester value',
+  );
 
-console.log('A2A task-list authorization tests: PASS');
-import assert from 'node:assert/strict';
-import { createA2ATask, executeA2ATask } from './a2a-runtime';
-
-const previousSecret = process.env.GLORIFIER_A2A_SIGNING_SECRET;
-process.env.GLORIFIER_A2A_SIGNING_SECRET = 'unit-test-a2a-signing-secret';
-
-try {
-  const task = createA2ATask({
+  const promptTask = createA2ATask({
     requesterAgentId: 'a2a-runtime-test',
     targetAgentId: 'research-agent',
     capability: 'research',
@@ -51,7 +43,7 @@ try {
   });
 
   let capturedPrompt = '';
-  const result = await executeA2ATask(task, async (prompt) => {
+  const result = await executeA2ATask(promptTask, async (prompt) => {
     capturedPrompt = prompt;
     return { text: 'test artifact', model: 'test-model' };
   });
@@ -65,8 +57,10 @@ try {
     !capturedPrompt.includes('\\nAgent identity:'),
     'executor prompt must not contain literal backslash-n separators',
   );
-  console.log('A2A runtime prompt formatting regression test passed.');
+  console.log('A2A task-list authorization and runtime prompt tests: PASS');
 } finally {
+  if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = previousDatabaseUrl;
   if (previousSecret === undefined) delete process.env.GLORIFIER_A2A_SIGNING_SECRET;
   else process.env.GLORIFIER_A2A_SIGNING_SECRET = previousSecret;
 }
