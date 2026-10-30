@@ -1,5 +1,5 @@
 import { getBusinessModel } from './lib/business-model-contract';
-import { A2A_JSONRPC_PATH } from './lib/a2a-v1';
+import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
 type CloudflareEnv = {
   ASSETS: {
@@ -388,7 +388,7 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
 };
 
 const isBackendPath = (pathname: string): boolean =>
-  /^\/(?:api|auth)(?:\/|$)/.test(pathname);
+  pathname === A2A_AGENT_CARD_PATH || /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
 const hasSessionCredential = (request: Request): boolean => {
   const authorization = request.headers.get('authorization')?.trim() || '';
