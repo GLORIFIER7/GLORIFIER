@@ -9,6 +9,5 @@ export function createModelCouncilRateLimit(options?: {
 }): RequestHandler;
 
 export function resolveIngressClientAddress(request: {
-  ip?: string;
   socket?: { remoteAddress?: string };
 }): string;
