@@ -157,6 +157,7 @@ export async function discoverGlobalProviders(
       Boolean(definition) &&
       previous?.authenticated === true &&
       previous.authorization === 'configured' &&
+      discoveredProvider.availability !== 'auth_failure' &&
       inferenceVerifiedConfiguration.get(discoveredProvider.id) === providerConfigurationFingerprint(definition!);
     const provider: DiscoveredProvider = sameVerifiedNvidiaConfiguration && previous
       ? {
