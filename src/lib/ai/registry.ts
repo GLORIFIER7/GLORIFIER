@@ -303,7 +303,7 @@ const attemptProviderOnce = async (
       state.errors.push(`${provider.id}: empty response${emptyResponseSuffix}`);
       return { retry: false };
     }
-    recordProviderInferenceVerification(provider.id);
+    recordProviderInferenceVerification(provider.id, response.model);
     providerCooldownUntil.delete(provider.id);
     providerLastFailure.delete(provider.id);
     return { response, retry: false };
