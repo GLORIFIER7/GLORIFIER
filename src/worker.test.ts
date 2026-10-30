@@ -320,6 +320,39 @@ async function run(): Promise<void> {
     assert.equal(await nativeRuntimeWithoutSupabase.json().then((body: { checks?: { database?: { code?: string } } }) => body.checks?.database?.code), 'SUPABASE_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
 
+    // A successful database probe must still disclose an unconfigured Neural execution plane.
+    const previousRuntimeResponse = upstreamResponse;
+    upstreamResponse = new Response(null, {
+      status: 200,
+      headers: { 'content-range': '0-0/0' },
+    });
+    capturedRequest = null;
+    const runtimeWithSupabaseButNoNeural = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      {
+        ...env,
+        GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+        GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        GLORIFIER_NEURAL_ORIGIN: undefined,
+        GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined,
+      },
+    );
+    assert.equal(runtimeWithSupabaseButNoNeural.status, 200);
+    const runtimeWithSupabaseButNoNeuralBody = await runtimeWithSupabaseButNoNeural.json() as {
+      checks: { neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.deepEqual(runtimeWithSupabaseButNoNeuralBody.checks.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
+    assert.equal(
+      getCapturedRequest().url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+      'runtime verification must perform only its existing Supabase read-only probe when Neural is not configured',
+    );
+    upstreamResponse = previousRuntimeResponse;
+
     const nativeReportsWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
