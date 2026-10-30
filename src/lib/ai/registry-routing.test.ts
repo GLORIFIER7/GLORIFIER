@@ -78,6 +78,20 @@ try {
   );
   assert.ok(autoRequest, 'auto must use the configured provider model rather than the literal auto sentinel');
 
+  const beforeStrictOpenAI = providerRequests.filter((request) => request.method === 'POST').length;
+  const strictOpenAIResult = await executeThroughProviderRegistry({
+    requiredProvider: 'openai',
+    model: 'auto',
+    messages,
+  });
+  assert.equal(strictOpenAIResult.provider, 'provider-registry-exhausted');
+  assert.deepEqual(strictOpenAIResult.attemptedProviders, [], 'strict provider constraints must not fall back to another connected provider');
+  assert.equal(
+    providerRequests.filter((request) => request.method === 'POST').length,
+    beforeStrictOpenAI,
+    'an unavailable required provider must not trigger inference on another provider',
+  );
+
   assert.equal(
     providerRequests.some((request) => request.body?.model === 'auto'),
     false,
