@@ -1,4 +1,5 @@
 import { getBusinessModel } from './lib/business-model-contract';
+import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, buildA2AAgentCard } from './lib/a2a-v1';
 
 type CloudflareEnv = {
   ASSETS: {
@@ -462,6 +463,80 @@ const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL, backendOrigi
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
+
+    if (incomingUrl.pathname === A2A_AGENT_CARD_PATH) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, {
+          status: 405,
+          headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      const backendOrigin = resolveBackendOrigin(env.GLORIFIER_BACKEND_ORIGIN);
+      if (!backendOrigin || !configured(env.GLORIFIER_BACKEND_ALLOWED_HOSTS) ||
+          !originHostAllowlisted(backendOrigin, env.GLORIFIER_BACKEND_ALLOWED_HOSTS)) {
+        return Response.json({ ok: false, code: 'A2A_BACKEND_ROUTE_NOT_CONFIGURED' }, {
+          status: 503,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      try {
+        const publicBaseUrl = configured(env.GLORIFIER_PUBLIC_URL) || incomingUrl.origin;
+        const card = buildA2AAgentCard(publicBaseUrl, '0.2.1');
+        return new Response(request.method === 'HEAD' ? null : JSON.stringify(card), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+      } catch {
+        return Response.json({ ok: false, code: 'A2A_PUBLIC_URL_INVALID' }, {
+          status: 503,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+    }
+
+    if (incomingUrl.pathname === A2A_JSONRPC_PATH) {
+      const errorResponse = (status: number, code: number, message: string) =>
+        Response.json({ jsonrpc: '2.0', id: null, error: { code, message } }, {
+          status,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      if (request.method !== 'POST') {
+        return errorResponse(405, -32600, 'A2A JSON-RPC endpoint accepts POST only.');
+      }
+      if (!/^Bearer\\s+\\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
+        return errorResponse(401, -32600, 'Authentication is required.');
+      }
+      if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
+        return errorResponse(415, -32600, 'Content-Type must be application/json.');
+      }
+      let body: ArrayBuffer;
+      try {
+        body = await readBoundedNeuralRequestBody(request.clone());
+      } catch (error) {
+        if (error instanceof NeuralRequestBodyTooLargeError) {
+          return errorResponse(413, -32602, 'A2A request body exceeds 65,536 bytes.');
+        }
+        return errorResponse(400, -32600, 'Invalid A2A request body.');
+      }
+      try {
+        JSON.parse(new TextDecoder().decode(body));
+      } catch {
+        return errorResponse(400, -32600, 'Invalid JSON-RPC request body.');
+      }
+      const headers = new Headers({
+        Authorization: request.headers.get('authorization') || '',
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-Correlation-ID': crypto.randomUUID(),
+      });
+      // Forward only the auth token and protocol headers. Cookies and unrelated
+      // caller headers are intentionally not carried into the backend service.
+      request = new Request(request.url, { method: 'POST', headers, body });
+    }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
       return neuralRoute(request, incomingUrl.pathname, env);
