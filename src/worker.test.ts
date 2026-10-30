@@ -187,14 +187,15 @@ async function run(): Promise<void> {
         headers: {
           Authorization: 'bEaReR caller-token',
           'Content-Type': 'application/json',
+          'A2A-Version': '1.0',
           Cookie: 'session=should-not-forward',
           'X-Private-Header': 'should-not-forward',
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 'send-1',
-          method: 'message/send',
-          params: { message: { messageId: 'm-1', role: 'user', parts: [{ text: 'Review this' }] } },
+          method: 'SendMessage',
+          params: { message: { messageId: 'm-1', role: 'ROLE_USER', parts: [{ text: 'Review this' }] } },
         }),
       }),
       env,
@@ -205,6 +206,7 @@ async function run(): Promise<void> {
     assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
     assert.equal(a2aUpstreamRequest.headers.get('authorization'), 'Bearer caller-token');
     assert.equal(a2aUpstreamRequest.headers.get('content-type'), 'application/json');
+    assert.equal(a2aUpstreamRequest.headers.get('a2a-version'), '1.0', 'the negotiated A2A protocol version must cross the Worker boundary');
     assert.equal(a2aUpstreamRequest.headers.get('cookie'), null, 'A2A proxy must not forward caller cookies');
     assert.equal(a2aUpstreamRequest.headers.get('x-private-header'), null, 'A2A proxy must not forward unrelated headers');
     assert.match(await a2aUpstreamRequest.text(), /message\/send/);
