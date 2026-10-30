@@ -144,7 +144,7 @@ export interface MonetizationPolicy {
   walletAddress: string;
   binanceConfig?: BinanceAutoWithdrawalConfig;
   gcashConfig?: GCashDirectWithdrawalConfig;
-  aiModel?: 'gpt-4o' | 'gpt-4o-mini' | 'gemini-3.8-flash' | 'consensus' | 'all-models';
+  aiModel?: string;
   riskTolerance?: RiskToleranceLevel;
 }
 
