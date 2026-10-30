@@ -56,20 +56,21 @@ const handler = createA2AJsonRpcHandler({
 const submit = await handler({
   jsonrpc: '2.0',
   id: 'request-1',
-  method: 'message/send',
+  method: 'SendMessage',
   params: {
     message: {
       messageId: 'message-1',
-      role: 'user',
+      role: 'ROLE_USER',
       parts: [{ text: 'Review this proposal' }],
     },
   },
 });
 assert.equal(submit.id, 'request-1');
 assert.equal(submit.error, undefined);
-const submittedTask = submit.result as { id: string; status: { state: string; message: { parts: Array<{ text: string }> } } };
+const submitResult = submit.result as { task: { id: string; status: { state: string; message: { parts: Array<{ text: string }> } } } };
+const submittedTask = submitResult.task;
 assert.equal(submittedTask.id, 'a2a-task-1');
-assert.equal(submittedTask.status.state, 'submitted');
+assert.equal(submittedTask.status.state, 'TASK_STATE_SUBMITTED');
 assert.match(submittedTask.status.message.parts[0].text, /human approval/i);
 assert.equal(created.length, 1);
 assert.equal(created[0].requesterAgentId, 'verified-user-42');
@@ -79,10 +80,10 @@ assert.equal(created[0].objective, 'Review this proposal');
 const getTask = await handler({
   jsonrpc: '2.0',
   id: 2,
-  method: 'tasks/get',
+  method: 'GetTask',
   params: { id: existing.id },
 });
-assert.equal((getTask.result as { status: { state: string } }).status.state, 'working');
+assert.equal((getTask.result as { status: { state: string } }).status.state, 'TASK_STATE_WORKING');
 assert.equal(getTask.id, 2);
 
 const privateTaskHandler = createA2AJsonRpcHandler({
@@ -93,7 +94,7 @@ const privateTaskHandler = createA2AJsonRpcHandler({
 const crossUserTask = await privateTaskHandler({
   jsonrpc: '2.0',
   id: 22,
-  method: 'tasks/get',
+  method: 'GetTask',
   params: { id: existing.id },
 });
 assert.equal((crossUserTask.error as { code: number }).code, -32001, 'task lookup must not disclose a different user task');
@@ -101,7 +102,7 @@ assert.equal((crossUserTask.error as { code: number }).code, -32001, 'task looku
 const missingTask = await handler({
   jsonrpc: '2.0',
   id: 3,
-  method: 'tasks/get',
+  method: 'GetTask',
   params: { id: 'missing' },
 });
 assert.equal((missingTask.error as { code: number }).code, -32001);
@@ -109,31 +110,52 @@ assert.equal((missingTask.error as { code: number }).code, -32001);
 const invalidRole = await handler({
   jsonrpc: '2.0',
   id: 4,
-  method: 'message/send',
-  params: { message: { messageId: 'x', role: 'agent', parts: [{ text: 'hello' }] } },
+  method: 'SendMessage',
+  params: { message: { messageId: 'x', role: 'ROLE_AGENT', parts: [{ text: 'hello' }] } },
 });
 assert.equal((invalidRole.error as { code: number }).code, -32602);
 
 const invalidParts = await handler({
   jsonrpc: '2.0',
   id: 5,
-  method: 'message/send',
-  params: { message: { messageId: 'x', role: 'user', parts: [] } },
+  method: 'SendMessage',
+  params: { message: { messageId: 'x', role: 'ROLE_USER', parts: [] } },
 });
 assert.equal((invalidParts.error as { code: number }).code, -32602);
+
+const conflictingPartContent = await handler({
+  jsonrpc: '2.0',
+  id: 51,
+  method: 'SendMessage',
+  params: {
+    message: { messageId: 'conflict', role: 'ROLE_USER', parts: [{ text: 'do not drop data', data: { confidential: true } }] },
+  },
+});
+assert.equal((conflictingPartContent.error as { code: number }).code, -32602, 'A2A Part oneof must reject multiple content fields');
+
+const unsupportedPushConfig = await handler({
+  jsonrpc: '2.0',
+  id: 52,
+  method: 'SendMessage',
+  params: {
+    message: { messageId: 'push', role: 'ROLE_USER', parts: [{ text: 'notify me' }] },
+    configuration: { taskPushNotificationConfig: { url: 'https://client.invalid/webhook' } },
+  },
+});
+assert.equal((unsupportedPushConfig.error as { code: number }).code, -32602, 'the current A2A 1.0 push configuration field must be rejected when push is disabled');
 
 const unsupportedContinuation = await handler({
   jsonrpc: '2.0',
   id: 6,
-  method: 'message/send',
-  params: { message: { messageId: 'x', role: 'user', taskId: 'existing', parts: [{ text: 'continue' }] } },
+  method: 'SendMessage',
+  params: { message: { messageId: 'x', role: 'ROLE_USER', taskId: 'existing', parts: [{ text: 'continue' }] } },
 });
 assert.equal((unsupportedContinuation.error as { code: number }).code, -32602);
 
 const unsupportedMethod = await handler({
   jsonrpc: '2.0',
   id: 7,
-  method: 'message/stream',
+  method: 'SendStreamingMessage',
   params: {},
 });
 assert.equal((unsupportedMethod.error as { code: number }).code, -32601);
@@ -141,7 +163,7 @@ assert.equal((unsupportedMethod.error as { code: number }).code, -32601);
 const invalidVersion = await handler({
   jsonrpc: '1.0',
   id: 8,
-  method: 'tasks/get',
+  method: 'GetTask',
   params: { id: existing.id },
 });
 assert.equal((invalidVersion.error as { code: number }).code, -32600);
@@ -149,21 +171,21 @@ assert.equal((invalidVersion.error as { code: number }).code, -32600);
 const oversized = await handler({
   jsonrpc: '2.0',
   id: 9,
-  method: 'message/send',
+  method: 'SendMessage',
   params: {
     message: {
       messageId: 'large',
-      role: 'user',
+      role: 'ROLE_USER',
       parts: [{ text: 'x'.repeat(20_001) }],
     },
   },
 });
 assert.equal((oversized.error as { code: number }).code, -32602);
 
-assert.equal(toA2ATask(baseTask({ status: 'completed' })).status.state, 'completed');
-assert.equal(toA2ATask(baseTask({ status: 'failed', error: 'provider unavailable' })).status.state, 'failed');
-assert.equal(toA2ATask(baseTask({ status: 'blocked' })).status.state, 'rejected');
-assert.equal(toA2ATask(baseTask({ status: 'degraded' })).status.state, 'working');
+assert.equal(toA2ATask(baseTask({ status: 'completed' })).status.state, 'TASK_STATE_COMPLETED');
+assert.equal(toA2ATask(baseTask({ status: 'failed', error: 'provider unavailable' })).status.state, 'TASK_STATE_FAILED');
+assert.equal(toA2ATask(baseTask({ status: 'blocked' })).status.state, 'TASK_STATE_REJECTED');
+assert.equal(toA2ATask(baseTask({ status: 'degraded' })).status.state, 'TASK_STATE_WORKING');
 
 console.log('A2A 1.0 JSON-RPC contract tests passed.');
 
@@ -180,8 +202,8 @@ let responseSettled = false;
 const pendingAcknowledgement = asyncCreateHandler({
   jsonrpc: '2.0',
   id: 23,
-  method: 'message/send',
-  params: { message: { messageId: 'async-message', role: 'user', parts: [{ text: 'Durably record this' }] } },
+  method: 'SendMessage',
+  params: { message: { messageId: 'async-message', role: 'ROLE_USER', parts: [{ text: 'Durably record this' }] } },
 }).then((response) => {
   responseSettled = true;
   return response;
@@ -193,8 +215,8 @@ finishDurableCreate(baseTask({
   objective: 'Durably record this',
 }));
 const asyncCreated = await pendingAcknowledgement;
-const asyncSubmittedTask = asyncCreated.result as { status: { state: string; message: { parts: Array<{ text: string }> } } };
-assert.equal(asyncSubmittedTask.status.state, 'submitted');
+const asyncSubmittedTask = (asyncCreated.result as { task: { status: { state: string; message: { parts: Array<{ text: string }> } } } }).task;
+assert.equal(asyncSubmittedTask.status.state, 'TASK_STATE_SUBMITTED');
 assert.match(asyncSubmittedTask.status.message.parts[0].text, /human approval/i);
 
 const persistenceFailureHandler = createA2AJsonRpcHandler({
@@ -205,8 +227,8 @@ const persistenceFailureHandler = createA2AJsonRpcHandler({
 const persistenceFailure = await persistenceFailureHandler({
   jsonrpc: '2.0',
   id: 24,
-  method: 'message/send',
-  params: { message: { messageId: 'failed-write', role: 'user', parts: [{ text: 'Do not acknowledge me' }] } },
+  method: 'SendMessage',
+  params: { message: { messageId: 'failed-write', role: 'ROLE_USER', parts: [{ text: 'Do not acknowledge me' }] } },
 });
 assert.equal((persistenceFailure.error as { code: number }).code, -32603);
 assert.equal(persistenceFailure.result, undefined, 'failed durable writes must not return a successful task acknowledgement');
