@@ -67,3 +67,20 @@ Use `NOT VERIFIED` until acceptance evidence exists; use `DEGRADED` only when an
 |---|---|---|---|---|
 | INT-013 | Mintlify documentation discovery | Mintlify Admin MCP can list the `glorifier` deployment, enumerate its navigation, and read `index.mdx` and `quickstart.mdx`. A PARTIALLY VERIFIED capability record was added to `docs/architecture/interoperability-capabilities.json`. | This proves read-only connector access only. The inspector has not been shown to call Mintlify programmatically at runtime, validate MCP protocol behavior, or synchronize documentation evidence automatically. Both inspected pages still contain starter-template text. | Add a least-privilege Mintlify connector adapter behind the existing inspector contract; redact credentials and page-sensitive metadata; test unavailable/unauthorized responses, pagination, timeouts, stale evidence, and schema validation; retain redacted test/CI evidence. Do not elevate status without those results. |
 
+## Fresh evidence checkpoint — 2026-10-30T03:48:17Z
+
+Default-branch baseline at audit start: `cab3ba28faf4b6cb66552dc09fe36655569ffdd2`.
+
+The exact-main-commit Interoperability Linux validation run [#40998469483](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483) completed successfully:
+- Ubuntu 22.04 x86_64 source job passed evidence freshness policy, MCP interoperability registry policy, registry and capability validation, TypeScript, Worker/interoperability boundary tests, chain-specific read-only verifier test vectors, frontend build, and static output verification.
+- Ubuntu 24.04 x86_64 source job passed the same checks.
+- Ubuntu 24.04 x86_64 container job built both distroless and Ubuntu images and passed health and graceful-shutdown smoke tests.
+
+This establishes repository CI behavior for the named Ubuntu x86_64 targets only. It does not establish live provider inference, a deployed Neural origin, external MCP or A2A conformance, production egress configuration, or live EVM/BNB/Solana RPC reachability.
+
+### Live evidence freshness correction
+
+The registry's previous live observations for Neural health/readiness, Worker runtime verification, operational reports, and identity were last recorded on 2026-10-29T03:45:21Z. At this checkpoint they are more than 24 hours old. Their live status is therefore now `NOT OBSERVABLE`; historical HTTP results remain recorded as historical evidence and have not been rewritten as current success or current failure.
+
+A new approved read-only production probe is required before any of those live capability rows can be promoted. No production configuration, secrets, provider egress, database writes, deployment, or blockchain transactions were performed for this refresh.
+
