@@ -110,6 +110,12 @@ jobs:
       - name: Type-check
         run: npm run lint
 
+      - name: AI provider model-selection regression tests
+        run: npm run test:provider-model-selection
+
+      - name: AI provider discovery registry regression tests
+        run: npm run test:provider-discovery
+
       - name: Canonical NFT registry seed regression tests
         run: npm run test:asset-registry-seed
 
