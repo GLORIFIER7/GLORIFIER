@@ -33,8 +33,8 @@ try {
     signal: abortController.signal,
   });
   assert.equal(response.model, 'explicit-selected-model');
-  assert.equal(capturedBody?.model, 'explicit-selected-model');
-  assert.equal(capturedInit?.signal, abortController.signal);
+  assert.equal((capturedBody as Record<string, unknown> | null)?.model, 'explicit-selected-model');
+  assert.equal((capturedInit as RequestInit | undefined)?.signal, abortController.signal);
 } finally {
   globalThis.fetch = previousFetch;
   for (const key of envKeys) {
