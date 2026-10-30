@@ -21,7 +21,7 @@ jobs:
           node-version: 24
 
       - name: Install pinned GitHub Copilot CLI
-        run: npm install -g @github/copilot@1.0.88
+        run: npm install --global --ignore-scripts --no-audit --no-fund @github/copilot@1.0.88
 
       - name: Run AI inference
         id: inference
