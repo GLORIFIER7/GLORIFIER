@@ -215,6 +215,7 @@ export async function getAgentSession(sessionId: string): Promise<AgentSession |
 }
 
 export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
+  assertAgentHarnessReady();
   const nextContextTokens = normalizeContextTokens(contextTokens);
 
   if (persistence) {
