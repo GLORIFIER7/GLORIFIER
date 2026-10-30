@@ -41,9 +41,11 @@ const previousFetch = globalThis.fetch;
 try {
   process.env.GEMINI_API_KEY = 'test-gemini-key';
   let observedSignal: AbortSignal | undefined;
+  let fetchCallCount = 0;
   let notifyFetchStarted: (() => void) | undefined;
   const fetchStarted = new Promise<void>((resolve) => { notifyFetchStarted = resolve; });
   globalThis.fetch = (async (_input, init) => {
+    fetchCallCount += 1;
     observedSignal = init?.signal as AbortSignal | undefined;
     notifyFetchStarted?.();
     return await new Promise<Response>((_resolve, reject) => {
@@ -66,6 +68,7 @@ try {
   abortController.abort();
   assert.equal(observedSignal?.aborted, true, 'the SDK request signal must inherit caller cancellation');
   await assert.rejects(generation);
+  assert.equal(fetchCallCount, 1, 'an aborted request must not trigger a retry');
 } finally {
   globalThis.fetch = previousFetch;
   if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
