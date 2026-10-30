@@ -91,3 +91,18 @@ Implement only after Phase 1 evidence is complete:
 - [ ] Read-only inspection never performs external writes.
 - [ ] Tests prove the above behaviors.
 - [ ] Provider publication is reported only after independent observation.
+
+## Validator identity and readiness contract
+
+The read-only validator accepts only these documented production identity tuples:
+
+| Network | Chain ID | Token standard |
+|---|---:|---|
+| Ethereum Mainnet | `1` | `ERC-20` |
+| BNB Smart Chain Mainnet | `56` | `BEP-20` |
+| Base Mainnet | `8453` | `ERC-20` |
+| Solana Mainnet Beta | `solana:mainnet-beta` | `Token-2022` |
+
+Network label, chain ID, and standard must agree. Solana Devnet and testnet are not production branding targets. Solana mint strings must base58-decode to exactly 32 bytes. Logo references must be a syntactically accepted IPFS CIDv0/CIDv1 base32 reference or an HTTPS URL with a hostname. The validator does not fetch remote content, prove CID availability, or compare retrieved bytes with the supplied SHA-256 digest.
+
+A disabled or unsupported provider is reported as `NOT_CONFIGURED`. Declared provider requirements remain a human-confirmation step; the inspector does not infer that they have been satisfied. `READY_FOR_REVIEW` is a readiness classification only, never evidence of submission or publication.
