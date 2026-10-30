@@ -31,7 +31,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: 24
       - name: Parse plugin manifests and schema
         run: |
           node -e "JSON.parse(require('node:fs').readFileSync('plugins/glorifier-universal-interoperability/plugin.json', 'utf8'))"
