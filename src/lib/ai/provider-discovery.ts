@@ -28,6 +28,17 @@ const inferenceVerifiedConfiguration = new Map<string, string>();
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 
+/** Build a provider model-list URL without forwarding URL credentials or query data. */
+function modelListUrl(endpoint: string): string {
+ const parsed = new URL(endpoint);
+ parsed.username = '';
+ parsed.password = '';
+ parsed.search = '';
+ parsed.hash = '';
+ parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/models';
+ return parsed.toString();
+}
+
 /** Expose endpoint identity without leaking userinfo, query credentials, or fragments. */
 function safeEndpointForDiagnostics(endpoint: string): string {
  if (!endpoint.trim()) return '';
@@ -77,8 +88,12 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   if(d.id==='gemini') result=await fetchJson(requestEndpoint+'/models?key='+encodeURIComponent(env(d.keyEnv)),{accept:'application/json'});
   else if(d.id==='anthropic') result=await fetchJson(requestEndpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
   else if(d.id==='ollama') result=await fetchJson(requestEndpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
-  else result=await fetchJson(requestEndpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
+  else result=await fetchJson(modelListUrl(requestEndpoint),{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   let availability=classify(result.response.status,result.text);
+  const hasSupportedModelList = Array.isArray(result.body?.data) || Array.isArray(result.body?.models);
+  const protocolError = result.response.ok && !hasSupportedModelList;
+  if (protocolError) availability = 'error';
+  const diagnosticReason = protocolError ? 'invalid_model_list_response' : reasonFor(result.response.status,result.text,availability);
   const rawModels=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
   const models=d.id==='gemini'
     ? rawModels.map((model:string)=>model.replace(/^models\//,''))
@@ -88,9 +103,9 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   // for inference. The explicit authorization flag remains separate; the first actual
   // inference is attempted only as part of a separately authorized user request.
   if(d.id==='nvidia') {
-   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?'NVIDIA credential not verified by read-only model discovery; inference verification requires a separately authorized user request.':reasonFor(result.response.status,result.text,availability),authorization:'pending'};
+   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?'NVIDIA credential not verified by read-only model discovery; inference verification requires a separately authorized user request.':diagnosticReason,authorization:'pending'};
   }
-  return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.ok,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
+  return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.ok && hasSupportedModelList,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:diagnosticReason,authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:redactProviderDiagnostic(error instanceof Error?error.message:String(error)),authorization:'pending'}; }
 }
 export async function recordProviderInferenceVerification(providerId: string, modelId?: string): Promise<void> {
