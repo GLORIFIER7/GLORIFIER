@@ -185,6 +185,24 @@ app.use(appWideRateLimit);
 app.use('/api', apiRateLimit);
 // A2A JSON-RPC requests have a smaller protocol-level body limit than general application APIs.
 app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: true, type: 'application/json' }));
+app.use('/api/a2a/v1', (error: unknown, _req: Request, res: Response, next: express.NextFunction) => {
+  const parserError = error as { type?: string } | null;
+  if (parserError?.type === 'entity.too.large') {
+    return res.status(413).type('application/json').json({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' },
+    });
+  }
+  if (parserError?.type === 'entity.parse.failed' || parserError?.type === 'entity.verify.failed') {
+    return res.status(400).type('application/json').json({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32700, message: 'Parse error: request body must be valid JSON.' },
+    });
+  }
+  return next(error);
+});
 app.use(express.json({ limit: '10mb' }));
 
 app.use((req: Request, res: Response, next) => {
@@ -2521,23 +2539,32 @@ app.get('/api/a2a/capabilities', (_req: Request, res: Response) => {
   res.json({ ok: true, capabilities: discoverA2ACapabilities(), protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks', (_req: Request, res: Response) => {
-  res.json({ ok: true, tasks: listA2ATasks(), protocol: getA2AProtocolManifest() });
+app.get('/api/a2a/tasks', requireAuthentication, (req: Request, res: Response) => {
+  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  const tasks = listA2ATasks().filter((task) =>
+    isOwner(req) || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
+  );
+  return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
-app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
+app.get('/api/a2a/tasks/:id', requireAuthentication, (req: Request, res: Response) => {
   const task = getA2ATask(String(req.params.id));
-  if (!task) return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  if (!task || (!isOwner(req) && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
+    return res.status(404).json({ ok: false, error: 'A2A task not found' });
+  }
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
+app.post('/api/a2a/tasks', requireAuthentication, async (req: Request, res: Response) => {
+  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  if (!requesterAgentId) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   const body = req.body || {};
   if (!body.capability || !body.objective) {
     return res.status(400).json({ ok: false, error: 'capability and objective are required' });
   }
   const task = createA2ATask({
-    requesterAgentId: String(body.requesterAgentId || (req as any).auth?.uid || 'human-owner'),
+    requesterAgentId,
     targetAgentId: body.targetAgentId ? String(body.targetAgentId) : undefined,
     capability: String(body.capability),
     objective: String(body.objective),
