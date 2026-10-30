@@ -74,3 +74,8 @@ assert.match(
   /app\.post\('\/api\/a2a\/tasks', requireOwnerOrInternalService[\s\S]*?const humanApproved = Boolean\(auth && isOwner\(auth\)/,
   'legacy A2A execution approval must be bound to an authenticated owner, not a request-body string alone',
 );
+assert.match(
+  server,
+  /app\.post\('\/api\/a2a\/tasks', requireOwnerOrInternalService[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
+  'legacy A2A requester identity must be derived from authenticated context',
+);
