@@ -72,6 +72,16 @@ async function run(): Promise<void> {
     returnHtmlForAssets = false;
 
     capturedRequest = null;
+    const previousA2ACardResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({
+      name: 'GLORIFIER Services',
+      supportedInterfaces: [{
+        url: `https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`,
+        protocolBinding: 'JSONRPC',
+        protocolVersion: '1.0',
+      }],
+      capabilities: { streaming: false, pushNotifications: false },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const a2aCardResponse = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
       env,
@@ -81,7 +91,6 @@ async function run(): Promise<void> {
       name: string;
       supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
       capabilities: { streaming: boolean; pushNotifications: boolean };
-      securityRequirements: Array<{ schemes: { bearer: string[] } }>;
     };
     assert.equal(a2aCard.name, 'GLORIFIER Services');
     assert.deepEqual(a2aCard.supportedInterfaces, [{
@@ -91,15 +100,17 @@ async function run(): Promise<void> {
     }]);
     assert.equal(a2aCard.capabilities.streaming, false);
     assert.equal(a2aCard.capabilities.pushNotifications, false);
-    assert.deepEqual(a2aCard.securityRequirements, [{ schemes: { bearer: [] } }]);
-    assert.equal(capturedRequest, null, 'A2A discovery must be served by the Worker without backend proxying');
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, A2A_AGENT_CARD_PATH);
+    upstreamResponse = previousA2ACardResponse;
 
+    capturedRequest = null;
     const a2aCardWithoutBackend = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
     );
-    assert.equal(a2aCardWithoutBackend.status, 503, 'A2A must not advertise an interface without a configured backend route');
-    assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'A2A_BACKEND_ROUTE_NOT_CONFIGURED');
+    assert.equal(a2aCardWithoutBackend.status, 502, 'A2A discovery must fail closed without a configured backend route');
+    assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
     assert.equal(capturedRequest, null);
 
     const a2aMethodNotAllowed = await worker.fetch(
