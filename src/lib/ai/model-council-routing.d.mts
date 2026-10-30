@@ -25,6 +25,13 @@ export interface ModelCouncilExecutionResult {
   status: 'complete' | 'partial' | 'unavailable';
 }
 
+
+export function resolveModelCouncilProviderIds(input: {
+  providerIds?: unknown;
+  activeModels?: unknown;
+  availableProviderIds: readonly string[];
+}): string[];
+
 export function validateModelCouncilProviderIds(
   providerIds: unknown,
   availableProviderIds: readonly string[],
