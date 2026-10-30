@@ -10,12 +10,23 @@ export function createModelCouncilRateLimit({
   windowMs = 60_000,
   limit = 2,
   handler,
+  production = process.env.NODE_ENV === 'production',
+  singleInstanceConfirmed = process.env.AI_COUNCIL_SINGLE_INSTANCE === 'true',
 } = {}) {
   if (!Number.isInteger(windowMs) || windowMs <= 0) {
     throw new RangeError('windowMs must be a positive integer.');
   }
   if (!Number.isInteger(limit) || limit <= 0) {
     throw new RangeError('limit must be a positive integer.');
+  }
+
+  // express-rate-limit's default store is process-local. Production must explicitly
+  // attest that this backend is constrained to one instance until a shared store is wired.
+  if (production && !singleInstanceConfirmed) {
+    return (_req, res) => res.status(503).json({
+      ok: false,
+      error: 'AI council is disabled: configure a shared rate-limit store or confirm a single backend instance with AI_COUNCIL_SINGLE_INSTANCE=true.',
+    });
   }
 
   return rateLimit({
