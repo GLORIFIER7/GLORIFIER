@@ -29,14 +29,19 @@ const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 
 /** Build a provider model-list URL without forwarding URL credentials or query data. */
-function modelListUrl(endpoint: string): string {
+function providerRequestUrl(endpoint: string, route: string, query: Record<string, string> = {}): string {
  const parsed = new URL(endpoint);
  parsed.username = '';
  parsed.password = '';
  parsed.search = '';
  parsed.hash = '';
- parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/models';
+ parsed.pathname = parsed.pathname.replace(/\/+$/, '') + route;
+ for (const [key, value] of Object.entries(query)) parsed.searchParams.set(key, value);
  return parsed.toString();
+}
+
+function modelListUrl(endpoint: string): string {
+ return providerRequestUrl(endpoint, '/models');
 }
 
 /** Expose endpoint identity without leaking userinfo, query credentials, or fragments. */
@@ -85,9 +90,9 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
-  if(d.id==='gemini') result=await fetchJson(requestEndpoint+'/models?key='+encodeURIComponent(env(d.keyEnv)),{accept:'application/json'});
-  else if(d.id==='anthropic') result=await fetchJson(requestEndpoint+'/models',{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
-  else if(d.id==='ollama') result=await fetchJson(requestEndpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
+  if(d.id==='gemini') result=await fetchJson(providerRequestUrl(requestEndpoint, '/models', { key: env(d.keyEnv) }),{accept:'application/json'});
+  else if(d.id==='anthropic') result=await fetchJson(providerRequestUrl(requestEndpoint, '/models'),{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
+  else if(d.id==='ollama') result=await fetchJson(providerRequestUrl(requestEndpoint, '/api/tags'),{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(modelListUrl(requestEndpoint),{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   let availability=classify(result.response.status,result.text);
   const hasSupportedModelList = Array.isArray(result.body?.data) || Array.isArray(result.body?.models);
