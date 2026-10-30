@@ -29,11 +29,27 @@ const providers: AIProvider[] = [
 ];
 
 /**
- * Explicit model selections are strict: never silently substitute a provider's
- * default model when the requested model is not advertised by that provider.
+ * Normalize the UI/API "auto" sentinel to an omitted model so providers use
+ * their own configured defaults. Explicit model IDs remain exact and strict.
  */
-export function isProviderModelEligible(provider: AIProvider, requestedModel?: string): boolean {
-  return !requestedModel || provider.models().includes(requestedModel);
+export function normalizeRequestedModel(requestedModel?: string): string | undefined {
+  const normalized = requestedModel?.trim();
+  return !normalized || normalized.toLowerCase() === 'auto' ? undefined : normalized;
+}
+
+/**
+ * Explicit models must be advertised either by the adapter's configured model
+ * list or by the latest provider-discovery snapshot. Empty lists are unknown,
+ * not permission to silently substitute an arbitrary provider default.
+ */
+export function isProviderModelEligible(
+  provider: AIProvider,
+  requestedModel?: string,
+  discoveredModels: readonly string[] = [],
+): boolean {
+  const model = normalizeRequestedModel(requestedModel);
+  if (!model) return true;
+  return provider.models().includes(model) || discoveredModels.includes(model);
 }
 
 const providerCooldownUntil = new Map<string, number>();
@@ -260,10 +276,8 @@ const attemptProviderOnce = async (
   state.providerStatuses[provider.id] = 'connected';
   state.attempts += 1;
   try {
-    // Preserve an explicit model exactly. Eligibility filtering below prevents
-    // routing this request to a provider that would silently substitute a default.
-    const providerRequest = { ...request };
-    const response = await provider.generate(providerRequest);
+    // The request is normalized and model-checked at the registry boundary.
+    const response = await provider.generate(request);
     if (!response.text?.trim()) {
       state.errors.push(`${provider.id}: empty response${emptyResponseSuffix}`);
       return { retry: false };
@@ -315,7 +329,7 @@ const tryRefreshedProviders = async (
 ): Promise<{ response: import('./types').AIResponse; provider: string } | undefined> => {
   const refreshed = getConnectedProviders().filter((provider) =>
     isProviderEligibleAfterRefresh(provider, discovery, request.capability, state.attemptedProviders)
-      && isProviderModelEligible(provider, request.model)
+      && isProviderModelEligible(provider, request.model, discovery.get(provider.id)?.models)
   );
   for (const provider of refreshed) {
     if (state.attempts >= policy.maxAttempts) break;
@@ -430,19 +444,33 @@ export const withProviderRegistryTrace = (
 export const executeThroughProviderRegistry = async (
   request: ProviderExecutionRequest,
 ): Promise<ProviderExecutionResult> => withProviderRegistryTrace(request, async () => {
-  const policy = resolveExecutionPolicy(request);
+  // Normalize sentinels once; the adapter receives either a real explicit model
+  // ID or undefined, never the synthetic "auto" value.
+  const executionRequest: ProviderExecutionRequest = {
+    ...request,
+    model: normalizeRequestedModel(request.model),
+  };
+  const policy = resolveExecutionPolicy(executionRequest);
   assertGovernedFallbackPolicy(policy);
   const connected = getConnectedProviders();
-  const preferredProvider = resolvePreferredProvider(request);
+  const preferredProvider = resolvePreferredProvider(executionRequest);
   const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
-  const ordered = [...connected]
-    .filter((provider) => isProviderEligible(provider, discovery, request.capability)
-      && isProviderModelEligible(provider, request.model))
-    .sort((a, b) => compareProviderOrder(a, b, discovery, preferredProvider));
   const state = createProviderExecutionState();
-  const initial = await tryOrderedProviders(ordered, request, policy, discovery, state);
+  const ordered = [...connected]
+    .filter((provider) => {
+      if (!isProviderEligible(provider, discovery, executionRequest.capability)) return false;
+      const discoveredModels = discovery.get(provider.id)?.models;
+      if (!isProviderModelEligible(provider, executionRequest.model, discoveredModels)) {
+        state.providerStatuses[provider.id] = 'unavailable';
+        state.errors.push(`${provider.id}: requested model "${executionRequest.model}" is not advertised by this provider.`);
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => compareProviderOrder(a, b, discovery, preferredProvider));
+  const initial = await tryOrderedProviders(ordered, executionRequest, policy, discovery, state);
   if (initial) return buildExecutionResult(initial.provider, initial.response, state);
-  const refreshed = await tryDiscoveryRefresh(request, policy, discovery, state);
+  const refreshed = await tryDiscoveryRefresh(executionRequest, policy, discovery, state);
   if (refreshed) return buildExecutionResult(refreshed.provider, refreshed.response, state);
   return buildExecutionResult('provider-registry-exhausted', undefined, state);
 });
