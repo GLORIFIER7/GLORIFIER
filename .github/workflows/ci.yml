@@ -122,6 +122,9 @@ jobs:
       - name: AI provider registry routing integration tests
         run: npm run test:provider-routing
 
+      - name: Gemini model selection policy tests
+        run: npm run test:gemini-model-policy
+
       - name: Discovered AI provider model catalogue tests
         run: npm run test:provider-model-catalog
 
