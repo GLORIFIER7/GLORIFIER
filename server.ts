@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2672,10 +2672,10 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
 
   let result;
   try {
-    result = await runIntelligenceModel(preferredProvider, prompt, {
+    result = await withAgentTaskHeartbeat(task.id, () => runIntelligenceModel(preferredProvider, prompt, {
       jsonMode: false,
       systemInstruction: 'You are an autonomous AI specialist in the GLORIFIER A2A network. Produce high-fidelity, verified, evidence-backed artifacts.'
-    });
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[AgentTask] Inference failed:', message);
