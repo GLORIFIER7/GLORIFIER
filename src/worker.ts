@@ -1,7 +1,7 @@
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
-type CloudflareEnv = {
+export type CloudflareEnv = {
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
@@ -21,7 +21,7 @@ type CloudflareEnv = {
 
 // Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
 // Never silently fall back to Railway or another provider when configuration is absent.
-const resolveBackendOrigin = (value?: string): string | null => {
+const resolveHttpsOrigin = (value?: string): string | null => {
   const candidate = configured(value);
   if (!candidate) return null;
   try {
@@ -34,6 +34,8 @@ const resolveBackendOrigin = (value?: string): string | null => {
     return null;
   }
 };
+
+const resolveBackendOrigin = resolveHttpsOrigin;
 
 const configured = (value: string | undefined): string => (value || '').trim();
 
@@ -225,17 +227,7 @@ const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv)
 };
 
 
-const neuralOrigin = (value?: string): string | null => {
-  const candidate = configured(value);
-  if (!candidate) return null;
-  try {
-    const url = new URL(candidate);
-    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
-};
+const neuralOrigin = resolveHttpsOrigin;
 
 const MAX_NEURAL_TASK_BODY_BYTES = 65_536;
 
