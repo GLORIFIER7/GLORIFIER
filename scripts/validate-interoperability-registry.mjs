@@ -161,9 +161,14 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const registryRoot = resolve(repositoryRoot, 'docs', 'architecture');
 
 async function resolveRegistryPath(candidate) {
-  const requestedPath = candidate
-    ? (isAbsolute(candidate) ? resolve(candidate) : resolve(repositoryRoot, candidate))
-    : resolve(registryRoot, 'interoperability-capabilities.json');
+  let requestedPath;
+  if (candidate) {
+    requestedPath = isAbsolute(candidate)
+      ? resolve(candidate)
+      : resolve(repositoryRoot, candidate);
+  } else {
+    requestedPath = resolve(registryRoot, 'interoperability-capabilities.json');
+  }
   const [canonicalRoot, canonicalPath] = await Promise.all([
     realpath(registryRoot),
     realpath(requestedPath),
