@@ -62,6 +62,20 @@ assert.equal(
   'concurrent turns must not overwrite each other or lose the turn increment',
 );
 await assert.rejects(() => recordAgentTurn(session.id, Number.POSITIVE_INFINITY), /finite/);
+
+let unsafeTokenActionStarted = false;
+await assert.rejects(
+  () => executeAgentTurn({
+    session,
+    contextTokens: Number.MAX_SAFE_INTEGER + 1,
+    run: async () => {
+      unsafeTokenActionStarted = true;
+      return 'must-not-run';
+    },
+  }),
+  /safe integer/,
+);
+assert.equal(unsafeTokenActionStarted, false, 'unsafe token counts must be rejected before an external action runs');
 await assert.rejects(
   () => createAgentSession('harness-test-duplicate', { sessionId: session.id }),
   /already exists/,
