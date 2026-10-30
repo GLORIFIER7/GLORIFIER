@@ -1,5 +1,7 @@
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import express from 'express';
+import { createModelCouncilRateLimit } from './model-council-rate-limit.mjs';
 import assert from 'node:assert/strict';
 import {
   executeModelCouncilProviders,
@@ -123,8 +125,7 @@ test('AI council route requires owner authorization and has a principal-scoped s
     serverSource,
     /app\.post\('\/api\/ai\/council',\s*aiCouncilRateLimit,\s*requireOwnerOrInternalService,/,
   );
-  assert.match(serverSource, /limit:\s*2,[\s\S]*?keyGenerator:\s*\(req\)\s*=>/);
-  assert.match(serverSource, /ai-council:user:\$\{principalId\}/);
+  assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
 });
 
 test('malformed explicit providerIds are not ignored in favor of legacy activeModels', () => {
@@ -136,4 +137,48 @@ test('malformed explicit providerIds are not ignored in favor of legacy activeMo
     }),
     /array/i,
   );
+});
+
+async function withCouncilRateLimit(handler) {
+  const app = express();
+  app.use((req, _res, next) => {
+    const principalId = req.get('x-test-principal');
+    if (principalId) req.auth = { uid: principalId };
+    next();
+  });
+  app.use(createModelCouncilRateLimit({ windowMs: 60_000, limit: 2 }));
+  app.post('/council', (_req, res) => res.status(200).json({ ok: true }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  const url = `http://127.0.0.1:${address.port}/council`;
+  try {
+    await handler(url);
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+}
+
+test('council rate limit is enforced independently per authenticated principal', async () => {
+  await withCouncilRateLimit(async (url) => {
+    const call = (principal) => fetch(url, {
+      method: 'POST',
+      headers: { 'x-test-principal': principal },
+    });
+    assert.equal((await call('owner-a')).status, 200);
+    assert.equal((await call('owner-a')).status, 200);
+    assert.equal((await call('owner-a')).status, 429);
+    assert.equal((await call('owner-b')).status, 200);
+  });
+});
+
+test('trusted internal-service calls without a user principal are rate-limited by IP', async () => {
+  await withCouncilRateLimit(async (url) => {
+    const call = () => fetch(url, { method: 'POST' });
+    assert.equal((await call()).status, 200);
+    assert.equal((await call()).status, 200);
+    assert.equal((await call()).status, 429);
+  });
 });
