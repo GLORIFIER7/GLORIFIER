@@ -121,10 +121,23 @@ assert.equal(changedCadenceReview.admissible, true, 'a still-fresh observation s
 assert.notEqual(changedCadenceReview.evidenceRef, supported.evidenceRef,
   'evidence references must bind to the source-specific review cadence');
 
+const zeroWidth = String.fromCharCode(0x200b);
+const combiningAcute = String.fromCharCode(0x0301);
 const localeClaimsRegistry: ClaimSourceRegistry = {
   ...registry,
   sources: registry.sources.map((source) => source.id === trustedSource.id
-    ? { ...source, claimsAllowed: [...source.claimsAllowed, 'z-extra', 'ä-extra', 'a-extra', 'a-extra\\u200B', 'é-extra', 'e\\u0301-extra'] }
+    ? {
+        ...source,
+        claimsAllowed: [
+          ...source.claimsAllowed,
+          'z-extra',
+          'ä-extra',
+          'a-extra',
+          'a-extra' + zeroWidth,
+          'é-extra',
+          'e' + combiningAcute + '-extra',
+        ],
+      }
     : source),
 };
 const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
@@ -167,7 +180,7 @@ assert.equal(localeClaimsReview.admissible, true);
 assert.equal(
   localeClaimsReview.evidenceRef,
   expectedLocaleEvidenceRef,
-  'source-policy digest must use explicit English collation for a stable claim allowance list',
+  'source-policy digest must use locale-independent code-unit ordering',
 );
 
 const changedClaimsRegistry: ClaimSourceRegistry = {

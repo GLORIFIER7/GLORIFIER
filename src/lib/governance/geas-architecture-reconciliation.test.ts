@@ -33,12 +33,27 @@ assert.equal(
   '9e76ee4b7c5c599d3ad63e42369b1796848ad455c5bae3030af345c5ea2aecb0',
   'canonical JSON object keys must preserve locale-independent code-unit ordering',
 );
-const unicodeSnapshot = { a: 1, 'a\\u200B': 2, 'é': 3, 'e\\u0301': 4 };
-const reorderedUnicodeSnapshot = { 'e\\u0301': 4, 'é': 3, 'a\\u200B': 2, a: 1 };
+const nulSuffix = String.fromCharCode(0);
+const zeroWidth = String.fromCharCode(0x200b);
+const combiningAcute = String.fromCharCode(0x0301);
+const unicodeSnapshot = {
+  a: 1,
+  [`a${nulSuffix}`]: 2,
+  [`a${zeroWidth}`]: 3,
+  ['é']: 4,
+  [`e${combiningAcute}`]: 5,
+};
+const reorderedUnicodeSnapshot = {
+  [`e${combiningAcute}`]: 5,
+  ['é']: 4,
+  [`a${zeroWidth}`]: 3,
+  [`a${nulSuffix}`]: 2,
+  a: 1,
+};
 assert.equal(
   hashArchitectureSnapshot(unicodeSnapshot),
   hashArchitectureSnapshot(reorderedUnicodeSnapshot),
-  'canonical snapshot hashes must be independent of insertion order even when distinct Unicode keys collate equally',
+  'canonical snapshot hashes must be independent of insertion order even when distinct Unicode keys compare as separate code-unit sequences',
 );
 assert.throws(() => hashArchitectureSnapshot({ value: undefined }), /JSON-compatible values/);
 assert.throws(() => hashArchitectureSnapshot({ value: Number.NaN }), /finite JSON numbers/);
