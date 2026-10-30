@@ -131,8 +131,13 @@ async function testProviderFailureMapping(): Promise<void> {
   setResponse(new Response('forbidden', { status: 403 }));
   await expectProviderFailure(await request('/api/opensea/health'), 502, 'OPENSEA_API_KEY_REJECTED');
 
-  setResponse(new Response('rate limited', { status: 429 }));
-  await expectProviderFailure(await request('/api/opensea/health'), 503, 'OPENSEA_RATE_LIMITED');
+  setResponse(new Response('rate limited', { status: 429, headers: { 'Retry-After': '7' } }));
+  const rateLimited = await request('/api/opensea/health');
+  await expectProviderFailure(rateLimited, 503, 'OPENSEA_RATE_LIMITED');
+  assert.equal(rateLimited.headers.get('retry-after'), '7');
+
+  setResponse(new Response('missing collection', { status: 404 }));
+  await expectProviderFailure(await request('/api/opensea/collections/glorifier1'), 404, 'OPENSEA_COLLECTION_NOT_FOUND');
 
   setResponse(new Response('<html>not json</html>', { status: 200, headers: { 'Content-Type': 'text/html' } }));
   await expectProviderFailure(await request('/api/opensea/health'), 502, 'OPENSEA_INVALID_RESPONSE');
@@ -148,6 +153,12 @@ async function testProviderFailureMapping(): Promise<void> {
 
   setResponse(new Response('provider failure', { status: 500 }));
   await expectProviderFailure(await request('/api/opensea/health'), 502, 'OPENSEA_UPSTREAM_ERROR');
+
+  setResponse(new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  await expectProviderFailure(await request('/api/opensea/health'), 502, 'OPENSEA_RESPONSE_TOO_LARGE');
+
+  setResponse(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json', 'Content-Length': '1048577' } }));
+  await expectProviderFailure(await request('/api/opensea/health'), 502, 'OPENSEA_RESPONSE_TOO_LARGE');
 }
 
 async function testRequestTimeout(): Promise<void> {
