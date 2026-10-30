@@ -31,6 +31,44 @@ export type AgentTask = {
   error?: string;
 };
 
+/**
+ * Agent task records are private to their authenticated requester by default.
+ * Only a verified owner or authenticated internal service may bypass this scope.
+ */
+export function canAccessAgentTask(
+  task: Pick<AgentTask, 'requester'>,
+  requesterUid?: string,
+  allowAll = false,
+): boolean {
+  if (allowAll) return true;
+  const requester = typeof requesterUid === 'string' ? requesterUid.trim() : '';
+  return Boolean(requester && task.requester === requester);
+}
+
+export function filterAgentTasksByRequester<T extends Pick<AgentTask, 'requester'>>(
+  tasks: readonly T[],
+  requesterUid?: string,
+  allowAll = false,
+): T[] {
+  return tasks.filter((task) => canAccessAgentTask(task, requesterUid, allowAll));
+}
+
+/**
+ * Ignore caller-supplied attribution unless the request is backed by a verified
+ * owner identity or the shared internal-service credential.
+ */
+export function resolveAgentTaskRequester(
+  authenticatedUid?: string,
+  requestedRequester?: unknown,
+  allowOverride = false,
+): string | null {
+  const uid = typeof authenticatedUid === 'string' ? authenticatedUid.trim() : '';
+  const requested = typeof requestedRequester === 'string' ? requestedRequester.trim() : '';
+  if (allowOverride && requested) return requested;
+  return uid || null;
+}
+
+
 const agents: AgentCard[] = [
   { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern', 'governed-agent-commerce', 'economic-routing'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
   { id: 'gpt', name: 'GPT', role: 'reasoning', capabilities: ['reason', 'code-review', 'synthesis'], endpoint: '/api/agents/gpt', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
