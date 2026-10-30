@@ -9,6 +9,8 @@ const protectedPaths = [
   '/API/economy/GLR/INTENTS/intent-123',
   '/api/economy/glr/intents/intent-123/',
   '/api/payouts',
+  '/api/agents/tasks',
+  '/API/AGENTS/TASKS/task-123',
   '/api/a2a/tasks',
   '/api/federated-a2a/v3/tasks',
   '/API/AUTH/SESSION',
