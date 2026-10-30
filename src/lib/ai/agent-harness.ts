@@ -101,9 +101,6 @@ export function getAgentHarnessPersistenceStatus() {
 }
 
 function assertAgentHarnessReady(): void {
-  if (persistenceMode === 'uninitialized' && !process.env.DATABASE_URL) {
-    persistenceMode = 'memory-fallback';
-  }
   if (persistenceMode === 'uninitialized') {
     throw new Error('Agent harness persistence is still initializing; retry after backend readiness.');
   }
