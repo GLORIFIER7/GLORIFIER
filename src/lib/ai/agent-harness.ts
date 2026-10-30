@@ -142,11 +142,13 @@ export async function createAgentSession(
 }
 
 export async function getAgentSession(sessionId: string): Promise<AgentSession | null> {
-  const cached = sessions.get(sessionId);
-  if (cached) return cached;
-  const restored = persistence ? await persistence.get<AgentSession>('session', sessionId) : null;
-  if (restored) sessions.set(sessionId, restored);
-  return restored;
+  if (persistence) {
+    const restored = await persistence.get<AgentSession>('session', sessionId);
+    if (restored) sessions.set(sessionId, restored);
+    else sessions.delete(sessionId);
+    return restored;
+  }
+  return sessions.get(sessionId) || null;
 }
 
 export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
