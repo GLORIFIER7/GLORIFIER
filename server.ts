@@ -66,7 +66,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
-import { createA2AJsonRpcHandler, buildA2AAgentCard } from './src/lib/a2a-v1';
+import { createA2AExpressRouter } from './src/lib/a2a-v1-express';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -2499,72 +2499,14 @@ app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
   res.json({ ok: true, manifest: getA2AProtocolManifest() });
 });
 
-app.get('/.well-known/agent-card.json', async (_req: Request, res: Response) => {
-  const publicBaseUrl = String(process.env.GLORIFIER_PUBLIC_URL || '').trim();
-  if (!process.env.DATABASE_URL) {
-    return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_NOT_CONFIGURED' });
-  }
-  try {
-    await initializeA2ARuntime();
-  } catch {
-    return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_UNAVAILABLE' });
-  }
-  if (!publicBaseUrl) {
-    return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_NOT_CONFIGURED' });
-  }
-  try {
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.json(buildA2AAgentCard(publicBaseUrl, process.env.GLORIFIER_AGENT_VERSION || '0.2.1'));
-  } catch {
-    return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_INVALID' });
-  }
-});
-
-app.post('/api/a2a/v1', async (req: Request, res: Response) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (!process.env.DATABASE_URL) {
-    return res.status(503).type('application/json').json({
-      jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A persistent task storage is not configured.' },
-    });
-  }
-  try {
-    await initializeA2ARuntime();
-  } catch {
-    return res.status(503).type('application/json').json({
-      jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A persistent task storage is unavailable.' },
-    });
-  }
-  if (!req.is('application/json')) {
-    return res.status(415).type('application/json').json({
-      jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Content-Type must be application/json.' },
-    });
-  }
-
-  let bodyBytes = 0;
-  try {
-    bodyBytes = Buffer.byteLength(JSON.stringify(req.body ?? null), 'utf8');
-  } catch {
-    return res.status(400).type('application/json').json({
-      jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid JSON-RPC request body.' },
-    });
-  }
-  if (bodyBytes > 65_536) {
-    return res.status(413).type('application/json').json({
-      jsonrpc: '2.0', id: null, error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' },
-    });
-  }
-
-  const requesterAgentId = String((req as any).auth?.uid || '').trim();
-  const handle = createA2AJsonRpcHandler({
-    requesterAgentId,
-    createTask: createA2ATaskForProtocol,
-    getTask: getA2ATaskForProtocol,
-  });
-  const response = await handle(req.body);
-  return res.status(200).type('application/json').json(response);
-});
+app.use(createA2AExpressRouter({
+  getPublicBaseUrl: () => String(process.env.GLORIFIER_PUBLIC_URL || ''),
+  getAgentVersion: () => process.env.GLORIFIER_AGENT_VERSION || '0.2.1',
+  isPersistenceConfigured: () => Boolean(process.env.DATABASE_URL),
+  initializePersistence: initializeA2ARuntime,
+  createTask: createA2ATaskForProtocol,
+  getTask: getA2ATaskForProtocol,
+}));
 
 app.get('/.well-known/a2a-agent-card.json', (_req: Request, res: Response) => {
   res.json({
