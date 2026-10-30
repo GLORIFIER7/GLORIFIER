@@ -7,6 +7,7 @@ type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
+const requestedUrls: string[] = [];
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
   headers: { 'Content-Type': 'application/json' },
@@ -37,6 +38,7 @@ async function run(): Promise<void> {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
+    requestedUrls.push(capturedRequest.url);
     return upstreamResponse;
   }) as typeof fetch;
 
@@ -317,8 +319,171 @@ async function run(): Promise<void> {
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
     );
     assert.equal(nativeRuntimeWithoutSupabase.status, 503);
-    assert.equal(await nativeRuntimeWithoutSupabase.json().then((body: { checks?: { database?: { code?: string } } }) => body.checks?.database?.code), 'SUPABASE_NOT_CONFIGURED');
+    const nativeRuntimeWithoutSupabaseBody = await nativeRuntimeWithoutSupabase.json() as {
+      checks?: { database?: { code?: string }; neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.equal(nativeRuntimeWithoutSupabaseBody.checks?.database?.code, 'SUPABASE_NOT_CONFIGURED');
+    assert.deepEqual(nativeRuntimeWithoutSupabaseBody.checks?.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
     assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
+
+    // Reject any Supabase destination that is not a canonical HTTPS project origin.
+    const invalidSupabaseOrigins = [
+      'http://project.supabase.co',
+      'https://project.supabase.co:8443',
+      'https://nested.project.supabase.co',
+      'https://metadata.google.internal',
+      'https://127.0.0.1',
+      'https://project.supabase.co.attacker.test',
+      'https://user:password@project.supabase.co',
+      'https://project.supabase.co/rest/v1',
+      'https://project.supabase.co?target=https://127.0.0.1',
+    ];
+    for (const invalidSupabaseOrigin of invalidSupabaseOrigins) {
+      capturedRequest = null;
+      requestedUrls.length = 0;
+      const rejectedSupabaseOrigin = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+        {
+          ...env,
+          GLORIFIER_SUPABASE_URL: invalidSupabaseOrigin,
+          GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        },
+      );
+      assert.equal(rejectedSupabaseOrigin.status, 503, invalidSupabaseOrigin);
+      const rejectedSupabaseBody = await rejectedSupabaseOrigin.json() as {
+        checks?: { database?: { code?: string } };
+      };
+      assert.equal(rejectedSupabaseBody.checks?.database?.code, 'SUPABASE_NOT_CONFIGURED', invalidSupabaseOrigin);
+      assert.equal(capturedRequest, null, `invalid Supabase origin must not be contacted: ${invalidSupabaseOrigin}`);
+      assert.deepEqual(requestedUrls, [], `invalid Supabase origin must not generate any outbound request: ${invalidSupabaseOrigin}`);
+    }
+
+    // A failed Supabase probe must not erase the independent Neural configuration status.
+    const previousUnhealthyRuntimeResponse = upstreamResponse;
+    upstreamResponse = new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+    capturedRequest = null;
+    const runtimeWithFailedSupabaseProbe = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      {
+        ...env,
+        GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+        GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        GLORIFIER_NEURAL_ORIGIN: undefined,
+        GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined,
+      },
+    );
+    assert.equal(runtimeWithFailedSupabaseProbe.status, 502);
+    const runtimeWithFailedSupabaseProbeBody = await runtimeWithFailedSupabaseProbe.json() as {
+      checks: { database?: { code?: string }; neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.equal(runtimeWithFailedSupabaseProbeBody.checks.database?.code, 'SUPABASE_PROBE_FAILED');
+    assert.deepEqual(runtimeWithFailedSupabaseProbeBody.checks.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
+    assert.equal(
+      getCapturedRequest().url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+    );
+    upstreamResponse = previousUnhealthyRuntimeResponse;
+
+    // A successful database probe must still disclose an unconfigured Neural execution plane.
+    const previousRuntimeResponse = upstreamResponse;
+    upstreamResponse = new Response(null, {
+      status: 200,
+      headers: { 'content-range': '0-0/0' },
+    });
+    capturedRequest = null;
+    const runtimeWithSupabaseButNoNeural = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      {
+        ...env,
+        GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+        GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        GLORIFIER_NEURAL_ORIGIN: undefined,
+        GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined,
+      },
+    );
+    assert.equal(runtimeWithSupabaseButNoNeural.status, 200);
+    const runtimeWithSupabaseButNoNeuralBody = await runtimeWithSupabaseButNoNeural.json() as {
+      checks: { neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.deepEqual(runtimeWithSupabaseButNoNeuralBody.checks.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
+    assert.equal(
+      getCapturedRequest().url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+      'runtime verification must perform only its existing Supabase read-only probe when Neural is not configured',
+    );
+    // Runtime configuration reporting must distinguish invalid, blocked, and merely configured states.
+    const neuralConfigurationCases = [
+      {
+        name: 'invalid origin',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test' },
+        expected: { ok: false, status: 'invalid-origin', code: 'NEURAL_ORIGIN_INVALID' },
+      },
+      {
+        name: 'missing allowlist',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined },
+        expected: { ok: false, status: 'allowlist-not-configured', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' },
+      },
+      {
+        name: 'host not allowlisted',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'other.example.test' },
+        expected: { ok: false, status: 'not-allowlisted', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' },
+      },
+      {
+        name: 'origin and allowlist configured',
+        env: { GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test' },
+        expected: { ok: null, status: 'configured-not-probed' },
+      },
+    ] as const;
+
+    upstreamResponse = new Response(null, {
+      status: 200,
+      headers: { 'content-range': '0-0/0' },
+    });
+    for (const neuralCase of neuralConfigurationCases) {
+      capturedRequest = null;
+      requestedUrls.length = 0;
+      const runtimeResponse = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+        {
+          ...env,
+          ...neuralCase.env,
+          GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+          GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        },
+      );
+      assert.equal(runtimeResponse.status, 200, neuralCase.name);
+      const runtimeBody = await runtimeResponse.json() as {
+        checks: { neural?: { ok: boolean | null; status: string; code?: string } };
+      };
+      assert.deepEqual(runtimeBody.checks.neural, neuralCase.expected, neuralCase.name);
+      assert.deepEqual(
+        requestedUrls,
+        ['https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0'],
+        `runtime verification must issue only the Supabase probe and no Neural request: ${neuralCase.name}`,
+      );
+    }
+    upstreamResponse = previousRuntimeResponse;
+    assert.equal(
+      getCapturedRequest().url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+      'the last configuration-only probe must be the Supabase request',
+    );
+    capturedRequest = null;
 
     const nativeReportsWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
@@ -469,10 +634,30 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().method, 'POST');
     assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { action: 'observe' });
 
+    upstreamResponse = new Response(JSON.stringify({ id: '123' }), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+        Location: '/api/items/123',
+      },
+    });
+    const createdResource = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'resource' }),
+      }),
+      env,
+    );
+    assert.equal(createdResource.status, 201, 'a successful creation response must not be converted to a redirect-policy error');
+    assert.equal(createdResource.headers.get('location'), '/api/items/123', 'a non-redirect Location resource reference must retain its HTTP semantics');
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, '/api/items');
+
     upstreamResponse = new Response(null, {
       status: 302,
       headers: {
-        Location: 'https://api.example.test/auth/provider/callback?state=test',
+        Location: 'https://api.example.test/auth/broker/callback?state=test',
       },
     });
     const assetCallsBeforeAuth = assetCalls;
@@ -483,7 +668,7 @@ async function run(): Promise<void> {
     assert.equal(authRedirect.status, 302);
     assert.equal(
       authRedirect.headers.get('location'),
-      'https://glorifier.glorifier.workers.dev/auth/provider/callback?state=test',
+      'https://glorifier.glorifier.workers.dev/auth/broker/callback?state=test',
       'backend auth redirects must be rewritten to the current public origin',
     );
     assert.equal(
@@ -492,6 +677,110 @@ async function run(): Promise<void> {
     );
     assert.equal(getCapturedRequest().redirect, 'manual', 'backend redirects must not cause the Worker to follow a second outbound request');
     assert.equal(assetCalls, assetCallsBeforeAuth, 'auth routes must not fall through to the SPA assets');
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: {
+        Location: 'https://api.example.test/auth/broker/callback?state=approved&next=https%3A%2F%2Fevil.example#untrusted-fragment',
+      },
+    });
+    const sanitizedAuthRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(sanitizedAuthRedirect.status, 302);
+    assert.equal(
+      sanitizedAuthRedirect.headers.get('location'),
+      'https://glorifier.glorifier.workers.dev/auth/broker/callback?state=approved',
+      'same-origin redirects must use a Worker-approved route and only approved OAuth callback parameters',
+    );
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: { Location: 'https://api.example.test/internal/admin?next=https://evil.example' },
+    });
+    const blockedInternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(blockedInternalRedirect.status, 502);
+    assert.equal(
+      await blockedInternalRedirect.json().then((body: { code?: string }) => body.code),
+      'BACKEND_REDIRECT_NOT_ALLOWED',
+    );
+    assert.equal(blockedInternalRedirect.headers.get('location'), null);
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: { Location: 'https://login.example.test/oauth/authorize?client_id=glorifier' },
+    });
+    const blockedExternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(blockedExternalRedirect.status, 502);
+    assert.equal(
+      await blockedExternalRedirect.json().then((body: { code?: string }) => body.code),
+      'BACKEND_REDIRECT_NOT_ALLOWED',
+    );
+
+    const allowedExternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      { ...env, GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS: 'login.example.test' },
+    );
+    assert.equal(allowedExternalRedirect.status, 302);
+    assert.equal(
+      allowedExternalRedirect.headers.get('location'),
+      'https://login.example.test/oauth/authorize?client_id=glorifier',
+      'external OAuth redirects must require an explicit exact-host allowlist',
+    );
+
+    for (const rejectedLocation of [
+      'http://login.example.test/oauth/authorize',
+      'https://login.example.test:8443/oauth/authorize',
+      'https://user:password@login.example.test/oauth/authorize',
+      'https://evil.example/oauth/authorize',
+      'https://api.example.test/auth/broker/callback?state=one&state=two',
+    ]) {
+      upstreamResponse = new Response(null, { status: 302, headers: { Location: rejectedLocation } });
+      const rejectedRedirect = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+        { ...env, GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS: 'login.example.test' },
+      );
+      assert.equal(rejectedRedirect.status, 502, rejectedLocation);
+      assert.equal(
+        await rejectedRedirect.json().then((body: { code?: string }) => body.code),
+        'BACKEND_REDIRECT_NOT_ALLOWED',
+        rejectedLocation,
+      );
+      assert.equal(rejectedRedirect.headers.get('location'), null, rejectedLocation);
+    }
+
+    // An attacker-controlled leading double slash is not a backend route and must
+    // never be interpreted as an absolute URL by the upstream request constructor.
+    capturedRequest = null;
+    const assetCallsBeforeDoubleSlashPath = assetCalls;
+    const doubleSlashPath = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev//attacker.example/steal?host=evil'),
+      env,
+    );
+    assert.equal(doubleSlashPath.status, 200);
+    assert.equal(capturedRequest, null, 'leading double-slash paths must not reach the backend');
+    assert.equal(assetCalls, assetCallsBeforeDoubleSlashPath + 1);
+
+    upstreamResponse = new Response('{"ok":true}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    capturedRequest = null;
+    const upstreamQueryCannotChangeHost = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/test-routing?target=https%3A%2F%2Fevil.example%2Fpath'),
+      env,
+    );
+    assert.equal(upstreamQueryCannotChangeHost.status, 200);
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, '/api/test-routing');
+    assert.equal(new URL(getCapturedRequest().url).searchParams.get('target'), 'https://evil.example/path');
 
     upstreamResponse = new Response('{"ok":true}', {
       status: 200,
