@@ -56,12 +56,12 @@ assert.match(
 
 assert.match(
   server,
-  /app\.get\('\/api\/a2a\/tasks'[\s\S]*?filterAgentTasksByRequester\(listA2ATasks\(\), requesterUid, mayReadAllTasks\)/,
+  /app\.get\('\/api\/a2a\/tasks'[\s\S]*?listA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid\)/,
   'legacy A2A task listing must be scoped to the authenticated requester',
 );
 assert.match(
   server,
-  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?filterAgentTasksByRequester\(listFederatedA2ATasks\(\), requesterUid, mayReadAllTasks\)/,
+  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?listFederatedA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid\)/,
   'federated A2A task listing must be scoped to the authenticated requester',
 );
 assert.match(
