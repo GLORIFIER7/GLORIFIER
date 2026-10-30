@@ -88,7 +88,8 @@ const recentRunning = {
 };
 await store.save('task', recentRunning);
 assert.equal(await store.recoverInterruptedTasks(), 1);
-assert.match(statements[statements.length - 1] || '', /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
+const recoverySql = statements[statements.length - 1] || '';
+assert.match(recoverySql, /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
 assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
@@ -100,7 +101,7 @@ assert.equal(
   'serialized and indexed task timestamps must remain consistent after recovery',
 );
 assert.ok(
-  statements[statements.length - 1]?.includes("'{updatedAt}'"),
+  recoverySql.includes("'{updatedAt}'"),
   'recovery SQL must update the timestamp stored inside the JSON payload',
 );
 
