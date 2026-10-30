@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { getPostgresPool } from '../db/postgres';
+import { PostgresAgentStateStore } from '../agent-state-store';
 
 /**
  * GLORIFIER Agent Harness
@@ -67,6 +69,37 @@ export interface AgentHarnessPolicy {
 }
 
 const sessions = new Map<string, AgentSession>();
+let persistence: PostgresAgentStateStore | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentHarnessPersistence(): Promise<boolean> {
+  if (!process.env.DATABASE_URL) {
+    persistence = null;
+    persistenceMode = 'memory-fallback';
+    return false;
+  }
+
+  const store = new PostgresAgentStateStore(async (sql, values) => {
+    const result = await getPostgresPool().query(sql, values as any[]);
+    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
+  });
+  await store.initialize();
+  const restored = await store.list<AgentSession>('session', 500);
+  sessions.clear();
+  for (const session of restored) sessions.set(session.id, session);
+  persistence = store;
+  persistenceMode = 'postgres';
+  return true;
+}
+
+export function getAgentHarnessPersistenceStatus() {
+  return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
+}
+
+async function saveSession(session: AgentSession): Promise<void> {
+  if (persistence) await persistence.save('session', session);
+  sessions.set(session.id, session);
+}
 
 export function getAgentHarnessPolicy(): AgentHarnessPolicy {
   return {
@@ -84,10 +117,10 @@ export function getAgentHarnessPolicy(): AgentHarnessPolicy {
   };
 }
 
-export function createAgentSession(
+export async function createAgentSession(
   agentId: string,
   options: { maxContextTokens?: number; sessionId?: string } = {},
-): AgentSession {
+): Promise<AgentSession> {
   const now = new Date().toISOString();
   const maxContextTokens = Number.isFinite(options.maxContextTokens)
     ? Math.max(1_000, Math.floor(options.maxContextTokens as number))
@@ -104,19 +137,23 @@ export function createAgentSession(
     status: 'active',
     compactionRecommended: false,
   };
-  sessions.set(session.id, session);
+  await saveSession(session);
   return session;
 }
 
-export function getAgentSession(sessionId: string): AgentSession | null {
-  return sessions.get(sessionId) || null;
+export async function getAgentSession(sessionId: string): Promise<AgentSession | null> {
+  const cached = sessions.get(sessionId);
+  if (cached) return cached;
+  const restored = persistence ? await persistence.get<AgentSession>('session', sessionId) : null;
+  if (restored) sessions.set(sessionId, restored);
+  return restored;
 }
 
-export function recordAgentTurn(sessionId: string, contextTokens: number): AgentSession {
-  const session = sessions.get(sessionId);
+export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
+  const session = await getAgentSession(sessionId);
   if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
 
-  const nextContextTokens = Math.max(0, Math.floor(contextTokens));
+  const nextContextTokens = Number.isFinite(contextTokens) ? Math.max(0, Math.floor(contextTokens)) : 0;
   const updated: AgentSession = {
     ...session,
     updatedAt: new Date().toISOString(),
@@ -125,7 +162,7 @@ export function recordAgentTurn(sessionId: string, contextTokens: number): Agent
     compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
   };
 
-  sessions.set(sessionId, updated);
+  await saveSession(updated);
   return updated;
 }
 
@@ -202,21 +239,33 @@ export async function executeAgentTurn<T>(options: {
         updatedAt: new Date().toISOString(),
         status: 'waiting-approval' as const,
       };
-      sessions.set(session.id, session);
+      await saveSession(session);
       throw new Error(`${decision.requiresHumanApproval ? 'Tool approval required' : 'Tool authorization denied'}: ${tool.name} — ${decision.reason}`);
     }
   }
 
   // The harness never receives secrets as part of this interface. Provider
   // credentials remain in the provider/connection layer.
-  const result = await options.run();
+  let result: T;
+  try {
+    result = await options.run();
+  } catch (error) {
+    const current = await getAgentSession(options.session.id) || options.session;
+    await saveSession({
+      ...current,
+      updatedAt: new Date().toISOString(),
+      status: 'failed',
+    });
+    throw error;
+  }
+
   if (options.humanApproval) {
-    const approvedSession = sessions.get(options.session.id) || options.session;
-    sessions.set(options.session.id, {
+    const approvedSession = await getAgentSession(options.session.id) || options.session;
+    await saveSession({
       ...approvedSession,
       lastHumanApproval: options.humanApproval,
     });
   }
-  const session = recordAgentTurn(options.session.id, options.contextTokens);
+  const session = await recordAgentTurn(options.session.id, options.contextTokens);
   return { result, session };
 }
