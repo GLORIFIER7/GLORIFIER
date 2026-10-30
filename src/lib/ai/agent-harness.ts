@@ -68,29 +68,36 @@ export interface AgentHarnessPolicy {
   noSyntheticSuccess: true;
 }
 
-const sessions = new Map<string, AgentSession>();
-let persistence: PostgresAgentStateStore | null = null;
-let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = process.env.DATABASE_URL ? 'uninitialized' : 'memory-fallback';
+type AgentHarnessPersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'save'>;
 
-export async function initializeAgentHarnessPersistence(): Promise<boolean> {
-  if (!process.env.DATABASE_URL) {
+const sessions = new Map<string, AgentSession>();
+let persistence: AgentHarnessPersistence | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentHarnessPersistence(storeOverride?: AgentHarnessPersistence): Promise<boolean> {
+  if (!process.env.DATABASE_URL && !storeOverride) {
     persistence = null;
     persistenceMode = 'memory-fallback';
     return false;
   }
 
-  const store = createPostgresAgentStateStore();
+  const store = storeOverride ?? createPostgresAgentStateStore();
+  persistenceMode = 'uninitialized';
   await store.initialize();
-  const restored = await store.list<AgentSession>('session', 500);
+  // Durable reads are served directly from PostgreSQL; do not hydrate a second
+  // unbounded in-process copy of every persisted session.
   sessions.clear();
-  for (const session of restored) sessions.set(session.id, session);
   persistence = store;
   persistenceMode = 'postgres';
   return true;
 }
 
 export function getAgentHarnessPersistenceStatus() {
-  return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
+  return {
+    mode: persistenceMode,
+    durable: persistenceMode === 'postgres',
+    cachedSessions: persistence ? 0 : sessions.size,
+  };
 }
 
 function assertAgentHarnessReady(): void {
@@ -104,7 +111,10 @@ function assertAgentHarnessReady(): void {
 
 async function saveSession(session: AgentSession): Promise<void> {
   assertAgentHarnessReady();
-  if (persistence) await persistence.save('session', session);
+  if (persistence) {
+    await persistence.save('session', session);
+    return;
+  }
   sessions.set(session.id, session);
 }
 
@@ -150,12 +160,7 @@ export async function createAgentSession(
 
 export async function getAgentSession(sessionId: string): Promise<AgentSession | null> {
   assertAgentHarnessReady();
-  if (persistence) {
-    const restored = await persistence.get<AgentSession>('session', sessionId);
-    if (restored) sessions.set(sessionId, restored);
-    else sessions.delete(sessionId);
-    return restored;
-  }
+  if (persistence) return persistence.get<AgentSession>('session', sessionId);
   return sessions.get(sessionId) || null;
 }
 
