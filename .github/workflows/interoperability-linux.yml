@@ -32,6 +32,32 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/worker.ts"
+      - "src/worker.test.ts"
+      - "src/lib/a2a-runtime.ts"
+      - "src/lib/a2a-runtime.test.ts"
+      - "src/lib/a2a-v1.ts"
+      - "src/lib/a2a-v1.test.ts"
+      - "server.ts"
+      - "sdk/python/**"
+      - "docs/architecture/interoperability-capabilities*"
+      - "docs/architecture/mcp-reference-conformance.md"
+      - "scripts/validate-interoperability-registry.mjs"
+      - "scripts/validate-interoperability-registry.test.mjs"
+      - "scripts/interoperability-protocol-boundaries.test.mjs"
+      - "docs/architecture/openapi/**"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/neural-engine-integration.md"
+      - "scripts/validate-interoperability-capabilities.mjs"
+      - "scripts/interoperability-evidence-policy.mjs"
+      - "scripts/interoperability-evidence-policy.test.mjs"
+      - ".github/workflows/interoperability-linux.yml"
+      - "Dockerfile"
+      - "Dockerfile.ubuntu"
+      - "package.json"
+      - "package-lock.json"
+      - ".node-version"
+      - ".env.example"
 
 permissions:
   contents: read
