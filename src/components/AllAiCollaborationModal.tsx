@@ -316,9 +316,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   {councilResult.participants.map((p) => {
-                    const isGpt = p.modelId === 'gpt-4o';
-                    const isGemini = p.modelId === 'gemini-3.8-flash';
-                    const isLlama = p.modelId === 'llama-3.3';
+                    const isGpt = p.provider === 'openai';
+                    const isGemini = p.provider === 'gemini';
+                    const isLlama = p.provider === 'meta';
 
                     const borderClass = isGpt 
                       ? 'border-emerald-500/40 bg-emerald-950/10' 
