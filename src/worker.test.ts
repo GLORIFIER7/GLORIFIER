@@ -7,6 +7,7 @@ type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
+const requestedUrls: string[] = [];
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
   headers: { 'Content-Type': 'application/json' },
@@ -37,6 +38,7 @@ async function run(): Promise<void> {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
+    requestedUrls.push(capturedRequest.url);
     return upstreamResponse;
   }) as typeof fetch;
 
@@ -381,6 +383,7 @@ async function run(): Promise<void> {
     });
     for (const neuralCase of neuralConfigurationCases) {
       capturedRequest = null;
+      requestedUrls.length = 0;
       const runtimeResponse = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
         {
@@ -395,10 +398,10 @@ async function run(): Promise<void> {
         checks: { neural?: { ok: boolean | null; status: string; code?: string } };
       };
       assert.deepEqual(runtimeBody.checks.neural, neuralCase.expected, neuralCase.name);
-      assert.equal(
-        getCapturedRequest().url,
-        'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
-        `runtime verification must not make a Neural network request for configuration case: ${neuralCase.name}`,
+      assert.deepEqual(
+        requestedUrls,
+        ['https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0'],
+        `runtime verification must issue only the Supabase probe and no Neural request: ${neuralCase.name}`,
       );
     }
     upstreamResponse = previousRuntimeResponse;
