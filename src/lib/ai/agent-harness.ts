@@ -191,6 +191,10 @@ export function shouldCompactContext(session: AgentSession): boolean {
   return session.compactionRecommended || session.contextTokens >= Math.floor(session.maxContextTokens * 0.8);
 }
 
+function requiresHumanApprovalForTool(request: AgentToolRequest): boolean {
+  return request.requiresApproval === true || request.risk === 'high' || request.risk === 'irreversible';
+}
+
 export function authorizeToolRequest(
   request: AgentToolRequest,
   approvedCapabilities: Set<string>,
@@ -204,10 +208,7 @@ export function authorizeToolRequest(
     };
   }
 
-  const requiresHumanApproval =
-    request.requiresApproval === true ||
-    request.risk === 'high' ||
-    request.risk === 'irreversible';
+  const requiresHumanApproval = requiresHumanApprovalForTool(request);
 
   const approvalMatches =
     humanApproval?.toolId === request.id &&
@@ -271,13 +272,17 @@ export async function executeAgentTurn<T>(options: {
 
   // Persist the approval before invoking the tool/model. If execution fails or
   // the process exits mid-run, the durable session still records who authorized it.
-  if (options.humanApproval) {
+  const verifiedApproval = options.humanApproval && toolRequests.some((tool) =>
+    requiresHumanApprovalForTool(tool) &&
+    authorizeToolRequest(tool, approvedCapabilities, options.humanApproval).allowed
+  ) ? options.humanApproval : undefined;
+  if (verifiedApproval) {
     const approvedSession = await getAgentSession(options.session.id) || options.session;
     await saveSession({
       ...approvedSession,
       updatedAt: new Date().toISOString(),
       status: 'active',
-      lastHumanApproval: options.humanApproval,
+      lastHumanApproval: verifiedApproval,
     });
   }
 
