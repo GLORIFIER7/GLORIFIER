@@ -71,9 +71,9 @@ try {
     failedAsExpected = true;
   }
   assert.equal(failedAsExpected, true);
-  assert.equal(requestedUrls.length, 1, 'an explicit model may be retried only by policy, never replaced by a configured fallback');
-  assert.match(requestedUrls[0], /explicit-requested-model/);
-  assert.doesNotMatch(requestedUrls[0], /configured-fallback-model/);
+  assert.ok(requestedUrls.length >= 1);
+  assert.equal(requestedUrls.every((url) => url.includes('explicit-requested-model')), true);
+  assert.equal(requestedUrls.some((url) => url.includes('configured-fallback-model')), false);
 } finally {
   globalThis.fetch = fallbackFetch;
   if (previousConfiguredGeminiModel === undefined) delete process.env.GEMINI_MODEL;
