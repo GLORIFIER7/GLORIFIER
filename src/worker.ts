@@ -230,7 +230,7 @@ const openSeaCollectionResponse = async (request: Request, slug: string, env: Cl
     }
     if (upstream.status === 429) {
       const retryAfter = upstream.headers.get('retry-after');
-      const retryHeaders = retryAfter && /^\\d+$/.test(retryAfter) ? { ...headers, 'Retry-After': retryAfter } : headers;
+      const retryHeaders = retryAfter && Number.isInteger(Number(retryAfter)) && Number(retryAfter) >= 0 ? { ...headers, 'Retry-After': retryAfter } : headers;
       return Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders });
     }
     if (!upstream.ok) {
@@ -651,10 +651,13 @@ export default {
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
     }
 
-    const openSeaCollectionMatch = incomingUrl.pathname.match(/^\\/api\\/opensea\\/collections\\/([^/]+)$/);
-    if (openSeaCollectionMatch) return openSeaCollectionResponse(request, openSeaCollectionMatch[1], env);
-    if (incomingUrl.pathname.startsWith('/api/opensea/collections/')) {
-      return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    const openSeaCollectionPrefix = '/api/opensea/collections/';
+    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
+      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
+      if (!slug || slug.includes('/')) {
+        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+      }
+      return openSeaCollectionResponse(request, slug, env);
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
