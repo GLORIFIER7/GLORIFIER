@@ -142,7 +142,8 @@ try {
   assert.equal(networkErrorMeta?.reason?.includes('meta-user'), false, 'network diagnostics must redact endpoint usernames');
   assert.equal(networkErrorMeta?.reason?.includes('meta-password'), false, 'network diagnostics must redact endpoint passwords');
   assert.equal(networkErrorMeta?.reason?.includes('meta-url-secret'), false, 'network diagnostics must redact endpoint query secrets');
-  assert.equal(networkErrorMeta?.reason?.includes('[REDACTED]'), true, 'network diagnostics should remain useful after redaction');
+  assert.match(networkErrorMeta?.reason || '', /request failed for https:\/\/meta\.example\.test\/v1\/models/, 'network diagnostics should retain the sanitized request target');
+  assert.equal(networkErrorMeta?.reason?.includes('[REDACTED]'), false, 'sanitized request URLs should not need credential-redaction markers');
   metaProbeThrows = false;
 
   assert.ok(nvidia, 'NVIDIA discovery entry must exist');
