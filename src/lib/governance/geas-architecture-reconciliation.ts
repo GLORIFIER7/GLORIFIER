@@ -81,6 +81,36 @@ function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<strin
     });
 }
 
+/**
+ * Parse the supported RFC 3339 timestamp subset used by GEAS state evidence.
+ * An explicit UTC offset is required; loose Date.parse formats are not evidence timestamps.
+ * Leap-second notation is intentionally rejected because JavaScript Date cannot represent it.
+ */
+function parseRfc3339Timestamp(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d+))?(Z|[+-]\\d{2}:\\d{2})$/i.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = match[8];
+  if (offset.toUpperCase() !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 function isFreshStateEvidence(
   evidence: StateEvidence | undefined,
   snapshot: Record<string, unknown> | null | undefined,
@@ -97,9 +127,9 @@ function isFreshStateEvidence(
     return false;
   }
   if (computedHash !== evidence.snapshotHash.toLowerCase()) return false;
-  const observedAt = Date.parse(evidence.observedAt);
-  const validUntil = Date.parse(evidence.validUntil);
-  return Number.isFinite(observedAt) && Number.isFinite(validUntil)
+  const observedAt = parseRfc3339Timestamp(evidence.observedAt);
+  const validUntil = parseRfc3339Timestamp(evidence.validUntil);
+  return observedAt !== null && validUntil !== null
     && observedAt <= nowMs && validUntil > nowMs && validUntil >= observedAt;
 }
 
