@@ -2462,7 +2462,8 @@ app.post('/api/federated-a2a/v3/tasks', async (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
   const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
-  const requesterAgentId = resolveAgentTaskRequester(requesterUid, body.requesterAgentId, mayOverrideRequester);
+  const requestedRequester = body.requesterAgentId ?? (isInternalServiceRequest(req) ? 'glorifier-internal-service' : undefined);
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
   if (!requesterAgentId) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
@@ -2566,7 +2567,8 @@ app.post('/api/a2a/tasks', requireOwnerOrInternalService, async (req: Request, r
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
   const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
-  const requesterAgentId = resolveAgentTaskRequester(requesterUid, body.requesterAgentId, mayOverrideRequester);
+  const requestedRequester = body.requesterAgentId ?? (isInternalServiceRequest(req) ? 'glorifier-internal-service' : undefined);
+  const requesterAgentId = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
   if (!requesterAgentId) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
