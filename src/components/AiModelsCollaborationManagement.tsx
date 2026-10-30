@@ -197,6 +197,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
 
   // Run the exact configured model selected for each enabled provider node.
   const handleConveneCouncil = async () => {
+    const agendaToRun = customAgenda.trim() || selectedTopic;
     setCouncilResult(null);
     setStatusFeedback(null);
     const selectedProviderNodes = nodes.filter(
