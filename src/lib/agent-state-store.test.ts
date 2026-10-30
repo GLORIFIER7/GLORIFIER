@@ -98,6 +98,7 @@ assert.ok(
 );
 assert.ok(statements.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS glorifier_agent_state')));
 assert.ok(statements.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_glorifier_agent_state_kind_updated')));
+assert.ok(statements.some((sql) => sql.includes('CREATE INDEX IF NOT EXISTS idx_glorifier_agent_state_kind_requester_updated')));
 
 const task = {
   id: 'task-1',
@@ -112,6 +113,7 @@ await store.save('task', task);
 assert.deepEqual(await store.get<typeof task>('task', task.id), task);
 assert.deepEqual(await store.list<typeof task>('task', 10), [], 'task listing without an explicit requester or all-task grant must fail closed');
 assert.deepEqual(await store.list<typeof task>('task', 10, ''), [], 'a blank requester must not disable task scoping');
+assert.deepEqual(await store.list<typeof task>('task', 10, undefined, true), [task], 'all-task listing requires an explicit authorization grant');
 
 // Requester filtering must occur in SQL before LIMIT, not after a global page
 // has already been selected. A much newer task from Bob must not hide Alice's.
@@ -185,7 +187,7 @@ const session = {
 };
 await store.save('session', session);
 assert.deepEqual(await store.get<typeof session>('session', session.id), session);
-assert.deepEqual(await store.list<typeof session>('session', 10), [session]);
+assert.deepEqual(await store.list<typeof session>('session', 10, undefined, true), [session]);
 const incrementedSession = await store.incrementSessionTurn<typeof session>(session.id, 100);
 assert.equal(incrementedSession?.turnCount, 1, 'the store returns the incremented session record');
 assert.equal((await store.get<typeof session>('session', session.id))?.turnCount, 1);
