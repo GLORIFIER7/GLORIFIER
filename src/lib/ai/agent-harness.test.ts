@@ -117,11 +117,13 @@ assert.equal((await getAgentSession(failedSession.id))?.status, 'failed');
 // A durable store is the source of truth; persisted sessions must not also
 // accumulate in the process-local fallback cache.
 const durableSessions = new Map<string, unknown>();
+let failDurableSave = false;
 const testStore = {
   initialize: async () => undefined,
   list: async <T>() => [] as T[],
   get: async <T>(_kind: 'task' | 'session', id: string) => (durableSessions.get(id) as T | undefined) ?? null,
   save: async (_kind: 'task' | 'session', record: { id: string }) => {
+    if (failDurableSave) throw new Error('simulated session persistence failure');
     durableSessions.set(record.id, structuredClone(record));
   },
 } as unknown as PostgresAgentStateStore;
@@ -133,6 +135,37 @@ assert.equal(getAgentHarnessPersistenceStatus().mode, 'postgres');
 assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
 assert.deepEqual(await getAgentSession(durableSession.id), durableSession);
 assert.equal(getAgentHarnessPersistenceStatus().cachedSessions, 0);
+
+const persistenceFailureSession = await createAgentSession('harness-test-post-action-persistence-failure');
+let externalActionCompleted = false;
+let persistenceFailure: unknown;
+failDurableSave = true;
+try {
+  await executeAgentTurn({
+    session: persistenceFailureSession,
+    contextTokens: 50,
+    run: async () => {
+      externalActionCompleted = true;
+      return { externalAction: 'completed', id: 'action-123' };
+    },
+  });
+} catch (error) {
+  persistenceFailure = error;
+} finally {
+  failDurableSave = false;
+}
+assert.equal(externalActionCompleted, true);
+assert.equal((persistenceFailure as { persisted?: boolean } | undefined)?.persisted, false);
+assert.deepEqual(
+  (persistenceFailure as { result?: unknown } | undefined)?.result,
+  { externalAction: 'completed', id: 'action-123' },
+  'the completed result must be available when its session write fails so callers do not blindly repeat the action',
+);
+assert.equal(
+  (persistenceFailure as { sessionId?: string } | undefined)?.sessionId,
+  persistenceFailureSession.id,
+);
+assert.match((persistenceFailure as Error)?.message || '', /completed.*persist/i);
 
 if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
 else process.env.DATABASE_URL = originalDatabaseUrl;
