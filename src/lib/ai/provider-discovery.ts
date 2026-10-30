@@ -28,7 +28,7 @@ const inferenceVerifiedConfiguration = new Map<string, string>();
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 function providerConfigurationFingerprint(d: ProviderDefinition): string {
- const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\\0');
+ const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\u0000');
  return createHash('sha256').update(material).digest('hex');
 }
 function classify(status:number, body:string):ProviderAvailability { if(status===401||status===403)return 'auth_failure'; if(status===402||status===400&&/spend|billing|credit|quota/i.test(body))return 'quota_exhausted'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'unreachable'; return status>=400?'error':'available'; }
