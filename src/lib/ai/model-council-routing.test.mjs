@@ -5,6 +5,8 @@ import { createModelCouncilRateLimit } from './model-council-rate-limit.mjs';
 import assert from 'node:assert/strict';
 import {
   executeModelCouncilProviders,
+  isValidModelCouncilResponse,
+  resolveModelCouncilParticipants,
   resolveModelCouncilProviderIds,
   validateModelCouncilProviderIds,
 } from './model-council-routing.mjs';
@@ -181,4 +183,109 @@ test('trusted internal-service calls without a user principal are rate-limited b
     assert.equal((await call()).status, 200);
     assert.equal((await call()).status, 429);
   });
+});
+
+const providerCatalog = [
+  { id: 'openai', models: ['gpt-4o', 'gpt-4.1'] },
+  { id: 'anthropic', models: ['claude-opus-5'] },
+  { id: 'gemini', models: ['gemini-3.1-flash-lite'] },
+  { id: 'meta', models: ['llama-3.3'] },
+];
+
+test('model council resolves exact provider/model pairs and permits distinct models from one provider', () => {
+  const selected = resolveModelCouncilParticipants({
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'openai', modelId: 'gpt-4.1' },
+      { providerId: 'anthropic', modelId: 'claude-opus-5' },
+    ],
+    availableProviders: providerCatalog,
+  });
+  assert.deepEqual(selected, [
+    { providerId: 'openai', modelId: 'gpt-4o' },
+    { providerId: 'openai', modelId: 'gpt-4.1' },
+    { providerId: 'anthropic', modelId: 'claude-opus-5' },
+  ]);
+  assert.throws(() => resolveModelCouncilParticipants({
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'openai', modelId: 'gpt-4o' },
+    ],
+    availableProviders: providerCatalog,
+  }), /duplicate/i);
+  assert.throws(() => resolveModelCouncilParticipants({
+    participants: [{ providerId: 'openai', modelId: 'not-advertised' }],
+    availableProviders: providerCatalog,
+  }), /unknown model/i);
+});
+
+test('model council forwards the exact model and complete agenda messages to each provider', async () => {
+  const messages = [
+    { role: 'system', content: 'Policy context must be preserved.' },
+    { role: 'user', content: 'Review the repository.' },
+  ];
+  const calls = [];
+  const result = await executeModelCouncilProviders({
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'openai', modelId: 'gpt-4.1' },
+    ],
+    messages,
+    timeoutMs: 100,
+    generate: async (providerId, modelId, forwardedMessages, signal) => {
+      calls.push({ providerId, modelId, messages: forwardedMessages, signal });
+      return { provider: providerId, model: modelId, text: `Response from ${modelId}` };
+    },
+  });
+  assert.deepEqual(calls.map((call) => [call.providerId, call.modelId]), [
+    ['openai', 'gpt-4o'],
+    ['openai', 'gpt-4.1'],
+  ]);
+  assert.deepEqual(calls.map((call) => call.messages), [messages, messages]);
+  assert.equal(calls.every((call) => call.signal instanceof AbortSignal), true);
+  assert.equal(result.participantCount, 2);
+  assert.equal(result.providerDiversity, 1);
+  assert.deepEqual(result.participants.map((participant) => participant.model), ['gpt-4o', 'gpt-4.1']);
+});
+
+test('a provider timeout aborts the request and reports a sanitized timeout failure', async () => {
+  let capturedSignal;
+  const result = await executeModelCouncilProviders({
+    participants: [{ providerId: 'gemini', modelId: 'gemini-3.1-flash-lite' }],
+    messages: [{ role: 'user', content: 'timeout test' }],
+    timeoutMs: 5,
+    generate: async (_providerId, _modelId, _messages, signal) => {
+      capturedSignal = signal;
+      return new Promise(() => {});
+    },
+  });
+  assert.equal(capturedSignal.aborted, true);
+  assert.deepEqual(result.failures, [{
+    providerId: 'gemini',
+    modelId: 'gemini-3.1-flash-lite',
+    code: 'provider_timeout',
+  }]);
+});
+
+test('model council response attribution validates both provider and selected model', () => {
+  assert.equal(isValidModelCouncilResponse(
+    { provider: 'openai', model: 'gpt-4o', text: 'valid response' },
+    'openai',
+    'gpt-4o',
+  ), true);
+  assert.equal(isValidModelCouncilResponse(
+    { provider: 'gemini', model: 'gpt-4o', text: 'wrong provider' },
+    'openai',
+    'gpt-4o',
+  ), false);
+  assert.equal(isValidModelCouncilResponse(
+    { provider: 'openai', model: 'gpt-4.1', text: 'wrong model' },
+    'openai',
+    'gpt-4o',
+  ), false);
+  assert.equal(isValidModelCouncilResponse(
+    { provider: 'openai', model: 'gpt-4o', text: '  ' },
+    'openai',
+    'gpt-4o',
+  ), false);
 });
