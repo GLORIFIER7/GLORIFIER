@@ -4,6 +4,8 @@ if(FEDERATED_A2A_V3_VERSION!=='G-A2A-TASK-3.0') throw new Error('version');
 if(JSON.stringify(p.lifecycle)!==JSON.stringify(FEDERATED_A2A_V3_LIFECYCLE)) throw new Error('lifecycle');
 if(!p.humanAuthorityRemainsHighest||p.automaticFinancialTransfers||p.automaticIrreversibleProductionChanges||p.automaticCredentialRotation) throw new Error('governance');
 const t=createFederatedA2ATask({requesterAgentId:'ai-ceo',capability:'research',objective:'test'});
+if (listFederatedA2ATasks(100).length !== 0) throw new Error('missing requester must fail closed unless all-task access is explicit');
+if (listFederatedA2ATasks(100, '').length !== 0) throw new Error('blank requester must fail closed');
 if(t.state!=='DISCOVERED'||t.attempt!==0||t.evidenceRefs.length!==0) throw new Error('task');
 
 const aliceTask = createFederatedA2ATask({ requesterAgentId: 'alice-uid', capability: 'research', objective: 'older private task' });
