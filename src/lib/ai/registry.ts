@@ -28,6 +28,14 @@ const providers: AIProvider[] = [
   ...compatibleProviders.map((config) => new OpenAICompatibleProvider(config)),
 ];
 
+/**
+ * Explicit model selections are strict: never silently substitute a provider's
+ * default model when the requested model is not advertised by that provider.
+ */
+export function isProviderModelEligible(provider: AIProvider, requestedModel?: string): boolean {
+  return !requestedModel || provider.models().includes(requestedModel);
+}
+
 const providerCooldownUntil = new Map<string, number>();
 const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
@@ -252,10 +260,9 @@ const attemptProviderOnce = async (
   state.providerStatuses[provider.id] = 'connected';
   state.attempts += 1;
   try {
-    const providerRequest = {
-      ...request,
-      model: request.model && provider.models().includes(request.model) ? request.model : undefined,
-    };
+    // Preserve an explicit model exactly. Eligibility filtering below prevents
+    // routing this request to a provider that would silently substitute a default.
+    const providerRequest = { ...request };
     const response = await provider.generate(providerRequest);
     if (!response.text?.trim()) {
       state.errors.push(`${provider.id}: empty response${emptyResponseSuffix}`);
@@ -308,6 +315,7 @@ const tryRefreshedProviders = async (
 ): Promise<{ response: import('./types').AIResponse; provider: string } | undefined> => {
   const refreshed = getConnectedProviders().filter((provider) =>
     isProviderEligibleAfterRefresh(provider, discovery, request.capability, state.attemptedProviders)
+      && isProviderModelEligible(provider, request.model)
   );
   for (const provider of refreshed) {
     if (state.attempts >= policy.maxAttempts) break;
@@ -428,7 +436,8 @@ export const executeThroughProviderRegistry = async (
   const preferredProvider = resolvePreferredProvider(request);
   const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const ordered = [...connected]
-    .filter((provider) => isProviderEligible(provider, discovery, request.capability))
+    .filter((provider) => isProviderEligible(provider, discovery, request.capability)
+      && isProviderModelEligible(provider, request.model))
     .sort((a, b) => compareProviderOrder(a, b, discovery, preferredProvider));
   const state = createProviderExecutionState();
   const initial = await tryOrderedProviders(ordered, request, policy, discovery, state);
