@@ -11,7 +11,7 @@ const environmentKeys = [
   'NVIDIA_MODEL',
   'NVIDIA_AUTHORIZED',
 ] as const;
-const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]]));
+const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
 const requests: Array<{ url: string; method: string }> = [];
 
