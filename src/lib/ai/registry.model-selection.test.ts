@@ -71,5 +71,8 @@ assert.equal(isIndependentComputeFallbackAllowed('auto'), true);
 assert.equal(isIndependentComputeFallbackAllowed('unknown-model'), false, 'an explicit unavailable model must not silently run on independent compute');
 assert.equal(isIndependentComputeFallbackAllowed(' gpt-4o '), false);
 assert.equal(isIndependentComputeFallbackAllowed('auto', 'openai'), false, 'required-provider requests must never escape to independent compute');
+assert.equal(isIndependentComputeFallbackAllowed('all-models'), true, 'legacy all-models policy sentinel must behave like automatic routing');
+assert.equal(isIndependentComputeFallbackAllowed('consensus'), true, 'legacy consensus policy sentinel must behave like automatic routing');
+assert.equal(isIndependentComputeFallbackAllowed('consensus', 'openai'), false, 'legacy automatic sentinels must not bypass required-provider constraints');
 
 console.log('provider model-selection behavior tests: PASS');
