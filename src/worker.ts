@@ -615,7 +615,7 @@ export default {
     }
 
     // OpenSea routes are Worker-native and read-only; never proxy these paths to a legacy backend.
-    if (incomingUrl.pathname === '/api/opensea/health' || incomingUrl.pathname.startsWith('/api/opensea/')) {
+    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
       return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
