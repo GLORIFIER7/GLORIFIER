@@ -10,7 +10,7 @@ if (!connectionString) {
   throw new Error('SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is required; this integration test must not be skipped.');
 }
 
-test(  test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async () => {
+test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async () => {
     const client = new pg.Client({ connectionString });
     await client.connect();
 
