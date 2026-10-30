@@ -7,6 +7,7 @@ on:
       - "Dockerfile"
       - "Dockerfile.ubuntu"
       - "Dockerfile.orchestrator.ubuntu"
+      - "scripts/permanent-orchestrator.mjs"
       - ".dockerignore"
       - "package.json"
       - "package-lock.json"
@@ -52,6 +53,17 @@ jobs:
 
       - name: Build permanent orchestrator runtime image
         run: docker build --pull --file Dockerfile.orchestrator.ubuntu --tag glorifier/orchestrator:pr-${{ github.event.pull_request.number }} .
+
+      - name: Block permanent orchestrator image with high or critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: glorifier/orchestrator:pr-${{ github.event.pull_request.number }}
+          format: table
+          exit-code: "1"
+          vuln-type: os,library
+          version: v0.76.0
+          severity: HIGH,CRITICAL
+          skip-setup-trivy: true
 
       - name: Smoke test Ubuntu runtime health endpoint
         shell: bash
