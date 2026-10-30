@@ -49,7 +49,10 @@ export function isProviderModelEligible(
 ): boolean {
   const model = normalizeRequestedModel(requestedModel);
   if (!model) return true;
-  return provider.models().includes(model) || discoveredModels.includes(model);
+  const canonicalModelId = (value: string) => value.replace(/^models\//, '');
+  const canonicalRequestedModel = canonicalModelId(model);
+  return provider.models().some((advertised) => canonicalModelId(advertised) === canonicalRequestedModel)
+    || discoveredModels.some((advertised) => canonicalModelId(advertised) === canonicalRequestedModel);
 }
 
 const providerCooldownUntil = new Map<string, number>();
