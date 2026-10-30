@@ -912,6 +912,58 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks', 'unknown routes must not trigger another upstream request');
     // The last valid upstream request remains the task request; unknown routes must not replace it.
 
+
+    // OpenSea public collection lookup uses the application API key only.
+    const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
+    upstreamResponse = new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    capturedRequest = null;
+    const openSeaCollection = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaCollection.status, 200);
+    assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/glorifier7');
+    assert.equal(getCapturedRequest().headers.get('x-api-key'), 'test-opensea-key');
+    assert.equal(getCapturedRequest().headers.get('accept'), 'application/json');
+    assert.equal(openSeaCollection.headers.get('cache-control'), 'no-store');
+    assert.equal(JSON.stringify(await openSeaCollection.json()).includes('test-opensea-key'), false);
+
+    capturedRequest = null;
+    const openSeaMissingKey = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      { ...env, OPENSEA_API_KEY: undefined } as TestEnv & { OPENSEA_API_KEY?: string },
+    );
+    assert.equal(openSeaMissingKey.status, 503);
+    assert.equal(await openSeaMissingKey.json().then((body: { code?: string }) => body.code), 'OPENSEA_API_KEY_NOT_CONFIGURED');
+    assert.equal(capturedRequest, null, 'OpenSea requests must fail closed when the API key is absent');
+
+    const openSeaInvalidSlug = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/../admin'),
+      openSeaEnv,
+    );
+    assert.ok([400, 404].includes(openSeaInvalidSlug.status), 'invalid collection paths must not be forwarded');
+
+    const openSeaWrongMethod = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'POST' }),
+      openSeaEnv,
+    );
+    assert.equal(openSeaWrongMethod.status, 405);
+    assert.equal(openSeaWrongMethod.headers.get('allow'), 'GET, HEAD');
+
+    upstreamResponse = new Response(JSON.stringify({ detail: 'unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const openSeaUnauthorized = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaUnauthorized.status, 502);
+    assert.equal(await openSeaUnauthorized.json().then((body: { code?: string }) => body.code), 'OPENSEA_AUTHENTICATION_FAILED');
+
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
     globalThis.fetch = originalFetch;
