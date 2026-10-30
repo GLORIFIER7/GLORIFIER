@@ -68,31 +68,32 @@ Choose an action to request a backend response. Any returned claim must be check
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const loadProviderCatalog = async (signal?: AbortSignal) => {
+    setProviderCatalogStatus('loading');
+    try {
+      const response = await fetch('/api/providers/discovery', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal,
+      });
+      if (!response.ok) throw new Error(`Provider discovery returned HTTP ${response.status}`);
+      const payload = await response.json() as { ok?: boolean; providers?: unknown };
+      if (payload.ok !== true || !Array.isArray(payload.providers)) {
+        throw new Error('Provider discovery response did not match its contract.');
+      }
+      setDiscoveredModelOptions(
+        buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]),
+      );
+      setProviderCatalogStatus('ready');
+    } catch {
+      if (!signal?.aborted) setProviderCatalogStatus('unavailable');
+    }
+  };
+
   useEffect(() => {
     const controller = new AbortController();
-    const loadProviderCatalog = async () => {
-      try {
-        const response = await fetch('/api/providers/discovery', {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`Provider discovery returned HTTP ${response.status}`);
-        const payload = await response.json() as { ok?: boolean; providers?: unknown };
-        if (payload.ok !== true || !Array.isArray(payload.providers)) {
-          throw new Error('Provider discovery response did not match its contract.');
-        }
-        setDiscoveredModelOptions(
-          buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]),
-        );
-        setProviderCatalogStatus('ready');
-      } catch {
-        if (!controller.signal.aborted) setProviderCatalogStatus('unavailable');
-      }
-    };
-
-    void loadProviderCatalog();
+    void loadProviderCatalog(controller.signal);
     return () => controller.abort();
   }, []);
 
@@ -275,15 +276,26 @@ Choose an action to request a backend response. Any returned claim must be check
                 <span>Collaborate</span>
               </button>
             </div>
-            <p className="mt-1 text-[9px] text-slate-500" role="status" aria-live="polite">
+            <div className="flex items-center justify-between gap-2">
+              <p className="mt-1 text-[9px] text-slate-500" role="status" aria-live="polite">
               {providerCatalogStatus === 'loading'
                 ? 'Loading configured provider model discovery…'
                 : providerCatalogStatus === 'unavailable'
                   ? 'Provider discovery unavailable. The saved model preference is retained; live availability is unknown.'
                   : discoveredModelOptions.length
                     ? `${discoveredModelOptions.length} discovered model IDs. Discovery does not verify successful inference.`
-                    : 'No configured, authorized model IDs were discovered. Auto routing will use eligible provider defaults.'}
-            </p>
+                    : 'No configured, authorized model IDs were discovered. Auto routing may use eligible provider defaults.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadProviderCatalog()}
+                disabled={providerCatalogStatus === 'loading'}
+                className="text-[9px] text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                title="Refresh the read-only provider discovery catalogue"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
