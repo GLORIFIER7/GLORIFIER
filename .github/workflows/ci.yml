@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       - name: Generated artifact ignore regression tests
         run: node --test scripts/gitignore-generated-artifacts.test.mjs
@@ -152,7 +152,7 @@ jobs:
         run: npm run test:backend-auth
 
       - name: LangSmith metadata-only tracing tests
-        run: npx tsx src/lib/observability/langsmith.test.ts
+        run: ./node_modules/.bin/tsx src/lib/observability/langsmith.test.ts
 
       - name: Agent harness approval tests
         run: npm run test:harness
@@ -188,7 +188,7 @@ jobs:
         run: npm run test:permanent-stack
 
       - name: Interoperability controls
-        run: npx tsx src/lib/governance/interoperability-controls.test.ts
+        run: ./node_modules/.bin/tsx src/lib/governance/interoperability-controls.test.ts
 
       - name: Validate interoperability capability registry and OpenAPI contract
         run: node scripts/validate-interoperability-capabilities.mjs

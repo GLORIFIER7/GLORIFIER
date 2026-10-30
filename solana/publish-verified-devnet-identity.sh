@@ -10,8 +10,8 @@ readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 readonly EXPECTED_METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
 readonly EXCLUDED_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
 
-test "${GITHUB_ACTIONS:-}" = "true"
-test -n "${GH_TOKEN:-}"
+[[ "${GITHUB_ACTIONS:-}" == "true" ]]
+[[ -n "${GH_TOKEN:-}" ]]
 
 jq -e '
   .status == "VERIFIED_ON_CHAIN"
@@ -91,7 +91,7 @@ while IFS= read -r RUN_ID; do
     gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-publish-evidence.zip
 
     ACTUAL="sha256:$(sha256sum /tmp/glorifier-publish-evidence.zip | awk '{print $1}')"
-    test "${ACTUAL}" = "${ARTIFACT_DIGEST}"
+    [[ "${ACTUAL}" == "${ARTIFACT_DIGEST}" ]]
 
     unzip -oq /tmp/glorifier-publish-evidence.zip -d /tmp/glorifier-publish-evidence
     EVIDENCE_FILE="$(find /tmp/glorifier-publish-evidence -type f -name deployment-evidence.json -print -quit || true)"
@@ -144,7 +144,7 @@ done < <(
 
 fi
 
-test "${FOUND}" -eq 1 || {
+[[ "${FOUND}" -eq 1 ]] || {
   echo "::error::No trusted successful deployment artifact matches the independently reconciled mint."
   exit 1
 }
@@ -152,7 +152,7 @@ test "${FOUND}" -eq 1 || {
 # Validate every lifecycle receipt from the independent finalized-RPC history,
 # not from the older deployment artifact alone.
 TRANSACTION_SEMANTICS_VERIFIED="$(jq -r '.transactionSemanticsVerified // false' solana/reconciliation-evidence.json)"
-test "$TRANSACTION_SEMANTICS_VERIFIED" = "true" || {
+[[ "$TRANSACTION_SEMANTICS_VERIFIED" == "true" ]] || {
   echo "::error::Transaction-level semantics are not verified; refusing to publish canonical identity."
   exit 1
 }
@@ -240,7 +240,7 @@ STAGED_FILES=(
   solana/reconciliation-metadata.json
   solana/reconciliation-tx-*.json
 )
-test "${#STAGED_FILES[@]}" -gt 0
+[[ "${#STAGED_FILES[@]}" -gt 0 ]]
 git add "${STAGED_FILES[@]}"
 git diff --cached --check
 git commit -m "chore(solana): publish verified GLR devnet identity"
