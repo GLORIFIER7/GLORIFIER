@@ -125,7 +125,7 @@ test('AI council route requires owner authorization and has a principal-scoped s
   const serverSource = await readFile(new URL('../../../server.ts', import.meta.url), 'utf8');
   assert.match(
     serverSource,
-    /app\.post\('\/api\/ai\/council',\s*aiCouncilRateLimit,\s*requireOwnerOrInternalService,/,
+    /app\.post\('\/api\/ai\/council',\s*requireOwnerOrInternalService,\s*aiCouncilRateLimit,/,
   );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
   assert.match(serverSource, /model:\s*modelId,[\s\S]*?signal/);
@@ -298,6 +298,7 @@ test('both council UIs submit exact configured model pairs and expose provider f
   const modalSource = await readFile(new URL('../../components/AllAiCollaborationModal.tsx', import.meta.url), 'utf8');
   assert.match(managementSource, /fetch\('\/api\/ai\/registry'\)/);
   assert.match(managementSource, /participants,/);
+  assert.match(managementSource, /const agendaToRun = customAgenda\.trim\(\) \|\| selectedTopic;/);
   assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
   assert.match(managementSource, /Provider-backed Nodes/);
   assert.match(managementSource, /failureSummary/);
