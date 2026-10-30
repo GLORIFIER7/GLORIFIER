@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createPostgresAgentStateStore } from '../agent-state-store';
 import type { PostgresAgentStateStore } from '../agent-state-store';
+import { initializeOptionalPostgresAgentStore } from '../agent-persistence-bootstrap';
 
 /**
  * GLORIFIER Agent Harness
@@ -75,15 +76,17 @@ let persistence: AgentHarnessPersistence | null = null;
 let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
 
 export async function initializeAgentHarnessPersistence(storeOverride?: AgentHarnessPersistence): Promise<boolean> {
-  if (!process.env.DATABASE_URL && !storeOverride) {
+  persistenceMode = 'uninitialized';
+  const store = await initializeOptionalPostgresAgentStore(
+    process.env.DATABASE_URL,
+    storeOverride,
+    createPostgresAgentStateStore,
+  );
+  if (!store) {
     persistence = null;
     persistenceMode = 'memory-fallback';
     return false;
   }
-
-  const store = storeOverride ?? createPostgresAgentStateStore();
-  persistenceMode = 'uninitialized';
-  await store.initialize();
   // Durable reads are served directly from PostgreSQL; do not hydrate a second
   // unbounded in-process copy of every persisted session.
   sessions.clear();
