@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, filterAgentTasksByRequester, resolveAgentTaskRequester } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2645,7 +2645,9 @@ app.get('/api/agents/tasks', async (req: Request, res: Response) => {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
   try {
-    const tasks = filterAgentTasksByRequester(await listAgentTasks(), requesterUid, mayReadAllTasks);
+    // Apply requester scope inside the store before LIMIT so busy tenants cannot
+    // hide another requester's older tasks from that requester's own list.
+    const tasks = await listAgentTasks(50, mayReadAllTasks ? undefined : requesterUid);
     return res.json({ ok: true, tasks: tasks.map((task) => ({ ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) })) });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task listing unavailable', error);
