@@ -36,3 +36,5 @@ jobs:
         run: npm run test:architecture
       - name: Interoperability policy tests
         run: npm run test:interoperability-evidence-policy
+      - name: AI provider council routing tests
+        run: npm run test:ai-council-routing
