@@ -17,3 +17,20 @@ export async function initializeAgentStateFallbackWhenDatabaseMissing(
   await initializeHarness();
   return true;
 }
+
+
+/** Initialize PostgreSQL only when configured or when a test injects a store. */
+export async function initializeOptionalPostgresAgentStore<
+  T extends { initialize(): Promise<unknown> },
+>(
+  databaseUrl: string | undefined,
+  storeOverride: T | undefined,
+  createStore: () => T,
+): Promise<T | null> {
+  if (!(typeof databaseUrl === 'string' && databaseUrl.trim()) && !storeOverride) {
+    return null;
+  }
+  const store = storeOverride ?? createStore();
+  await store.initialize();
+  return store;
+}
