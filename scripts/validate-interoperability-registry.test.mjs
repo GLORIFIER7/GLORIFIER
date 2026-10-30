@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateInteroperabilityRegistry } from './validate-interoperability-registry.mjs';
 
+const fixturesRoot = fileURLToPath(new URL('../docs/architecture/', import.meta.url));
+
 const validRegistry = () => ({
   schemaVersion: '1.0.0',
   updatedAt: '2026-10-29T00:00:00.000Z',
@@ -113,7 +115,7 @@ test('rejects a non-object registry and missing evidence arrays', () => {
 });
 
 test('CLI succeeds when invoked with an absolute entrypoint and valid JSON', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'glorifier-mcp-registry-'));
+  const directory = mkdtempSync(join(fixturesRoot, '.test-fixtures-'));
   try {
     const input = join(directory, 'registry.json');
     writeFileSync(input, JSON.stringify(validRegistry()));
@@ -126,8 +128,22 @@ test('CLI succeeds when invoked with an absolute entrypoint and valid JSON', () 
   }
 });
 
+test('CLI rejects registry paths outside the architecture registry directory', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'glorifier-mcp-registry-outside-'));
+  try {
+    const input = join(directory, 'registry.json');
+    writeFileSync(input, JSON.stringify(validRegistry()));
+    const script = fileURLToPath(new URL('./validate-interoperability-registry.mjs', import.meta.url));
+    const result = spawnSync(process.execPath, [script, input], { encoding: 'utf8' });
+    assert.equal(result.status, 2, 'out-of-tree CLI paths must be rejected before file contents are parsed');
+    assert.ok(result.stderr.includes('must remain inside docs/architecture'));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('CLI rejects malformed JSON with a non-zero exit code', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'glorifier-mcp-registry-'));
+  const directory = mkdtempSync(join(fixturesRoot, '.test-fixtures-'));
   try {
     const input = join(directory, 'registry.json');
     writeFileSync(input, '{broken');
@@ -141,7 +157,7 @@ test('CLI rejects malformed JSON with a non-zero exit code', () => {
 });
 
 test('CLI rejects structurally invalid registry data with a non-zero exit code', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'glorifier-mcp-registry-'));
+  const directory = mkdtempSync(join(fixturesRoot, '.test-fixtures-'));
   try {
     const input = join(directory, 'registry.json');
     const invalid = validRegistry();

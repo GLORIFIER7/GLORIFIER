@@ -7,6 +7,7 @@
  * not authenticate reviewer identity or decide semantic truth.
  */
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from '../deterministic-string-order';
 
 export type ClaimReviewDecision = 'supported' | 'contradicted' | 'insufficient';
 
@@ -145,7 +146,7 @@ export function validateClaimReview(
         id: trustedSource.id,
         url: trustedSource.url,
         claimsAllowed: Array.isArray(trustedSource.claimsAllowed)
-          ? [...trustedSource.claimsAllowed].sort()
+          ? [...trustedSource.claimsAllowed].sort(compareCodeUnits)
           : trustedSource.claimsAllowed,
         reviewCadenceDays: trustedSource.reviewCadenceDays,
       })).digest('hex');

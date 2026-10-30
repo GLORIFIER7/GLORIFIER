@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from '../deterministic-string-order';
 import { readFileSync } from 'node:fs';
 import { validateClaimReview, type ClaimReviewRecord, type ClaimSourceRegistry } from './geas-claim-verification';
 
-const registry = JSON.parse(readFileSync('docs/architecture/geas-authoritative-source-registry.json', 'utf8')) as ClaimSourceRegistry;
+const registry = JSON.parse(
+  readFileSync(new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url), 'utf8'),
+) as ClaimSourceRegistry;
 const trustedSource = registry.sources.find((source) => source.id === 'nist-ai-rmf');
 if (!trustedSource) throw new Error('The curated registry must include nist-ai-rmf for this test.');
 
@@ -118,6 +121,68 @@ const changedCadenceReview = review(valid, changedCadenceRegistry);
 assert.equal(changedCadenceReview.admissible, true, 'a still-fresh observation should remain admissible under the revised cadence');
 assert.notEqual(changedCadenceReview.evidenceRef, supported.evidenceRef,
   'evidence references must bind to the source-specific review cadence');
+
+const zeroWidth = String.fromCharCode(0x200b);
+const combiningAcute = String.fromCharCode(0x0301);
+const localeClaimsRegistry: ClaimSourceRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? {
+        ...source,
+        claimsAllowed: [
+          ...source.claimsAllowed,
+          'z-extra',
+          'ä-extra',
+          'a-extra',
+          'a-extra' + zeroWidth,
+          'é-extra',
+          'e' + combiningAcute + '-extra',
+        ],
+      }
+    : source),
+};
+const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
+const localeClaimsReview = review(valid, localeClaimsRegistry);
+const reorderedLocaleClaimsRegistry: ClaimSourceRegistry = {
+  ...localeClaimsRegistry,
+  sources: localeClaimsRegistry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, claimsAllowed: [...source.claimsAllowed].reverse() }
+    : source),
+};
+const reorderedLocaleClaimsReview = review(valid, reorderedLocaleClaimsRegistry);
+assert.equal(
+  reorderedLocaleClaimsReview.evidenceRef,
+  localeClaimsReview.evidenceRef,
+  'claim-policy digests must not depend on input order when distinct strings collate equally',
+);
+const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
+  id: localeClaimsSource.id,
+  url: localeClaimsSource.url,
+  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort(compareCodeUnits),
+  reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
+})).digest('hex');
+const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({
+  claimId: valid.claimId,
+  claim: valid.claim,
+  claimType: valid.claimType,
+  sourceId: valid.sourceId,
+  sourceRegistryVersion: valid.sourceRegistryVersion,
+  sourcePolicyDigest: expectedLocalePolicyDigest,
+  canonicalSourceUrl: valid.canonicalSourceUrl,
+  observedSourceUrl: valid.observedSourceUrl,
+  observedAt: valid.observedAt,
+  sourceContentHash: valid.sourceContentHash,
+  supportingExcerpt: valid.supportingExcerpt,
+  reviewer: valid.reviewer,
+  decision: valid.decision,
+  rationale: valid.rationale,
+})).digest('hex').slice(0, 24);
+assert.equal(localeClaimsReview.admissible, true);
+assert.equal(
+  localeClaimsReview.evidenceRef,
+  expectedLocaleEvidenceRef,
+  'source-policy digest must use locale-independent code-unit ordering',
+);
 
 const changedClaimsRegistry: ClaimSourceRegistry = {
   ...registry,

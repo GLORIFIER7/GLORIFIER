@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from '../deterministic-string-order';
 
 export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
 export type ReconciliationStatus = 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
@@ -52,7 +53,7 @@ function canonical(value: unknown, ancestors = new WeakSet<object>()): string {
       throw new TypeError('Architecture snapshots must contain only plain JSON objects.');
     }
     const object = value as Record<string, unknown>;
-    return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonical(object[key], ancestors)).join(',') + '}';
+    return '{' + Object.keys(object).sort(compareCodeUnits).map((key) => JSON.stringify(key) + ':' + canonical(object[key], ancestors)).join(',') + '}';
   } finally {
     ancestors.delete(value);
   }
@@ -72,7 +73,7 @@ function canonicalOrNull(value: unknown): string | null {
 }
 
 function sharedMismatchedKeys(left: Record<string, unknown>, right: Record<string, unknown>): string[] {
-  return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
+  return [...new Set([...Object.keys(left), ...Object.keys(right)])].sort(compareCodeUnits)
     .filter((key) => {
       if (!(key in left) || !(key in right)) return true;
       const leftValue = canonicalOrNull(left[key]);

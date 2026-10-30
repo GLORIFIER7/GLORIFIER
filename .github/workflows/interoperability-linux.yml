@@ -83,7 +83,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - name: Install lockfile dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Test evidence freshness policy
         run: npm run test:interoperability-evidence-policy
       - name: Test MCP interoperability registry policy
