@@ -86,7 +86,7 @@ BEGIN
     WHERE d.defaclrole = 'postgres'::regrole
       AND d.defaclnamespace = 'public'::regnamespace
       AND d.defaclobjtype IN ('r', 'S', 'f')
-      AND grantee.rolname IN ('anon', 'authenticated')
+      AND (grantee.rolname IN ('anon', 'authenticated') OR acl.grantee = 0)
   ) THEN
     RAISE EXCEPTION 'Client roles retain postgres public-schema default privileges';
   END IF;
