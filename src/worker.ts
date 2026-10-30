@@ -390,20 +390,24 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
 const isBackendPath = (pathname: string): boolean =>
   pathname === A2A_AGENT_CARD_PATH || /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
-function hasBearerAuthorization(value: string | null): boolean {
+function normalizeBearerAuthorization(value: string | null): string | null {
   const header = value?.trim() || '';
-  if (!header || header.length > 8192) return false;
+  if (!header || header.length > 8192) return null;
 
   const separator = header.indexOf(' ');
-  if (separator <= 0 || header.slice(0, separator).toLowerCase() !== 'bearer') return false;
+  if (separator <= 0 || header.slice(0, separator).toLowerCase() !== 'bearer') return null;
 
   const token = header.slice(separator + 1).trim();
-  if (!token) return false;
+  if (!token) return null;
   for (const character of token) {
     const code = character.charCodeAt(0);
-    if (code <= 0x20 || code === 0x7f) return false;
+    if (code <= 0x20 || code === 0x7f) return null;
   }
-  return true;
+  return `Bearer ${token}`;
+}
+
+function hasBearerAuthorization(value: string | null): boolean {
+  return normalizeBearerAuthorization(value) !== null;
 }
 
 const hasSessionCredential = (request: Request): boolean => {
@@ -481,16 +485,25 @@ export default {
     const incomingUrl = new URL(request.url);
 
     if (incomingUrl.pathname === A2A_JSONRPC_PATH) {
-      const errorResponse = (status: number, code: number, message: string) =>
-        Response.json({ jsonrpc: '2.0', id: null, error: { code, message } }, {
-          status,
-          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-        });
+      const errorResponse = (
+        status: number,
+        code: number,
+        message: string,
+        additionalHeaders: Record<string, string> = {},
+      ) => Response.json({ jsonrpc: '2.0', id: null, error: { code, message } }, {
+        status,
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          ...additionalHeaders,
+        },
+      });
       if (request.method !== 'POST') {
-        return errorResponse(405, -32600, 'A2A JSON-RPC endpoint accepts POST only.');
+        return errorResponse(405, -32600, 'A2A JSON-RPC endpoint accepts POST only.', { Allow: 'POST' });
       }
-      if (!hasBearerAuthorization(request.headers.get('authorization'))) {
-        return errorResponse(401, -32600, 'Authentication is required.');
+      const normalizedAuthorization = normalizeBearerAuthorization(request.headers.get('authorization'));
+      if (!normalizedAuthorization) {
+        return errorResponse(401, -32600, 'Authentication is required.', { 'WWW-Authenticate': 'Bearer' });
       }
       if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
         return errorResponse(415, -32600, 'Content-Type must be application/json.');
@@ -510,7 +523,7 @@ export default {
         return errorResponse(400, -32600, 'Invalid JSON-RPC request body.');
       }
       const headers = new Headers({
-        Authorization: request.headers.get('authorization') || '',
+        Authorization: normalizedAuthorization,
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'X-Correlation-ID': crypto.randomUUID(),
