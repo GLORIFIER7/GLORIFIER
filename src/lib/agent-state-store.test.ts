@@ -119,14 +119,14 @@ const recentRunning = {
 };
 await store.save('task', recentRunning);
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), true);
-assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'completed');
+assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
 assert.ok(Date.parse((await store.get<typeof recentRunning>('task', recentRunning.id))?.updatedAt || '') >= Date.parse(recentRunning.updatedAt));
 await store.save('task', { ...recentRunning, status: 'completed', updatedAt: new Date().toISOString() });
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), false, 'a late heartbeat must not resurrect a completed task');
 assert.equal(await store.recoverInterruptedTasks(), 1);
 const recoverySql = statements[statements.length - 1] || '';
 assert.match(recoverySql, /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
-assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
+assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'completed');
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
 assert.match(recovered?.error || '', /automatic replay is disabled/);
