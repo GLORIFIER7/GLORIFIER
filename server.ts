@@ -2439,7 +2439,7 @@ app.get('/api/federated-a2a/v3/tasks', (req: Request, res: Response) => {
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const tasks = listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid);
+  const tasks = listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
   return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
 });
 
@@ -2544,7 +2544,7 @@ app.get('/api/a2a/tasks', (req: Request, res: Response) => {
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const tasks = listA2ATasks(50, mayReadAllTasks ? undefined : requesterUid);
+  const tasks = listA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
@@ -2649,7 +2649,7 @@ app.get('/api/agents/tasks', async (req: Request, res: Response) => {
   try {
     // Apply requester scope inside the store before LIMIT so busy tenants cannot
     // hide another requester's older tasks from that requester's own list.
-    const tasks = await listAgentTasks(50, mayReadAllTasks ? undefined : requesterUid);
+    const tasks = await listAgentTasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
     return res.json({ ok: true, tasks: tasks.map((task) => ({ ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) })) });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task listing unavailable', error);
