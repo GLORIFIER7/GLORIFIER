@@ -66,7 +66,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
-import { createA2AExpressRouter } from './src/lib/a2a-v1-express';
+import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -183,26 +183,8 @@ const apiRateLimit = rateLimit({
 app.disable('x-powered-by');
 app.use(appWideRateLimit);
 app.use('/api', apiRateLimit);
-// A2A JSON-RPC requests have a smaller protocol-level body limit than general application APIs.
-app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: true, type: 'application/json' }));
-app.use('/api/a2a/v1', (error: unknown, _req: Request, res: Response, next: express.NextFunction) => {
-  const parserError = error as { type?: string } | null;
-  if (parserError?.type === 'entity.too.large') {
-    return res.status(413).type('application/json').json({
-      jsonrpc: '2.0',
-      id: null,
-      error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' },
-    });
-  }
-  if (parserError?.type === 'entity.parse.failed' || parserError?.type === 'entity.verify.failed') {
-    return res.status(400).type('application/json').json({
-      jsonrpc: '2.0',
-      id: null,
-      error: { code: -32700, message: 'Parse error: request body must be valid JSON.' },
-    });
-  }
-  return next(error);
-});
+// Install the same bounded parser and JSON-RPC error mapping used by HTTP contract tests.
+configureA2AJsonRpcBodyParsing(app);
 app.use(express.json({ limit: '10mb' }));
 
 app.use((req: Request, res: Response, next) => {
