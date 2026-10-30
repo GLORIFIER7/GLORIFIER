@@ -88,8 +88,15 @@ try {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  const recentlyRunningTask = {
+    id: 'integration-recently-running-task',
+    status: 'running',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
   await store.save('task', staleTask);
   await store.save('task', recentTask);
+  await store.save('task', recentlyRunningTask);
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
   assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
   assert.deepEqual(
@@ -106,6 +113,11 @@ try {
   assert.match(recovered?.error || '', /automatic replay is disabled/);
   assert.ok(Date.parse(recovered?.updatedAt || '') > Date.parse(staleAt));
   assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'completed');
+  assert.equal(
+    (await store.get<typeof recentlyRunningTask>('task', recentlyRunningTask.id))?.status,
+    'running',
+    'a fresh running task must remain running when startup recovery uses the 30-minute grace period',
+  );
 
   console.log('PostgreSQL agent state integration tests: PASS');
 } finally {
