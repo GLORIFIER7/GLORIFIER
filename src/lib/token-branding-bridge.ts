@@ -189,7 +189,7 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
   }
 
   const identity = chainIdentity ?? networkIdentity;
-  if (identity && chainId !== String(identity.chainId)) {
+  if (chainId && identity && chainId !== String(identity.chainId)) {
     errors.push('chainId must be ' + identity.chainId + ' for ' + identity.name);
   }
 
