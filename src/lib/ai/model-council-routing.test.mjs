@@ -306,11 +306,13 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(managementSource, /Provider-backed Nodes/);
   assert.match(managementSource, /Submit an agenda with \{activeProviderNodeCount\} enabled provider-backed nodes/);
   assert.match(managementSource, /failureSummary/);
+  assert.match(managementSource, /Council execution failed\. No provider fallback or synthetic response was substituted/);
   assert.match(modalSource, /discoverConfiguredModelCouncilParticipants/);
   assert.match(modalSource, /submitAuthenticatedModelCouncilRequest/);
   assert.match(modalSource, /Provider execution failures/);
   assert.match(modalSource, /p\.provider === 'openai'/);
   assert.match(modalSource, /setCouncilResult\(result\)/);
+  assert.match(modalSource, /Council execution failed\. No consensus result was produced/);
 });
 
 test('council UI clients delegate owner-token handling to the shared client', async () => {
