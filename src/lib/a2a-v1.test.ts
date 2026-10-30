@@ -71,7 +71,7 @@ const submit = await handler({
 assert.equal(submit.id, 'request-1');
 assert.equal(submit.error, undefined);
 assert.equal(submit.result.id, 'a2a-task-1');
-assert.equal(submit.result.status.state, 'input-required');
+assert.equal(submit.result.status.state, 'submitted');
 assert.match(submit.result.status.message.parts[0].text, /human approval/i);
 assert.equal(created.length, 1);
 assert.equal(created[0].requesterAgentId, 'verified-user-42');
