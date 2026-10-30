@@ -13,7 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { executeModelCouncilProviders, validateModelCouncilProviderIds } from './src/lib/ai/model-council-routing.mjs';
+import { executeModelCouncilProviders, resolveModelCouncilProviderIds } from './src/lib/ai/model-council-routing.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
@@ -163,6 +163,25 @@ const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
     retryable: true,
   }));
 };
+
+/**
+ * The AI council can fan out to several metered providers and perform an additional
+ * synthesis request. Limit requests per authenticated principal, with an IP fallback
+ * only for explicitly authenticated internal-service calls.
+ */
+const aiCouncilRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 2,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const principalId = (req as AuthenticatedRequest).auth?.uid;
+    return principalId
+      ? `ai-council:user:${principalId}`
+      : `ai-council:ip:${rateLimitKeyGenerator(req)}`;
+  },
+  handler: rateLimitProblem('AI council usage is limited to two requests per minute per authenticated principal.'),
+});
 
 // Recognized rate-limiting middleware runs before body parsing and all route handlers.
 const appWideRateLimit = rateLimit({
@@ -1042,7 +1061,7 @@ app.get('/api/ai/config', (req: Request, res: Response) => {
 // Provider-selected AI council endpoint.
 // Each participant is pinned to one requested provider; failures never trigger implicit substitution.
 // Outputs remain advisory and cannot authorize consequential actions.
-app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) => {
+app.post('/api/ai/council', aiCouncilRateLimit, requireOwnerOrInternalService, async (req: Request, res: Response) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const topic = typeof body.agenda === 'string' && body.agenda.trim()
     ? body.agenda.trim()
@@ -1051,28 +1070,16 @@ app.post('/api/ai/council', geasRateLimit, async (req: Request, res: Response) =
     return res.status(413).json({ ok: false, error: 'Council agenda must be 4,000 characters or fewer.' });
   }
 
-  // Backward compatibility for the existing UI IDs; actual provider/model
-  // attribution is always taken from the provider response, never from the UI label.
-  const legacyModelProviders: Record<string, string> = {
-    'gpt-4o': 'openai',
-    'gemini-3.8-flash': 'gemini',
-    'llama-3.3': 'meta'
-  };
-  const requestedProviderIds = Array.isArray(body.providerIds)
-    ? body.providerIds
-    : Array.isArray(body.activeModels)
-      ? body.activeModels.map((modelId: unknown) =>
-          typeof modelId === 'string' ? legacyModelProviders[modelId] : undefined
-        ).filter((providerId: unknown): providerId is string => typeof providerId === 'string')
-      : [];
-
+  // Resolve legacy UI model IDs without silently dropping unknown selections.
+  // A request containing any unsupported model is rejected as a whole.
   let providerIds: string[];
   const providerRegistry = aiOrchestrator.registry();
   try {
-    providerIds = validateModelCouncilProviderIds(
-      requestedProviderIds,
-      providerRegistry.map((provider) => provider.id)
-    );
+    providerIds = resolveModelCouncilProviderIds({
+      providerIds: body.providerIds,
+      activeModels: body.activeModels,
+      availableProviderIds: providerRegistry.map((provider) => provider.id),
+    });
   } catch (error) {
     return res.status(400).json({
       ok: false,
