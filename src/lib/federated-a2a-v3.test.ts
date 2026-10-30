@@ -6,7 +6,10 @@ if(!p.humanAuthorityRemainsHighest||p.automaticFinancialTransfers||p.automaticIr
 const t=createFederatedA2ATask({requesterAgentId:'ai-ceo',capability:'research',objective:'test'});
 if (listFederatedA2ATasks(100).length !== 0) throw new Error('missing requester must fail closed unless all-task access is explicit');
 if (listFederatedA2ATasks(100, '').length !== 0) throw new Error('blank requester must fail closed');
-if (listFederatedA2ATasks(100, undefined, true).length < 2) throw new Error('explicit all-task access must preserve administrative listing');
+const initialAdminPage = listFederatedA2ATasks(100, undefined, true);
+if (initialAdminPage.length !== 1 || initialAdminPage[0].id !== t.id) {
+  throw new Error('explicit all-task access must include the seeded task');
+}
 if(t.state!=='DISCOVERED'||t.attempt!==0||t.evidenceRefs.length!==0) throw new Error('task');
 
 const aliceTask = createFederatedA2ATask({ requesterAgentId: 'alice-uid', capability: 'research', objective: 'older private task' });
@@ -18,4 +21,6 @@ const alicePage = listFederatedA2ATasks(1, 'alice-uid');
 if (alicePage.length !== 1 || alicePage[0].id !== aliceTask.id) {
   throw new Error('requester filtering must run before Federated A2A list pagination');
 }
+const adminPage = listFederatedA2ATasks(100, undefined, true);
+if (adminPage.length !== 57) throw new Error('explicit all-task access must include all seeded tasks');
 console.log('FEDERATED_A2A_V3_TEST_OK',JSON.stringify({version:FEDERATED_A2A_V3_VERSION,lifecycle:p.lifecycle}));
