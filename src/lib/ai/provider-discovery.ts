@@ -6,7 +6,7 @@ interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['
 
 const definitions: ProviderDefinition[] = [
  {id:'openai',name:'OpenAI',kind:'openai-compatible',endpoint:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',baseUrlEnv:'OPENAI_BASE_URL',modelEnv:'OPENAI_MODEL',defaultModel:'gpt-4o',capabilities:['chat','reasoning','code']},
- {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
+ {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-3.1-flash-lite',capabilities:['chat','reasoning','multimodal','code']},
  {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',workspaceIdEnv:'ANTHROPIC_WORKSPACE_ID',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
  {id:'qwen',name:'Alibaba Qwen',kind:'openai-compatible',endpoint:'',keyEnv:'QWEN_API_KEY',baseUrlEnv:'QWEN_BASE_URL',modelEnv:'QWEN_MODEL',capabilities:['chat','reasoning','code']},
@@ -33,7 +33,7 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const credentialConfigured=Boolean(d.keyEnv ? env(d.keyEnv) : true);
  const endpointConfigured=Boolean(endpoint);
  const configured=credentialConfigured && endpointConfigured;
- if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':'Provider base URL is missing; configure the provider-specific base URL before probing.',authorization:'not-configured'};
+ if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':d.baseUrlEnv?`Provider base URL is missing; configure ${d.baseUrlEnv} before probing.`:'Provider endpoint is missing; configure a provider endpoint before probing.',authorization:'not-configured'};
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
@@ -44,23 +44,8 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   let availability=classify(result.response.status,result.text);
   const models=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
 
-  // NVIDIA authentication is not considered proven by /models alone. NVIDIA's hosted API
-  // requires a real chat-completions inference request against the configured model.
-  if(d.id==='nvidia' && availability==='available') {
-   const model=env(d.modelEnv)||d.defaultModel||models[0];
-   if(!model) {
-    availability='capability_mismatch';
-    return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:'No NVIDIA inference model configured or advertised.',authorization:'pending'};
-   }
-   const inference=await fetchJson(endpoint.replace(/\/$/,'')+'/chat/completions',
-    {accept:'application/json','content-type':'application/json',authorization:'Bearer '+env(d.keyEnv)},
-    {method:'POST',body:JSON.stringify({model,messages:[{role:'user',content:'GLORIFIER NVIDIA connectivity test. Reply OK.'}],max_tokens:8,stream:false,temperature:0})});
-   availability=classify(inference.response.status,inference.text);
-   const authenticated=inference.response.status!==401&&inference.response.status!==403;
-   const inferenceOk=inference.response.status>=200&&inference.response.status<300;
-   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:inferenceOk&&authenticated,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:inferenceOk?null:inference.text.slice(0,300),authorization:inferenceOk&&process.env.NVIDIA_AUTHORIZED==='true'?'configured':'pending'};
-  }
-
+  // Discovery is read-only: a successful /models request does not claim inference success.
+  // Actual model inference is verified only by a separately authorized user request.
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
 }
