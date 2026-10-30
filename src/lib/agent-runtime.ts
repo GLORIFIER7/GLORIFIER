@@ -71,7 +71,7 @@ export async function initializeAgentRuntimePersistence(storeOverride?: AgentRun
     persistenceMode = 'memory-fallback';
     return false;
   }
-  const recovered = await store.recoverInterruptedTasks();
+  const recovered = await store.recoverInterruptedTasks(TASK_STALE_AFTER_MS / 60_000);
   // PostgreSQL is the durable source of truth; avoid retaining a duplicate
   // in-process copy of every task after persistence is enabled.
   tasks.clear();
@@ -262,7 +262,8 @@ export async function withAgentTaskHeartbeat<T>(
     return await operation();
   } finally {
     clearInterval(timer);
-    if (pendingHeartbeat) await pendingHeartbeat;
+    // Do not hold completed work open on a slow database request. The heartbeat
+    // handler is already rejection-safe, and SQL only updates tasks still running.
   }
 }
 
