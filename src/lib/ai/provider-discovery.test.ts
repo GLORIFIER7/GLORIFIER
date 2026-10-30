@@ -59,6 +59,8 @@ try {
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
   assert.equal(nvidia.authenticated, false, 'NVIDIA model-list access must not claim inference authentication');
   assert.equal(nvidia.authorization, 'configured', 'the explicit authorization flag is represented separately');
+  assert.match(nvidia.reason || '', /inference verification requires a separately authorized user request/i);
+
   assert.ok(nvidia.models.includes('nvidia/test-model'), 'NVIDIA discovery should retain advertised model IDs');
 
   const gemini = providers.find((provider) => provider.id === 'gemini');
