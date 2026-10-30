@@ -6,6 +6,7 @@ import {
   getAgentSession,
   getAgentHarnessPersistenceStatus,
   initializeAgentHarnessPersistence,
+  recordAgentTurn,
   type AgentToolRequest,
   type HumanToolApproval,
 } from './agent-harness.ts';
@@ -47,7 +48,7 @@ assert.equal(missingCapability.allowed, false);
 assert.equal(missingCapability.requiresHumanApproval, false);
 
 const session = await createAgentSession('harness-test');
-await assert.rejects(() => import('./agent-harness.ts').then(({ recordAgentTurn }) => recordAgentTurn(session.id, Number.POSITIVE_INFINITY)), /finite/);
+await assert.rejects(() => recordAgentTurn(session.id, Number.POSITIVE_INFINITY), /finite/);
 await assert.rejects(
   () => createAgentSession('harness-test-duplicate', { sessionId: session.id }),
   /already exists/,
