@@ -52,7 +52,7 @@ export interface A2AAgentCard {
       };
     };
   };
-  securityRequirements: Array<Record<string, string[]>>;
+  securityRequirements: Array<{ schemes: Record<string, { list: string[] }> }>;
   defaultInputModes: string[];
   defaultOutputModes: string[];
   skills: A2AAgentSkill[];
@@ -143,7 +143,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
         },
       },
     },
-    securityRequirements: [{ bearer: [] }],
+    securityRequirements: [{ schemes: { bearer: { list: [] } } }],
     defaultInputModes: ['text/plain', 'application/json'],
     defaultOutputModes: ['application/json'],
     skills: [{
