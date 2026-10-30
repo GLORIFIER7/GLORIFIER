@@ -1629,7 +1629,7 @@ app.post('/api/ai/collaborate-gpt-fix', async (req: Request, res: Response) => {
   try {
     const { errorCode, errorMessage, errorSource, codeSnippet } = req.body;
 
-    const gptSystemPrompt = `You are OpenAI GPT-4o acting as Principal Systems & Code Architect.
+    const gptSystemPrompt = `You are an OpenAI provider model acting as Principal Systems & Code Architect.
 You are an OpenAI provider model tasked with collaborating with a Google Gemini provider model to analyze a runtime error, perform root-cause analysis, and provide a surgical, production-ready fix proposal.
 Always provide:
 1. Root Cause Summary
