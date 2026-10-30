@@ -38,10 +38,10 @@ jobs:
           node-version: 24
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Run Claude Code
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@6d5ae526d25ce88daa2200be073e1a373167f064 # v1.0.265
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -64,7 +64,7 @@ jobs:
             END UNTRUSTED TASK TEXT
           claude_args: |
             --max-turns 10
-            --allowedTools Read,Glob,Grep,Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff)
+            --allowedTools Read,Glob,Grep,Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff) --ignore-scripts
       - name: Report missing Claude key
         if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
         run: echo "::warning::ANTHROPIC_API_KEY is unavailable to this workflow; no model call was made."
