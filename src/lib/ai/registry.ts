@@ -61,7 +61,12 @@ const isProviderEligible = (provider: AIProvider, discovery: Map<string, Discove
 
 const isProviderEligibleAfterRefresh = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability: string | undefined, attemptedProviders: string[]): boolean => {
   const entry = discovery.get(provider.id);
-  return Boolean(entry?.availability === 'available' && entry.authenticated
+  // NVIDIA's read-only /models endpoint cannot prove inference authentication.
+  // A separately configured authorization flag may allow the actual user-requested
+  // inference attempt to be the credential check; never label discovery authenticated.
+  const inferenceMayBeAttempted = entry?.authenticated
+    || (provider.id === 'nvidia' && entry?.authorization === 'configured');
+  return Boolean(entry?.availability === 'available' && inferenceMayBeAttempted
     && isProviderEligible(provider, discovery, capability)
     && !isCoolingDown(provider.id)
     && !attemptedProviders.includes(provider.id));
