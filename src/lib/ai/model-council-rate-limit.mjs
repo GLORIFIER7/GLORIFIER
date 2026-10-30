@@ -1,6 +1,14 @@
 import { isIP } from 'node:net';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
+/** Resolve the platform-provided client IP without trusting arbitrary forwarded chains. */
+export function resolveIngressClientAddress(req) {
+  const platformClientIp = req.get('x-real-ip')?.trim();
+  return platformClientIp && isIP(platformClientIp)
+    ? platformClientIp
+    : req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
 /**
  * Creates the spend guard for provider-fanout council requests.
  * Authenticated users receive independent quotas; trusted internal-service calls
@@ -39,12 +47,7 @@ export function createModelCouncilRateLimit({
       if (typeof principalId === 'string' && principalId.trim()) {
         return `ai-council:user:${principalId}`;
       }
-      // Railway overwrites X-Real-IP at its public ingress; validate it before use.
-      const platformClientIp = req.get('x-real-ip')?.trim();
-      const clientAddress = platformClientIp && isIP(platformClientIp)
-        ? platformClientIp
-        : req.ip || req.socket?.remoteAddress || 'unknown';
-      return `ai-council:ip:${ipKeyGenerator(clientAddress)}`;
+      return `ai-council:ip:${ipKeyGenerator(resolveIngressClientAddress(req))}`;
     },
     handler: handler || ((_req, res) => {
       res.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)));
