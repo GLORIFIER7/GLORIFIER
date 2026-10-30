@@ -45,7 +45,7 @@ const agents: AgentCard[] = [
 
 const tasks = new Map<string, AgentTask>();
 let persistence: PostgresAgentStateStore | null = null;
-let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = process.env.DATABASE_URL ? 'uninitialized' : 'memory-fallback';
 
 export async function initializeAgentRuntimePersistence(): Promise<boolean> {
   if (!process.env.DATABASE_URL) {
