@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelCollaborationParticipant } from '../types';
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
+import { getIdToken } from '../lib/firebase';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -228,9 +229,11 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
         throw new Error('None of the enabled provider nodes currently exposes a configured model. Configure provider credentials and model IDs first.');
       }
 
+      const token = await getIdToken();
+      if (!token) throw new Error('Authentication required. Sign in with the GLORIFIER owner account to run the AI council.');
       const res = await fetch('/api/ai/council', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           agenda: agendaToRun,
           participants,
