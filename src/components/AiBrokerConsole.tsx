@@ -124,7 +124,7 @@ Choose an action to request a backend response. Any returned claim must be check
       sender: 'ai_broker',
       content: `**POLICY PROPOSAL APPLIED LOCALLY — NOT VERIFIED**\n\n${summary}\n\n• Configured privacy target ε: ${directives.globalEpsilon ?? 'unchanged'}\n• Configured monthly floor: ${directives.minimumMonthlyFloorUsd ?? 'unchanged'}\n• Local auto-negotiation setting: ${directives.autoNegotiateHighBids ?? 'unchanged'}\n• Multi-model consensus, signatures, privacy enforcement, tracker quarantine, and external execution: NOT VERIFIED.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      modelUsed: 'all-models',
+      modelUsed: 'Council policy proposal (not a model inference result)',
       provider: 'All-AI Sovereign Collaboration Council'
     };
 
@@ -283,7 +283,8 @@ Choose an action to request a backend response. Any returned claim must be check
                   : discoveredModelOptions.length
                     ? `${discoveredModelOptions.length} discovered model IDs. Discovery does not verify successful inference.`
                     : 'No configured, authorized model IDs were discovered. Auto routing will use eligible provider defaults.'}
-            </p>          </div>
+            </p>
+          </div>
         </div>
 
         {/* Message Thread */}
@@ -431,7 +432,6 @@ Choose an action to request a backend response. Any returned claim must be check
                 type="button"
                 id="invite-all-ai-header-btn"
                 onClick={() => {
-                  handleModelChange('all-models');
                   setShowCollaborationModal(true);
                 }}
                 className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 group cursor-pointer"
@@ -461,14 +461,13 @@ Choose an action to request a backend response. Any returned claim must be check
               </div>
               <div className="text-[11px] text-slate-300 leading-tight">
                 <span className="font-semibold text-white">All-AI Collaboration Council: </span>
-                <span className="text-slate-400">OpenAI GPT-4o, Google Gemini, & Meta LLaMA co-deliberating.</span>
+                <span className="text-slate-400">Request a multi-provider review; provider participation and consensus are reported only after a response.</span>
               </div>
             </div>
             <button
               type="button"
               id="banner-convene-models-btn"
               onClick={() => {
-                handleModelChange('all-models');
                 setShowCollaborationModal(true);
               }}
               className="shrink-0 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 underline underline-offset-2 cursor-pointer"
