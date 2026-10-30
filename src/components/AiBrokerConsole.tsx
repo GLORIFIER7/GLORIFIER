@@ -94,7 +94,11 @@ Choose an action to request a backend response. Any returned claim must be check
       }
       setProviderCatalogStatus('ready');
     } catch {
-      if (!signal?.aborted) setProviderCatalogStatus('unavailable');
+      if (!signal?.aborted) {
+        hasUserSelectedModel.current = false;
+        setSelectedModel('auto');
+        setProviderCatalogStatus('unavailable');
+      }
     }
   };
 
