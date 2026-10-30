@@ -187,7 +187,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
           </div>
 
           <div className="text-[11px] text-slate-400 shrink-0 font-mono">
-            Participant availability: pending council response
+            Participant availability: {isConvening ? 'pending council response' : councilResult ? 'council response received' : 'not requested'}
           </div>
         </div>
 
