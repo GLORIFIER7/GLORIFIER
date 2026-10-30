@@ -20,6 +20,7 @@ import { MonetizationPolicy, DataFootprintSource, AiBrokerChatMessage } from '..
 import { AiPolicyOptimizerModal } from './AiPolicyOptimizerModal';
 import { AllAiCollaborationModal } from './AllAiCollaborationModal';
 import { buildProviderModelOptions, type ProviderDiscoveryModelSource } from '../lib/ai/provider-model-catalog';
+import { normalizeSavedModelPreference, resolveExecutableModelPreference } from '../lib/ai/model-selection';
 
 interface AiBrokerConsoleProps {
   policy: MonetizationPolicy;
@@ -34,10 +35,9 @@ export const AiBrokerConsole: React.FC<AiBrokerConsoleProps> = ({
   footprints,
   onApplySuggestedAction
 }) => {
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    const savedModel = policy.aiModel;
-    return savedModel && savedModel !== 'all-models' && savedModel !== 'consensus' ? savedModel : 'auto';
-  });
+  const savedModelPreference = useRef(normalizeSavedModelPreference(policy.aiModel));
+  const hasUserSelectedModel = useRef(false);
+  const [selectedModel, setSelectedModel] = useState<string>('auto');
   const [discoveredModelOptions, setDiscoveredModelOptions] = useState<ReturnType<typeof buildProviderModelOptions>>([]);
   const [providerCatalogStatus, setProviderCatalogStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [showOptimizerModal, setShowOptimizerModal] = useState(false);
@@ -82,9 +82,16 @@ Choose an action to request a backend response. Any returned claim must be check
       if (payload.ok !== true || !Array.isArray(payload.providers)) {
         throw new Error('Provider discovery response did not match its contract.');
       }
-      setDiscoveredModelOptions(
-        buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]),
-      );
+      const options = buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]);
+      const discoveredModels = options.map((option) => option.model);
+      setDiscoveredModelOptions(options);
+      if (!hasUserSelectedModel.current) {
+        const savedSelection = resolveExecutableModelPreference(savedModelPreference.current, discoveredModels);
+        setSelectedModel(savedSelection);
+        if (savedSelection !== savedModelPreference.current) onUpdatePolicy({ aiModel: savedSelection });
+      } else {
+        setSelectedModel((current) => resolveExecutableModelPreference(current, discoveredModels));
+      }
       setProviderCatalogStatus('ready');
     } catch {
       if (!signal?.aborted) setProviderCatalogStatus('unavailable');
@@ -98,8 +105,13 @@ Choose an action to request a backend response. Any returned claim must be check
   }, []);
 
   const handleModelChange = (newModel: string) => {
-    setSelectedModel(newModel);
-    onUpdatePolicy({ aiModel: newModel });
+    const executableModel = resolveExecutableModelPreference(
+      newModel,
+      discoveredModelOptions.map((option) => option.model),
+    );
+    hasUserSelectedModel.current = true;
+    setSelectedModel(executableModel);
+    onUpdatePolicy({ aiModel: executableModel });
   };
 
   const handleApplyOptimization = (optimizedPolicy: Partial<MonetizationPolicy>, rationale: string) => {
@@ -144,6 +156,15 @@ Choose an action to request a backend response. Any returned claim must be check
     const textToSend = customText || inputQuery;
     if (!textToSend.trim() || isLoading) return;
 
+    const executableModel = resolveExecutableModelPreference(
+      selectedModel,
+      discoveredModelOptions.map((option) => option.model),
+    );
+    if (executableModel !== selectedModel) {
+      setSelectedModel(executableModel);
+      onUpdatePolicy({ aiModel: executableModel });
+    }
+
     const lower = textToSend.toLowerCase();
     if (lower.includes('optimizer') || lower.includes('tune my epsilon')) {
       setShowOptimizerModal(true);
@@ -171,9 +192,9 @@ Choose an action to request a backend response. Any returned claim must be check
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: textToSend,
-          currentPolicy: { ...policy, aiModel: selectedModel },
+          currentPolicy: { ...policy, aiModel: executableModel },
           footprintsSummary: activeStreams,
-          model: selectedModel
+          model: executableModel
         })
       });
 
@@ -244,13 +265,11 @@ Choose an action to request a backend response. Any returned claim must be check
                 id="ai-broker-model-select"
                 aria-label="AI model preference"
                 value={selectedModel}
+                disabled={providerCatalogStatus !== 'ready'}
                 onChange={(e) => handleModelChange(e.target.value)}
                 className="max-w-[240px] bg-slate-950 border border-slate-700 rounded-md px-2 py-1.5 text-[10px] font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
               >
                 <option value="auto">Auto — configured provider default</option>
-                {!discoveredModelOptions.some((option) => option.model === selectedModel) && selectedModel !== 'auto' && (
-                  <option value={selectedModel}>Saved preference: {selectedModel} (not in discovery)</option>
-                )}
                 {discoveredModelOptions.map((option) => (
                   <option key={option.model} value={option.model}>
                     {option.model} — {option.providers.join(', ')}
@@ -281,10 +300,12 @@ Choose an action to request a backend response. Any returned claim must be check
               {providerCatalogStatus === 'loading'
                 ? 'Loading configured provider model discovery…'
                 : providerCatalogStatus === 'unavailable'
-                  ? 'Provider discovery unavailable. The saved model preference is retained; live availability is unknown.'
-                  : discoveredModelOptions.length
-                    ? `${discoveredModelOptions.length} discovered model IDs. Discovery does not verify successful inference.`
-                    : 'No configured, authorized model IDs were discovered. Auto routing may use eligible provider defaults.'}
+                  ? 'Provider discovery unavailable. Automatic routing is active; explicit model selection is disabled.'
+                  : savedModelPreference.current !== 'auto' && selectedModel === 'auto'
+                    ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; automatic routing is active.'
+                    : discoveredModelOptions.length
+                      ? discoveredModelOptions.length + ' inference-authenticated model IDs discovered. Discovery does not guarantee successful inference.'
+                      : 'No inference-authenticated model IDs were discovered. Auto routing may use eligible provider defaults.'}
               </p>
               <button
                 type="button"
