@@ -131,7 +131,7 @@ async function run(): Promise<void> {
     assert.equal(a2aMissingAuth.status, 401);
     assert.equal(capturedRequest, null, 'unauthenticated A2A requests must not reach the backend');
 
-    for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\\ttoken']) {
+    for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\ttoken']) {
       const rejectedAuthorization = await worker.fetch(
         new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
           method: 'POST',
