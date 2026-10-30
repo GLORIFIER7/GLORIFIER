@@ -35,22 +35,37 @@ export type AgentTask = {
  * Agent task records are private to their authenticated requester by default.
  * Only a verified owner or authenticated internal service may bypass this scope.
  */
+export type RequesterScopedAgentTask = {
+  requester?: unknown;
+  requesterAgentId?: unknown;
+};
+
+function taskRequesterIdentity(task: RequesterScopedAgentTask): string {
+  const requester = typeof task.requester === 'string' ? task.requester.trim() : '';
+  if (requester) return requester;
+  return typeof task.requesterAgentId === 'string' ? task.requesterAgentId.trim() : '';
+}
+
 export function canAccessAgentTask(
-  task: Pick<AgentTask, 'requester'>,
+  task: RequesterScopedAgentTask,
   requesterUid?: string,
   allowAll = false,
 ): boolean {
   if (allowAll) return true;
   const requester = typeof requesterUid === 'string' ? requesterUid.trim() : '';
-  return Boolean(requester && task.requester === requester);
+  const owner = taskRequesterIdentity(task);
+  return Boolean(requester && owner && owner === requester);
 }
 
-export function filterAgentTasksByRequester<T extends Pick<AgentTask, 'requester'>>(
+export function filterAgentTasksByRequester<T extends RequesterScopedAgentTask>(
   tasks: readonly T[],
   requesterUid?: string,
   allowAll = false,
 ): T[] {
-  return tasks.filter((task) => canAccessAgentTask(task, requesterUid, allowAll));
+  if (allowAll) return [...tasks];
+  const requester = typeof requesterUid === 'string' ? requesterUid.trim() : '';
+  if (!requester) return [];
+  return tasks.filter((task) => taskRequesterIdentity(task) === requester);
 }
 
 /**
