@@ -13,6 +13,13 @@ import type { PostgresAgentStateStore } from './agent-state-store.ts';
 const previousDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
 
+// Modules must not assume memory fallback before dotenv/runtime configuration has settled.
+assert.equal(getAgentRuntimePersistenceStatus().mode, 'uninitialized');
+await assert.rejects(
+  () => createAgentTask({ capability: 'research', objective: 'must fail closed', requester: 'test' }),
+  /still initializing/,
+);
+
 try {
   assert.equal(await initializeAgentRuntimePersistence(), false);
   assert.deepEqual(getAgentRuntimePersistenceStatus(), { mode: 'memory-fallback', durable: false, cachedTasks: 0 });
@@ -40,6 +47,21 @@ try {
   await assert.rejects(
     () => requireAgentTaskUpdate('missing-task', { status: 'running' }),
     /Agent task missing-task no longer exists/,
+  );
+
+  process.env.DATABASE_URL = 'postgresql://unit-test.invalid/fail-closed';
+  const failingStore = {
+    initialize: async () => { throw new Error('database initialization failed'); },
+    recoverInterruptedTasks: async () => 0,
+    list: async <T>() => [] as T[],
+    get: async <T>() => null as T | null,
+    save: async () => undefined,
+  } as unknown as PostgresAgentStateStore;
+  await assert.rejects(() => initializeAgentRuntimePersistence(failingStore), /database initialization failed/);
+  assert.equal(getAgentRuntimePersistenceStatus().mode, 'uninitialized');
+  await assert.rejects(
+    () => createAgentTask({ capability: 'research', objective: 'must remain fail closed', requester: 'test' }),
+    /still initializing/,
   );
 
   const durableRecords = new Map<string, unknown>();
