@@ -506,6 +506,9 @@ export const executeThroughProviderRegistry = async (
     else if (entry && executionRequest.capability && !entry.capabilities.includes(executionRequest.capability)) {
       reason = `does not advertise requested capability "${executionRequest.capability}"`;
     }
+    else if (entry && entry.availability !== 'available') {
+      reason = `provider discovery is ${entry.availability}`;
+    }
     else if (!isProviderEligible(connectedAdapter, discovery, executionRequest.capability)) {
       reason = entry?.authorization === 'not-configured' || !entry
         ? 'not configured or not authorized'
