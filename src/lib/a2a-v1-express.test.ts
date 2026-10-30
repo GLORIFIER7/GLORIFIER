@@ -24,6 +24,16 @@ async function withServer(
 ): Promise<void> {
   const app = express();
   app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: true, type: 'application/json' }));
+  app.use('/api/a2a/v1', (error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const parserError = error as { type?: string } | null;
+    if (parserError?.type === 'entity.too.large') {
+      return res.status(413).type('application/json').json({ jsonrpc: '2.0', id: null, error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' } });
+    }
+    if (parserError?.type === 'entity.parse.failed' || parserError?.type === 'entity.verify.failed') {
+      return res.status(400).type('application/json').json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: request body must be valid JSON.' } });
+    }
+    return next(error);
+  });
   app.use(express.json({ limit: '10mb' }));
   app.use((req, _res, next) => {
     (req as typeof req & { auth?: { uid: string } }).auth = { uid: 'express-test-user' };
@@ -110,6 +120,31 @@ await withServer(baseDependencies(), async (origin) => {
   assert.equal(response.status, 400, 'an absent A2A-Version is interpreted as 0.3 and rejected');
   const body = await response.json() as { supportedVersions?: string[] };
   assert.deepEqual(body.supportedVersions, ['1.0']);
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: '{"jsonrpc":"2.0","id":',
+  });
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32700, 'malformed JSON must use the JSON-RPC parse-error envelope');
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const oversized = JSON.stringify({ jsonrpc: '2.0', id: 'large', method: 'SendMessage', params: { message: { messageId: 'large', role: 'ROLE_USER', parts: [{ text: 'x'.repeat(66_000) }] } } });
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: oversized,
+  });
+  assert.equal(response.status, 413);
+  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32602, 'oversized JSON-RPC bodies must not leak an HTML parser error');
 });
 
 await withServer({
