@@ -1,29 +1,30 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { test } from 'node:test';
 import pg from 'pg';
 
 const connectionString = process.env.SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL;
-const migrationPath = 'supabase/migrations/20261029040200_harden_client_role_denials.sql';
-const fixturePath = 'scripts/supabase-default-privileges.integration.sql';
-const migrationMarker = '-- APPLY_MIGRATION_HERE';
-
 assert.ok(
   connectionString,
   'SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL is required; this integration test must not be skipped.',
 );
 
-test('hardens future postgres-owned public defaults without changing service_role or supabase_admin', async (t) => {
-  const client = new pg.Client({ connectionString });
-  await client.connect();
+const fixture = readFileSync('scripts/supabase-default-privileges.integration.sql', 'utf8')
+  .split('-- APPLY_MIGRATION_HERE');
+assert.equal(fixture.length, 2, 'integration SQL must contain exactly one migration marker');
 
-  t.after(async () => client.query('ROLLBACK').finally(() => client.end()));
+const migration = readFileSync(
+  'supabase/migrations/20261029040200_harden_client_role_denials.sql',
+  'utf8',
+);
+const client = new pg.Client({ connectionString });
+await client.connect();
 
+try {
   await client.query('BEGIN');
-  const fixture = readFileSync(fixturePath, 'utf8').split(migrationMarker);
-  assert.equal(fixture.length, 2, 'integration SQL must include exactly one migration insertion marker');
-
   await client.query(fixture[0]);
-  await client.query(readFileSync(migrationPath, 'utf8'));
+  await client.query(migration);
   await client.query(fixture[1]);
-});
+} finally {
+  await client.query('ROLLBACK').catch(() => {});
+  await client.end();
+}
