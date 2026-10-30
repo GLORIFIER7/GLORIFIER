@@ -2675,11 +2675,13 @@ app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
 });
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
-  const { capability, objective, input, requester: requestedRequester = 'human-owner', connectionId } = req.body || {};
+  const { capability, objective, input, requester: requestedRequester, connectionId } = req.body || {};
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
-  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
-  const requester = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
+  const internalServiceRequest = isInternalServiceRequest(req);
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || internalServiceRequest);
+  const defaultRequester = requestedRequester ?? (internalServiceRequest ? 'glorifier-internal-service' : 'human-owner');
+  const requester = resolveAgentTaskRequester(requesterUid, defaultRequester, mayOverrideRequester);
   if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim()) {
     return res.status(400).json({ ok: false, error: 'capability and objective must be non-empty strings' });
   }
