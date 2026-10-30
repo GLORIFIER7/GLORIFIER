@@ -20,6 +20,7 @@ const requests: Array<{ url: string; method: string }> = [];
 let nvidiaProbeStatus = 200;
 let metaProbeStatus = 400;
 let metaProbeThrows = false;
+let metaProbeMalformed = false;
 
 try {
   process.env.QWEN_API_KEY = 'test-qwen-key';
@@ -45,11 +46,13 @@ try {
     const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
       : hostname === 'meta.example.test'
-        ? metaProbeStatus < 400
-          ? { data: [{ id: 'meta/test-model' }] }
-          : metaProbeStatus === 400
-            ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
-            : { error: { message: 'temporary provider failure' } }
+        ? metaProbeMalformed
+          ? { error: { message: 'upstream proxy returned an unsupported response' } }
+          : metaProbeStatus < 400
+            ? { data: [{ id: 'meta/test-model' }] }
+            : metaProbeStatus === 400
+              ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
+              : { error: { message: 'temporary provider failure' } }
         : nvidiaProbeStatus >= 400
           ? { error: { message: 'NVIDIA credential rejected' } }
           : { data: [{ id: 'nvidia/test-model' }] };
@@ -84,9 +87,25 @@ try {
   assert.equal(meta.authenticated, false, 'HTTP 400 must not be interpreted as successful authentication');
   assert.equal(meta.authorization, 'configured', 'operator authorization remains distinct from provider authentication');
   assert.equal(meta.endpoint, 'https://meta.example.test/v1', 'diagnostic endpoints must omit URL credentials and query parameters');
+  const metaRequest = requests.find((request) => new URL(request.url).hostname === 'meta.example.test');
+  assert.ok(metaRequest, 'Meta model discovery must issue a request');
+  const parsedMetaRequestUrl = new URL(metaRequest.url);
+  assert.equal(parsedMetaRequestUrl.pathname, '/v1/models', 'provider base URL query strings must not corrupt the model-list path');
+  assert.equal(parsedMetaRequestUrl.username, '', 'provider request URLs must not forward endpoint usernames');
+  assert.equal(parsedMetaRequestUrl.password, '', 'provider request URLs must not forward endpoint passwords');
+  assert.equal(parsedMetaRequestUrl.search, '', 'provider request URLs must not forward endpoint query credentials');
   assert.equal(meta.reason?.includes('test-meta-api-key-secret'), false, 'provider error messages must redact echoed API credentials');
   assert.equal(meta.reason?.includes('meta-url-secret'), false, 'provider diagnostics must not expose endpoint query credentials');
   assert.equal(meta.reason?.includes('[REDACTED]'), true, 'redacted provider errors should remain diagnosable');
+
+  metaProbeStatus = 200;
+  metaProbeMalformed = true;
+  const afterMalformedSuccess = await discoverGlobalProviders('provider-discovery-malformed-success-regression', { persistConnections: false });
+  const malformedMeta = afterMalformedSuccess.find((provider) => provider.id === 'meta');
+  assert.equal(malformedMeta?.availability, 'error', 'a 2xx response without a supported model-list array is a protocol error');
+  assert.equal(malformedMeta?.authenticated, false, 'a 2xx proxy/error response must not prove provider authentication');
+  metaProbeMalformed = false;
+  metaProbeStatus = 400;
 
   metaProbeStatus = 429;
   const afterRateLimit = await discoverGlobalProviders('provider-discovery-rate-limit-auth-regression', { persistConnections: false });
