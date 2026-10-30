@@ -83,7 +83,7 @@ Useful scripts declared in `package.json` include:
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start the development server |
-| `npm run build` | Build the frontend |
+| `npm run build` | Build the frontend and compiled server bundle |
 | `npm run lint` | Run the TypeScript no-emit check |
 | `npm run test:architecture` | Run the architecture-core test |
 | `npm run test:geas-all` | Run the configured GEAS reconciliation, enterprise-controls, and scientist tests |
