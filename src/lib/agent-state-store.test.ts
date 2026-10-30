@@ -140,6 +140,12 @@ const requesterListSql = statements[statements.length - 1] || '';
 assert.match(requesterListSql, /payload->>'requester'\s*=\s*\$3/);
 assert.deepEqual(queryValues[queryValues.length - 1], ['task', 1, 'alice-uid']);
 
+assert.deepEqual(
+  (await store.list<typeof task>('task', 10, 'alice-uid', true)).map((entry) => entry.id).sort(),
+  [task.id, aliceOlderTask.id, bobNewerTask.id].sort(),
+  'an explicit all-task grant must take precedence over an optional requester filter',
+);
+
 const running = { ...task, id: 'task-running', status: 'running' };
 await store.save('task', running);
 const recentRunning = {
