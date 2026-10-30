@@ -17,6 +17,7 @@ import {
   Lock
 } from 'lucide-react';
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult } from '../types';
+import { getIdToken } from '../lib/firebase';
 
 interface AllAiCollaborationModalProps {
   isOpen: boolean;
@@ -89,9 +90,11 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         return;
       }
 
+      const token = await getIdToken();
+      if (!token) throw new Error('Authentication required. Sign in with the GLORIFIER owner account to run the AI council.');
       const res = await fetch('/api/ai/council', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           agenda: currentTopic,
           participants,
