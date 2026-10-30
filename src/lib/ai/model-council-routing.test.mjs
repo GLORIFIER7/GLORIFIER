@@ -150,7 +150,7 @@ async function withCouncilRateLimit(handler) {
     if (principalId) req.auth = { uid: principalId };
     next();
   });
-  app.use(createModelCouncilRateLimit({ windowMs: 60_000, limit: 2 }));
+  app.use(createModelCouncilRateLimit({ windowMs: 60_000, limit: 2, production: false }));
   app.post('/council', (_req, res) => res.status(200).json({ ok: true }));
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -315,4 +315,26 @@ test('council UI clients attach verified user tokens to owner-protected executio
   assert.match(managementSource, /Authorization:\s*`Bearer \$\{token\}`/);
   assert.match(modalSource, /getIdToken\(\)/);
   assert.match(modalSource, /Authorization:\s*`Bearer \$\{token\}`/);
+});
+
+test('production council execution fails closed without a confirmed single-instance boundary', async () => {
+  const app = express();
+  app.use(createModelCouncilRateLimit({
+    windowMs: 60_000,
+    limit: 2,
+    production: true,
+    singleInstanceConfirmed: false,
+  }));
+  app.post('/council', (_req, res) => res.status(200).json({ ok: true }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}/council`, { method: 'POST' });
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.match(body.error, /shared rate-limit store|single backend instance/i);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
 });
