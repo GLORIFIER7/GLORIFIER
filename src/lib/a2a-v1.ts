@@ -296,7 +296,12 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
           },
         });
         return rpcResult(id, { task: toA2ATask(task) });
-      } catch {
+      } catch (error) {
+        // Record a safe diagnostic without exposing submitted message content,
+        // database URLs, credentials, or provider details to the client.
+        console.warn('[A2A] Durable task creation failed.', {
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
         return rpcError(id, -32603, 'The task could not be recorded.');
       }
     }
