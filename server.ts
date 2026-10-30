@@ -15,7 +15,7 @@ import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
 import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
-import { createModelCouncilRateLimit, resolveIngressClientAddress } from './src/lib/ai/model-council-rate-limit.mjs';
+import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
