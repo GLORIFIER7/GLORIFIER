@@ -17,8 +17,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: glorifier-bot-dependency-guardian
-  cancel-in-progress: false
+  # Keep concurrent PR validations independent; only supersede an older run
+  # when a newer commit arrives for the same pull request.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate-locked-dependencies:
