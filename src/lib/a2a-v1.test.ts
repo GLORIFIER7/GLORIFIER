@@ -33,6 +33,8 @@ assert.equal(isCompatibleA2AProtocolVersion(undefined), false, 'omitted protocol
 assert.equal(isAuthorizedA2AExecution(false, 'approved'), false, 'caller-supplied approval is never sufficient without verified owner identity');
 assert.equal(isAuthorizedA2AExecution(true, 'pending'), false, 'owner identity alone is not an approval');
 assert.equal(isAuthorizedA2AExecution(true, 'approved'), true, 'execution requires authenticated owner identity and explicit approval');
+assert.equal(isAuthorizedA2AExecution(true, 'APPROVED'), false, 'approval values must match the exact tested token');
+assert.equal(isAuthorizedA2AExecution(true, ['approved']), false, 'array coercion must not satisfy the approval gate');
 
 assert.equal(card.name, 'GLORIFIER Services');
 assert.equal(card.version, '0.2.1');
