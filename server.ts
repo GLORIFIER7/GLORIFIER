@@ -169,7 +169,13 @@ const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
 const aiCouncilRateLimit = createModelCouncilRateLimit({
   windowMs: 60_000,
   limit: 2,
-  handler: rateLimitProblem('AI council usage is limited to two requests per minute per authenticated principal.'),
+  handler: (_req, res) => {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({
+      ok: false,
+      error: 'AI council usage is limited to two requests per minute per authenticated principal.'
+    });
+  },
   production: process.env.NODE_ENV === 'production',
   singleInstanceConfirmed: process.env.AI_COUNCIL_SINGLE_INSTANCE === 'true',
 });
