@@ -208,8 +208,9 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
     }
   }
 
-  if (!isValidLogoUri(logo?.uri)) {
-    const uriValue = typeof logo?.uri === 'string' ? logo.uri.trim() : '';
+  const logoUri: unknown = logo?.uri;
+  if (!isValidLogoUri(logoUri)) {
+    const uriValue = typeof logoUri === 'string' ? logoUri.trim() : '';
     errors.push(uriValue.startsWith('https://')
       ? 'logo URI must be a valid HTTPS URL with a hostname'
       : 'logo URI must contain a valid IPFS CID or HTTPS URL with a hostname');
