@@ -1,3 +1,5 @@
+import type { A2ATask } from './a2a-runtime';
+
 export const A2A_PROTOCOL_VERSION = '1.0' as const;
 export const A2A_JSONRPC_PATH = '/api/a2a/v1' as const;
 export const A2A_AGENT_CARD_PATH = '/.well-known/agent-card.json' as const;
@@ -43,18 +45,10 @@ export interface A2AAgentCard {
   skills: A2AAgentSkill[];
 }
 
-export interface A2ATaskLike {
-  id: string;
-  parentTaskId: string | null;
-  requesterAgentId: string;
-  capability: string;
-  objective: string;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'blocked' | 'degraded';
-  updatedAt: string;
-  result?: unknown;
-  error?: string;
-  evidenceId?: string;
-}
+export type A2ATaskLike = Pick<
+  A2ATask,
+  'id' | 'parentTaskId' | 'requesterAgentId' | 'capability' | 'objective' | 'status' | 'updatedAt' | 'result' | 'error' | 'evidenceId'
+>;
 
 export interface A2ACreateTaskInput {
   requesterAgentId: string;
