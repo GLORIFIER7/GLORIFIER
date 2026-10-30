@@ -31,6 +31,7 @@ export class AnthropicProvider implements AIProvider {
         'anthropic-version': '2023-06-01',
         ...(workspaceId ? { 'anthropic-workspace-id': workspaceId } : {}),
       },
+      signal: request.signal,
       body: JSON.stringify({
         model,
         max_tokens: request.maxTokens || 4096,
