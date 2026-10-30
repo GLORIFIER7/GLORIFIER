@@ -81,11 +81,11 @@ async function audit(taskId:string, state:FederatedA2ATaskState, actor:string, d
   return id;
 }
 async function persist(task:FederatedA2ATask){
-  memory.set(task.id,task);
   await getPostgresPool().query(`INSERT INTO ${TASKS}(id,requester_agent_id,target_agent_id,capability,objective,input,state,attempt,max_attempts,parent_task_id,evidence_refs,audit_refs,result,error,created_at,updated_at)
   VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14,$15,$16)
   ON CONFLICT(id) DO UPDATE SET target_agent_id=EXCLUDED.target_agent_id,state=EXCLUDED.state,attempt=EXCLUDED.attempt,evidence_refs=EXCLUDED.evidence_refs,audit_refs=EXCLUDED.audit_refs,result=EXCLUDED.result,error=EXCLUDED.error,updated_at=EXCLUDED.updated_at`,
   [task.id,task.requesterAgentId,task.targetAgentId,task.capability,task.objective,JSON.stringify(task.input??null),task.state,task.attempt,task.maxAttempts,task.parentTaskId,JSON.stringify(task.evidenceRefs),JSON.stringify(task.auditRefs),JSON.stringify(task.result??null),task.error??null,task.createdAt,task.updatedAt]);
+  memory.set(task.id,task);
 }
 export async function initializeFederatedA2AV3(){
   await getPostgresPool().query(`CREATE TABLE IF NOT EXISTS ${TASKS}(
@@ -112,10 +112,15 @@ export function getFederatedA2AV3Policy(){
     humanAuthorityRemainsHighest:true, automaticFinancialTransfers:false, automaticIrreversibleProductionChanges:false,
     automaticCredentialRotation:false, truthBoundary:'Task execution, registration, or network presence never proves economic truth or external completion.'} as const;
 }
-export function createFederatedA2ATask(input:{requesterAgentId:string;targetAgentId?:string;capability:string;objective:string;input?:unknown;parentTaskId?:string;maxAttempts?:number}){
+export async function createFederatedA2ATask(
+  input:{requesterAgentId:string;targetAgentId?:string;capability:string;objective:string;input?:unknown;parentTaskId?:string;maxAttempts?:number},
+  persistTask?: (task:FederatedA2ATask) => Promise<void>,
+): Promise<FederatedA2ATask> {
   const now=new Date().toISOString(), capability=input.capability.trim().toLowerCase();
   const task:FederatedA2ATask={id:'fa2a-'+crypto.randomUUID(),requesterAgentId:input.requesterAgentId,targetAgentId:input.targetAgentId||null,capability,objective:input.objective,input:input.input??null,state:'DISCOVERED',attempt:0,maxAttempts:Math.max(1,Math.min(5,input.maxAttempts||3)),parentTaskId:input.parentTaskId||null,createdAt:now,updatedAt:now,evidenceRefs:[],auditRefs:[]};
-  memory.set(task.id,task); void persist(task).catch(()=>{});
+  if (persistTask) await persistTask(task);
+  else if (process.env.DATABASE_URL) await persist(task);
+  memory.set(task.id,task);
   return task;
 }
 export function getFederatedA2ATask(id:string){return memory.get(id)||null;}
