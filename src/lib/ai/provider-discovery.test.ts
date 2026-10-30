@@ -29,7 +29,8 @@ try {
     const url = input instanceof Request ? input.url : String(input);
     const method = (init?.method || 'GET').toUpperCase();
     requests.push({ url, method });
-    const payload = url.includes('generativelanguage.googleapis.com')
+    const hostname = new URL(url).hostname;
+    const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
       : { data: [{ id: 'nvidia/test-model' }] };
     return new Response(JSON.stringify(payload), {
