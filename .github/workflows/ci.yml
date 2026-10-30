@@ -119,6 +119,9 @@ jobs:
       - name: Gemini explicit model policy regression tests
         run: npm run test:gemini-model-policy
 
+      - name: AI provider registry routing integration tests
+        run: npm run test:provider-routing
+
       - name: Canonical NFT registry seed regression tests
         run: npm run test:asset-registry-seed
 
