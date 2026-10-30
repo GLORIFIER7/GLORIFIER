@@ -173,12 +173,16 @@ export async function recordAgentTurn(sessionId: string, contextTokens: number):
   const session = await getAgentSession(sessionId);
   if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
 
-  const nextContextTokens = Number.isFinite(contextTokens) ? Math.max(0, Math.floor(contextTokens)) : 0;
+  if (!Number.isFinite(contextTokens) || contextTokens < 0) {
+    throw new Error('contextTokens must be a finite, non-negative number.');
+  }
+  const nextContextTokens = Math.floor(contextTokens);
   const updated: AgentSession = {
     ...session,
     updatedAt: new Date().toISOString(),
     turnCount: session.turnCount + 1,
     contextTokens: nextContextTokens,
+    status: 'active',
     compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
   };
 
@@ -248,20 +252,36 @@ export async function executeAgentTurn<T>(options: {
   humanApproval?: HumanToolApproval;
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
+  if (!Number.isFinite(options.contextTokens) || options.contextTokens < 0) {
+    throw new Error('contextTokens must be a finite, non-negative number.');
+  }
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
   const toolRequests = filterDeferredTools(options.tools || []);
 
   for (const tool of toolRequests) {
     const decision = authorizeToolRequest(tool, approvedCapabilities, options.humanApproval);
     if (!decision.allowed) {
+      const current = await getAgentSession(options.session.id) || options.session;
       const session = {
-        ...options.session,
+        ...current,
         updatedAt: new Date().toISOString(),
         status: 'waiting-approval' as const,
       };
       await saveSession(session);
       throw new Error(`${decision.requiresHumanApproval ? 'Tool approval required' : 'Tool authorization denied'}: ${tool.name} — ${decision.reason}`);
     }
+  }
+
+  // Persist the approval before invoking the tool/model. If execution fails or
+  // the process exits mid-run, the durable session still records who authorized it.
+  if (options.humanApproval) {
+    const approvedSession = await getAgentSession(options.session.id) || options.session;
+    await saveSession({
+      ...approvedSession,
+      updatedAt: new Date().toISOString(),
+      status: 'active',
+      lastHumanApproval: options.humanApproval,
+    });
   }
 
   // The harness never receives secrets as part of this interface. Provider
@@ -286,13 +306,6 @@ export async function executeAgentTurn<T>(options: {
     throw error;
   }
 
-  if (options.humanApproval) {
-    const approvedSession = await getAgentSession(options.session.id) || options.session;
-    await saveSession({
-      ...approvedSession,
-      lastHumanApproval: options.humanApproval,
-    });
-  }
   const session = await recordAgentTurn(options.session.id, options.contextTokens);
   return { result, session };
 }
