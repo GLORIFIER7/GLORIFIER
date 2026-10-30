@@ -65,7 +65,7 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
-import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AJsonRpcHandler, buildA2AAgentCard } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
@@ -2559,7 +2559,7 @@ app.post('/api/a2a/v1', async (req: Request, res: Response) => {
   const requesterAgentId = String((req as any).auth?.uid || '').trim();
   const handle = createA2AJsonRpcHandler({
     requesterAgentId,
-    createTask: createA2ATask,
+    createTask: createA2ATaskForProtocol,
     getTask: getA2ATaskForProtocol,
   });
   const response = await handle(req.body);
