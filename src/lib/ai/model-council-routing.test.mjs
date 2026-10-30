@@ -128,6 +128,8 @@ test('AI council route requires owner authorization and has a principal-scoped s
     /app\.post\('\/api\/ai\/council',\s*aiCouncilRateLimit,\s*requireOwnerOrInternalService,/,
   );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
+  assert.match(serverSource, /model:\s*modelId,[\s\S]*?signal/);
+  assert.match(serverSource, /isValidModelCouncilResponse\(synthesisResponse,\s*synthesisProvider,\s*synthesisModel\)/);
 });
 
 test('malformed explicit providerIds are not ignored in favor of legacy activeModels', () => {
