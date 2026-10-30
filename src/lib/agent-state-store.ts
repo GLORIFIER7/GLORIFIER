@@ -49,6 +49,8 @@ export class PostgresAgentStateStore {
       );
       CREATE INDEX IF NOT EXISTS idx_glorifier_agent_state_kind_updated
         ON glorifier_agent_state(kind, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_glorifier_agent_state_kind_requester_updated
+        ON glorifier_agent_state(kind, (payload->>'requester'), updated_at DESC);
     `);
   }
 
@@ -79,9 +81,13 @@ export class PostgresAgentStateStore {
     return (typeof payload === 'string' ? JSON.parse(payload) : payload) as T;
   }
 
-  async list<T>(kind: AgentStateKind, limit = 50, requester?: string): Promise<T[]> {
+  async list<T>(kind: AgentStateKind, limit = 50, requester?: string, allowAll = false): Promise<T[]> {
     const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 50;
-    const normalizedRequester = typeof requester === 'string' ? requester.trim() : '';
+    const normalizedRequester = typeof requester === 'string' ? requester.trim() : undefined;
+    // An explicitly supplied blank identity is invalid; an omitted identity
+    // is unscoped only when the caller supplies an explicit authorization grant.
+    if (requester !== undefined && !normalizedRequester) return [];
+    if (!normalizedRequester && !allowAll) return [];
     const result = await this.query(
       normalizedRequester
         ? `SELECT payload FROM glorifier_agent_state
