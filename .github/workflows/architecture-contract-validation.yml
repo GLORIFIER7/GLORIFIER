@@ -6,11 +6,23 @@ on:
       - 'agent-network/**'
       - 'docs/**'
       - '.github/workflows/architecture-contract-validation.yml'
+      - 'scripts/interoperability-protocol-boundaries.test.mjs'
+      - 'scripts/validate-interoperability-registry.mjs'
+      - 'scripts/validate-interoperability-registry.test.mjs'
+      - 'scripts/interoperability-evidence-policy.mjs'
+      - 'scripts/interoperability-evidence-policy.test.mjs'
+      - 'package.json'
   pull_request:
     paths:
       - 'agent-network/**'
       - 'docs/**'
       - '.github/workflows/architecture-contract-validation.yml'
+      - 'scripts/interoperability-protocol-boundaries.test.mjs'
+      - 'scripts/validate-interoperability-registry.mjs'
+      - 'scripts/validate-interoperability-registry.test.mjs'
+      - 'scripts/interoperability-evidence-policy.mjs'
+      - 'scripts/interoperability-evidence-policy.test.mjs'
+      - 'package.json'
 
 permissions:
   contents: read
