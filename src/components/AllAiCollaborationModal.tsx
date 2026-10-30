@@ -102,7 +102,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         const failureSummary = err.failures.map(f => `${f.providerId}${f.modelId ? `/${f.modelId}` : ''} (${f.code})`).join(', ');
         setStatusFeedback([err.message, failureSummary ? `Provider failures: ${failureSummary}.` : ''].filter(Boolean).join(' '));
       } else {
-        setStatusFeedback(err instanceof Error ? err.message : 'Council execution failed. No consensus result was produced.');
+        setStatusFeedback('Council execution failed. No consensus result was produced.');
       }
     } finally {
       setIsConvening(false);
@@ -155,7 +155,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                The council endpoint selects eligible providers at request time. Actual participants and returned outputs are displayed after execution; no zero-knowledge enclave is claimed here.
+                The shared council client selects configured provider/model pairs at request time. The endpoint validates them; actual participants and returned outputs are displayed after execution. No zero-knowledge enclave is claimed here.
               </p>
             </div>
           </div>
