@@ -13,6 +13,8 @@ const environmentKeys = [
   'NVIDIA_BASE_URL',
   'NVIDIA_MODEL',
   'NVIDIA_AUTHORIZED',
+  'OLLAMA_AUTH_TOKEN',
+  'OLLAMA_BASE_URL',
 ] as const;
 const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
@@ -34,6 +36,8 @@ try {
   process.env.NVIDIA_BASE_URL = 'https://nvidia.example.test/v1';
   process.env.NVIDIA_MODEL = 'nvidia/test-model';
   process.env.NVIDIA_AUTHORIZED = 'true';
+  process.env.OLLAMA_AUTH_TOKEN = 'test-ollama-token';
+  process.env.OLLAMA_BASE_URL = 'http://ollama-user:ollama-password@ollama.example.test:11434?token=ollama-url-secret';
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input);
@@ -53,9 +57,11 @@ try {
             : metaProbeStatus === 400
               ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
               : { error: { message: 'temporary provider failure' } }
-        : nvidiaProbeStatus >= 400
-          ? { error: { message: 'NVIDIA credential rejected' } }
-          : { data: [{ id: 'nvidia/test-model' }] };
+        : hostname === 'ollama.example.test'
+          ? { models: [{ name: 'llama3' }] }
+          : nvidiaProbeStatus >= 400
+            ? { error: { message: 'NVIDIA credential rejected' } }
+            : { data: [{ id: 'nvidia/test-model' }] };
     const status = hostname === 'generativelanguage.googleapis.com' ? 200
       : hostname === 'meta.example.test' ? metaProbeStatus : nvidiaProbeStatus;
     return new Response(JSON.stringify(payload), {
@@ -87,6 +93,14 @@ try {
   assert.equal(meta.authenticated, false, 'HTTP 400 must not be interpreted as successful authentication');
   assert.equal(meta.authorization, 'configured', 'operator authorization remains distinct from provider authentication');
   assert.equal(meta.endpoint, 'https://meta.example.test/v1', 'diagnostic endpoints must omit URL credentials and query parameters');
+  const ollamaRequest = requests.find((request) => new URL(request.url).hostname === 'ollama.example.test');
+  assert.ok(ollamaRequest, 'Ollama discovery must issue a request');
+  const parsedOllamaRequestUrl = new URL(ollamaRequest.url);
+  assert.equal(parsedOllamaRequestUrl.pathname, '/api/tags', 'Ollama base URL query strings must not corrupt the tags path');
+  assert.equal(parsedOllamaRequestUrl.username, '', 'Ollama request URLs must not forward endpoint usernames');
+  assert.equal(parsedOllamaRequestUrl.password, '', 'Ollama request URLs must not forward endpoint passwords');
+  assert.equal(parsedOllamaRequestUrl.search, '', 'Ollama request URLs must not forward endpoint query credentials');
+
   const metaRequest = requests.find((request) => new URL(request.url).hostname === 'meta.example.test');
   assert.ok(metaRequest, 'Meta model discovery must issue a request');
   const parsedMetaRequestUrl = new URL(metaRequest.url);
