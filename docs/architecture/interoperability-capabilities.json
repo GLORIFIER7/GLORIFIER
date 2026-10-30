@@ -513,7 +513,7 @@
       "id": "protocol.a2a-mcp-adapters",
       "title": "Standards-backed A2A and MCP adapters",
       "boundary": "Explicit protocol adapters behind GLORIFIER governance",
-      "scope": "A2A 1.0.0 and MCP 2026-07-28 source/specification gap audit; no conformant runtime transport established",
+      "scope": "A2A 1.0.1 and MCP 2026-07-28 source/specification gap audit; no conformant runtime transport established",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
         "Repository source review only; no A2A/MCP runtime or external endpoint tested"
@@ -539,12 +539,26 @@
           "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; MCP 2026-07-28 target",
           "observedAt": "2026-10-30T03:59:28Z",
           "notes": "The plan now pins the 2026-07-28 revision and its server/discover semantics. No MCP transport, discovery operation, or tool/resource/prompt RPC implementation has been demonstrated."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/a2aproject/A2A/blob/3303592588e388e62e0f69f701af531d2f4e3991/docs/specification.md#8-agent-discovery-the-agent-card",
+          "targetEnvironment": "A2A 1.0.1 normative specification; repository commit 3303592588e388e62e0f69f701af531d2f4e3991",
+          "observedAt": null,
+          "notes": "Immutable upstream source snapshot. docs/specification.md Git blob SHA-1: 382185a53b312cd6a60f5ac536ec5a356437ce77. Used only to define the audit target; it is not implementation or conformance evidence."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx",
+          "targetEnvironment": "MCP 2026-07-28 normative specification; repository commit b488c16623e5202a3961e551886044577ae0f096",
+          "observedAt": null,
+          "notes": "Immutable upstream source snapshot. server/discover.mdx Git blob SHA-1: f6fc1acf974819d99338d2be25ad953fcb9e57a6. Used only to define the audit target; it is not implementation or conformance evidence."
         }
       ],
       "limitations": [
-        "The existing /.well-known/a2a-agent-card.json is a proprietary GLORIFIER discovery document, not the A2A 1.0 standard Agent Card endpoint or schema.",
-        "The existing /api/a2a/tasks and federated lifecycle are GLORIFIER-specific; they do not establish A2A 1.0 message/task binding, version negotiation, or cross-agent conformance.",
-        "The Cloudflare Worker does not currently serve the standard A2A Agent Card or A2A 1.0 service endpoint natively.",
+        "The existing /.well-known/a2a-agent-card.json is a proprietary GLORIFIER discovery document, not the A2A 1.0.1 standard Agent Card endpoint or schema.",
+        "The existing /api/a2a/tasks and federated lifecycle are GLORIFIER-specific; they do not establish A2A 1.0.1 message/task binding, version negotiation, or cross-agent conformance.",
+        "The Cloudflare Worker does not currently serve the standard A2A Agent Card or A2A 1.0.1 service endpoint natively.",
         "The MCP target is pinned to 2026-07-28, but no MCP server transport, server/discover, tools/list, or tools/call implementation is established.",
         "Agent-harness tool authorization is not MCP protocol conformance.",
         "A2A and MCP remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
