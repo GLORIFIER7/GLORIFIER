@@ -50,6 +50,17 @@ assert.equal(missingCapability.allowed, false);
 assert.equal(missingCapability.requiresHumanApproval, false);
 
 const session = await createAgentSession('harness-test');
+
+const concurrentSession = await createAgentSession('harness-test-concurrent');
+await Promise.all([
+  recordAgentTurn(concurrentSession.id, 100),
+  recordAgentTurn(concurrentSession.id, 200),
+]);
+assert.equal(
+  (await getAgentSession(concurrentSession.id))?.turnCount,
+  2,
+  'concurrent turns must not overwrite each other or lose the turn increment',
+);
 await assert.rejects(() => recordAgentTurn(session.id, Number.POSITIVE_INFINITY), /finite/);
 await assert.rejects(
   () => createAgentSession('harness-test-duplicate', { sessionId: session.id }),
