@@ -2537,7 +2537,7 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   });
   const approvalRequired = true;
   if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
-    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId, humanApprovalRequired: true });
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
     'gemini',
@@ -2641,7 +2641,7 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
       }
       return apiError(res, 503, 'Human approval request could not be created', error);
     }
-    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId, humanApprovalRequired: true });
   }
 
   try {
