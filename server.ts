@@ -66,7 +66,7 @@ import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, 
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
-import { A2A_MAX_MESSAGE_TEXT_CHARS, createA2AJsonRpcHandler, buildA2AAgentCard } from './src/lib/a2a-v1';
+import { createA2AJsonRpcHandler, buildA2AAgentCard } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -2499,8 +2499,16 @@ app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
   res.json({ ok: true, manifest: getA2AProtocolManifest() });
 });
 
-app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
+app.get('/.well-known/agent-card.json', async (_req: Request, res: Response) => {
   const publicBaseUrl = String(process.env.GLORIFIER_PUBLIC_URL || '').trim();
+  if (!process.env.DATABASE_URL) {
+    return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_NOT_CONFIGURED' });
+  }
+  try {
+    await initializeA2ARuntime();
+  } catch {
+    return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_UNAVAILABLE' });
+  }
   if (!publicBaseUrl) {
     return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_NOT_CONFIGURED' });
   }
@@ -2516,6 +2524,18 @@ app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
 app.post('/api/a2a/v1', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!process.env.DATABASE_URL) {
+    return res.status(503).type('application/json').json({
+      jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A persistent task storage is not configured.' },
+    });
+  }
+  try {
+    await initializeA2ARuntime();
+  } catch {
+    return res.status(503).type('application/json').json({
+      jsonrpc: '2.0', id: null, error: { code: -32000, message: 'A2A persistent task storage is unavailable.' },
+    });
+  }
   if (!req.is('application/json')) {
     return res.status(415).type('application/json').json({
       jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Content-Type must be application/json.' },
