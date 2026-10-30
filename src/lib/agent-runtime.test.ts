@@ -44,6 +44,27 @@ try {
   assert.equal((await getAgentTask(task.id))?.status, 'failed');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === task.id), true);
 
+  // Memory fallback and PostgreSQL mode must order tasks by last update, not creation.
+  const olderTask = await createAgentTask({
+    capability: 'research',
+    objective: 'Verify ordering by last update.',
+    requester: 'agent-runtime-test',
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const newerTask = await createAgentTask({
+    capability: 'research',
+    objective: 'Verify ordering by last update with a newer creation time.',
+    requester: 'agent-runtime-test',
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  await updateAgentTask(olderTask.id, { status: 'running' });
+  assert.equal(
+    (await listAgentTasks(10))[0]?.id,
+    olderTask.id,
+    'recently updated older tasks must sort ahead of newly created but older-updated tasks',
+  );
+  assert.notEqual(olderTask.id, newerTask.id);
+
   await assert.rejects(
     () => requireAgentTaskUpdate('missing-task', { status: 'running' }),
     /Agent task missing-task no longer exists/,
