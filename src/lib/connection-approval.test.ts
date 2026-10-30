@@ -27,7 +27,7 @@ const persisted = await persistConnectionApprovalAtomically(
 );
 assert.deepEqual(persisted, approval);
 assert.equal(calls.length, 1, 'approval row and audit event must be created by one atomic SQL statement');
-assert.match(calls[0].sql, /WITH\s+approval\s+AS/i);
+assert.match(calls[0].sql, /WITH\s+inserted_approval\s+AS/i);
 assert.match(calls[0].sql, /INSERT\s+INTO\s+connection_approvals/i);
 assert.match(calls[0].sql, /INSERT\s+INTO\s+connection_events/i);
 assert.match(calls[0].sql, /related_task_id/i);
