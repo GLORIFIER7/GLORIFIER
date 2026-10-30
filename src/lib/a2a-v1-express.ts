@@ -24,11 +24,12 @@ function jsonRpcHttpError(
   status: number,
   code: number,
   message: string,
+  data?: unknown,
 ) {
   return res.status(status).type('application/json').json({
     jsonrpc: '2.0',
     id: null,
-    error: { code, message },
+    error: { code, message, ...(data === undefined ? {} : { data }) },
   });
 }
 
@@ -69,10 +70,10 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
 
     try {
       if (!(await initializeIfConfigured(dependencies))) {
-        return jsonRpcHttpError(res, 503, -32000, 'A2A persistent task storage is not configured.');
+        return jsonRpcHttpError(res, 503, -32000, 'A2A persistent task storage is not configured.', { code: 'A2A_PERSISTENCE_NOT_CONFIGURED' });
       }
     } catch {
-      return jsonRpcHttpError(res, 503, -32000, 'A2A persistent task storage is unavailable.');
+      return jsonRpcHttpError(res, 503, -32000, 'A2A persistent task storage is unavailable.', { code: 'A2A_PERSISTENCE_UNAVAILABLE' });
     }
 
     if (!req.is('application/json')) {
