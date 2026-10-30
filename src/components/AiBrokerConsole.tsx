@@ -20,7 +20,7 @@ import { MonetizationPolicy, DataFootprintSource, AiBrokerChatMessage } from '..
 import { AiPolicyOptimizerModal } from './AiPolicyOptimizerModal';
 import { AllAiCollaborationModal } from './AllAiCollaborationModal';
 import { buildProviderModelOptions, type ProviderDiscoveryModelSource } from '../lib/ai/provider-model-catalog';
-import { normalizeSavedModelPreference, resolveExecutableModelPreference } from '../lib/ai/model-selection';
+import { normalizeSavedModelPreference, reconcileDiscoveredModelPreference, resolveExecutableModelPreference } from '../lib/ai/model-selection';
 
 interface AiBrokerConsoleProps {
   policy: MonetizationPolicy;
@@ -85,18 +85,26 @@ Choose an action to request a backend response. Any returned claim must be check
       const options = buildProviderModelOptions(payload.providers as ProviderDiscoveryModelSource[]);
       const discoveredModels = options.map((option) => option.model);
       setDiscoveredModelOptions(options);
-      if (!hasUserSelectedModel.current) {
-        // Apply a safe local fallback when the saved model is absent, but do not
-        // erase the user's persisted preference during a transient discovery miss.
-        setSelectedModel(resolveExecutableModelPreference(savedModelPreference.current, discoveredModels));
-      } else {
-        setSelectedModel((current) => resolveExecutableModelPreference(current, discoveredModels));
+      const resolution = reconcileDiscoveredModelPreference(
+        savedModelPreference.current,
+        selectedModel,
+        hasUserSelectedModel.current,
+        discoveredModels,
+      );
+      setSelectedModel(resolution.model);
+      if (resolution.persistModel) {
+        // Keep the shared policy used by offer evaluation aligned with the
+        // executable selection. A stale explicit model must not survive a UI Auto fallback.
+        onUpdatePolicy({ aiModel: resolution.model });
       }
       setProviderCatalogStatus('ready');
     } catch {
       if (!signal?.aborted) {
         hasUserSelectedModel.current = false;
         setSelectedModel('auto');
+        // The request path now uses Auto, so shared policy must not retain a
+        // stale explicit model after discovery becomes unavailable.
+        onUpdatePolicy({ aiModel: 'auto' });
         setProviderCatalogStatus('unavailable');
       }
     }
@@ -306,7 +314,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 ? 'Loading configured provider model discovery…'
                 : providerCatalogStatus === 'unavailable'
                   ? 'Provider discovery unavailable. Automatic routing is active; explicit model selection is disabled.'
-                  : savedModelPreference.current !== 'auto' && selectedModel === 'auto'
+                  : !hasUserSelectedModel.current && savedModelPreference.current !== 'auto' && selectedModel === 'auto'
                     ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; automatic routing is active.'
                     : discoveredModelOptions.length
                       ? discoveredModelOptions.length + ' authenticated provider model IDs discovered. Discovery does not guarantee successful inference.'
