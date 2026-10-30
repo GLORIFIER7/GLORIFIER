@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
@@ -2606,7 +2606,9 @@ app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
   const { capability, objective, input, requester = 'human-owner', connectionId } = req.body || {};
-  if (!capability || !objective) return res.status(400).json({ ok: false, error: 'capability and objective are required' });
+  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability and objective must be non-empty strings' });
+  }
 
   let approvalRequired = false;
   if (connectionId) {
@@ -2615,9 +2617,6 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     approvalRequired = connection.requiresHumanApproval || ['high','critical'].includes(connection.risk);
     if (connection.status !== 'authorized') {
       return res.status(409).json({ ok: false, error: 'Connection is not authorized', connection });
-    }
-    if (approvalRequired) {
-      await requestConnectionApproval(String(connectionId), String(requester), 'agent-task', [String(capability)]);
     }
   }
 
@@ -2628,11 +2627,21 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     return apiError(res, 503, 'Agent task persistence is not ready', error);
   }
   if (approvalRequired) {
+    try {
+      await requestConnectionApproval(String(connectionId), String(requester), 'agent-task', [capability]);
+    } catch (error) {
+      try {
+        await requireAgentTaskUpdate(task.id, { status: 'failed', error: 'Human approval request could not be created.' });
+      } catch (persistenceError) {
+        console.error('[AgentTask] Could not persist failed state after approval-request failure:', persistenceError);
+      }
+      return apiError(res, 503, 'Human approval request could not be created', error);
+    }
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
 
   try {
-    await updateAgentTask(task.id, { status: 'running' });
+    await requireAgentTaskUpdate(task.id, { status: 'running' });
   } catch (error) {
     console.error('[AgentTask] Could not persist running state before inference:', error);
     return res.status(503).json({
@@ -2667,16 +2676,23 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[AgentTask] Inference failed:', message);
     try {
-      await updateAgentTask(task.id, { status: 'failed', error: message });
+      const failedTask = await requireAgentTaskUpdate(task.id, { status: 'failed', error: message });
+      return res.status(500).json({
+        ok: false,
+        task: failedTask,
+        inferenceStatus: 'failed',
+        error: 'Provider inference failed.',
+      });
     } catch (persistenceError) {
       console.error('[AgentTask] Could not persist inference failure state:', persistenceError);
+      return res.status(503).json({
+        ok: false,
+        taskId: task.id,
+        inferenceStatus: 'failed',
+        taskStatePersistence: 'unavailable',
+        error: 'Provider inference failed and the task failure state could not be persisted.',
+      });
     }
-    return res.status(500).json({
-      ok: false,
-      taskId: task.id,
-      status: 'failed-or-state-persistence-unavailable',
-      error: 'Provider inference failed. Task failure state may require recovery if persistence was unavailable.',
-    });
   }
 
   if (!result) {
