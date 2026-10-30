@@ -139,6 +139,7 @@ try {
     'a connected but unauthorized required provider must not refresh or execute through another provider',
   );
 
+  process.env.META_AUTHORIZED = 'true';
   for (const failingStatus of [400, 429, 503]) {
     metaModelListStatus = failingStatus;
     await discoverGlobalProviders(`provider-registry-model-list-${failingStatus}-regression`, { persistConnections: false });
