@@ -188,7 +188,7 @@ test('trusted internal-service calls without a user principal are rate-limited b
     assert.equal((await call()).status, 200);
     assert.equal((await call()).status, 200);
     assert.equal((await call()).status, 429);
-    assert.equal((await fetch(url, { method: 'POST', headers: { 'x-real-ip': '203.0.113.10' } })).status, 200);
+    assert.equal((await fetch(url, { method: 'POST', headers: { 'x-real-ip': '203.0.113.10' } })).status, 429);
     assert.equal((await fetch(url, { method: 'POST', headers: { 'x-real-ip': 'not-an-ip' } })).status, 429);
   });
 });
