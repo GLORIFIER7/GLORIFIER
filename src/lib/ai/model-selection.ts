@@ -18,10 +18,7 @@ export function resolveExecutableModelPreference(
   return available.has(normalized) ? normalized : 'auto';
 }
 
-/**
- * Independent compute has its own model-selection path. Only automatic routing
- * may use it; explicit model or provider constraints must fail closed.
- */
+/** Result of reconciling a saved or selected model with provider discovery. */
 export interface ModelSelectionResolution {
   model: string;
   persistModel: boolean;
