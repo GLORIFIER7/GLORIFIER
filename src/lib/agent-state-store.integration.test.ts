@@ -1,26 +1,30 @@
 import { strict as assert } from 'node:assert';
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { PostgresAgentStateStore, type AgentStateQuery } from './agent-state-store.ts';
 
-const connectionString = process.env.DATABASE_URL;
+// Use an explicitly named test connection and isolate all DDL/data in a unique schema.
+// Never fall back to the application's DATABASE_URL or drop its agent-state table.
+const connectionString = process.env.AGENT_STATE_TEST_DATABASE_URL;
 if (!connectionString) {
-  throw new Error('DATABASE_URL is required for the PostgreSQL agent-state integration test.');
+  throw new Error('AGENT_STATE_TEST_DATABASE_URL is required; refusing to use DATABASE_URL.');
+}
+if (connectionString === process.env.DATABASE_URL) {
+  throw new Error('AGENT_STATE_TEST_DATABASE_URL must be separate from DATABASE_URL.');
 }
 
-const pool = new Pool({ connectionString });
+const schemaName = 'agent_state_test_' + randomUUID().replace(/-/g, '');
+const adminPool = new Pool({ connectionString, max: 2 });
+await adminPool.query('CREATE SCHEMA "' + schemaName + '"');
+const pool = new Pool({ connectionString, max: 4, options: '-c search_path=' + schemaName });
 const query: AgentStateQuery = async (sql, values) => {
   const result = values ? await pool.query(sql, values as any[]) : await pool.query(sql);
-  return {
-    rows: result.rows as Array<Record<string, unknown>>,
-    rowCount: result.rowCount,
-  };
+  return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
 };
-
 const store = new PostgresAgentStateStore(query);
 const peerStore = new PostgresAgentStateStore(query);
 
 try {
-  await pool.query('DROP TABLE IF EXISTS glorifier_agent_state');
   // Concurrent initialization must serialize schema DDL on a fresh database.
   await Promise.all([store.initialize(), peerStore.initialize()]);
 
@@ -82,6 +86,7 @@ try {
 
   console.log('PostgreSQL agent state integration tests: PASS');
 } finally {
-  await pool.query('DROP TABLE IF EXISTS glorifier_agent_state').catch(() => undefined);
   await pool.end();
+  await adminPool.query('DROP SCHEMA IF EXISTS "' + schemaName + '" CASCADE').catch(() => undefined);
+  await adminPool.end();
 }
