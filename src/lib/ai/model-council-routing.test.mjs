@@ -306,3 +306,12 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(modalSource, /Provider execution failures/);
   assert.match(modalSource, /raw\.unifiedConsensus/);
 });
+
+test('council UI clients attach verified user tokens to owner-protected execution requests', async () => {
+  const managementSource = await readFile(new URL('../../components/AiModelsCollaborationManagement.tsx', import.meta.url), 'utf8');
+  const modalSource = await readFile(new URL('../../components/AllAiCollaborationModal.tsx', import.meta.url), 'utf8');
+  assert.match(managementSource, /getIdToken\(\)/);
+  assert.match(managementSource, /Authorization:\s*`Bearer \$\{token\}`/);
+  assert.match(modalSource, /getIdToken\(\)/);
+  assert.match(modalSource, /Authorization:\s*`Bearer \$\{token\}`/);
+});
