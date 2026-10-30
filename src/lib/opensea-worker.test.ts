@@ -15,6 +15,7 @@ let nextResponse = new Response(JSON.stringify({ collection: 'glorifier7', name:
   headers: { 'Content-Type': 'application/json' },
 });
 let fetchError: Error | null = null;
+let capturedCf: unknown;
 
 const getCapturedRequest = (): Request => {
   assert.ok(capturedRequest, 'Expected a request to OpenSea');
@@ -24,6 +25,7 @@ const getCapturedRequest = (): Request => {
 async function run(): Promise<void> {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (fetchError) throw fetchError;
+    capturedCf = init && 'cf' in init ? (init as RequestInit & { cf?: unknown }).cf : undefined;
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     return nextResponse;
   }) as typeof fetch;
@@ -58,6 +60,7 @@ async function run(): Promise<void> {
     assert.equal(outbound.headers.get('x-api-key'), 'test-personal-api-key');
     assert.equal(outbound.headers.get('accept'), 'application/json');
     assert.equal(outbound.headers.get('authorization'), null, 'public collection reads must not send wallet authorization');
+    assert.equal(capturedCf, undefined, 'health probe must bypass edge cache to observe current API-key validity');
     assert.equal(outbound.headers.get('x-api-key')?.includes('test-scoped-token'), false);
 
     capturedRequest = null;
@@ -73,6 +76,7 @@ async function run(): Promise<void> {
     assert.equal(collectionBody.collectionSlug, 'glorifier1');
     assert.equal(collectionBody.data.name, 'GLORIFIER');
     assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/glorifier1');
+    assert.deepEqual(capturedCf, { cacheTtl: 60, cacheEverything: true }, 'public collection metadata may use the bounded edge cache');
 
     capturedRequest = null;
     const missingKey = await worker.fetch(
