@@ -2600,8 +2600,7 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   });
   // The approval string is not a credential: the verified owner identity is
   // checked independently before any provider execution is authorized.
-  const humanApproved = Boolean(auth && isOwner(auth)
-    && String(body.approval || '').toLowerCase() === 'approved');
+  const humanApproved = isAuthorizedA2AExecution(Boolean(auth && isOwner(auth)), body.approval);
   if (!humanApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
