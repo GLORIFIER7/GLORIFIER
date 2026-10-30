@@ -201,6 +201,44 @@ const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => 
 };
 
 
+const MAX_OPENSEA_RESPONSE_BYTES = 1_048_576;
+class OpenSeaResponseTooLargeError extends Error {}
+
+const readBoundedOpenSeaResponse = async (response: Response): Promise<unknown> => {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength !== null) {
+    if (!/^\\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length');
+    const parsedLength = Number(declaredLength);
+    if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length');
+    if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('OpenSea response body is empty');
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_OPENSEA_RESPONSE_BYTES) {
+        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the response cap. */ }
+        throw new OpenSeaResponseTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(body));
+};
+
 const openSeaCollectionResponse = async (request: Request, slug: string, env: CloudflareEnv): Promise<Response> => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -240,11 +278,14 @@ const openSeaCollectionResponse = async (request: Request, slug: string, env: Cl
     if (!contentType.toLowerCase().includes('application/json')) {
       return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers });
     }
-    const data: unknown = await upstream.json();
+    const data: unknown = await readBoundedOpenSeaResponse(upstream);
     return request.method === 'HEAD'
       ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
       : Response.json({ ok: true, source: 'opensea-api-v2', collection: data }, { headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof OpenSeaResponseTooLargeError) {
+      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_RESPONSE_TOO_LARGE' }, { status: 502, headers });
+    }
     return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers });
   }
 };
