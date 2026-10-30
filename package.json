@@ -70,7 +70,9 @@
     "test:interoperability-registry": "node --test scripts/validate-interoperability-registry.test.mjs",
     "validate:interoperability-registry": "node scripts/validate-interoperability-registry.mjs",
     "test:token-branding-bridge": "node --test --import tsx/esm src/lib/token-branding-bridge.test.ts",
-    "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs"
+    "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs",
+    "test:agent-state-store": "tsx src/lib/agent-state-store.test.ts",
+    "test:agent-runtime": "tsx src/lib/agent-runtime.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
