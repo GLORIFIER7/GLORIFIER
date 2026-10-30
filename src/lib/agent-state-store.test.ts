@@ -128,7 +128,8 @@ await store.save('task', { ...recentRunning, status: 'completed', updatedAt: new
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), false, 'a late heartbeat must not resurrect a completed task');
 assert.equal(await store.recoverInterruptedTasks(30), 1);
 const recoverySql = statements[statements.length - 1] || '';
-assert.match(recoverySql, /updated_at < NOW\(\) - INTERVAL '30 minutes'/);
+assert.match(recoverySql, /updated_at < NOW\(\) - \(\$2::integer \* INTERVAL '1 minute'\)/);
+assert.equal(queryValues[queryValues.length - 1]?.[1], 30, 'the store SQL receives the configured stale threshold');
 assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'completed');
 const recovered = await store.get<typeof running & { error?: string }>('task', running.id);
 assert.equal(recovered?.status, 'failed');
