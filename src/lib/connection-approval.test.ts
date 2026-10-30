@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { persistConnectionApprovalAtomically } from './connection-approval.ts';
+import { persistConnectionApprovalAtomically, createMemoizedAsyncInitializer } from './connection-approval.ts';
 
 const approval = {
   id: 'approval-test',
@@ -44,5 +44,23 @@ await assert.rejects(
   }),
   /approval and its audit event were not persisted/,
 );
+
+let initializationCalls = 0;
+const initializeOnce = createMemoizedAsyncInitializer(async () => {
+  initializationCalls += 1;
+});
+await Promise.all([initializeOnce(), initializeOnce(), initializeOnce()]);
+await initializeOnce();
+assert.equal(initializationCalls, 1, 'concurrent and later schema initialization calls must share one successful promise');
+
+let retryCalls = 0;
+const initializeWithRetry = createMemoizedAsyncInitializer(async () => {
+  retryCalls += 1;
+  if (retryCalls === 1) throw new Error('transient schema connection failure');
+});
+await assert.rejects(() => initializeWithRetry(), /transient schema connection failure/);
+await initializeWithRetry();
+await initializeWithRetry();
+assert.equal(retryCalls, 2, 'a failed initialization must clear the cached promise so later calls can retry');
 
 console.log('atomic connection approval persistence tests: PASS');
