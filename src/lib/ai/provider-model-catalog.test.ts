@@ -77,8 +77,8 @@ assert.deepEqual(
     },
   ]),
   [
-    { model: 'gpt-4o', providers: ['OpenAI'] },
     { model: 'fallback-model', providers: ['fallback-id'] },
+    { model: 'gpt-4o', providers: ['OpenAI'] },
     { model: 'meta-model', providers: ['Meta'] },
     { model: 'shared-model', providers: ['Meta', 'OpenAI'] },
   ],
