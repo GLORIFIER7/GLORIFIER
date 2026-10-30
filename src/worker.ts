@@ -13,6 +13,7 @@ export type CloudflareEnv = {
   GLORIFIER_PUBLIC_URL?: string;
   GLORIFIER_BACKEND_ORIGIN?: string;
   GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
+  GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
@@ -137,7 +138,8 @@ const supabaseConfig = (env: CloudflareEnv): { url: URL; key: string } | null =>
   if (!rawUrl || !key) return null;
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !url.hostname.endsWith('.supabase.co')) return null;
+    const isCanonicalSupabaseHost = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.supabase\\.co$/.test(url.hostname);
+    if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !isCanonicalSupabaseHost) return null;
     url.pathname = url.pathname.replace(/\/$/, '');
     return { url, key };
   } catch {
@@ -461,7 +463,16 @@ const looksLikeStaticAsset = (pathname: string): boolean =>
   /\.(?:m?js|css|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf|json|webmanifest)$/i.test(pathname);
 
 const createUpstreamRequest = (request: Request, incomingUrl: URL, backendOrigin: string): Request => {
-  const upstreamUrl = new URL(incomingUrl.pathname + incomingUrl.search, backendOrigin);
+  if (!isBackendPath(incomingUrl.pathname) || !incomingUrl.pathname.startsWith('/') || incomingUrl.pathname.startsWith('//')) {
+    throw new Error('The incoming path is not an approved backend route.');
+  }
+  const upstreamUrl = new URL(backendOrigin);
+  upstreamUrl.pathname = incomingUrl.pathname;
+  upstreamUrl.search = incomingUrl.search;
+  upstreamUrl.hash = '';
+  if (upstreamUrl.origin !== backendOrigin) {
+    throw new Error('The upstream request target escaped the configured backend origin.');
+  }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete('host');
   requestHeaders.delete('content-length');
@@ -482,17 +493,52 @@ const createUpstreamRequest = (request: Request, incomingUrl: URL, backendOrigin
   return new Request(upstreamUrl, requestInit);
 };
 
-const rewriteBackendRedirect = (headers: Headers, incomingUrl: URL, backendOrigin: string): void => {
+const rewriteBackendRedirect = (
+  headers: Headers,
+  incomingUrl: URL,
+  backendOrigin: string,
+  rawRedirectAllowlist?: string,
+): boolean => {
   const location = headers.get('location');
-  if (!location) return;
+  if (!location) return true;
 
   try {
     const redirectUrl = new URL(location, backendOrigin);
+    if (redirectUrl.username || redirectUrl.password) return false;
+
     if (redirectUrl.origin === backendOrigin) {
-      headers.set('Location', incomingUrl.origin + redirectUrl.pathname + redirectUrl.search + redirectUrl.hash);
+      // This is the only same-origin backend redirect callback currently implemented
+      // in the application router. Do not bounce callers to arbitrary internal paths.
+      if (redirectUrl.pathname !== '/auth/broker/callback') return false;
+
+      const allowedQueryKeys = new Set(['state', 'code', 'error', 'error_description', 'iss', 'session_state']);
+      const safeQuery = new URLSearchParams();
+      const seenKeys = new Set<string>();
+      for (const [key, value] of redirectUrl.searchParams) {
+        if (!allowedQueryKeys.has(key)) continue;
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        safeQuery.set(key, value);
+      }
+      const query = safeQuery.toString();
+      const safeLocation = incomingUrl.origin + '/auth/broker/callback' + (query ? `?${query}` : '');
+      headers.set('Location', safeLocation);
+      return true;
     }
+
+    // Provider/identity redirects are external and must be approved by exact hostname.
+    // No wildcard suffixes, credentials, non-HTTPS schemes, or non-default ports.
+    if (redirectUrl.protocol !== 'https:' || redirectUrl.port !== '') return false;
+    const allowedHosts = configured(rawRedirectAllowlist)
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowedHosts.includes(redirectUrl.hostname.toLowerCase())) return false;
+    redirectUrl.hash = '';
+    headers.set('Location', redirectUrl.toString());
+    return true;
   } catch {
-    // Preserve an unparseable Location header unchanged; do not invent a redirect.
+    return false;
   }
 };
 
@@ -651,7 +697,12 @@ export default {
       const responseHeaders = new Headers(upstreamResponse.headers);
       responseHeaders.set('Cache-Control', 'no-store');
       responseHeaders.set('X-Content-Type-Options', 'nosniff');
-      rewriteBackendRedirect(responseHeaders, incomingUrl, backendOrigin);
+      if (!rewriteBackendRedirect(responseHeaders, incomingUrl, backendOrigin, env.GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS)) {
+        return apiError(
+          'The backend redirect target is not approved by the Worker redirect policy.',
+          'BACKEND_REDIRECT_NOT_ALLOWED',
+        );
+      }
 
       return new Response(upstreamResponse.body, {
         status: upstreamResponse.status,
