@@ -1,5 +1,7 @@
 export const MAX_MODEL_COUNCIL_PROVIDERS: 8;
 
+export type ModelCouncilMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
 export interface ModelCouncilResponse {
   provider: string;
   model: string;
@@ -30,6 +32,6 @@ export function validateModelCouncilProviderIds(
 
 export function executeModelCouncilProviders(input: {
   providerIds: readonly string[];
-  messages: unknown[];
-  generate: (providerId: string, messages: unknown[]) => Promise<ModelCouncilResponse>;
+  messages: ModelCouncilMessage[];
+  generate: (providerId: string, messages: ModelCouncilMessage[]) => Promise<ModelCouncilResponse>;
 }): Promise<ModelCouncilExecutionResult>;
