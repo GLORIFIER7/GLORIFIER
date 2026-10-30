@@ -26,6 +26,6 @@ export function isIndependentComputeFallbackAllowed(
   model?: string,
   requiredProvider?: string,
 ): boolean {
-  const normalized = typeof model === 'string' ? model.trim().toLowerCase() : '';
-  return !requiredProvider && (!normalized || normalized === 'auto');
+  const normalized = normalizeSavedModelPreference(model);
+  return !requiredProvider && normalized === 'auto';
 }
