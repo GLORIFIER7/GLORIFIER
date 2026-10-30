@@ -63,3 +63,18 @@ test('cross-document protocol target is consistent and never promotes conformanc
   assert.match(capability.limitations.join('\n'), /no MCP server transport/i);
   assert.match(capability.limitations.join('\n'), /do not establish A2A 1\.0/i);
 });
+
+
+test('governance and exact target metadata are preserved', () => {
+  const capability = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
+  const sourceAudit = capability.evidence.find((item) => item.reference.includes('interoperability-gap-register.md'));
+  assert.ok(sourceAudit, 'source audit evidence must remain present');
+  assert.match(sourceAudit.targetEnvironment, /A2A 1\\.0\\.1 specification target/);
+  assert.match(sourceAudit.notes, /A2A 1\\.0\\.1 message\\/task binding/);
+  assert.ok(capability.limitations.includes('No arbitrary proxy or implied provider fallback is authorized.'));
+});
+
+test('MCP discovery documents supported capabilities without claiming capability negotiation', () => {
+  assert.match(mcpPlan, /its supported capabilities/);
+  assert.doesNotMatch(mcpPlan, /negotiated capabilities/);
+});
