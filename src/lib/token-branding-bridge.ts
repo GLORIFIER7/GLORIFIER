@@ -356,12 +356,22 @@ export function buildTokenBrandingInspection(
   providers: BrandingProvider[]
 ) {
   const tokenResults = tokens.map((token) => {
-    const validationErrors = validateTokenBrandingRecord(token);
+    const snapshot: TokenBrandingRecord = {
+      assetId: token.assetId,
+      network: token.network,
+      chainId: token.chainId,
+      standard: token.standard,
+      contractOrMint: token.contractOrMint,
+      tokenSymbol: token.tokenSymbol,
+      evidenceStatus: token.evidenceStatus,
+      logo: { ...token.logo }
+    };
+    const validationErrors = validateTokenBrandingRecord(snapshot);
     const assessments = providers.map((provider) => (
-      assessBrandingProvider(token, provider, validationErrors)
+      assessBrandingProvider(snapshot, provider, validationErrors)
     ));
     return {
-      ...token,
+      ...snapshot,
       validationErrors,
       providers: assessments
     };
