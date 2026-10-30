@@ -19,6 +19,7 @@ const originalFetch = globalThis.fetch;
 const requests: Array<{ url: string; method: string }> = [];
 let nvidiaProbeStatus = 200;
 let metaProbeStatus = 400;
+let metaProbeThrows = false;
 
 try {
   process.env.QWEN_API_KEY = 'test-qwen-key';
@@ -38,6 +39,9 @@ try {
     const method = (init?.method || 'GET').toUpperCase();
     requests.push({ url, method });
     const hostname = new URL(url).hostname;
+    if (hostname === 'meta.example.test' && metaProbeThrows) {
+      throw new Error(`request failed for ${url}`);
+    }
     const payload = hostname === 'generativelanguage.googleapis.com'
       ? { models: [{ name: 'models/gemini-2.5-flash' }] }
       : hostname === 'meta.example.test'
@@ -92,6 +96,15 @@ try {
   assert.equal(unavailableMeta?.availability, 'unreachable');
   assert.equal(unavailableMeta?.authenticated, false, 'HTTP 5xx must not be interpreted as successful authentication');
   metaProbeStatus = 400;
+  metaProbeThrows = true;
+  const afterNetworkError = await discoverGlobalProviders('provider-discovery-network-error-redaction-regression', { persistConnections: false });
+  const networkErrorMeta = afterNetworkError.find((provider) => provider.id === 'meta');
+  assert.equal(networkErrorMeta?.availability, 'unreachable');
+  assert.equal(networkErrorMeta?.reason?.includes('meta-user'), false, 'network diagnostics must redact endpoint usernames');
+  assert.equal(networkErrorMeta?.reason?.includes('meta-password'), false, 'network diagnostics must redact endpoint passwords');
+  assert.equal(networkErrorMeta?.reason?.includes('meta-url-secret'), false, 'network diagnostics must redact endpoint query secrets');
+  assert.equal(networkErrorMeta?.reason?.includes('[REDACTED]'), true, 'network diagnostics should remain useful after redaction');
+  metaProbeThrows = false;
 
   assert.ok(nvidia, 'NVIDIA discovery entry must exist');
   assert.equal(nvidia.availability, 'available', 'the read-only models endpoint should be discoverable');
