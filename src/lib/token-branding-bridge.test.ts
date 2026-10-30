@@ -70,3 +70,18 @@ test('inspection is explicitly read-only and reports zero published logos', () =
   assert.equal(result.publicationClaim, false);
   assert.equal(result.summary.publishedCount, 0);
 });
+
+test('rejects unsupported chain and token-standard combinations', () => {
+  const invalid = { ...validToken, chainId: 56, network: 'Ethereum Mainnet' };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('chain ID')));
+});
+
+test('rejects HTTPS logo URLs without a hostname', () => {
+  const invalid = { ...validToken, logo: { ...validToken.logo, uri: 'https://' } };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('valid HTTPS URL')));
+});
+
+test('rejects malformed IPFS content identifiers', () => {
+  const invalid = { ...validToken, logo: { ...validToken.logo, uri: 'ipfs://not-a-cid' } };
+  assert.ok(validateTokenBrandingRecord(invalid).some((item) => item.includes('valid IPFS CID')));
+});
