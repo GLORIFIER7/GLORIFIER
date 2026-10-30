@@ -58,17 +58,39 @@ export async function discoverConfiguredModelCouncilParticipants(
   if (!response.ok) {
     throw new ModelCouncilClientError(`Provider registry request failed (HTTP ${response.status}).`, [], response.status);
   }
-  const payload = await response.json() as { providers?: unknown };
+  let payload: { providers?: unknown };
+  try {
+    payload = await response.json() as { providers?: unknown };
+  } catch {
+    throw new ModelCouncilClientError(`Provider registry returned non-JSON data (HTTP ${response.status}).`, [], response.status);
+  }
   const providers = Array.isArray(payload.providers) ? payload.providers : [];
-  return providers.flatMap((entry): ModelCouncilSelection[] => {
+  const groups = providers.flatMap((entry): Array<{ providerId: string; modelIds: string[] }> => {
     if (!entry || typeof entry !== 'object') return [];
     const provider = entry as Record<string, unknown>;
     const providerId = typeof provider.id === 'string' ? provider.id.trim() : '';
     const models = Array.isArray(provider.models) ? provider.models : [];
-    const modelId = typeof models[0] === 'string' ? models[0].trim() : '';
-    if (provider.status !== 'connected' || !providerId || !modelId) return [];
-    return [{ providerId, modelId }];
-  }).slice(0, maxParticipants);
+    const modelIds = [...new Set(models.flatMap((model): string[] => (
+      typeof model === 'string' && model.trim() ? [model.trim()] : []
+    )))];
+    if (provider.status !== 'connected' || !providerId || modelIds.length === 0) return [];
+    return [{ providerId, modelIds }];
+  });
+
+  // Round-robin across providers so one provider's large catalog cannot starve others.
+  const selections: ModelCouncilSelection[] = [];
+  for (let modelIndex = 0; selections.length < maxParticipants; modelIndex += 1) {
+    let addedAtThisDepth = false;
+    for (const group of groups) {
+      const modelId = group.modelIds[modelIndex];
+      if (!modelId) continue;
+      selections.push({ providerId: group.providerId, modelId });
+      addedAtThisDepth = true;
+      if (selections.length >= maxParticipants) break;
+    }
+    if (!addedAtThisDepth) break;
+  }
+  return selections;
 }
 
 export async function submitAuthenticatedModelCouncilRequest(input: {
@@ -101,7 +123,12 @@ export async function submitAuthenticatedModelCouncilRequest(input: {
     }),
   });
 
-  const raw = await response.json() as Record<string, unknown>;
+  let raw: Record<string, unknown>;
+  try {
+    raw = await response.json() as Record<string, unknown>;
+  } catch {
+    throw new ModelCouncilClientError(`Council endpoint returned non-JSON data (HTTP ${response.status}).`, [], response.status);
+  }
   const failures = normalizeModelCouncilFailures(raw.failures);
   if (!response.ok) {
     const message = typeof raw.error === 'string' ? raw.error : `Council request failed (HTTP ${response.status}).`;
