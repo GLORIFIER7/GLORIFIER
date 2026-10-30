@@ -25,7 +25,8 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
         'X-API-KEY': apiKey,
         Accept: 'application/json',
       },
-      redirect: 'error',
+      // Never follow provider redirects; inspect the response and fail closed.
+      redirect: 'manual',
       signal: AbortSignal.timeout(8000),
       // Bound public collection requests at the Cloudflare edge to conserve API quota.
       ...(useEdgeCache ? { cf: { cacheTtl: 60, cacheEverything: true } } : {}),
@@ -40,6 +41,9 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
     };
   }
 
+  if (upstream.status >= 300 && upstream.status < 400) {
+    return { status: 502, error: failure(502, 'OPENSEA_REDIRECT_REJECTED', 'OpenSea returned a redirect; the Worker did not follow it.') };
+  }
   if (upstream.status === 401 || upstream.status === 403) {
     return { status: 502, error: failure(502, 'OPENSEA_API_KEY_REJECTED', 'OpenSea rejected the configured API key.') };
   }
