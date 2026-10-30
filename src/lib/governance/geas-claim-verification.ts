@@ -145,7 +145,7 @@ export function validateClaimReview(
         id: trustedSource.id,
         url: trustedSource.url,
         claimsAllowed: Array.isArray(trustedSource.claimsAllowed)
-          ? [...trustedSource.claimsAllowed].sort((left, right) => left.localeCompare(right, 'en'))
+          ? [...trustedSource.claimsAllowed].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
           : trustedSource.claimsAllowed,
         reviewCadenceDays: trustedSource.reviewCadenceDays,
       })).digest('hex');

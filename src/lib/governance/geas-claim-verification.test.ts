@@ -122,15 +122,27 @@ assert.notEqual(changedCadenceReview.evidenceRef, supported.evidenceRef,
 const localeClaimsRegistry: ClaimSourceRegistry = {
   ...registry,
   sources: registry.sources.map((source) => source.id === trustedSource.id
-    ? { ...source, claimsAllowed: [...source.claimsAllowed, 'z-extra', 'ä-extra', 'a-extra'] }
+    ? { ...source, claimsAllowed: [...source.claimsAllowed, 'z-extra', 'ä-extra', 'a-extra', 'a-extra\\u200B', 'é-extra', 'e\\u0301-extra'] }
     : source),
 };
 const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
 const localeClaimsReview = review(valid, localeClaimsRegistry);
+const reorderedLocaleClaimsRegistry: ClaimSourceRegistry = {
+  ...localeClaimsRegistry,
+  sources: localeClaimsRegistry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, claimsAllowed: [...source.claimsAllowed].reverse() }
+    : source),
+};
+const reorderedLocaleClaimsReview = review(valid, reorderedLocaleClaimsRegistry);
+assert.equal(
+  reorderedLocaleClaimsReview.evidenceRef,
+  localeClaimsReview.evidenceRef,
+  'claim-policy digests must not depend on input order when distinct strings collate equally',
+);
 const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
   id: localeClaimsSource.id,
   url: localeClaimsSource.url,
-  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort((left, right) => left.localeCompare(right, 'en')),
+  claimsAllowed: [...localeClaimsSource.claimsAllowed].sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
   reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
 })).digest('hex');
 const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({

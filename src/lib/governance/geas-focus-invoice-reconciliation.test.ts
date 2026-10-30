@@ -31,7 +31,7 @@ assert.equal(aligned.invoiceDetailGrandTotal, '32.4');
 assert.equal(aligned.lineItems.find((item) => item.invoiceDetailId === 'line-2')?.withinTolerance, true);
 assert.deepEqual(aligned.reasons, []);
 
-const localeSortedIds = ['line-z', 'line-ä', 'line-a'];
+const localeSortedIds = ['line-z', 'line-ä', 'line-a', 'line-a\\u200B'];
 const localeSortedRows = localeSortedIds.map((invoiceDetailId) => ({
   ...input.costAndUsage[0],
   invoiceDetailId,
@@ -44,8 +44,19 @@ const localeSortedResult = reconcileFocusInvoice({
 });
 assert.deepEqual(
   localeSortedResult.lineItems.map((item) => item.invoiceDetailId),
-  [...localeSortedIds].sort((left, right) => left.localeCompare(right, 'en')),
+  [...localeSortedIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
   'invoice line items must use a deterministic locale-aware order for non-ASCII identifiers',
+);
+const reversedLocaleSortedRows = [...localeSortedRows].reverse();
+const reversedLocaleSortedResult = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: reversedLocaleSortedRows,
+  invoiceDetail: reversedLocaleSortedRows.map((row) => ({ ...row })),
+});
+assert.deepEqual(
+  reversedLocaleSortedResult.lineItems.map((item) => item.invoiceDetailId),
+  [...localeSortedIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0),
+  'FOCUS line-item order must remain stable when input order changes, including locale-collation ties',
 );
 
 const variance = reconcileFocusInvoice({

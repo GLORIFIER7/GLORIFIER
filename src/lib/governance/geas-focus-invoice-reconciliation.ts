@@ -266,7 +266,7 @@ export function reconcileFocusInvoice(
     detailById.set(id, decimalUnits(row.billedCost, scale));
   }
 
-  const ids = [...new Set([...usageByDetailId.keys(), ...detailById.keys()])].sort((left, right) => left.localeCompare(right, 'en'));
+  const ids = [...new Set([...usageByDetailId.keys(), ...detailById.keys()])].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
   const lineItems: FocusInvoiceLineItemReconciliation[] = [];
   let hasMissingMapping = false;
   let hasVariance = false;

@@ -30,8 +30,15 @@ assert.equal(
 );
 assert.equal(
   hashArchitectureSnapshot({ z: 3, 'ä': 1, a: 2 }),
-  '83ea4fa061f38fe301d2c168a4403fd957cee4e10d4aca58976f30caa40d3cfb',
-  'canonical JSON object keys must use explicit English collation for stable Unicode ordering',
+  '9e76ee4b7c5c599d3ad63e42369b1796848ad455c5bae3030af345c5ea2aecb0',
+  'canonical JSON object keys must preserve locale-independent code-unit ordering',
+);
+const unicodeSnapshot = { a: 1, 'a\\u200B': 2, 'é': 3, 'e\\u0301': 4 };
+const reorderedUnicodeSnapshot = { 'e\\u0301': 4, 'é': 3, 'a\\u200B': 2, a: 1 };
+assert.equal(
+  hashArchitectureSnapshot(unicodeSnapshot),
+  hashArchitectureSnapshot(reorderedUnicodeSnapshot),
+  'canonical snapshot hashes must be independent of insertion order even when distinct Unicode keys collate equally',
 );
 assert.throws(() => hashArchitectureSnapshot({ value: undefined }), /JSON-compatible values/);
 assert.throws(() => hashArchitectureSnapshot({ value: Number.NaN }), /finite JSON numbers/);

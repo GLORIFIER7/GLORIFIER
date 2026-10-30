@@ -64,7 +64,7 @@ jobs:
             END UNTRUSTED TASK TEXT
           claude_args: |
             --max-turns 10
-            --allowedTools Read,Glob,Grep,Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff) --ignore-scripts
+            --allowedTools Read,Glob,Grep,Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff)
       - name: Report missing Claude key
         if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
         run: echo "::warning::ANTHROPIC_API_KEY is unavailable to this workflow; no model call was made."
