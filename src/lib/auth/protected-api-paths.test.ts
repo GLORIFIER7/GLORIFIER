@@ -71,12 +71,12 @@ assert.match(
 
 assert.match(
   server,
-  /app\\.get\\('\\/api\\/federated-a2a\\/v3\\/tasks\\/:id'[\\s\\S]*?process\\.env\\.DATABASE_URL[\\s\\S]*?await getFederatedA2ATaskFromStore[\\s\\S]*?: getFederatedA2ATask[\\s\\S]*?canAccessAgentTask/,
+  /app\.get\('\/api\/federated-a2a\/v3\/tasks\/:id'[\s\S]*?process\.env\.DATABASE_URL[\s\S]*?await getFederatedA2ATaskFromStore[\s\S]*?: getFederatedA2ATask[\s\S]*?canAccessAgentTask/,
   'federated A2A task detail must support durable and memory-only requester-scoped reads',
 );
 assert.match(
   server,
-  /app\\.post\\('\\/api\\/federated-a2a\\/v3\\/tasks'[\\s\\S]*?await createFederatedA2ATask[\\s\\S]*?Federated A2A v3 task persistence unavailable/,
+  /app\.post\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?await createFederatedA2ATask[\s\S]*?Federated A2A v3 task persistence unavailable/,
   'federated A2A creation must await durable persistence and report write failures',
 );
 assert.match(
