@@ -24,7 +24,7 @@ import {
 import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelCollaborationParticipant } from '../types';
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
 import { getIdToken } from '../lib/firebase';
-import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
+import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, selectConfiguredParticipantsForProviders, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -213,21 +213,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     setIsRunningCouncil(true);
     try {
       const configuredParticipants = await discoverConfiguredModelCouncilParticipants();
-      const participantsByProvider = new Map<string, (typeof configuredParticipants)[number]>();
-      for (const participant of configuredParticipants) {
-        if (!participantsByProvider.has(participant.providerId)) {
-          participantsByProvider.set(participant.providerId, participant);
-        }
-      }
-      const unavailableProviders: string[] = [];
-      const participants = selectedProviderNodes.flatMap((node) => {
-        const selected = participantsByProvider.get(node.providerId);
-        if (!selected) {
-          unavailableProviders.push(node.providerId);
-          return [];
-        }
-        return [selected];
-      });
+      const { participants, unavailableProviders } = selectConfiguredParticipantsForProviders(
+        configuredParticipants,
+        selectedProviderNodes.map((node) => node.providerId),
+      );
 
       if (participants.length === 0) {
         throw new Error('None of the enabled provider nodes currently exposes a configured model. Configure provider credentials and model IDs first.');
