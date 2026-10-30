@@ -69,7 +69,14 @@ const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
   const entry = discovery.get(provider.id);
   const explicitlyAuthorizedNvidia = provider.id === 'nvidia' && process.env.NVIDIA_AUTHORIZED === 'true';
+  // A configured authorization flag is not enough: the latest read-only
+  // discovery must be healthy, and the provider credential must be accepted.
+  // NVIDIA is the sole exception because its model-list endpoint does not
+  // authenticate inference; an explicit owner authorization permits the
+  // actual requested inference to perform that separate credential check.
   return Boolean(entry
+    && entry.availability === 'available'
+    && (entry.authenticated || explicitlyAuthorizedNvidia)
     && (entry.authorization === 'configured' || explicitlyAuthorizedNvidia)
     && (!capability || entry.capabilities.includes(capability)));
 };
@@ -498,6 +505,9 @@ export const executeThroughProviderRegistry = async (
     else if (!connectedAdapter) reason = 'not connected (credentials or adapter unavailable)';
     else if (entry && executionRequest.capability && !entry.capabilities.includes(executionRequest.capability)) {
       reason = `does not advertise requested capability "${executionRequest.capability}"`;
+    }
+    else if (entry && entry.availability !== 'available') {
+      reason = `provider discovery is ${entry.availability}`;
     }
     else if (!isProviderEligible(connectedAdapter, discovery, executionRequest.capability)) {
       reason = entry?.authorization === 'not-configured' || !entry
