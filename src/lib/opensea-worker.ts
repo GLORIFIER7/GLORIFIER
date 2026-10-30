@@ -1,5 +1,8 @@
-const OPENSEA_API_BASE = 'https://api.opensea.io/api/v2';
-const ALLOWED_COLLECTION_SLUGS = new Set(['glorifier7', 'glorifier1']);
+const COLLECTION_ENDPOINTS: Readonly<Record<string, URL>> = Object.freeze({
+  glorifier7: new URL('https://api.opensea.io/api/v2/collections/glorifier7'),
+  glorifier1: new URL('https://api.opensea.io/api/v2/collections/glorifier1'),
+});
+const ALLOWED_COLLECTION_SLUGS = new Set(Object.keys(COLLECTION_ENDPOINTS));
 
 export type OpenSeaWorkerEnv = {
   OPENSEA_API_KEY?: string;
@@ -31,7 +34,11 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
       // Bound public collection requests at the Cloudflare edge to conserve API quota.
       ...(useEdgeCache ? { cf: { cacheTtl: 60, cacheEverything: true } } : {}),
     };
-    upstream = await fetch(new URL(`${OPENSEA_API_BASE}/collections/${encodeURIComponent(slug)}`), init);
+    const endpoint = COLLECTION_ENDPOINTS[slug];
+    if (!endpoint) {
+      return { status: 404, error: failure(404, 'OPENSEA_ROUTE_NOT_FOUND', 'Only registered GLORIFIER collection endpoints are available.') };
+    }
+    upstream = await fetch(endpoint, init);
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
     return {
