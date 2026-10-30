@@ -67,6 +67,7 @@ import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setCom
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
+import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -2542,7 +2543,7 @@ app.get('/api/a2a/tasks/:id', requireAuthentication, (req: Request, res: Respons
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', requireAuthentication, async (req: Request, res: Response) => {
+app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   const requesterAgentId = String((req as any).auth?.uid || '').trim();
   if (!requesterAgentId) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   const body = req.body || {};
@@ -2558,8 +2559,10 @@ app.post('/api/a2a/tasks', requireAuthentication, async (req: Request, res: Resp
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  const approvalRequired = true;
-  if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
+  const auth = (req as AuthenticatedRequest).auth;
+  const authenticatedOwner = auth ? isOwner(auth) : false;
+  const ownerApproved = isAuthorizedA2AExecution(authenticatedOwner, body.approval);
+  if (!ownerApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
