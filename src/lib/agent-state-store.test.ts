@@ -65,6 +65,7 @@ const task = {
   objective: 'Persist this task',
   requester: 'human-owner',
   createdAt: '2026-10-29T10:00:00.000Z',
+  updatedAt: '2026-10-29T10:00:00.000Z',
   status: 'queued',
 };
 await store.save('task', task);
