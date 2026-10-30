@@ -166,6 +166,9 @@ assert.deepEqual(
 );
 assert.equal((await store.get<typeof session>('session', session.id))?.turnCount, 2);
 assert.ok(statements.some((sql) => sql.includes('RETURNING payload')));
+const largeTokenUpdate = await store.incrementSessionTurn<typeof session>(session.id, 2_147_483_648);
+assert.equal(largeTokenUpdate?.contextTokens, 2_147_483_648, 'safe counters above int32 must be preserved');
+
 
 
 console.log('durable agent state store tests: PASS');
