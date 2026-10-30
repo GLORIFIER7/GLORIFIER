@@ -80,9 +80,6 @@ export function getAgentRuntimePersistenceStatus() {
 }
 
 function assertAgentRuntimeReady(): void {
-  if (persistenceMode === 'uninitialized' && !process.env.DATABASE_URL) {
-    persistenceMode = 'memory-fallback';
-  }
   if (persistenceMode === 'uninitialized') {
     throw new Error('Agent task persistence is still initializing; retry after backend readiness.');
   }
