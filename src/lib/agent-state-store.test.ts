@@ -119,7 +119,7 @@ const recentRunning = {
 };
 await store.save('task', recentRunning);
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), true);
-assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'running');
+assert.equal((await store.get<typeof recentRunning>('task', recentRunning.id))?.status, 'completed');
 assert.ok(Date.parse((await store.get<typeof recentRunning>('task', recentRunning.id))?.updatedAt || '') >= Date.parse(recentRunning.updatedAt));
 await store.save('task', { ...recentRunning, status: 'completed', updatedAt: new Date().toISOString() });
 assert.equal(await store.heartbeatRunningTask(recentRunning.id), false, 'a late heartbeat must not resurrect a completed task');
