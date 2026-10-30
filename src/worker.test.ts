@@ -330,6 +330,38 @@ async function run(): Promise<void> {
     });
     assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
 
+    // Reject any Supabase destination that is not a canonical HTTPS project origin.
+    const invalidSupabaseOrigins = [
+      'http://project.supabase.co',
+      'https://project.supabase.co:8443',
+      'https://nested.project.supabase.co',
+      'https://metadata.google.internal',
+      'https://127.0.0.1',
+      'https://project.supabase.co.attacker.test',
+      'https://user:password@project.supabase.co',
+      'https://project.supabase.co/rest/v1',
+      'https://project.supabase.co?target=https://127.0.0.1',
+    ];
+    for (const invalidSupabaseOrigin of invalidSupabaseOrigins) {
+      capturedRequest = null;
+      requestedUrls.length = 0;
+      const rejectedSupabaseOrigin = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+        {
+          ...env,
+          GLORIFIER_SUPABASE_URL: invalidSupabaseOrigin,
+          GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        },
+      );
+      assert.equal(rejectedSupabaseOrigin.status, 503, invalidSupabaseOrigin);
+      const rejectedSupabaseBody = await rejectedSupabaseOrigin.json() as {
+        checks?: { database?: { code?: string } };
+      };
+      assert.equal(rejectedSupabaseBody.checks?.database?.code, 'SUPABASE_NOT_CONFIGURED', invalidSupabaseOrigin);
+      assert.equal(capturedRequest, null, `invalid Supabase origin must not be contacted: ${invalidSupabaseOrigin}`);
+      assert.deepEqual(requestedUrls, [], `invalid Supabase origin must not generate any outbound request: ${invalidSupabaseOrigin}`);
+    }
+
     // A failed Supabase probe must not erase the independent Neural configuration status.
     const previousUnhealthyRuntimeResponse = upstreamResponse;
     upstreamResponse = new Response('{}', {
@@ -625,6 +657,89 @@ async function run(): Promise<void> {
     );
     assert.equal(getCapturedRequest().redirect, 'manual', 'backend redirects must not cause the Worker to follow a second outbound request');
     assert.equal(assetCalls, assetCallsBeforeAuth, 'auth routes must not fall through to the SPA assets');
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: {
+        Location: 'https://api.example.test/auth/provider/callback?state=approved&next=https%3A%2F%2Fevil.example#untrusted-fragment',
+      },
+    });
+    const sanitizedAuthRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(sanitizedAuthRedirect.status, 302);
+    assert.equal(
+      sanitizedAuthRedirect.headers.get('location'),
+      'https://glorifier.glorifier.workers.dev/auth/provider/callback?state=approved',
+      'same-origin redirects must use a Worker-approved route and only approved OAuth callback parameters',
+    );
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: { Location: 'https://api.example.test/internal/admin?next=https://evil.example' },
+    });
+    const blockedInternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(blockedInternalRedirect.status, 502);
+    assert.equal(
+      await blockedInternalRedirect.json().then((body: { code?: string }) => body.code),
+      'BACKEND_REDIRECT_NOT_ALLOWED',
+    );
+    assert.equal(blockedInternalRedirect.headers.get('location'), null);
+
+    upstreamResponse = new Response(null, {
+      status: 302,
+      headers: { Location: 'https://login.example.test/oauth/authorize?client_id=glorifier' },
+    });
+    const blockedExternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      env,
+    );
+    assert.equal(blockedExternalRedirect.status, 502);
+    assert.equal(
+      await blockedExternalRedirect.json().then((body: { code?: string }) => body.code),
+      'BACKEND_REDIRECT_NOT_ALLOWED',
+    );
+
+    const allowedExternalRedirect = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+      { ...env, GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS: 'login.example.test' },
+    );
+    assert.equal(allowedExternalRedirect.status, 302);
+    assert.equal(
+      allowedExternalRedirect.headers.get('location'),
+      'https://login.example.test/oauth/authorize?client_id=glorifier',
+      'external OAuth redirects must require an explicit exact-host allowlist',
+    );
+
+    // An attacker-controlled leading double slash is not a backend route and must
+    // never be interpreted as an absolute URL by the upstream request constructor.
+    capturedRequest = null;
+    const assetCallsBeforeDoubleSlashPath = assetCalls;
+    const doubleSlashPath = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev//attacker.example/steal?host=evil'),
+      env,
+    );
+    assert.equal(doubleSlashPath.status, 200);
+    assert.equal(capturedRequest, null, 'leading double-slash paths must not reach the backend');
+    assert.equal(assetCalls, assetCallsBeforeDoubleSlashPath + 1);
+
+    upstreamResponse = new Response('{"ok":true}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    capturedRequest = null;
+    const upstreamQueryCannotChangeHost = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/test-routing?target=https%3A%2F%2Fevil.example%2Fpath'),
+      env,
+    );
+    assert.equal(upstreamQueryCannotChangeHost.status, 200);
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
+    assert.equal(new URL(getCapturedRequest().url).pathname, '/api/test-routing');
+    assert.equal(new URL(getCapturedRequest().url).searchParams.get('target'), 'https://evil.example/path');
 
     upstreamResponse = new Response('{"ok":true}', {
       status: 200,
