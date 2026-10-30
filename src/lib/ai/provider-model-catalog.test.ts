@@ -61,4 +61,10 @@ assert.deepEqual(
   'only models from configured, available, explicitly authorized providers are shown; duplicates are grouped',
 );
 
+assert.deepEqual(
+  buildProviderModelOptions([null, undefined, 'invalid'] as unknown as Parameters<typeof buildProviderModelOptions>[0]),
+  [],
+  'malformed provider discovery entries must be ignored safely',
+);
+
 console.log('provider model catalogue tests: PASS');
