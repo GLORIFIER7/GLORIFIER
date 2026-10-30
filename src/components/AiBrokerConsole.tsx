@@ -435,7 +435,7 @@ Choose an action to request a backend response. Any returned claim must be check
                   setShowCollaborationModal(true);
                 }}
                 className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 group cursor-pointer"
-                title="Invite All AI Models to Collaborate (OpenAI GPT-4o, Google Gemini, Meta LLaMA)"
+                title="Request a multi-provider council review using the currently eligible provider registry"
               >
                 <Users className="w-3.5 h-3.5 fill-slate-950 group-hover:scale-110 transition-transform" />
                 <span>Invite All AI</span>
