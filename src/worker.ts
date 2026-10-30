@@ -18,6 +18,7 @@ export type CloudflareEnv = {
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
+  OPENSEA_API_KEY?: string;
 };
 
 // Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
@@ -196,6 +197,55 @@ const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => 
     }, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   } catch {
     return supabaseUnavailable('SUPABASE_REPORTS_QUERY_FAILED', 'Supabase operational reporting could not be verified.', 502);
+  }
+};
+
+
+const openSeaCollectionResponse = async (request: Request, slug: string, env: CloudflareEnv): Promise<Response> => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } });
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)) {
+    return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers });
+  }
+  const apiKey = configured(env.OPENSEA_API_KEY);
+  if (!apiKey) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_API_KEY_NOT_CONFIGURED' }, { status: 503, headers });
+  }
+
+  const endpoint = new URL(`https://api.opensea.io/api/v2/collections/${encodeURIComponent(slug)}`);
+  try {
+    const upstream = await fetch(endpoint, {
+      method: 'GET',
+      headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(7000),
+    });
+    if (upstream.status === 401 || upstream.status === 403) {
+      return Response.json({ ok: false, status: 'unauthorized', code: 'OPENSEA_AUTHENTICATION_FAILED' }, { status: 502, headers });
+    }
+    if (upstream.status === 404) {
+      return Response.json({ ok: false, status: 'not-found', code: 'OPENSEA_COLLECTION_NOT_FOUND' }, { status: 404, headers });
+    }
+    if (upstream.status === 429) {
+      const retryAfter = upstream.headers.get('retry-after');
+      const retryHeaders = retryAfter && /^\\d+$/.test(retryAfter) ? { ...headers, 'Retry-After': retryAfter } : headers;
+      return Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders });
+    }
+    if (!upstream.ok) {
+      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR', upstreamStatus: upstream.status }, { status: 502, headers });
+    }
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers });
+    }
+    const data: unknown = await upstream.json();
+    return request.method === 'HEAD'
+      ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
+      : Response.json({ ok: true, source: 'opensea-api-v2', collection: data }, { headers });
+  } catch {
+    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers });
   }
 };
 
@@ -599,6 +649,12 @@ export default {
       const canonicalA2AUrl = new URL(request.url);
       canonicalA2AUrl.pathname = A2A_JSONRPC_PATH;
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
+    }
+
+    const openSeaCollectionMatch = incomingUrl.pathname.match(/^\\/api\\/opensea\\/collections\\/([^/]+)$/);
+    if (openSeaCollectionMatch) return openSeaCollectionResponse(request, openSeaCollectionMatch[1], env);
+    if (incomingUrl.pathname.startsWith('/api/opensea/collections/')) {
+      return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
