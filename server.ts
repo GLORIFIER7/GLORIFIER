@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, filterAgentTasksByRequester, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2586,9 +2586,15 @@ app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
   res.json(agentManifest());
 });
 
-app.get('/api/agents/tasks', async (_req: Request, res: Response) => {
+app.get('/api/agents/tasks', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
   try {
-    const tasks = await listAgentTasks();
+    const tasks = filterAgentTasksByRequester(await listAgentTasks(), requesterUid, mayReadAllTasks);
     return res.json({ ok: true, tasks: tasks.map((task) => ({ ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) })) });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task listing unavailable', error);
@@ -2596,9 +2602,17 @@ app.get('/api/agents/tasks', async (_req: Request, res: Response) => {
 });
 
 app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAllTasks = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  if (!requesterUid && !mayReadAllTasks) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  }
   try {
     const task = await getAgentTask(String(req.params.id));
-    if (!task) return res.status(404).json({ ok: false, error: 'Task not found' });
+    if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
+      return res.status(404).json({ ok: false, error: 'Task not found' });
+    }
     return res.json({ ok: true, task: { ...task, recoveryObservation: getAgentTaskRecoveryObservation(task) } });
   } catch (error) {
     return apiError(res, 503, 'Durable agent task lookup unavailable', error);
@@ -2606,9 +2620,16 @@ app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
 });
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
-  const { capability, objective, input, requester = 'human-owner', connectionId } = req.body || {};
-  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim() || typeof requester !== 'string' || !requester.trim()) {
-    return res.status(400).json({ ok: false, error: 'capability, objective, and requester must be non-empty strings' });
+  const { capability, objective, input, requester: requestedRequester = 'human-owner', connectionId } = req.body || {};
+  const auth = (req as AuthenticatedRequest).auth;
+  const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayOverrideRequester = Boolean((auth && isOwner(auth)) || isInternalServiceRequest(req));
+  const requester = resolveAgentTaskRequester(requesterUid, requestedRequester, mayOverrideRequester);
+  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability and objective must be non-empty strings' });
+  }
+  if (!requester) {
+    return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
 
   let approvalRequired = false;
