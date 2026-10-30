@@ -293,9 +293,16 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       if (typeof taskId !== 'string' || !taskId.trim()) {
         return rpcError(id, -32602, 'Invalid params: task id is required.');
       }
+      if (!dependencies.requesterAgentId.trim()) {
+        return rpcError(id, -32603, 'Authenticated requester identity is unavailable.');
+      }
       try {
         const task = await dependencies.getTask(taskId);
-        if (!task) return rpcError(id, -32001, 'Task not found.');
+        // A task ID is not an authorization credential. Keep task retrieval
+        // scoped to the authenticated creator and avoid revealing foreign IDs.
+        if (!task || task.requesterAgentId !== dependencies.requesterAgentId) {
+          return rpcError(id, -32001, 'Task not found.');
+        }
         return rpcResult(id, toA2ATask(task));
       } catch {
         return rpcError(id, -32603, 'Task lookup is temporarily unavailable.');
