@@ -4,9 +4,16 @@ import {
   executeAgentTurn,
   createAgentSession,
   getAgentSession,
+  getAgentHarnessPersistenceStatus,
+  initializeAgentHarnessPersistence,
   type AgentToolRequest,
   type HumanToolApproval,
 } from './agent-harness.ts';
+
+const originalDatabaseUrl = process.env.DATABASE_URL;
+delete process.env.DATABASE_URL;
+assert.equal(await initializeAgentHarnessPersistence(), false);
+assert.deepEqual(getAgentHarnessPersistenceStatus(), { mode: 'memory-fallback', durable: false });
 
 const capability = new Set(['mcp-tool']);
 const lowRisk: AgentToolRequest = { id: 'read-1', name: 'read', risk: 'low', capability: 'mcp-tool' };
