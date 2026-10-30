@@ -15,8 +15,8 @@ export interface ProviderModelOption {
 
 /**
  * Expose only model IDs advertised by configured, available, explicitly
- * authorized providers. Discovery is not an inference test, so these options
- * describe model-list evidence rather than guaranteed generation capacity.
+ * authorized providers whose inference authentication has been verified.
+ * A read-only model-list response alone is insufficient to expose an option.
  */
 export function buildProviderModelOptions(
   providers: readonly ProviderDiscoveryModelSource[],
