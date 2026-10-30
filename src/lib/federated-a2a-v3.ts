@@ -71,10 +71,12 @@ export function createFederatedA2ATask(input:{requesterAgentId:string;targetAgen
   return task;
 }
 export function getFederatedA2ATask(id:string){return memory.get(id)||null;}
-export function listFederatedA2ATasks(limit=50, requesterAgentId?: string){
-  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+export function listFederatedA2ATasks(limit=50, requesterAgentId?: string, allowAll = false){
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;
+  if (requesterAgentId !== undefined && !requester) return [];
+  if (!requester && !allowAll) return [];
   return [...memory.values()]
-    .filter((task) => !requester || task.requesterAgentId === requester)
+    .filter((task) => allowAll || task.requesterAgentId === requester)
     .sort((a,b)=>b.createdAt.localeCompare(a.createdAt))
     .slice(0,Math.min(100,Math.max(1,Number.isFinite(limit) ? Math.floor(limit) : 50)));
 }
