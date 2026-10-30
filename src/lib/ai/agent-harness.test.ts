@@ -80,6 +80,27 @@ assert.equal(result.result, 'executed');
 assert.equal(result.session.lastHumanApproval?.toolId, dangerous.id);
 assert.equal((await getAgentSession(approvedSession.id))?.turnCount, 1);
 
+const unrelatedApprovalSession = await createAgentSession('harness-test-unrelated-approval');
+const unrelatedApproval: HumanToolApproval = {
+  toolId: 'not-the-requested-tool',
+  approved: true,
+  approvedBy: 'human',
+  approvedAt: 'not-a-valid-timestamp',
+};
+await executeAgentTurn({
+  session: unrelatedApprovalSession,
+  contextTokens: 1,
+  tools: [lowRisk],
+  approvedCapabilities: capability,
+  humanApproval: unrelatedApproval,
+  run: async () => 'low-risk task completed',
+});
+assert.equal(
+  (await getAgentSession(unrelatedApprovalSession.id))?.lastHumanApproval,
+  undefined,
+  'an invalid or unrelated approval must never be recorded as authorization',
+);
+
 const failedSession = await createAgentSession('harness-test-failed');
 await assert.rejects(
   () => executeAgentTurn({
