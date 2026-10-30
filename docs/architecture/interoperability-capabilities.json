@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-30T03:48:17Z",
+  "updatedAt": "2026-10-30T03:59:28Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -513,10 +513,10 @@
       "id": "protocol.a2a-mcp-adapters",
       "title": "Standards-backed A2A and MCP adapters",
       "boundary": "Explicit protocol adapters behind GLORIFIER governance",
-      "scope": "protocol-implementation",
+      "scope": "A2A 1.0.0 and MCP 2026-07-28 source/specification gap audit; no conformant runtime transport established",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Repository implementation and contract tests"
+        "Repository source review only; no A2A/MCP runtime or external endpoint tested"
       ],
       "evidence": [
         {
@@ -525,11 +525,30 @@
           "targetEnvironment": "Repository source",
           "observedAt": null,
           "notes": "The document separates A2A and MCP roles but does not establish that both adapters have passed interoperability tests."
+        },
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/interoperability-gap-register.md#protocol-conformance-boundary-review--2026-10-30",
+          "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; A2A 1.0.0 specification target",
+          "observedAt": "2026-10-30T03:59:28Z",
+          "notes": "Source review found only a GLORIFIER-specific A2A discovery document and task API. The standard /.well-known/agent-card.json, AgentCard supportedInterfaces, and A2A 1.0 message/task binding are not established. This is gap evidence, not conformance evidence."
+        },
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/mcp-reference-conformance.md",
+          "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; MCP 2026-07-28 target",
+          "observedAt": "2026-10-30T03:59:28Z",
+          "notes": "The plan now pins the 2026-07-28 revision and its server/discover semantics. No MCP transport, discovery operation, or tool/resource/prompt RPC implementation has been demonstrated."
         }
       ],
       "limitations": [
-        "A protocol mention is not evidence of an implemented adapter.",
-        "No arbitrary proxy or implied provider fallback is authorized."
+        "The existing /.well-known/a2a-agent-card.json is a proprietary GLORIFIER discovery document, not the A2A 1.0 standard Agent Card endpoint or schema.",
+        "The existing /api/a2a/tasks and federated lifecycle are GLORIFIER-specific; they do not establish A2A 1.0 message/task binding, version negotiation, or cross-agent conformance.",
+        "The Cloudflare Worker does not currently serve the standard A2A Agent Card or A2A 1.0 service endpoint natively.",
+        "The MCP target is pinned to 2026-07-28, but no MCP server transport, server/discover, tools/list, or tools/call implementation is established.",
+        "Agent-harness tool authorization is not MCP protocol conformance.",
+        "A2A and MCP remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
+        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in this documentation-only review."
       ]
     },
     {
