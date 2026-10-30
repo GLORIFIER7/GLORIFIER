@@ -195,3 +195,13 @@ test('provider summaries aggregate worst-case status and retain per-token eviden
     ['READY_FOR_REVIEW', 'BLOCKED']
   );
 });
+
+
+test('reports a missing chain ID once without a redundant expected-chain diagnostic', () => {
+  const missingChainId = { ...validToken, chainId: '' };
+  const errors = validateTokenBrandingRecord(missingChainId);
+  assert.deepEqual(
+    errors.filter((item) => /chain ?id/i.test(item)),
+    ['chainId is required']
+  );
+});
