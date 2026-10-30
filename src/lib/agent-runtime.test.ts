@@ -11,8 +11,29 @@ import {
   listAgentTasks,
   updateAgentTask,
   requireAgentTaskUpdate,
+  canAccessAgentTask,
+  filterAgentTasksByRequester,
+  resolveAgentTaskRequester,
 } from './agent-runtime.ts';
 import type { PostgresAgentStateStore } from './agent-state-store.ts';
+
+// Task ownership is enforced independently of authentication. Request-body identity
+// must never let an ordinary authenticated caller impersonate another requester.
+const accessFixtures = [
+  { id: 'alice-task', requester: 'alice-uid' },
+  { id: 'bob-task', requester: 'bob-uid' },
+  { id: 'system-task', requester: 'human-owner' },
+];
+assert.equal(canAccessAgentTask(accessFixtures[0], 'alice-uid'), true);
+assert.equal(canAccessAgentTask(accessFixtures[1], 'alice-uid'), false);
+assert.equal(canAccessAgentTask(accessFixtures[1], 'alice-uid', true), true, 'the owner or authenticated internal service may inspect all tasks');
+assert.equal(canAccessAgentTask(accessFixtures[0], ''), false, 'missing identity must fail closed');
+assert.deepEqual(filterAgentTasksByRequester(accessFixtures, 'alice-uid').map((task) => task.id), ['alice-task']);
+assert.deepEqual(filterAgentTasksByRequester(accessFixtures, '', true).map((task) => task.id), ['alice-task', 'bob-task', 'system-task']);
+assert.equal(resolveAgentTaskRequester('alice-uid', 'human-owner'), 'alice-uid', 'ordinary callers cannot spoof requester identity');
+assert.equal(resolveAgentTaskRequester('owner-uid', 'delegated-agent', true), 'delegated-agent', 'owner may intentionally attribute a delegated task');
+assert.equal(resolveAgentTaskRequester(undefined, 'internal-agent', true), 'internal-agent', 'authenticated internal services may provide service identity');
+assert.equal(resolveAgentTaskRequester(undefined, 'human-owner'), null, 'no authenticated requester or internal authority must fail closed');
 
 const previousDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
