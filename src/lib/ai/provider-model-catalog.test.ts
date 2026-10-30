@@ -31,6 +31,15 @@ assert.deepEqual(
       models: ['qwen-model'],
     },
     {
+      id: 'pending-auth',
+      name: 'Pending authorization but reachable',
+      configured: true,
+      availability: 'available',
+      authorization: 'pending',
+      authenticated: true,
+      models: ['pending-auth-model'],
+    },
+    {
       id: 'offline',
       name: 'Offline Provider',
       configured: true,
