@@ -1,6 +1,7 @@
 import { getCapabilityPolicy, listCapabilityPolicies } from './capability-authorization';
 import { newId } from './new-id';
 import { createPostgresAgentStateStore } from './agent-state-store';
+import type { PostgresAgentStateStore } from './agent-state-store';
 
 export type AgentCard = {
   id: string;
