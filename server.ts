@@ -2439,7 +2439,7 @@ app.get('/api/federated-a2a/v3/tasks', (req: Request, res: Response) => {
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const tasks = filterAgentTasksByRequester(listFederatedA2ATasks(), requesterUid, mayReadAllTasks);
+  const tasks = listFederatedA2ATasks(50, mayReadAllTasks ? undefined : requesterUid);
   return res.json({ ok: true, tasks, policy: getFederatedA2AV3Policy() });
 });
 
@@ -2543,7 +2543,7 @@ app.get('/api/a2a/tasks', (req: Request, res: Response) => {
   if (!requesterUid && !mayReadAllTasks) {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
-  const tasks = filterAgentTasksByRequester(listA2ATasks(), requesterUid, mayReadAllTasks);
+  const tasks = listA2ATasks(50, mayReadAllTasks ? undefined : requesterUid);
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
