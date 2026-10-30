@@ -85,7 +85,8 @@
     "test:agent-persistence-bootstrap": "tsx src/lib/agent-persistence-bootstrap.test.ts",
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
     "test:governance-loop": "tsx src/lib/governance-loop.test.ts",
-    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts"
+    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",
+    "test:supabase-default-privileges": "node scripts/supabase-default-privileges.integration.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
