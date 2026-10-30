@@ -89,6 +89,17 @@ export class AgentTurnPersistenceError<T = unknown> extends Error {
   }
 }
 
+function normalizeContextTokens(contextTokens: number): number {
+  if (!Number.isFinite(contextTokens) || contextTokens < 0) {
+    throw new Error('contextTokens must be a finite, non-negative number.');
+  }
+  const normalized = Math.floor(contextTokens);
+  if (!Number.isSafeInteger(normalized)) {
+    throw new Error('contextTokens must normalize to a safe integer.');
+  }
+  return normalized;
+}
+
 const sessions = new Map<string, AgentSession>();
 const sessionTurnLocks = new Map<string, Promise<void>>();
 
@@ -204,10 +215,7 @@ export async function getAgentSession(sessionId: string): Promise<AgentSession |
 }
 
 export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
-  if (!Number.isFinite(contextTokens) || contextTokens < 0) {
-    throw new Error('contextTokens must be a finite, non-negative number.');
-  }
-  const nextContextTokens = Math.floor(contextTokens);
+  const nextContextTokens = normalizeContextTokens(contextTokens);
 
   if (persistence) {
     const updated = await persistence.incrementSessionTurn<AgentSession>(sessionId, nextContextTokens);
@@ -294,9 +302,7 @@ export async function executeAgentTurn<T>(options: {
   humanApproval?: HumanToolApproval;
   run: () => Promise<T>;
 }): Promise<{ result: T; session: AgentSession }> {
-  if (!Number.isFinite(options.contextTokens) || options.contextTokens < 0) {
-    throw new Error('contextTokens must be a finite, non-negative number.');
-  }
+  const normalizedContextTokens = normalizeContextTokens(options.contextTokens);
   const approvedCapabilities = options.approvedCapabilities || new Set<string>();
   const toolRequests = filterDeferredTools(options.tools || []);
 
@@ -353,7 +359,7 @@ export async function executeAgentTurn<T>(options: {
   }
 
   try {
-    const session = await recordAgentTurn(options.session.id, options.contextTokens);
+    const session = await recordAgentTurn(options.session.id, normalizedContextTokens);
     return { result, session };
   } catch (error) {
     // The external action already completed. Surface its result explicitly so
