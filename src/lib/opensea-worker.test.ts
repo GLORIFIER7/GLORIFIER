@@ -61,6 +61,10 @@ async function run(): Promise<void> {
     assert.equal(outbound.headers.get('x-api-key')?.includes('test-scoped-token'), false);
 
     capturedRequest = null;
+    nextResponse = new Response(JSON.stringify({ collection: 'glorifier1', name: 'GLORIFIER' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
     const collection = await worker.fetch(new Request('https://glorifier.test/api/opensea/collections/glorifier1'), env);
     assert.equal(collection.status, 200);
     const collectionBody = await collection.json() as { ok: boolean; collectionSlug: string; data: { name: string } };
