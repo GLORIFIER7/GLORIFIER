@@ -87,14 +87,15 @@ export class PostgresAgentStateStore {
     // An explicitly supplied blank identity is invalid; an omitted identity
     // is unscoped only when the caller supplies an explicit authorization grant.
     if (requester !== undefined && !normalizedRequester) return [];
-    if (!normalizedRequester && !allowAll) return [];
+    const requesterFilter = allowAll ? undefined : normalizedRequester;
+    if (!requesterFilter && !allowAll) return [];
     const result = await this.query(
-      normalizedRequester
+      requesterFilter
         ? `SELECT payload FROM glorifier_agent_state
            WHERE kind = $1 AND payload->>'requester' = $3
            ORDER BY updated_at DESC LIMIT $2`
         : 'SELECT payload FROM glorifier_agent_state WHERE kind = $1 ORDER BY updated_at DESC LIMIT $2',
-      normalizedRequester ? [kind, boundedLimit, normalizedRequester] : [kind, boundedLimit],
+      requesterFilter ? [kind, boundedLimit, requesterFilter] : [kind, boundedLimit],
     );
     return result.rows
       .map((row) => row.payload)
