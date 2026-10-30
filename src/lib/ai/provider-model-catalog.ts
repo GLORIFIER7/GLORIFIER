@@ -23,6 +23,7 @@ export function buildProviderModelOptions(
   const providersByModel = new Map<string, Set<string>>();
 
   for (const provider of providers) {
+    if (!provider || typeof provider !== 'object') continue;
     if (
       !provider.configured ||
       provider.availability !== 'available' ||
