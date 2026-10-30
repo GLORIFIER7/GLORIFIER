@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 import {
   buildA2AAgentCard,
   createA2AJsonRpcHandler,
+  A2A_PROTOCOL_VERSION,
   type A2ACreateTaskInput,
   type A2ATaskLike,
 } from './a2a-v1';
@@ -67,6 +68,19 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
   router.post('/api/a2a/v1', async (req: A2AExpressAuthenticatedRequest, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    const requestedVersion = req.get('A2A-Version') || String(req.query['A2A-Version'] || '');
+    // The protocol defines an omitted version as 0.3; this interface only
+    // advertises 1.0, so reject omitted and unsupported versions explicitly.
+    if ((requestedVersion || '0.3') !== A2A_PROTOCOL_VERSION) {
+      return res.status(400).type('application/problem+json').json({
+        type: 'https://a2a-protocol.org/errors/version-not-supported',
+        title: 'Protocol Version Not Supported',
+        status: 400,
+        detail: `The requested A2A protocol version ${requestedVersion || '0.3'} is not supported by this agent.`,
+        supportedVersions: [A2A_PROTOCOL_VERSION],
+      });
+    }
 
     try {
       if (!(await initializeIfConfigured(dependencies))) {
