@@ -1,3 +1,5 @@
+import { getPostgresPool } from './db/postgres';
+
 export type AgentStateKind = 'task' | 'session';
 
 export interface AgentStateQueryResult {
@@ -23,9 +25,9 @@ export interface AgentStateRecord {
  * The store deliberately persists task/session records only. It does not
  * schedule tasks, replay work, authorize tools, or perform provider actions.
  * Only "running" tasks stale for at least 30 minutes are marked failed on
- * startup. This avoids changing the state of another healthy replica's recent
+ * startup to avoid changing the state of another healthy replica's recent
  * work. Tasks are never automatically replayed because an interrupted action
- * may already have had an external side effect.
+ * may already have caused an external side effect.
  */
 export class PostgresAgentStateStore {
   constructor(private readonly query: AgentStateQuery) {}
@@ -103,4 +105,12 @@ export class PostgresAgentStateStore {
     );
     return result.rowCount ?? 0;
   }
+}
+
+/** Reusable pool adapter; module-specific startup logic remains with each caller. */
+export function createPostgresAgentStateStore(): PostgresAgentStateStore {
+  return new PostgresAgentStateStore(async (sql, values) => {
+    const result = await getPostgresPool().query(sql, values as any[]);
+    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
+  });
 }
