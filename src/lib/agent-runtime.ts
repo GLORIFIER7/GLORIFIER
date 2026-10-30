@@ -1,5 +1,7 @@
 import { getCapabilityPolicy, listCapabilityPolicies } from './capability-authorization';
 import { newId } from './new-id';
+import { getPostgresPool } from './db/postgres';
+import { PostgresAgentStateStore } from './agent-state-store';
 
 export type AgentCard = {
   id: string;
@@ -41,6 +43,36 @@ const agents: AgentCard[] = [
 ];
 
 const tasks = new Map<string, AgentTask>();
+let persistence: PostgresAgentStateStore | null = null;
+let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
+
+export async function initializeAgentRuntimePersistence(): Promise<boolean> {
+  if (!process.env.DATABASE_URL) {
+    persistence = null;
+    persistenceMode = 'memory-fallback';
+    return false;
+  }
+
+  const store = new PostgresAgentStateStore(async (sql, values) => {
+    const result = await getPostgresPool().query(sql, values as any[]);
+    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
+  });
+  await store.initialize();
+  const recovered = await store.recoverInterruptedTasks();
+  const restored = await store.list<AgentTask>('task', 500);
+  tasks.clear();
+  for (const task of restored) tasks.set(task.id, task);
+  persistence = store;
+  persistenceMode = 'postgres';
+  if (recovered > 0) {
+    console.warn(`[AgentRuntime] marked ${recovered} interrupted task(s) failed; automatic replay is disabled.`);
+  }
+  return true;
+}
+
+export function getAgentRuntimePersistenceStatus() {
+  return { mode: persistenceMode, durable: persistenceMode === 'postgres' };
+}
 const capabilityOwners: Record<string, string[]> = {
   research: ['research-scientist','market-scientist'],
   engineering: ['engineering-scientist','software-architect','api-scientist'],
@@ -109,28 +141,44 @@ export function evaluateAgentCapability(capability: string, humanApproved = fals
   return { allowed: true, requiresHumanApproval: policy.requiresHumanApproval, reason: 'policy_allowed' as const, policy };
 }
 
-export function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>) {
+export async function createAgentTask(input: Pick<AgentTask, 'capability'|'objective'|'input'|'requester'|'connectionId'|'approvalRequired'>): Promise<AgentTask> {
   const task: AgentTask = {
     id: newId('task'),
     ...input,
     createdAt: new Date().toISOString(),
     status: 'queued'
   };
+  // Persist before exposing a newly accepted task to the caller.
+  if (persistence) await persistence.save('task', task);
   tasks.set(task.id, task);
   return task;
 }
 
-export function updateAgentTask(id: string, patch: Partial<AgentTask>) {
-  const task = tasks.get(id);
-  if (!task) return null;
-  const updated = { ...task, ...patch };
+export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Promise<AgentTask | null> {
+  const current = tasks.get(id) || (persistence ? await persistence.get<AgentTask>('task', id) : null);
+  if (!current) return null;
+  const updated = { ...current, ...patch, id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
+  // A database failure is returned to the route; uncommitted state is not reported as durable.
+  if (persistence) await persistence.save('task', updated);
   tasks.set(id, updated);
   return updated;
 }
 
-export function getAgentTask(id: string) { return tasks.get(id) || null; }
-export function listAgentTasks(limit = 50) {
-  return [...tasks.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+export async function getAgentTask(id: string): Promise<AgentTask | null> {
+  const cached = tasks.get(id);
+  if (cached) return cached;
+  const restored = persistence ? await persistence.get<AgentTask>('task', id) : null;
+  if (restored) tasks.set(id, restored);
+  return restored;
+}
+
+export async function listAgentTasks(limit = 50): Promise<AgentTask[]> {
+  if (persistence) {
+    const durableTasks = await persistence.list<AgentTask>('task', limit);
+    for (const task of durableTasks) tasks.set(task.id, task);
+    return durableTasks;
+  }
+  return [...tasks.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, Math.max(1, Math.min(500, limit)));
 }
 
 export function agentManifest() {
