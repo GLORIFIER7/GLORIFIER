@@ -167,23 +167,46 @@ assert.equal(toA2ATask(baseTask({ status: 'degraded' })).status.state, 'working'
 
 console.log('A2A 1.0 JSON-RPC contract tests passed.');
 
+let finishDurableCreate!: (task: A2ATaskLike) => void;
+const durableCreate = new Promise<A2ATaskLike>((resolve) => {
+  finishDurableCreate = resolve;
+});
 const asyncCreateHandler = createA2AJsonRpcHandler({
   requesterAgentId: 'verified-user-async',
-  async createTask(input) {
-    await Promise.resolve();
-    return baseTask({
-      requesterAgentId: input.requesterAgentId,
-      objective: input.objective,
-    });
-  },
+  createTask: async () => durableCreate,
   getTask: async (id) => id === existing.id ? existing : null,
 });
-const asyncCreated = await asyncCreateHandler({
+let responseSettled = false;
+const pendingAcknowledgement = asyncCreateHandler({
   jsonrpc: '2.0',
   id: 23,
   method: 'message/send',
   params: { message: { messageId: 'async-message', role: 'user', parts: [{ text: 'Durably record this' }] } },
+}).then((response) => {
+  responseSettled = true;
+  return response;
 });
+await Promise.resolve();
+assert.equal(responseSettled, false, 'message/send must not acknowledge before durable task creation resolves');
+finishDurableCreate(baseTask({
+  requesterAgentId: 'verified-user-async',
+  objective: 'Durably record this',
+}));
+const asyncCreated = await pendingAcknowledgement;
 const asyncSubmittedTask = asyncCreated.result as { status: { state: string; message: { parts: Array<{ text: string }> } } };
 assert.equal(asyncSubmittedTask.status.state, 'submitted');
 assert.match(asyncSubmittedTask.status.message.parts[0].text, /human approval/i);
+
+const persistenceFailureHandler = createA2AJsonRpcHandler({
+  requesterAgentId: 'verified-user-async',
+  createTask: async () => { throw new Error('database write failed'); },
+  getTask: async () => null,
+});
+const persistenceFailure = await persistenceFailureHandler({
+  jsonrpc: '2.0',
+  id: 24,
+  method: 'message/send',
+  params: { message: { messageId: 'failed-write', role: 'user', parts: [{ text: 'Do not acknowledge me' }] } },
+});
+assert.equal((persistenceFailure.error as { code: number }).code, -32603);
+assert.equal(persistenceFailure.result, undefined, 'failed durable writes must not return a successful task acknowledgement');
