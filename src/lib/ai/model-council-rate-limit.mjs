@@ -2,7 +2,7 @@ import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 
 /** Use the observed socket peer; never trust client-supplied forwarded-IP headers. */
 export function resolveIngressClientAddress(req) {
-  return req.socket?.remoteAddress || req.ip || 'unknown';
+  return req.socket?.remoteAddress || 'unknown';
 }
 
 /**
