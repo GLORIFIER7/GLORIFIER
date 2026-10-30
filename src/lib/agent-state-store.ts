@@ -22,8 +22,10 @@ export interface AgentStateRecord {
  *
  * The store deliberately persists task/session records only. It does not
  * schedule tasks, replay work, authorize tools, or perform provider actions.
- * Interrupted "running" tasks are marked failed on startup rather than replayed
- * because an interrupted action may have had an external side effect.
+ * Only "running" tasks stale for at least 30 minutes are marked failed on
+ * startup. This avoids changing the state of another healthy replica's recent
+ * work. Tasks are never automatically replayed because an interrupted action
+ * may already have had an external side effect.
  */
 export class PostgresAgentStateStore {
   constructor(private readonly query: AgentStateQuery) {}
@@ -84,7 +86,7 @@ export class PostgresAgentStateStore {
   }
 
   async recoverInterruptedTasks(): Promise<number> {
-    const error = 'Process restarted before task completion; automatic replay is disabled.';
+    const error = 'Task was stale in running state for more than 30 minutes during recovery; automatic replay is disabled.';
     const result = await this.query(
       `UPDATE glorifier_agent_state
        SET status = 'failed',
@@ -94,7 +96,9 @@ export class PostgresAgentStateStore {
              to_jsonb($1::text)
            ),
            updated_at = NOW()
-       WHERE kind = 'task' AND status = 'running'`,
+       WHERE kind = 'task'
+         AND status = 'running'
+         AND updated_at < NOW() - INTERVAL '30 minutes'`,
       [error],
     );
     return result.rowCount ?? 0;
