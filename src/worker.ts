@@ -473,7 +473,7 @@ export default {
       if (request.method !== 'POST') {
         return errorResponse(405, -32600, 'A2A JSON-RPC endpoint accepts POST only.');
       }
-      if (!/^Bearer\\s+\\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
+      if (!/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
         return errorResponse(401, -32600, 'Authentication is required.');
       }
       if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
