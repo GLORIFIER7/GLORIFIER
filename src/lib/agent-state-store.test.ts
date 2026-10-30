@@ -110,7 +110,8 @@ const task = {
 };
 await store.save('task', task);
 assert.deepEqual(await store.get<typeof task>('task', task.id), task);
-assert.deepEqual(await store.list<typeof task>('task', 10), [task]);
+assert.deepEqual(await store.list<typeof task>('task', 10), [], 'task listing without an explicit requester or all-task grant must fail closed');
+assert.deepEqual(await store.list<typeof task>('task', 10, ''), [], 'a blank requester must not disable task scoping');
 
 // Requester filtering must occur in SQL before LIMIT, not after a global page
 // has already been selected. A much newer task from Bob must not hide Alice's.
