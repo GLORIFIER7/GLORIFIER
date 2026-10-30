@@ -69,7 +69,8 @@ const providerLastFailure = new Map<string, string>();
 const isProviderEligible = (provider: AIProvider, discovery: Map<string, DiscoveredProvider>, capability?: string): boolean => {
   const entry = discovery.get(provider.id);
   const explicitlyAuthorizedNvidia = provider.id === 'nvidia' && process.env.NVIDIA_AUTHORIZED === 'true';
-  return Boolean((entry?.authorization === 'configured' || explicitlyAuthorizedNvidia)
+  return Boolean(entry
+    && (entry.authorization === 'configured' || explicitlyAuthorizedNvidia)
     && (!capability || entry.capabilities.includes(capability)));
 };
 
