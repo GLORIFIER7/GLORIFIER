@@ -44,7 +44,7 @@ const agents: AgentCard[] = [
   { id: 'finance-scientist', name: 'GLORIFIER Finance Scientist', role: 'institutional-finance-intelligence', capabilities: ['portfolio-intelligence', 'multi-asset-risk', 'scenario-analysis', 'stress-testing', 'capital-allocation', 'valuation', 'financial-forensics', 'liquidity-analysis'], endpoint: '/api/agents/finance-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' }
 ];
 
-type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks'>;
+type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks' | 'heartbeatRunningTask'>;
 
 const tasks = new Map<string, AgentTask>();
 let persistence: AgentRuntimePersistence | null = null;
@@ -187,6 +187,46 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
   }
   tasks.set(id, updated);
   return updated;
+}
+
+export async function heartbeatAgentTask(id: string): Promise<boolean> {
+  assertAgentRuntimeReady();
+  if (persistence) return persistence.heartbeatRunningTask(id);
+  const current = tasks.get(id);
+  if (!current || current.status !== 'running') return false;
+  tasks.set(id, { ...current, updatedAt: new Date().toISOString() });
+  return true;
+}
+
+/**
+ * Keeps a running task's lease fresh while its work is active. Heartbeat
+ * failures are logged but do not interrupt the work being monitored.
+ */
+export async function withAgentTaskHeartbeat<T>(
+  taskId: string,
+  operation: () => Promise<T>,
+  intervalMs = 60_000,
+): Promise<T> {
+  let pendingHeartbeat: Promise<void> | null = null;
+  const timer = setInterval(() => {
+    if (pendingHeartbeat) return;
+    pendingHeartbeat = heartbeatAgentTask(taskId)
+      .then(() => undefined)
+      .catch((error) => {
+        console.warn(`[AgentRuntime] heartbeat failed for running task ${taskId}:`, error);
+      })
+      .finally(() => {
+        pendingHeartbeat = null;
+      });
+  }, Math.max(5, intervalMs));
+  timer.unref?.();
+
+  try {
+    return await operation();
+  } finally {
+    clearInterval(timer);
+    if (pendingHeartbeat) await pendingHeartbeat;
+  }
 }
 
 export async function requireAgentTaskUpdate(id: string, patch: Partial<AgentTask>): Promise<AgentTask> {
