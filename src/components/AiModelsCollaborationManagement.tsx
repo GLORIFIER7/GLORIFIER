@@ -329,7 +329,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
-                Configure intended roles and voting weights for these model IDs. Live provider availability, participation, privacy enforcement, and consensus behavior are NOT VERIFIED.
+                Configure provider roles and voting weights. The council resolves the exact configured model IDs from the server registry at request time; local-only research roles are not sent as provider participants. Live inference and consensus remain NOT VERIFIED.
               </p>
             </div>
           </div>
@@ -433,7 +433,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 Frontier AI Model Collaboration Matrix
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Enable or disable individual artificial intelligence models and customize their voting influence in sovereign data decisions.
+                Enable or disable provider-backed nodes and local research roles. Provider-backed nodes execute the exact model advertised by their configured provider; voting weights remain display-only.
               </p>
             </div>
 
