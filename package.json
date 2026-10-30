@@ -72,6 +72,7 @@
     "test:token-branding-bridge": "node --test --import tsx/esm src/lib/token-branding-bridge.test.ts",
     "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs",
     "test:agent-state-store": "tsx src/lib/agent-state-store.test.ts",
+    "test:agent-state-store-integration": "tsx src/lib/agent-state-store.integration.test.ts",
     "test:agent-runtime": "tsx src/lib/agent-runtime.test.ts",
     "test:agent-persistence-bootstrap": "tsx src/lib/agent-persistence-bootstrap.test.ts",
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
