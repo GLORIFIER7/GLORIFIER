@@ -69,7 +69,7 @@ export interface AgentHarnessPolicy {
   noSyntheticSuccess: true;
 }
 
-type AgentHarnessPersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'save'>;
+type AgentHarnessPersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'save' | 'incrementSessionTurn'>;
 
 /**
  * An action completed, but the resulting session state could not be persisted.
@@ -90,6 +90,22 @@ export class AgentTurnPersistenceError<T = unknown> extends Error {
 }
 
 const sessions = new Map<string, AgentSession>();
+const sessionTurnLocks = new Map<string, Promise<void>>();
+
+async function withSessionTurnLock<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = sessionTurnLocks.get(sessionId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const queued = previous.then(() => gate);
+  sessionTurnLocks.set(sessionId, queued);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (sessionTurnLocks.get(sessionId) === queued) sessionTurnLocks.delete(sessionId);
+  }
+}
 let persistence: AgentHarnessPersistence | null = null;
 let persistenceMode: 'uninitialized' | 'postgres' | 'memory-fallback' = 'uninitialized';
 
@@ -188,24 +204,31 @@ export async function getAgentSession(sessionId: string): Promise<AgentSession |
 }
 
 export async function recordAgentTurn(sessionId: string, contextTokens: number): Promise<AgentSession> {
-  const session = await getAgentSession(sessionId);
-  if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
-
   if (!Number.isFinite(contextTokens) || contextTokens < 0) {
     throw new Error('contextTokens must be a finite, non-negative number.');
   }
   const nextContextTokens = Math.floor(contextTokens);
-  const updated: AgentSession = {
-    ...session,
-    updatedAt: new Date().toISOString(),
-    turnCount: session.turnCount + 1,
-    contextTokens: nextContextTokens,
-    status: 'active',
-    compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
-  };
 
-  await saveSession(updated);
-  return updated;
+  if (persistence) {
+    const updated = await persistence.incrementSessionTurn<AgentSession>(sessionId, nextContextTokens);
+    if (!updated) throw new Error(`Unknown agent session: ${sessionId}`);
+    return updated;
+  }
+
+  return withSessionTurnLock(sessionId, async () => {
+    const session = await getAgentSession(sessionId);
+    if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
+    const updated: AgentSession = {
+      ...session,
+      updatedAt: new Date().toISOString(),
+      turnCount: session.turnCount + 1,
+      contextTokens: nextContextTokens,
+      status: 'active',
+      compactionRecommended: nextContextTokens >= Math.floor(session.maxContextTokens * 0.8),
+    };
+    await saveSession(updated);
+    return updated;
+  });
 }
 
 export function shouldCompactContext(session: AgentSession): boolean {
