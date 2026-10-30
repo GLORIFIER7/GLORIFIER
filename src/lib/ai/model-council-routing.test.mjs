@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {
   executeModelCouncilProviders,
+  resolveModelCouncilProviderIds,
   validateModelCouncilProviderIds,
 } from './model-council-routing.mjs';
 
@@ -93,13 +94,12 @@ test('council rejects a response that claims a different provider or contains no
 });
 
 test('legacy model selection rejects unknown IDs instead of silently dropping them', async () => {
-  const { resolveModelCouncilProviderIds } = await import('./model-council-routing.mjs');
   assert.deepEqual(
     resolveModelCouncilProviderIds({
       activeModels: ['gpt-4o', 'claude', 'gemini-3.8-flash'],
       availableProviderIds: knownProviders,
     }),
-    ['openai', 'claude', 'gemini'],
+    ['openai', 'anthropic', 'gemini'],
   );
   assert.throws(
     () => resolveModelCouncilProviderIds({
@@ -125,4 +125,15 @@ test('AI council route requires owner authorization and has a principal-scoped s
   );
   assert.match(serverSource, /limit:\s*2,[\s\S]*?keyGenerator:\s*\(req\)\s*=>/);
   assert.match(serverSource, /ai-council:user:\$\{principalId\}/);
+});
+
+test('malformed explicit providerIds are not ignored in favor of legacy activeModels', () => {
+  assert.throws(
+    () => resolveModelCouncilProviderIds({
+      providerIds: 'openai',
+      activeModels: ['gpt-4o'],
+      availableProviderIds: knownProviders,
+    }),
+    /array/i,
+  );
 });
