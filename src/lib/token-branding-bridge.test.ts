@@ -98,6 +98,19 @@ const validSolanaToken: TokenBrandingRecord = {
   contractOrMint: '7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9'
 };
 
+test('accepts the canonical Solana Mainnet Beta Token-2022 identity', () => {
+  assert.deepEqual(validateTokenBrandingRecord(validSolanaToken), []);
+});
+
+test('rejects Solana Devnet from production branding inspection', () => {
+  const devnet = {
+    ...validSolanaToken,
+    network: 'Solana Devnet',
+    chainId: 'solana:devnet'
+  };
+  assert.ok(validateTokenBrandingRecord(devnet).some((item) => /devnet|unsupported production network|unsupported Solana cluster/i.test(item)));
+});
+
 test('rejects non-canonical token standards for BNB and Solana deployments', () => {
   const bnbWithErc20 = {
     ...validToken,
