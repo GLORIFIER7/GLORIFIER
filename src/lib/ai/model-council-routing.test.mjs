@@ -74,7 +74,7 @@ test('failed providers are reported without substituting an unselected provider'
   assert.equal(result.status, 'partial');
   assert.equal(result.participantCount, 1);
   assert.equal(result.providerDiversity, 1);
-  assert.deepEqual(result.failures, [{ providerId: 'anthropic', code: 'provider_execution_failed' }]);
+  assert.deepEqual(result.failures, [{ providerId: 'anthropic', modelId: null, code: 'provider_execution_failed' }]);
   assert.equal(JSON.stringify(result).includes('credential details'), false);
 });
 
@@ -86,7 +86,7 @@ test('council rejects a response that claims a different provider or contains no
   });
   assert.equal(mismatch.status, 'unavailable');
   assert.equal(mismatch.participantCount, 0);
-  assert.deepEqual(mismatch.failures, [{ providerId: 'openai', code: 'provider_execution_failed' }]);
+  assert.deepEqual(mismatch.failures, [{ providerId: 'openai', modelId: null, code: 'provider_execution_failed' }]);
 
   const empty = await executeModelCouncilProviders({
     providerIds: ['openai'],
@@ -182,6 +182,7 @@ test('trusted internal-service calls without a user principal are rate-limited b
     assert.equal((await call()).status, 200);
     assert.equal((await call()).status, 200);
     assert.equal((await call()).status, 429);
+    assert.equal((await fetch(url, { method: 'POST', headers: { 'x-real-ip': '203.0.113.10' } })).status, 200);
   });
 });
 
