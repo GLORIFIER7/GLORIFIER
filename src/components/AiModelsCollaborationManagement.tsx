@@ -213,7 +213,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     setIsRunningCouncil(true);
     try {
       const configuredParticipants = await discoverConfiguredModelCouncilParticipants();
-      const participantsByProvider = new Map(configuredParticipants.map((participant) => [participant.providerId, participant]));
+      const participantsByProvider = new Map(configuredParticipants.map((participant) => [participant.providerId, participant] as const));
       const unavailableProviders: string[] = [];
       const participants = selectedProviderNodes.flatMap((node) => {
         const selected = participantsByProvider.get(node.providerId);
