@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { execFileSync } from 'node:child_process';
 import {
   createAgentTask,
   getAgentTask,
@@ -12,6 +13,29 @@ import type { PostgresAgentStateStore } from './agent-state-store.ts';
 
 const previousDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
+
+// A separate process proves DATABASE_URL is read after the environment is populated
+// but before the module initializes persistence; APIs must fail closed in that state.
+execFileSync(process.execPath, [
+  '--import',
+  'tsx/esm',
+  '--input-type=module',
+  '-e',
+  `
+    import assert from 'node:assert/strict';
+    const runtime = await import('./src/lib/agent-runtime.ts');
+    assert.equal(runtime.getAgentRuntimePersistenceStatus().mode, 'uninitialized');
+    await assert.rejects(
+      () => runtime.createAgentTask({ capability: 'research', objective: 'must fail closed', requester: 'test' }),
+      /still initializing/,
+    );
+    await assert.rejects(() => runtime.getAgentTask('task-not-initialized'), /still initializing/);
+  `,
+], {
+  cwd: process.cwd(),
+  env: { ...process.env, DATABASE_URL: 'postgresql://unit-test.invalid/uninitialized' },
+  stdio: 'pipe',
+});
 
 // Modules must not assume memory fallback before dotenv/runtime configuration has settled.
 assert.equal(getAgentRuntimePersistenceStatus().mode, 'uninitialized');
