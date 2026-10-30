@@ -18,6 +18,7 @@ const AutonomousCoreWidget = React.lazy(() => import('./components/AutonomousCor
 const MobileDeviceControl = React.lazy(() => import('./components/MobileDeviceControl').then((module) => ({ default: module.MobileDeviceControl })));
 const AgentMinerDashboard = React.lazy(() => import('./components/AgentMinerDashboard').then((module) => ({ default: module.AgentMinerDashboard })));
 const AgentNetworkDashboard = React.lazy(() => import('./components/AgentNetworkDashboard').then((module) => ({ default: module.AgentNetworkDashboard })));
+const TokenBrandingBridgeDashboard = React.lazy(() => import('./components/TokenBrandingBridgeDashboard').then((module) => ({ default: module.TokenBrandingBridgeDashboard })));
 
 import { 
   initialStats, 
@@ -51,7 +52,7 @@ type AppIdentity = Pick<User, 'uid' | 'email'> & { displayName: string | null; a
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AppIdentity | null>(null);
   const [activeTab, setActiveTab] = useState<string>('overview');
-  const validTabs = new Set(['overview','geas_architecture','autonomous_core','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile']);
+  const validTabs = new Set(['overview','geas_architecture','autonomous_core','ai_ceo','integrations','agent_network','discovery','sentinel','connections','scientists','agent_miner','compliance','control','footprints','broker','mobile','token_branding']);
   const [stats, setStats] = useState(initialStats);
   const [footprints, setFootprints] = useState<DataFootprintSource[]>(initialFootprints);
   const [offers, setOffers] = useState<BuyerOffer[]>(initialBuyerOffers);
@@ -499,6 +500,7 @@ export default function App() {
         {activeTab === 'ai_ceo' && <AICeoControl />}
         {activeTab === 'integrations' && <IntegrationControl />}
         {activeTab === 'agent_network' && <AgentNetworkDashboard />}
+        {activeTab === 'token_branding' && <TokenBrandingBridgeDashboard />}
         {activeTab === 'discovery' && <OpportunityDiscoveryDashboard />}
         {activeTab === 'sentinel' && (
           <AiCodeSentinelManagement

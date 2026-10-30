@@ -42,6 +42,32 @@ export type ProviderAssessment = {
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 const SOLANA_MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const SHA256 = /^[a-f0-9]{64}$/i;
+const NETWORKS: Record<string, { chainId: string; standards: string[]; addressType: 'evm' | 'solana' }> = {
+  'ethereum mainnet': { chainId: '1', standards: ['ERC-20'], addressType: 'evm' },
+  'bnb smart chain': { chainId: '56', standards: ['BEP-20', 'ERC-20'], addressType: 'evm' },
+  'base mainnet': { chainId: '8453', standards: ['ERC-20'], addressType: 'evm' },
+  'solana mainnet beta': { chainId: 'solana:mainnet-beta', standards: ['SPL Token', 'Token-2022'], addressType: 'solana' }
+};
+
+function validateLogoUri(uri: string): string[] {
+  if (uri.startsWith('ipfs://')) {
+    const reference = uri.slice('ipfs://'.length);
+    const cid = reference.split('/')[0];
+    const cidV0 = /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid);
+    const cidV1 = /^b[a-z2-7]{20,}$/.test(cid);
+    return cidV0 || cidV1 ? [] : ['logo URI must contain a valid IPFS CID'];
+  }
+  if (uri.startsWith('https://')) {
+    try {
+      const parsed = new URL(uri);
+      if (parsed.protocol === 'https:' && parsed.hostname && !parsed.username && !parsed.password) return [];
+    } catch {
+      // Invalid URLs are reported below.
+    }
+    return ['logo URI must be a valid HTTPS URL with a hostname'];
+  }
+  return ['logo URI must use ipfs:// or https://'];
+}
 
 export function validateTokenBrandingRecord(record: TokenBrandingRecord): string[] {
   const errors: string[] = [];
@@ -49,14 +75,24 @@ export function validateTokenBrandingRecord(record: TokenBrandingRecord): string
   if (!record.network.trim()) errors.push('network is required');
   if (!record.tokenSymbol.trim()) errors.push('tokenSymbol is required');
   if (!record.contractOrMint.trim()) errors.push('contractOrMint is required');
-  if (record.network.toLowerCase().includes('solana')) {
-    if (!SOLANA_MINT.test(record.contractOrMint)) errors.push('invalid Solana mint address');
-  } else if (!EVM_ADDRESS.test(record.contractOrMint)) {
-    errors.push('invalid EVM contract address');
+
+  const network = NETWORKS[record.network.trim().toLowerCase()];
+  if (!network) {
+    errors.push('unsupported network; use an explicit canonical network name');
+  } else {
+    if (String(record.chainId) !== network.chainId) errors.push(`chain ID must be ${network.chainId} for ${record.network}`);
+    if (!network.standards.includes(record.standard)) {
+      errors.push(`token standard must be one of: ${network.standards.join(', ')}`);
+    }
+    if (network.addressType === 'solana' && !SOLANA_MINT.test(record.contractOrMint)) {
+      errors.push('invalid Solana mint address');
+    }
+    if (network.addressType === 'evm' && !EVM_ADDRESS.test(record.contractOrMint)) {
+      errors.push('invalid EVM contract address');
+    }
   }
-  if (!record.logo.uri.startsWith('ipfs://') && !record.logo.uri.startsWith('https://')) {
-    errors.push('logo URI must use ipfs:// or https://');
-  }
+
+  errors.push(...validateLogoUri(record.logo.uri));
   if (record.logo.sha256 && !SHA256.test(record.logo.sha256)) {
     errors.push('logo SHA-256 must be 64 hexadecimal characters');
   }
@@ -94,7 +130,6 @@ export function assessBrandingProvider(
     mode: provider.mode,
     status,
     blockers,
-    // An adapter assessment is never evidence of publication.
     publicationStatus: 'NOT_SUBMITTED'
   };
 }
