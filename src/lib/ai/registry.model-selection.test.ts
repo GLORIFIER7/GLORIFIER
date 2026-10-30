@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { AIProvider } from './types.ts';
 import { isProviderModelEligible, normalizeRequestedModel } from './registry.ts';
+import { normalizeSavedModelPreference, resolveExecutableModelPreference, isIndependentComputeFallbackAllowed } from './model-selection.ts';
 
 const configuredProvider: AIProvider = {
   id: 'openai',
@@ -51,5 +52,24 @@ assert.equal(
   true,
   'Gemini resource names must compare using their canonical model IDs',
 );
+
+
+assert.equal(normalizeSavedModelPreference(undefined), 'auto');
+assert.equal(normalizeSavedModelPreference(''), 'auto', 'blank saved preferences must normalize to auto');
+assert.equal(normalizeSavedModelPreference('   '), 'auto', 'whitespace-only saved preferences must normalize to auto');
+assert.equal(normalizeSavedModelPreference('AUTO'), 'auto', 'auto sentinel matching must be case-insensitive');
+assert.equal(normalizeSavedModelPreference('all-models'), 'auto');
+assert.equal(normalizeSavedModelPreference('consensus'), 'auto');
+assert.equal(normalizeSavedModelPreference(' gpt-4o '), 'gpt-4o', 'explicit saved IDs must be trimmed');
+
+assert.equal(resolveExecutableModelPreference('gpt-4o', ['gpt-4o']), 'gpt-4o');
+assert.equal(resolveExecutableModelPreference('stale-model', ['gpt-4o']), 'auto', 'undiscovered saved IDs must never remain executable');
+assert.equal(resolveExecutableModelPreference('AUTO', ['gpt-4o']), 'auto');
+
+assert.equal(isIndependentComputeFallbackAllowed(undefined), true, 'automatic routing may use governed independent compute');
+assert.equal(isIndependentComputeFallbackAllowed('auto'), true);
+assert.equal(isIndependentComputeFallbackAllowed('unknown-model'), false, 'an explicit unavailable model must not silently run on independent compute');
+assert.equal(isIndependentComputeFallbackAllowed(' gpt-4o '), false);
+assert.equal(isIndependentComputeFallbackAllowed('auto', 'openai'), false, 'required-provider requests must never escape to independent compute');
 
 console.log('provider model-selection behavior tests: PASS');
