@@ -86,6 +86,55 @@ const futureEvidence = reconcileArchitectureStates({
 }, now);
 assert.equal(futureEvidence.status, 'UNKNOWN');
 
+const missingTimezone = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: { ...evidenceByState.observed, observedAt: '2026-10-21T23:00:00' },
+  },
+}, now);
+assert.equal(missingTimezone.status, 'UNKNOWN', 'timezone-less state evidence must fail closed');
+
+const dateOnlyExpiry = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: { ...evidenceByState.observed, validUntil: '2026-10-23' },
+  },
+}, now);
+assert.equal(dateOnlyExpiry.status, 'UNKNOWN', 'date-only expiry values must not be accepted as evidence timestamps');
+
+const impossibleCalendarDate = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: { ...evidenceByState.observed, observedAt: '2026-02-30T23:00:00Z' },
+  },
+}, now);
+assert.equal(impossibleCalendarDate.status, 'UNKNOWN', 'impossible calendar dates must fail closed');
+
+const invalidOffset = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: { ...evidenceByState.observed, validUntil: '2026-10-23T00:00:00+24:00' },
+  },
+}, now);
+assert.equal(invalidOffset.status, 'UNKNOWN', 'out-of-range UTC offsets must fail closed');
+
+const explicitOffsetEvidence = reconcileArchitectureStates({
+  ...base,
+  evidenceByState: {
+    ...evidenceByState,
+    observed: {
+      ...evidenceByState.observed,
+      observedAt: '2026-10-21T18:00:00-05:00',
+      validUntil: '2026-10-22T19:00:00-05:00',
+    },
+  },
+}, now);
+assert.equal(explicitOffsetEvidence.status, 'ALIGNED', 'valid numeric UTC offsets must remain supported');
+
 const changedObserved = { version: 2, region: 'test' };
 const unboundSnapshot = reconcileArchitectureStates({
   ...base,
