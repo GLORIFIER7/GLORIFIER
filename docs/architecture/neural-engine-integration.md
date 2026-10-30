@@ -45,6 +45,20 @@ Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact p
 - Provider credentials (including NVIDIA NIM) remain in the Neural runtime secret manager. External data egress stays disabled unless the owner explicitly approves the data classification and configuration.
 - Do not configure Supabase or Neon for this bridge. The bridge must not run migrations, write to databases, or synchronize records.
 
+## Runtime-verification configuration semantics
+
+The Worker `/api/runtime-verification` response includes a `checks.neural` object. This is a configuration-only assessment of the Neural egress boundary; it does not call the Neural service and must never be interpreted as proof of service health, authentication, provider readiness, or inference availability.
+
+| Status | Meaning | `ok` |
+| --- | --- | --- |
+| `not-configured` | `GLORIFIER_NEURAL_ORIGIN` is absent | `false` |
+| `invalid-origin` | Origin is not a plain HTTPS origin on the default port | `false` |
+| `allowlist-not-configured` | Exact-host egress allowlist is absent | `false` |
+| `not-allowlisted` | Origin host is absent from the exact-host allowlist | `false` |
+| `configured-not-probed` | Origin and exact-host allowlist are syntactically configured | `null` |
+
+Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` establish upstream reachability and readiness. A 200 health response proves process liveness only; readiness remains 503 until Neural integrations are actually verified. The runtime verification endpoint deliberately does not test the task endpoint because doing so would require a caller credential and could trigger processing.
+
 ## Required implementation and release gates
 
 1. Implement the exact route adapter and environment type in `src/worker.ts` on a separate branch.
