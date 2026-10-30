@@ -89,7 +89,7 @@ test('hardens future postgres-owned public defaults without changing service_rol
         SELECT d.defaclobjtype AS object_type, grantee.rolname AS grantee
         FROM pg_default_acl d
         CROSS JOIN LATERAL aclexplode(d.defaclacl) acl
-        JOIN pg_roles grantee ON grantee.oid = acl.grantee
+        LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
         WHERE d.defaclrole = 'postgres'::regrole
           AND d.defaclnamespace = 'public'::regnamespace
           AND d.defaclobjtype IN ('r', 'S', 'f')
