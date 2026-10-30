@@ -4,6 +4,7 @@ export interface ProviderDiscoveryModelSource {
   configured: boolean;
   availability: string;
   authorization: string;
+  authenticated: boolean;
   models: string[];
 }
 
@@ -28,6 +29,7 @@ export function buildProviderModelOptions(
       !provider.configured ||
       provider.availability !== 'available' ||
       provider.authorization !== 'configured' ||
+      provider.authenticated !== true ||
       !Array.isArray(provider.models)
     ) continue;
 
