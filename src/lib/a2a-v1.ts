@@ -65,7 +65,7 @@ export interface A2ACreateTaskInput {
 
 export interface A2AJsonRpcDependencies {
   requesterAgentId: string;
-  createTask(input: A2ACreateTaskInput): A2ATaskLike;
+  createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
 }
 
@@ -273,7 +273,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       }
 
       try {
-        const task = dependencies.createTask({
+        const task = await dependencies.createTask({
           requesterAgentId: dependencies.requesterAgentId,
           capability: 'a2a-message-intake',
           objective: parsed.text,
