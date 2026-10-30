@@ -66,4 +66,17 @@ assert.equal(result.result, 'executed');
 assert.equal(result.session.lastHumanApproval?.toolId, dangerous.id);
 assert.equal((await getAgentSession(approvedSession.id))?.turnCount, 1);
 
+const failedSession = await createAgentSession('harness-test-failed');
+await assert.rejects(
+  () => executeAgentTurn({
+    session: failedSession,
+    contextTokens: 10,
+    tools: [],
+    approvedCapabilities: new Set(),
+    run: async () => { throw new Error('mocked inference failure'); },
+  }),
+  /mocked inference failure/,
+);
+assert.equal((await getAgentSession(failedSession.id))?.status, 'failed');
+
 console.log('agent-harness approval state-machine tests: PASS');
