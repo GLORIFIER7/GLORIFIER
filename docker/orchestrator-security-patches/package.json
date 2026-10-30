@@ -1,0 +1,9 @@
+{
+  "name": "glorifier-orchestrator-npm-patches",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "brace-expansion": "5.0.12",
+    "undici": "6.29.1"
+  }
+}
