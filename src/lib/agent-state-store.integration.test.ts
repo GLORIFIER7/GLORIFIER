@@ -100,7 +100,7 @@ try {
   await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
   assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
 
-  assert.equal(await store.recoverInterruptedTasks(), 1);
+  assert.equal(await store.recoverInterruptedTasks(30), 1);
   const recovered = await store.get<typeof staleTask & { error?: string }>('task', staleTask.id);
   assert.equal(recovered?.status, 'failed');
   assert.match(recovered?.error || '', /automatic replay is disabled/);
