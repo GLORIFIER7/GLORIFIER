@@ -515,6 +515,8 @@ export default {
         Accept: 'application/json',
         'X-Correlation-ID': crypto.randomUUID(),
       });
+      const a2aVersion = request.headers.get('A2A-Version');
+      if (a2aVersion) headers.set('A2A-Version', a2aVersion);
       // Forward only the auth token and protocol headers. Cookies and unrelated
       // caller headers are intentionally not carried into the backend service.
       request = new Request(request.url, { method: 'POST', headers, body });
