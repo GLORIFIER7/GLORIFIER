@@ -2558,14 +2558,6 @@ app.get('/api/a2a/tasks', (req: Request, res: Response) => {
     return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   }
   const tasks = listA2ATasks(50, mayReadAllTasks ? undefined : requesterUid, mayReadAllTasks);
-// Authentication is enforced once by the shared /api middleware above.
-app.get('/api/a2a/tasks', (req: Request, res: Response) => {
-  const auth = (req as AuthenticatedRequest).auth;
-  const requesterAgentId = String(auth?.uid || '').trim();
-  const owner = auth ? isOwner(auth) : false;
-  const tasks = listA2ATasks().filter((task) =>
-    owner || Boolean(requesterAgentId && task.requesterAgentId === requesterAgentId)
-  );
   return res.json({ ok: true, tasks, protocol: getA2AProtocolManifest() });
 });
 
@@ -2578,19 +2570,12 @@ app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
   }
   const task = getA2ATask(String(req.params.id));
   if (!task || !canAccessAgentTask(task, requesterUid, mayReadAllTasks)) {
-  const auth = (req as AuthenticatedRequest).auth;
-  const requesterAgentId = String(auth?.uid || '').trim();
-  const owner = auth ? isOwner(auth) : false;
-  if (!task || (!owner && (!requesterAgentId || task.requesterAgentId !== requesterAgentId))) {
     return res.status(404).json({ ok: false, error: 'A2A task not found' });
   }
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', requireOwnerOrInternalService, async (req: Request, res: Response) => {
 app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
-  const requesterAgentId = String((req as any).auth?.uid || '').trim();
-  if (!requesterAgentId) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
   const body = req.body || {};
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
@@ -2613,13 +2598,9 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
     parentTaskId: body.parentTaskId ? String(body.parentTaskId) : undefined,
     maxAttempts: body.maxAttempts
   });
-  // A request-body string is not an approval credential. Only an authenticated
-  // owner may authorize execution in this request; internal service callers and
-  // other authenticated identities receive a pending task.
-  const humanApproved = Boolean(auth && isOwner(auth) && String(body.approval || '').toLowerCase() === 'approved');
-  if (!humanApproved) {
-  const auth = (req as AuthenticatedRequest).auth;
-  const authenticatedOwner = auth ? isOwner(auth) : false;
+  // Request-body approval is accepted only when the authenticated identity is
+  // independently verified as the owner; other callers remain approval-gated.
+  const authenticatedOwner = Boolean(auth && isOwner(auth));
   const ownerApproved = isAuthorizedA2AExecution(authenticatedOwner, body.approval);
   if (!ownerApproved) {
     return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
