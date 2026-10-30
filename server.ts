@@ -65,7 +65,8 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
-import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, listA2ATasks, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { A2A_MAX_MESSAGE_TEXT_CHARS, createA2AJsonRpcHandler, buildA2AAgentCard } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
@@ -93,7 +94,7 @@ void initializeAlpacaBrokerOAuth().catch((error) => console.warn('[AlpacaBrokerO
 void initializeMobileDeviceRegistry().catch((error) => console.warn('[MobileDeviceRegistry] initialization deferred:', error?.message));
 void initializeGeasArchitectureScientist().catch((error) => console.warn('[GEASArchitectureScientist] initialization deferred:', error?.message));
 if (process.env.DATABASE_URL) {
-  initializeA2ARuntime();
+  void initializeA2ARuntime().catch((error) => console.warn('[A2A] persistence initialization deferred:', error?.message));
 } else {
   console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
 }
@@ -182,6 +183,8 @@ const apiRateLimit = rateLimit({
 app.disable('x-powered-by');
 app.use(appWideRateLimit);
 app.use('/api', apiRateLimit);
+// A2A JSON-RPC requests have a smaller protocol-level body limit than general application APIs.
+app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: true, type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 
 app.use((req: Request, res: Response, next) => {
@@ -2494,6 +2497,53 @@ app.post('/api/federated-a2a/v3/tasks/:id/fail', requireOwnerOrInternalService, 
 
 app.get('/api/a2a/manifest', (_req: Request, res: Response) => {
   res.json({ ok: true, manifest: getA2AProtocolManifest() });
+});
+
+app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
+  const publicBaseUrl = String(process.env.GLORIFIER_PUBLIC_URL || '').trim();
+  if (!publicBaseUrl) {
+    return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_NOT_CONFIGURED' });
+  }
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return res.json(buildA2AAgentCard(publicBaseUrl, process.env.GLORIFIER_AGENT_VERSION || '0.2.1'));
+  } catch {
+    return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_INVALID' });
+  }
+});
+
+app.post('/api/a2a/v1', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!req.is('application/json')) {
+    return res.status(415).type('application/json').json({
+      jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Content-Type must be application/json.' },
+    });
+  }
+
+  let bodyBytes = 0;
+  try {
+    bodyBytes = Buffer.byteLength(JSON.stringify(req.body ?? null), 'utf8');
+  } catch {
+    return res.status(400).type('application/json').json({
+      jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid JSON-RPC request body.' },
+    });
+  }
+  if (bodyBytes > 65_536) {
+    return res.status(413).type('application/json').json({
+      jsonrpc: '2.0', id: null, error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' },
+    });
+  }
+
+  const requesterAgentId = String((req as any).auth?.uid || '').trim();
+  const handle = createA2AJsonRpcHandler({
+    requesterAgentId,
+    createTask: createA2ATask,
+    getTask: getA2ATaskForProtocol,
+  });
+  const response = await handle(req.body);
+  return res.status(200).type('application/json').json(response);
 });
 
 app.get('/.well-known/a2a-agent-card.json', (_req: Request, res: Response) => {
