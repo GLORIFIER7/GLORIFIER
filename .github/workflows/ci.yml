@@ -154,6 +154,9 @@ jobs:
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
 
+      - name: Governance loop failure recovery tests
+        run: npm run test:governance-loop
+
       - name: Anthropic provider integration tests
         run: npm run test:anthropic
 
