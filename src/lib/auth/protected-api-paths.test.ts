@@ -66,7 +66,7 @@ assert.match(
 );
 assert.match(
   server,
-  /app\.post\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?resolveAgentTaskRequester\(requesterUid, body\.requesterAgentId, mayOverrideRequester\)/,
+  /app\.post\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?const requestedRequester = body\.requesterAgentId \?\? \(isInternalServiceRequest\(req\) \? 'glorifier-internal-service' : undefined\)[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
   'federated A2A requester identity must be derived from authenticated context',
 );
 assert.match(
