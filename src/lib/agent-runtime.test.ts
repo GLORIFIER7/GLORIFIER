@@ -153,7 +153,8 @@ try {
 
   assert.equal((await getAgentTask(task.id))?.status, 'completed');
   assert.deepEqual(await listAgentTasks(10, ''), [], 'an explicitly blank requester must not disable tenant scoping');
-  assert.equal((await listAgentTasks(10)).some((entry) => entry.id === task.id), true);
+  assert.deepEqual(await listAgentTasks(10), [], 'a missing requester must fail closed unless all-task access is explicit');
+  assert.equal((await listAgentTasks(10, undefined, true)).some((entry) => entry.id === task.id), true);
 
   // Memory fallback and PostgreSQL mode must order tasks by last update, not creation.
   const olderTask = await createAgentTask({
@@ -170,7 +171,7 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 10));
   await updateAgentTask(olderTask.id, { status: 'running' });
   assert.equal(
-    (await listAgentTasks(10))[0]?.id,
+    (await listAgentTasks(10, undefined, true))[0]?.id,
     olderTask.id,
     'recently updated older tasks must sort ahead of newly created but older-updated tasks',
   );
@@ -228,7 +229,11 @@ try {
       await new Promise<void>((resolve) => { releaseHangingHeartbeat = resolve; });
       return true;
     },
-    list: async <T>() => [...durableRecords.values()] as T[],
+    list: async <T>(_kind: 'task' | 'session', _limit = 50, requester?: string, allowAll = false) =>
+      [...durableRecords.values()].filter((value) => {
+        const record = value as { requester?: string };
+        return allowAll || (typeof requester === 'string' && requester.length > 0 && record.requester === requester);
+      }) as T[],
     get: async <T>(_kind: 'task' | 'session', id: string) => (durableRecords.get(id) as T | undefined) ?? null,
     save: async (_kind: 'task' | 'session', record: { id: string }) => {
       durableRecords.set(record.id, structuredClone(record));
@@ -247,7 +252,7 @@ try {
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
   assert.equal((await updateAgentTask(durableTask.id, { status: 'running' }))?.status, 'running');
   assert.equal((await getAgentTask(durableTask.id))?.status, 'running');
-  assert.equal((await listAgentTasks(10)).some((entry) => entry.id === durableTask.id), true);
+  assert.equal((await listAgentTasks(10, undefined, true)).some((entry) => entry.id === durableTask.id), true);
   assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
   hangNextHeartbeat = true;
   const nonBlockingHeartbeatOperation = withAgentTaskHeartbeat(
@@ -292,7 +297,7 @@ try {
     () => createAgentTask({ capability: 'research', objective: 'must not be accepted without durable save', requester: 'agent-runtime-test' }),
     /simulated durable save failure/,
   );
-  assert.deepEqual(await listAgentTasks(10), [], 'a task whose durable insert failed must not appear as accepted');
+  assert.deepEqual(await listAgentTasks(10, undefined, true), [], 'a task whose durable insert failed must not appear as accepted');
 } finally {
   if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = previousDatabaseUrl;
