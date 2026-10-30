@@ -19,6 +19,7 @@ import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
+import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
 import { addBrandTerm, listBrandTerms, listBrandObservations, listBrandAlerts, recordBrandObservation, classifyBrandMatch } from './src/lib/brand-monitor';
 import { initializeConnectionRegistry, registerConnection, listConnections, getConnection, recordConnectionEvent, requestConnectionApproval, verifyConnection } from './src/lib/connection-registry';
@@ -2536,7 +2537,7 @@ app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   });
   const approvalRequired = true;
   if (approvalRequired && String(body.approval || '').toLowerCase() !== 'approved') {
-    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', humanApprovalRequired: true });
+    return res.status(202).json({ ok: true, task, status: 'awaiting_human_approval', approvalId: approval.id, humanApprovalRequired: true });
   }
   const completed = await executeA2ATask(task, (prompt, options) => runIntelligenceModel(
     'gemini',
@@ -2606,8 +2607,8 @@ app.get('/api/agents/tasks/:id', async (req: Request, res: Response) => {
 
 app.post('/api/agents/tasks', async (req: Request, res: Response) => {
   const { capability, objective, input, requester = 'human-owner', connectionId } = req.body || {};
-  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim()) {
-    return res.status(400).json({ ok: false, error: 'capability and objective must be non-empty strings' });
+  if (typeof capability !== 'string' || !capability.trim() || typeof objective !== 'string' || !objective.trim() || typeof requester !== 'string' || !requester.trim()) {
+    return res.status(400).json({ ok: false, error: 'capability, objective, and requester must be non-empty strings' });
   }
 
   let approvalRequired = false;
@@ -2628,7 +2629,8 @@ app.post('/api/agents/tasks', async (req: Request, res: Response) => {
   }
   if (approvalRequired) {
     try {
-      await requestConnectionApproval(String(connectionId), String(requester), 'agent-task', [capability]);
+      task = await requireAgentTaskUpdate(task.id, { status: 'awaiting-approval' });
+      const approval = await requestConnectionApproval(String(connectionId), requester, 'agent-task', [capability], task.id);
     } catch (error) {
       try {
         await requireAgentTaskUpdate(task.id, { status: 'failed', error: 'Human approval request could not be created.' });
@@ -3813,6 +3815,11 @@ app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endp
 
 async function initializeBackend(): Promise<void> {
   if (!process.env.DATABASE_URL) {
+    await initializeAgentStateFallbackWhenDatabaseMissing(
+      process.env.DATABASE_URL,
+      initializeAgentRuntimePersistence,
+      initializeAgentHarnessPersistence,
+    );
     throw new Error('DATABASE_URL is not configured; backend initialization cannot complete.');
   }
 
