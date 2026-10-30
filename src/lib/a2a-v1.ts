@@ -159,7 +159,7 @@ function statusFor(task: A2ATaskLike): {
     case 'queued':
       return {
         state: 'submitted',
-        message: 'Request received and queued. Human-owner approval is required before task execution.',
+        message: 'Request received and queued. Human approval by the GLORIFIER owner is required before task execution.',
       };
     case 'running':
     case 'degraded':
