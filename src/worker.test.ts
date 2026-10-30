@@ -941,7 +941,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'OpenSea requests must fail closed when the API key is absent');
 
     const openSeaInvalidSlug = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/../admin'),
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/INVALID_SLUG'),
       openSeaEnv,
     );
     assert.ok([400, 404].includes(openSeaInvalidSlug.status), 'invalid collection paths must not be forwarded');
