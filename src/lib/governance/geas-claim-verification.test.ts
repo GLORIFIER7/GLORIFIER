@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { validateClaimReview, type ClaimReviewRecord, type ClaimSourceRegistry } from './geas-claim-verification';
 
-const registry = JSON.parse(readFileSync('docs/architecture/geas-authoritative-source-registry.json', 'utf8')) as ClaimSourceRegistry;
+const registry = JSON.parse(
+  readFileSync(new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url), 'utf8'),
+) as ClaimSourceRegistry;
 const trustedSource = registry.sources.find((source) => source.id === 'nist-ai-rmf');
 if (!trustedSource) throw new Error('The curated registry must include nist-ai-rmf for this test.');
 
