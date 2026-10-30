@@ -60,6 +60,34 @@ const baseDependencies = (): A2AExpressDependencies => ({
   getTask: async () => null,
 });
 
+async function assertUnsupportedProtocolVersion(origin: string, version?: string): Promise<void> {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (version !== undefined) headers.set('A2A-Version', version);
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ jsonrpc: '2.0', id: 91, method: 'SendMessage', params: {} }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/problem+json');
+  const body = await response.json() as { supportedVersions?: string[] };
+  assert.deepEqual(body.supportedVersions, ['1.0']);
+}
+
+function postAgentMessage(origin: string, requestId: string): Promise<Response> {
+  return fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: requestId,
+      method: 'SendMessage',
+      params: { message: { messageId: requestId, role: 'ROLE_USER', parts: [{ text: 'Test' }] } },
+    }),
+  });
+}
+
+
 await withServer(baseDependencies(), async (origin) => {
   const cardResponse = await fetch(`${origin}/.well-known/agent-card.json`);
   assert.equal(cardResponse.status, 200);
@@ -102,28 +130,9 @@ await withServer({
   assert.equal(card.name, 'GLORIFIER Services');
 });
 
-await withServer(baseDependencies(), async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '0.3' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 91, method: 'SendMessage', params: {} }),
-  });
-  assert.equal(response.status, 400);
-  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/problem+json');
-  const body = await response.json() as { supportedVersions?: string[] };
-  assert.deepEqual(body.supportedVersions, ['1.0']);
-});
+await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin, '0.3'));
 
-await withServer(baseDependencies(), async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 92, method: 'SendMessage', params: {} }),
-  });
-  assert.equal(response.status, 400, 'an absent A2A-Version is interpreted as 0.3 and rejected');
-  const body = await response.json() as { supportedVersions?: string[] };
-  assert.deepEqual(body.supportedVersions, ['1.0']);
-});
+await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin));
 
 await withServer(baseDependencies(), async (origin) => {
   const response = await fetch(`${origin}/api/a2a/v1`, {
@@ -221,16 +230,7 @@ await withServer({
   initializePersistence: async () => { throw new Error('database initialization failed'); },
   createTask: async () => { throw new Error('createTask must not run after init failure'); },
 }, async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 'init-failure',
-      method: 'SendMessage',
-      params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'Test' }] } },
-    }),
-  });
+  const response = await postAgentMessage(origin, 'init-failure');
   assert.equal(response.status, 503);
   const body = await response.json() as { error?: { code: number; data?: { code?: string } } };
   assert.equal(body.error?.code, -32000);
@@ -241,16 +241,7 @@ await withServer({
   ...baseDependencies(),
   createTask: async () => { throw new Error('durable database write failed'); },
 }, async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 'write-failure',
-      method: 'SendMessage',
-      params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'Test' }] } },
-    }),
-  });
+  const response = await postAgentMessage(origin, 'write-failure');
   assert.equal(response.status, 200);
   const body = await response.json() as { error?: { code: number }; result?: unknown };
   assert.equal(body.error?.code, -32603);
