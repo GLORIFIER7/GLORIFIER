@@ -37,7 +37,7 @@ export interface A2AAgentCard {
       };
     };
   };
-  securityRequirements: Array<{ schemes: Record<string, { list: string[] }> }>;
+  securityRequirements: Array<Record<string, string[]>>;
   defaultInputModes: string[];
   defaultOutputModes: string[];
   skills: A2AAgentSkill[];
@@ -136,7 +136,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
         },
       },
     },
-    securityRequirements: [{ schemes: { bearer: { list: [] } } }],
+    securityRequirements: [{ bearer: [] }],
     defaultInputModes: ['text/plain', 'application/json'],
     defaultOutputModes: ['application/json'],
     skills: [{
@@ -152,24 +152,24 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
 }
 
 function statusFor(task: A2ATaskLike): {
-  state: 'submitted' | 'working' | 'completed' | 'failed' | 'rejected';
+  state: 'TASK_STATE_SUBMITTED' | 'TASK_STATE_WORKING' | 'TASK_STATE_COMPLETED' | 'TASK_STATE_FAILED' | 'TASK_STATE_REJECTED';
   message: string;
 } {
   switch (task.status) {
     case 'queued':
       return {
-        state: 'submitted',
+        state: 'TASK_STATE_SUBMITTED',
         message: 'Request received and queued. Human approval by the GLORIFIER owner is required before task execution.',
       };
     case 'running':
     case 'degraded':
-      return { state: 'working', message: 'The task is being processed by the governed execution plane.' };
+      return { state: 'TASK_STATE_WORKING', message: 'The task is being processed by the governed execution plane.' };
     case 'completed':
-      return { state: 'completed', message: 'The task completed. Any available result is included as an artifact.' };
+      return { state: 'TASK_STATE_COMPLETED', message: 'The task completed. Any available result is included as an artifact.' };
     case 'failed':
-      return { state: 'failed', message: task.error || 'The task failed.' };
+      return { state: 'TASK_STATE_FAILED', message: task.error || 'The task failed.' };
     case 'blocked':
-      return { state: 'rejected', message: task.error || 'The task was blocked by GLORIFIER governance.' };
+      return { state: 'TASK_STATE_REJECTED', message: task.error || 'The task was blocked by GLORIFIER governance.' };
   }
 }
 
@@ -180,7 +180,7 @@ export function toA2ATask(task: A2ATaskLike) {
     name: 'GLORIFIER task result',
     parts: [{
       text: typeof task.result === 'string' ? task.result : JSON.stringify(task.result),
-      mediaType: 'application/json',
+      mediaType: typeof task.result === 'string' ? 'text/plain' : 'application/json',
     }],
   }];
 
@@ -208,33 +208,44 @@ function rpcResult(id: string | number, result: unknown): A2AJsonRpcResponse {
   return { jsonrpc: '2.0', id, result };
 }
 
-function messageText(message: JsonRecord): { text: string; normalizedParts: Array<{ text?: string; data?: unknown }> } | null {
-  if (message.role !== 'user' || typeof message.messageId !== 'string' || !message.messageId.trim()) return null;
+function messageText(message: JsonRecord): { text: string; normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> } | null {
+  if (message.role !== 'ROLE_USER' || typeof message.messageId !== 'string' || !message.messageId.trim()) return null;
   if (message.taskId || message.contextId) return null;
   if (!Array.isArray(message.parts) || message.parts.length < 1 || message.parts.length > 20) return null;
 
-  const normalizedParts: Array<{ text?: string; data?: unknown }> = [];
+  const normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> = [];
   const textParts: string[] = [];
   for (const part of message.parts) {
     if (!isRecord(part)) return null;
-    if (typeof part.text === 'string') {
-      normalizedParts.push({ text: part.text });
+    // A2A Part is a oneof: exactly one of text, raw, url, or data must be set.
+    // This adapter deliberately supports text and structured JSON only.
+    const contentFields = ['text', 'raw', 'url', 'data'].filter((field) => hasOwn(part, field));
+    if (contentFields.length !== 1) return null;
+    if (hasOwn(part, 'metadata') && !isRecord(part.metadata)) return null;
+    if (hasOwn(part, 'mediaType') && typeof part.mediaType !== 'string') return null;
+    const optionalPartFields = {
+      ...(typeof part.mediaType === 'string' ? { mediaType: part.mediaType } : {}),
+      ...(isRecord(part.metadata) ? { metadata: part.metadata } : {}),
+    };
+    if (contentFields[0] === 'text') {
+      if (typeof part.text !== 'string') return null;
+      normalizedParts.push({ text: part.text, ...optionalPartFields });
       textParts.push(part.text);
       continue;
     }
-    if (hasOwn(part, 'data')) {
+    if (contentFields[0] === 'data') {
+      if (!isRecord(part.data)) return null;
       let serialized: string;
       try {
         serialized = JSON.stringify(part.data);
       } catch {
         return null;
       }
-      normalizedParts.push({ data: part.data });
+      normalizedParts.push({ data: part.data, ...optionalPartFields });
       textParts.push(serialized);
       continue;
     }
-    // This first binding accepts text and structured JSON only; file/URL parts
-    // are deliberately not advertised as supported input modes.
+    // Raw file bytes and URL parts are not advertised by this first binding.
     return null;
   }
 
@@ -254,10 +265,10 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
     const id = payload.id as string | number;
     if (!isRecord(payload.params)) return rpcError(id, -32602, 'Invalid params');
 
-    if (payload.method === 'message/send') {
+    if (payload.method === 'SendMessage') {
       const params = payload.params;
       if (!isRecord(params.message)) return rpcError(id, -32602, 'Invalid params: message is required.');
-      if (isRecord(params.configuration) && params.configuration.pushNotificationConfig) {
+      if (isRecord(params.configuration) && hasOwn(params.configuration, 'taskPushNotificationConfig')) {
         return rpcError(id, -32602, 'Push notifications are not supported by this agent.');
       }
       const parsed = messageText(params.message);
@@ -282,13 +293,13 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
             parts: parsed.normalizedParts,
           },
         });
-        return rpcResult(id, toA2ATask(task));
+        return rpcResult(id, { task: toA2ATask(task) });
       } catch {
         return rpcError(id, -32603, 'The task could not be recorded.');
       }
     }
 
-    if (payload.method === 'tasks/get') {
+    if (payload.method === 'GetTask') {
       const taskId = payload.params.id;
       if (typeof taskId !== 'string' || !taskId.trim()) {
         return rpcError(id, -32602, 'Invalid params: task id is required.');
