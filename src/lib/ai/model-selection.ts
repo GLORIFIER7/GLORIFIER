@@ -51,6 +51,20 @@ export function reconcileDiscoveredModelPreference(
   };
 }
 
+/**
+ * Independent compute is a separate provider. It may be used only for an
+ * unpinned automatic request; explicit models and provider constraints must
+ * never be silently moved to another execution path.
+ */
+export function isIndependentComputeFallbackAllowed(
+  model?: string,
+  requiredProvider?: string,
+  preferredProvider?: string,
+): boolean {
+  const normalized = normalizeSavedModelPreference(model);
+  return !requiredProvider && !preferredProvider && normalized === 'auto';
+}
+
 export function modelPreferenceLabel(value: unknown): string {
   const normalized = normalizeSavedModelPreference(value);
   return normalized === 'auto' ? 'automatic provider routing' : normalized;
