@@ -9,7 +9,7 @@ DO $role$ BEGIN CREATE ROLE supabase_admin NOLOGIN; EXCEPTION WHEN duplicate_obj
 
 -- Reproduce the risky defaults observed in the connected Supabase project.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon, authenticated, service_role, PUBLIC;
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN ON TABLES TO anon, authenticated, service_role, PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
   GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO anon, authenticated, service_role, PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
@@ -18,7 +18,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres
   GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO anon, authenticated, service_role;
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, MAINTAIN ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
   GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
@@ -194,6 +194,7 @@ BEGIN
     OR has_table_privilege('anon', 'public.glorifier_default_acl_probe', 'TRUNCATE')
     OR has_table_privilege('anon', 'public.glorifier_default_acl_probe', 'REFERENCES')
     OR has_table_privilege('anon', 'public.glorifier_default_acl_probe', 'TRIGGER')
+    OR has_table_privilege('anon', 'public.glorifier_default_acl_probe', 'MAINTAIN')
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'SELECT')
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'INSERT')
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'UPDATE')
@@ -201,6 +202,7 @@ BEGIN
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'TRUNCATE')
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'REFERENCES')
     OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'TRIGGER')
+    OR has_table_privilege('authenticated', 'public.glorifier_default_acl_probe', 'MAINTAIN')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'SELECT')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'INSERT')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'UPDATE')
@@ -208,6 +210,7 @@ BEGIN
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'TRUNCATE')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'REFERENCES')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'TRIGGER')
+    OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'MAINTAIN')
     OR NOT has_table_privilege('service_role', 'public.glorifier_default_acl_probe', 'MAINTAIN')
     OR has_sequence_privilege('anon', 'public.glorifier_default_acl_probe_seq', 'USAGE')
     OR has_sequence_privilege('anon', 'public.glorifier_default_acl_probe_seq', 'SELECT')
