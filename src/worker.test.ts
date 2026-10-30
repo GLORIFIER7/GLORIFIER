@@ -131,6 +131,22 @@ async function run(): Promise<void> {
     assert.equal(a2aMissingAuth.status, 401);
     assert.equal(capturedRequest, null, 'unauthenticated A2A requests must not reach the backend');
 
+    for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\\ttoken']) {
+      const rejectedAuthorization = await worker.fetch(
+        new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+          method: 'POST',
+          headers: {
+            Authorization: malformedAuthorization,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 'auth-invalid', method: 'tasks/get', params: { id: 'x' } }),
+        }),
+        env,
+      );
+      assert.equal(rejectedAuthorization.status, 401, `malformed authorization must be rejected: ${malformedAuthorization}`);
+      assert.equal(capturedRequest, null, 'malformed authorization must not reach the backend');
+    }
+
     const a2aUnsupportedMediaType = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
@@ -169,7 +185,7 @@ async function run(): Promise<void> {
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
         headers: {
-          Authorization: 'Bearer caller-token',
+          Authorization: 'bEaReR caller-token',
           'Content-Type': 'application/json',
           Cookie: 'session=should-not-forward',
           'X-Private-Header': 'should-not-forward',
