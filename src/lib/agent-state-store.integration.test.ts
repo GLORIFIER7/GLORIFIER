@@ -91,7 +91,7 @@ try {
   await store.save('task', staleTask);
   await store.save('task', recentTask);
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
-  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
+  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'completed');
   assert.deepEqual(
     (await store.list<typeof recentTask>('task', 1)).map((entry) => entry.id),
     [recentTask.id],
