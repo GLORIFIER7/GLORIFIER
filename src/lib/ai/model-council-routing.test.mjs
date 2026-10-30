@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {
   executeModelCouncilProviders,
@@ -114,4 +115,14 @@ test('legacy model selection rejects unknown IDs instead of silently dropping th
     }),
     /non-empty string/i,
   );
+});
+
+test('AI council route requires owner authorization and has a principal-scoped spend limit', async () => {
+  const serverSource = await readFile(new URL('../../../server.ts', import.meta.url), 'utf8');
+  assert.match(
+    serverSource,
+    /app\.post\('\/api\/ai\/council',\s*aiCouncilRateLimit,\s*requireOwnerOrInternalService,/,
+  );
+  assert.match(serverSource, /limit:\s*2,[\s\S]*?keyGenerator:\s*\(req\)\s*=>/);
+  assert.match(serverSource, /ai-council:user:\$\{principalId\}/);
 });
