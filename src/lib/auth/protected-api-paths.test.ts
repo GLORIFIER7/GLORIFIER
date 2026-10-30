@@ -65,7 +65,7 @@ assert.match(
 );
 assert.match(
   server,
-  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?listFederatedA2ATasks\(50, mayReadAllTasks \? undefined : requesterUid, mayReadAllTasks\)/,
+  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?await listFederatedA2ATasksFromStore\(50, mayReadAllTasks \? undefined : requesterUid, mayReadAllTasks\)/,
   'federated A2A task listing must be scoped to the authenticated requester',
 );
 assert.match(
@@ -85,7 +85,7 @@ assert.match(
 );
 assert.match(
   server,
-  /app\.post\('\/api\/a2a\/tasks', requireOwnerOrInternalService[\s\S]*?const humanApproved = Boolean\(auth && isOwner\(auth\)/,
+  /app\.post\('\/api\/a2a\/tasks', async[\s\S]*?const humanApproved = isAuthorizedA2AExecution\(Boolean\(auth && isOwner\(auth\)\), body\.approval\)/,
   'legacy A2A execution approval must be bound to an authenticated owner, not a request-body string alone',
 );
 assert.match(
