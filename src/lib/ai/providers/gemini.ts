@@ -1,6 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
 import type { AIMessage, AIProvider, AIRequest, AIResponse } from '../types';
 
+/** Return only the explicitly requested or configured model; never auto-substitute. */
+export function resolveGeminiModelCandidates(requestedModel?: string, configuredModel?: string): string[] {
+  const requested = requestedModel?.trim();
+  const configured = configuredModel?.trim();
+  const selectedConfigured = configured && configured.toLowerCase() !== 'auto'
+    ? configured
+    : undefined;
+  const selected = requested && requested.toLowerCase() !== 'auto'
+    ? requested
+    : selectedConfigured || 'gemini-3.1-flash-lite';
+  return [selected];
+}
+
 function toPrompt(messages: AIMessage[]): { systemInstruction?: string; contents: string } {
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const conversation = messages
@@ -39,10 +52,7 @@ export class GeminiProvider implements AIProvider {
     const client = this.getClient();
     if (!client) throw new Error('Gemini is not configured. Set GEMINI_API_KEY.');
 
-    const primaryModel = request.model || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
-    const fallbackModels = [primaryModel, 'gemini-3.1-flash-lite', 'gemini-flash-latest'].filter(
-      (m, idx, arr) => arr.indexOf(m) === idx
-    );
+    const fallbackModels = resolveGeminiModelCandidates(request.model, process.env.GEMINI_MODEL);
 
     const prompt = toPrompt(request.messages);
 

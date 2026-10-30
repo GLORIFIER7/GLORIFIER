@@ -13,6 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
+import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
@@ -750,6 +751,8 @@ function getOpenAI(): OpenAI | null {
 // Universal Model Runner supporting GPT-4o, GPT-4o-mini, Gemini, and Dual-Consensus
 interface ModelExecutionParams {
   model?: string;
+  preferredProvider?: 'openai' | 'gemini';
+  requiredProvider?: 'openai' | 'gemini';
   systemPrompt: string;
   userPrompt: string;
   temperature?: number;
@@ -757,18 +760,22 @@ interface ModelExecutionParams {
 }
 
 async function runModelExecution({
-  model = 'gpt-4o',
+  model,
+  preferredProvider,
+  requiredProvider,
   systemPrompt,
   userPrompt,
   temperature = 0.4,
   jsonMode = false
 }: ModelExecutionParams): Promise<{ text: string; modelUsed: string; provider: string; executionStatus: 'success' | 'unavailable'; providerStatus: Record<string, 'connected' | 'unavailable' | 'error'>; providerErrors: string[]; computeError?: string }> {
-  const chosenModel = model || 'auto';
+  const chosenModel = normalizeSavedModelPreference(model);
 
   // AI CEO -> Provider Registry -> authenticated providers.
   // The registry is the single provider-selection boundary; it never fabricates output.
   const registryResult = await executeThroughProviderRegistry({
     model: chosenModel,
+    preferredProvider,
+    requiredProvider,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -776,6 +783,18 @@ async function runModelExecution({
     temperature,
     maxTokens: jsonMode ? 4096 : undefined
   });
+
+  if (requiredProvider && registryResult.provider !== requiredProvider) {
+    return {
+      text: '',
+      modelUsed: 'not-executed',
+      provider: 'none',
+      executionStatus: 'unavailable',
+      providerStatus: registryResult.providerStatuses,
+      providerErrors: registryResult.errors,
+      computeError: 'Strict provider constraint prevented alternate-provider compute fallback.',
+    };
+  }
 
   if (registryResult.response?.text?.trim()) {
     return {
@@ -785,6 +804,25 @@ async function runModelExecution({
       executionStatus: 'success',
       providerStatus: registryResult.providerStatuses,
       providerErrors: registryResult.errors
+    };
+  }
+
+  if (!isIndependentComputeFallbackAllowed(chosenModel, requiredProvider, preferredProvider)) {
+    console.warn('[ModelExecution] Independent compute fallback suppressed.', {
+      requestedModel: chosenModel,
+      requiredProvider: requiredProvider || null,
+      providerErrorCount: registryResult.errors.length,
+    });
+    return {
+      text: '',
+      modelUsed: chosenModel,
+      provider: 'No verified provider response',
+      executionStatus: 'unavailable',
+      providerStatus: registryResult.providerStatuses,
+      providerErrors: registryResult.errors,
+      computeError: requiredProvider
+        ? 'Strict provider constraint prevented alternate-provider compute fallback.'
+        : 'Explicit model "' + chosenModel + '" was unavailable; independent compute fallback was suppressed to preserve the requested model.',
     };
   }
 
@@ -1383,13 +1421,14 @@ app.post('/api/ai/role', async (req: Request, res: Response) => {
 app.post('/api/ai/broker-chat', async (req: Request, res: Response) => {
   try {
     const { message, currentPolicy, footprintsSummary, model } = req.body;
-    const chosenModel = model || currentPolicy?.aiModel || 'gpt-4o';
+    const chosenModel = normalizeSavedModelPreference(model ?? currentPolicy?.aiModel);
+    const chosenModelLabel = modelPreferenceLabel(chosenModel);
 
-    const systemPrompt = `You are DataSovereign AI running on ${chosenModel}, an expert autonomous personal data broker and privacy agent representing the user.
+    const systemPrompt = `You are DataSovereign AI using ${chosenModelLabel}, an expert autonomous personal data broker and privacy agent representing the user.
 Your mission is to defend the user's digital sovereignty across the entire internet, enforce mathematical differential privacy (Laplacian noise, epsilon \u03b5 levels), calculate fair-market data compensation, negotiate with data buyers (e.g., AI frontier labs, market analytics, biomedical researchers), and eliminate unconsented broker tracking (Acxiom, Experian, Meta, Google).
 Respond directly, concisely (2-3 paragraphs max), strategically, and authoritatively. Highlight concrete dollar values, privacy risks, and specific action steps.
 User's current policy: Floor = $${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo; Mode = ${currentPolicy?.brokerMode || 'balanced'}; Epsilon \u03b5 = ${currentPolicy?.globalEpsilon || 0.35}; AI pretraining allowed: ${currentPolicy?.allowAiModelPretraining ? 'YES' : 'NO'}.
-Active AI Model: ${chosenModel}.
+Active AI Model: ${chosenModelLabel}.
 Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, Health telemetry active'}.`;
 
     const execution = await runModelExecution({
@@ -1443,7 +1482,7 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
 app.post('/api/ai/evaluate-offer', async (req: Request, res: Response) => {
   try {
     const { offer, userPolicy, model } = req.body;
-    const chosenModel = model || userPolicy?.aiModel || 'gpt-4o';
+    const chosenModel = model || userPolicy?.aiModel || 'auto';
 
     const prompt = `Evaluate this data purchase offer for a user who owns their digital footprint:
 Buyer: ${offer.buyerName} (${offer.buyerCategory})
@@ -1505,7 +1544,7 @@ Return a valid JSON object with:
 app.post('/api/ai/audit-footprint', async (req: Request, res: Response) => {
   try {
     const { category, sourceName, sampleData, model } = req.body;
-    const chosenModel = model || 'gpt-4o';
+    const chosenModel = model || 'auto';
 
     const prompt = `Perform a privacy leakage and monetization audit on this data stream:
 Source: ${sourceName} (${category})
@@ -1617,15 +1656,15 @@ app.post('/api/ai/collaborate-gpt-fix', async (req: Request, res: Response) => {
   try {
     const { errorCode, errorMessage, errorSource, codeSnippet } = req.body;
 
-    const gptSystemPrompt = `You are OpenAI GPT-4o acting as Principal Systems & Code Architect.
-Your task is to collaborate with Google Gemini to analyze a runtime error, perform root-cause analysis, and provide a surgical, production-ready fix patch.
+    const gptSystemPrompt = `You are an OpenAI provider model acting as Principal Systems & Code Architect.
+You are an OpenAI provider model tasked with collaborating with a Google Gemini provider model to analyze a runtime error, perform root-cause analysis, and provide a surgical, production-ready fix proposal.
 Always provide:
 1. Root Cause Summary
 2. Architectural Recommendation
 3. Concrete Code Patch (in unified diff format)
 4. Verification & Regression Safety check`;
 
-    const geminiSystemPrompt = `You are Google Gemini 3.8 Flash acting as Principal Site Reliability & Cryptographic Privacy Engineer.
+    const geminiSystemPrompt = `You are a Google Gemini provider model acting as Principal Site Reliability & Cryptographic Privacy Engineer.
 Your task is to review the error and collaborate with OpenAI GPT-4o to propose mathematical bounds, rate-limit resilience, and zero-downtime failover logic.`;
 
     const userPrompt = `Error Code: ${errorCode || 'UNKNOWN_RUNTIME_ERR'}
@@ -1637,13 +1676,15 @@ ${codeSnippet || '// No code snippet provided'}`;
     // Concurrently execute GPT and Gemini for mutual peer-review
     const [gptPromise, geminiPromise] = [
       runModelExecution({
-        model: 'gpt-4o',
+        preferredProvider: 'openai',
+        requiredProvider: 'openai',
         systemPrompt: gptSystemPrompt,
         userPrompt,
         temperature: 0.2
       }),
       runModelExecution({
-        model: 'gemini-3.8-flash',
+        preferredProvider: 'gemini',
+        requiredProvider: 'gemini',
         systemPrompt: geminiSystemPrompt,
         userPrompt,
         temperature: 0.2
@@ -1674,8 +1715,8 @@ ${codeSnippet || '// No code snippet provided'}`;
       collaborativeFixProposal: 'Provider analysis only. No executable patch was generated or safety-tested.',
       patchDiff: unifiedPatch,
       collaboratingModels: [
-        ...(gptText ? ['OpenAI GPT-4o'] : []),
-        ...(geminiText ? ['Google Gemini 3.8 Flash'] : [])
+        ...(gptText && gptRes.status === 'fulfilled' ? [`OpenAI (${gptRes.value.modelUsed})`] : []),
+        ...(geminiText && geminiRes.status === 'fulfilled' ? [`Gemini (${geminiRes.value.modelUsed})`] : [])
       ],
       verifiedSafe: false,
       safetyStatus: 'NOT VERIFIED — provider analysis is not a patch safety test',
@@ -1706,8 +1747,8 @@ app.post('/api/ai/work-together-gpt', async (req: Request, res: Response) => {
     const chosenDomain = domain || 'code_engineering';
     const userGoal = taskPrompt || taskTitle || 'Collaborative task with GPT';
 
-    // System prompt for GPT-4o (Lead Co-Worker & Solution Architect)
-    let gptSystem = `You are OpenAI GPT-4o working directly in a collaborative pair-programming and strategic co-working session with the user and Google Gemini.
+    // System prompt for the OpenAI provider (Lead Co-Worker & Solution Architect)
+    let gptSystem = `You are an OpenAI provider model working directly in a collaborative pair-programming and strategic co-working session with the user and Google Gemini.
 Domain: ${chosenDomain}.
 Your responsibility:
 1. Provide the direct, concrete solution, code snippet, mathematical formula, or strategic analysis.
@@ -1715,11 +1756,11 @@ Your responsibility:
 3. Clearly mark code blocks with the appropriate language tags (e.g. \`\`\`typescript, \`\`\`diff, \`\`\`json).
 4. Provide structured reasoning and bullet-point implementation steps.`;
 
-    // System prompt for Gemini 3.8 Flash (Peer Verifier & Cryptographic Co-Pilot)
-    let geminiSystem = `You are Google Gemini 3.8 Flash working together with OpenAI GPT-4o and the user.
+    // System prompt for the Gemini provider (Peer Verifier & Cryptographic Co-Pilot)
+    let geminiSystem = `You are a Google Gemini provider model working together with an OpenAI provider model and the user.
 Domain: ${chosenDomain}.
 Your responsibility:
-1. Peer-review GPT-4o's solution for differential privacy leaks (Laplace bounds ε), runtime edge cases, rate-limit resilience, and compliance.
+1. Peer-review the OpenAI provider's solution for differential privacy leaks (Laplace bounds ε), runtime edge cases, rate-limit resilience, and compliance.
 2. Provide complementary optimizations or mathematical verification.
 3. Affirm or refine the consensus recommendation.`;
 
@@ -1746,13 +1787,15 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
 
     const [gptRes, geminiRes] = await Promise.allSettled([
       runModelExecution({
-        model: 'gpt-4o',
+        preferredProvider: 'openai',
+        requiredProvider: 'openai',
         systemPrompt: gptSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
       }),
       runModelExecution({
-        model: 'gemini-3.8-flash',
+        preferredProvider: 'gemini',
+        requiredProvider: 'gemini',
         systemPrompt: geminiSystem,
         userPrompt: contextualUserPrompt,
         temperature: 0.2
@@ -1769,18 +1812,24 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
       });
     }
 
+    const gptLabel = gptText && gptRes.status === 'fulfilled'
+      ? `OpenAI (${gptRes.value.modelUsed})`
+      : 'OpenAI provider unavailable';
+    const geminiLabel = geminiText && geminiRes.status === 'fulfilled'
+      ? `Gemini (${geminiRes.value.modelUsed})`
+      : 'Gemini provider unavailable';
     const jointArtifact = `### Joint Co-Authored Artifact
 **Task:** ${userGoal}
 **Domain:** ${chosenDomain}
-**Provider evidence:** Only live provider responses returned by this request are included. No agreement or verification is asserted unless both providers actually responded.
+**Provider evidence:** Only the required provider responses returned by this request are included. Each contributor is labelled with its actual returned model. No agreement or verification is asserted unless both providers actually responded.
 
-#### OpenAI GPT response
-${gptText || 'No verified OpenAI response was available.'}
+#### ${gptLabel}
+${gptText || 'No verified OpenAI-provider response was available.'}
 
 ---
 
-#### Gemini response
-${geminiText || 'No verified Gemini response was available.'}`;
+#### ${geminiLabel}
+${geminiText || 'No verified Gemini-provider response was available.'}`;
 
     res.json({
       success: true,
@@ -1790,8 +1839,8 @@ ${geminiText || 'No verified Gemini response was available.'}`;
       geminiPeerReview: geminiText,
       jointArtifact,
       coAuthors: [
-        ...(gptText ? ['OpenAI GPT-4o'] : []),
-        ...(geminiText ? ['Google Gemini 3.8 Flash'] : [])
+        ...(gptText && gptRes.status === 'fulfilled' ? [`OpenAI (${gptRes.value.modelUsed})`] : []),
+        ...(geminiText && geminiRes.status === 'fulfilled' ? [`Gemini (${geminiRes.value.modelUsed})`] : [])
       ],
       consensusScore: null,
       consensusStatus: 'NOT MEASURED — provider agreement has not been independently tested',
@@ -2055,7 +2104,7 @@ async function runIntelligenceModel(
   const result = await executeThroughProviderRegistry({
     messages: [{ role: 'user', content: requestPrompt }],
     preferredProvider,
-    model: preferredProvider === 'openai' ? 'gpt-4o' : 'gemini-3.8-flash',
+    requiredProvider: preferredProvider,
     temperature: 0.1,
   });
 

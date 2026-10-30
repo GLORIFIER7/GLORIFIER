@@ -163,7 +163,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                OpenAI GPT-4o, Google Gemini 3.8 Flash, and Meta LLaMA deliberating in an autonomous zero-knowledge enclave
+                The council endpoint selects eligible providers at request time. Actual participants and returned outputs are displayed after execution; no zero-knowledge enclave is claimed here.
               </p>
             </div>
           </div>
@@ -180,31 +180,14 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         {/* Model Participant Banner */}
         <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800/80 flex items-center justify-between gap-3 text-xs overflow-x-auto scrollbar-none">
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-slate-400 font-medium">Invited Models:</span>
-            
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              OpenAI GPT-4o
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-500/10 border border-teal-500/30 text-teal-300 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
-              Google Gemini 3.8 Flash
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-              Meta LLaMA 3.3
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-300 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
-              Sovereign Arbitrator
+            <span className="text-slate-400 font-medium">Participant selection:</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[11px]">
+              Determined by configured providers at request time
             </span>
           </div>
 
           <div className="text-[11px] text-slate-400 shrink-0 font-mono">
-            AI model availability: NOT VERIFIED
+            Participant availability: {isConvening ? 'pending council response' : councilResult ? 'council response received' : 'not requested'}
           </div>
         </div>
 

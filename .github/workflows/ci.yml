@@ -116,6 +116,15 @@ jobs:
       - name: AI provider discovery registry regression tests
         run: npm run test:provider-discovery
 
+      - name: Gemini explicit model policy regression tests
+        run: npm run test:gemini-model-policy
+
+      - name: AI provider registry routing integration tests
+        run: npm run test:provider-routing
+
+      - name: Discovered AI provider model catalogue tests
+        run: npm run test:provider-model-catalog
+
       - name: Canonical NFT registry seed regression tests
         run: npm run test:asset-registry-seed
 

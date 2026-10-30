@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { registerConnection, recordConnectionEvent } from '../connection-registry.ts';
 
 export type ProviderAvailability = 'available' | 'unconfigured' | 'quota_exhausted' | 'rate_limited' | 'auth_failure' | 'capability_mismatch' | 'unreachable' | 'error';
@@ -6,7 +7,7 @@ interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['
 
 const definitions: ProviderDefinition[] = [
  {id:'openai',name:'OpenAI',kind:'openai-compatible',endpoint:'https://api.openai.com/v1',keyEnv:'OPENAI_API_KEY',baseUrlEnv:'OPENAI_BASE_URL',modelEnv:'OPENAI_MODEL',defaultModel:'gpt-4o',capabilities:['chat','reasoning','code']},
- {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-2.5-flash',capabilities:['chat','reasoning','multimodal','code']},
+ {id:'gemini',name:'Google Gemini',kind:'native',endpoint:'https://generativelanguage.googleapis.com/v1beta',keyEnv:'GEMINI_API_KEY',modelEnv:'GEMINI_MODEL',defaultModel:'gemini-3.1-flash-lite',capabilities:['chat','reasoning','multimodal','code']},
  {id:'anthropic',name:'Anthropic Claude',kind:'native',endpoint:'https://api.anthropic.com/v1',keyEnv:'ANTHROPIC_API_KEY',modelEnv:'ANTHROPIC_MODEL',workspaceIdEnv:'ANTHROPIC_WORKSPACE_ID',defaultModel:'claude-opus-5',capabilities:['chat','reasoning','code']},
  {id:'meta',name:'Meta / Llama',kind:'openai-compatible',endpoint:'',keyEnv:'META_API_KEY',baseUrlEnv:'META_BASE_URL',modelEnv:'META_MODEL',capabilities:['chat','reasoning','code']},
  {id:'qwen',name:'Alibaba Qwen',kind:'openai-compatible',endpoint:'',keyEnv:'QWEN_API_KEY',baseUrlEnv:'QWEN_BASE_URL',modelEnv:'QWEN_MODEL',capabilities:['chat','reasoning','code']},
@@ -23,8 +24,13 @@ const definitions: ProviderDefinition[] = [
  {id:'ollama',name:'Ollama / self-hosted',kind:'self-hosted',endpoint:'http://localhost:11434',keyEnv:'OLLAMA_AUTH_TOKEN',baseUrlEnv:'OLLAMA_BASE_URL',modelEnv:'OLLAMA_MODELS',capabilities:['chat','reasoning','code','self-hosted']}
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
+const inferenceVerifiedConfiguration = new Map<string, string>();
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
+function providerConfigurationFingerprint(d: ProviderDefinition): string {
+ const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\u0000');
+ return createHash('sha256').update(material).digest('hex');
+}
 function classify(status:number, body:string):ProviderAvailability { if(status===401||status===403)return 'auth_failure'; if(status===402||status===400&&/spend|billing|credit|quota/i.test(body))return 'quota_exhausted'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'unreachable'; return status>=400?'error':'available'; }
 function reasonFor(status:number, body:string, availability:ProviderAvailability):string|null { if(availability==='available')return null; if(status===401)return 'invalid_or_expired_api_key'; if(status===403)return 'api_key_forbidden_or_access_denied'; if(status===402||/spend|billing|credit|quota/i.test(body))return 'quota_or_billing_limit'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'provider_service_error'; return body.slice(0,300); }
 async function fetchJson(url:string,headers:Record<string,string>,init:RequestInit={}) { const response=await fetch(url,{...init,headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
@@ -33,7 +39,7 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const credentialConfigured=Boolean(d.keyEnv ? env(d.keyEnv) : true);
  const endpointConfigured=Boolean(endpoint);
  const configured=credentialConfigured && endpointConfigured;
- if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':'Provider base URL is missing; configure the provider-specific base URL before probing.',authorization:'not-configured'};
+ if(!configured)return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:false,authenticated:false,availability:'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:checked,cooldownUntil:null,reason:!credentialConfigured?'No server-side credential configured.':d.baseUrlEnv?`Provider base URL is missing; configure ${d.baseUrlEnv} before probing.`:'Provider endpoint is missing; configure a provider endpoint before probing.',authorization:'not-configured'};
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
@@ -42,27 +48,94 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
   else if(d.id==='ollama') result=await fetchJson(endpoint.replace(/\/$/,'')+'/api/tags',{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(endpoint.replace(/\/$/,'')+'/models',{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
   let availability=classify(result.response.status,result.text);
-  const models=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
+  const rawModels=Array.isArray(result.body?.data)?result.body.data.map((m:any)=>String(m.id||m.name||'')).filter(Boolean):Array.isArray(result.body?.models)?result.body.models.map((m:any)=>String(m.name||m.model||'')).filter(Boolean):[];
+  const models=d.id==='gemini'
+    ? rawModels.map((model:string)=>model.replace(/^models\//,''))
+    : rawModels;
 
-  // NVIDIA authentication is not considered proven by /models alone. NVIDIA's hosted API
-  // requires a real chat-completions inference request against the configured model.
-  if(d.id==='nvidia' && availability==='available') {
-   const model=env(d.modelEnv)||d.defaultModel||models[0];
-   if(!model) {
-    availability='capability_mismatch';
-    return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:'No NVIDIA inference model configured or advertised.',authorization:'pending'};
-   }
-   const inference=await fetchJson(endpoint.replace(/\/$/,'')+'/chat/completions',
-    {accept:'application/json','content-type':'application/json',authorization:'Bearer '+env(d.keyEnv)},
-    {method:'POST',body:JSON.stringify({model,messages:[{role:'user',content:'GLORIFIER NVIDIA connectivity test. Reply OK.'}],max_tokens:8,stream:false,temperature:0})});
-   availability=classify(inference.response.status,inference.text);
-   const authenticated=inference.response.status!==401&&inference.response.status!==403;
-   const inferenceOk=inference.response.status>=200&&inference.response.status<300;
-   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:inferenceOk&&authenticated,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:inferenceOk?null:inference.text.slice(0,300),authorization:inferenceOk&&process.env.NVIDIA_AUTHORIZED==='true'?'configured':'pending'};
+  // NVIDIA model-list access only proves endpoint reachability, not credential validity
+  // for inference. The explicit authorization flag remains separate; the first actual
+  // inference is attempted only as part of a separately authorized user request.
+  if(d.id==='nvidia') {
+   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:availability==='available'?'NVIDIA credential not verified by read-only model discovery; inference verification requires a separately authorized user request.':reasonFor(result.response.status,result.text,availability),authorization:'pending'};
   }
-
   return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:result.response.status!==401&&result.response.status!==403,availability,capabilities:d.capabilities,models,latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:reasonFor(result.response.status,result.text,availability),authorization:process.env[(d.id==='huggingface'?'HF':d.id.toUpperCase())+'_AUTHORIZED']==='true'?'configured':'pending'};
  } catch(error) { return {id:d.id,name:d.name,kind:d.kind,endpoint,configured:true,authenticated:false,availability:'unreachable',capabilities:d.capabilities,models:[],latencyMs:Date.now()-started,lastCheckedAt:checked,cooldownUntil:null,reason:error instanceof Error?error.message.slice(0,300):String(error).slice(0,300),authorization:'pending'}; }
+}
+export async function recordProviderInferenceVerification(providerId: string, modelId?: string): Promise<void> {
+ if (providerId !== 'nvidia' || env('NVIDIA_AUTHORIZED') !== 'true') return;
+ const definition = definitions.find((candidate) => candidate.id === providerId);
+ if (!definition) return;
+ const current = snapshot.get(providerId) || {
+  id: definition.id,
+  name: definition.name,
+  kind: definition.kind,
+  endpoint: endpointFor(definition),
+  configured: true,
+  authenticated: false,
+  availability: 'unreachable' as const,
+  capabilities: definition.capabilities,
+  models: [],
+  latencyMs: null,
+  lastCheckedAt: null,
+  cooldownUntil: null,
+  reason: 'Inference has not yet been verified.',
+  authorization: 'pending' as const,
+ };
+ const verifiedAt = new Date().toISOString();
+ inferenceVerifiedConfiguration.set(providerId, providerConfigurationFingerprint(definition));
+ const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';
+ const models = normalizedModel
+  ? [...new Set([...current.models, normalizedModel])]
+  : current.models;
+ snapshot.set(providerId, {
+  ...current,
+  configured: true,
+  authenticated: true,
+  availability: 'available',
+  authorization: 'configured',
+  models,
+  reason: null,
+  lastCheckedAt: verifiedAt,
+ });
+
+ // Keep the persistent connection registry consistent with the successful,
+ // explicitly authorized NVIDIA inference evidence. Registry write failures
+ // must not erase or misreport the successful provider response.
+ if (!process.env.DATABASE_URL) return;
+ try {
+  const connectionId = 'provider-nvidia';
+  await registerConnection({
+   id: connectionId,
+   provider: providerId,
+   displayName: definition.name,
+   authType: 'api_key',
+   status: 'authorized',
+   scopes: definition.capabilities,
+   risk: 'high',
+   accountRef: null,
+   expiresAt: null,
+   lastVerifiedAt: verifiedAt,
+   requiresHumanApproval: true,
+   metadata: {
+    registryType: 'global-provider',
+    kind: definition.kind,
+    endpoint: endpointFor(definition),
+    availability: 'available',
+    models,
+    lastInferenceModel: normalizedModel || null,
+    inferenceVerified: true,
+    authorization: 'configured',
+   },
+  });
+  await recordConnectionEvent(connectionId, 'provider_inference_verified', 'provider-registry', {
+   modelId: normalizedModel || null,
+   verifiedAt,
+   evidence: 'successful inference response after explicit NVIDIA_AUTHORIZED=true configuration',
+  });
+ } catch (error) {
+  console.warn('[ProviderDiscovery] Could not persist NVIDIA inference verification to the connection registry:', error instanceof Error ? error.message : String(error));
+ }
 }
 export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
  return definitions.map(d=>{
@@ -77,7 +150,24 @@ export async function discoverGlobalProviders(
   options: { persistConnections?: boolean } = {},
 ) {
   const results = await Promise.all(definitions.map(probe));
-  for (const provider of results) {
+  for (const discoveredProvider of results) {
+    const definition = definitions.find((candidate) => candidate.id === discoveredProvider.id);
+    const previous = snapshot.get(discoveredProvider.id);
+    const sameVerifiedNvidiaConfiguration = discoveredProvider.id === 'nvidia' &&
+      Boolean(definition) &&
+      previous?.authenticated === true &&
+      previous.authorization === 'configured' &&
+      discoveredProvider.availability !== 'auth_failure' &&
+      inferenceVerifiedConfiguration.get(discoveredProvider.id) === providerConfigurationFingerprint(definition!);
+    const provider: DiscoveredProvider = sameVerifiedNvidiaConfiguration && previous
+      ? {
+          ...discoveredProvider,
+          authenticated: true,
+          authorization: 'configured',
+          models: [...new Set([...discoveredProvider.models, ...previous.models])],
+          reason: discoveredProvider.availability === 'available' ? null : discoveredProvider.reason,
+        }
+      : discoveredProvider;
     snapshot.set(provider.id, provider);
     if (options.persistConnections === false) continue;
     const connectionId = 'provider-' + provider.id;
@@ -101,4 +191,4 @@ export async function discoverGlobalProviders(
   }
   return results;
 }
-export function getGlobalProviderDiscoveryPolicy(){ return {architecture:'GLOBAL_PROVIDER_DISCOVERY_FAILOVER_FABRIC',authenticatedRegistrationRequired:true,authorizationSeparateFromAuthentication:true,noSyntheticSuccess:true,quotaExhaustionIsNotHidden:true,internetDiscoveryBoundary:'documented/configured provider endpoints only; no quota, authentication, paywall, regional or access-control bypass',fallbackOrder:['configured-provider','router-provider','self-hosted-compute'],truthStates:['available','unconfigured','quota_exhausted','rate_limited','auth_failure','capability_mismatch','unreachable','error']} as const; }
+export function getGlobalProviderDiscoveryPolicy(){ return {architecture:'GLOBAL_PROVIDER_DISCOVERY_FAILOVER_FABRIC',authenticatedRegistrationRequired:true,authorizationSeparateFromAuthentication:true,nvidiaInferenceVerificationRequired:true,noSyntheticSuccess:true,quotaExhaustionIsNotHidden:true,internetDiscoveryBoundary:'documented/configured provider endpoints only; no quota, authentication, paywall, regional or access-control bypass',fallbackOrder:['configured-provider','router-provider','self-hosted-compute'],truthStates:['available','unconfigured','quota_exhausted','rate_limited','auth_failure','capability_mismatch','unreachable','error']} as const; }
