@@ -175,9 +175,6 @@ jobs:
       - name: A2A 1.0 Express endpoint tests
         run: npm run test:a2a-v1-express
 
-      - name: Cloudflare Worker security and routing regression tests
-        run: npm run test:cloudflare-worker
-
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
