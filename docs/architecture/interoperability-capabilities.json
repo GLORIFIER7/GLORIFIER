@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-29T03:45:21Z",
+  "updatedAt": "2026-10-30T03:48:17Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -17,7 +17,8 @@
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "Mocked Worker test harness",
-        "CircleCI Linux Docker executor"
+        "CircleCI Linux Docker executor",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -54,6 +55,13 @@
           "observedAt": "2026-10-25T16:49:08Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; current main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Post-merge Linux source checks and container health/graceful-shutdown smoke tests passed; this remains repository-level evidence, not live Neural readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -106,6 +114,13 @@
           "observedAt": "2026-10-25T16:49:08Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; current main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Post-merge Linux validation passed including TypeScript, Worker regression tests, interoperability contract checks, frontend build, and container health/shutdown tests."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -117,7 +132,7 @@
       "title": "Live GLORIFIER-NEURAL health and readiness",
       "boundary": "Configured HTTPS origin from Worker to Neural service",
       "scope": "live-runtime-probe",
-      "status": "DEGRADED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Staging",
         "Production"
@@ -148,7 +163,8 @@
       "limitations": [
         "No verified GLORIFIER_NEURAL_ORIGIN or authorized live probe was provided.",
         "The Worker adapter must remain unavailable when its origin is missing or invalid.",
-        "Provider readiness is not implied by process health."
+        "Provider readiness is not implied by process health.",
+        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
       ]
     },
     {
@@ -196,6 +212,13 @@
           "observedAt": "2026-10-25T16:49:08Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Latest post-merge Linux source-matrix jobs passed."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted ubuntu-22.04 x86_64",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the exact Ubuntu source-matrix job, including evidence freshness policy, MCP interoperability registry policy, capability registry validation, TypeScript, Worker boundary tests, chain-specific read-only test vectors, frontend build, and static output verification."
         }
       ],
       "limitations": [
@@ -264,6 +287,13 @@
           "observedAt": "2026-10-25T16:49:08Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Latest post-merge distroless and Ubuntu image builds plus /api/health and graceful-shutdown smoke tests passed."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 built both distroless and Ubuntu 24.04 images and passed both container health and graceful-shutdown smoke tests."
         }
       ],
       "limitations": [
@@ -326,7 +356,8 @@
       "scope": "mocked-chain-test-vectors",
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "Mock JSON-RPC tests; Ethereum mainnet target is configured separately"
+        "Mock JSON-RPC tests; Ethereum mainnet target is configured separately",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -342,6 +373,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:14Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -356,7 +394,8 @@
       "scope": "mocked-chain-test-vectors",
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "Mock JSON-RPC tests; BNB Chain mainnet target is configured separately"
+        "Mock JSON-RPC tests; BNB Chain mainnet target is configured separately",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -372,6 +411,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:14Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -386,7 +432,8 @@
       "scope": "mocked-chain-test-vectors",
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "Mock Solana JSON-RPC tests; live Solana target is configured separately"
+        "Mock Solana JSON-RPC tests; live Solana target is configured separately",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -402,6 +449,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 x86_64, commit 44a976ee0b2b2ec156da6429e36dbfaf68c6d747",
           "observedAt": "2026-10-25T13:35:14Z",
           "notes": "Successful source matrix job ran registry validation, TypeScript type-check, Worker regression tests, separate Ethereum/BNB/Solana read-only verifier test vectors, frontend build and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -416,7 +470,8 @@
       "scope": "protocol-contract",
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "Repository documentation and public API contract"
+        "Repository documentation and public API contract",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -439,6 +494,13 @@
           "observedAt": "2026-10-25T16:47:52Z",
           "targetEnvironment": "Interoperability Contract Validation on main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Post-merge OpenAPI and capability-registry contract validation passed."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the capability/OpenAPI contract validation step on both Ubuntu source-matrix jobs. This validates the repository contract, not a live Neural endpoint."
         }
       ],
       "limitations": [
@@ -477,7 +539,8 @@
       "scope": "mocked-contract-test",
       "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
-        "Mocked Worker unit tests; deploy-time configuration review required"
+        "Mocked Worker unit tests; deploy-time configuration review required",
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
         {
@@ -514,6 +577,13 @@
           "observedAt": "2026-10-25T16:49:08Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04/24.04 x86_64; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Post-merge Worker origin-validation and security-boundary tests passed; production allowlist configuration has not been inspected."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/40998469483",
+          "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+          "observedAt": "2026-10-30T03:38:03Z",
+          "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
         }
       ],
       "limitations": [
@@ -560,7 +630,7 @@
       "title": "Live Worker, assets, and Supabase operational dependency probe",
       "boundary": "Public Cloudflare Worker runtime-verification endpoint to the configured Supabase PostgREST exact-count query",
       "scope": "live-production-probe",
-      "status": "VERIFIED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt through PostgREST"
@@ -584,7 +654,8 @@
       "limitations": [
         "Evidence covers only the named endpoint and the dependencies it actually probes at the recorded time.",
         "Authentication and AI/provider calls were not probed; live GLORIFIER-NEURAL readiness, external A2A/MCP conformance, blockchain RPC reachability, and continuous 24/7 availability are not established.",
-        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity."
+        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity.",
+        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
       ]
     },
     {
@@ -592,7 +663,7 @@
       "title": "Live operational summary endpoint contract",
       "boundary": "Public Cloudflare Worker reports summary endpoint to six Supabase operational tables",
       "scope": "live-production-probe",
-      "status": "VERIFIED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Production Cloudflare Worker",
         "Supabase project ymbhbxrobfpqlxhyulbt"
@@ -615,7 +686,8 @@
       ],
       "limitations": [
         "This verifies the endpoint response contract and current exact counts only; it does not prove business revenue or populated production data.",
-        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked."
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked.",
+        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
       ]
     },
     {
@@ -623,7 +695,7 @@
       "title": "Organization identity readiness endpoint",
       "boundary": "Public Cloudflare Worker identity endpoint and controlled organization-domain configuration",
       "scope": "live-production-probe",
-      "status": "PARTIALLY VERIFIED",
+      "status": "NOT OBSERVABLE",
       "targetEnvironments": [
         "Production Cloudflare Worker /api/identity"
       ],
@@ -645,7 +717,8 @@
       ],
       "limitations": [
         "Canonical domain and primary organization email remain intentionally unconfigured; do not bypass identity readiness or invent domain ownership.",
-        "No deployment or configuration change was performed; identity readiness remains unresolved until controlled identity configuration is available and verified."
+        "No deployment or configuration change was performed; identity readiness remains unresolved until controlled identity configuration is available and verified.",
+        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
       ]
     },
     {
