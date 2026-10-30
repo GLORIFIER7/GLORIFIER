@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import {
   buildA2AAgentCard,
   createA2AJsonRpcHandler,
@@ -34,6 +34,33 @@ function jsonRpcHttpError(
   });
 }
 
+
+/**
+ * Install the exact production JSON parser and protocol-safe error mapping
+ * used by the backend A2A route. Keep this shared with HTTP-level tests.
+ */
+export function configureA2AJsonRpcBodyParsing(app: Express): void {
+  app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: false, type: 'application/json' }));
+  app.use('/api/a2a/v1', (error: unknown, _req: Request, res: Response, next: express.NextFunction) => {
+    const parserError = error as { type?: string } | null;
+    if (parserError?.type === 'entity.too.large') {
+      return res.status(413).type('application/json').json({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' },
+      });
+    }
+    if (parserError?.type === 'entity.parse.failed' || parserError?.type === 'entity.verify.failed') {
+      return res.status(400).type('application/json').json({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700, message: 'Parse error: request body must be valid JSON.' },
+      });
+    }
+    return next(error);
+  });
+}
+
 async function initializeIfConfigured(dependencies: A2AExpressDependencies): Promise<boolean> {
   if (!dependencies.isPersistenceConfigured()) return false;
   await dependencies.initializePersistence();
@@ -43,15 +70,7 @@ async function initializeIfConfigured(dependencies: A2AExpressDependencies): Pro
 export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
   const router = express.Router();
 
-  router.get('/.well-known/agent-card.json', async (_req: Request, res: Response) => {
-    try {
-      if (!(await initializeIfConfigured(dependencies))) {
-        return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_NOT_CONFIGURED' });
-      }
-    } catch {
-      return res.status(503).json({ ok: false, code: 'A2A_PERSISTENCE_UNAVAILABLE' });
-    }
-
+  router.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
     const publicBaseUrl = dependencies.getPublicBaseUrl().trim();
     if (!publicBaseUrl) {
       return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_NOT_CONFIGURED' });
