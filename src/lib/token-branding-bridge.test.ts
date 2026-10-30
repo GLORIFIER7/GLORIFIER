@@ -5,6 +5,7 @@ import {
   buildTokenBrandingInspection,
   validateTokenBrandingRecord,
   summarizeProviderAssessments,
+  type ProviderAssessment,
   type BrandingProvider,
   type TokenBrandingRecord
 } from './token-branding-bridge';

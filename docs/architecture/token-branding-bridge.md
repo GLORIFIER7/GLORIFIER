@@ -91,3 +91,18 @@ Implement only after Phase 1 evidence is complete:
 - [ ] Read-only inspection never performs external writes.
 - [ ] Tests prove the above behaviors.
 - [ ] Provider publication is reported only after independent observation.
+
+## Strict validation and dashboard aggregation
+
+The production identity allowlist is intentionally narrow:
+
+| Network | Chain ID | Required standard |
+|---|---:|---|
+| Ethereum Mainnet | `1` | `ERC-20` |
+| BNB Smart Chain Mainnet | `56` | `BEP-20` |
+| Base Mainnet | `8453` | `ERC-20` |
+| Solana Mainnet Beta | `solana:mainnet-beta` | `Token-2022` |
+
+The network label, chain ID, and standard must agree. Devnet and testnet are not production branding targets. Solana mint values must base58-decode to exactly 32 bytes. Logo references must contain a syntactically accepted CIDv0/CIDv1-base32 IPFS identifier or an HTTPS URL with a hostname. These checks do not fetch content, prove availability, or attest that retrieved bytes match the recorded digest.
+
+Provider summaries aggregate the worst per-token status and retain each deployment's blockers. A disabled or unsupported provider remains `NOT_CONFIGURED` without inheriting token-validation errors. Declared provider requirements require human confirmation; they cannot produce `READY_FOR_REVIEW` without an explicit completion-evidence model. No status implies submission or publication.

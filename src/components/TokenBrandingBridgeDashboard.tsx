@@ -42,7 +42,7 @@ const tokens: TokenBrandingRecord[] = [
     assetId: 'glr-solana-mainnet',
     network: 'Solana Mainnet Beta',
     chainId: 'solana:mainnet-beta',
-    standard: 'SPL Token',
+    standard: 'Token-2022',
     contractOrMint: '7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9',
     tokenSymbol: 'GLR',
     evidenceStatus: 'PARTIALLY_VERIFIED',
@@ -126,33 +126,46 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
         <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
           <h3 className="font-semibold text-white">Provider publication status</h3>
           <div className="mt-3 divide-y divide-slate-800">
-            {inspection.tokens.flatMap((token) => token.providers).filter((assessment, index, all) => all.findIndex((item) => item.providerId === assessment.providerId) === index).map((assessment) => (
-              <div key={assessment.providerId} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <span className="text-sm text-slate-200">{assessment.providerName}</span>
-                <span className="rounded-full border border-slate-700 px-2 py-1 text-[11px] text-slate-300">{assessment.status.replaceAll('_', ' ')}</span>
-                <span className="w-full text-xs text-slate-500">Publication: {assessment.publicationStatus.replaceAll('_', ' ')}</span>
+            {inspection.providerSummaries.map((summary) => (
+              <div key={summary.providerId} className="py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm text-slate-200">{summary.providerName}</span>
+                  <span className={`rounded-full border px-2 py-1 text-[11px] ${statusClass(summary.status)}`}>{summary.status.replaceAll('_', ' ')}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Publication: {summary.publicationStatus.replaceAll('_', ' ')} · {summary.tokenCount} token checks · {summary.blockedCount} blocked · {summary.manualActionCount} manual · {summary.notConfiguredCount} not configured
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-400">
+                  {summary.tokenAssessments.map((item) => (
+                    <li key={item.assetId}>
+                      <span className="text-slate-300">{item.network}</span>: {item.status.replaceAll('_', ' ')}
+                      {item.blockers.length > 0 ? ` — ${item.blockers.join(' • ')}` : ''}
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
+            {inspection.providerSummaries.length === 0 && (
+              <p className="py-3 text-xs text-slate-500">No provider assessments are available.</p>
+            )}
           </div>
         </article>
       </div>
 
       <div className="space-y-3">
         <h3 className="font-semibold text-white">Production token registry</h3>
-        {inspection.tokens.map((token) => {
-          const record = tokens.find((item) => item.assetId === token.assetId)!;
-          return (
+        {inspection.tokens.map((token) => (
             <article key={token.assetId} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h4 className="font-semibold text-white">{record.network} · {record.tokenSymbol}</h4>
-                  <p className="mt-1 text-xs text-slate-500">{record.standard} · Chain {String(record.chainId)}</p>
+                  <h4 className="font-semibold text-white">{token.network} · {token.tokenSymbol}</h4>
+                  <p className="mt-1 text-xs text-slate-500">{token.standard} · Chain {String(token.chainId)}</p>
                 </div>
-                <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${statusClass(record.evidenceStatus)}`}>{record.evidenceStatus.replaceAll('_', ' ')}</span>
+                <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${statusClass(token.evidenceStatus)}`}>{token.evidenceStatus.replaceAll('_', ' ')}</span>
               </div>
-              <p className="mt-3 break-all font-mono text-xs text-slate-400">{record.contractOrMint}</p>
+              <p className="mt-3 break-all font-mono text-xs text-slate-400">{token.contractOrMint}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                <span className="rounded border border-amber-500/30 px-2 py-1 text-amber-200">Logo integrity: PENDING</span>
+                <span className="rounded border border-amber-500/30 px-2 py-1 text-amber-200">Logo integrity: {token.logo.integrityStatus.replaceAll('_', ' ')}</span>
                 <span className="rounded border border-slate-700 px-2 py-1 text-slate-400">Explorer publication: NOT VERIFIED</span>
               </div>
               {token.validationErrors.length > 0 && (
@@ -172,8 +185,7 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
                 ))}
               </div>
             </article>
-          );
-        })}
+        ))}
       </div>
       <p className="text-xs text-slate-500">Inspection mode: {inspection.mode}. Last local evaluation: {inspection.generatedAt}. No provider submission or blockchain write was performed.</p>
     </section>

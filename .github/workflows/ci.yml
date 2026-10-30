@@ -208,6 +208,9 @@ jobs:
       - name: Solana GLR cross-file provenance gate
         run: npm run test:solana-provenance
 
+      - name: Token branding bridge identity and dashboard aggregation tests
+        run: npm run test:token-branding-bridge
+
       - name: Trusted Alpaca OAuth redirect tests
         run: npm run test:alpaca-oauth-url
 
