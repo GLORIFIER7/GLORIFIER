@@ -1,22 +1,9 @@
 import assert from 'node:assert/strict';
 import worker from './worker.ts';
+import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
-type TestEnv = {
-  ASSETS: { fetch(request: Request): Promise<Response> };
-  GLORIFIER_CANONICAL_DOMAIN?: string;
-  GLORIFIER_ORG_EMAIL?: string;
-  GLORIFIER_EMAIL_MODE?: string;
-  GLORIFIER_EMAIL_FORWARDING_TARGET?: string;
-  GLORIFIER_DOMAIN_STATUS?: string;
-  GLORIFIER_PUBLIC_URL?: string;
-  GLORIFIER_BACKEND_ORIGIN?: string;
-  GLORIFIER_BACKEND_ALLOWED_HOSTS?: string;
-  GLORIFIER_NEURAL_ORIGIN?: string;
-  GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
-  GLORIFIER_SUPABASE_URL?: string;
-  GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
-};
+type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
