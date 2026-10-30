@@ -22,7 +22,19 @@ assert.deepEqual(resolveGeminiModelCandidates('AUTO', 'gemini-configured-model')
 assert.deepEqual(resolveGeminiModelCandidates(undefined, 'AUTO'), ['gemini-3.1-flash-lite']);
 assert.deepEqual(resolveGeminiModelCandidates(undefined, '  auto  '), ['gemini-3.1-flash-lite']);
 
-console.log('Gemini model policy tests: PASS');
+
+const previousGeminiModelForRegistry = process.env.GEMINI_MODEL;
+try {
+  process.env.GEMINI_MODEL = 'auto';
+  assert.deepEqual(
+    new GeminiProvider().models(),
+    ['gemini-3.1-flash-lite'],
+    'the provider registry must expose the concrete model selected for the auto sentinel',
+  );
+} finally {
+  if (previousGeminiModelForRegistry === undefined) delete process.env.GEMINI_MODEL;
+  else process.env.GEMINI_MODEL = previousGeminiModelForRegistry;
+}
 
 const previousGeminiKey = process.env.GEMINI_API_KEY;
 const previousFetch = globalThis.fetch;
@@ -82,3 +94,5 @@ try {
   if (previousGeminiKeyForFallback === undefined) delete process.env.GEMINI_API_KEY;
   else process.env.GEMINI_API_KEY = previousGeminiKeyForFallback;
 }
+
+console.log('Gemini model policy and abort tests: PASS');
