@@ -197,6 +197,33 @@ const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => 
   }
 };
 
+const neuralConfigurationStatus = (env: CloudflareEnv): {
+  ok: boolean | null;
+  status: string;
+  code?: string;
+} => {
+  const rawOrigin = configured(env.GLORIFIER_NEURAL_ORIGIN);
+  if (!rawOrigin) {
+    return { ok: false, status: 'not-configured', code: 'NEURAL_ORIGIN_NOT_CONFIGURED' };
+  }
+
+  const origin = neuralOrigin(rawOrigin);
+  if (!origin) {
+    return { ok: false, status: 'invalid-origin', code: 'NEURAL_ORIGIN_INVALID' };
+  }
+
+  if (!configured(env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return { ok: false, status: 'allowlist-not-configured', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' };
+  }
+
+  if (!originHostAllowlisted(origin, env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return { ok: false, status: 'not-allowlisted', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' };
+  }
+
+  // Configuration is not a live health/readiness observation.
+  return { ok: null, status: 'configured-not-probed' };
+};
+
 const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv): Promise<Response> => {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
@@ -205,6 +232,7 @@ const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv)
   const checks: Record<string, unknown> = {
     worker: { ok: true, layer: 'cloudflare-worker' },
     assets: { ok: Boolean(env.ASSETS) },
+    neural: neuralConfigurationStatus(env),
     authentication: { ok: null, status: 'not-probed', reason: 'No public authentication probe is configured.' },
     ai: { ok: null, executed: false, status: 'not-probed', reason: 'AI provider calls are excluded from this infrastructure probe.' },
   };
