@@ -19,7 +19,6 @@ const validRegistry = () => ({
     status: 'PARTIALLY VERIFIED',
     targetEnvironments: ['ci'],
     limitations: ['Fixture-only; no live MCP server contacted.'],
-    updatedAt: '2026-10-29T00:00:00.000Z',
     evidence: [{
       kind: 'automated-test',
       reference: 'test/fixture.mjs',
@@ -55,6 +54,20 @@ test('rejects unsupported evidence kinds and incomplete evidence metadata', () =
   assert.ok(errors.some((e) => e.path.endsWith('.kind')));
   assert.ok(errors.some((e) => e.path.endsWith('.targetEnvironment')));
   assert.ok(errors.some((e) => e.path.endsWith('.notes')));
+});
+
+test('rejects unknown properties at registry, capability, and evidence levels', () => {
+  const rootExtra = validRegistry();
+  rootExtra.unexpected = true;
+  assert.ok(validateInteroperabilityRegistry(rootExtra).some((e) => e.path === '$.unexpected'));
+
+  const capabilityExtra = validRegistry();
+  capabilityExtra.capabilities[0].unexpected = true;
+  assert.ok(validateInteroperabilityRegistry(capabilityExtra).some((e) => e.path.endsWith('.unexpected')));
+
+  const evidenceExtra = validRegistry();
+  evidenceExtra.capabilities[0].evidence[0].unexpected = true;
+  assert.ok(validateInteroperabilityRegistry(evidenceExtra).some((e) => e.path.endsWith('.unexpected')));
 });
 
 test('VERIFIED capabilities require fresh evidence of an acceptable kind', () => {
