@@ -13,8 +13,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends nodejs \
  && node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 15)) process.exit(1)' \
  && npm install --global npm@12.2.1 --ignore-scripts --no-audit --no-fund \
- && npm install --prefix /usr/lib/node_modules/npm undici@6.29.1 --no-save --ignore-scripts --no-audit --no-fund \
+ && npm pack undici@6.29.1 --pack-destination /tmp --ignore-scripts \
+ && mkdir -p /tmp/glorifier-undici-patch \
+ && tar -xzf /tmp/undici-6.29.1.tgz -C /tmp/glorifier-undici-patch \
+ && rm -rf /usr/lib/node_modules/npm/node_modules/undici \
+ && cp -a /tmp/glorifier-undici-patch/package /usr/lib/node_modules/npm/node_modules/undici \
  && node -e 'const root="/usr/lib/node_modules/npm/node_modules/"; const expected={"undici":"6.29.1","brace-expansion":"5.0.12"}; for (const [name, version] of Object.entries(expected)) { const actual = require(root + name + "/package.json").version; if (actual !== version) throw new Error(name + " expected " + version + " but found " + actual); }' \
+ && rm -rf /tmp/undici-6.29.1.tgz /tmp/glorifier-undici-patch \
  && npm --version \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
