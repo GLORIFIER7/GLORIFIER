@@ -196,7 +196,7 @@ export async function updateAgentTask(id: string, patch: Partial<AgentTask>): Pr
     ? await persistence.get<AgentTask>('task', id)
     : tasks.get(id) || null;
   if (!current) return null;
-  const updated = { ...current, ...patch, id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
+  const updated = { ...current, ...patch, ...(patch.status === 'completed' ? { error: undefined } : {}), id: current.id, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
   // A database failure is returned to the route; uncommitted state is not reported as durable.
   if (persistence) {
     await persistence.save('task', updated);
