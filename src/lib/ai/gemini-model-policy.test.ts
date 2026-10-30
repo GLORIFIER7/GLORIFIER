@@ -28,7 +28,7 @@ const previousGeminiKey = process.env.GEMINI_API_KEY;
 const previousFetch = globalThis.fetch;
 try {
   process.env.GEMINI_API_KEY = 'test-gemini-key';
-  let capturedRequest;
+  let capturedRequest: RequestInit | null = null;
   globalThis.fetch = (async (_input, init) => {
     capturedRequest = init;
     return new Response(JSON.stringify({
@@ -42,7 +42,7 @@ try {
     signal: abortController.signal,
   });
   assert.equal(response.provider, 'gemini');
-  assert.equal(capturedRequest?.signal, abortController.signal);
+  assert.equal((capturedRequest as RequestInit | null)?.signal, abortController.signal);
 } finally {
   globalThis.fetch = previousFetch;
   if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
