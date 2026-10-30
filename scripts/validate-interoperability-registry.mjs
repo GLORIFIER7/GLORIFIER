@@ -14,6 +14,21 @@ const ALLOWED_STATUSES = new Set([
 const ALLOWED_EVIDENCE_KINDS = new Set([
   'source', 'documentation', 'schema', 'automated-test', 'ci-run', 'live-probe',
 ]);
+const ALLOWED_REGISTRY_FIELDS = new Set(['schemaVersion', 'updatedAt', 'statusVocabulary', 'capabilities']);
+const ALLOWED_CAPABILITY_FIELDS = new Set([
+  'id', 'title', 'boundary', 'scope', 'status', 'targetEnvironments', 'evidence', 'limitations',
+]);
+const ALLOWED_EVIDENCE_FIELDS = new Set([
+  'kind', 'reference', 'targetEnvironment', 'observedAt', 'notes',
+]);
+
+function rejectUnknownFields(value, allowedFields, path, add) {
+  for (const key of Object.keys(value)) {
+    if (!allowedFields.has(key)) {
+      add(`${path}.${key}`, 'unknown property is not allowed by the interoperability registry schema');
+    }
+  }
+}
 
 function isSecretFieldName(key) {
   const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -39,6 +54,7 @@ export function validateInteroperabilityRegistry(registry) {
   if (!registry || typeof registry !== 'object' || Array.isArray(registry)) {
     return [{ path: '$', message: 'registry must be a JSON object' }];
   }
+  rejectUnknownFields(registry, ALLOWED_REGISTRY_FIELDS, '$', add);
   if (typeof registry.schemaVersion !== 'string' || !registry.schemaVersion.trim()) {
     add('schemaVersion', 'must be a non-empty string');
   }
@@ -72,6 +88,7 @@ export function validateInteroperabilityRegistry(registry) {
       add(path, 'must be an object');
       continue;
     }
+    rejectUnknownFields(capability, ALLOWED_CAPABILITY_FIELDS, path, add);
     for (const field of ['id', 'title', 'boundary', 'scope']) {
       if (typeof capability[field] !== 'string' || !capability[field].trim()) {
         add(`${path}.${field}`, 'must be a non-empty string');
@@ -102,6 +119,7 @@ export function validateInteroperabilityRegistry(registry) {
         add(evidencePath, 'must be an object');
         continue;
       }
+      rejectUnknownFields(evidence, ALLOWED_EVIDENCE_FIELDS, evidencePath, add);
       if (!ALLOWED_EVIDENCE_KINDS.has(evidence.kind)) {
         add(`${evidencePath}.kind`, `unsupported evidence kind: ${String(evidence.kind)}`);
       }
