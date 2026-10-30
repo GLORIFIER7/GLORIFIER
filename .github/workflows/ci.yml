@@ -154,12 +154,6 @@ jobs:
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
 
-      - name: Durable agent state store tests
-        run: npm run test:agent-state-store
-
-      - name: Agent task persistence fallback tests
-        run: npm run test:agent-runtime
-
       - name: Anthropic provider integration tests
         run: npm run test:anthropic
 
