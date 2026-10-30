@@ -3,6 +3,7 @@ import express from 'express';
 import type { AddressInfo } from 'node:net';
 import {
   createA2AExpressRouter,
+  configureA2AJsonRpcBodyParsing,
   type A2AExpressDependencies,
 } from './a2a-v1-express';
 import type { A2ATaskLike } from './a2a-v1';
@@ -21,22 +22,13 @@ const task = (overrides: Partial<A2ATaskLike> = {}): A2ATaskLike => ({
 async function withServer(
   dependencies: A2AExpressDependencies,
   run: (origin: string) => Promise<void>,
+  authUid: string | null = 'express-test-user',
 ): Promise<void> {
   const app = express();
-  app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: true, type: 'application/json' }));
-  app.use('/api/a2a/v1', (error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const parserError = error as { type?: string } | null;
-    if (parserError?.type === 'entity.too.large') {
-      return res.status(413).type('application/json').json({ jsonrpc: '2.0', id: null, error: { code: -32602, message: 'A2A request body exceeds 65,536 bytes.' } });
-    }
-    if (parserError?.type === 'entity.parse.failed' || parserError?.type === 'entity.verify.failed') {
-      return res.status(400).type('application/json').json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: request body must be valid JSON.' } });
-    }
-    return next(error);
-  });
+  configureA2AJsonRpcBodyParsing(app);
   app.use(express.json({ limit: '10mb' }));
   app.use((req, _res, next) => {
-    (req as typeof req & { auth?: { uid: string } }).auth = { uid: 'express-test-user' };
+    if (authUid !== null) (req as typeof req & { auth?: { uid?: string } }).auth = authUid ? { uid: authUid } : {}; 
     next();
   });
   app.use(createA2AExpressRouter(dependencies));
@@ -99,6 +91,17 @@ await withServer(baseDependencies(), async (origin) => {
   assert.equal(body.result?.task.status.state, 'TASK_STATE_SUBMITTED');
 });
 
+await withServer({
+  ...baseDependencies(),
+  isPersistenceConfigured: () => false,
+  initializePersistence: async () => { throw new Error('Agent Card must not initialize database'); },
+}, async (origin) => {
+  const response = await fetch(`${origin}/.well-known/agent-card.json`);
+  assert.equal(response.status, 200, 'public discovery metadata must remain available when the database is unavailable');
+  const card = await response.json() as { name: string };
+  assert.equal(card.name, 'GLORIFIER Services');
+});
+
 await withServer(baseDependencies(), async (origin) => {
   const response = await fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
@@ -126,6 +129,18 @@ await withServer(baseDependencies(), async (origin) => {
   const response = await fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: 'true',
+  });
+  assert.equal(response.status, 200, 'JSON primitives must reach JSON-RPC packet validation');
+  const body = await response.json() as { error?: { code: number; message: string } };
+  assert.equal(body.error?.code, -32600, 'a valid JSON primitive is a JSON-RPC Invalid Request, not an Express parser error');
+});
+
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
     body: '{"jsonrpc":"2.0","id":',
   });
   assert.equal(response.status, 400);
@@ -145,6 +160,60 @@ await withServer(baseDependencies(), async (origin) => {
   assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
   const body = await response.json() as { error?: { code: number } };
   assert.equal(body.error?.code, -32602, 'oversized JSON-RPC bodies must not leak an HTML parser error');
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain', 'A2A-Version': '1.0' },
+    body: '{}',
+  });
+  assert.equal(response.status, 415);
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32600);
+});
+
+await withServer({
+  ...baseDependencies(),
+  createTask: async () => { throw new Error('createTask must not run without authenticated requester identity'); },
+}, async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'missing-uid', method: 'SendMessage', params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'No identity' }] } } }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32603, 'missing auth uid must fail closed as a JSON-RPC error');
+}, '');
+
+await withServer({
+  ...baseDependencies(),
+  getTask: async () => task({ requesterAgentId: 'someone-else' }),
+}, async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'foreign-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32001, 'GetTask must hide a task owned by another requester');
+});
+
+await withServer({
+  ...baseDependencies(),
+  getTask: async () => task({ requesterAgentId: 'express-test-user' }),
+}, async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'own-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as { error?: { code: number }; result?: { id: string } };
+  assert.equal(body.error, undefined);
+  assert.equal(body.result?.id, 'express-a2a-task');
 });
 
 await withServer({
