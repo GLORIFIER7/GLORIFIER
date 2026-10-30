@@ -319,8 +319,49 @@ async function run(): Promise<void> {
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
     );
     assert.equal(nativeRuntimeWithoutSupabase.status, 503);
-    assert.equal(await nativeRuntimeWithoutSupabase.json().then((body: { checks?: { database?: { code?: string } } }) => body.checks?.database?.code), 'SUPABASE_NOT_CONFIGURED');
+    const nativeRuntimeWithoutSupabaseBody = await nativeRuntimeWithoutSupabase.json() as {
+      checks?: { database?: { code?: string }; neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.equal(nativeRuntimeWithoutSupabaseBody.checks?.database?.code, 'SUPABASE_NOT_CONFIGURED');
+    assert.deepEqual(nativeRuntimeWithoutSupabaseBody.checks?.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
     assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
+
+    // A failed Supabase probe must not erase the independent Neural configuration status.
+    const previousUnhealthyRuntimeResponse = upstreamResponse;
+    upstreamResponse = new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+    capturedRequest = null;
+    const runtimeWithFailedSupabaseProbe = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      {
+        ...env,
+        GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+        GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+        GLORIFIER_NEURAL_ORIGIN: undefined,
+        GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined,
+      },
+    );
+    assert.equal(runtimeWithFailedSupabaseProbe.status, 502);
+    const runtimeWithFailedSupabaseProbeBody = await runtimeWithFailedSupabaseProbe.json() as {
+      checks: { database?: { code?: string }; neural?: { ok: boolean | null; status: string; code?: string } };
+    };
+    assert.equal(runtimeWithFailedSupabaseProbeBody.checks.database?.code, 'SUPABASE_PROBE_FAILED');
+    assert.deepEqual(runtimeWithFailedSupabaseProbeBody.checks.neural, {
+      ok: false,
+      status: 'not-configured',
+      code: 'NEURAL_ORIGIN_NOT_CONFIGURED',
+    });
+    assert.equal(
+      getCapturedRequest().url,
+      'https://project.supabase.co/rest/v1/connection_registry?select=*&limit=0',
+    );
+    upstreamResponse = previousUnhealthyRuntimeResponse;
 
     // A successful database probe must still disclose an unconfigured Neural execution plane.
     const previousRuntimeResponse = upstreamResponse;
