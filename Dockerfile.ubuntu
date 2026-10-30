@@ -1,9 +1,9 @@
 # Reproducible Ubuntu runtime with pinned OCI image digests.
 # Refresh these digests deliberately through a reviewed dependency update.
 # This pinned stage supplies only the Node.js runtime binary to Ubuntu.
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
+FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
 
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build-deps
+FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build-deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund --ignore-scripts
@@ -14,12 +14,12 @@ COPY . .
 # The runtime stage intentionally omits devDependencies and therefore tsx.
 RUN npm run build
 
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS production-deps
+FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS production-deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
 
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
+FROM ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
