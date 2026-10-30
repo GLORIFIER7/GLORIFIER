@@ -735,6 +735,27 @@ async function run(): Promise<void> {
       'external OAuth redirects must require an explicit exact-host allowlist',
     );
 
+    for (const rejectedLocation of [
+      'http://login.example.test/oauth/authorize',
+      'https://login.example.test:8443/oauth/authorize',
+      'https://user:password@login.example.test/oauth/authorize',
+      'https://evil.example/oauth/authorize',
+      'https://api.example.test/auth/broker/callback?state=one&state=two',
+    ]) {
+      upstreamResponse = new Response(null, { status: 302, headers: { Location: rejectedLocation } });
+      const rejectedRedirect = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
+        { ...env, GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS: 'login.example.test' },
+      );
+      assert.equal(rejectedRedirect.status, 502, rejectedLocation);
+      assert.equal(
+        await rejectedRedirect.json().then((body: { code?: string }) => body.code),
+        'BACKEND_REDIRECT_NOT_ALLOWED',
+        rejectedLocation,
+      );
+      assert.equal(rejectedRedirect.headers.get('location'), null, rejectedLocation);
+    }
+
     // An attacker-controlled leading double slash is not a backend route and must
     // never be interpreted as an absolute URL by the upstream request constructor.
     capturedRequest = null;
