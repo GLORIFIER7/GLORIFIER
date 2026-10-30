@@ -53,3 +53,24 @@ assert.match(
   /return requireAuthentication\(req as any, res, next\)/,
   'protected reads and state-changing requests must continue through authentication',
 );
+
+assert.match(
+  server,
+  /app\.get\('\/api\/a2a\/tasks'[\s\S]*?filterAgentTasksByRequester\(listA2ATasks\(\), requesterUid, mayReadAllTasks\)/,
+  'legacy A2A task listing must be scoped to the authenticated requester',
+);
+assert.match(
+  server,
+  /app\.get\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?filterAgentTasksByRequester\(listFederatedA2ATasks\(\), requesterUid, mayReadAllTasks\)/,
+  'federated A2A task listing must be scoped to the authenticated requester',
+);
+assert.match(
+  server,
+  /app\.post\('\/api\/federated-a2a\/v3\/tasks'[\s\S]*?resolveAgentTaskRequester\(requesterUid, body\.requesterAgentId, mayOverrideRequester\)/,
+  'federated A2A requester identity must be derived from authenticated context',
+);
+assert.match(
+  server,
+  /app\.post\('\/api\/a2a\/tasks', requireOwnerOrInternalService[\s\S]*?const humanApproved = Boolean\(auth && isOwner\(auth\)/,
+  'legacy A2A execution approval must be bound to an authenticated owner, not a request-body string alone',
+);
