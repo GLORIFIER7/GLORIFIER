@@ -34,6 +34,7 @@ interface AiModelsCollaborationManagementProps {
 
 export interface ModelNodeConfig {
   id: string;
+  providerId?: string;
   name: string;
   provider: string;
   role: string;
@@ -50,6 +51,7 @@ export interface ModelNodeConfig {
 const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'gpt-4o',
+    providerId: 'openai',
     name: 'OpenAI GPT-4o',
     provider: 'OpenAI Frontier',
     role: 'Commercial Valuation & Market Licensing',
@@ -63,7 +65,23 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     privacyBoundary: 'Zero-Knowledge Enclave'
   },
   {
+    id: 'claude',
+    providerId: 'anthropic',
+    name: 'Anthropic Claude',
+    provider: 'Anthropic',
+    role: 'Independent Engineering Review & Synthesis',
+    specialization: 'Independent architecture review, code-quality analysis, failure analysis, and synthesis of verified evidence',
+    badge: 'Claude',
+    weight: 35,
+    enabled: true,
+    status: 'not-verified',
+    latencyMs: null,
+    color: 'purple',
+    privacyBoundary: 'Sovereign Core Arbitrator'
+  },
+  {
     id: 'gemini-3.8-flash',
+    providerId: 'gemini',
     name: 'Google Gemini 3.8 Flash',
     provider: 'Google DeepMind',
     role: 'Differential Privacy & Mathematical Integrity',
@@ -78,6 +96,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   },
   {
     id: 'llama-3.3',
+    providerId: 'meta',
     name: 'Meta LLaMA 3.3',
     provider: 'Meta AI / Sovereign Enclave',
     role: 'Decentralized Sovereignty & Anti-Monopoly Audit',
@@ -177,12 +196,19 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
 
   // Run Collaborative Council across all active models
   const handleConveneCouncil = async () => {
+    const agendaToRun = customAgenda.trim() || selectedTopic;
+    const selectedProviderIds = nodes
+      .filter(n => n.enabled && n.providerId)
+      .map(n => n.providerId as string);
+
+    if (selectedProviderIds.length === 0) {
+      setStatusFeedback('Enable at least one provider-backed model (GPT, Claude, Gemini, Meta, or another configured provider) before convening the council.');
+      return;
+    }
+
     setIsRunningCouncil(true);
     setCouncilResult(null);
     setStatusFeedback(null);
-
-    const agendaToRun = customAgenda.trim() || selectedTopic;
-    const activeModelIds = nodes.filter(n => n.enabled).map(n => n.id);
 
     try {
       const res = await fetch('/api/ai/council', {
@@ -190,21 +216,28 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agenda: agendaToRun,
+          providerIds: selectedProviderIds,
           currentPolicy: policy,
           footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
-          activeModels: activeModelIds,
           consensusThreshold
         })
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: CouncilConsensusResult = await res.json();
+      const data: CouncilConsensusResult & {
+        participantCount?: number;
+        providerDiversity?: number;
+        failures?: Array<{ providerId: string; code: string }>;
+      } = await res.json();
       setCouncilResult(data);
-      setStatusFeedback('Backend returned a council result. Provider participation, consensus accuracy, and cryptographic attestation are NOT independently verified.');
+      const responseCount = data.participantCount ?? data.participants.length;
+      const providerCount = data.providerDiversity ?? new Set(data.participants.map(p => p.provider)).size;
+      const failureCount = data.failures?.length ?? 0;
+      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s). ${failureCount} selected provider(s) failed. Numeric consensus and policy directives remain unverified and are not fabricated.`);
     } catch (err) {
-      console.warn('Backend council call, assembling resilient enclave consensus:', err);
+      console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
-      setStatusFeedback('Council backend unavailable. No synthetic consensus was generated; connect an authorized AI provider and retry.');
+      setStatusFeedback('Council execution failed or no selected provider was available. Check the provider registry and credentials; no fallback provider or synthetic response was substituted.');
     } finally {
       setIsRunningCouncil(false);
     }
