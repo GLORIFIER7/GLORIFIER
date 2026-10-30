@@ -112,7 +112,7 @@ try {
   assert.equal(completed?.status, 'completed');
   assert.equal(completed?.error, undefined, 'successful completion must clear stale recovery errors');
 
-  assert.equal((await getAgentTask(task.id))?.status, 'failed');
+  assert.equal((await getAgentTask(task.id))?.status, 'completed');
   assert.equal((await listAgentTasks(10)).some((entry) => entry.id === task.id), true);
 
   // Memory fallback and PostgreSQL mode must order tasks by last update, not creation.
