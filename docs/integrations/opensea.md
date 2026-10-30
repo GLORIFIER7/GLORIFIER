@@ -15,7 +15,7 @@ The current GLORIFIER integration intentionally does not exchange or use the sco
 
 ## Worker routes
 
-- `GET /api/opensea/health` — performs an authenticated, uncached read-only lookup of the `glorifier7` collection and reports whether the API key was accepted. It bypasses the edge cache so key rotation/revocation is observed on the next probe.
+- `GET /api/opensea/health` — performs an authenticated read-only lookup of the `glorifier7` collection and reports whether the API key was accepted. Its upstream cache TTL is zero so the check revalidates the API key on each probe.
 - `GET /api/opensea/collections/glorifier7` — returns public collection metadata for the ERC-721 collection.
 - `GET /api/opensea/collections/glorifier1` — returns public collection metadata for the ERC-1155 collection.
 
