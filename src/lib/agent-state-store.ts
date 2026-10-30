@@ -105,7 +105,7 @@ export class PostgresAgentStateStore {
        SET status = 'active',
            payload = payload || jsonb_build_object(
              'status', 'active',
-             'turnCount', COALESCE((payload->>'turnCount')::integer, 0) + 1,
+             'turnCount', COALESCE((payload->>'turnCount')::bigint, 0) + 1,
              'contextTokens', $2::bigint,
              'updatedAt', to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
              'compactionRecommended',
