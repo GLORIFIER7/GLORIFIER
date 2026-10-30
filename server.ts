@@ -17,7 +17,7 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
-import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
+import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, filterAgentTasksByRequester, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
