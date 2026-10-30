@@ -154,6 +154,9 @@ jobs:
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
 
+      - name: A2A task-list authorization regression tests
+        run: npm run test:a2a-runtime
+
       - name: Agent persistence bootstrap tests
         run: npm run test:agent-persistence-bootstrap
 
