@@ -154,6 +154,9 @@ jobs:
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
 
+      - name: Agent persistence bootstrap tests
+        run: npm run test:agent-persistence-bootstrap
+
       - name: Governance loop failure recovery tests
         run: npm run test:governance-loop
 
