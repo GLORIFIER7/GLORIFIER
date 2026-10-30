@@ -86,9 +86,9 @@ Choose an action to request a backend response. Any returned claim must be check
       const discoveredModels = options.map((option) => option.model);
       setDiscoveredModelOptions(options);
       if (!hasUserSelectedModel.current) {
-        const savedSelection = resolveExecutableModelPreference(savedModelPreference.current, discoveredModels);
-        setSelectedModel(savedSelection);
-        if (savedSelection !== savedModelPreference.current) onUpdatePolicy({ aiModel: savedSelection });
+        // Apply a safe local fallback when the saved model is absent, but do not
+        // erase the user's persisted preference during a transient discovery miss.
+        setSelectedModel(resolveExecutableModelPreference(savedModelPreference.current, discoveredModels));
       } else {
         setSelectedModel((current) => resolveExecutableModelPreference(current, discoveredModels));
       }
@@ -110,6 +110,7 @@ Choose an action to request a backend response. Any returned claim must be check
       discoveredModelOptions.map((option) => option.model),
     );
     hasUserSelectedModel.current = true;
+    savedModelPreference.current = executableModel;
     setSelectedModel(executableModel);
     onUpdatePolicy({ aiModel: executableModel });
   };
