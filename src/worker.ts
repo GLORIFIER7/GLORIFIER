@@ -406,10 +406,6 @@ function normalizeBearerAuthorization(value: string | null): string | null {
   return `Bearer ${token}`;
 }
 
-function hasBearerAuthorization(value: string | null): boolean {
-  return normalizeBearerAuthorization(value) !== null;
-}
-
 const hasSessionCredential = (request: Request): boolean => {
   const authorization = request.headers.get('authorization')?.trim() || '';
   if (/^Bearer\s+\S+$/i.test(authorization)) return true;
