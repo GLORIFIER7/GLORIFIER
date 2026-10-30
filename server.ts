@@ -2575,7 +2575,7 @@ app.get('/api/a2a/tasks/:id', (req: Request, res: Response) => {
   return res.json({ ok: true, task });
 });
 
-app.post('/api/a2a/tasks', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+app.post('/api/a2a/tasks', async (req: Request, res: Response) => {
   const body = req.body || {};
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
