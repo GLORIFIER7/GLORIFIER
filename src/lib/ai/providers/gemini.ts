@@ -78,6 +78,7 @@ export class GeminiProvider implements AIProvider {
           };
         } catch (err: any) {
           lastError = err;
+          if (request.signal?.aborted) break;
           const errMsg = err?.message || String(err);
           const status = err?.status || err?.code || (errMsg.includes('503') ? 503 : (errMsg.includes('429') ? 429 : 0));
           const isQuota = status === 429 || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED');
