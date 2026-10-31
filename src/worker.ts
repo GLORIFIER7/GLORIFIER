@@ -255,7 +255,7 @@ const isOpenSeaTimeout = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
 
 const isValidOpenSeaImfFixdate = (value: string): boolean => {
-  const imfFixdate = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), (?:0[1-9]|[12]\\d|3[01]) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{4} (?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d GMT$/;
+  const imfFixdate = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), (?:0[1-9]|[12]\d|3[01]) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d GMT$/;
   if (!imfFixdate.test(value)) return false;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) && new Date(parsed).toUTCString() === value;
@@ -263,7 +263,7 @@ const isValidOpenSeaImfFixdate = (value: string): boolean => {
 
 const isValidOpenSeaRetryAfter = (value: string | null): value is string => {
   if (!value) return false;
-  if (/^\\d+$/.test(value)) return Number.isSafeInteger(Number(value));
+  if (/^\d+$/.test(value)) return Number.isSafeInteger(Number(value));
   return isValidOpenSeaImfFixdate(value);
 };
 
@@ -286,7 +286,7 @@ const openSeaUpstreamFailure = (
     return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_UPSTREAM_ERROR', headers);
   }
   const contentType = upstream.headers.get('content-type') || '';
-  if (!/^application\\/(?:[a-z0-9.+-]*\\+)?json(?:\\s*;|$)/i.test(contentType)) {
+  if (!/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(contentType)) {
     return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_INVALID_CONTENT_TYPE', headers);
   }
   return undefined;
