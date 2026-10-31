@@ -244,6 +244,74 @@ const readBoundedOpenSeaResponse = async (response: Response): Promise<unknown> 
 
 type OpenSeaReadResult = { ok: true; data: unknown } | { ok: false; response: Response };
 
+const openSeaErrorResponse = (
+  status: number,
+  state: string,
+  code: string,
+  headers: Record<string, string>,
+): Response => Response.json({ ok: false, status: state, code }, { status, headers });
+
+const isOpenSeaTimeout = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+
+const isValidOpenSeaImfFixdate = (value: string): boolean => {
+  const imfFixdate = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), (?:0[1-9]|[12]\\d|3[01]) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{4} (?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d GMT$/;
+  if (!imfFixdate.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toUTCString() === value;
+};
+
+const isValidOpenSeaRetryAfter = (value: string | null): value is string => {
+  if (!value) return false;
+  if (/^\\d+$/.test(value)) return Number.isSafeInteger(Number(value));
+  return isValidOpenSeaImfFixdate(value);
+};
+
+const openSeaUpstreamFailure = (
+  upstream: Response,
+  headers: Record<string, string>,
+): Response | undefined => {
+  if (upstream.status === 401 || upstream.status === 403) {
+    return openSeaErrorResponse(502, 'unauthorized', 'OPENSEA_AUTHENTICATION_FAILED', headers);
+  }
+  if (upstream.status === 404) {
+    return openSeaErrorResponse(404, 'not-found', 'OPENSEA_RESOURCE_NOT_FOUND', headers);
+  }
+  if (upstream.status === 429) {
+    const retryAfter = upstream.headers.get('retry-after');
+    const retryHeaders = isValidOpenSeaRetryAfter(retryAfter) ? { ...headers, 'Retry-After': retryAfter } : headers;
+    return openSeaErrorResponse(429, 'rate-limited', 'OPENSEA_RATE_LIMITED', retryHeaders);
+  }
+  if (!upstream.ok) {
+    return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_UPSTREAM_ERROR', headers);
+  }
+  const contentType = upstream.headers.get('content-type') || '';
+  if (!/^application\\/(?:[a-z0-9.+-]*\\+)?json(?:\\s*;|$)/i.test(contentType)) {
+    return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_INVALID_CONTENT_TYPE', headers);
+  }
+  return undefined;
+};
+
+const openSeaRequestFailure = (error: unknown, headers: Record<string, string>): Response => {
+  const timedOut = isOpenSeaTimeout(error);
+  return openSeaErrorResponse(
+    timedOut ? 504 : 502,
+    timedOut ? 'timeout' : 'unavailable',
+    timedOut ? 'OPENSEA_REQUEST_TIMEOUT' : 'OPENSEA_UPSTREAM_UNAVAILABLE',
+    headers,
+  );
+};
+
+const openSeaResponseReadFailure = (error: unknown, headers: Record<string, string>): Response => {
+  if (error instanceof OpenSeaResponseTooLargeError) {
+    return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_RESPONSE_TOO_LARGE', headers);
+  }
+  if (isOpenSeaTimeout(error)) {
+    return openSeaErrorResponse(504, 'timeout', 'OPENSEA_REQUEST_TIMEOUT', headers);
+  }
+  return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_INVALID_RESPONSE', headers);
+};
+
 const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaReadResult> => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   let upstream: Response;
@@ -255,53 +323,16 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
       signal: AbortSignal.timeout(7000),
     });
   } catch (error) {
-    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-    return {
-      ok: false,
-      response: Response.json({
-        ok: false,
-        status: timedOut ? 'timeout' : 'unavailable',
-        code: timedOut ? 'OPENSEA_REQUEST_TIMEOUT' : 'OPENSEA_UPSTREAM_UNAVAILABLE',
-      }, { status: timedOut ? 504 : 502, headers }),
-    };
+    return { ok: false, response: openSeaRequestFailure(error, headers) };
   }
 
-  if (upstream.status === 401 || upstream.status === 403) {
-    return { ok: false, response: Response.json({ ok: false, status: 'unauthorized', code: 'OPENSEA_AUTHENTICATION_FAILED' }, { status: 502, headers }) };
-  }
-  if (upstream.status === 404) {
-    return { ok: false, response: Response.json({ ok: false, status: 'not-found', code: 'OPENSEA_RESOURCE_NOT_FOUND' }, { status: 404, headers }) };
-  }
-  if (upstream.status === 429) {
-    const retryAfter = upstream.headers.get('retry-after');
-    const validRetryAfter = retryAfter && (/^\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter)))
-      ? retryAfter
-      : null;
-    const retryHeaders = validRetryAfter ? { ...headers, 'Retry-After': validRetryAfter } : headers;
-    return { ok: false, response: Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders }) };
-  }
-  if (!upstream.ok) {
-    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers }) };
-  }
-  if (!/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(upstream.headers.get('content-type') || '')) {
-    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers }) };
-  }
+  const providerFailure = openSeaUpstreamFailure(upstream, headers);
+  if (providerFailure) return { ok: false, response: providerFailure };
+
   try {
     return { ok: true, data: await readBoundedOpenSeaResponse(upstream) };
   } catch (error) {
-    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-    const code = error instanceof OpenSeaResponseTooLargeError
-      ? 'OPENSEA_RESPONSE_TOO_LARGE'
-      : timedOut
-        ? 'OPENSEA_REQUEST_TIMEOUT'
-        : 'OPENSEA_INVALID_RESPONSE';
-    return {
-      ok: false,
-      response: Response.json({ ok: false, status: timedOut ? 'timeout' : 'upstream-error', code }, {
-        status: timedOut ? 504 : 502,
-        headers,
-      }),
-    };
+    return { ok: false, response: openSeaResponseReadFailure(error, headers) };
   }
 };
 
