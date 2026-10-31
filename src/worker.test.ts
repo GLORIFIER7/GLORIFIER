@@ -41,11 +41,10 @@ async function run(): Promise<void> {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
-    return upstreamResponses.shift() || upstreamResponse;
     if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
       return openSeaResponseQueue.shift() as Response;
     }
-    return upstreamResponse;
+    return upstreamResponses.shift() || upstreamResponse;
   }) as typeof fetch;
 
   try {
