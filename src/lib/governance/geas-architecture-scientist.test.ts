@@ -141,16 +141,33 @@ const requiredDomains = [
 for (const domain of requiredDomains) {
   if (!model.domains.includes(domain)) throw new Error('authoritative source coverage missing for domain: ' + domain);
 }
-const agenticSource = model.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
-const agenticPattern = model.patterns.find((pattern) => pattern.id === 'agentic-application-threats');
-if (!agenticSource || agenticSource.url !== 'https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/' || agenticSource.cadenceHours !== 336 || !agenticSource.patternIds.includes('agentic-application-threats')) {
-  throw new Error('canonical OWASP 2026 Agentic Top 10 source must be active with the 14-day review cadence');
+if (model.sources.some((source) => source.id === 'owasp-agentic-applications-top10')) {
+  throw new Error('the OWASP landing page must remain discovery-only until its content can support risk-level extraction');
 }
-if (!agenticPattern || agenticPattern.sourceId !== 'owasp-agentic-applications-top10') {
-  throw new Error('OWASP Agentic Top 10 threat pattern must be linked to its authoritative source');
-}
-for (const controlId of ['SEC-01', 'AUTH-01', 'POL-01', 'SUPPLY-01', 'REL-01', 'OBS-01', 'GOV-01', 'EVID-01', 'FED-01']) {
-  if (!agenticPattern.controlIds.includes(controlId)) throw new Error('agentic threat pattern missing control mapping: ' + controlId);
+const agenticRisks = [
+  { sourceId: 'owasp-agentic-asi01', patternId: 'owasp-agentic-asi01', claimType: 'agent-goal-hijack' },
+  { sourceId: 'owasp-agentic-asi02', patternId: 'owasp-agentic-asi02', claimType: 'agent-tool-misuse' },
+  { sourceId: 'owasp-agentic-asi03', patternId: 'owasp-agentic-asi03', claimType: 'agent-identity-privilege-abuse' },
+  { sourceId: 'owasp-agentic-asi04', patternId: 'owasp-agentic-asi04', claimType: 'agentic-supply-chain-vulnerabilities' },
+  { sourceId: 'owasp-agentic-asi05', patternId: 'owasp-agentic-asi05', claimType: 'unexpected-code-execution' },
+  { sourceId: 'owasp-agentic-asi06', patternId: 'owasp-agentic-asi06', claimType: 'agent-memory-context-poisoning' },
+  { sourceId: 'owasp-agentic-asi07', patternId: 'owasp-agentic-asi07', claimType: 'insecure-inter-agent-communication' },
+  { sourceId: 'owasp-agentic-asi08', patternId: 'owasp-agentic-asi08', claimType: 'agent-cascading-failures' },
+  { sourceId: 'owasp-agentic-asi09', patternId: 'owasp-agentic-asi09', claimType: 'human-agent-trust-exploitation' },
+  { sourceId: 'owasp-agentic-asi10', patternId: 'owasp-agentic-asi10', claimType: 'rogue-agent-behavior' },
+];
+for (const risk of agenticRisks) {
+  const source = model.sources.find((candidate) => candidate.id === risk.sourceId);
+  const pattern = model.patterns.find((candidate) => candidate.id === risk.patternId);
+  if (!source || source.cadenceHours !== 336 || !source.patternIds.includes(risk.patternId)) {
+    throw new Error('OWASP ' + risk.patternId + ' must have an active 14-day source entry');
+  }
+  if (!pattern || pattern.sourceId !== risk.sourceId || pattern.domain !== 'cybersecurity') {
+    throw new Error('OWASP ' + risk.patternId + ' must be linked to its dedicated cybersecurity source');
+  }
+  if (!pattern.keywords.length || !pattern.controlIds.length) {
+    throw new Error('OWASP ' + risk.patternId + ' must have explicit extraction terms and GEAS control mappings');
+  }
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('OWASP source keyword matches must remain analysis, not verified implementation');
