@@ -143,7 +143,7 @@ for (const domain of requiredDomains) {
 }
 const agenticSource = model.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
 const agenticPattern = model.patterns.find((pattern) => pattern.id === 'agentic-application-threats');
-if (!agenticSource || agenticSource.url !== 'https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/' || agenticSource.cadenceHours !== 336 || !agenticSource.patternIds.includes('agentic-application-threats')) {
+if (!agenticSource || agenticSource.url !== 'https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/' || agenticSource.cadenceHours !== 336 || !agenticSource.patternIds.includes('agentic-application-threats')) {
   throw new Error('canonical OWASP 2026 Agentic Top 10 source must be active with the 14-day review cadence');
 }
 if (!agenticPattern || agenticPattern.sourceId !== 'owasp-agentic-applications-top10') {
@@ -154,6 +154,14 @@ for (const controlId of ['SEC-01', 'AUTH-01', 'POL-01', 'SUPPLY-01', 'REL-01', '
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('OWASP source keyword matches must remain analysis, not verified implementation');
+}
+const governanceSource = model.sources.find((source) => source.id === 'nist-ai-rmf-playbook');
+const governancePattern = model.patterns.find((pattern) => pattern.id === 'ai-governance-lifecycle');
+if (!governanceSource || governanceSource.url !== 'https://airc.nist.gov/airmf-resources/playbook/' || governanceSource.cadenceHours !== 720 || !governanceSource.patternIds.includes('ai-governance-lifecycle')) {
+  throw new Error('NIST AI RMF Playbook must be registered as an active 30-day governance source');
+}
+if (!governancePattern || governancePattern.domain !== 'governance' || governancePattern.sourceId !== 'nist-ai-rmf-playbook') {
+  throw new Error('NIST AI RMF governance pattern must be linked to the governance domain and authoritative source');
 }
 if (!model.architectureStateModel.join(',').includes('desired,declared,deployed,observed,verified')) throw new Error('five-state architecture model missing');
 
