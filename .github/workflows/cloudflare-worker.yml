@@ -46,6 +46,9 @@ jobs:
       - name: Test Cloudflare Worker proxy and fallback handling
         run: npm run test:cloudflare-worker
 
+      - name: Test OpenSea read-only API integration
+        run: npm run test:opensea-worker
+
       - name: Build public frontend for Cloudflare root paths
         run: npm run build:frontend
         env:
