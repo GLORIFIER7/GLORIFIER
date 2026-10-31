@@ -811,11 +811,37 @@ export function classifyArchitectureEvidence(status: EvidenceStatus): EvidenceCl
   return status === 'claim-supported' ? 'observed-fact' : 'analysis';
 }
 
+/** Parse the canonical RFC 3339 millisecond-precision subset used by persisted source observations. */
+function parseSourceObservationTimestamp(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d{1,3}))?(Z|[+-]\\d{2}:\\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 30, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = match[8];
+  if (offset !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offset === '-00:00' || offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
-  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt) return true;
-  const observedMs = Date.parse(observedAt);
+  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt || !Number.isFinite(nowMs)) return true;
+  const observedMs = parseSourceObservationTimestamp(observedAt);
   // A future timestamp is not trustworthy freshness evidence; force a fresh observation.
-  if (!Number.isFinite(observedMs) || observedMs > nowMs) return true;
+  if (observedMs === null || observedMs > nowMs) return true;
   return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 }
 
@@ -886,9 +912,9 @@ export function buildConditionalRequestHeaders(
     evidenceExcerpt: cached.evidence_excerpt,
     evidenceStatus: cached.evidence_status,
   })) return headers;
-  const cachedObservedAt = Date.parse(cached.observed_at);
-  // Do not let a clock-skewed or corrupted future observation seed a conditional request.
-  if (!Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs) return headers;
+  const cachedObservedAt = parseSourceObservationTimestamp(cached.observed_at);
+  // Do not let a clock-skewed, malformed, or corrupted observation seed a conditional request.
+  if (!Number.isFinite(nowMs) || cachedObservedAt === null || cachedObservedAt > nowMs) return headers;
   if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
   if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
   return headers;
@@ -906,6 +932,7 @@ export function createSourceFetchContext(
   cached?: CachedSourceObservation | null,
   nowMs = Date.now(),
 ): SourceFetchContext {
+  if (!Number.isFinite(nowMs)) throw new TypeError('source fetch clock must be a finite timestamp');
   return {
     nowMs,
     observedAt: new Date(nowMs).toISOString(),
@@ -920,8 +947,8 @@ export function reuseNotModifiedSourceObservation(
   observedAt: string,
   nowMs = Date.now(),
 ): SourceObservation | null {
-  const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
-  const newObservedAtMs = Date.parse(observedAt);
+  const cachedObservedAt = cached ? parseSourceObservationTimestamp(cached.observed_at) : null;
+  const newObservedAtMs = parseSourceObservationTimestamp(observedAt);
   if (!cached || cached.source_url !== source.url || !cached.ok
       || !isAdmissibleCachedSourceObservation({
         ok: cached.ok,
@@ -932,8 +959,9 @@ export function reuseNotModifiedSourceObservation(
       })
       || typeof cached.final_url !== 'string'
       || cached.final_url !== response.finalUrl
-      || !Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs
-      || !Number.isFinite(newObservedAtMs) || newObservedAtMs > nowMs) return null;
+      || !Number.isFinite(nowMs)
+      || cachedObservedAt === null || cachedObservedAt > nowMs
+      || newObservedAtMs === null || newObservedAtMs < cachedObservedAt || newObservedAtMs > nowMs) return null;
   return {
     sourceId: source.id,
     ok: true,
