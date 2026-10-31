@@ -48,6 +48,18 @@ export type OpenSeaWorkerEnv = {
   OPENSEA_API_KEY?: string;
 };
 
+export type OpenSeaEdgeCache = {
+  match(request: Request): Promise<Response | undefined | null>;
+  put(request: Request, response: Response): Promise<void>;
+};
+
+const getDefaultOpenSeaCache = (): OpenSeaEdgeCache | undefined => {
+  const cacheStorage = (globalThis as typeof globalThis & {
+    caches?: { default?: OpenSeaEdgeCache };
+  }).caches;
+  return cacheStorage?.default;
+};
+
 const responseHeaders = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -59,10 +71,10 @@ const failure = (status: number, code: string, message: string, additionalHeader
     headers: { ...additionalHeaders, ...responseHeaders },
   });
 
-const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boolean): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
+const fetchCollection = async (slug: string, apiKey: string): Promise<{ status: number; data?: Record<string, unknown>; error?: Response }> => {
   let upstream: Response;
   try {
-    const init: RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } } = {
+    const init: RequestInit = {
       method: 'GET',
       headers: {
         'X-API-KEY': apiKey,
@@ -71,8 +83,8 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
       // Never follow provider redirects; inspect the response and fail closed.
       redirect: 'manual',
       signal: AbortSignal.timeout(8000),
-      // Bound public collection requests at the Cloudflare edge to conserve API quota.
-      cf: useEdgeCache ? { cacheTtl: 60, cacheEverything: true } : { cacheTtl: 0, cacheEverything: true },
+      // Always bypass fetch-level caching; only validated responses enter the Worker cache.
+      cache: 'no-store',
     };
     const endpoint = COLLECTION_ENDPOINTS[slug];
     if (!endpoint) {
@@ -122,6 +134,9 @@ const fetchCollection = async (slug: string, apiKey: string, useEdgeCache: boole
     if (error instanceof OpenSeaResponseTooLargeError) {
       return { status: 502, error: failure(502, 'OPENSEA_RESPONSE_TOO_LARGE', 'OpenSea response exceeded the 1 MiB safety limit.') };
     }
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      return { status: 504, error: failure(504, 'OPENSEA_REQUEST_TIMEOUT', 'OpenSea did not respond within the configured timeout.') };
+    }
     return { status: 502, error: failure(502, 'OPENSEA_INVALID_RESPONSE', 'OpenSea returned an invalid or unreadable JSON response.') };
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -134,9 +149,14 @@ export const openSeaWorkerRoute = async (
   request: Request,
   pathname: string,
   env: OpenSeaWorkerEnv,
+  edgeCache: OpenSeaEdgeCache | undefined = getDefaultOpenSeaCache(),
 ): Promise<Response> => {
+  const responseForRequest = (response: Response): Response => request.method === 'HEAD'
+    ? new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers })
+    : response;
+
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    return failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET and HEAD only.', { Allow: 'GET, HEAD' });
+    return responseForRequest(failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET and HEAD only.', { Allow: 'GET, HEAD' }));
   }
 
   const isHealthProbe = pathname === '/api/opensea/health';
@@ -144,26 +164,38 @@ export const openSeaWorkerRoute = async (
   if (pathname.startsWith(collectionPrefix)) {
     const requestedSlug = pathname.slice(collectionPrefix.length);
     if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedSlug)) {
-      return failure(400, 'INVALID_COLLECTION_SLUG', 'Collection slugs must use lowercase letters, numbers, and hyphens.');
+      return responseForRequest(failure(400, 'INVALID_COLLECTION_SLUG', 'Collection slugs must use lowercase letters, numbers, and hyphens.'));
     }
   }
   const match = pathname.match(/^\/api\/opensea\/collections\/([a-z0-9-]+)$/);
   const slug = isHealthProbe ? 'glorifier7' : match?.[1];
   if (!slug || !ALLOWED_COLLECTION_SLUGS.has(slug)) {
-    return failure(404, 'OPENSEA_ROUTE_NOT_FOUND', 'Only the registered GLORIFIER OpenSea collections are available through this route.');
+    return responseForRequest(failure(404, 'OPENSEA_ROUTE_NOT_FOUND', 'Only the registered GLORIFIER OpenSea collections are available through this route.'));
   }
 
   const apiKey = (env.OPENSEA_API_KEY || '').trim();
   if (!apiKey) {
-    return failure(503, 'OPENSEA_API_KEY_NOT_CONFIGURED', 'Configure the OPENSEA_API_KEY Worker secret to enable public collection lookups.');
+    return responseForRequest(failure(503, 'OPENSEA_API_KEY_NOT_CONFIGURED', 'Configure the OPENSEA_API_KEY Worker secret to enable public collection lookups.'));
   }
 
-  // Authentication probes must bypass the shared URL cache so key rotation/revocation is observed immediately.
-  const result = await fetchCollection(slug, apiKey, !isHealthProbe);
-  if (result.error) return result.error;
+  // Health probes always call OpenSea directly; public metadata may use only validated cached responses.
+  const cacheKey = !isHealthProbe && request.method === 'GET'
+    ? new Request(new URL(pathname, request.url), { method: 'GET' })
+    : undefined;
+  if (cacheKey && edgeCache) {
+    try {
+      const cached = await edgeCache.match(cacheKey);
+      if (cached) return cached;
+    } catch {
+      // A cache miss/failure must not make public metadata unavailable.
+    }
+  }
+
+  const result = await fetchCollection(slug, apiKey);
+  if (result.error) return responseForRequest(result.error);
 
   if (isHealthProbe) {
-    return Response.json({
+    return responseForRequest(Response.json({
       ok: true,
       provider: 'opensea',
       status: 'connected',
@@ -174,7 +206,7 @@ export const openSeaWorkerRoute = async (
       },
       collectionSlug: slug,
       observedAt: new Date().toISOString(),
-    }, { headers: responseHeaders });
+    }, { headers: responseHeaders }));
   }
 
   const collectionHeaders = {
@@ -182,12 +214,20 @@ export const openSeaWorkerRoute = async (
     'Content-Type': 'application/json',
     'X-Content-Type-Options': 'nosniff',
   };
-  if (request.method === 'HEAD') return new Response(null, { status: 200, headers: collectionHeaders });
-  return Response.json({
+  const response = Response.json({
     ok: true,
     provider: 'opensea',
     status: 'connected',
     collectionSlug: slug,
     data: result.data,
   }, { headers: collectionHeaders });
+  if (cacheKey && edgeCache) {
+    try {
+      // Cache only after the upstream status, content type, bounded body, and JSON shape passed validation.
+      await edgeCache.put(cacheKey, response.clone());
+    } catch {
+      // Cache failures are non-fatal; the validated response is still returned.
+    }
+  }
+  return responseForRequest(response);
 };
