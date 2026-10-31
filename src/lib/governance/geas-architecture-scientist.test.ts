@@ -1,4 +1,4 @@
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, type ArchitectureDomain } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
 
@@ -133,7 +133,53 @@ if (reuseNotModifiedSourceObservation(
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
 if (model.drift.some((finding) => finding.status !== 'unknown' || finding.evidenceRefs.length !== 0)) throw new Error('baseline drift must remain UNKNOWN without runtime evidence');
-if (!model.domains.includes('blockchain') || !model.domains.includes('iot') || !model.domains.includes('emerging-technology')) throw new Error('domain coverage missing');
+const requiredDomains: ArchitectureDomain[] = [
+  'enterprise-architecture', 'cloud', 'ai', 'data', 'cybersecurity', 'networking',
+  'software', 'platform-engineering', 'observability', 'reliability', 'finops',
+  'iot', 'edge', 'blockchain', 'integration', 'governance', 'emerging-technology',
+];
+for (const domain of requiredDomains) {
+  if (!model.domains.includes(domain)) throw new Error('authoritative source coverage missing for domain: ' + domain);
+}
+if (model.sources.some((source) => source.id === 'owasp-agentic-applications-top10')) {
+  throw new Error('the OWASP landing page must remain discovery-only until its content can support risk-level extraction');
+}
+const agenticRisks = [
+  { sourceId: 'owasp-agentic-asi01', patternId: 'owasp-agentic-asi01', claimType: 'agent-goal-hijack' },
+  { sourceId: 'owasp-agentic-asi02', patternId: 'owasp-agentic-asi02', claimType: 'agent-tool-misuse' },
+  { sourceId: 'owasp-agentic-asi03', patternId: 'owasp-agentic-asi03', claimType: 'agent-identity-privilege-abuse' },
+  { sourceId: 'owasp-agentic-asi04', patternId: 'owasp-agentic-asi04', claimType: 'agentic-supply-chain-vulnerabilities' },
+  { sourceId: 'owasp-agentic-asi05', patternId: 'owasp-agentic-asi05', claimType: 'unexpected-code-execution' },
+  { sourceId: 'owasp-agentic-asi06', patternId: 'owasp-agentic-asi06', claimType: 'agent-memory-context-poisoning' },
+  { sourceId: 'owasp-agentic-asi07', patternId: 'owasp-agentic-asi07', claimType: 'insecure-inter-agent-communication' },
+  { sourceId: 'owasp-agentic-asi08', patternId: 'owasp-agentic-asi08', claimType: 'agent-cascading-failures' },
+  { sourceId: 'owasp-agentic-asi09', patternId: 'owasp-agentic-asi09', claimType: 'human-agent-trust-exploitation' },
+  { sourceId: 'owasp-agentic-asi10', patternId: 'owasp-agentic-asi10', claimType: 'rogue-agent-behavior' },
+];
+for (const risk of agenticRisks) {
+  const source = model.sources.find((candidate) => candidate.id === risk.sourceId);
+  const pattern = model.patterns.find((candidate) => candidate.id === risk.patternId);
+  if (!source || source.cadenceHours !== 336 || !source.patternIds.includes(risk.patternId)) {
+    throw new Error('OWASP ' + risk.patternId + ' must have an active 14-day source entry');
+  }
+  if (!pattern || pattern.sourceId !== risk.sourceId || pattern.domain !== 'cybersecurity') {
+    throw new Error('OWASP ' + risk.patternId + ' must be linked to its dedicated cybersecurity source');
+  }
+  if (!pattern.keywords.length || !pattern.controlIds.length) {
+    throw new Error('OWASP ' + risk.patternId + ' must have explicit extraction terms and GEAS control mappings');
+  }
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('OWASP source keyword matches must remain analysis, not verified implementation');
+}
+const governanceSource = model.sources.find((source) => source.id === 'nist-ai-rmf-playbook');
+const governancePattern = model.patterns.find((pattern) => pattern.id === 'ai-governance-lifecycle');
+if (!governanceSource || governanceSource.url !== 'https://airc.nist.gov/airmf-resources/playbook/' || governanceSource.cadenceHours !== 720 || !governanceSource.patternIds.includes('ai-governance-lifecycle')) {
+  throw new Error('NIST AI RMF Playbook must be registered as an active 30-day governance source');
+}
+if (!governancePattern || governancePattern.domain !== 'governance' || governancePattern.sourceId !== 'nist-ai-rmf-playbook') {
+  throw new Error('NIST AI RMF governance pattern must be linked to the governance domain and authoritative source');
+}
 if (!model.architectureStateModel.join(',').includes('desired,declared,deployed,observed,verified')) throw new Error('five-state architecture model missing');
 
 const identity = createAgentIdentityContract({
@@ -194,5 +240,90 @@ if (!shouldReuseSourceObservation({
   observedAt: revalidatedCacheRow.observed_at,
   nowMs: 1000 + 60 * 1000,
 })) throw new Error('a fresh, previously revalidated 304 cache row must be reusable within cadence');
+
+
+const invalidSourceObservationTimestamps = [
+  '01/01/1970 00:00:00',
+  '1970-01-01T00:00:00',
+  '1970-01-01 00:00:00Z',
+  '1970-01-01T00:00:00-00:00',
+  '1970-02-30T00:00:00Z',
+];
+for (const observedAt of invalidSourceObservationTimestamps) {
+  if (!isSourceObservationDue(24, observedAt, 1000)) {
+    throw new Error('non-canonical or impossible source timestamps must force a fresh fetch: ' + observedAt);
+  }
+}
+if (isSourceObservationDue(24, '1970-01-01T02:00:00+02:00', 1000)) {
+  throw new Error('valid explicit-offset source timestamps must remain reusable within cadence');
+}
+if (isSourceObservationDue(24, '1970-01-01T00:00:00.123Z', 1000)) {
+  throw new Error('valid millisecond-precision source timestamps must remain reusable within cadence');
+}
+if (!isSourceObservationDue(24, new Date(0).toISOString(), Number.NaN)) {
+  throw new Error('an invalid source-observation clock must force a fresh fetch');
+}
+
+const malformedTimestampCache = {
+  ...cachedObservation,
+  observed_at: '01/01/1970 00:00:00',
+};
+if (shouldReuseSourceObservation({
+  configuredUrl: malformedTimestampCache.source_url,
+  cachedUrl: malformedTimestampCache.source_url,
+  ok: true,
+  status: malformedTimestampCache.status,
+  contentHash: malformedTimestampCache.content_hash,
+  evidenceExcerpt: malformedTimestampCache.evidence_excerpt,
+  evidenceStatus: malformedTimestampCache.evidence_status,
+  cadenceHours: 336,
+  observedAt: malformedTimestampCache.observed_at,
+  nowMs: 1000,
+})) throw new Error('ambiguous cached timestamps must never satisfy source cadence');
+
+if (Object.keys(buildConditionalRequestHeaders(
+  cachedObservation.source_url,
+  malformedTimestampCache,
+  1000,
+)).length !== 0) {
+  throw new Error('ambiguous cached timestamps must not seed conditional requests');
+}
+if (Object.keys(buildConditionalRequestHeaders(
+  cachedObservation.source_url,
+  cachedObservation,
+  Number.NaN,
+)).length !== 0) {
+  throw new Error('an invalid clock must suppress conditional request headers');
+}
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  malformedTimestampCache,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must reject ambiguous cached timestamps');
+
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  cachedObservation,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(-1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must not move observation time backwards');
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  cachedObservation,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  Number.NaN,
+) !== null) throw new Error('304 revalidation must reject a non-finite validation clock');
+
+let invalidFetchClockRejected = false;
+try {
+  createSourceFetchContext(cachedObservation.source_url, cachedObservation, Number.NaN);
+} catch (error) {
+  invalidFetchClockRejected = error instanceof TypeError && /finite timestamp/.test(error.message);
+}
+if (!invalidFetchClockRejected) throw new Error('source fetch context must reject a non-finite clock explicitly');
 
 console.log('GEAS architecture scientist refinement tests passed');

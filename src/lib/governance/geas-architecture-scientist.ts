@@ -296,6 +296,14 @@ const SOURCES: ArchitectureSource[] = [
     cadenceHours: 720,
   },
   {
+    id: 'nist-ai-rmf-playbook',
+    authority: 'NIST AI Resource Center',
+    domain: 'governance',
+    url: 'https://airc.nist.gov/airmf-resources/playbook/',
+    patternIds: ['ai-governance-lifecycle'],
+    cadenceHours: 720,
+  },
+  {
     id: 'nist-ai-agents',
     authority: 'NIST',
     domain: 'ai',
@@ -416,6 +424,86 @@ const SOURCES: ArchitectureSource[] = [
     cadenceHours: 336,
   },
   {
+    id: 'owasp-agentic-asi01',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
+    patternIds: ['owasp-agentic-asi01'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi02',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md',
+    patternIds: ['owasp-agentic-asi02'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi03',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md',
+    patternIds: ['owasp-agentic-asi03'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi04',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md',
+    patternIds: ['owasp-agentic-asi04'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi05',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md',
+    patternIds: ['owasp-agentic-asi05'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi06',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md',
+    patternIds: ['owasp-agentic-asi06'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi07',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md',
+    patternIds: ['owasp-agentic-asi07'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi08',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md',
+    patternIds: ['owasp-agentic-asi08'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi09',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md',
+    patternIds: ['owasp-agentic-asi09'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi10',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md',
+    patternIds: ['owasp-agentic-asi10'],
+    cadenceHours: 336,
+  },
+  {
     id: 'mitre-atlas',
     authority: 'MITRE',
     domain: 'cybersecurity',
@@ -494,6 +582,16 @@ const P = (
 const PATTERN_DEFINITIONS: PatternDefinition[] = [
   P('cross-cutting-cloud-controls', 'Cross-cutting architecture controls', 'cloud', 'aws-well-architected', 'Treat operational excellence, security, reliability, performance and cost as architecture concerns.', 'GEAS architecture evidence and drift model', ['REL-01', 'SEC-01', 'FIN-01'], ['security', 'reliability', 'cost']),
   P('ai-lifecycle-risk', 'Continuous AI risk lifecycle', 'ai', 'nist-ai-rmf', 'Manage AI trustworthiness and risk across design, development, use and evaluation.', 'GEAS + AI impact assessment', ['AI-01', 'GOV-01'], ['risk', 'design', 'development', 'evaluation']),
+  P(
+    'ai-governance-lifecycle',
+    'AI risk governance lifecycle',
+    'governance',
+    'nist-ai-rmf-playbook',
+    'Use the NIST AI RMF Playbook to structure AI risk governance across the Govern, Map, Measure and Manage functions.',
+    'GEAS governance evidence: named risk ownership, impact/context mapping, measurement, risk treatment, monitoring and continual improvement. The Playbook is voluntary guidance; it does not establish GLORIFIER implementation or conformance.',
+    ['AI-01', 'GOV-01', 'POL-01', 'EVID-01'],
+    ['four AI RMF functions', 'Govern 1.1', 'governance and oversight', 'risk management'],
+  ),
   P('agent-identity-delegation', 'Agent identity and authorization', 'ai', 'nist-ai-agents', 'Treat agent identity, authorization, auditing and non-repudiation as explicit architecture concerns.', 'Agent Identity + Delegation Plane', ['SEC-01', 'AUTH-01'], ['identity', 'authorization', 'auditing', 'agent']),
   P('identity-risk-controls', 'Risk-based cybersecurity controls', 'cybersecurity', 'nist-csf', 'Organize cybersecurity outcomes around governance, identification, protection, detection, response and recovery.', 'GEAS security control crosswalk', ['SEC-01', 'REL-01'], ['governance', 'identify', 'protect', 'detect', 'respond', 'recover']),
   P('software-supply-chain', 'Secure software supply chain', 'software', 'nist-ssdf', 'Integrate secure software practices throughout the software development lifecycle.', 'Code Sentinel + provenance graph + release gates', ['SUPPLY-01', 'POL-01'], ['software', 'secure', 'development', 'supply chain']),
@@ -511,6 +609,106 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   P('ai-management-system', 'AI management system', 'governance', 'iso-42001', 'Establish and continually improve a management system for responsible AI governance.', 'GEAS governance lifecycle + audit evidence', ['AI-01', 'GOV-01'], ['management system', 'AI', 'continuous', 'governance']),
   P('verifiable-credentials', 'Machine-verifiable credentials', 'emerging-technology', 'w3c-vc', 'Use cryptographically secure, privacy-respecting, machine-verifiable credentials where portable trust is required.', 'Future portable agent/provider credentials', ['AUTH-01', 'EVID-01'], ['verifiable', 'credential', 'cryptographic']),
   P('runtime-agent-controls', 'Runtime agent control hooks', 'cybersecurity', 'owasp-agent-control', 'Expose inspectable, traceable and enforceable runtime controls for agents.', 'GEAS runtime policy adapters', ['SEC-01', 'POL-01', 'OBS-01'], ['agent', 'runtime', 'control', 'traceable']),
+  P(
+    'owasp-agentic-asi01',
+    'OWASP ASI01 — Agent Goal Hijack',
+    'cybersecurity',
+    'owasp-agentic-asi01',
+    'Analyze the ASI01 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['AI-01', 'SEC-01', 'POL-01', 'EVID-01'],
+    ['goal hijack', 'task selection', 'decision pathways', 'prompt-based manipulation', 'deceptive tool outputs'],
+  ),
+  P(
+    'owasp-agentic-asi02',
+    'OWASP ASI02 — Tool Misuse and Exploitation',
+    'cybersecurity',
+    'owasp-agentic-asi02',
+    'Analyze the ASI02 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['SEC-01', 'AUTH-01', 'POL-01', 'REL-01', 'OBS-01'],
+    ['tool misuse', 'legitimate tools', 'unsafe delegation', 'data exfiltration', 'workflow hijacking'],
+  ),
+  P(
+    'owasp-agentic-asi03',
+    'OWASP ASI03 — Identity and Privilege Abuse',
+    'cybersecurity',
+    'owasp-agentic-asi03',
+    'Analyze the ASI03 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['AUTH-01', 'FED-01', 'POL-01', 'EVID-01'],
+    ['identity and privilege abuse', 'delegation chains', 'cached credentials', 'least privilege', 'agent-to-agent trust'],
+  ),
+  P(
+    'owasp-agentic-asi04',
+    'OWASP ASI04 — Agentic Supply Chain Vulnerabilities',
+    'cybersecurity',
+    'owasp-agentic-asi04',
+    'Analyze the ASI04 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['SUPPLY-01', 'EVID-01', 'SEC-01', 'FED-01'],
+    ['agentic supply chain vulnerabilities', 'third parties', 'model weights', 'MCP', 'A2A', 'update channels'],
+  ),
+  P(
+    'owasp-agentic-asi05',
+    'OWASP ASI05 — Unexpected Code Execution',
+    'cybersecurity',
+    'owasp-agentic-asi05',
+    'Analyze the ASI05 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['SEC-01', 'POL-01', 'REL-01'],
+    ['unexpected code execution', 'remote code execution', 'RCE', 'generated code', 'sandbox escape'],
+  ),
+  P(
+    'owasp-agentic-asi06',
+    'OWASP ASI06 — Memory and Context Poisoning',
+    'cybersecurity',
+    'owasp-agentic-asi06',
+    'Analyze the ASI06 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['EVID-01', 'SEC-01', 'POL-01'],
+    ['memory and context poisoning', 'stored and retrievable information', 'persistent corruption', 'RAG stores', 'conversation history'],
+  ),
+  P(
+    'owasp-agentic-asi07',
+    'OWASP ASI07 — Insecure Inter-Agent Communication',
+    'cybersecurity',
+    'owasp-agentic-asi07',
+    'Analyze the ASI07 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['FED-01', 'AUTH-01', 'SEC-01', 'OBS-01'],
+    ['insecure inter-agent communication', 'authentication', 'integrity', 'confidentiality', 'authorization', 'spoof'],
+  ),
+  P(
+    'owasp-agentic-asi08',
+    'OWASP ASI08 — Cascading Failures',
+    'cybersecurity',
+    'owasp-agentic-asi08',
+    'Analyze the ASI08 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['REL-01', 'OBS-01', 'POL-01'],
+    ['cascading failures', 'fault propagates', 'fan-out', 'feedback loops', 'queue storms'],
+  ),
+  P(
+    'owasp-agentic-asi09',
+    'OWASP ASI09 — Human-Agent Trust Exploitation',
+    'cybersecurity',
+    'owasp-agentic-asi09',
+    'Analyze the ASI09 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['GOV-01', 'POL-01', 'EVID-01'],
+    ['human-agent trust exploitation', 'over-rely', 'automation bias', 'perceived authority', 'human oversight'],
+  ),
+  P(
+    'owasp-agentic-asi10',
+    'OWASP ASI10 — Rogue Agents',
+    'cybersecurity',
+    'owasp-agentic-asi10',
+    'Analyze the ASI10 threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    ['GOV-01', 'SEC-01', 'OBS-01', 'POL-01'],
+    ['rogue agents', 'deviate from their intended function', 'behavioral integrity', 'containment gap', 'unauthorized actions'],
+  ),
   P('adversarial-ai-controls', 'Adversarial AI threat-informed controls', 'cybersecurity', 'mitre-atlas', 'Use threat-informed adversarial AI knowledge to identify and prioritize defensive controls.', 'Code Sentinel + agent threat model', ['SEC-01'], ['attack', 'adversarial', 'machine learning']),
   P('provenance-graph', 'Cryptographically linked provenance', 'data', 'nist-traceability', 'Link traceability events into a verifiable provenance chain while enabling selective disclosure.', 'Evidence Graph + provider/model/software provenance', ['EVID-01', 'SUPPLY-01'], ['provenance', 'traceability', 'cryptographic', 'selective disclosure']),
   P('token-lifecycle-protection', 'Token lifecycle protection', 'cybersecurity', 'nist-token-protection', 'Protect tokens and assertions against forgery, theft and misuse with verification, key management and lifecycle controls.', 'Token lifecycle contract + GEAS authorization gates', ['AUTH-01', 'SEC-01'], ['token', 'assertion', 'verification', 'key management']),
@@ -613,11 +811,37 @@ export function classifyArchitectureEvidence(status: EvidenceStatus): EvidenceCl
   return status === 'claim-supported' ? 'observed-fact' : 'analysis';
 }
 
+/** Parse the canonical RFC 3339 millisecond-precision subset used by persisted source observations. */
+function parseSourceObservationTimestamp(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+      || hour > 23 || minute > 59 || second > 59) return null;
+
+  const offset = match[8];
+  if (offset !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offset === '-00:00' || offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
-  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt) return true;
-  const observedMs = Date.parse(observedAt);
+  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt || !Number.isFinite(nowMs)) return true;
+  const observedMs = parseSourceObservationTimestamp(observedAt);
   // A future timestamp is not trustworthy freshness evidence; force a fresh observation.
-  if (!Number.isFinite(observedMs) || observedMs > nowMs) return true;
+  if (observedMs === null || observedMs > nowMs) return true;
   return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 }
 
@@ -688,9 +912,9 @@ export function buildConditionalRequestHeaders(
     evidenceExcerpt: cached.evidence_excerpt,
     evidenceStatus: cached.evidence_status,
   })) return headers;
-  const cachedObservedAt = Date.parse(cached.observed_at);
-  // Do not let a clock-skewed or corrupted future observation seed a conditional request.
-  if (!Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs) return headers;
+  const cachedObservedAt = parseSourceObservationTimestamp(cached.observed_at);
+  // Do not let a clock-skewed, malformed, or corrupted observation seed a conditional request.
+  if (!Number.isFinite(nowMs) || cachedObservedAt === null || cachedObservedAt > nowMs) return headers;
   if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
   if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
   return headers;
@@ -708,6 +932,7 @@ export function createSourceFetchContext(
   cached?: CachedSourceObservation | null,
   nowMs = Date.now(),
 ): SourceFetchContext {
+  if (!Number.isFinite(nowMs)) throw new TypeError('source fetch clock must be a finite timestamp');
   return {
     nowMs,
     observedAt: new Date(nowMs).toISOString(),
@@ -722,8 +947,8 @@ export function reuseNotModifiedSourceObservation(
   observedAt: string,
   nowMs = Date.now(),
 ): SourceObservation | null {
-  const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
-  const newObservedAtMs = Date.parse(observedAt);
+  const cachedObservedAt = cached ? parseSourceObservationTimestamp(cached.observed_at) : null;
+  const newObservedAtMs = parseSourceObservationTimestamp(observedAt);
   if (!cached || cached.source_url !== source.url || !cached.ok
       || !isAdmissibleCachedSourceObservation({
         ok: cached.ok,
@@ -734,8 +959,9 @@ export function reuseNotModifiedSourceObservation(
       })
       || typeof cached.final_url !== 'string'
       || cached.final_url !== response.finalUrl
-      || !Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs
-      || !Number.isFinite(newObservedAtMs) || newObservedAtMs > nowMs) return null;
+      || !Number.isFinite(nowMs)
+      || cachedObservedAt === null || cachedObservedAt > nowMs
+      || newObservedAtMs === null || newObservedAtMs < cachedObservedAt || newObservedAtMs > nowMs) return null;
   return {
     sourceId: source.id,
     ok: true,
