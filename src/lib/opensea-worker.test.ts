@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import worker from '../worker.ts';
 import type { CloudflareEnv } from '../worker.ts';
 import { openSeaWorkerRoute, type OpenSeaEdgeCache } from './opensea-worker';
@@ -332,7 +333,4 @@ async function run(): Promise<void> {
   }
 }
 
-void run().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+test('OpenSea Worker integration', run);
