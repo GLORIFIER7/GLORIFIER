@@ -262,6 +262,10 @@ async function testValidatedCacheAndHeadSemantics(): Promise<void> {
   assert.equal(cacheMatches, matchesBeforeHealth, 'GET health probes must bypass the metadata cache');
   assert.equal(cachePuts, putsBeforeHealth, 'GET health probes must never populate the metadata cache');
 
+  setResponse(new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
   const healthHead = await openSeaWorkerRoute(
     new Request('https://glorifier.test/api/opensea/health', { method: 'HEAD' }),
     '/api/opensea/health',
