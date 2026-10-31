@@ -90,41 +90,56 @@ const providerStatusFailure = (upstream: Response): Response | undefined => {
   return undefined;
 };
 
-const readBoundedOpenSeaJson = async (response: Response): Promise<unknown> => {
+const MAX_OPENSEA_RESPONSE_CHUNKS = 16_384;
+
+const validateOpenSeaContentLength = (response: Response): void => {
   const declaredLength = response.headers.get('content-length');
-  if (declaredLength !== null) {
-    if (!/^\d+$/.test(declaredLength)) throw new Error('Invalid OpenSea content length.');
-    const parsedLength = Number(declaredLength);
-    if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length.');
-    if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
-  }
+  if (declaredLength === null) return;
+  if (!/^\d+$/.exec(declaredLength)) throw new Error('Invalid OpenSea content length.');
+  const parsedLength = Number(declaredLength);
+  if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length.');
+  if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
+};
 
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('OpenSea response body is empty.');
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_OPENSEA_RESPONSE_BYTES) {
-        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the response cap. */ }
-        throw new OpenSeaResponseTooLargeError();
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+const readOpenSeaChunks = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[],
+  totalBytes: number,
+  chunkCount: number,
+): Promise<number> => {
+  const { done, value } = await reader.read();
+  if (done) return totalBytes;
+  const nextBytes = totalBytes + value.byteLength;
+  if (nextBytes > MAX_OPENSEA_RESPONSE_BYTES || chunkCount >= MAX_OPENSEA_RESPONSE_CHUNKS) {
+    try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the stream limits. */ }
+    throw new OpenSeaResponseTooLargeError();
   }
+  chunks.push(value);
+  return readOpenSeaChunks(reader, chunks, nextBytes, chunkCount + 1);
+};
 
+const concatenateOpenSeaChunks = (chunks: Uint8Array[], totalBytes: number): Uint8Array => {
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  return bytes;
+};
+
+const readBoundedOpenSeaJson = async (response: Response): Promise<unknown> => {
+  validateOpenSeaContentLength(response);
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('OpenSea response body is empty.');
+  const chunks: Uint8Array[] = [];
+  let totalBytes: number;
+  try {
+    totalBytes = await readOpenSeaChunks(reader, chunks, 0, 0);
+  } finally {
+    reader.releaseLock();
+  }
+  return JSON.parse(new TextDecoder().decode(concatenateOpenSeaChunks(chunks, totalBytes)));
 };
 
 const parseCollectionResponse = async (upstream: Response): Promise<OpenSeaFetchResult> => {
@@ -182,7 +197,7 @@ const resolveOpenSeaRoute = (pathname: string): OpenSeaRoute => {
   const prefix = '/api/opensea/collections/';
   if (pathname.startsWith(prefix)) {
     const requestedSlug = pathname.slice(prefix.length);
-    if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedSlug)) {
+    if (!/^[a-z0-9][a-z0-9-]{0,127}$/.exec(requestedSlug)) {
       return {
         isHealthProbe: false,
         error: failure(400, 'INVALID_COLLECTION_SLUG', 'Collection slugs must use lowercase letters, numbers, and hyphens.'),
@@ -190,7 +205,7 @@ const resolveOpenSeaRoute = (pathname: string): OpenSeaRoute => {
     }
   }
 
-  const match = pathname.match(/^\/api\/opensea\/collections\/([a-z0-9-]+)$/);
+  const match = /^\/api\/opensea\/collections\/([a-z0-9-]+)$/.exec(pathname);
   const slug = isHealthProbe ? 'glorifier7' : match?.[1];
   if (!slug || !ALLOWED_COLLECTION_SLUGS.has(slug)) {
     return {
