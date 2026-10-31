@@ -301,6 +301,20 @@
       "scannerStatus": "active"
     },
     {
+      "id": "nist-ai-rmf-playbook",
+      "authority": "NIST AI Resource Center",
+      "domain": "governance",
+      "url": "https://airc.nist.gov/airmf-resources/playbook/",
+      "claimsAllowed": [
+        "ai-risk-governance",
+        "lifecycle-risk-management",
+        "governance-oversight"
+      ],
+      "reviewCadenceDays": 30,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "nist-blockchain",
       "authority": "NIST",
       "domain": "blockchain",
@@ -489,7 +503,7 @@
       "id": "owasp-agentic-applications-top10",
       "authority": "OWASP GenAI Security Project",
       "domain": "cybersecurity",
-      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+      "url": "https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/",
       "claimsAllowed": [
         "agentic-application-threats",
         "agent-goal-hijack",
