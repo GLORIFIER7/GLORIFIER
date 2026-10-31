@@ -8,6 +8,7 @@ type TestEnv = CloudflareEnv;
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
 const requestedUrls: string[] = [];
+let upstreamResponses: Response[] = [];
 let openSeaResponseQueue: Response[] | null = null;
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
@@ -40,6 +41,7 @@ async function run(): Promise<void> {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
+    return upstreamResponses.shift() || upstreamResponse;
     if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
       return openSeaResponseQueue.shift() as Response;
     }
@@ -1063,6 +1065,82 @@ async function run(): Promise<void> {
     assert.equal(await openSeaUnavailable.json().then((body: { code?: string }) => body.code), 'OPENSEA_UPSTREAM_UNAVAILABLE');
 
 
+    // Resolve the actual OpenSea username, then enumerate collections for its canonical wallet.
+    upstreamResponses = [
+      new Response(JSON.stringify({ address: '0xAbCd000000000000000000000000000000001234', username: 'GLORIFIER', ens_name: null }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ collections: [{ collection: 'glorifier-services', name: 'GLORIFIER Services' }], next: null }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    capturedRequest = null;
+    const glorifierCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=10'),
+      openSeaEnv,
+    );
+    assert.equal(glorifierCollections.status, 200);
+    const glorifierCollectionsBody = await glorifierCollections.json() as {
+      account?: { address?: string; username?: string };
+      collections?: { collections?: Array<{ collection?: string }> };
+    };
+    assert.equal(glorifierCollectionsBody.account?.username, 'GLORIFIER');
+    assert.equal(glorifierCollectionsBody.account?.address, '0xAbCd000000000000000000000000000000001234');
+    assert.equal(glorifierCollectionsBody.collections?.collections?.[0]?.collection, 'glorifier-services');
+    assert.deepEqual(requestedUrls.slice(-2), [
+      'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER',
+      'https://api.opensea.io/api/v2/account/0xAbCd000000000000000000000000000000001234/collections?limit=10',
+    ]);
+    assert.equal(getCapturedRequest().headers.get('x-api-key'), 'test-opensea-key');
+
+    upstreamResponses = [
+      new Response(JSON.stringify({ address: '0xAbCd000000000000000000000000000000001234', username: 'somebody-else' }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const wrongAccountIdentity = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      openSeaEnv,
+    );
+    assert.equal(wrongAccountIdentity.status, 502, 'the resolved account username must match the requested GLORIFIER identity');
+    assert.equal(await wrongAccountIdentity.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_IDENTITY_MISMATCH');
+
+
+    upstreamResponses = [];
+    capturedRequest = null;
+    const missingOpenSeaAccountKey = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      { ...env, OPENSEA_API_KEY: undefined } as TestEnv & { OPENSEA_API_KEY?: string },
+    );
+    assert.equal(missingOpenSeaAccountKey.status, 503);
+    assert.equal(capturedRequest, null, 'account resolution must fail closed without the API key');
+
+    upstreamResponses = [];
+    const invalidAccountLimit = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=51'),
+      openSeaEnv,
+    );
+    assert.equal(invalidAccountLimit.status, 400);
+    assert.equal(await invalidAccountLimit.json().then((body: { code?: string }) => body.code), 'INVALID_PAGINATION');
+
+    upstreamResponses = [
+      new Response(JSON.stringify({ detail: 'not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const missingOpenSeaAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      openSeaEnv,
+    );
+    assert.equal(missingOpenSeaAccount.status, 404);
+    assert.equal(await missingOpenSeaAccount.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_NOT_FOUND');
+
+    upstreamResponses = [];
+    capturedRequest = null;
+    const invalidAccountIdentifier = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%2Fbad/collections'),
+      openSeaEnv,
+    );
+    assert.equal(invalidAccountIdentifier.status, 400);
+    assert.equal(capturedRequest, null, 'invalid account identifiers must be rejected before upstream access');
     // The GLORIFIER OpenSea username must be resolved to the canonical wallet address
     // before retrieving that account's owned collections.
     const openSeaAccountStart = requestedUrls.length;
