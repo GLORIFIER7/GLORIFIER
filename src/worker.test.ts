@@ -1228,6 +1228,36 @@ async function run(): Promise<void> {
     assert.equal(requestedUrls[openSeaResolveStart], 'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER');
     openSeaResponseQueue = null;
 
+    // The reserved "resolve" route segment must still permit the OpenSea username "resolve"
+    // to use the owned-collections endpoint.
+    const resolveUsernameStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'resolve', ens_name: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ collections: [{ collection: 'resolve-account-collection', name: 'Resolve Account Collection' }], next: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const resolveUsernameCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/collections?limit=5'),
+      openSeaEnv,
+    );
+    assert.equal(resolveUsernameCollections.status, 200);
+    const resolveUsernameBody = await resolveUsernameCollections.json() as {
+      account?: { username?: string };
+      collections?: Array<{ collection?: string }>;
+    };
+    assert.equal(resolveUsernameBody.account?.username, 'resolve');
+    assert.equal(resolveUsernameBody.collections?.[0]?.collection, 'resolve-account-collection');
+    assert.deepEqual(requestedUrls.slice(resolveUsernameStart), [
+      'https://api.opensea.io/api/v2/accounts/resolve/resolve',
+      'https://api.opensea.io/api/v2/account/0x1234567890abcdef1234567890abcdef12345678/collections?limit=5',
+    ]);
+    openSeaResponseQueue = null;
+
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
     globalThis.fetch = originalFetch;
