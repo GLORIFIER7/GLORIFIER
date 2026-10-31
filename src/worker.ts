@@ -270,12 +270,13 @@ const isValidOpenSeaRetryAfter = (value: string | null): value is string => {
 const openSeaUpstreamFailure = (
   upstream: Response,
   headers: Record<string, string>,
+  notFoundCode = 'OPENSEA_RESOURCE_NOT_FOUND',
 ): Response | undefined => {
   if (upstream.status === 401 || upstream.status === 403) {
     return openSeaErrorResponse(502, 'unauthorized', 'OPENSEA_AUTHENTICATION_FAILED', headers);
   }
   if (upstream.status === 404) {
-    return openSeaErrorResponse(404, 'not-found', 'OPENSEA_RESOURCE_NOT_FOUND', headers);
+    return openSeaErrorResponse(404, 'not-found', notFoundCode, headers);
   }
   if (upstream.status === 429) {
     const retryAfter = upstream.headers.get('retry-after');
@@ -312,7 +313,11 @@ const openSeaResponseReadFailure = (error: unknown, headers: Record<string, stri
   return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_INVALID_RESPONSE', headers);
 };
 
-const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaReadResult> => {
+const openSeaReadJson = async (
+  endpoint: URL,
+  apiKey: string,
+  notFoundCode?: string,
+): Promise<OpenSeaReadResult> => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   let upstream: Response;
   try {
@@ -326,13 +331,21 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
     return { ok: false, response: openSeaRequestFailure(error, headers) };
   }
 
-  const providerFailure = openSeaUpstreamFailure(upstream, headers);
+  const providerFailure = openSeaUpstreamFailure(upstream, headers, notFoundCode);
   if (providerFailure) return { ok: false, response: providerFailure };
 
   try {
     return { ok: true, data: await readBoundedOpenSeaResponse(upstream) };
   } catch (error) {
     return { ok: false, response: openSeaResponseReadFailure(error, headers) };
+  }
+};
+
+const decodeOpenSeaAccountIdentifier = (rawIdentifier: string): string | null => {
+  try {
+    return decodeURIComponent(rawIdentifier);
+  } catch {
+    return null;
   }
 };
 
@@ -352,9 +365,13 @@ const openSeaApiKeyOrResponse = (env: CloudflareEnv): string | Response => {
   return apiKey;
 };
 
-const openSeaResolveAccount = async (identifier: string, apiKey: string): Promise<OpenSeaReadResult> => {
+const openSeaResolveAccount = async (
+  identifier: string,
+  apiKey: string,
+  notFoundCode?: string,
+): Promise<OpenSeaReadResult> => {
   const endpoint = new URL(`https://api.opensea.io/api/v2/accounts/resolve/${encodeURIComponent(identifier)}`);
-  const result = await openSeaReadJson(endpoint, apiKey);
+  const result = await openSeaReadJson(endpoint, apiKey, notFoundCode);
   if (!result.ok) return result;
   const account = result.data;
   if (!account || typeof account !== 'object' || Array.isArray(account)) {
@@ -437,7 +454,7 @@ const openSeaAccountCollectionsResponse = async (
 
   const configuredKey = openSeaApiKeyOrResponse(env);
   if (configuredKey instanceof Response) return configuredKey;
-  const resolved = await openSeaResolveAccount(identifier, configuredKey);
+  const resolved = await openSeaResolveAccount(identifier, configuredKey, 'OPENSEA_ACCOUNT_NOT_FOUND');
   if (!resolved.ok) return resolved.response;
   const account = resolved.data as Record<string, unknown>;
   const resolvedUsername = typeof account.username === 'string' ? account.username : '';
@@ -877,7 +894,15 @@ export default {
 
     const openSeaAccountCollectionsMatch = incomingUrl.pathname.match(/^\/api\/opensea\/accounts\/([^/]+)\/collections$/);
     if (openSeaAccountCollectionsMatch) {
-      return openSeaResponseForRequest(request, await openSeaAccountCollectionsResponse(request, openSeaAccountCollectionsMatch[1], env));
+      const identifier = decodeOpenSeaAccountIdentifier(openSeaAccountCollectionsMatch[1]);
+      if (identifier === null) {
+        const invalidIdentifier = Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
+          status: 400,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+        return openSeaResponseForRequest(request, invalidIdentifier);
+      }
+      return openSeaResponseForRequest(request, await openSeaAccountCollectionsResponse(request, identifier, env));
     }
 
     const openSeaCollectionPrefix = '/api/opensea/collections/';
@@ -902,15 +927,15 @@ export default {
           return openSeaResponseForRequest(request, await openSeaAccountCollectionsResponse(request, identifier, env));
         }
       } catch {
-        return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
+        return openSeaResponseForRequest(request, Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
           status: 400,
           headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-        });
+        }));
       }
-      return Response.json({ ok: false, code: 'OPENSEA_ACCOUNT_ROUTE_NOT_FOUND' }, {
+      return openSeaResponseForRequest(request, Response.json({ ok: false, code: 'OPENSEA_ACCOUNT_ROUTE_NOT_FOUND' }, {
         status: 404,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-      });
+      }));
     }
 
     // The generic adapter owns collection reads and its health probe. Account routes
