@@ -938,7 +938,7 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/glorifier7');
     assert.equal(getCapturedRequest().headers.get('x-api-key'), 'test-opensea-key');
     assert.equal(getCapturedRequest().headers.get('accept'), 'application/json');
-    assert.equal(openSeaCollection.headers.get('cache-control'), 'no-store');
+    assert.equal(openSeaCollection.headers.get('cache-control'), 'public, max-age=60');
     assert.equal(JSON.stringify(await openSeaCollection.json()).includes('test-opensea-key'), false);
 
     capturedRequest = null;
@@ -957,14 +957,15 @@ async function run(): Promise<void> {
     assert.equal(openSeaInvalidSlug.status, 400, 'invalid collection slugs must be rejected locally');
     assert.equal(await openSeaInvalidSlug.json().then((body: { code?: string }) => body.code), 'INVALID_COLLECTION_SLUG');
 
-    // A one-character collection slug is valid and must not be rejected by validation.
-    upstreamResponse = new Response(JSON.stringify({ collection: 'a' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    const openSeaSingleCharacterSlug = await worker.fetch(
+    // Only explicitly registered GLORIFIER collection slugs may reach OpenSea.
+    capturedRequest = null;
+    const openSeaUnregisteredSlug = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/a'),
       openSeaEnv,
     );
-    assert.equal(openSeaSingleCharacterSlug.status, 200);
-    assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/a');
+    assert.equal(openSeaUnregisteredSlug.status, 404);
+    assert.equal(await openSeaUnregisteredSlug.json().then((body: { code?: string }) => body.code), 'OPENSEA_ROUTE_NOT_FOUND');
+    assert.equal(capturedRequest, null, 'unregistered collection slugs must not reach OpenSea');
 
     const openSeaWrongMethod = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'POST' }),
@@ -982,7 +983,7 @@ async function run(): Promise<void> {
       openSeaEnv,
     );
     assert.equal(openSeaUnauthorized.status, 502);
-    assert.equal(await openSeaUnauthorized.json().then((body: { code?: string }) => body.code), 'OPENSEA_AUTHENTICATION_FAILED');
+    assert.equal(await openSeaUnauthorized.json().then((body: { code?: string }) => body.code), 'OPENSEA_API_KEY_REJECTED');
 
 
     upstreamResponse = new Response(JSON.stringify({ detail: 'rate limited' }), {
@@ -993,13 +994,13 @@ async function run(): Promise<void> {
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
     );
-    assert.equal(openSeaRateLimited.status, 429);
+    assert.equal(openSeaRateLimited.status, 503);
     assert.equal(openSeaRateLimited.headers.get('retry-after'), '7');
     assert.equal(await openSeaRateLimited.json().then((body: { code?: string }) => body.code), 'OPENSEA_RATE_LIMITED');
 
     upstreamResponse = new Response(JSON.stringify({ collection: 'missing' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     const openSeaNotFound = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/missing'),
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier1'),
       openSeaEnv,
     );
     assert.equal(openSeaNotFound.status, 404);
@@ -1020,7 +1021,7 @@ async function run(): Promise<void> {
       openSeaEnv,
     );
     assert.equal(openSeaInvalidContentType.status, 502);
-    assert.equal(await openSeaInvalidContentType.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_CONTENT_TYPE');
+    assert.equal(await openSeaInvalidContentType.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_RESPONSE');
 
     upstreamResponse = new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const openSeaOversized = await worker.fetch(
