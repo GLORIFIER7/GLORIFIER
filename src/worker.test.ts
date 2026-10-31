@@ -253,6 +253,7 @@ async function run(): Promise<void> {
     assert.equal(a2aUpstreamRequest.headers.get('x-private-header'), null, 'A2A proxy must not forward unrelated headers');
     assert.match(await a2aUpstreamRequest.text(), /SendMessage/);
 
+    capturedRequest = null;
     const healthAssetCallsBefore = assetCalls;
     console.log('worker-test: begin workerHealth');
     const workerHealth = await worker.fetch(
