@@ -1,4 +1,4 @@
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, type ArchitectureDomain } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
 
@@ -133,7 +133,7 @@ if (reuseNotModifiedSourceObservation(
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
 if (model.drift.some((finding) => finding.status !== 'unknown' || finding.evidenceRefs.length !== 0)) throw new Error('baseline drift must remain UNKNOWN without runtime evidence');
-const requiredDomains = [
+const requiredDomains: ArchitectureDomain[] = [
   'enterprise-architecture', 'cloud', 'ai', 'data', 'cybersecurity', 'networking',
   'software', 'platform-engineering', 'observability', 'reliability', 'finops',
   'iot', 'edge', 'blockchain', 'integration', 'governance', 'emerging-technology',
