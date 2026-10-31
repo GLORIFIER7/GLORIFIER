@@ -58,6 +58,7 @@
     "test:alpaca-oauth-url": "tsx src/lib/alpaca-oauth-url.test.ts",
     "test:outcome-evidence-gates": "tsx src/lib/governance/outcome-evidence-gates.test.ts",
     "test:cloudflare-worker": "tsx src/worker.test.ts",
+    "test:opensea-worker": "tsx src/lib/opensea-worker.test.ts",
     "test:huggingface-space-deploy": "node scripts/huggingface-space-deploy.test.mjs",
     "test:protected-api-paths": "tsx src/lib/auth/protected-api-paths.test.ts",
     "test:asap-bridge": "tsx src/lib/asap-bridge.test.ts",

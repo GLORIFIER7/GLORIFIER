@@ -1,5 +1,6 @@
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
+import { openSeaWorkerRoute } from './lib/opensea-worker';
 
 export type CloudflareEnv = {
   ASSETS: {
@@ -19,6 +20,8 @@ export type CloudflareEnv = {
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
   OPENSEA_API_KEY?: string;
+  // Reserved for future wallet-scoped OpenSea features; public collection reads do not use it.
+  OPENSEA_SCOPED_TOKEN?: string;
 };
 
 // Proxying is permitted only to an explicitly configured, reviewed HTTPS origin.
@@ -864,6 +867,7 @@ export default {
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
     }
 
+    // Account routes must precede the collection adapter so they remain reachable.
     const openSeaAccountsPrefix = '/api/opensea/accounts/';
     if (incomingUrl.pathname.startsWith(openSeaAccountsPrefix)) {
       const segments = incomingUrl.pathname.slice(openSeaAccountsPrefix.length).split('/');
@@ -889,13 +893,10 @@ export default {
       });
     }
 
-    const openSeaCollectionPrefix = '/api/opensea/collections/';
-    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
-      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
-      if (!slug || slug.includes('/')) {
-        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-      }
-      return openSeaCollectionResponse(request, slug, env);
+    // The generic adapter owns collection reads and its health probe. Account routes
+    // above are deliberately handled first so they cannot be swallowed by this matcher.
+    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
+      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
