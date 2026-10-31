@@ -254,6 +254,12 @@ for (const observedAt of invalidSourceObservationTimestamps) {
     throw new Error('non-canonical or impossible source timestamps must force a fresh fetch: ' + observedAt);
   }
 }
+if (isSourceObservationDue(24, '1970-01-01T02:00:00+02:00', 1000)) {
+  throw new Error('valid explicit-offset source timestamps must remain reusable within cadence');
+}
+if (isSourceObservationDue(24, '1970-01-01T00:00:00.123Z', 1000)) {
+  throw new Error('valid millisecond-precision source timestamps must remain reusable within cadence');
+}
 if (!isSourceObservationDue(24, new Date(0).toISOString(), Number.NaN)) {
   throw new Error('an invalid source-observation clock must force a fresh fetch');
 }
