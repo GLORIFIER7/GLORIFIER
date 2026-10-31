@@ -1257,6 +1257,51 @@ async function run(): Promise<void> {
     ]);
     openSeaResponseQueue = null;
 
+    // Account endpoints preserve HEAD semantics even when OpenSea rejects the request.
+    openSeaResponseQueue = [
+      new Response('unauthorized', { status: 401, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const openSeaAccountHeadUnauthorized = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER', { method: 'HEAD' }),
+      openSeaEnv,
+    );
+    assert.equal(openSeaAccountHeadUnauthorized.status, 502);
+    assert.equal(await openSeaAccountHeadUnauthorized.text(), '', 'HEAD error responses must not include a body');
+    openSeaResponseQueue = null;
+
+    // OpenSea Retry-After accepts both delay-seconds and HTTP-date values.
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'GLORIFIER' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response('rate limited', {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT' },
+      }),
+    ];
+    const openSeaAccountRetryAfterDate = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaAccountRetryAfterDate.status, 429);
+    assert.equal(openSeaAccountRetryAfterDate.headers.get('retry-after'), 'Wed, 21 Oct 2015 07:28:00 GMT');
+
+    // A misleading JSON-like MIME type is not accepted as an OpenSea JSON response.
+    openSeaResponseQueue = [
+      new Response('{"address":"0x1234567890abcdef1234567890abcdef12345678","username":"GLORIFIER"}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json-seq' },
+      }),
+    ];
+    const openSeaAccountInvalidContentType = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaAccountInvalidContentType.status, 502);
+    assert.equal(await openSeaAccountInvalidContentType.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_CONTENT_TYPE');
+    openSeaResponseQueue = null;
+
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
     globalThis.fetch = originalFetch;
