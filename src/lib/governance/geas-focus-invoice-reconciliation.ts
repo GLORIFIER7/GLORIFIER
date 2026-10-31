@@ -3,10 +3,10 @@ import { compareCodeUnits } from '../deterministic-string-order';
 /**
  * Deterministic FOCUS 1.4 invoice-line reconciliation.
  *
- * This checks only the supplied Cost and Usage / Invoice Detail datasets.
- * It does not authenticate the invoice issuer, verify a legal invoice document,
- * or promote the result beyond analysis evidence. Monetary values are decimal
- * strings so comparisons avoid IEEE-754 floating-point rounding.
+ * This checks only the supplied Cost and Usage / Invoice Detail datasets for
+ * one exact billing period. It does not authenticate the invoice issuer, verify
+ * a legal invoice document, or promote the result beyond analysis evidence.
+ * Monetary values are decimal strings to avoid IEEE-754 rounding.
  */
 
 export type FocusInvoiceReconciliationStatus = 'RECONCILED' | 'VARIANCE' | 'UNKNOWN';
@@ -87,8 +87,9 @@ function textValue(value: unknown): string | null {
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
 function utcTimestamp(value: unknown): number | null {
-  const timestamp = textValue(value);
-  if (!timestamp || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(timestamp)) return null;
+  if (typeof value !== 'string' || value.trim() !== value) return null;
+  const timestamp = value;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(timestamp)) return null;
   const milliseconds = Date.parse(timestamp);
   if (!Number.isFinite(milliseconds)) return null;
   return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === timestamp ? milliseconds : null;
@@ -181,8 +182,8 @@ function normalizeRows(
     }
     const issuer = textValue(row.invoiceIssuerName);
     const id = textValue(row.invoiceId);
-    const rowPeriodStart = textValue(row.billingPeriodStart);
-    const rowPeriodEnd = textValue(row.billingPeriodEnd);
+    const rowPeriodStart = typeof row.billingPeriodStart === 'string' ? row.billingPeriodStart : null;
+    const rowPeriodEnd = typeof row.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null;
     const category = textValue(row.chargeCategory);
     const currency = textValue(row.billingCurrency);
     const amount = textValue(row.billedCost);
@@ -243,8 +244,8 @@ export function reconcileFocusInvoice(
   const record = asRecord(input);
   const issuer = textValue(record?.invoiceIssuerName);
   const invoiceId = textValue(record?.invoiceId);
-  const billingPeriodStart = textValue(record?.billingPeriodStart);
-  const billingPeriodEnd = textValue(record?.billingPeriodEnd);
+  const billingPeriodStart = typeof record?.billingPeriodStart === 'string' ? record.billingPeriodStart : null;
+  const billingPeriodEnd = typeof record?.billingPeriodEnd === 'string' ? record.billingPeriodEnd : null;
   const billingPeriodStartMs = utcTimestamp(billingPeriodStart);
   const billingPeriodEndMs = utcTimestamp(billingPeriodEnd);
   const currency = textValue(record?.billingCurrency);
