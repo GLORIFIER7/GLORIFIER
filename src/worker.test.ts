@@ -792,6 +792,7 @@ async function run(): Promise<void> {
     });
     upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
     const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
+
     const openSeaServerError = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
