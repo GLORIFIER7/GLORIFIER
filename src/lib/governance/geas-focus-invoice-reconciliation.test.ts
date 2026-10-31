@@ -168,6 +168,20 @@ const whitespaceTimestamp = reconcileFocusInvoice({
 assert.equal(whitespaceTimestamp.status, 'UNKNOWN');
 assert.ok(whitespaceTimestamp.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
 
+const lowercaseZulu = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-01-01T00:00:00z',
+});
+assert.equal(lowercaseZulu.status, 'UNKNOWN');
+assert.ok(lowercaseZulu.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const fractionalSeconds = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-01-01T00:00:00.000Z',
+});
+assert.equal(fractionalSeconds.status, 'UNKNOWN');
+assert.ok(fractionalSeconds.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
 const reversedBillingPeriod = reconcileFocusInvoice({
   ...input,
   billingPeriodStart: '2026-02-01T00:00:00Z',
