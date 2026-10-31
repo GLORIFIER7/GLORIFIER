@@ -254,8 +254,16 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
       redirect: 'manual',
       signal: AbortSignal.timeout(7000),
     });
-  } catch {
-    return { ok: false, response: Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers }) };
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    return {
+      ok: false,
+      response: Response.json({
+        ok: false,
+        status: timedOut ? 'timeout' : 'unavailable',
+        code: timedOut ? 'OPENSEA_REQUEST_TIMEOUT' : 'OPENSEA_UPSTREAM_UNAVAILABLE',
+      }, { status: timedOut ? 504 : 502, headers }),
+    };
   }
 
   if (upstream.status === 401 || upstream.status === 403) {
@@ -266,20 +274,34 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
   }
   if (upstream.status === 429) {
     const retryAfter = upstream.headers.get('retry-after');
-    const retryHeaders = retryAfter && Number.isInteger(Number(retryAfter)) && Number(retryAfter) >= 0 ? { ...headers, 'Retry-After': retryAfter } : headers;
+    const validRetryAfter = retryAfter && (/^\\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter)))
+      ? retryAfter
+      : null;
+    const retryHeaders = validRetryAfter ? { ...headers, 'Retry-After': validRetryAfter } : headers;
     return { ok: false, response: Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders }) };
   }
   if (!upstream.ok) {
     return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers }) };
   }
-  if (!(upstream.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+  if (!/^application\\/(?:[a-z0-9.+-]*\\+)?json(?:\\s*;|$)/i.test(upstream.headers.get('content-type') || '')) {
     return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers }) };
   }
   try {
     return { ok: true, data: await readBoundedOpenSeaResponse(upstream) };
   } catch (error) {
-    const code = error instanceof OpenSeaResponseTooLargeError ? 'OPENSEA_RESPONSE_TOO_LARGE' : 'OPENSEA_INVALID_RESPONSE';
-    return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code }, { status: 502, headers }) };
+    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    const code = error instanceof OpenSeaResponseTooLargeError
+      ? 'OPENSEA_RESPONSE_TOO_LARGE'
+      : timedOut
+        ? 'OPENSEA_REQUEST_TIMEOUT'
+        : 'OPENSEA_INVALID_RESPONSE';
+    return {
+      ok: false,
+      response: Response.json({ ok: false, status: timedOut ? 'timeout' : 'upstream-error', code }, {
+        status: timedOut ? 504 : 502,
+        headers,
+      }),
+    };
   }
 };
 
@@ -325,6 +347,16 @@ const openSeaResolveAccount = async (identifier: string, apiKey: string): Promis
     };
   }
   return result;
+};
+
+const openSeaResponseForRequest = async (request: Request, responsePromise: Promise<Response>): Promise<Response> => {
+  const response = await responsePromise;
+  if (request.method !== 'HEAD') return response;
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 };
 
 const openSeaAccountResolveResponse = async (request: Request, identifier: string, env: CloudflareEnv): Promise<Response> => {
@@ -969,11 +1001,11 @@ export default {
         // resolution at /accounts/resolve/:identifier.
         if (segments.length === 2 && segments[1] === 'collections') {
           identifier = decodeURIComponent(segments[0]);
-          return openSeaAccountCollectionsResponse(request, identifier, env);
+          return openSeaResponseForRequest(request, openSeaAccountCollectionsResponse(request, identifier, env));
         }
         if (segments.length === 2 && segments[0] === 'resolve') {
           identifier = decodeURIComponent(segments[1]);
-          return openSeaAccountResolveResponse(request, identifier, env);
+          return openSeaResponseForRequest(request, openSeaAccountResolveResponse(request, identifier, env));
         }
       } catch {
         return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
