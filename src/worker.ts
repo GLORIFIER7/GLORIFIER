@@ -256,7 +256,7 @@ const isOpenSeaTimeout = (error: unknown): boolean =>
 
 const isValidOpenSeaImfFixdate = (value: string): boolean => {
   const imfFixdate = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), (?:0[1-9]|[12]\d|3[01]) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d GMT$/;
-  if (!imfFixdate.test(value)) return false;
+  if (imfFixdate.exec(value) === null) return false;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) && new Date(parsed).toUTCString() === value;
 };
