@@ -1213,7 +1213,7 @@ async function run(): Promise<void> {
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
       openSeaEnv,
     );
-    assert.equal(wrongAccountIdentity.status, 502, 'the resolved account username must match the requested GLORIFIER identity');
+    assert.equal(wrongAccountIdentity.status, 409, 'an identity mismatch must return Conflict and must not enumerate collections');
     assert.equal(await wrongAccountIdentity.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_IDENTITY_MISMATCH');
 
 
