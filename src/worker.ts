@@ -958,29 +958,22 @@ export default {
     }
 
 
-    const openSeaAccountCollectionsMatch = incomingUrl.pathname.match(/^\/api\/opensea\/accounts\/([^/]+)\/collections$/);
-    if (openSeaAccountCollectionsMatch) {
-      return openSeaAccountCollectionsResponse(request, openSeaAccountCollectionsMatch[1], env);
-    }
-
-    const openSeaCollectionPrefix = '/api/opensea/collections/';
-    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
-      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
-      if (!slug || slug.includes('/')) {
-        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-    // Account routes must precede the collection adapter so they remain reachable.
+    // Account endpoints are dispatched before the generic collection adapter.
     const openSeaAccountsPrefix = '/api/opensea/accounts/';
     if (incomingUrl.pathname.startsWith(openSeaAccountsPrefix)) {
       const segments = incomingUrl.pathname.slice(openSeaAccountsPrefix.length).split('/');
       let identifier: string;
       try {
-        if (segments[0] === 'resolve' && segments.length === 2) {
-          identifier = decodeURIComponent(segments[1]);
-          return openSeaAccountResolveResponse(request, identifier, env);
-        }
+        // Match the :username/collections form first. This reserves the "resolve"
+        // username for owned-collection reads while preserving direct account
+        // resolution at /accounts/resolve/:identifier.
         if (segments.length === 2 && segments[1] === 'collections') {
           identifier = decodeURIComponent(segments[0]);
           return openSeaAccountCollectionsResponse(request, identifier, env);
+        }
+        if (segments.length === 2 && segments[0] === 'resolve') {
+          identifier = decodeURIComponent(segments[1]);
+          return openSeaAccountResolveResponse(request, identifier, env);
         }
       } catch {
         return Response.json({ ok: false, code: 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER' }, {
@@ -994,8 +987,15 @@ export default {
       });
     }
 
-    // The generic adapter owns collection reads and its health probe. Account routes
-    // above are deliberately handled first so they cannot be swallowed by this matcher.
+    const openSeaCollectionPrefix = '/api/opensea/collections/';
+    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
+      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
+      if (!slug || slug.includes('/')) {
+        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+      }
+    }
+
+    // The generic adapter owns registered collection reads and its health probe.
     if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
       return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
