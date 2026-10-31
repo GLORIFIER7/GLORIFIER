@@ -263,7 +263,7 @@ const isValidOpenSeaImfFixdate = (value: string): boolean => {
 
 const isValidOpenSeaRetryAfter = (value: string | null): value is string => {
   if (!value) return false;
-  if (/^\d+$/.test(value)) return Number.isSafeInteger(Number(value));
+  if (/^\d+$/.exec(value) !== null) return Number.isSafeInteger(Number(value));
   return isValidOpenSeaImfFixdate(value);
 };
 
@@ -286,7 +286,7 @@ const openSeaUpstreamFailure = (
     return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_UPSTREAM_ERROR', headers);
   }
   const contentType = upstream.headers.get('content-type') || '';
-  if (!/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(contentType)) {
+  if (/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.exec(contentType) === null) {
     return openSeaErrorResponse(502, 'upstream-error', 'OPENSEA_INVALID_CONTENT_TYPE', headers);
   }
   return undefined;
