@@ -1323,6 +1323,39 @@ async function run(): Promise<void> {
       openSeaResponseQueue = null;
     }
 
+    // A non-timeout network failure remains a 502 and is not mislabeled as a timeout.
+    openSeaFetchError = new Error('simulated OpenSea network failure');
+    const openSeaUnavailableAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaUnavailableAccount.status, 502);
+    assert.equal(await openSeaUnavailableAccount.json().then((body: { code?: string }) => body.code), 'OPENSEA_UPSTREAM_UNAVAILABLE');
+    openSeaFetchError = null;
+
+    // Invalid JSON and oversized account responses fail closed with stable error codes.
+    openSeaResponseQueue = [
+      new Response('{invalid', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const malformedAccountJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(malformedAccountJson.status, 502);
+    assert.equal(await malformedAccountJson.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_RESPONSE');
+    openSeaResponseQueue = null;
+
+    openSeaResponseQueue = [
+      new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const oversizedAccountJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(oversizedAccountJson.status, 502);
+    assert.equal(await oversizedAccountJson.json().then((body: { code?: string }) => body.code), 'OPENSEA_RESPONSE_TOO_LARGE');
+    openSeaResponseQueue = null;
+
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
     globalThis.fetch = originalFetch;
