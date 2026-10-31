@@ -1,8 +1,15 @@
-const COLLECTION_REQUESTS: Readonly<Record<string, (init: RequestInit) => Promise<Response>>> = Object.freeze({
-  glorifier7: (init) => fetch('https://api.opensea.io/api/v2/collections/glorifier7', init),
-  glorifier1: (init) => fetch('https://api.opensea.io/api/v2/collections/glorifier1', init),
-});
-const ALLOWED_COLLECTION_SLUGS = new Set(Object.keys(COLLECTION_REQUESTS));
+const ALLOWED_COLLECTION_SLUGS = new Set(['glorifier7', 'glorifier1']);
+
+const fetchRegisteredCollection = (slug: string, init: RequestInit): Promise<Response> => {
+  switch (slug) {
+    case 'glorifier7':
+      return fetch('https://api.opensea.io/api/v2/collections/glorifier7', init);
+    case 'glorifier1':
+      return fetch('https://api.opensea.io/api/v2/collections/glorifier1', init);
+    default:
+      throw new Error('Unregistered OpenSea collection slug.');
+  }
+};
 const MAX_OPENSEA_RESPONSE_BYTES = 1_048_576;
 
 class OpenSeaResponseTooLargeError extends Error {}
@@ -173,15 +180,14 @@ const parseCollectionResponse = async (upstream: Response): Promise<OpenSeaFetch
 };
 
 const fetchCollection = async (slug: string, apiKey: string): Promise<OpenSeaFetchResult> => {
-  const fetchRegisteredCollection = COLLECTION_REQUESTS[slug];
-  if (!fetchRegisteredCollection) {
+  if (!ALLOWED_COLLECTION_SLUGS.has(slug)) {
     const error = failure(404, 'OPENSEA_ROUTE_NOT_FOUND', 'Only registered GLORIFIER collection endpoints are available.');
     return { status: error.status, error };
   }
 
   let upstream: Response;
   try {
-    upstream = await fetchRegisteredCollection(createProviderRequestInit(apiKey));
+    upstream = await fetchRegisteredCollection(slug, createProviderRequestInit(apiKey));
   } catch (error) {
     const response = connectionFailure(error);
     return { status: response.status, error: response };
