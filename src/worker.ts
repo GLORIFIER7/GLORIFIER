@@ -441,58 +441,6 @@ const openSeaAccountCollectionsResponse = async (
     : Response.json(responseBody, { headers });
 };
 
-const openSeaCollectionResponse = async (request: Request, slug: string, env: CloudflareEnv): Promise<Response> => {
-  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
-    return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } });
-  }
-  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)) {
-    return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers });
-  }
-  const apiKey = configured(env.OPENSEA_API_KEY);
-  if (!apiKey) {
-    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_API_KEY_NOT_CONFIGURED' }, { status: 503, headers });
-  }
-
-  const endpoint = new URL(`https://api.opensea.io/api/v2/collections/${encodeURIComponent(slug)}`);
-  try {
-    const upstream = await fetch(endpoint, {
-      method: 'GET',
-      headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(7000),
-    });
-    if (upstream.status === 401 || upstream.status === 403) {
-      return Response.json({ ok: false, status: 'unauthorized', code: 'OPENSEA_AUTHENTICATION_FAILED' }, { status: 502, headers });
-    }
-    if (upstream.status === 404) {
-      return Response.json({ ok: false, status: 'not-found', code: 'OPENSEA_COLLECTION_NOT_FOUND' }, { status: 404, headers });
-    }
-    if (upstream.status === 429) {
-      const retryAfter = upstream.headers.get('retry-after');
-      const retryHeaders = retryAfter && Number.isInteger(Number(retryAfter)) && Number(retryAfter) >= 0 ? { ...headers, 'Retry-After': retryAfter } : headers;
-      return Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders });
-    }
-    if (!upstream.ok) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers });
-    }
-    const contentType = upstream.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers });
-    }
-    const data: unknown = await readBoundedOpenSeaResponse(upstream);
-    return request.method === 'HEAD'
-      ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
-      : Response.json({ ok: true, source: 'opensea-api-v2', collection: data }, { headers });
-  } catch (error) {
-    if (error instanceof OpenSeaResponseTooLargeError) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_RESPONSE_TOO_LARGE' }, { status: 502, headers });
-    }
-    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers });
-  }
-};
-
-
 const neuralConfigurationStatus = (env: CloudflareEnv): {
   ok: boolean | null;
   status: string;
