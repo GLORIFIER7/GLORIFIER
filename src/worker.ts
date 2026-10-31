@@ -893,18 +893,9 @@ export default {
       });
     }
 
-    const openSeaCollectionPrefix = '/api/opensea/collections/';
-    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
-      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
-      if (!slug || slug.includes('/')) {
-        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-      }
-      return openSeaCollectionResponse(request, slug, env);
-    }
-
-    // The generic OpenSea adapter owns only its health probe and root namespace.
-    // Account and registered collection routes above retain their dedicated handlers.
-    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname === '/api/opensea/health') {
+    // The generic adapter owns collection reads and its health probe. Account routes
+    // above are deliberately handled first so they cannot be swallowed by this matcher.
+    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
       return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
