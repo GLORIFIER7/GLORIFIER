@@ -503,18 +503,130 @@
       "id": "owasp-agentic-applications-top10",
       "authority": "OWASP GenAI Security Project",
       "domain": "cybersecurity",
-      "url": "https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
       "claimsAllowed": [
         "agentic-application-threats",
-        "agent-goal-hijack",
         "agent-tool-misuse",
-        "agent-identity-privilege-abuse",
-        "agentic-supply-chain-vulnerabilities",
-        "unexpected-code-execution",
-        "agent-memory-context-poisoning",
-        "insecure-inter-agent-communication",
-        "agent-cascading-failures",
-        "human-agent-trust-exploitation",
+        "agent-identity-privilege-abuse"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
+      "id": "owasp-agentic-asi01",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md",
+      "claimsAllowed": [
+        "agent-goal-hijack"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi02",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md",
+      "claimsAllowed": [
+        "agent-tool-misuse"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi03",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md",
+      "claimsAllowed": [
+        "agent-identity-privilege-abuse"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi04",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md",
+      "claimsAllowed": [
+        "agentic-supply-chain-vulnerabilities"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi05",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md",
+      "claimsAllowed": [
+        "unexpected-code-execution"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi06",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md",
+      "claimsAllowed": [
+        "agent-memory-context-poisoning"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi07",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md",
+      "claimsAllowed": [
+        "insecure-inter-agent-communication"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi08",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md",
+      "claimsAllowed": [
+        "agent-cascading-failures"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi09",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md",
+      "claimsAllowed": [
+        "human-agent-trust-exploitation"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "owasp-agentic-asi10",
+      "authority": "OWASP GenAI Security Project",
+      "domain": "cybersecurity",
+      "url": "https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md",
+      "claimsAllowed": [
         "rogue-agent-behavior"
       ],
       "reviewCadenceDays": 14,
