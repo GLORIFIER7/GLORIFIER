@@ -1402,7 +1402,7 @@ async function run(): Promise<void> {
     // Malformed percent escapes fail closed, and HEAD route errors never include a body.
     console.log('worker-test: begin malformedEncodedHead');
     const malformedEncodedHead = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%E0%A4%A/unknown', { method: 'HEAD' }),
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%E0%A4%A/collections', { method: 'HEAD' }),
       openSeaEnv,
     );
     assert.equal(malformedEncodedHead.status, 400);
