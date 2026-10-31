@@ -133,7 +133,28 @@ if (reuseNotModifiedSourceObservation(
 if (model.version !== 'GEAS-ARCHITECTURE-SCIENTIST-2.0') throw new Error('GEAS version mismatch');
 if (model.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') throw new Error('GEAS source policy version must match the authoritative registry');
 if (model.drift.some((finding) => finding.status !== 'unknown' || finding.evidenceRefs.length !== 0)) throw new Error('baseline drift must remain UNKNOWN without runtime evidence');
-if (!model.domains.includes('blockchain') || !model.domains.includes('iot') || !model.domains.includes('emerging-technology')) throw new Error('domain coverage missing');
+const requiredDomains = [
+  'enterprise-architecture', 'cloud', 'ai', 'data', 'cybersecurity', 'networking',
+  'software', 'platform-engineering', 'observability', 'reliability', 'finops',
+  'iot', 'edge', 'blockchain', 'integration', 'governance', 'emerging-technology',
+];
+for (const domain of requiredDomains) {
+  if (!model.domains.includes(domain)) throw new Error('authoritative source coverage missing for domain: ' + domain);
+}
+const agenticSource = model.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
+const agenticPattern = model.patterns.find((pattern) => pattern.id === 'agentic-application-threats');
+if (!agenticSource || agenticSource.url !== 'https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/' || agenticSource.cadenceHours !== 336 || !agenticSource.patternIds.includes('agentic-application-threats')) {
+  throw new Error('canonical OWASP 2026 Agentic Top 10 source must be active with the 14-day review cadence');
+}
+if (!agenticPattern || agenticPattern.sourceId !== 'owasp-agentic-applications-top10') {
+  throw new Error('OWASP Agentic Top 10 threat pattern must be linked to its authoritative source');
+}
+for (const controlId of ['SEC-01', 'AUTH-01', 'POL-01', 'SUPPLY-01', 'REL-01', 'OBS-01', 'GOV-01', 'EVID-01', 'FED-01']) {
+  if (!agenticPattern.controlIds.includes(controlId)) throw new Error('agentic threat pattern missing control mapping: ' + controlId);
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('OWASP source keyword matches must remain analysis, not verified implementation');
+}
 if (!model.architectureStateModel.join(',').includes('desired,declared,deployed,observed,verified')) throw new Error('five-state architecture model missing');
 
 const identity = createAgentIdentityContract({
