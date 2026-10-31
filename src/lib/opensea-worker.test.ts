@@ -45,58 +45,62 @@ async function expectProviderFailure(response: Response, status: number, code: s
   assert.equal(JSON.stringify(body).includes('test-scoped-token'), false);
 }
 
-async function testSuccessfulPublicReads(): Promise<void> {
+async function testSuccessfulHealthProbe(): Promise<void> {
   capturedRequest = null;
   const health = await request('/api/opensea/health');
   assert.equal(health.status, 200);
-  const healthBody = await health.json() as {
+  const body = await health.json() as {
     ok: boolean;
     provider: string;
     status: string;
     authentication: { apiKey: string; apiKeyHeader: string; walletScopedAuthorization: string };
     collectionSlug: string;
   };
-  assert.equal(healthBody.ok, true);
-  assert.equal(healthBody.provider, 'opensea');
-  assert.equal(healthBody.status, 'connected');
-  assert.deepEqual(healthBody.authentication, {
+  assert.equal(body.ok, true);
+  assert.equal(body.provider, 'opensea');
+  assert.equal(body.status, 'connected');
+  assert.deepEqual(body.authentication, {
     apiKey: 'accepted',
     apiKeyHeader: 'X-API-KEY',
     walletScopedAuthorization: 'not-required-for-public-collection-read',
   });
-  assert.equal(healthBody.collectionSlug, 'glorifier7');
+  assert.equal(body.collectionSlug, 'glorifier7');
   assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(JSON.stringify(healthBody).includes('test-personal-api-key'), false);
-  assert.equal(JSON.stringify(healthBody).includes('test-scoped-token'), false);
+  assert.equal(JSON.stringify(body).includes('test-personal-api-key'), false);
+  assert.equal(JSON.stringify(body).includes('test-scoped-token'), false);
+  assertHealthProviderRequest(getCapturedRequest());
+}
 
-  const healthRequest = getCapturedRequest();
-  assert.equal(healthRequest.method, 'GET');
-  assert.equal(healthRequest.url, 'https://api.opensea.io/api/v2/collections/glorifier7');
-  assert.equal(healthRequest.headers.get('x-api-key'), 'test-personal-api-key');
-  assert.equal(healthRequest.headers.get('accept'), 'application/json');
-  assert.equal(capturedInit?.redirect, 'manual', 'provider redirects must never be followed');
-  assert.ok(capturedInit?.signal instanceof AbortSignal, 'provider requests must have an abort timeout signal');
-  assert.equal(healthRequest.headers.get('authorization'), null, 'public reads must not send wallet authorization');
-  assert.equal(capturedInit?.cache, 'no-store', 'health probes must bypass the Fetch cache so key changes are observed immediately');
-  assert.equal(capturedCf, undefined, 'health probes must not opt into Cloudflare edge caching');
-  assert.equal(healthRequest.headers.get('x-api-key')?.includes('test-scoped-token'), false);
+function assertHealthProviderRequest(providerRequest: Request): void {
+  assert.equal(providerRequest.method, 'GET');
+  assert.equal(providerRequest.url, 'https://api.opensea.io/api/v2/collections/glorifier7');
+  assert.equal(providerRequest.headers.get('x-api-key'), 'test-personal-api-key');
+  assert.equal(providerRequest.headers.get('accept'), 'application/json');
+  assert.equal(providerRequest.headers.get('authorization'), null);
+  assert.equal(providerRequest.headers.get('x-api-key')?.includes('test-scoped-token'), false);
+  assert.equal(capturedInit?.redirect, 'manual');
+  assert.ok(capturedInit?.signal instanceof AbortSignal);
+  assert.equal(capturedInit?.cache, 'no-store');
+  assert.equal(capturedCf, undefined);
+}
 
+async function testSuccessfulCollectionRead(): Promise<void> {
   setResponse(new Response(JSON.stringify({ collection: 'glorifier1', name: 'GLORIFIER' }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   }));
-  const collection = await request('/api/opensea/collections/glorifier1');
-  assert.equal(collection.status, 200);
-  assert.equal(collection.headers.get('cache-control'), 'public, max-age=60');
-  assert.equal(collection.headers.get('x-content-type-options'), 'nosniff');
-  const collectionBody = await collection.json() as { ok: boolean; collectionSlug: string; data: { name: string } };
-  assert.equal(collectionBody.ok, true);
-  assert.equal(collectionBody.collectionSlug, 'glorifier1');
-  assert.equal(collectionBody.data.name, 'GLORIFIER');
+  const response = await request('/api/opensea/collections/glorifier1');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  const body = await response.json() as { ok: boolean; collectionSlug: string; data: { name: string } };
+  assert.equal(body.ok, true);
+  assert.equal(body.collectionSlug, 'glorifier1');
+  assert.equal(body.data.name, 'GLORIFIER');
   assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/glorifier1');
-  assert.equal(capturedInit?.cache, 'no-store', 'provider responses must not be cached before validation');
-  assert.equal(capturedCf, undefined, 'validated metadata is cached by the Worker only after JSON validation');
+  assert.equal(capturedInit?.cache, 'no-store');
+  assert.equal(capturedCf, undefined);
 }
 
 async function testConfigurationAndRouteGuards(): Promise<void> {
@@ -184,132 +188,126 @@ async function testRequestTimeout(): Promise<void> {
   );
 }
 
-async function testValidatedCacheAndHeadSemantics(): Promise<void> {
+function createMemoryCache(): {
+  edgeCache: OpenSeaEdgeCache;
+  entries: Map<string, Response>;
+  readonly matches: number;
+  readonly puts: number;
+} {
   const entries = new Map<string, Response>();
-  let cacheMatches = 0;
-  let cachePuts = 0;
+  let matches = 0;
+  let puts = 0;
   const edgeCache: OpenSeaEdgeCache = {
     async match(key) {
-      cacheMatches += 1;
+      matches += 1;
       return entries.get(key.url)?.clone();
     },
     async put(key, response) {
-      cachePuts += 1;
+      puts += 1;
       entries.set(key.url, response.clone());
     },
   };
+  return {
+    edgeCache,
+    entries,
+    get matches() { return matches; },
+    get puts() { return puts; },
+  };
+}
 
+async function testCollectionCacheHitAndHead(): Promise<void> {
+  const cache = createMemoryCache();
   setResponse(new Response(JSON.stringify({ collection: 'glorifier1', name: 'GLORIFIER' }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   }));
   capturedRequest = null;
-  const first = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/collections/glorifier1'),
-    '/api/opensea/collections/glorifier1',
-    env,
-    edgeCache,
-  );
+  const first = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/collections/glorifier1'),
+    '/api/opensea/collections/glorifier1', env, cache.edgeCache);
   assert.equal(first.status, 200);
   assert.equal((await first.json() as { data: { name: string } }).data.name, 'GLORIFIER');
-  assert.equal(cacheMatches, 1);
-  assert.equal(cachePuts, 1, 'only a fully validated successful collection response is cached');
+  assert.equal(cache.matches, 1);
+  assert.equal(cache.puts, 1);
   assert.equal(getCapturedRequest().url, 'https://api.opensea.io/api/v2/collections/glorifier1');
 
   capturedRequest = null;
-  setResponse(new Response('upstream should not be reached', { status: 500 }));
-  const second = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/collections/glorifier1'),
-    '/api/opensea/collections/glorifier1',
-    env,
-    edgeCache,
-  );
+  setResponse(new Response('provider must not be reached', { status: 500 }));
+  const second = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/collections/glorifier1'),
+    '/api/opensea/collections/glorifier1', env, cache.edgeCache);
   assert.equal(second.status, 200);
   assert.equal((await second.json() as { data: { name: string } }).data.name, 'GLORIFIER');
-  assert.equal(capturedRequest, null, 'validated collection metadata is served from the short-lived edge cache');
-  assert.equal(cacheMatches, 2);
-  assert.equal(cachePuts, 1);
+  assert.equal(capturedRequest, null);
+  assert.equal(cache.matches, 2);
+  assert.equal(cache.puts, 1);
 
-  capturedRequest = null;
-  const cacheHitHead = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
-    '/api/opensea/collections/glorifier1',
-    env,
-    edgeCache,
-  );
-  assert.equal(cacheHitHead.status, 200);
-  assert.equal(await cacheHitHead.text(), '', 'HEAD cache hits must not return a body');
-  assert.equal(cacheMatches, 3, 'HEAD metadata requests should reuse the public GET cache entry');
-  assert.equal(cachePuts, 1, 'HEAD cache hits must not cause a new cache write');
-  assert.equal(capturedRequest, null, 'cached HEAD requests must not consume OpenSea API quota');
+  const head = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
+    '/api/opensea/collections/glorifier1', env, cache.edgeCache);
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  assert.equal(cache.matches, 3);
+  assert.equal(cache.puts, 1);
+  assert.equal(capturedRequest, null);
+}
 
-  entries.clear();
-  cachePuts = 0;
-  capturedRequest = null;
+async function testProviderErrorsAreNotCached(): Promise<void> {
+  const cache = createMemoryCache();
   setResponse(new Response('rate limited', { status: 429, headers: { 'Retry-After': '7' } }));
-  const rateLimited = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/collections/glorifier7'),
-    '/api/opensea/collections/glorifier7',
-    env,
-    edgeCache,
-  );
+  const response = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/collections/glorifier7'),
+    '/api/opensea/collections/glorifier7', env, cache.edgeCache);
+  assert.equal(response.status, 503);
+  assert.equal(cache.puts, 0);
+  assert.equal(cache.entries.size, 0);
+}
+
+async function testHealthProbesBypassCache(): Promise<void> {
+  const cache = createMemoryCache();
+  setResponse(new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  const matchesBefore = cache.matches;
+  const putsBefore = cache.puts;
+  const get = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/health'),
+    '/api/opensea/health', env, cache.edgeCache);
+  assert.equal(get.status, 200);
+  assert.equal((await get.json() as { status: string }).status, 'connected');
+  assert.equal(get.headers.get('cache-control'), 'no-store');
+  assert.equal(cache.matches, matchesBefore);
+  assert.equal(cache.puts, putsBefore);
+
+  setResponse(new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  const head = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/health', { method: 'HEAD' }),
+    '/api/opensea/health', env, cache.edgeCache);
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('cache-control'), 'no-store');
+  assert.equal(cache.matches, matchesBefore);
+  assert.equal(cache.puts, putsBefore);
+}
+
+async function testHeadErrorResponsesAreBodyless(): Promise<void> {
+  const cache = createMemoryCache();
+  setResponse(new Response('rate limited', { status: 429, headers: { 'Retry-After': '7' } }));
+  const rateLimited = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
+    '/api/opensea/collections/glorifier1', env, cache.edgeCache);
   assert.equal(rateLimited.status, 503);
-  assert.equal(cachePuts, 0, 'provider failures must never be cached');
-  assert.equal(entries.size, 0);
+  assert.equal(await rateLimited.text(), '');
+  assert.equal(rateLimited.headers.get('retry-after'), '7');
 
-  const matchesBeforeHealth = cacheMatches;
-  const putsBeforeHealth = cachePuts;
-  setResponse(new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  }));
-  const healthGet = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/health'),
-    '/api/opensea/health',
-    env,
-    edgeCache,
-  );
-  assert.equal(healthGet.status, 200);
-  assert.equal((await healthGet.json() as { status: string }).status, 'connected');
-  assert.equal(healthGet.headers.get('cache-control'), 'no-store');
-  assert.equal(cacheMatches, matchesBeforeHealth, 'GET health probes must bypass the metadata cache');
-  assert.equal(cachePuts, putsBeforeHealth, 'GET health probes must never populate the metadata cache');
+  const missingKey = await openSeaWorkerRoute(new Request('https://glorifier.test/api/opensea/health', { method: 'HEAD' }),
+    '/api/opensea/health', { ...env, OPENSEA_API_KEY: undefined }, cache.edgeCache);
+  assert.equal(missingKey.status, 503);
+  assert.equal(await missingKey.text(), '');
+}
 
-  setResponse(new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  }));
-  const healthHead = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/health', { method: 'HEAD' }),
-    '/api/opensea/health',
-    env,
-    edgeCache,
-  );
-  assert.equal(healthHead.status, 200);
-  assert.equal(await healthHead.text(), '', 'HEAD health responses must never include a body');
-  assert.equal(healthHead.headers.get('cache-control'), 'no-store');
-  assert.equal(cacheMatches, matchesBeforeHealth, 'health probes must bypass the metadata cache');
-  assert.equal(cachePuts, putsBeforeHealth, 'health probes must never populate the metadata cache');
-
-  setResponse(new Response('rate limited', { status: 429, headers: { 'Retry-After': '7' } }));
-  const errorHead = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
-    '/api/opensea/collections/glorifier1',
-    env,
-    edgeCache,
-  );
-  assert.equal(errorHead.status, 503);
-  assert.equal(await errorHead.text(), '', 'HEAD error responses must never include a body');
-  assert.equal(errorHead.headers.get('retry-after'), '7');
-
-  const missingKeyHead = await openSeaWorkerRoute(
-    new Request('https://glorifier.test/api/opensea/health', { method: 'HEAD' }),
-    '/api/opensea/health',
-    { ...env, OPENSEA_API_KEY: undefined },
-    edgeCache,
-  );
-  assert.equal(missingKeyHead.status, 503);
-  assert.equal(await missingKeyHead.text(), '', 'HEAD configuration errors must never include a body');
+async function testValidatedCacheAndHeadSemantics(): Promise<void> {
+  await testCollectionCacheHitAndHead();
+  await testProviderErrorsAreNotCached();
+  await testHealthProbesBypassCache();
+  await testHeadErrorResponsesAreBodyless();
 }
 
 async function run(): Promise<void> {
@@ -322,7 +320,8 @@ async function run(): Promise<void> {
   }) as typeof fetch;
 
   try {
-    await testSuccessfulPublicReads();
+    await testSuccessfulHealthProbe();
+    await testSuccessfulCollectionRead();
     await testConfigurationAndRouteGuards();
     await testProviderFailureMapping();
     await testRequestTimeout();
