@@ -161,6 +161,13 @@ const invalidCalendarDate = reconcileFocusInvoice({
 assert.equal(invalidCalendarDate.status, 'UNKNOWN');
 assert.ok(invalidCalendarDate.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
 
+const whitespaceTimestamp = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: ' 2026-01-01T00:00:00Z',
+});
+assert.equal(whitespaceTimestamp.status, 'UNKNOWN');
+assert.ok(whitespaceTimestamp.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
 const reversedBillingPeriod = reconcileFocusInvoice({
   ...input,
   billingPeriodStart: '2026-02-01T00:00:00Z',
