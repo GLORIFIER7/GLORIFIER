@@ -52,6 +52,7 @@ async function run(): Promise<void> {
   }) as typeof fetch;
 
   try {
+    console.log('worker-test: begin staticResponse');
     const staticResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/assets/app.js'),
       env,
@@ -61,6 +62,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'static assets must not call the backend');
 
     returnHtmlForAssets = true;
+    console.log('worker-test: begin missingAsset');
     const missingAsset = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/assets/missing-chunk.js'),
       env,
@@ -80,6 +82,7 @@ async function run(): Promise<void> {
       }],
       capabilities: { streaming: false, pushNotifications: false },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    console.log('worker-test: begin a2aCardResponse');
     const a2aCardResponse = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
       env,
@@ -103,6 +106,7 @@ async function run(): Promise<void> {
     upstreamResponse = previousA2ACardResponse;
 
     capturedRequest = null;
+    console.log('worker-test: begin a2aCardWithoutBackend');
     const a2aCardWithoutBackend = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
@@ -111,6 +115,8 @@ async function run(): Promise<void> {
     assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
     assert.equal(capturedRequest, null);
 
+    console.log('worker-test: begin a2aMethodNotAllowed');
+
     const a2aMethodNotAllowed = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, { method: 'GET' }),
       env,
@@ -118,6 +124,8 @@ async function run(): Promise<void> {
     assert.equal(a2aMethodNotAllowed.status, 405);
     assert.equal(a2aMethodNotAllowed.headers.get('allow'), 'POST');
     assert.equal(capturedRequest, null);
+
+    console.log('worker-test: begin a2aTrailingSlashMissingAuth');
 
     const a2aTrailingSlashMissingAuth = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
@@ -129,6 +137,8 @@ async function run(): Promise<void> {
     );
     assert.equal(a2aTrailingSlashMissingAuth.status, 401, 'trailing slash must not bypass A2A authentication');
     assert.equal(capturedRequest, null, 'trailing-slash unauthenticated request must not reach backend');
+
+    console.log('worker-test: begin a2aMissingAuth');
 
     const a2aMissingAuth = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
@@ -143,6 +153,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'unauthenticated A2A requests must not reach the backend');
 
     for (const malformedAuthorization of ['Basic caller-token', 'Bearer', 'Bearer token extra', 'Bearer\ttoken']) {
+      console.log('worker-test: begin rejectedAuthorization');
       const rejectedAuthorization = await worker.fetch(
         new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
           method: 'POST',
@@ -158,6 +169,8 @@ async function run(): Promise<void> {
       assert.equal(capturedRequest, null, 'malformed authorization must not reach the backend');
     }
 
+    console.log('worker-test: begin a2aUnsupportedMediaType');
+
     const a2aUnsupportedMediaType = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
@@ -169,6 +182,8 @@ async function run(): Promise<void> {
     assert.equal(a2aUnsupportedMediaType.status, 415);
     assert.equal(capturedRequest, null);
 
+    console.log('worker-test: begin a2aOversized');
+
     const a2aOversized = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
@@ -179,6 +194,8 @@ async function run(): Promise<void> {
     );
     assert.equal(a2aOversized.status, 413);
     assert.equal(capturedRequest, null, 'oversized A2A requests must not reach the backend');
+
+    console.log('worker-test: begin a2aInvalidJson');
 
     const a2aInvalidJson = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
@@ -192,6 +209,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null);
 
     capturedRequest = null;
+    console.log('worker-test: begin a2aForwarded');
     const a2aForwarded = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
         method: 'POST',
@@ -217,6 +235,7 @@ async function run(): Promise<void> {
     assert.equal(new URL(a2aUpstreamRequest.url).pathname, A2A_JSONRPC_PATH);
 
     capturedRequest = null;
+    console.log('worker-test: begin a2aTrailingSlashForwarded');
     const a2aTrailingSlashForwarded = await worker.fetch(
       new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}/`, {
         method: 'POST',
@@ -235,6 +254,7 @@ async function run(): Promise<void> {
     assert.match(await a2aUpstreamRequest.text(), /SendMessage/);
 
     const healthAssetCallsBefore = assetCalls;
+    console.log('worker-test: begin workerHealth');
     const workerHealth = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/health'),
       env,
@@ -256,12 +276,16 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'Worker health must not call an upstream backend');
     assert.equal(assetCalls, healthAssetCallsBefore, 'Worker health must not fall through to static assets');
 
+    console.log('worker-test: begin headHealth');
+
     const headHealth = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/health', { method: 'HEAD' }),
       env,
     );
     assert.equal(headHealth.status, 200);
     assert.equal(await headHealth.text(), '');
+
+    console.log('worker-test: begin invalidHealthMethod');
 
     const invalidHealthMethod = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/health', { method: 'POST' }),
@@ -272,6 +296,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to an upstream backend');
 
     const assetCallsBeforeIdentity = assetCalls;
+    console.log('worker-test: begin identityResponse');
     const identityResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/identity'),
       env,
@@ -286,6 +311,8 @@ async function run(): Promise<void> {
     assert.match(identityBody.identity.nextAction, /Set GLORIFIER_CANONICAL_DOMAIN/);
     assert.equal(capturedRequest, null, 'identity endpoint must not call an upstream backend');
     assert.equal(assetCalls, assetCallsBeforeIdentity, 'identity endpoint must not fall through to static assets');
+
+    console.log('worker-test: begin configuredIdentityResponse');
 
     const configuredIdentityResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/identity'),
@@ -305,6 +332,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'configured identity endpoint must remain Worker-native');
 
     const assetCallsBeforeBusinessModel = assetCalls;
+    console.log('worker-test: begin businessModelResponse');
     const businessModelResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/business-model'),
       env,
@@ -321,6 +349,9 @@ async function run(): Promise<void> {
     assert.equal(businessModelBody.model.governance.autonomousFundMovement, false);
     assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
     assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
+
+
+    console.log('worker-test: begin nativeRuntimeWithoutSupabase');
 
 
     const nativeRuntimeWithoutSupabase = await worker.fetch(
@@ -354,6 +385,7 @@ async function run(): Promise<void> {
     for (const invalidSupabaseOrigin of invalidSupabaseOrigins) {
       capturedRequest = null;
       requestedUrls.length = 0;
+      console.log('worker-test: begin rejectedSupabaseOrigin');
       const rejectedSupabaseOrigin = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
         {
@@ -378,6 +410,7 @@ async function run(): Promise<void> {
       headers: { 'content-type': 'application/json' },
     });
     capturedRequest = null;
+    console.log('worker-test: begin runtimeWithFailedSupabaseProbe');
     const runtimeWithFailedSupabaseProbe = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
       {
@@ -411,6 +444,7 @@ async function run(): Promise<void> {
       headers: { 'content-range': '0-0/0' },
     });
     capturedRequest = null;
+    console.log('worker-test: begin runtimeWithSupabaseButNoNeural');
     const runtimeWithSupabaseButNoNeural = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
       {
@@ -466,6 +500,7 @@ async function run(): Promise<void> {
     for (const neuralCase of neuralConfigurationCases) {
       capturedRequest = null;
       requestedUrls.length = 0;
+      console.log('worker-test: begin runtimeResponse');
       const runtimeResponse = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
         {
@@ -494,6 +529,8 @@ async function run(): Promise<void> {
     );
     capturedRequest = null;
 
+    console.log('worker-test: begin nativeReportsWithoutSupabase');
+
     const nativeReportsWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
@@ -504,6 +541,7 @@ async function run(): Promise<void> {
 
     // With no backend configured, unauthenticated app-state requests must be rejected
     // by the authentication boundary rather than surfacing as a generic upstream 502.
+    console.log('worker-test: begin unauthenticatedAppState');
     const unauthenticatedAppState = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
@@ -511,6 +549,8 @@ async function run(): Promise<void> {
     assert.equal(unauthenticatedAppState.status, 401);
     assert.equal(await unauthenticatedAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
     assert.equal(capturedRequest, null, 'unauthenticated app-state must be rejected before upstream routing');
+
+    console.log('worker-test: begin emptyBearerAppState');
 
     const emptyBearerAppState = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
@@ -520,6 +560,8 @@ async function run(): Promise<void> {
     );
     assert.equal(emptyBearerAppState.status, 401, 'an empty bearer token is not a credential');
     assert.equal(await emptyBearerAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
+
+    console.log('worker-test: begin unrelatedCookieAppState');
 
     const unrelatedCookieAppState = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
@@ -531,6 +573,7 @@ async function run(): Promise<void> {
     assert.equal(await unrelatedCookieAppState.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
 
     for (const cookie of ['session', 'session=', 'session=   ', 'auth-token=', 'access-token']) {
+      console.log('worker-test: begin emptySessionCookie');
       const emptySessionCookie = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
           headers: { Cookie: cookie },
@@ -541,6 +584,8 @@ async function run(): Promise<void> {
       assert.equal(await emptySessionCookie.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
     }
 
+    console.log('worker-test: begin exactSessionCookieWithoutBackend');
+
     const exactSessionCookieWithoutBackend = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
         headers: { Cookie: 'session=test-value' },
@@ -549,6 +594,8 @@ async function run(): Promise<void> {
     );
     assert.equal(exactSessionCookieWithoutBackend.status, 502);
     assert.equal(await exactSessionCookieWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+
+    console.log('worker-test: begin credentialedAppStateWithoutBackend');
 
     const credentialedAppStateWithoutBackend = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
@@ -564,6 +611,7 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     capturedRequest = null;
+    console.log('worker-test: begin configuredBackendResponse');
     const configuredBackendResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/configurable-backend?mode=probe'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test' },
@@ -572,6 +620,7 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().url, 'https://api.example.test/api/configurable-backend?mode=probe');
 
     capturedRequest = null;
+    console.log('worker-test: begin missingBackendAllowlist');
     const missingBackendAllowlist = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/allowlist-missing'),
       { ...env, GLORIFIER_BACKEND_ALLOWED_HOSTS: undefined },
@@ -579,6 +628,8 @@ async function run(): Promise<void> {
     assert.equal(missingBackendAllowlist.status, 502);
     assert.equal(await missingBackendAllowlist.json().then((body: { code?: string }) => body.code), 'BACKEND_EGRESS_ALLOWLIST_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'backend egress must fail closed if no explicit allowlist exists');
+
+    console.log('worker-test: begin nonAllowlistedBackend');
 
     const nonAllowlistedBackend = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/host-not-allowed'),
@@ -589,6 +640,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'backend requests must not reach hosts outside the exact allowlist');
 
     capturedRequest = null;
+    console.log('worker-test: begin invalidBackendResponse');
     const invalidBackendResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/invalid-backend-config'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: 'http://insecure.example.test' },
@@ -596,6 +648,8 @@ async function run(): Promise<void> {
     assert.equal(invalidBackendResponse.status, 502);
     assert.equal(await invalidBackendResponse.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_INVALID');
     assert.equal(capturedRequest, null, 'invalid backend origins must fail closed without making a request');
+
+    console.log('worker-test: begin nonstandardBackendPort');
 
     const nonstandardBackendPort = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/nonstandard-port'),
@@ -609,6 +663,7 @@ async function run(): Promise<void> {
       status: 404,
       headers: { 'Content-Type': 'application/json' },
     });
+    console.log('worker-test: begin missingRoute');
     const missingRoute = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/route-that-does-not-exist'),
       env,
@@ -620,6 +675,7 @@ async function run(): Promise<void> {
       status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
+    console.log('worker-test: begin htmlApiResponse');
     const htmlApiResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/misrouted-endpoint'),
       env,
@@ -631,6 +687,7 @@ async function run(): Promise<void> {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
+    console.log('worker-test: begin postResponse');
     const postResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-write', {
         method: 'POST',
@@ -650,6 +707,7 @@ async function run(): Promise<void> {
         Location: '/api/items/123',
       },
     });
+    console.log('worker-test: begin createdResource');
     const createdResource = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/items', {
         method: 'POST',
@@ -670,6 +728,7 @@ async function run(): Promise<void> {
       },
     });
     const assetCallsBeforeAuth = assetCalls;
+    console.log('worker-test: begin authRedirect');
     const authRedirect = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
       env,
@@ -693,6 +752,7 @@ async function run(): Promise<void> {
         Location: 'https://api.example.test/auth/broker/callback?state=approved&next=https%3A%2F%2Fevil.example#untrusted-fragment',
       },
     });
+    console.log('worker-test: begin sanitizedAuthRedirect');
     const sanitizedAuthRedirect = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
       env,
@@ -708,6 +768,7 @@ async function run(): Promise<void> {
       status: 302,
       headers: { Location: 'https://api.example.test/internal/admin?next=https://evil.example' },
     });
+    console.log('worker-test: begin blockedInternalRedirect');
     const blockedInternalRedirect = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
       env,
@@ -723,6 +784,7 @@ async function run(): Promise<void> {
       status: 302,
       headers: { Location: 'https://login.example.test/oauth/authorize?client_id=glorifier' },
     });
+    console.log('worker-test: begin blockedExternalRedirect');
     const blockedExternalRedirect = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
       env,
@@ -732,6 +794,8 @@ async function run(): Promise<void> {
       await blockedExternalRedirect.json().then((body: { code?: string }) => body.code),
       'BACKEND_REDIRECT_NOT_ALLOWED',
     );
+
+    console.log('worker-test: begin allowedExternalRedirect');
 
     const allowedExternalRedirect = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
@@ -752,6 +816,7 @@ async function run(): Promise<void> {
       'https://api.example.test/auth/broker/callback?state=one&state=two',
     ]) {
       upstreamResponse = new Response(null, { status: 302, headers: { Location: rejectedLocation } });
+      console.log('worker-test: begin rejectedRedirect');
       const rejectedRedirect = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/auth/provider/start'),
         { ...env, GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS: 'login.example.test' },
@@ -769,6 +834,7 @@ async function run(): Promise<void> {
     // never be interpreted as an absolute URL by the upstream request constructor.
     capturedRequest = null;
     const assetCallsBeforeDoubleSlashPath = assetCalls;
+    console.log('worker-test: begin doubleSlashPath');
     const doubleSlashPath = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev//attacker.example/steal?host=evil'),
       env,
@@ -782,6 +848,7 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     capturedRequest = null;
+    console.log('worker-test: begin upstreamQueryCannotChangeHost');
     const upstreamQueryCannotChangeHost = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-routing?target=https%3A%2F%2Fevil.example%2Fpath'),
       env,
@@ -798,6 +865,8 @@ async function run(): Promise<void> {
     upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
     const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
 
+    console.log('worker-test: begin openSeaServerError');
+
     const openSeaServerError = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -808,6 +877,7 @@ async function run(): Promise<void> {
     assert.equal('upstreamStatus' in openSeaServerErrorBody, false, 'provider internals must not be disclosed');
 
     shouldThrow = true;
+    console.log('worker-test: begin unavailable');
     const unavailable = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/test-unavailable'),
       env,
@@ -818,14 +888,19 @@ async function run(): Promise<void> {
 
     // Neural adapter exposes only the three documented routes, never a generic proxy.
     capturedRequest = null;
+    console.log('worker-test: begin neuralNotConfigured');
     const neuralNotConfigured = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: undefined });
     assert.equal(neuralNotConfigured.status, 503);
     assert.equal(await neuralNotConfigured.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_CONFIGURED');
     assert.equal(capturedRequest, null);
 
+    console.log('worker-test: begin neuralInvalidOrigin');
+
     const neuralInvalidOrigin = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/health'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'http://neural.example.test' });
     assert.equal(neuralInvalidOrigin.status, 503);
     assert.equal(await neuralInvalidOrigin.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
+
+    console.log('worker-test: begin neuralNonstandardPort');
 
     const neuralNonstandardPort = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
@@ -835,6 +910,7 @@ async function run(): Promise<void> {
     assert.equal(await neuralNonstandardPort.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_INVALID');
 
     capturedRequest = null;
+    console.log('worker-test: begin neuralMissingAllowlist');
     const neuralMissingAllowlist = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
       { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_NEURAL_ALLOWED_HOSTS: undefined },
@@ -842,6 +918,8 @@ async function run(): Promise<void> {
     assert.equal(neuralMissingAllowlist.status, 503);
     assert.equal(await neuralMissingAllowlist.json().then((body: { code?: string }) => body.code), 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'Neural egress must fail closed without an allowlist');
+
+    console.log('worker-test: begin neuralHostNotAllowed');
 
     const neuralHostNotAllowed = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
@@ -851,12 +929,15 @@ async function run(): Promise<void> {
     assert.equal(await neuralHostNotAllowed.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_ALLOWLISTED');
     assert.equal(capturedRequest, null, 'Neural requests must not reach hosts outside the exact allowlist');
 
+    console.log('worker-test: begin neuralTaskNoAuth');
+
     const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralTaskNoAuth.status, 401);
     assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
     capturedRequest = null;
     const declaredOversizeBody = new Uint8Array(65_536 + 1);
+    console.log('worker-test: begin declaredOversizeTask');
     const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: {
@@ -872,6 +953,7 @@ async function run(): Promise<void> {
 
     capturedRequest = null;
     const streamedOversizeBody = new Uint8Array(65_536 + 1);
+    console.log('worker-test: begin streamedOversizeTask');
     const streamedOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
@@ -882,6 +964,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'oversized streamed bodies must never reach Neural');
 
     capturedRequest = null;
+    console.log('worker-test: begin unsupportedTaskMediaType');
     const unsupportedTaskMediaType = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'text/plain' },
@@ -892,6 +975,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'non-JSON task bodies must never reach Neural');
 
     capturedRequest = null;
+    console.log('worker-test: begin malformedJsonTask');
     const malformedJsonTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
@@ -902,6 +986,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'malformed JSON must never reach Neural');
 
     upstreamResponse = new Response('{"status":"not-ready"}', { status: 503, headers: { 'Content-Type': 'application/json', 'Set-Cookie': 'must-not-forward=yes' } });
+    console.log('worker-test: begin neuralReady');
     const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
     assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
@@ -911,6 +996,7 @@ async function run(): Promise<void> {
 
     upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
     const callerCorrelationId = '550e8400-e29b-41d4-a716-446655440000';
+    console.log('worker-test: begin neuralTask');
     const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
       headers: {
@@ -927,6 +1013,8 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer caller-token', 'caller token must be forwarded unchanged');
     assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 
+    console.log('worker-test: begin neuralUnknown');
+
     const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
     assert.equal(neuralUnknown.status, 404, 'unmapped Neural namespace paths must not fall through to the legacy backend');
     assert.equal(await neuralUnknown.json().then((body: { code?: string }) => body.code), 'NEURAL_ROUTE_NOT_FOUND');
@@ -939,6 +1027,7 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     capturedRequest = null;
+    console.log('worker-test: begin openSeaCollection');
     const openSeaCollection = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -951,6 +1040,7 @@ async function run(): Promise<void> {
     assert.equal(JSON.stringify(await openSeaCollection.json()).includes('test-opensea-key'), false);
 
     capturedRequest = null;
+    console.log('worker-test: begin openSeaMissingKey');
     const openSeaMissingKey = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       { ...env, OPENSEA_API_KEY: undefined } as TestEnv & { OPENSEA_API_KEY?: string },
@@ -958,6 +1048,8 @@ async function run(): Promise<void> {
     assert.equal(openSeaMissingKey.status, 503);
     assert.equal(await openSeaMissingKey.json().then((body: { code?: string }) => body.code), 'OPENSEA_API_KEY_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'OpenSea requests must fail closed when the API key is absent');
+
+    console.log('worker-test: begin openSeaInvalidSlug');
 
     const openSeaInvalidSlug = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/INVALID_SLUG'),
@@ -968,6 +1060,7 @@ async function run(): Promise<void> {
 
     // Account routes must be handled before the collection-only OpenSea adapter.
     capturedRequest = null;
+    console.log('worker-test: begin openSeaInvalidAccountRoute');
     const openSeaInvalidAccountRoute = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/invalid%20name'),
       openSeaEnv,
@@ -975,6 +1068,8 @@ async function run(): Promise<void> {
     assert.equal(openSeaInvalidAccountRoute.status, 400);
     assert.equal(await openSeaInvalidAccountRoute.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER');
     assert.equal(capturedRequest, null, 'invalid account identifiers must be rejected locally');
+
+    console.log('worker-test: begin openSeaInvalidAccountCollectionsRoute');
 
     const openSeaInvalidAccountCollectionsRoute = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/invalid%20name/collections'),
@@ -986,6 +1081,7 @@ async function run(): Promise<void> {
 
     // Only explicitly registered GLORIFIER collection slugs may reach OpenSea.
     capturedRequest = null;
+    console.log('worker-test: begin openSeaUnregisteredSlug');
     const openSeaUnregisteredSlug = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/a'),
       openSeaEnv,
@@ -993,6 +1089,8 @@ async function run(): Promise<void> {
     assert.equal(openSeaUnregisteredSlug.status, 404);
     assert.equal(await openSeaUnregisteredSlug.json().then((body: { code?: string }) => body.code), 'OPENSEA_ROUTE_NOT_FOUND');
     assert.equal(capturedRequest, null, 'unregistered collection slugs must not reach OpenSea');
+
+    console.log('worker-test: begin openSeaWrongMethod');
 
     const openSeaWrongMethod = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'POST' }),
@@ -1005,6 +1103,7 @@ async function run(): Promise<void> {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
+    console.log('worker-test: begin openSeaUnauthorized');
     const openSeaUnauthorized = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -1017,6 +1116,7 @@ async function run(): Promise<void> {
       status: 429,
       headers: { 'Content-Type': 'application/json', 'Retry-After': '7' },
     });
+    console.log('worker-test: begin openSeaRateLimited');
     const openSeaRateLimited = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -1026,6 +1126,7 @@ async function run(): Promise<void> {
     assert.equal(await openSeaRateLimited.json().then((body: { code?: string }) => body.code), 'OPENSEA_RATE_LIMITED');
 
     upstreamResponse = new Response(JSON.stringify({ collection: 'missing' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    console.log('worker-test: begin openSeaNotFound');
     const openSeaNotFound = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier1'),
       openSeaEnv,
@@ -1034,6 +1135,7 @@ async function run(): Promise<void> {
     assert.equal(await openSeaNotFound.json().then((body: { code?: string }) => body.code), 'OPENSEA_COLLECTION_NOT_FOUND');
 
     upstreamResponse = new Response(JSON.stringify({ collection: 'glorifier7' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    console.log('worker-test: begin openSeaHead');
     const openSeaHead = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7', { method: 'HEAD' }),
       openSeaEnv,
@@ -1043,6 +1145,7 @@ async function run(): Promise<void> {
     assert.equal(openSeaHead.headers.get('content-type'), 'application/json');
 
     upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    console.log('worker-test: begin openSeaInvalidContentType');
     const openSeaInvalidContentType = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -1051,6 +1154,7 @@ async function run(): Promise<void> {
     assert.equal(await openSeaInvalidContentType.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_RESPONSE');
 
     upstreamResponse = new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    console.log('worker-test: begin openSeaOversized');
     const openSeaOversized = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -1059,6 +1163,7 @@ async function run(): Promise<void> {
     assert.equal(await openSeaOversized.json().then((body: { code?: string }) => body.code), 'OPENSEA_RESPONSE_TOO_LARGE');
 
     shouldThrow = true;
+    console.log('worker-test: begin openSeaUnavailable');
     const openSeaUnavailable = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -1078,6 +1183,7 @@ async function run(): Promise<void> {
       }),
     ];
     capturedRequest = null;
+    console.log('worker-test: begin glorifierCollections');
     const glorifierCollections = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=10'),
       openSeaEnv,
@@ -1101,6 +1207,7 @@ async function run(): Promise<void> {
         status: 200, headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin wrongAccountIdentity');
     const wrongAccountIdentity = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
       openSeaEnv,
@@ -1111,6 +1218,7 @@ async function run(): Promise<void> {
 
     upstreamResponses = [];
     capturedRequest = null;
+    console.log('worker-test: begin missingOpenSeaAccountKey');
     const missingOpenSeaAccountKey = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
       { ...env, OPENSEA_API_KEY: undefined } as TestEnv & { OPENSEA_API_KEY?: string },
@@ -1119,6 +1227,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'account resolution must fail closed without the API key');
 
     upstreamResponses = [];
+    console.log('worker-test: begin invalidAccountLimit');
     const invalidAccountLimit = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=51'),
       openSeaEnv,
@@ -1129,6 +1238,7 @@ async function run(): Promise<void> {
     upstreamResponses = [
       new Response(JSON.stringify({ detail: 'not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }),
     ];
+    console.log('worker-test: begin missingOpenSeaAccount');
     const missingOpenSeaAccount = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
       openSeaEnv,
@@ -1138,6 +1248,7 @@ async function run(): Promise<void> {
 
     upstreamResponses = [];
     capturedRequest = null;
+    console.log('worker-test: begin invalidAccountIdentifier');
     const invalidAccountIdentifier = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%2Fbad/collections'),
       openSeaEnv,
@@ -1157,6 +1268,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin openSeaAccountCollections');
     const openSeaAccountCollections = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=25&after=cursor-one'),
       openSeaEnv,
@@ -1188,6 +1300,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin openSeaAccountMismatch');
     const openSeaAccountMismatch = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections'),
       openSeaEnv,
@@ -1199,6 +1312,7 @@ async function run(): Promise<void> {
 
     // Account identifiers and pagination inputs are validated before any provider call.
     const openSeaInvalidLimitStart = requestedUrls.length;
+    console.log('worker-test: begin openSeaInvalidLimit');
     const openSeaInvalidLimit = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/collections?limit=0'),
       openSeaEnv,
@@ -1206,6 +1320,8 @@ async function run(): Promise<void> {
     assert.equal(openSeaInvalidLimit.status, 400);
     assert.equal(await openSeaInvalidLimit.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_PAGE_LIMIT');
     assert.equal(requestedUrls.length, openSeaInvalidLimitStart);
+
+    console.log('worker-test: begin openSeaInvalidAccount');
 
     const openSeaInvalidAccount = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER%2Fother/collections'),
@@ -1222,6 +1338,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin openSeaResolvedAccount');
     const openSeaResolvedAccount = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1243,6 +1360,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin reservedUsernameCollections');
     const reservedUsernameCollections = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/collections?limit=5'),
       openSeaEnv,
@@ -1267,6 +1385,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json' },
       }),
     ];
+    console.log('worker-test: begin encodedUsernameCollections');
     const encodedUsernameCollections = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%47LORIFIER/collections?limit=5'),
       openSeaEnv,
@@ -1280,12 +1399,15 @@ async function run(): Promise<void> {
     openSeaResponseQueue = null;
 
     // Malformed percent escapes fail closed, and HEAD route errors never include a body.
+    console.log('worker-test: begin malformedEncodedHead');
     const malformedEncodedHead = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%E0%A4%A/unknown', { method: 'HEAD' }),
       openSeaEnv,
     );
     assert.equal(malformedEncodedHead.status, 400);
     assert.equal(await malformedEncodedHead.text(), '');
+
+    console.log('worker-test: begin missingAccountRouteHead');
 
     const missingAccountRouteHead = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/unknown', { method: 'HEAD' }),
@@ -1298,6 +1420,7 @@ async function run(): Promise<void> {
     openSeaResponseQueue = [
       new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } }),
     ];
+    console.log('worker-test: begin missingCollectionsAccount');
     const missingCollectionsAccount = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/NO_SUCH_ACCOUNT/collections'),
       openSeaEnv,
@@ -1310,6 +1433,7 @@ async function run(): Promise<void> {
     openSeaResponseQueue = [
       new Response('unauthorized', { status: 401, headers: { 'Content-Type': 'text/plain' } }),
     ];
+    console.log('worker-test: begin accountHeadError');
     const accountHeadError = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER', { method: 'HEAD' }),
       openSeaEnv,
@@ -1325,6 +1449,7 @@ async function run(): Promise<void> {
         headers: { 'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT' },
       }),
     ];
+    console.log('worker-test: begin accountRetryAfterDate');
     const accountRetryAfterDate = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1340,6 +1465,7 @@ async function run(): Promise<void> {
         headers: { 'Content-Type': 'application/json-seq' },
       }),
     ];
+    console.log('worker-test: begin invalidJsonSequence');
     const invalidJsonSequence = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1352,6 +1478,7 @@ async function run(): Promise<void> {
     const openSeaTimeout = new Error('simulated OpenSea request timeout');
     openSeaTimeout.name = 'TimeoutError';
     openSeaFetchError = openSeaTimeout;
+    console.log('worker-test: begin openSeaTimedOut');
     const openSeaTimedOut = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1365,6 +1492,7 @@ async function run(): Promise<void> {
       openSeaResponseQueue = [
         new Response('rate limited', { status: 429, headers: { 'Retry-After': invalidRetryAfter } }),
       ];
+      console.log('worker-test: begin malformedRetryAfter');
       const malformedRetryAfter = await worker.fetch(
         new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
         openSeaEnv,
@@ -1376,6 +1504,7 @@ async function run(): Promise<void> {
 
     // A non-timeout network failure remains a 502 and is not mislabeled as a timeout.
     openSeaFetchError = new Error('simulated OpenSea network failure');
+    console.log('worker-test: begin openSeaUnavailableAccount');
     const openSeaUnavailableAccount = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1388,6 +1517,7 @@ async function run(): Promise<void> {
     openSeaResponseQueue = [
       new Response('{invalid', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     ];
+    console.log('worker-test: begin malformedAccountJson');
     const malformedAccountJson = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
@@ -1399,6 +1529,7 @@ async function run(): Promise<void> {
     openSeaResponseQueue = [
       new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } }),
     ];
+    console.log('worker-test: begin oversizedAccountJson');
     const oversizedAccountJson = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
       openSeaEnv,
