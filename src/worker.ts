@@ -274,7 +274,7 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
   }
   if (upstream.status === 429) {
     const retryAfter = upstream.headers.get('retry-after');
-    const validRetryAfter = retryAfter && (/^\\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter)))
+    const validRetryAfter = retryAfter && (/^\d+$/.test(retryAfter) || !Number.isNaN(Date.parse(retryAfter)))
       ? retryAfter
       : null;
     const retryHeaders = validRetryAfter ? { ...headers, 'Retry-After': validRetryAfter } : headers;
@@ -283,7 +283,7 @@ const openSeaReadJson = async (endpoint: URL, apiKey: string): Promise<OpenSeaRe
   if (!upstream.ok) {
     return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers }) };
   }
-  if (!/^application\\/(?:[a-z0-9.+-]*\\+)?json(?:\\s*;|$)/i.test(upstream.headers.get('content-type') || '')) {
+  if (!/^application\/(?:[a-z0-9.+-]*\+)?json(?:\s*;|$)/i.test(upstream.headers.get('content-type') || '')) {
     return { ok: false, response: Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers }) };
   }
   try {
