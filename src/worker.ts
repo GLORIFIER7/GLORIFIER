@@ -906,6 +906,8 @@ export default {
       const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
       if (!slug || slug.includes('/')) {
         return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+      }
+    }
     // Account routes must precede the collection adapter so they remain reachable.
     const openSeaAccountsPrefix = '/api/opensea/accounts/';
     if (incomingUrl.pathname.startsWith(openSeaAccountsPrefix)) {
