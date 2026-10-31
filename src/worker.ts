@@ -867,9 +867,7 @@ export default {
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
     }
 
-    // OpenSea routes are Worker-native, read-only, and restricted to registered collection slugs.
-    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
-      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
+    // Account routes must precede the collection adapter so they remain reachable.
     const openSeaAccountsPrefix = '/api/opensea/accounts/';
     if (incomingUrl.pathname.startsWith(openSeaAccountsPrefix)) {
       const segments = incomingUrl.pathname.slice(openSeaAccountsPrefix.length).split('/');
@@ -902,6 +900,12 @@ export default {
         return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
       }
       return openSeaCollectionResponse(request, slug, env);
+    }
+
+    // The generic OpenSea adapter owns only its health probe and root namespace.
+    // Account and registered collection routes above retain their dedicated handlers.
+    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname === '/api/opensea/health') {
+      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
