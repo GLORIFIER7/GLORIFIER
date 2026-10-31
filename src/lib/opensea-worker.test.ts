@@ -118,7 +118,7 @@ async function testConfigurationAndRouteGuards(): Promise<void> {
   capturedRequest = null;
   const invalidMethod = await request('/api/opensea/health', { method: 'POST' });
   await expectProviderFailure(invalidMethod, 405, 'METHOD_NOT_ALLOWED');
-  assert.equal(invalidMethod.headers.get('allow'), 'GET');
+  assert.equal(invalidMethod.headers.get('allow'), 'GET, HEAD');
   assert.equal(invalidMethod.headers.get('cache-control'), 'no-store');
   assert.equal(invalidMethod.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(capturedRequest, null);
