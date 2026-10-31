@@ -10,7 +10,7 @@ on:
       - .github/workflows/geas-dependency-remediation.yml
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: geas-dependency-remediation-${{ github.ref }}
@@ -63,15 +63,17 @@ jobs:
           npm run test:interoperability-registry
           npm run validate:geas-architecture
 
-      - name: Commit verified lockfile only
+      - name: Prepare dependency evidence
         run: |
           git diff --exit-code -- package.json
-          if ! git diff --quiet -- package-lock.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "fix: resolve vulnerable rimraf glob dependency tree"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          else
-            echo "Lockfile already resolves the audited dependency tree."
-          fi
+          npm ls glob minimatch --all --json > dependency-tree.json
+
+      - name: Upload validated lockfile and dependency tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-package-lock
+          path: |
+            package-lock.json
+            dependency-tree.json
+          if-no-files-found: error
+          retention-days: 7
