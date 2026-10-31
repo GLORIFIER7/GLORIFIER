@@ -1,0 +1,77 @@
+name: GEAS dependency remediation validation
+
+on:
+  push:
+    branches:
+      - geas/owasp-agentic-threat-pattern-2026-10-31
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/geas-dependency-remediation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: geas-dependency-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dependency-remediation:
+    name: Resolve and verify patched transitive dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate lockfile from scoped override
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Install exact lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Audit complete dependency tree
+        run: |
+          npm audit --audit-level=low
+          npm ls glob minimatch --all
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Build application bundles
+        run: npm run build
+
+      - name: Run GEAS source, evidence, cache, FOCUS, OTel and drift regression tests
+        run: |
+          npm run test:geas-scientist
+          npm run test:geas-focus-invoice-reconciliation
+          npm run test:geas-claim-verification
+          npm run test:otel-runtime-verification
+          npm run test:geas-state-reconciliation
+          npm run test:geas-run-provenance
+          npm run test:cloudflare-worker
+          npm run test:interoperability-registry
+          npm run validate:geas-architecture
+
+      - name: Commit verified lockfile only
+        run: |
+          git diff --exit-code -- package.json
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "fix: resolve vulnerable rimraf glob dependency tree"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "Lockfile already resolves the audited dependency tree."
+          fi
