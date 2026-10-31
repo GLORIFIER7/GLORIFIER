@@ -787,6 +787,8 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
+
     const openSeaServerError = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -924,7 +926,6 @@ async function run(): Promise<void> {
 
 
     // OpenSea public collection lookup uses the application API key only.
-    const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
     upstreamResponse = new Response(JSON.stringify({ collection: 'glorifier7', name: 'GLORIFIER' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
