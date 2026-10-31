@@ -250,6 +250,64 @@ async function testCollectionCacheHitAndHead(): Promise<void> {
   assert.equal(capturedRequest, null);
 }
 
+async function testHeadCacheMissPopulatesGetCache(): Promise<void> {
+  const cache = createMemoryCache();
+  setResponse(new Response(JSON.stringify({ collection: 'glorifier1', name: 'GLORIFIER' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+
+  const head = await openSeaWorkerRoute(
+    new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
+    '/api/opensea/collections/glorifier1',
+    env,
+    cache.edgeCache,
+  );
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  assert.equal(cache.puts, 1, 'a validated HEAD miss should populate the shared GET cache entry');
+
+  capturedRequest = null;
+  setResponse(new Response('provider must not be reached', { status: 500 }));
+  const get = await openSeaWorkerRoute(
+    new Request('https://glorifier.test/api/opensea/collections/glorifier1'),
+    '/api/opensea/collections/glorifier1',
+    env,
+    cache.edgeCache,
+  );
+  assert.equal(get.status, 200);
+  assert.equal((await get.json() as { data: { name: string } }).data.name, 'GLORIFIER');
+  assert.equal(capturedRequest, null, 'a GET after a HEAD cache miss must reuse the cached GET representation');
+  assert.equal(cache.puts, 1);
+}
+
+async function testFragmentedResponseWithinByteLimitIsAccepted(): Promise<void> {
+  const payload = JSON.stringify({ collection: 'glorifier7', name: 'x'.repeat(20_000) });
+  const bytes = new TextEncoder().encode(payload);
+  assert.ok(bytes.byteLength < 1_048_576, 'fixture must remain below the documented byte limit');
+  let offset = 0;
+  const fragmentedBody = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.byteLength) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(bytes.subarray(offset, offset + 1));
+      offset += 1;
+    },
+  });
+  setResponse(new Response(fragmentedBody, {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+
+  const response = await request('/api/opensea/health');
+  assert.equal(response.status, 200, 'valid JSON below 1 MiB must not be rejected based on stream chunk count');
+  const body = await response.json() as { ok: boolean; status: string };
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'connected');
+}
+
 async function testProviderErrorsAreNotCached(): Promise<void> {
   const cache = createMemoryCache();
   setResponse(new Response('rate limited', { status: 429, headers: { 'Retry-After': '7' } }));
@@ -306,6 +364,8 @@ async function testHeadErrorResponsesAreBodyless(): Promise<void> {
 
 async function testValidatedCacheAndHeadSemantics(): Promise<void> {
   await testCollectionCacheHitAndHead();
+  await testHeadCacheMissPopulatesGetCache();
+  await testFragmentedResponseWithinByteLimitIsAccepted();
   await testProviderErrorsAreNotCached();
   await testHealthProbesBypassCache();
   await testHeadErrorResponsesAreBodyless();
