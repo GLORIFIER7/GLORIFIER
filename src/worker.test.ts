@@ -1192,11 +1192,11 @@ async function run(): Promise<void> {
     assert.equal(glorifierCollections.status, 200);
     const glorifierCollectionsBody = await glorifierCollections.json() as {
       account?: { address?: string; username?: string };
-      collections?: { collections?: Array<{ collection?: string }> };
+      collections?: Array<{ collection?: string }>;
     };
     assert.equal(glorifierCollectionsBody.account?.username, 'GLORIFIER');
     assert.equal(glorifierCollectionsBody.account?.address, '0xAbCd000000000000000000000000000000001234');
-    assert.equal(glorifierCollectionsBody.collections?.collections?.[0]?.collection, 'glorifier-services');
+    assert.equal(glorifierCollectionsBody.collections?.[0]?.collection, 'glorifier-services');
     assert.deepEqual(requestedUrls.slice(-2), [
       'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER',
       'https://api.opensea.io/api/v2/account/0xAbCd000000000000000000000000000000001234/collections?limit=10',
