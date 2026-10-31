@@ -1413,7 +1413,9 @@ async function run(): Promise<void> {
   }
 }
 
-void run().catch((error) => {
+try {
+  await run();
+} catch (error) {
   console.error(error);
   process.exitCode = 1;
-});
+}
