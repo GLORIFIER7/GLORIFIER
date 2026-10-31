@@ -179,13 +179,13 @@ export const openSeaWorkerRoute = async (
   }
 
   // Health probes always call OpenSea directly; public metadata may use only validated cached responses.
-  const cacheKey = !isHealthProbe && request.method === 'GET'
+  const cacheKey = !isHealthProbe
     ? new Request(new URL(pathname, request.url), { method: 'GET' })
     : undefined;
   if (cacheKey && edgeCache) {
     try {
       const cached = await edgeCache.match(cacheKey);
-      if (cached) return cached;
+      if (cached) return responseForRequest(cached);
     } catch {
       // A cache miss/failure must not make public metadata unavailable.
     }
