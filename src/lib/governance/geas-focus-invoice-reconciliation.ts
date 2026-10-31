@@ -14,6 +14,8 @@ export type FocusInvoiceReconciliationStatus = 'RECONCILED' | 'VARIANCE' | 'UNKN
 export interface FocusInvoiceCharge {
   invoiceIssuerName: string;
   invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
   invoiceDetailId?: string | null;
   chargeCategory: string;
   billingCurrency: string;
@@ -23,6 +25,8 @@ export interface FocusInvoiceCharge {
 export interface FocusInvoiceReconciliationInput {
   invoiceIssuerName: string;
   invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
   billingCurrency: string;
   costAndUsage: readonly FocusInvoiceCharge[];
   invoiceDetail: readonly FocusInvoiceCharge[];
@@ -48,6 +52,8 @@ export interface FocusInvoiceReconciliationResult {
   reconciliationBasis: 'non-tax-line-items-only';
   invoiceIssuerName: string | null;
   invoiceId: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
   billingCurrency: string | null;
   roundingTolerance: string | null;
   costAndUsageNonTaxTotal: string | null;
@@ -62,6 +68,8 @@ export interface FocusInvoiceReconciliationResult {
 interface NormalizedCharge {
   invoiceIssuerName: string;
   invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
   invoiceDetailId: string | null;
   chargeCategory: string;
   billingCurrency: string;
@@ -75,6 +83,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function textValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
+function utcTimestamp(value: unknown): number | null {
+  const timestamp = textValue(value);
+  if (!timestamp || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(timestamp)) return null;
+  const milliseconds = Date.parse(timestamp);
+  if (!Number.isFinite(milliseconds)) return null;
+  return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === timestamp ? milliseconds : null;
 }
 
 function decimalScale(value: unknown): number | null {
@@ -117,6 +134,8 @@ function isTax(row: NormalizedCharge): boolean {
 function unknownResult(
   invoiceIssuerName: string | null,
   invoiceId: string | null,
+  billingPeriodStart: string | null,
+  billingPeriodEnd: string | null,
   billingCurrency: string | null,
   roundingTolerance: string | null,
   reasons: string[],
@@ -129,6 +148,8 @@ function unknownResult(
     reconciliationBasis: 'non-tax-line-items-only',
     invoiceIssuerName,
     invoiceId,
+    billingPeriodStart,
+    billingPeriodEnd,
     billingCurrency,
     roundingTolerance,
     costAndUsageNonTaxTotal: null,
@@ -146,6 +167,8 @@ function normalizeRows(
   datasetName: 'CostAndUsage' | 'InvoiceDetail',
   invoiceIssuerName: string,
   invoiceId: string,
+  billingPeriodStart: string,
+  billingPeriodEnd: string,
   billingCurrency: string,
   reasons: string[],
 ): NormalizedCharge[] {
@@ -158,6 +181,8 @@ function normalizeRows(
     }
     const issuer = textValue(row.invoiceIssuerName);
     const id = textValue(row.invoiceId);
+    const rowPeriodStart = textValue(row.billingPeriodStart);
+    const rowPeriodEnd = textValue(row.billingPeriodEnd);
     const category = textValue(row.chargeCategory);
     const currency = textValue(row.billingCurrency);
     const amount = textValue(row.billedCost);
@@ -166,8 +191,18 @@ function normalizeRows(
       ? null
       : textValue(detailIdValue);
 
-    if (!issuer || !id || !category || !currency || !amount || decimalScale(amount) === null) {
+    if (!issuer || !id || !rowPeriodStart || !rowPeriodEnd || !category || !currency || !amount || decimalScale(amount) === null) {
       reasons.push(datasetName + ' row ' + index + ' has missing or invalid required fields');
+      return;
+    }
+    const rowPeriodStartMs = utcTimestamp(rowPeriodStart);
+    const rowPeriodEndMs = utcTimestamp(rowPeriodEnd);
+    if (rowPeriodStartMs === null || rowPeriodEndMs === null || rowPeriodStartMs >= rowPeriodEndMs) {
+      reasons.push(datasetName + ' row ' + index + ' has invalid FOCUS UTC billing-period bounds');
+      return;
+    }
+    if (rowPeriodStart !== billingPeriodStart || rowPeriodEnd !== billingPeriodEnd) {
+      reasons.push(datasetName + ' row ' + index + ' has a billing-period mismatch');
       return;
     }
     if (detailIdValue !== null && detailIdValue !== undefined && !detailId) {
@@ -185,6 +220,8 @@ function normalizeRows(
     rows.push({
       invoiceIssuerName: issuer,
       invoiceId: id,
+      billingPeriodStart: rowPeriodStart,
+      billingPeriodEnd: rowPeriodEnd,
       invoiceDetailId: detailId,
       chargeCategory: category,
       billingCurrency: currency,
@@ -195,9 +232,10 @@ function normalizeRows(
 }
 
 /**
- * Compare non-tax charges by InvoiceDetailId, aggregate granular usage rows,
- * and report invoice tax separately. Missing lineage or incomplete rows fail
- * closed as UNKNOWN; matched IDs with amounts outside tolerance become VARIANCE.
+ * Compare non-tax charges by InvoiceDetailId within one exact FOCUS billing
+ * period, aggregate granular usage rows, and report invoice tax separately.
+ * Missing lineage, invalid UTC period bounds or cross-period rows fail closed
+ * as UNKNOWN; matched IDs with amounts outside tolerance become VARIANCE.
  */
 export function reconcileFocusInvoice(
   input: FocusInvoiceReconciliationInput,
@@ -205,11 +243,17 @@ export function reconcileFocusInvoice(
   const record = asRecord(input);
   const issuer = textValue(record?.invoiceIssuerName);
   const invoiceId = textValue(record?.invoiceId);
+  const billingPeriodStart = textValue(record?.billingPeriodStart);
+  const billingPeriodEnd = textValue(record?.billingPeriodEnd);
+  const billingPeriodStartMs = utcTimestamp(billingPeriodStart);
+  const billingPeriodEndMs = utcTimestamp(billingPeriodEnd);
   const currency = textValue(record?.billingCurrency);
   const tolerance = textValue(record?.roundingTolerance);
   const reasons: string[] = [];
 
   if (!issuer || !invoiceId) reasons.push('invoice issuer and invoice ID are required');
+  if (billingPeriodStartMs === null || billingPeriodEndMs === null) reasons.push('billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ');
+  else if (billingPeriodStartMs >= billingPeriodEndMs) reasons.push('billing period end must be later than billing period start');
   if (!currency || !/^[A-Z]{3}$/.test(currency)) reasons.push('billing currency must be an uppercase three-letter code');
   const toleranceScale = decimalScale(tolerance);
   if (!tolerance || toleranceScale === null) reasons.push('an explicit decimal rounding tolerance is required');
@@ -222,16 +266,16 @@ export function reconcileFocusInvoice(
   if (usageValues.length === 0) reasons.push('CostAndUsage dataset is empty');
   if (detailValues.length === 0) reasons.push('InvoiceDetail dataset is empty');
 
-  if (reasons.length > 0 || !issuer || !invoiceId || !currency || !tolerance || toleranceScale === null) {
-    return unknownResult(issuer, invoiceId, currency, tolerance, reasons);
+  if (reasons.length > 0 || !issuer || !invoiceId || !billingPeriodStart || !billingPeriodEnd || !currency || !tolerance || toleranceScale === null) {
+    return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, reasons);
   }
 
-  const usageRows = normalizeRows(usageValues, 'CostAndUsage', issuer, invoiceId, currency, reasons);
-  const detailRows = normalizeRows(detailValues, 'InvoiceDetail', issuer, invoiceId, currency, reasons);
+  const usageRows = normalizeRows(usageValues, 'CostAndUsage', issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, reasons);
+  const detailRows = normalizeRows(detailValues, 'InvoiceDetail', issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, reasons);
   const allRows = [...usageRows, ...detailRows];
   const scales = allRows.map((row) => decimalScale(row.billedCost));
   if (scales.some((scale) => scale === null)) reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
-  if (reasons.length > 0) return unknownResult(issuer, invoiceId, currency, tolerance, reasons);
+  if (reasons.length > 0) return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, reasons);
 
   let scale = toleranceScale;
   for (const candidateScale of scales) {
@@ -253,7 +297,7 @@ export function reconcileFocusInvoice(
   if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
   if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
 
-  if (reasons.length > 0) return unknownResult(issuer, invoiceId, currency, formatUnits(decimalUnits(tolerance, scale), scale), reasons);
+  if (reasons.length > 0) return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, formatUnits(decimalUnits(tolerance, scale), scale), reasons);
 
   const sum = (rows: NormalizedCharge[]): bigint =>
     rows.reduce((total, row) => total + decimalUnits(row.billedCost, scale), 0n);
@@ -304,6 +348,8 @@ export function reconcileFocusInvoice(
     reconciliationBasis: 'non-tax-line-items-only',
     invoiceIssuerName: issuer,
     invoiceId,
+    billingPeriodStart,
+    billingPeriodEnd,
     billingCurrency: currency,
     roundingTolerance: formatUnits(toleranceUnits, scale),
     costAndUsageNonTaxTotal: formatUnits(sum(usageNonTaxRows), scale),
