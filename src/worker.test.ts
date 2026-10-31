@@ -10,6 +10,7 @@ let capturedRequest: Request | null = null;
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
 let openSeaResponseQueue: Response[] | null = null;
+let openSeaFetchError: Error | null = null;
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
   headers: { 'Content-Type': 'application/json' },
@@ -41,11 +42,13 @@ async function run(): Promise<void> {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
-    return upstreamResponses.shift() || upstreamResponse;
+    if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaFetchError) {
+      throw openSeaFetchError;
+    }
     if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
       return openSeaResponseQueue.shift() as Response;
     }
-    return upstreamResponse;
+    return upstreamResponses.shift() || upstreamResponse;
   }) as typeof fetch;
 
   try {
@@ -1226,6 +1229,131 @@ async function run(): Promise<void> {
     assert.equal(openSeaResolvedAccount.status, 200);
     assert.equal(await openSeaResolvedAccount.json().then((body: { account?: { username?: string } }) => body.account?.username), 'GLORIFIER');
     assert.equal(requestedUrls[openSeaResolveStart], 'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER');
+    openSeaResponseQueue = null;
+
+    // A username named "resolve" must still reach the owned-collections route.
+    const reservedUsernameStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'resolve', ens_name: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ collections: [{ collection: 'resolve-account-collection', name: 'Resolve Account Collection' }], next: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const reservedUsernameCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/collections?limit=5'),
+      openSeaEnv,
+    );
+    assert.equal(reservedUsernameCollections.status, 200);
+    assert.equal(await reservedUsernameCollections.json().then((body: { account?: { username?: string }; collections?: Array<{ collection?: string }> }) => body.account?.username), 'resolve');
+    assert.deepEqual(requestedUrls.slice(reservedUsernameStart), [
+      'https://api.opensea.io/api/v2/accounts/resolve/resolve',
+      'https://api.opensea.io/api/v2/account/0x1234567890abcdef1234567890abcdef12345678/collections?limit=5',
+    ]);
+    openSeaResponseQueue = null;
+
+    // HEAD requests must not leak a response body on upstream errors.
+    openSeaResponseQueue = [
+      new Response('unauthorized', { status: 401, headers: { 'Content-Type': 'text/plain' } }),
+    ];
+    const accountHeadError = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER', { method: 'HEAD' }),
+      openSeaEnv,
+    );
+    assert.equal(accountHeadError.status, 502);
+    assert.equal(await accountHeadError.text(), '');
+    openSeaResponseQueue = null;
+
+    // Retry-After may be a delay or an HTTP date; preserve a valid HTTP date.
+    openSeaResponseQueue = [
+      new Response('rate limited', {
+        status: 429,
+        headers: { 'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT' },
+      }),
+    ];
+    const accountRetryAfterDate = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(accountRetryAfterDate.status, 429);
+    assert.equal(accountRetryAfterDate.headers.get('retry-after'), 'Wed, 21 Oct 2015 07:28:00 GMT');
+    openSeaResponseQueue = null;
+
+    // JSON-seq is not a JSON document and must be rejected.
+    openSeaResponseQueue = [
+      new Response('{"address":"0x1234567890abcdef1234567890abcdef12345678","username":"GLORIFIER"}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json-seq' },
+      }),
+    ];
+    const invalidJsonSequence = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(invalidJsonSequence.status, 502);
+    assert.equal(await invalidJsonSequence.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_CONTENT_TYPE');
+    openSeaResponseQueue = null;
+
+    // Request timeouts are surfaced as HTTP 504 with a stable machine-readable code.
+    const openSeaTimeout = new Error('simulated OpenSea request timeout');
+    openSeaTimeout.name = 'TimeoutError';
+    openSeaFetchError = openSeaTimeout;
+    const openSeaTimedOut = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaTimedOut.status, 504);
+    assert.equal(await openSeaTimedOut.json().then((body: { code?: string }) => body.code), 'OPENSEA_REQUEST_TIMEOUT');
+    openSeaFetchError = null;
+
+    // Reject malformed Retry-After values rather than forwarding JavaScript Date.parse quirks.
+    for (const invalidRetryAfter of ['1.5', '-5', 'banana 1', 'Mon, 32 Nov 2015 07:28:00 GMT', 'Tue, 21 Oct 2015 07:28:00 GMT']) {
+      openSeaResponseQueue = [
+        new Response('rate limited', { status: 429, headers: { 'Retry-After': invalidRetryAfter } }),
+      ];
+      const malformedRetryAfter = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+        openSeaEnv,
+      );
+      assert.equal(malformedRetryAfter.status, 429);
+      assert.equal(malformedRetryAfter.headers.get('retry-after'), null, invalidRetryAfter);
+      openSeaResponseQueue = null;
+    }
+
+    // A non-timeout network failure remains a 502 and is not mislabeled as a timeout.
+    openSeaFetchError = new Error('simulated OpenSea network failure');
+    const openSeaUnavailableAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaUnavailableAccount.status, 502);
+    assert.equal(await openSeaUnavailableAccount.json().then((body: { code?: string }) => body.code), 'OPENSEA_UPSTREAM_UNAVAILABLE');
+    openSeaFetchError = null;
+
+    // Invalid JSON and oversized account responses fail closed with stable error codes.
+    openSeaResponseQueue = [
+      new Response('{invalid', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const malformedAccountJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(malformedAccountJson.status, 502);
+    assert.equal(await malformedAccountJson.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_RESPONSE');
+    openSeaResponseQueue = null;
+
+    openSeaResponseQueue = [
+      new Response('x'.repeat(1_048_577), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    ];
+    const oversizedAccountJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(oversizedAccountJson.status, 502);
+    assert.equal(await oversizedAccountJson.json().then((body: { code?: string }) => body.code), 'OPENSEA_RESPONSE_TOO_LARGE');
     openSeaResponseQueue = null;
 
     console.log('Cloudflare Worker proxy tests passed.');
