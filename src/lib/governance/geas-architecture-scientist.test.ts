@@ -241,4 +241,83 @@ if (!shouldReuseSourceObservation({
   nowMs: 1000 + 60 * 1000,
 })) throw new Error('a fresh, previously revalidated 304 cache row must be reusable within cadence');
 
+
+const invalidSourceObservationTimestamps = [
+  '01/01/1970 00:00:00',
+  '1970-01-01T00:00:00',
+  '1970-01-01 00:00:00Z',
+  '1970-01-01T00:00:00-00:00',
+  '1970-02-30T00:00:00Z',
+];
+for (const observedAt of invalidSourceObservationTimestamps) {
+  if (!isSourceObservationDue(24, observedAt, 1000)) {
+    throw new Error('non-canonical or impossible source timestamps must force a fresh fetch: ' + observedAt);
+  }
+}
+if (!isSourceObservationDue(24, new Date(0).toISOString(), Number.NaN)) {
+  throw new Error('an invalid source-observation clock must force a fresh fetch');
+}
+
+const malformedTimestampCache = {
+  ...cachedObservation,
+  observed_at: '01/01/1970 00:00:00',
+};
+if (shouldReuseSourceObservation({
+  configuredUrl: malformedTimestampCache.source_url,
+  cachedUrl: malformedTimestampCache.source_url,
+  ok: true,
+  status: malformedTimestampCache.status,
+  contentHash: malformedTimestampCache.content_hash,
+  evidenceExcerpt: malformedTimestampCache.evidence_excerpt,
+  evidenceStatus: malformedTimestampCache.evidence_status,
+  cadenceHours: 336,
+  observedAt: malformedTimestampCache.observed_at,
+  nowMs: 1000,
+})) throw new Error('ambiguous cached timestamps must never satisfy source cadence');
+
+if (Object.keys(buildConditionalRequestHeaders(
+  cachedObservation.source_url,
+  malformedTimestampCache,
+  1000,
+)).length !== 0) {
+  throw new Error('ambiguous cached timestamps must not seed conditional requests');
+}
+if (Object.keys(buildConditionalRequestHeaders(
+  cachedObservation.source_url,
+  cachedObservation,
+  Number.NaN,
+)).length !== 0) {
+  throw new Error('an invalid clock must suppress conditional request headers');
+}
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  malformedTimestampCache,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must reject ambiguous cached timestamps');
+
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  cachedObservation,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(-1000).toISOString(),
+  1000,
+) !== null) throw new Error('304 revalidation must not move observation time backwards');
+if (reuseNotModifiedSourceObservation(
+  { id: 'test-source', url: cachedObservation.source_url },
+  cachedObservation,
+  { finalUrl: cachedObservation.final_url, etag: '"v2"', lastModified: null },
+  new Date(1000).toISOString(),
+  Number.NaN,
+) !== null) throw new Error('304 revalidation must reject a non-finite validation clock');
+
+let invalidFetchClockRejected = false;
+try {
+  createSourceFetchContext(cachedObservation.source_url, cachedObservation, Number.NaN);
+} catch (error) {
+  invalidFetchClockRejected = error instanceof TypeError && /finite timestamp/.test(error.message);
+}
+if (!invalidFetchClockRejected) throw new Error('source fetch context must reject a non-finite clock explicitly');
+
 console.log('GEAS architecture scientist refinement tests passed');
