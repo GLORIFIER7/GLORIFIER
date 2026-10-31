@@ -10,6 +10,7 @@ let capturedRequest: Request | null = null;
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
 let openSeaResponseQueue: Response[] | null = null;
+let openSeaFetchError: Error | null = null;
 let upstreamResponse = new Response('{"ok":true}', {
   status: 200,
   headers: { 'Content-Type': 'application/json' },
@@ -41,6 +42,9 @@ async function run(): Promise<void> {
     if (shouldThrow) throw new Error('simulated upstream outage');
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
+    if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaFetchError) {
+      throw openSeaFetchError;
+    }
     if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
       return openSeaResponseQueue.shift() as Response;
     }
@@ -1292,6 +1296,32 @@ async function run(): Promise<void> {
     assert.equal(invalidJsonSequence.status, 502);
     assert.equal(await invalidJsonSequence.json().then((body: { code?: string }) => body.code), 'OPENSEA_INVALID_CONTENT_TYPE');
     openSeaResponseQueue = null;
+
+    // Request timeouts are surfaced as HTTP 504 with a stable machine-readable code.
+    const openSeaTimeout = new Error('simulated OpenSea request timeout');
+    openSeaTimeout.name = 'TimeoutError';
+    openSeaFetchError = openSeaTimeout;
+    const openSeaTimedOut = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaTimedOut.status, 504);
+    assert.equal(await openSeaTimedOut.json().then((body: { code?: string }) => body.code), 'OPENSEA_REQUEST_TIMEOUT');
+    openSeaFetchError = null;
+
+    // Reject malformed Retry-After values rather than forwarding JavaScript Date.parse quirks.
+    for (const invalidRetryAfter of ['1.5', '-5', 'banana 1', 'Mon, 32 Nov 2015 07:28:00 GMT', 'Tue, 21 Oct 2015 07:28:00 GMT']) {
+      openSeaResponseQueue = [
+        new Response('rate limited', { status: 429, headers: { 'Retry-After': invalidRetryAfter } }),
+      ];
+      const malformedRetryAfter = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/GLORIFIER'),
+        openSeaEnv,
+      );
+      assert.equal(malformedRetryAfter.status, 429);
+      assert.equal(malformedRetryAfter.headers.get('retry-after'), null, invalidRetryAfter);
+      openSeaResponseQueue = null;
+    }
 
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
