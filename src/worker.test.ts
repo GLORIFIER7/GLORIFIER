@@ -1234,7 +1234,7 @@ async function run(): Promise<void> {
       openSeaEnv,
     );
     assert.equal(invalidAccountLimit.status, 400);
-    assert.equal(await invalidAccountLimit.json().then((body: { code?: string }) => body.code), 'INVALID_PAGINATION');
+    assert.equal(await invalidAccountLimit.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_PAGE_LIMIT');
 
     upstreamResponses = [
       new Response(JSON.stringify({ detail: 'not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } }),
