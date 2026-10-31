@@ -204,95 +204,6 @@ const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => 
 };
 
 
-const MAX_OPENSEA_RESPONSE_BYTES = 1_048_576;
-class OpenSeaResponseTooLargeError extends Error {}
-
-const readBoundedOpenSeaResponse = async (response: Response): Promise<unknown> => {
-  const declaredLength = response.headers.get('content-length');
-  if (declaredLength !== null) {
-    if (!declaredLength || !Array.from(declaredLength).every((character) => character >= '0' && character <= '9')) throw new Error('Invalid OpenSea content length');
-    const parsedLength = Number(declaredLength);
-    if (!Number.isSafeInteger(parsedLength)) throw new Error('Invalid OpenSea content length');
-    if (parsedLength > MAX_OPENSEA_RESPONSE_BYTES) throw new OpenSeaResponseTooLargeError();
-  }
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('OpenSea response body is empty');
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_OPENSEA_RESPONSE_BYTES) {
-        try { await reader.cancel(); } catch { /* Best-effort cancellation after enforcing the response cap. */ }
-        throw new OpenSeaResponseTooLargeError();
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder().decode(body));
-};
-
-const openSeaCollectionResponse = async (request: Request, slug: string, env: CloudflareEnv): Promise<Response> => {
-  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
-    return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } });
-  }
-  if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(slug)) {
-    return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers });
-  }
-  const apiKey = configured(env.OPENSEA_API_KEY);
-  if (!apiKey) {
-    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_API_KEY_NOT_CONFIGURED' }, { status: 503, headers });
-  }
-
-  const endpoint = new URL(`https://api.opensea.io/api/v2/collections/${encodeURIComponent(slug)}`);
-  try {
-    const upstream = await fetch(endpoint, {
-      method: 'GET',
-      headers: { 'X-API-KEY': apiKey, Accept: 'application/json' },
-      redirect: 'manual',
-      signal: AbortSignal.timeout(7000),
-    });
-    if (upstream.status === 401 || upstream.status === 403) {
-      return Response.json({ ok: false, status: 'unauthorized', code: 'OPENSEA_AUTHENTICATION_FAILED' }, { status: 502, headers });
-    }
-    if (upstream.status === 404) {
-      return Response.json({ ok: false, status: 'not-found', code: 'OPENSEA_COLLECTION_NOT_FOUND' }, { status: 404, headers });
-    }
-    if (upstream.status === 429) {
-      const retryAfter = upstream.headers.get('retry-after');
-      const retryHeaders = retryAfter && Number.isInteger(Number(retryAfter)) && Number(retryAfter) >= 0 ? { ...headers, 'Retry-After': retryAfter } : headers;
-      return Response.json({ ok: false, status: 'rate-limited', code: 'OPENSEA_RATE_LIMITED' }, { status: 429, headers: retryHeaders });
-    }
-    if (!upstream.ok) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_UPSTREAM_ERROR' }, { status: 502, headers });
-    }
-    const contentType = upstream.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_INVALID_CONTENT_TYPE' }, { status: 502, headers });
-    }
-    const data: unknown = await readBoundedOpenSeaResponse(upstream);
-    return request.method === 'HEAD'
-      ? new Response(null, { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } })
-      : Response.json({ ok: true, source: 'opensea-api-v2', collection: data }, { headers });
-  } catch (error) {
-    if (error instanceof OpenSeaResponseTooLargeError) {
-      return Response.json({ ok: false, status: 'upstream-error', code: 'OPENSEA_RESPONSE_TOO_LARGE' }, { status: 502, headers });
-    }
-    return Response.json({ ok: false, status: 'unavailable', code: 'OPENSEA_UPSTREAM_UNAVAILABLE' }, { status: 502, headers });
-  }
-};
-
 const neuralConfigurationStatus = (env: CloudflareEnv): {
   ok: boolean | null;
   status: string;
@@ -695,13 +606,9 @@ export default {
       request = new Request(canonicalA2AUrl, { method: 'POST', headers, body });
     }
 
-    const openSeaCollectionPrefix = '/api/opensea/collections/';
-    if (incomingUrl.pathname.startsWith(openSeaCollectionPrefix)) {
-      const slug = incomingUrl.pathname.slice(openSeaCollectionPrefix.length);
-      if (!slug || slug.includes('/')) {
-        return Response.json({ ok: false, code: 'INVALID_COLLECTION_SLUG' }, { status: 400, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-      }
-      return openSeaCollectionResponse(request, slug, env);
+    // OpenSea routes are Worker-native, read-only, and restricted to registered collection slugs.
+    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
+      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
@@ -711,11 +618,6 @@ export default {
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
     if (incomingUrl.pathname === '/api/health') {
       return healthResponse(request.method, env);
-    }
-
-    // OpenSea routes are Worker-native and read-only; never proxy these paths to a legacy backend.
-    if (incomingUrl.pathname === '/api/opensea' || incomingUrl.pathname.startsWith('/api/opensea/')) {
-      return openSeaWorkerRoute(request, incomingUrl.pathname, env);
     }
 
     if (incomingUrl.pathname === '/api/reports/summary') {
