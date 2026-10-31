@@ -135,11 +135,18 @@ export const openSeaWorkerRoute = async (
   pathname: string,
   env: OpenSeaWorkerEnv,
 ): Promise<Response> => {
-  if (request.method !== 'GET') {
-    return failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET only.', { Allow: 'GET' });
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return failure(405, 'METHOD_NOT_ALLOWED', 'OpenSea read-only routes accept GET and HEAD only.', { Allow: 'GET, HEAD' });
   }
 
   const isHealthProbe = pathname === '/api/opensea/health';
+  const collectionPrefix = '/api/opensea/collections/';
+  if (pathname.startsWith(collectionPrefix)) {
+    const requestedSlug = pathname.slice(collectionPrefix.length);
+    if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedSlug)) {
+      return failure(400, 'INVALID_COLLECTION_SLUG', 'Collection slugs must use lowercase letters, numbers, and hyphens.');
+    }
+  }
   const match = pathname.match(/^\/api\/opensea\/collections\/([a-z0-9-]+)$/);
   const slug = isHealthProbe ? 'glorifier7' : match?.[1];
   if (!slug || !ALLOWED_COLLECTION_SLUGS.has(slug)) {
@@ -170,16 +177,17 @@ export const openSeaWorkerRoute = async (
     }, { headers: responseHeaders });
   }
 
+  const collectionHeaders = {
+    'Cache-Control': 'public, max-age=60',
+    'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
+  };
+  if (request.method === 'HEAD') return new Response(null, { status: 200, headers: collectionHeaders });
   return Response.json({
     ok: true,
     provider: 'opensea',
     status: 'connected',
     collectionSlug: slug,
     data: result.data,
-  }, {
-    headers: {
-      'Cache-Control': 'public, max-age=60',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  });
+  }, { headers: collectionHeaders });
 };
