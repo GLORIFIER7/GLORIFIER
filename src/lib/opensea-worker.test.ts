@@ -230,6 +230,19 @@ async function testValidatedCacheAndHeadSemantics(): Promise<void> {
   assert.equal(cacheMatches, 2);
   assert.equal(cachePuts, 1);
 
+  capturedRequest = null;
+  const cacheHitHead = await openSeaWorkerRoute(
+    new Request('https://glorifier.test/api/opensea/collections/glorifier1', { method: 'HEAD' }),
+    '/api/opensea/collections/glorifier1',
+    env,
+    edgeCache,
+  );
+  assert.equal(cacheHitHead.status, 200);
+  assert.equal(await cacheHitHead.text(), '', 'HEAD cache hits must not return a body');
+  assert.equal(cacheMatches, 3, 'HEAD metadata requests should reuse the public GET cache entry');
+  assert.equal(cachePuts, 1, 'HEAD cache hits must not cause a new cache write');
+  assert.equal(capturedRequest, null, 'cached HEAD requests must not consume OpenSea API quota');
+
   entries.clear();
   cachePuts = 0;
   capturedRequest = null;
