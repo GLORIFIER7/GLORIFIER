@@ -1255,6 +1255,57 @@ async function run(): Promise<void> {
     ]);
     openSeaResponseQueue = null;
 
+    // Percent-encoded account identifiers are decoded before local validation.
+    const encodedUsernameStart = requestedUrls.length;
+    openSeaResponseQueue = [
+      new Response(JSON.stringify({ address: '0x1234567890abcdef1234567890abcdef12345678', username: 'GLORIFIER', ens_name: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ collections: [{ collection: 'glorifier7', name: 'GLORIFIER' }], next: null }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ];
+    const encodedUsernameCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%47LORIFIER/collections?limit=5'),
+      openSeaEnv,
+    );
+    assert.equal(encodedUsernameCollections.status, 200);
+    assert.equal(await encodedUsernameCollections.json().then((body: { account?: { username?: string } }) => body.account?.username), 'GLORIFIER');
+    assert.deepEqual(requestedUrls.slice(encodedUsernameStart), [
+      'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER',
+      'https://api.opensea.io/api/v2/account/0x1234567890abcdef1234567890abcdef12345678/collections?limit=5',
+    ]);
+    openSeaResponseQueue = null;
+
+    // Malformed percent escapes fail closed, and HEAD route errors never include a body.
+    const malformedEncodedHead = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/%E0%A4%A/unknown', { method: 'HEAD' }),
+      openSeaEnv,
+    );
+    assert.equal(malformedEncodedHead.status, 400);
+    assert.equal(await malformedEncodedHead.text(), '');
+
+    const missingAccountRouteHead = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/GLORIFIER/unknown', { method: 'HEAD' }),
+      openSeaEnv,
+    );
+    assert.equal(missingAccountRouteHead.status, 404);
+    assert.equal(await missingAccountRouteHead.text(), '');
+
+    // Missing account identities retain their endpoint-specific error code.
+    openSeaResponseQueue = [
+      new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } }),
+    ];
+    const missingCollectionsAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/NO_SUCH_ACCOUNT/collections'),
+      openSeaEnv,
+    );
+    assert.equal(missingCollectionsAccount.status, 404);
+    assert.equal(await missingCollectionsAccount.json().then((body: { code?: string }) => body.code), 'OPENSEA_ACCOUNT_NOT_FOUND');
+    openSeaResponseQueue = null;
+
     // HEAD requests must not leak a response body on upstream errors.
     openSeaResponseQueue = [
       new Response('unauthorized', { status: 401, headers: { 'Content-Type': 'text/plain' } }),
