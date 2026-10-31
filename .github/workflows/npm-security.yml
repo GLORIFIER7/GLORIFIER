@@ -62,7 +62,11 @@ jobs:
           const root = await mkdtemp(join(tmpdir(), 'glorifier-rimraf-production-'));
           try {
             await mkdir(join(root, 'nested'), { recursive: true });
-            await writeFile(join(root, 'nested', 'fixture.txt'), 'production dependency smoke test');
+            const fixture = join(root, 'nested', 'fixture.txt');
+            await writeFile(fixture, 'production dependency smoke test');
+            // Exercise rimraf's glob integration against the patched glob@14 API.
+            assert.equal(await rimraf(join(root, 'nested', '*.txt'), { glob: {} }), true);
+            await assert.rejects(access(fixture));
             assert.equal(await rimraf(root), true);
             await assert.rejects(access(root));
           } finally {
