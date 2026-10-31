@@ -960,6 +960,24 @@ async function run(): Promise<void> {
     assert.equal(openSeaInvalidSlug.status, 400, 'invalid collection slugs must be rejected locally');
     assert.equal(await openSeaInvalidSlug.json().then((body: { code?: string }) => body.code), 'INVALID_COLLECTION_SLUG');
 
+    // Account routes must be handled before the collection-only OpenSea adapter.
+    capturedRequest = null;
+    const openSeaInvalidAccount = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/resolve/invalid%20name'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaInvalidAccount.status, 400);
+    assert.equal(await openSeaInvalidAccount.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER');
+    assert.equal(capturedRequest, null, 'invalid account identifiers must be rejected locally');
+
+    const openSeaInvalidAccountCollections = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/opensea/accounts/invalid%20name/collections'),
+      openSeaEnv,
+    );
+    assert.equal(openSeaInvalidAccountCollections.status, 400);
+    assert.equal(await openSeaInvalidAccountCollections.json().then((body: { code?: string }) => body.code), 'INVALID_OPENSEA_ACCOUNT_IDENTIFIER');
+    assert.equal(capturedRequest, null, 'invalid account collection identifiers must be rejected locally');
+
     // Only explicitly registered GLORIFIER collection slugs may reach OpenSea.
     capturedRequest = null;
     const openSeaUnregisteredSlug = await worker.fetch(
