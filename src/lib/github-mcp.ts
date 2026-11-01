@@ -137,31 +137,28 @@ class McpRequestBodyTooLargeError extends Error {
   }
 }
 
-const readBoundedStreamBytes = async (
-  body: ReadableStream<Uint8Array> | null,
+type StreamChunks = { chunks: Uint8Array[]; totalBytes: number };
+
+const readStreamChunks = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   maximumBytes: number,
   overflowError: Error,
-): Promise<Uint8Array> => {
-  if (!body) return new Uint8Array();
-  const reader = body.getReader();
+): Promise<StreamChunks> => {
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  try {
-    while (true) {
-      const next = await reader.read();
-      if (next.done) break;
-      if (!next.value) continue;
-      totalBytes += next.value.byteLength;
-      if (totalBytes > maximumBytes) throw overflowError;
-      chunks.push(next.value);
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => undefined);
-    throw error;
-  } finally {
-    reader.releaseLock();
+  while (true) {
+    const next = await reader.read();
+    if (next.done) break;
+    const chunk = next.value;
+    if (!chunk) continue;
+    totalBytes += chunk.byteLength;
+    if (totalBytes > maximumBytes) throw overflowError;
+    chunks.push(chunk);
   }
+  return { chunks, totalBytes };
+};
 
+const combineStreamChunks = ({ chunks, totalBytes }: StreamChunks): Uint8Array => {
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
@@ -169,6 +166,24 @@ const readBoundedStreamBytes = async (
     offset += chunk.byteLength;
   }
   return bytes;
+};
+
+const readBoundedStreamBytes = async (
+  body: ReadableStream<Uint8Array> | null,
+  maximumBytes: number,
+  overflowError: Error,
+): Promise<Uint8Array> => {
+  if (!body) return new Uint8Array();
+  const reader = body.getReader();
+  try {
+    const chunks = await readStreamChunks(reader, maximumBytes, overflowError);
+    return combineStreamChunks(chunks);
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 };
 
 const decodeUtf8 = (bytes: Uint8Array, errorMessage: string): string => {
