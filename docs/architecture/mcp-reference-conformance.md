@@ -1,15 +1,16 @@
 # MCP endpoint implementation and conformance status
 
-**Status:** implementation present; local Worker contract tests and deployment metadata verified; public endpoint interoperability and full upstream conformance remain **NOT VERIFIED**.  
+**Status:** a fixed-scope, read-only GitHub MCP Worker endpoint is implemented and covered by local contract tests. Broader MCP adapter conformance and external-client interoperability remain **NOT VERIFIED**.  
 **Repository:** `GLORIFIER7/GLORIFIER`  
 **Reviewed:** 2026-11-01  
 **Production route:** `POST /mcp` on the `glorifier` Cloudflare Worker  
 **Implementation:** `src/lib/github-mcp.ts`, mounted in `src/worker.ts`  
-**Worker tests:** `src/worker.test.ts`; command: `npm run test:cloudflare-worker`
+**Worker tests:** `src/worker.test.ts`; command: `npm run test:cloudflare-worker`  
+**Target protocol revision:** `2026-07-28` (broader interoperability target; not an implementation or conformance claim for the current GitHub MCP endpoint).
 
-## What is implemented
+## Implemented endpoint: fixed-scope GitHub MCP
 
-The Worker contains a stateless, POST-only JSON-RPC endpoint for a narrowly scoped, read-only GitHub MCP server. It is a real Worker route, not a static SPA fallback.
+The Worker contains a stateless, POST-only JSON-RPC endpoint for a narrowly scoped, read-only GitHub MCP server. The route is mounted before the static-asset fallback; it is not a static SPA response.
 
 The endpoint exposes exactly four tools, all pinned to the public `GLORIFIER7/GLORIFIER` repository:
 
@@ -37,7 +38,20 @@ The server does not expose GitHub write, merge, deployment, secret, or credentia
 
 The implementation's baseline constant is `2025-03-26`. Its initialization handler currently returns the requested version when it is one of `2025-03-26`, `2025-06-18`, or `2025-11-25`, and otherwise falls back to `2025-03-26`.
 
-The checked-in Worker test explicitly verifies initialization with `2025-03-26`. The later version strings are present in the negotiation list, but that alone is not evidence of full conformance to those revisions. Do not advertise full `2025-06-18`, `2025-11-25`, or `2026-07-28` protocol conformance until revision-specific transport, header, capability, and error behavior has been tested against the corresponding normative specification.
+The checked-in Worker test explicitly verifies initialization with `2025-03-26`. The later version strings are present in the handler, but that alone does not prove full conformance to those revisions. The current route does not implement the selected `2026-07-28` target's `server/discover` operation. Do not advertise full conformance to any later revision until revision-specific transport, header, capability, and error behavior has been tested against the corresponding normative specification.
+
+## Relationship to the broader A2A/MCP capability
+
+The repository capability `protocol.a2a-mcp-adapters` covers general standards-backed A2A and MCP adapters, not only this repository-specific GitHub bridge. It therefore remains **NOT VERIFIED**.
+
+The fixed-scope GitHub MCP route does not establish:
+
+- a general-purpose MCP adapter for arbitrary configured providers or repositories;
+- the `2026-07-28` `server/discover` operation or its supported capabilities;
+- resources or prompts;
+- A2A 1.0.1 Agent Card discovery or message/task binding;
+- authenticated private-repository access;
+- external-client interoperability with Claude, ChatGPT, or another MCP client.
 
 ## Evidence currently available
 
@@ -45,7 +59,7 @@ The checked-in Worker test explicitly verifies initialization with `2025-03-26`.
 
 `src/worker.test.ts` exercises the Worker-mounted `/mcp` route, including:
 
-- initialization, initialization notification, and tool discovery;
+- initialization with `2025-03-26`, initialization notification, and tool discovery;
 - the exact four-tool read-only surface and read-only/destructive annotations;
 - mocked repository metadata reads and tool-call behavior;
 - unsupported methods and GET rejection;
@@ -54,7 +68,7 @@ The checked-in Worker test explicitly verifies initialization with `2025-03-26`.
 - rejection of an untrusted `Origin`;
 - rate-limit denial and rate-limiter failure behavior.
 
-The tests use controlled upstream responses. They do **not** prove that an external MCP client can reach the public production route or that a live GitHub request succeeds from every client/network.
+The tests use controlled upstream responses. They do **not** prove that an external MCP client can reach the public production route or that a live GitHub operation succeeds from every client/network.
 
 ### GitHub and Cloudflare deployment evidence
 
@@ -66,16 +80,28 @@ The tests use controlled upstream responses. They do **not** prove that an exter
 
 A deployment record proves that Cloudflare has a deployment assigned 100% of traffic. It does not prove that a public HTTP request, a particular MCP client, or an upstream GitHub operation succeeds.
 
+## Broader protocol conformance target: MCP 2026-07-28
+
+The selected normative target is revision `2026-07-28`. In that revision, the `server/discover` operation reports supported protocol versions, its supported capabilities, and server identity. This target definition is separate from the older fixed-scope GitHub MCP route above.
+
+The target reference is pinned; it is not a claim that GLORIFIER implements `server/discover`, resource/prompt operations, or all required transport semantics for that revision.
+
+**Immutable normative source:** [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx). Upstream commit: `b488c16623e5202a3961e551886044577ae0f096`; document Git blob SHA-1: `f6fc1acf974819d99338d2be25ad953fcb9e57a6`.
+
+**Pinned reference-server snapshot:** `modelcontextprotocol/servers` commit `cabf72d388c0b9a82d4ac77aee1843c215a23e8b` (2026-10-28). The examples are reference material only; they are not runtime dependencies.
+
 ## Remaining verification gates
 
 | Gate | Current status | Evidence needed |
 |---|---|---|
-| Worker route and fixed read-only tool contract | **VERIFIED LOCALLY** | Existing Worker route tests and exact source |
+| Fixed GitHub MCP route and read-only tool contract | **VERIFIED LOCALLY** | Existing Worker route tests and exact source |
 | GitHub-side read-only scope | **VERIFIED BY CODE REVIEW** | Fixed repository/API origin and no write tool definitions |
 | Cloudflare production deployment metadata | **VERIFIED** | Deployment/version record and 100% traffic assignment |
 | Public `/mcp` live HTTP response | **NOT OBSERVABLE** | External GET/POST probe from a network able to resolve and reach the Workers.dev host |
 | Claude/ChatGPT/other external MCP client connection | **NOT VERIFIED** | Real client handshake, discovery, tool-list, and tool-call evidence per client |
-| Full conformance for later protocol revisions | **NOT VERIFIED** | Version-specific normative tests and independent client interoperability |
+| Full conformance for MCP `2026-07-28` | **NOT VERIFIED** | Implement `server/discover`, version-specific normative tests, transport/capability validation, and independent client interoperability |
+| Full conformance for the handler's later advertised version strings | **NOT VERIFIED** | Revision-specific tests; an initialization response alone is insufficient |
+| A2A 1.0.1 interoperability | **NOT VERIFIED** | Standard Agent Card, message/task binding, authorization, and controlled two-agent test |
 | Authenticated access to private repositories | **NOT IMPLEMENTED** | Separate reviewed authorization design; do not infer private-repository access from this public read-only server |
 | Neural, AI-provider, and A2A runtime readiness | **OUT OF SCOPE / NOT VERIFIED HERE** | Separate configured origins, credentials, and live integration probes |
 
