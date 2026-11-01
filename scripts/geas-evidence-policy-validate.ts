@@ -21,8 +21,12 @@ const requirePattern = (pattern: RegExp, message: string): void => {
 };
 
 // Retrieval and keyword matching establish availability/content matches, never claim truth.
-requirePattern(/evidenceStatus:\s*excerpt\s*\?\s*'content-matched'\s*:\s*response\.ok\s*\?\s*'source-available'/,
-  'source retrieval must not assign claim-supported status');
+requirePattern(/const evidenceStatus: EvidenceStatus = excerpt\s*\?\s*'content-matched'\s*:\s*response\.ok\s*\?\s*'source-available'\s*:\s*'not-observed';/,
+  'source retrieval must emit only content-matched, source-available or not-observed statuses');
+requirePattern(/const isValidSuccessfulEvidenceShape = \(input: CachedSourceEvidence\): boolean =>[\s\S]*?input\.evidenceStatus === 'content-matched'[\s\S]*?input\.evidenceStatus === 'source-available'/,
+  'successful cached source observations must not admit claim-supported evidence');
+requirePattern(/const isAdmissibleFailedCache = \(input: CachedSourceEvidence\): boolean => \{\s*if \(input\.evidenceStatus !== 'not-observed' && input\.evidenceStatus !== 'unavailable'\) return false;/,
+  'failed cached source observations must not admit claim-supported evidence');
 requirePattern(/(?:export function isClaimSupportedEvidence\(status: EvidenceStatus\): boolean\s*\{\s*return status === 'claim-supported';\s*\}|export const isClaimSupportedEvidence\s*=\s*\(status: EvidenceStatus\): boolean\s*=>\s*status === 'claim-supported';)/,
   'claim-supported status must be explicit');
 requirePattern(/(?:export function classifyArchitectureEvidence\(status: EvidenceStatus\): EvidenceClass\s*\{\s*return status === 'claim-supported' \? 'observed-fact' : 'analysis';\s*\}|export const classifyArchitectureEvidence\s*=\s*\(status: EvidenceStatus\): EvidenceClass\s*=>\s*status === 'claim-supported' \? 'observed-fact' : 'analysis';)/,
