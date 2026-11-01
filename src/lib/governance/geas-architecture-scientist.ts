@@ -1487,18 +1487,31 @@ const buildArchitectureScanResult = (
   };
 };
 
+const sourceObservationPersistenceValues = (source: SourceObservation) => {
+  const configuredSource = SOURCES.find(candidate => candidate.id === source.sourceId);
+  return [
+    source.sourceId,
+    source.observedAt,
+    source.ok,
+    source.status,
+    source.contentHash,
+    source.evidenceExcerpt,
+    source.evidenceStatus,
+    source.error ?? null,
+    source.finalUrl ?? null,
+    source.etag ?? null,
+    source.lastModified ?? null,
+    configuredSource?.url ?? null,
+  ];
+};
+
 const persistSourceObservation = async (
   db: ReturnType<typeof getPostgresPool>,
   source: SourceObservation,
 ): Promise<void> => {
-  const configuredSource = SOURCES.find(candidate => candidate.id === source.sourceId);
   await db.query(
     'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, source_url = EXCLUDED.source_url',
-    [
-      source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt,
-      source.evidenceStatus, source.error ?? null, source.finalUrl ?? null, source.etag ?? null,
-      source.lastModified ?? null, configuredSource?.url ?? null,
-    ],
+    sourceObservationPersistenceValues(source),
   );
 };
 
