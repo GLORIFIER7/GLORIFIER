@@ -998,14 +998,19 @@ const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObse
     clearTimeout(timer);
   }
 };
-const isPatternSourceObservation = (source: SourceObservation | undefined): source is SourceObservation =>
-  Boolean(source && source.ok
-    && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
-    && source.evidenceExcerpt);
+type PatternSourceObservation = SourceObservation & { evidenceExcerpt: string };
+
+const isPatternSourceObservation = (
+  source: SourceObservation | undefined,
+): source is PatternSourceObservation =>
+  source?.ok === true
+  && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
+  && typeof source.evidenceExcerpt === 'string'
+  && source.evidenceExcerpt.length > 0;
 
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
-  source: SourceObservation,
+  source: PatternSourceObservation,
 ): ArchitecturePattern => ({
   id: pattern.id,
   title: pattern.title,
@@ -1013,7 +1018,7 @@ const createObservedArchitecturePattern = (
   evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
   sourceId: source.sourceId,
   evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
-  evidenceExcerpt: source.evidenceExcerpt!,
+  evidenceExcerpt: source.evidenceExcerpt,
   pattern: pattern.pattern,
   GLORIFIERMapping: pattern.GLORIFIERMapping,
   controlIds: pattern.controlIds,
@@ -1039,29 +1044,25 @@ const indexPatternIdsBySource = (patterns: ArchitecturePattern[]): Map<string, s
 };
 
 const createArchitectureEvidence = (
-  result: SourceObservation,
+  result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
-): ArchitectureEvidence | null => {
-  if (!isPatternSourceObservation(result)) return null;
-  return {
-    id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
-    sourceId: result.sourceId,
-    sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
-    observedAt: result.observedAt,
-    contentHash: result.contentHash ?? 'unknown',
-    excerpt: result.evidenceExcerpt!,
-    evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
-    sourceStatus: result.status ?? 0,
-    patternIds: patternIdsBySource.get(result.sourceId) ?? [],
-  };
-};
+): ArchitectureEvidence => ({
+  id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
+  sourceId: result.sourceId,
+  sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
+  observedAt: result.observedAt,
+  contentHash: result.contentHash ?? 'unknown',
+  excerpt: result.evidenceExcerpt,
+  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
+  sourceStatus: result.status ?? 0,
+  patternIds: patternIdsBySource.get(result.sourceId) ?? [],
+});
 
 const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] => {
   const patternIdsBySource = indexPatternIdsBySource(patterns);
-  return results.flatMap((result) => {
-    const evidence = createArchitectureEvidence(result, patternIdsBySource);
-    return evidence ? [evidence] : [];
-  });
+  return results.flatMap((result) => isPatternSourceObservation(result)
+    ? [createArchitectureEvidence(result, patternIdsBySource)]
+    : []);
 };
 
 const getDomainCoverage = (
@@ -1516,8 +1517,7 @@ export async function getLatestGeasArchitectureScan() {
   }
 }
 
-export function getGeasArchitectureModel() {
-  return {
+export const getGeasArchitectureModel = () => ({
     version: 'GEAS-ARCHITECTURE-SCIENTIST-2.0',
     operatingRule: 'GEAS may observe, compare, explain, prioritize and recommend; it must not autonomously apply irreversible production changes.',
     sourcePolicy: 'Only curated authoritative public sources are accepted as architecture evidence.',
@@ -1535,8 +1535,7 @@ export function getGeasArchitectureModel() {
     aiLifecycle: ['design', 'build', 'evaluate', 'deploy', 'operate', 'monitor', 'retire'],
     architectureBaseline: GLORIFIER_ARCHITECTURE_MODEL,
     recommendations: RECOMMENDATIONS,
-  };
-}
+});
 
 export function getGeasArchitectureSources() {
   return SOURCES;
