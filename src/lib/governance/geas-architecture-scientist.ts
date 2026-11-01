@@ -647,7 +647,7 @@ const cachedSourceEvidence = (cached: CachedSourceObservation): CachedSourceEvid
 const hasCurrentCacheObservationTimestamp = (cachedAt: number | null, nowMs: number): boolean =>
   Number.isFinite(nowMs) && cachedAt !== null && cachedAt <= nowMs;
 
-const hasMatchingConditionalRequestUrl = (configuredUrl: string, cachedUrl: string): boolean =>
+const hasMatchingConditionalRequestUrl = (configuredUrl: string, cachedUrl: string | null | undefined): boolean =>
   cachedUrl === configuredUrl;
 
 const hasReusableConditionalRequestEvidence = (cached: CachedSourceObservation): boolean =>
