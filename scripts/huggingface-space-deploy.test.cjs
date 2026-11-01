@@ -3,7 +3,38 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { test } = require('node:test');
 
-test('Hugging Face deployment is manually gated and source publication is safe', () => {
+test('secondary deployment paths are gated and existing Pages content is preserved', () => {
+  const aiCeoWorkflow = readFileSync(join(__dirname, '../.github/workflows/publish-ai-ceo.yml'), 'utf8');
+
+  assert.match(
+    aiCeoWorkflow,
+    /^on:\s*\n\s{2}workflow_dispatch:\s*$/m,
+    'AI CEO Pages publishing must remain manual-dispatch only',
+  );
+  assert.ok(
+    aiCeoWorkflow.includes("vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED != 'true'") &&
+      aiCeoWorkflow.includes("vars.PAGES_AI_CEO_DEPLOY_ENABLED != 'true'"),
+    'AI CEO Pages publishing must have a fail-closed disabled path until the owner attests reviewer protection and enables publishing',
+  );
+  assert.ok(
+    aiCeoWorkflow.includes("vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED == 'true'") &&
+      aiCeoWorkflow.includes("vars.PAGES_AI_CEO_DEPLOY_ENABLED == 'true'") &&
+      aiCeoWorkflow.includes("github.ref == 'refs/heads/main'"),
+    'AI CEO Pages build and deploy must require main and both owner-controlled gates',
+  );
+  assert.match(
+    aiCeoWorkflow,
+    /environment:\s*\n\s+name:\s*github-pages-ai-ceo/,
+    'AI CEO Pages deployment must use its dedicated reviewer-protected environment',
+  );
+  assert.match(
+    aiCeoWorkflow,
+    /Configure required reviewers on the github-pages-ai-ceo environment first/,
+    'AI CEO Pages publishing must document the required-reviewer prerequisite',
+  );
+  assert.doesNotMatch(aiCeoWorkflow, /^\s{2}push\s*:/m, 'push events must not trigger AI CEO Pages publishing');
+  assert.doesNotMatch(aiCeoWorkflow, /^\s{2}pull_request\s*:/m, 'pull requests must not trigger AI CEO Pages publishing');
+
   const projectPage = readFileSync(join(__dirname, '../public/project.html'), 'utf8');
   const sitemap = readFileSync(join(__dirname, '../public/sitemap.xml'), 'utf8');
   
