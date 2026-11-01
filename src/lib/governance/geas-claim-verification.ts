@@ -33,6 +33,7 @@ export interface ClaimReviewSource {
   url: string;
   claimsAllowed: readonly string[];
   reviewCadenceDays: number;
+  scannerStatus: 'active' | 'discovery-only';
 }
 
 export interface ClaimSourceRegistry {
@@ -141,10 +142,14 @@ export function validateClaimReview(
       failures.push('sourceId must resolve to exactly one trusted source registry entry');
     } else {
       const trustedSource = matches[0];
+      if (trustedSource.scannerStatus !== 'active') {
+        failures.push('trusted source must have scannerStatus active; discovery-only sources cannot admit claims');
+      }
       // Bind the evidence reference to the exact source-specific policy used for admission.
       sourcePolicyDigest = createHash('sha256').update(JSON.stringify({
         id: trustedSource.id,
         url: trustedSource.url,
+        scannerStatus: trustedSource.scannerStatus,
         claimsAllowed: Array.isArray(trustedSource.claimsAllowed)
           ? [...trustedSource.claimsAllowed].sort(compareCodeUnits)
           : trustedSource.claimsAllowed,
