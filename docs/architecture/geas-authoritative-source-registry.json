@@ -505,9 +505,7 @@
       "domain": "cybersecurity",
       "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
       "claimsAllowed": [
-        "agentic-application-threats",
-        "agent-tool-misuse",
-        "agent-identity-privilege-abuse"
+        "agentic-application-threats-discovery"
       ],
       "reviewCadenceDays": 14,
       "implementationStatus": "not-assessed",
