@@ -118,15 +118,9 @@ const isValidOrigin = (request: Request): boolean => {
 };
 
 const parseContentLength = (value: string): number | null => {
-  if (value.length === 0 || value.length > 16) return null;
-  let length = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const digit = value.charCodeAt(index) - 48;
-    if (digit < 0 || digit > 9) return null;
-    length = length * 10 + digit;
-    if (!Number.isSafeInteger(length)) return null;
-  }
-  return length;
+  if (value.length === 0 || value.length > 16 || !/^[0-9]{1,16}$/.test(value)) return null;
+  const length = Number(value);
+  return Number.isSafeInteger(length) ? length : null;
 };
 
 const validateRequestSize = (request: Request): Response | null => {
@@ -263,7 +257,15 @@ const fetchGithubApi = (url: URL): Promise<Response> => {
   if (!isTrustedGithubApiUrl(url)) {
     throw new Error('Blocked GitHub API request outside the trusted HTTPS origin.');
   }
-  return fetch(url.toString(), {
+  // Copy only path/query onto a fresh URL rooted at the immutable API origin.
+  // Caller-controlled input can therefore never select the fetch destination host.
+  const requestUrl = new URL(API_ROOT);
+  requestUrl.pathname = url.pathname;
+  requestUrl.search = url.search;
+  if (!isTrustedGithubApiUrl(requestUrl)) {
+    throw new Error('Blocked GitHub API request outside the trusted HTTPS origin.');
+  }
+  return fetch(requestUrl.href, {
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
@@ -343,7 +345,7 @@ const decodeGithubTextFile = (data: JsonRecord): string => {
 const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
   const segments = repositoryPathSegments(path);
   assertValidGitReference(ref);
-  const encodedPath = segments.map((segment) => encodeURIComponent(segment)).join('/');
+  const encodedPath = encodeURIComponent(path).replaceAll('%2F', '/');
   const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }));
   if (!isRecord(data)) throw new Error('The requested path is not a supported text file.');
   return { path, ref, content: decodeGithubTextFile(data) };
