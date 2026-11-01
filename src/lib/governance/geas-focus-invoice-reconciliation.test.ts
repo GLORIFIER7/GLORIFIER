@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { compareCodeUnits } from '../deterministic-string-order';
 import { reconcileFocusInvoice, type FocusInvoiceCharge } from './geas-focus-invoice-reconciliation';
 
+(() => {
+
 const billingPeriod = {
   billingPeriodStart: '2026-01-01T00:00:00Z',
   billingPeriodEnd: '2026-02-01T00:00:00Z',
@@ -10,7 +12,6 @@ const invoiceIssuerName = 'Example Cloud Billing';
 const invoiceId = 'INV-2026-001';
 const billingCurrency = 'USD';
 
-// skipcq: JS-0067
 const charge = (
   invoiceDetailId: string | null,
   chargeCategory: string,
@@ -243,3 +244,4 @@ assert.equal(wrongInvoice.status, 'UNKNOWN');
 assert.ok(wrongInvoice.reasons.some((reason) => reason.includes('outside the target invoice')));
 
 process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
+})();
