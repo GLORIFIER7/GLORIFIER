@@ -11,6 +11,16 @@
       "OPENSEA_API_KEY"
     ]
   },
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "2026110101",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
@@ -20,6 +30,8 @@
       "/api/*",
       "/auth",
       "/auth/*",
+      "/mcp",
+      "/mcp/*",
       "/assets/*",
       "/*.js",
       "/*.mjs",
