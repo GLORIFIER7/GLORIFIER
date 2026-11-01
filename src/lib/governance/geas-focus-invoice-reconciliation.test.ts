@@ -2,20 +2,46 @@ import assert from 'node:assert/strict';
 import { compareCodeUnits } from '../deterministic-string-order';
 import { reconcileFocusInvoice, type FocusInvoiceCharge } from './geas-focus-invoice-reconciliation';
 
+
+const billingPeriod = {
+  billingPeriodStart: '2026-01-01T00:00:00Z',
+  billingPeriodEnd: '2026-02-01T00:00:00Z',
+};
+const invoiceIssuerName = 'Example Cloud Billing';
+const invoiceId = 'INV-2026-001';
+const billingCurrency = 'USD';
+
+const charge = (
+  invoiceDetailId: string | null,
+  chargeCategory: string,
+  billedCost: string,
+  overrides: Partial<FocusInvoiceCharge> = {},
+): FocusInvoiceCharge => ({
+  invoiceIssuerName,
+  invoiceId,
+  ...billingPeriod,
+  invoiceDetailId,
+  chargeCategory,
+  billingCurrency,
+  billedCost,
+  ...overrides,
+});
+
 const input = {
-  invoiceIssuerName: 'Example Cloud Billing',
-  invoiceId: 'INV-2026-001',
-  billingCurrency: 'USD',
+  invoiceIssuerName,
+  invoiceId,
+  ...billingPeriod,
+  billingCurrency,
   roundingTolerance: '0.01',
   costAndUsage: [
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'line-1', chargeCategory: 'Usage', billingCurrency: 'USD', billedCost: '4.00' },
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'line-1', chargeCategory: 'Usage', billingCurrency: 'USD', billedCost: '6.00' },
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'line-2', chargeCategory: 'Usage', billingCurrency: 'USD', billedCost: '20.005' },
+    charge('line-1', 'Usage', '4.00'),
+    charge('line-1', 'Usage', '6.00'),
+    charge('line-2', 'Usage', '20.005'),
   ] satisfies FocusInvoiceCharge[],
   invoiceDetail: [
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'line-1', chargeCategory: 'Usage', billingCurrency: 'USD', billedCost: '10.00' },
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'line-2', chargeCategory: 'Usage', billingCurrency: 'USD', billedCost: '20.00' },
-    { invoiceIssuerName: 'Example Cloud Billing', invoiceId: 'INV-2026-001', invoiceDetailId: 'tax-1', chargeCategory: 'Tax', billingCurrency: 'USD', billedCost: '2.40' },
+    charge('line-1', 'Usage', '10.00'),
+    charge('line-2', 'Usage', '20.00'),
+    charge('tax-1', 'Tax', '2.40'),
   ] satisfies FocusInvoiceCharge[],
 };
 
@@ -24,6 +50,8 @@ assert.equal(aligned.status, 'RECONCILED');
 assert.equal(aligned.evidenceClass, 'analysis');
 assert.equal(aligned.reconciliationScope, 'provided-dataset-consistency-only');
 assert.equal(aligned.reconciliationBasis, 'non-tax-line-items-only', 'RECONCILED must not imply tax amounts were compared');
+assert.equal(aligned.billingPeriodStart, billingPeriod.billingPeriodStart);
+assert.equal(aligned.billingPeriodEnd, billingPeriod.billingPeriodEnd);
 assert.equal(aligned.costAndUsageNonTaxTotal, '30.005');
 assert.equal(aligned.invoiceDetailNonTaxTotal, '30');
 assert.equal(aligned.costAndUsageTaxTotal, '0');
@@ -32,7 +60,7 @@ assert.equal(aligned.invoiceDetailGrandTotal, '32.4');
 assert.equal(aligned.lineItems.find((item) => item.invoiceDetailId === 'line-2')?.withinTolerance, true);
 assert.deepEqual(aligned.reasons, []);
 
-const localeSortedIds = ['line-z', 'line-ä', 'line-a', 'line-a\\u200B'];
+const localeSortedIds = ['line-z', 'line-ä', 'line-a', `line-a${String.fromCharCode(0x200b)}`];
 const localeSortedRows = localeSortedIds.map((invoiceDetailId) => ({
   ...input.costAndUsage[0],
   invoiceDetailId,
@@ -90,7 +118,7 @@ assert.equal(
 const largeCount = 70_000;
 const largeUsage = Array.from({ length: largeCount }, (_, index) => ({
   ...input.costAndUsage[0],
-  invoiceDetailId: 'large-' + index,
+  invoiceDetailId: `large-${index}`,
   billedCost: '1.00',
 }));
 const largeDetail = largeUsage.map((row) => ({ ...row }));
@@ -121,6 +149,84 @@ const invalidAmount = reconcileFocusInvoice({
 });
 assert.equal(invalidAmount.status, 'UNKNOWN');
 assert.ok(invalidAmount.reasons.some((reason) => reason.includes('missing or invalid required fields')));
+
+
+const missingBillingPeriod = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: undefined as unknown as string,
+});
+assert.equal(missingBillingPeriod.status, 'UNKNOWN');
+assert.ok(missingBillingPeriod.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const mismatchedBillingPeriod = reconcileFocusInvoice({
+  ...input,
+  invoiceDetail: input.invoiceDetail.map((row) => row.invoiceDetailId === 'line-1'
+    ? { ...row, billingPeriodStart: '2026-02-01T00:00:00Z', billingPeriodEnd: '2026-03-01T00:00:00Z' }
+    : row),
+});
+assert.equal(mismatchedBillingPeriod.status, 'UNKNOWN');
+assert.ok(mismatchedBillingPeriod.reasons.some((reason) => reason.includes('billing-period mismatch')));
+
+const invalidCostAndUsageRowPeriod = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: input.costAndUsage.map((row) => row.invoiceDetailId === 'line-1'
+    ? { ...row, billingPeriodStart: '2026-02-30T00:00:00Z', billingPeriodEnd: '2026-03-01T00:00:00Z' }
+    : row),
+});
+assert.equal(invalidCostAndUsageRowPeriod.status, 'UNKNOWN');
+assert.ok(invalidCostAndUsageRowPeriod.reasons.some((reason) => reason.includes('invalid FOCUS UTC billing-period bounds')));
+
+const invalidInvoiceDetailRowPeriod = reconcileFocusInvoice({
+  ...input,
+  invoiceDetail: input.invoiceDetail.map((row) => row.invoiceDetailId === 'line-1'
+    ? { ...row, billingPeriodStart: '2026-02-30T00:00:00Z', billingPeriodEnd: '2026-03-01T00:00:00Z' }
+    : row),
+});
+assert.equal(invalidInvoiceDetailRowPeriod.status, 'UNKNOWN');
+assert.ok(invalidInvoiceDetailRowPeriod.reasons.some((reason) => reason.includes('invalid FOCUS UTC billing-period bounds')));
+
+const invalidUtcOffset = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-01-01T00:00:00+00:00',
+});
+assert.equal(invalidUtcOffset.status, 'UNKNOWN');
+assert.ok(invalidUtcOffset.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const invalidCalendarDate = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-02-30T00:00:00Z',
+});
+assert.equal(invalidCalendarDate.status, 'UNKNOWN');
+assert.ok(invalidCalendarDate.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const whitespaceTimestamp = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: ' 2026-01-01T00:00:00Z',
+});
+assert.equal(whitespaceTimestamp.status, 'UNKNOWN');
+assert.ok(whitespaceTimestamp.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const lowercaseZulu = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-01-01T00:00:00z',
+});
+assert.equal(lowercaseZulu.status, 'UNKNOWN');
+assert.ok(lowercaseZulu.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const fractionalSeconds = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-01-01T00:00:00.000Z',
+});
+assert.equal(fractionalSeconds.status, 'UNKNOWN');
+assert.ok(fractionalSeconds.reasons.some((reason) => reason.includes('FOCUS UTC ISO 8601 format')));
+
+const reversedBillingPeriod = reconcileFocusInvoice({
+  ...input,
+  billingPeriodStart: '2026-02-01T00:00:00Z',
+  billingPeriodEnd: '2026-01-01T00:00:00Z',
+});
+assert.equal(reversedBillingPeriod.status, 'UNKNOWN');
+assert.ok(reversedBillingPeriod.reasons.some((reason) => reason.includes('billing period end must be later')));
 
 const missingTolerance = reconcileFocusInvoice({
   ...input,
