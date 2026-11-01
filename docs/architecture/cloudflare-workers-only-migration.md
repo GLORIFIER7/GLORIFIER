@@ -347,6 +347,27 @@ References: [Neon Free 1 GB announcement](https://neon.com/blog/neon-free-plan-1
 - `GET /api/identity`: HTTP 503; canonical domain and organizational email readiness not configured.
 - `GET /api/neural/health`: HTTP 503; `NEURAL_ORIGIN_NOT_CONFIGURED`.
 
+### Worker-native read-only route slice added in draft PR #597
+
+The draft branch now handles these existing GET contracts directly in `src/worker.ts`:
+
+- `GET /api/governance/architecture`
+- `GET /api/governance/policy`
+- `GET /api/architecture/permanent-stack`
+- `GET /api/governance/geas/reconciliation/manifest`
+- `GET /api/governance/geas/reconciliation/degraded-modes`
+- `GET /api/assets/verification/policy`
+- `GET /api/assets/verification/crypto/policy`
+- `GET /api/business-intelligence/architecture`
+
+Each route is GET/HEAD-only, uses `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`, rejects other methods with HTTP 405 and `Allow: GET, HEAD`, and does not call the legacy backend or fall through to static assets. The tests assert response contracts and these network/fallback boundaries.
+
+The source metadata was also corrected so Neon is described as the canonical target, not as an already verified production authority. The GEAS manifest identifies Neon as a canonical target with production cutover explicitly not verified.
+
+**Scope qualification:** these are source changes on draft PR #597, not deployed production fixes. The latest commit's CI is still running. The production Worker continues to run `main` and its previously probed legacy routes continue to fail closed with HTTP 502 until this branch is reviewed, merged, and deployed through the separately approved release process.
+
+Other backend-dependent routes remain unported, including authentication/session, connections, integrations, app-state storage, agent persistence, economic/revenue ledgers, and Neural runtime dependencies. Do not claim the Workers-only migration is complete from this static read-only slice.
+
 ### Hyperdrive implementation gates
 
 1. Create a dedicated Neon database role for the Worker with the minimum grants needed for the first reporting route; do not use a superuser/owner role.
