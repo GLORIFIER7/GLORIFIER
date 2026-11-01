@@ -571,7 +571,7 @@ export function reconcileFocusInvoice(
 ): FocusInvoiceReconciliationResult {
   const reasons: string[] = [];
   const metadataDraft = parseInvoiceMetadata(input, reasons);
-  if (reasons.length > 0 || !isCompleteInvoiceMetadata(metadataDraft)) {
+  if (reasons.length > 0) {
     return unknownResult(
       metadataDraft.issuer,
       metadataDraft.invoiceId,
@@ -582,7 +582,18 @@ export function reconcileFocusInvoice(
       reasons,
     );
   }
-  const metadata = metadataDraft;
+  if (!isCompleteInvoiceMetadata(metadataDraft)) {
+    return unknownResult(
+      metadataDraft.issuer,
+      metadataDraft.invoiceId,
+      metadataDraft.billingPeriodStart,
+      metadataDraft.billingPeriodEnd,
+      metadataDraft.currency,
+      metadataDraft.tolerance,
+      ['invoice metadata is incomplete'],
+    );
+  }
+  const metadata: InvoiceMetadata = metadataDraft;
   const datasets = normalizeInvoiceDatasets(metadata, reasons);
   if (!datasets) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons);
   const comparableRows = validateInvoiceLineage(
