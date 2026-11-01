@@ -981,38 +981,69 @@ export const reuseNotModifiedSourceObservation = (
     : null;
 };
 
-function extractEvidence(body: string, keywords: string[]) {
-  const text = stripHtml(body);
+const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
   const lower = text.toLowerCase();
-  let index = -1;
+  let firstIndex = -1;
   for (const keyword of keywords) {
-    const needle = keyword.toLowerCase();
-    const i = lower.indexOf(needle);
-    if (i >= 0 && (index === -1 || i < index)) index = i;
+    const matchIndex = lower.indexOf(keyword.toLowerCase());
+    if (matchIndex >= 0 && (firstIndex < 0 || matchIndex < firstIndex)) firstIndex = matchIndex;
   }
-  if (index < 0) return null;
-  const start = Math.max(0, index - 240);
-  const end = Math.min(text.length, index + 760);
-  return text.slice(start, end).trim();
-}
+  return firstIndex;
+};
+
+const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
+  text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
+
+const extractEvidence = (body: string, keywords: string[]): string | null => {
+  const text = stripHtml(body);
+  const matchIndex = findEarliestKeywordIndex(text, keywords);
+  return matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+};
 
 const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const SOURCE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-async function fetchCuratedSource(
-  sourceUrl: string,
-  signal: AbortSignal,
-  conditionalHeaders: Record<string, string> = {},
-): Promise<{ response: Response; finalUrl: URL; body: string }> {
+const validateCuratedSourceUrl = (sourceUrl: string): URL => {
   const originalUrl = new URL(sourceUrl);
   if (originalUrl.protocol !== 'https:' || originalUrl.username || originalUrl.password) {
     throw new Error('curated source URL must use HTTPS without embedded credentials');
   }
+  return originalUrl;
+};
 
+const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
+  nextUrl.protocol === 'https:'
+  && nextUrl.hostname === originalUrl.hostname
+  && !nextUrl.username
+  && !nextUrl.password
+  && (!nextUrl.port || nextUrl.port === '443');
+
+const resolveCuratedRedirectTarget = async (
+  response: Response,
+  requestUrl: URL,
+  originalUrl: URL,
+  redirects: number,
+): Promise<URL> => {
+  const location = response.headers.get('location');
+  await response.body?.cancel();
+  if (!location) throw new Error('source redirect is missing a Location header');
+  if (redirects === 10) throw new Error('source redirect limit exceeded');
+
+  const nextUrl = new URL(location, requestUrl);
+  if (!isSafeCuratedRedirectTarget(nextUrl, originalUrl)) {
+    throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
+  }
+  return nextUrl;
+};
+
+const fetchCuratedRedirectChain = async (
+  originalUrl: URL,
+  signal: AbortSignal,
+  conditionalHeaders: Record<string, string>,
+): Promise<{ response: Response; requestUrl: URL }> => {
   let requestUrl = originalUrl;
-  let response: Response | undefined;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    response = await fetch(requestUrl, {
+    const response = await fetch(requestUrl, {
       redirect: 'manual',
       headers: {
         'User-Agent': 'GLORIFIER-GEAS-Architecture-Scientist/2.0',
@@ -1021,73 +1052,64 @@ async function fetchCuratedSource(
       },
       signal,
     });
-    if (!SOURCE_REDIRECT_STATUSES.has(response.status)) break;
-
-    const location = response.headers.get('location');
-    await response.body?.cancel();
-    if (!location) throw new Error('source redirect is missing a Location header');
-    if (redirects === 10) throw new Error('source redirect limit exceeded');
-
-    const nextUrl = new URL(location, requestUrl);
-    const unsafeTarget =
-      nextUrl.protocol !== 'https:' ||
-      nextUrl.hostname !== originalUrl.hostname ||
-      Boolean(nextUrl.username || nextUrl.password) ||
-      Boolean(nextUrl.port && nextUrl.port !== '443');
-    if (unsafeTarget) {
-      throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
-    }
-    requestUrl = nextUrl;
+    if (!SOURCE_REDIRECT_STATUSES.has(response.status)) return { response, requestUrl };
+    requestUrl = await resolveCuratedRedirectTarget(response, requestUrl, originalUrl, redirects);
   }
+  throw new Error('source redirect limit exceeded or no response returned');
+};
 
-  if (!response || SOURCE_REDIRECT_STATUSES.has(response.status)) {
-    await response?.body?.cancel();
-    throw new Error('source redirect limit exceeded or no response returned');
-  }
-
+const validateCuratedFinalUrl = (response: Response, requestUrl: URL, originalUrl: URL): URL => {
   const finalUrl = new URL(response.url || requestUrl.toString());
   if (finalUrl.protocol !== 'https:' || finalUrl.hostname !== originalUrl.hostname) {
-    await response.body?.cancel();
     throw new Error('source redirect rejected: final host/protocol differs from curated source');
   }
+  return finalUrl;
+};
 
-  if (response.status === 304) {
-    // A 304 has no new representation body. The caller must validate and reuse the exact URL's cached evidence.
-    return { response, finalUrl, body: '' };
-  }
-
+const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array> => {
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
   if (declaredLength > SOURCE_MAX_BYTES) {
     await response.body?.cancel();
     throw new Error('source response exceeds 2 MiB limit');
   }
-
   const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  if (reader) {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > SOURCE_MAX_BYTES) {
-        await reader.cancel();
-        throw new Error('source response exceeds 2 MiB limit');
-      }
-      chunks.push(value);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > SOURCE_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error('source response exceeds 2 MiB limit');
     }
+    chunks.push(value);
   }
-
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return { response, finalUrl, body: new TextDecoder().decode(bytes) };
-}
+  return bytes;
+};
 
-async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> {
+const fetchCuratedSource = async (
+  sourceUrl: string,
+  signal: AbortSignal,
+  conditionalHeaders: Record<string, string> = {},
+): Promise<{ response: Response; finalUrl: URL; body: string }> => {
+  const originalUrl = validateCuratedSourceUrl(sourceUrl);
+  const { response, requestUrl } = await fetchCuratedRedirectChain(originalUrl, signal, conditionalHeaders);
+  const finalUrl = validateCuratedFinalUrl(response, requestUrl, originalUrl);
+  const body = response.status === 304
+    ? ''
+    : new TextDecoder().decode(await readBoundedResponseBytes(response));
+  return { response, finalUrl, body };
+};
+
+const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
   const fetchContext = createSourceFetchContext(source.url, cached);
   const { nowMs, observedAt, conditionalHeaders } = fetchContext;
   const controller = new AbortController();
@@ -1156,7 +1178,7 @@ async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObse
   } finally {
     clearTimeout(timer);
   }
-}
+};
 
 function observedPatterns(results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] {
   const map = new Map(results.map((result) => [result.sourceId, result]));
