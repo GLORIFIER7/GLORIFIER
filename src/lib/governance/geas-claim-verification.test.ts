@@ -50,7 +50,7 @@ const discoveryOnlyClaim = review({
   canonicalSourceUrl: discoveryOnlySource.url,
   observedSourceUrl: discoveryOnlySource.url,
   sourceSnapshot: discoveryOnlySnapshot,
-  sourceContentHash: createHash().update(discoveryOnlySnapshot, 'utf8').digest('hex'),
+  sourceContentHash: createHash('sha256').update(discoveryOnlySnapshot, 'utf8').digest('hex'),
   supportingExcerpt: discoveryOnlySnapshot,
 });
 assert.equal(
