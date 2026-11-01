@@ -793,12 +793,49 @@ const extractEvidence = (body: string, keywords: string[]): string | null => {
 const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const SOURCE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-const validateCuratedSourceUrl = (sourceUrl: string): URL => {
-  const originalUrl = new URL(sourceUrl);
-  if (originalUrl.protocol !== 'https:' || originalUrl.username || originalUrl.password) {
-    throw new Error('curated source URL must use HTTPS without embedded credentials');
+const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
+  'airc.nist.gov',
+  'atlas.mitre.org',
+  'aws.amazon.com',
+  'csrc.nist.gov',
+  'datatracker.ietf.org',
+  'docs.cloud.google.com',
+  'focus.finops.org',
+  'genai.owasp.org',
+  'github.com',
+  'learn.microsoft.com',
+  'opentelemetry.io',
+  'raw.githubusercontent.com',
+  'securityscorecards.dev',
+  'slsa.dev',
+  'sre.google',
+  'www.cncf.io',
+  'www.etsi.org',
+  'www.ietf.org',
+  'www.iso.org',
+  'www.nist.gov',
+  'www.opengroup.org',
+  'www.w3.org',
+]);
+
+export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+  try {
+    const url = new URL(sourceUrl);
+    return url.protocol === 'https:'
+      && CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
+      && !url.username
+      && !url.password
+      && (!url.port || url.port === '443');
+  } catch {
+    return false;
   }
-  return originalUrl;
+};
+
+const validateCuratedSourceUrl = (sourceUrl: string): URL => {
+  if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
+    throw new Error('curated source URL must use HTTPS on an approved hostname without credentials or unsafe ports');
+  }
+  return new URL(sourceUrl);
 };
 
 const hasExpectedRedirectOrigin = (nextUrl: URL, originalUrl: URL): boolean =>
