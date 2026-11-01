@@ -29,7 +29,7 @@ export const LINUX_PHILOSOPHY_ARCHITECTURE = {
     systemCalls: 'governed GLORIFIER APIs',
     capabilities: 'agent capabilities, tools, and data scopes',
     ipc: 'structured agent collaboration and evidence events',
-    filesystem: 'Neon/PostgreSQL authoritative state and registries',
+    filesystem: 'Neon/PostgreSQL canonical target; production Worker cutover pending verification',
     daemons: '24/7 monitoring, discovery, coding, and recovery workers',
     signals: 'event and evidence triggers',
     tracing: 'agent observability and cryptographic provenance',
