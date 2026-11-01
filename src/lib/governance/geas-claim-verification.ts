@@ -66,14 +66,21 @@ const normalizeExcerpt = (value: string): string => value.replace(/\s+/g, ' ').t
 const isSafeHttpsUrl = (url: URL): boolean =>
   url.protocol === 'https:' && !url.username && !url.password;
 
-const parseSafeHttpsUrl = (value: unknown): URL | null => {
-  if (typeof value !== 'string') return null;
+const isSafeHttpsUrl = (url: URL): boolean =>
+  url.protocol === 'https:' && !url.username && !url.password;
+
+const parseHttpsUrl = (value: string): URL | null => {
   try {
-    const url = new URL(value);
-    return isSafeHttpsUrl(url) ? url : null;
+    return new URL(value);
   } catch {
     return null;
   }
+};
+
+const parseSafeHttpsUrl = (value: unknown): URL | null => {
+  if (typeof value !== 'string') return null;
+  const url = parseHttpsUrl(value);
+  return url && isSafeHttpsUrl(url) ? url : null;
 };
 
 const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -164,14 +171,22 @@ const validateObservedSourceIdentity = (
   }
 };
 
+const validateSourceUrlField = (
+  value: unknown,
+  fieldName: 'canonicalSourceUrl' | 'observedSourceUrl',
+  failures: string[],
+): URL | null => {
+  const url = parseSafeHttpsUrl(value);
+  if (!url) failures.push(`${fieldName} must be HTTPS without credentials`);
+  return url;
+};
+
 const validateSourceUrls = (
   record: Partial<ClaimReviewRecord>,
   failures: string[],
 ): { canonical: URL | null; observed: URL | null } => {
-  const canonical = parseSafeHttpsUrl(record.canonicalSourceUrl);
-  const observed = parseSafeHttpsUrl(record.observedSourceUrl);
-  if (!canonical) failures.push('canonicalSourceUrl must be HTTPS without credentials');
-  if (!observed) failures.push('observedSourceUrl must be HTTPS without credentials');
+  const canonical = validateSourceUrlField(record.canonicalSourceUrl, 'canonicalSourceUrl', failures);
+  const observed = validateSourceUrlField(record.observedSourceUrl, 'observedSourceUrl', failures);
   if (canonical && observed) validateObservedSourceIdentity(canonical, observed, failures);
   return { canonical, observed };
 };
@@ -195,6 +210,16 @@ const findUniqueTrustedSource = (
   return matches[0];
 };
 
+const validateRegistryVersion = (
+  record: Partial<ClaimReviewRecord>,
+  registry: ClaimSourceRegistry,
+  failures: string[],
+): void => {
+  if (typeof record.sourceRegistryVersion === 'string' && record.sourceRegistryVersion !== registry.version) {
+    failures.push('sourceRegistryVersion does not match the trusted source registry');
+  }
+};
+
 const resolveTrustedSource = (
   record: Partial<ClaimReviewRecord>,
   registry: ClaimSourceRegistry,
@@ -204,9 +229,7 @@ const resolveTrustedSource = (
     failures.push('trusted source registry with version and sources is required');
     return null;
   }
-  if (typeof record.sourceRegistryVersion === 'string' && record.sourceRegistryVersion !== registry.version) {
-    failures.push('sourceRegistryVersion does not match the trusted source registry');
-  }
+  validateRegistryVersion(record, registry, failures);
   return findUniqueTrustedSource(record, registry, failures);
 };
 
@@ -238,18 +261,25 @@ const hasValidClaimAllowance = (claimsAllowed: readonly string[]): boolean =>
   && claimsAllowed.length > 0
   && claimsAllowed.every((allowed: unknown) => typeof allowed === 'string' && allowed.trim().length > 0);
 
+const trustedClaimAllowanceFailure = (
+  source: ClaimReviewSource,
+  claimType: unknown,
+): string | null => {
+  if (!hasValidClaimAllowance(source.claimsAllowed)) {
+    return 'trusted source claimsAllowed must be a non-empty string array';
+  }
+  return typeof claimType === 'string' && !source.claimsAllowed.includes(claimType)
+    ? `claimType ${claimType} is not allowed by the trusted source registry`
+    : null;
+};
+
 const validateTrustedClaimAllowance = (
   source: ClaimReviewSource,
   claimType: unknown,
   failures: string[],
 ): void => {
-  if (!hasValidClaimAllowance(source.claimsAllowed)) {
-    failures.push('trusted source claimsAllowed must be a non-empty string array');
-    return;
-  }
-  if (typeof claimType === 'string' && !source.claimsAllowed.includes(claimType)) {
-    failures.push(`claimType ${claimType} is not allowed by the trusted source registry`);
-  }
+  const failure = trustedClaimAllowanceFailure(source, claimType);
+  if (failure) failures.push(failure);
 };
 
 const getObservationAgeMs = (observedAt: unknown, nowMs: number): number | null => {
@@ -258,17 +288,21 @@ const getObservationAgeMs = (observedAt: unknown, nowMs: number): number | null 
   return observedAtMs === null ? null : nowMs - observedAtMs;
 };
 
+const observationAgeFailure = (ageMs: number | null, cadenceDays: number): string | null => {
+  if (ageMs === null) return null;
+  if (ageMs < 0) return 'observedAt cannot be in the future';
+  return ageMs > cadenceDays * DAYS_PER_MILLISECOND
+    ? 'source observation is older than the trusted source review cadence'
+    : null;
+};
+
 const validateObservationAge = (
   ageMs: number | null,
   cadenceDays: number,
   failures: string[],
 ): void => {
-  if (ageMs === null) return;
-  if (ageMs < 0) {
-    failures.push('observedAt cannot be in the future');
-  } else if (ageMs > cadenceDays * DAYS_PER_MILLISECOND) {
-    failures.push('source observation is older than the trusted source review cadence');
-  }
+  const failure = observationAgeFailure(ageMs, cadenceDays);
+  if (failure) failures.push(failure);
 };
 
 const validateSourceFreshness = (
