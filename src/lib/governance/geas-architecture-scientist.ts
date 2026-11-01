@@ -1502,6 +1502,15 @@ const persistSourceObservation = async (
   );
 };
 
+const persistSourceObservations = async (
+  db: ReturnType<typeof getPostgresPool>,
+  sources: SourceObservation[],
+): Promise<void> => {
+  for (const source of sources) {
+    await persistSourceObservation(db, source);
+  }
+};
+
 const persistArchitectureEvidence = async (
   db: ReturnType<typeof getPostgresPool>,
   item: ArchitectureEvidence,
@@ -1515,6 +1524,15 @@ const persistArchitectureEvidence = async (
   );
 };
 
+const persistArchitectureEvidenceRows = async (
+  db: ReturnType<typeof getPostgresPool>,
+  evidence: ArchitectureEvidence[],
+): Promise<void> => {
+  for (const item of evidence) {
+    await persistArchitectureEvidence(db, item);
+  }
+};
+
 const persistArchitectureScanResult = async (result: ArchitectureScanResult): Promise<void> => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
@@ -1522,12 +1540,8 @@ const persistArchitectureScanResult = async (result: ArchitectureScanResult): Pr
     'INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)',
     [result.scanId, result.startedAt, result.completedAt, result],
   );
-  for (const source of result.sources) {
-    await persistSourceObservation(db, source);
-  }
-  for (const item of result.evidence) {
-    await persistArchitectureEvidence(db, item);
-  }
+  await persistSourceObservations(db, result.sources);
+  await persistArchitectureEvidenceRows(db, result.evidence);
 };
 
 const executeArchitectureScan = async (
@@ -1563,27 +1577,27 @@ export const runGeasArchitectureScan = async (): Promise<ArchitectureScanResult>
   }
 };
 
-export async function persistEvidenceGovernance(evidenceId: string, governance: EvidenceGovernance) {
+export const persistEvidenceGovernance = async (evidenceId: string, governance: EvidenceGovernance) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query('INSERT INTO geas_evidence_governance(evidence_id, governance, updated_at) VALUES($1, $2, NOW()) ON CONFLICT(evidence_id) DO UPDATE SET governance = EXCLUDED.governance, updated_at = NOW()', [evidenceId, JSON.stringify(governance)]);
   return governance;
-}
+};
 
-export async function persistAgentTelemetryContract(contract: AgentTelemetryContract) {
+export const persistAgentTelemetryContract = async (contract: AgentTelemetryContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query('INSERT INTO geas_agent_telemetry_contracts(trace_id, contract) VALUES($1, $2) ON CONFLICT(trace_id) DO UPDATE SET contract = EXCLUDED.contract', [contract.traceId, JSON.stringify(contract)]);
   return contract;
-}
+};
 
-export async function persistFinOpsEvidence(contract: FinOpsEvidenceContract) {
+export const persistFinOpsEvidence = async (contract: FinOpsEvidenceContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   const id = `finops-evidence-${createHash('sha256').update(JSON.stringify(contract)).digest('hex')}`;
   await db.query('INSERT INTO geas_finops_evidence(id, contract) VALUES($1, $2) ON CONFLICT(id) DO UPDATE SET contract = EXCLUDED.contract', [id, JSON.stringify(contract)]);
   return { id, ...contract };
-}
+};
 
 const memory: { last?: ArchitectureScanResult } = {};
 
@@ -1622,34 +1636,32 @@ export const getGeasArchitectureModel = () => ({
     recommendations: RECOMMENDATIONS,
 });
 
-export function getGeasArchitectureSources() {
+export const getGeasArchitectureSources = () => {
   return SOURCES;
-}
+};
 
-export function getGeasArchitecturePatterns() {
+export const getGeasArchitecturePatterns = () => {
   return PATTERN_DEFINITIONS;
-}
+};
 
-export function getGeasArchitectureControls() {
+export const getGeasArchitectureControls = () => {
   return CONTROLS;
-}
+};
 
-export function getGeasArchitectureReliabilityContract() {
+export const getGeasArchitectureReliabilityContract = () => {
   return RELIABILITY_CONTRACT;
-}
+};
 
-export function getGeasSovereigntyDefaults() {
+export const getGeasSovereigntyDefaults = () => {
   return SOVEREIGNTY_DEFAULTS;
-}
+};
 
-export function createAgentIdentityContract(input: Omit<AgentIdentityContract, 'identityType'> & { identityType?: AgentIdentityContract['identityType'] }): AgentIdentityContract {
-  return {
-    identityType: input.identityType ?? 'agent',
-    ...input,
-  };
-}
+export const createAgentIdentityContract = (input: Omit<AgentIdentityContract, 'identityType'> & { identityType?: AgentIdentityContract['identityType'] }): AgentIdentityContract => ({
+  identityType: input.identityType ?? 'agent',
+  ...input,
+});
 
-export async function persistAgentIdentityContract(contract: AgentIdentityContract) {
+export const persistAgentIdentityContract = async (contract: AgentIdentityContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query(
@@ -1657,17 +1669,15 @@ export async function persistAgentIdentityContract(contract: AgentIdentityContra
     [contract.subject, JSON.stringify(contract)],
   );
   return contract;
-}
+};
 
-export function createTokenLifecycleContract(input: Omit<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'> & Partial<Pick<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'>>): TokenLifecycleContract {
-  return {
-    verificationRequired: true,
-    replayProtectionRequired: true,
-    ...input,
-  };
-}
+export const createTokenLifecycleContract = (input: Omit<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'> & Partial<Pick<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'>>): TokenLifecycleContract => ({
+  verificationRequired: true,
+  replayProtectionRequired: true,
+  ...input,
+});
 
-export function createGovernedActionEvidencePackage(input: Omit<GovernedActionEvidencePackage, 'id' | 'actionHash' | 'createdAt' | 'verificationStatus'> & { verificationStatus?: GovernedActionEvidencePackage['verificationStatus'] }): GovernedActionEvidencePackage {
+export const createGovernedActionEvidencePackage = (input: Omit<GovernedActionEvidencePackage, 'id' | 'actionHash' | 'createdAt' | 'verificationStatus'> & { verificationStatus?: GovernedActionEvidencePackage['verificationStatus'] }): GovernedActionEvidencePackage => {
   const canonical = JSON.stringify({
     actorIdentity: input.actorIdentity,
     authorityRef: input.authorityRef,
@@ -1690,9 +1700,9 @@ export function createGovernedActionEvidencePackage(input: Omit<GovernedActionEv
     verificationStatus: input.verificationStatus ?? 'UNKNOWN',
     createdAt: new Date().toISOString(),
   };
-}
+};
 
-export async function persistGovernedActionEvidencePackage(pkg: GovernedActionEvidencePackage) {
+export const persistGovernedActionEvidencePackage(pkg: GovernedActionEvidencePackage) {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query(
@@ -1702,22 +1712,18 @@ export async function persistGovernedActionEvidencePackage(pkg: GovernedActionEv
   return pkg;
 }
 
-export function createAIImpactAssessment(input: Omit<AIImpactAssessment, 'id' | 'createdAt'>): AIImpactAssessment {
-  return {
-    ...input,
-    id: `impact-${randomUUID()}`,
-    createdAt: new Date().toISOString(),
-  };
-}
+export const createAIImpactAssessment = (input: Omit<AIImpactAssessment, 'id' | 'createdAt'>): AIImpactAssessment => ({
+  ...input,
+  id: `impact-${randomUUID()}`,
+  createdAt: new Date().toISOString(),
+});
 
-export function createFinOpsArchitectureDecision(input: Omit<FinOpsArchitectureDecision, 'id'>): FinOpsArchitectureDecision {
-  return {
-    ...input,
-    id: `finops-${randomUUID()}`,
-  };
-}
+export const createFinOpsArchitectureDecision = (input: Omit<FinOpsArchitectureDecision, 'id'>): FinOpsArchitectureDecision => ({
+  ...input,
+  id: `finops-${randomUUID()}`,
+});
 
-export async function persistArchitectureReconciliation(input: {
+export const persistArchitectureReconciliation = async (input: {
   id?: string;
   resourceId: string;
   desired: Record<string, unknown>;
@@ -1736,11 +1742,11 @@ export async function persistArchitectureReconciliation(input: {
     [id, input.resourceId, JSON.stringify(input.desired), JSON.stringify(input.declared), JSON.stringify(input.deployed), JSON.stringify(input.observed), JSON.stringify(input.verified), input.status ?? 'UNKNOWN', JSON.stringify(input.evidenceRefs ?? [])],
   );
   return { ...input, id };
-}
+};
 
 let scannerTimer: ReturnType<typeof setInterval> | undefined;
 
-export function startGeasArchitectureScientistDaemon() {
+export const startGeasArchitectureScientistDaemon = () => {
   if (scannerTimer) return;
   const enabled = String(process.env.GEAS_ARCHITECTURE_SCAN_ENABLED ?? 'true').toLowerCase() !== 'false';
   if (!enabled) return;
@@ -1758,4 +1764,4 @@ export function startGeasArchitectureScientistDaemon() {
   }, hours * 60 * 60 * 1000);
 
   scannerTimer.unref?.();
-}
+};
