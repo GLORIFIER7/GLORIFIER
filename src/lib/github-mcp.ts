@@ -126,8 +126,64 @@ const validateRequestSize = (request: Request): Response | null => {
   return null;
 };
 
+const cancelResponseBody = async (response: Response): Promise<void> => {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best-effort cleanup for an upstream body that will not be consumed.
+  }
+};
+
+const readBoundedResponseText = async (response: Response): Promise<string> => {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
+    await cancelResponseBody(response);
+    throw new Error('GitHub API response exceeded the configured size limit.');
+  }
+
+  const body = response.body;
+  if (!body) return '';
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      if (!next.value) continue;
+      totalBytes += next.value.byteLength;
+      if (totalBytes > MAX_UPSTREAM_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('GitHub API response exceeded the configured size limit.');
+      }
+      chunks.push(next.value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('GitHub API returned invalid UTF-8.');
+  }
+};
+
 const readGithubJson = async (pathname: string, query?: URLSearchParams): Promise<unknown> => {
   const url = new URL(pathname, API_ROOT);
+  if (url.protocol !== 'https:' || url.origin !== API_ROOT || url.username || url.password) {
+    throw new Error('Blocked GitHub API URL outside the trusted HTTPS origin.');
+  }
   if (query) url.search = query.toString();
   const response = await fetch(url, {
     method: 'GET',
@@ -140,12 +196,10 @@ const readGithubJson = async (pathname: string, query?: URLSearchParams): Promis
     signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) {
+    await cancelResponseBody(response);
     throw new Error(`GitHub API request failed with HTTP ${response.status}.`);
   }
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_UPSTREAM_BYTES) {
-    throw new Error('GitHub API response exceeded the configured size limit.');
-  }
+  const text = await readBoundedResponseText(response);
   try {
     return JSON.parse(text) as unknown;
   } catch {
@@ -153,23 +207,28 @@ const readGithubJson = async (pathname: string, query?: URLSearchParams): Promis
   }
 };
 
-const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
-  if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
+const repositoryPathSegments = (path: string): string[] => {
+  if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\\\') || path.includes('\\0')) {
     throw new Error('Invalid repository-relative file path.');
   }
   const segments = path.split('/');
   if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
     throw new Error('Invalid repository-relative file path.');
   }
+  return segments;
+};
+
+const assertValidGitReference = (ref: string): void => {
   if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.split('/').some((segment) => segment === '..')) {
     throw new Error('Invalid Git reference.');
   }
-  const encodedPath = segments.map((segment) => encodeURIComponent(segment)).join('/');
-  const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }));
-  if (!isRecord(data) || typeof data.content !== 'string' || data.encoding !== 'base64') {
+};
+
+const decodeGithubTextFile = (data: JsonRecord): string => {
+  if (typeof data.content !== 'string' || data.encoding !== 'base64') {
     throw new Error('The requested path is not a supported text file.');
   }
-  const compact = data.content.replace(/\s/g, '');
+  const compact = data.content.replace(/\\s/g, '');
   if (compact.length > Math.ceil(MAX_UPSTREAM_BYTES * 4 / 3)) {
     throw new Error('GitHub file exceeded the configured size limit.');
   }
@@ -180,44 +239,135 @@ const readGithubFile = async (path: string, ref: string): Promise<{ path: string
     throw new Error('GitHub file content was not valid Base64.');
   }
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  return { path, ref, content };
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('GitHub file content was not valid UTF-8.');
+  }
+};
+
+const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
+  const segments = repositoryPathSegments(path);
+  assertValidGitReference(ref);
+  const encodedPath = segments.map((segment) => encodeURIComponent(segment)).join('/');
+  const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }));
+  if (!isRecord(data)) throw new Error('The requested path is not a supported text file.');
+  return { path, ref, content: decodeGithubTextFile(data) };
+};
+
+const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
+
+const getRepositoryTool = async (): Promise<unknown> =>
+  readGithubJson(`/repos/${OWNER}/${REPOSITORY}`);
+
+const listPullRequestsTool = async (args: unknown): Promise<unknown> => {
+  const input = toolArguments(args);
+  const state = input.state === undefined ? 'open' : input.state;
+  if (state !== 'open' && state !== 'closed' && state !== 'all') {
+    throw new Error('state must be open, closed, or all.');
+  }
+  const perPage = input.per_page === undefined ? 10 : input.per_page;
+  if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
+    throw new Error('per_page must be an integer between 1 and 20.');
+  }
+  return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/pulls`, new URLSearchParams({
+    state,
+    per_page: String(perPage),
+  }));
+};
+
+const listWorkflowRunsTool = async (args: unknown): Promise<unknown> => {
+  const input = toolArguments(args);
+  const perPage = input.per_page === undefined ? 10 : input.per_page;
+  if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
+    throw new Error('per_page must be an integer between 1 and 20.');
+  }
+  return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }));
+};
+
+const readFileTool = async (args: unknown): Promise<unknown> => {
+  const input = toolArguments(args);
+  if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
+  const ref = input.ref === undefined ? 'main' : input.ref;
+  if (typeof ref !== 'string') throw new Error('ref must be a string.');
+  return readGithubFile(input.path, ref);
+};
+
+const toolHandlers: Record<string, (args: unknown) => Promise<unknown>> = {
+  github_get_repository: getRepositoryTool,
+  github_list_open_pull_requests: listPullRequestsTool,
+  github_list_workflow_runs: listWorkflowRunsTool,
+  github_read_file: readFileTool,
 };
 
 const callTool = async (name: string, args: unknown): Promise<unknown> => {
-  const input = isRecord(args) ? args : {};
-  const repoPath = `/repos/${OWNER}/${REPOSITORY}`;
-  if (name === 'github_get_repository') {
-    return readGithubJson(repoPath);
-  }
-  if (name === 'github_list_open_pull_requests') {
-    const state = input.state === undefined ? 'open' : input.state;
-    if (state !== 'open' && state !== 'closed' && state !== 'all') {
-      throw new Error('state must be open, closed, or all.');
-    }
-    const perPage = input.per_page === undefined ? 10 : input.per_page;
-    if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
-      throw new Error('per_page must be an integer between 1 and 20.');
-    }
-    return readGithubJson(`${repoPath}/pulls`, new URLSearchParams({ state, per_page: String(perPage) }));
-  }
-  if (name === 'github_list_workflow_runs') {
-    const perPage = input.per_page === undefined ? 10 : input.per_page;
-    if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
-      throw new Error('per_page must be an integer between 1 and 20.');
-    }
-    return readGithubJson(`${repoPath}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }));
-  }
-  if (name === 'github_read_file') {
-    if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
-    const ref = input.ref === undefined ? 'main' : input.ref;
-    if (typeof ref !== 'string') throw new Error('ref must be a string.');
-    return readGithubFile(input.path, ref);
-  }
-  throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
+  const handler = toolHandlers[name];
+  if (!handler) throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
+  return handler(args);
 };
 
 const resultText = (value: unknown): string => typeof value === 'string' ? value : String(JSON.stringify(value));
+
+const emptyNotificationResponse = (): Response =>
+  new Response(null, { status: 202, headers: { 'Cache-Control': 'no-store' } });
+
+const handleInitialize = (id: string | number | null, paramsValue: unknown): Response => {
+  const params = isRecord(paramsValue) ? paramsValue : {};
+  const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_VERSION;
+  const supported = ['2025-03-26', '2025-06-18', '2025-11-25'];
+  const protocolVersion = supported.includes(requested) ? requested : PROTOCOL_VERSION;
+  return jsonResponse({
+    jsonrpc: '2.0',
+    id,
+    result: {
+      protocolVersion,
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: 'GLORIFIER GitHub Read-Only', version: '1.0.0' },
+      instructions: 'Read-only access to the public GLORIFIER7/GLORIFIER repository. No write, merge, deployment, secret, or credential tools are exposed.',
+    },
+  });
+};
+
+const handleToolCall = async (id: string | number | null, paramsValue: unknown): Promise<Response> => {
+  const params = isRecord(paramsValue) ? paramsValue : {};
+  if (typeof params.name !== 'string') {
+    return jsonResponse({
+      jsonrpc: '2.0',
+      id,
+      result: { content: [{ type: 'text', text: 'Tool name is required.' }], isError: true },
+    });
+  }
+  try {
+    const result = await callTool(params.name, params.arguments);
+    return jsonResponse({
+      jsonrpc: '2.0',
+      id,
+      result: { content: [{ type: 'text', text: resultText(result) }] },
+    });
+  } catch (error) {
+    const messageText = error instanceof Error ? error.message : 'GitHub request failed.';
+    return jsonResponse({
+      jsonrpc: '2.0',
+      id,
+      result: { content: [{ type: 'text', text: messageText }], isError: true },
+    });
+  }
+};
+
+const handleJsonRpcMethod = async (message: McpMessage, id: string | number | null): Promise<Response> => {
+  switch (message.method) {
+    case 'initialize':
+      return handleInitialize(id, message.params);
+    case 'ping':
+      return jsonResponse({ jsonrpc: '2.0', id, result: {} });
+    case 'tools/list':
+      return jsonResponse({ jsonrpc: '2.0', id, result: { tools } });
+    case 'tools/call':
+      return handleToolCall(id, message.params);
+    default:
+      return rpcError(id, -32601, 'Method not found.');
+  }
+};
 
 const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
@@ -226,60 +376,9 @@ const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
-  if (message.method === 'notifications/initialized' || message.method.startsWith('notifications/')) {
-    return new Response(null, { status: 202, headers: { 'Cache-Control': 'no-store' } });
-  }
-  if (!Object.prototype.hasOwnProperty.call(message, 'id')) {
-    return new Response(null, { status: 202, headers: { 'Cache-Control': 'no-store' } });
-  }
-  if (message.method === 'initialize') {
-    const params = isRecord(message.params) ? message.params : {};
-    const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_VERSION;
-    const supported = ['2025-03-26', '2025-06-18', '2025-11-25'];
-    const protocolVersion = supported.includes(requested) ? requested : PROTOCOL_VERSION;
-    return jsonResponse({
-      jsonrpc: '2.0',
-      id,
-      result: {
-        protocolVersion,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'GLORIFIER GitHub Read-Only', version: '1.0.0' },
-        instructions: 'Read-only access to the public GLORIFIER7/GLORIFIER repository. No write, merge, deployment, secret, or credential tools are exposed.',
-      },
-    });
-  }
-  if (message.method === 'ping') {
-    return jsonResponse({ jsonrpc: '2.0', id, result: {} });
-  }
-  if (message.method === 'tools/list') {
-    return jsonResponse({ jsonrpc: '2.0', id, result: { tools } });
-  }
-  if (message.method === 'tools/call') {
-    const params = isRecord(message.params) ? message.params : {};
-    if (typeof params.name !== 'string') {
-      return jsonResponse({
-        jsonrpc: '2.0',
-        id,
-        result: { content: [{ type: 'text', text: 'Tool name is required.' }], isError: true },
-      });
-    }
-    try {
-      const result = await callTool(params.name, params.arguments);
-      return jsonResponse({
-        jsonrpc: '2.0',
-        id,
-        result: { content: [{ type: 'text', text: resultText(result) }] },
-      });
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : 'GitHub request failed.';
-      return jsonResponse({
-        jsonrpc: '2.0',
-        id,
-        result: { content: [{ type: 'text', text: messageText }] , isError: true },
-      });
-    }
-  }
-  return rpcError(id, -32601, 'Method not found.');
+  if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
+  if (!Object.prototype.hasOwnProperty.call(message, 'id')) return emptyNotificationResponse();
+  return handleJsonRpcMethod(message, id);
 };
 
 export const githubMcpRoute = async (request: Request): Promise<Response> => {
