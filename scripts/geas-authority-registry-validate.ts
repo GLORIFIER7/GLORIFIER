@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import * as ts from 'typescript';
 
 type Source = {
   id: string;
@@ -44,6 +45,85 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
   const url = parseHttpsUrl(value);
   return url && isSafeHttpsUrl(url) ? url.href : null;
 };
+
+
+type ScannerSourceEntry = { id: string; url: string };
+
+const parseScannerSourceCatalog = (sourceText: string): {
+  declaredCount: number;
+  entries: ScannerSourceEntry[];
+  failures: string[];
+} => {
+  const sourceFile = ts.createSourceFile(scannerPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let sourceArray: ts.ArrayLiteralExpression | null = null;
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name)
+          && declaration.name.text === 'SOURCES'
+          && declaration.initializer
+          && ts.isArrayLiteralExpression(declaration.initializer)) {
+        sourceArray = declaration.initializer;
+      }
+    }
+  }
+
+  const failures: string[] = [];
+  if (!sourceArray) return { declaredCount: 0, entries: [], failures: ['unable to locate scanner SOURCES array'] };
+
+  const readString = (expression: ts.Expression | undefined): string | null =>
+    expression && ts.isStringLiteralLike(expression) ? expression.text : null;
+  const readObjectString = (object: ts.ObjectLiteralExpression, name: string): string | null => {
+    const property = object.properties.find((candidate) =>
+      ts.isPropertyAssignment(candidate)
+      && (ts.isIdentifier(candidate.name) || ts.isStringLiteral(candidate.name))
+      && candidate.name.text === name,
+    );
+    return property && ts.isPropertyAssignment(property)
+      ? readString(property.initializer)
+      : null;
+  };
+
+  const entries: ScannerSourceEntry[] = [];
+  for (const [index, element] of sourceArray.elements.entries()) {
+    let id: string | null = null;
+    let url: string | null = null;
+    if (ts.isCallExpression(element)
+        && ts.isIdentifier(element.expression)
+        && element.expression.text === 'createArchitectureSource') {
+      id = readString(element.arguments[0]);
+      url = readString(element.arguments[3]);
+    } else if (ts.isObjectLiteralExpression(element)) {
+      id = readObjectString(element, 'id');
+      url = readObjectString(element, 'url');
+    } else {
+      failures.push(`scanner source at index ${index} uses an unsupported declaration form`);
+      continue;
+    }
+    if (!id || !url) {
+      failures.push(`scanner source at index ${index} must declare literal id and url values`);
+      continue;
+    }
+    entries.push({ id, url });
+  }
+  return { declaredCount: sourceArray.elements.length, entries, failures };
+};
+
+const scannerParserFixture = `
+const SOURCES = [
+  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),
+  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },
+];
+`;
+const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
+if (fixtureResult.declaredCount !== 2
+    || fixtureResult.entries.length !== 2
+    || fixtureResult.entries[0]?.id !== 'factory-source'
+    || fixtureResult.entries[0]?.url !== 'https://factory.example/source'
+    || fixtureResult.entries[1]?.id !== 'literal-source'
+    || fixtureResult.entries[1]?.url !== 'https://literal.example/source') {
+  throw new Error('scanner source parser must preserve factory-call and object-literal entries');
+}
 
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
@@ -108,25 +188,19 @@ if (!isRecord(parsed)) {
   }
 }
 
+
 if (isRecord(parsed)) {
-  // Keep the machine-readable registry and executable scanner catalog in sync.
-// The scanner catalog is deliberately bounded to the SOURCES declaration so pattern IDs
-// elsewhere in the file cannot be mistaken for source IDs.
-const scannerText = readFileSync(scannerPath, 'utf8');
-const sourceSection = scannerText.split('const SOURCES: ArchitectureSource[] = [')[1]?.split('const definePattern = (')[0];
-if (!sourceSection) {
-  failures.push('unable to locate scanner SOURCES catalog');
-} else {
-  const scannerSourceEntries = [...sourceSection.matchAll(
-    /createArchitectureSource\(\s*'([^']+)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g,
-  )].map((match) => ({
-    id: match[1],
-    url: match[2],
-  }));
-  const scannerIds = scannerSourceEntries.map((entry) => entry.id);
+  // Parse the scanner catalog as TypeScript so both factory calls and object literals
+  // are counted. A pattern that silently misses a declaration must fail closed.
+  const scannerText = readFileSync(scannerPath, 'utf8');
+  const scannerCatalog = parseScannerSourceCatalog(scannerText);
+  failures.push(...scannerCatalog.failures);
+  const scannerIds = scannerCatalog.entries.map((entry) => entry.id);
   const scannerIdSet = new Set(scannerIds);
-  const scannerUrls = new Map(scannerSourceEntries.map((entry) => [entry.id, entry.url]));
-  if (scannerSourceEntries.length !== scannerIds.length) failures.push('unable to parse each scanner source URL within its source object');
+  const scannerUrls = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.url]));
+  if (scannerCatalog.declaredCount !== scannerCatalog.entries.length) {
+    failures.push('unable to parse every scanner source catalog entry');
+  }
   if (scannerIds.length === 0) failures.push('scanner source catalog is empty');
   if (scannerIdSet.size !== scannerIds.length) failures.push('scanner source catalog contains duplicate IDs');
   for (const id of scannerIdSet) {
@@ -148,7 +222,6 @@ if (!sourceSection) {
       failures.push(`registry source ${source.id} is marked discovery-only but present in scanner catalog`);
     }
   }
-}
 }
 
 if (failures.length > 0) {
