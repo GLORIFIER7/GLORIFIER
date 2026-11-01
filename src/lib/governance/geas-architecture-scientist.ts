@@ -689,17 +689,20 @@ const isCachedObservationForSource = (
   && typeof cached.final_url === 'string'
   && cached.final_url === finalUrl;
 
+const isObservationTimestampCurrent = (timestamp: number | null, nowMs: number): boolean =>
+  Number.isFinite(nowMs) && timestamp !== null && timestamp <= nowMs;
+
+const isObservationTimestampMonotonic = (cachedAt: number | null, observedAt: number | null): boolean =>
+  cachedAt !== null && observedAt !== null && observedAt >= cachedAt;
+
 const isMonotonicObservationWindow = (
   cachedAt: number | null,
   observedAt: number | null,
   nowMs: number,
 ): boolean =>
-  Number.isFinite(nowMs)
-  && cachedAt !== null
-  && cachedAt <= nowMs
-  && observedAt !== null
-  && observedAt >= cachedAt
-  && observedAt <= nowMs;
+  isObservationTimestampCurrent(cachedAt, nowMs)
+  && isObservationTimestampCurrent(observedAt, nowMs)
+  && isObservationTimestampMonotonic(cachedAt, observedAt);
 
 const buildRevalidatedSourceObservation = (
   source: Pick<ArchitectureSource, 'id'>,
@@ -768,12 +771,19 @@ const validateCuratedSourceUrl = (sourceUrl: string): URL => {
   return originalUrl;
 };
 
+const hasExpectedRedirectOrigin = (nextUrl: URL, originalUrl: URL): boolean =>
+  nextUrl.protocol === 'https:' && nextUrl.hostname === originalUrl.hostname;
+
+const hasNoRedirectCredentials = (nextUrl: URL): boolean =>
+  !nextUrl.username && !nextUrl.password;
+
+const hasAllowedRedirectPort = (nextUrl: URL): boolean =>
+  !nextUrl.port || nextUrl.port === '443';
+
 const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
-  nextUrl.protocol === 'https:'
-  && nextUrl.hostname === originalUrl.hostname
-  && !nextUrl.username
-  && !nextUrl.password
-  && (!nextUrl.port || nextUrl.port === '443');
+  hasExpectedRedirectOrigin(nextUrl, originalUrl)
+  && hasNoRedirectCredentials(nextUrl)
+  && hasAllowedRedirectPort(nextUrl);
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
@@ -823,14 +833,19 @@ const validateCuratedFinalUrl = (response: Response, requestUrl: URL, originalUr
   return finalUrl;
 };
 
-const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array> => {
+const SOURCE_SIZE_LIMIT_ERROR = 'source response exceeds 2 MiB limit';
+
+const validateDeclaredResponseSize = async (response: Response): Promise<void> => {
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
   if (declaredLength > SOURCE_MAX_BYTES) {
     await response.body?.cancel();
-    throw new Error('source response exceeds 2 MiB limit');
+    throw new Error(SOURCE_SIZE_LIMIT_ERROR);
   }
-  const reader = response.body?.getReader();
-  if (!reader) return new Uint8Array();
+};
+
+const readResponseChunks = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<{ chunks: Uint8Array[]; totalBytes: number }> => {
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
   while (true) {
@@ -839,10 +854,14 @@ const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array>
     totalBytes += value.byteLength;
     if (totalBytes > SOURCE_MAX_BYTES) {
       await reader.cancel();
-      throw new Error('source response exceeds 2 MiB limit');
+      throw new Error(SOURCE_SIZE_LIMIT_ERROR);
     }
     chunks.push(value);
   }
+  return { chunks, totalBytes };
+};
+
+const combineResponseChunks = (chunks: Uint8Array[], totalBytes: number): Uint8Array => {
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
@@ -850,6 +869,14 @@ const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array>
     offset += chunk.byteLength;
   }
   return bytes;
+};
+
+const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array> => {
+  await validateDeclaredResponseSize(response);
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const collected = await readResponseChunks(reader);
+  return combineResponseChunks(collected.chunks, collected.totalBytes);
 };
 
 const fetchCuratedSource = async (
