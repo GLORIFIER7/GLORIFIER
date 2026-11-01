@@ -202,8 +202,8 @@ const splitTopLevelRanges = (tokens: Token[], start: number, end: number, delimi
     if (token) rangeStart = advanceRangeBoundary(ranges, rangeStart, index, token, state, delimiter);
   }
   if (state.expected.length !== 0) throw new Error('unterminated nested expression in scanner source entry');
-  ranges.push({ start: rangeStart, end });
-  return ranges.filter(range => range.start < range.end);
+  if (rangeStart < end) ranges.push({ start: rangeStart, end });
+  return ranges;
 };
 
 const readPropertyName = (token: Token | undefined): string | null => {
@@ -318,10 +318,32 @@ const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | 
 };
 
 const findArrayStart = (source: string): number => {
-  const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(source);
-  if (!declaration) return -1;
-  const equals = source.indexOf('=', declaration.index + declaration[0].length);
-  return equals < 0 ? -1 : source.indexOf('[', equals + 1);
+  let index = 0;
+  while (index < source.length) {
+    const keyword = readNextToken(source, index);
+    if (!keyword.token) break;
+    index = keyword.end;
+    if (keyword.token.kind !== 'identifier'
+      || (keyword.token.text !== 'const' && keyword.token.text !== 'let' && keyword.token.text !== 'var')) {
+      continue;
+    }
+
+    const name = readNextToken(source, index);
+    if (name.token?.kind !== 'identifier' || name.token.text !== 'SOURCES') continue;
+    let declarationIndex = name.end;
+    while (declarationIndex < source.length) {
+      const part = readNextToken(source, declarationIndex);
+      if (!part.token || part.token.text === ';') break;
+      if (part.token.text === '=') {
+        const initializer = readNextToken(source, part.end);
+        if (initializer.token?.text !== '[') return -1;
+        return initializer.end - initializer.token.text.length;
+      }
+      declarationIndex = part.end;
+    }
+    return -1;
+  }
+  return -1;
 };
 
 export const parseScannerSourceCatalog = (source: string): ScannerSourceCatalog => {
