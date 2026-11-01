@@ -155,4 +155,4 @@ process.stdout.write(`${JSON.stringify({
   scannerCatalog: scannerPath,
   braceStringRegression: 'passed',
   irreversibleChangesExecuted: false,
-}, null, 2)}\\n`);
+}, null, 2)}\n`);
