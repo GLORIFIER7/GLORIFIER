@@ -250,15 +250,26 @@ const createSourceEntry = (id: string | number | null, url: string | number | nu
   return isValidSourceEntryValues(values) ? values : null;
 };
 
-const parseObjectEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
+const readObjectPropertyRanges = (tokens: Token[], range: Range): Range[] | null => {
   const isObject = tokens[range.start]?.text === '{' && tokens[range.end - 1]?.text === '}';
-  if (!isObject) return null;
-  const properties = splitTopLevelRanges(tokens, range.start + 1, range.end - 1, ',');
-  if (properties.some(property => tokens[property.start]?.text === '...')) return null;
+  return isObject ? splitTopLevelRanges(tokens, range.start + 1, range.end - 1, ',') : null;
+};
+
+const hasUnsupportedObjectSpread = (tokens: Token[], properties: Range[]): boolean =>
+  properties.some(property => tokens[property.start]?.text === '...');
+
+const readObjectSourceEntry = (tokens: Token[], properties: Range[]): ScannerSourceEntry | null => {
   const id = readLiteralProperty(tokens, properties, 'id', 'string');
   const url = readLiteralProperty(tokens, properties, 'url', 'string');
   const cadence = readLiteralProperty(tokens, properties, 'cadenceHours', 'number');
   return createSourceEntry(id, url, cadence);
+};
+
+const parseObjectEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
+  const properties = readObjectPropertyRanges(tokens, range);
+  return properties && !hasUnsupportedObjectSpread(tokens, properties)
+    ? readObjectSourceEntry(tokens, properties)
+    : null;
 };
 
 const argumentRange = (arguments_: Range[], index: number): Range | null => arguments_[index] ?? null;
