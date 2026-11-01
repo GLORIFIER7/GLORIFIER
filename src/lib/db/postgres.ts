@@ -29,21 +29,31 @@ const getDatabaseUrl = (): string => {
   }
 };
 
+const getDatabaseSslMode = (): 'disabled' | 'required' | 'invalid' => {
+  // The disable switch is permitted only for isolated non-production databases.
+  if (process.env.NODE_ENV !== 'production') return 'disabled';
+  if (process.env.DATABASE_SSL === 'disable') return 'invalid';
+  return 'required';
+};
+
+const getDatabaseCaOptions = (): { ca?: string } => {
+  const caPath = process.env.DATABASE_SSL_CA;
+  if (!caPath) return {};
+  return { ca: loadDatabaseCa(caPath) };
+};
+
 const getDatabaseSsl = () => {
-  // TLS remains enabled by default in production. The explicit disable switch is
-  // intended only for isolated local/test databases that do not provide TLS.
-  const sslDisabled = process.env.DATABASE_SSL === 'disable';
-  if (sslDisabled && process.env.NODE_ENV === 'production') {
+  const mode = getDatabaseSslMode();
+  if (mode === 'invalid') {
     throw new Error('DATABASE_SSL=disable is not permitted in production');
   }
-  if (sslDisabled || process.env.NODE_ENV !== 'production') return undefined;
+  if (mode === 'disabled') return undefined;
 
   // Production TLS must validate the server certificate to prevent MITM attacks.
   // DATABASE_SSL_CA may point to a trusted CA bundle for private database certificates.
-  const caPath = process.env.DATABASE_SSL_CA;
   return {
     rejectUnauthorized: true,
-    ...(caPath ? { ca: loadDatabaseCa(caPath) } : {}),
+    ...getDatabaseCaOptions(),
   };
 };
 
