@@ -905,10 +905,10 @@ async function run(): Promise<void> {
       HYPERDRIVE: { connectionString: 'postgresql://hyperdrive.test/glorifier' },
     };
     let neonCountReaderCalls = 0;
-    const neonCountReader = async (binding: { connectionString: string }) => {
+    const neonCountReader = (binding: { connectionString: string }) => {
       neonCountReaderCalls += 1;
       assert.equal(binding.connectionString, 'postgresql://hyperdrive.test/glorifier');
-      return expectedNeonCounts;
+      return Promise.resolve(expectedNeonCounts);
     };
 
     const neonReportsResponse = await reportsSummaryResponse(neonEnvironment, neonCountReader);
@@ -969,7 +969,7 @@ async function run(): Promise<void> {
 
     const neonQueryFailure = await reportsSummaryResponse(
       neonEnvironment,
-      async () => { throw new Error('simulated Neon query failure'); },
+      () => Promise.reject(new Error('simulated Neon query failure')),
     );
     assert.equal(neonQueryFailure.status, 502);
     assert.equal(await neonQueryFailure.json().then((body: { code?: string }) => body.code), 'NEON_REPORTS_QUERY_FAILED');
