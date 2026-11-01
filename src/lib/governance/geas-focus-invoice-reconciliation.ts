@@ -74,36 +74,24 @@ interface NormalizedCharge {
   billedCost: string;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-function asRecord(value: unknown): Record<string, unknown> | null {
+const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
-}
+};
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-function textValue(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
+const textValue = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-function hasCanonicalUtcTimestampShape(value: string): boolean {
-  return value.trim() === value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
-}
+const hasCanonicalUtcTimestampShape = (value: string): boolean =>
+  value.trim() === value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-function utcTimestamp(value: unknown): number | null {
-  if (typeof value !== 'string') return null;
-  if (!hasCanonicalUtcTimestampShape(value)) return null;
+const utcTimestamp = (value: unknown): number | null => {
+  if (typeof value !== 'string' || !hasCanonicalUtcTimestampShape(value)) return null;
   const milliseconds = Date.parse(value);
   if (!Number.isFinite(milliseconds)) return null;
-  const canonicalValue = new Date(milliseconds).toISOString().replace('.000Z', 'Z');
-  return canonicalValue === value ? milliseconds : null;
-}
+  return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === value ? milliseconds : null;
+};
 
 // TypeScript ES-module declarations are module-scoped, not global script bindings.
 // skipcq: JS-0067
@@ -202,6 +190,9 @@ interface NormalizeRowsContext {
   reasons: string[];
 }
 
+const isUppercaseCurrencyCode = (value: string): boolean =>
+  value.length === 3 && [...value].every((character) => character >= 'A' && character <= 'Z');
+
 interface ParsedNormalizedCharge {
   invoiceIssuerName: string;
   invoiceId: string;
@@ -266,7 +257,7 @@ const invoiceIdentityFailure = (row: ParsedNormalizedCharge, context: NormalizeR
     : 'is outside the target invoice';
 
 const invoiceCurrencyFailure = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): string | null =>
-  row.billingCurrency === context.billingCurrency && /^[A-Z]{3}$/.test(row.billingCurrency)
+  row.billingCurrency === context.billingCurrency && isUppercaseCurrencyCode(row.billingCurrency)
     ? null
     : 'has a billing-currency mismatch';
 
@@ -389,7 +380,7 @@ const validateInvoiceMetadata = (
   } else if (startMs >= endMs) {
     reasons.push('billing period end must be later than billing period start');
   }
-  if (!values.currency || !/^[A-Z]{3}$/.test(values.currency)) {
+  if (!values.currency || !isUppercaseCurrencyCode(values.currency)) {
     reasons.push('billing currency must be an uppercase three-letter code');
   }
   if (!values.tolerance || values.toleranceScale === null) {
