@@ -48,10 +48,12 @@ const verifyParserIgnoresCommentedFactoryCalls = (): void => {
 };
 
 const verifyParserHandlesBraceCharacters = (): void => {
-  const fixture = `const SOURCES: ArchitectureSource[] = [{
-    id: 'fixture', authority: 'Test {Authority}', domain: 'cloud',
-    url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24
-  }];
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [{',
+    "  id: 'fixture', authority: 'Test {Authority}', domain: 'cloud',",
+    "  url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24",
+    '}];',
+  ].join('\\n');
   const parsed = parseScannerSourceCatalog(fixture);
   if (parsed.entries.length !== 1 || parsed.entries[0]?.id !== 'fixture' || parsed.entries[0]?.cadenceHours !== 24) {
     throw new Error('scanner parser failed its brace-containing string regression fixture');
@@ -80,14 +82,13 @@ const verifyParserRejectsCommentOnlyFields = (): void => {
 };
 
 const verifyParserRejectsPropertyLikeTextInsideStrings = (): void => {
-  const fixture = `const SOURCES: ArchitectureSource[] = [{
-    authority: "reference text, id: 'forged', cadenceHours: 999, url: 'https://forged.example/source'",
-    domain: 'cloud', url: 'https://example.org/real-source', cadenceHours: 24
-  }];`;
-  const parsed = parseScannerSourceCatalog(fixture);
-  if (parsed.failures.length === 0 && parsed.entries[0]?.id === 'forged') {
-    throw new Error('scanner parser treated property-like text inside a string as source properties');
-  }
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [{',
+    `  authority: "reference text, id: 'forged', cadenceHours: 999, url: 'https://forged.example/source'",`,
+    "  domain: 'cloud', url: 'https://example.org/real-source', cadenceHours: 24",
+    '}];',
+  ].join('\\n');
+  expectParserFailure(fixture, 'scanner parser treated property-like text inside a string as source properties');
 };
 
 const verifyParserRejectsUnterminatedLineComment = (): void => {
