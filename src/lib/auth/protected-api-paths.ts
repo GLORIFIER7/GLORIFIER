@@ -21,12 +21,12 @@ const PROTECTED_READ_PREFIXES = [
  * default case-insensitive route matching. Prefix boundaries prevent similarly
  * named public paths (for example, /intents-export) from being misclassified.
  */
-export function isProtectedApiReadPath(pathname: string): boolean {
+export const isProtectedApiReadPath = (pathname: string): boolean => {
   const normalizedPath = pathname.toLowerCase();
   return PROTECTED_READ_PREFIXES.some(
     (prefix) => normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`),
   );
-}
+};
 /**
  * Public API authentication bypass policy. Only preflight requests and
  * unprotected read-only paths bypass identity verification; all mutations
