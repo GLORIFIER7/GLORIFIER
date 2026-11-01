@@ -2,29 +2,33 @@ name: Hugging Face Space deployment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+    inputs:
+      deploy_space:
+        description: "Explicitly authorize publishing to the Hugging Face Space"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-# Do not interrupt an active publish midway through pushing to the Space.
+# Do not interrupt an explicitly authorized publish midway through pushing to the Space.
 concurrency:
   group: huggingface-space-deploy
   cancel-in-progress: false
 
 jobs:
   deployment-disabled:
-    if: ${{ vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
+    if: ${{ inputs.deploy_space != true || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Explain why deployment was skipped
         shell: bash
         run: |
-          echo "::notice::Hugging Face deployment is disabled. Set repository variable HF_SPACE_DEPLOY_ENABLED=true and set HF_SPACE_ID to owner/space-name to enable it."
+          echo "::notice::Hugging Face deployment was not authorized or is not configured. Dispatch with deploy_space=true and require HF_SPACE_DEPLOY_ENABLED=true plus HF_SPACE_ID."
 
   deploy-space:
-    if: ${{ vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
+    if: ${{ inputs.deploy_space == true && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -60,47 +64,47 @@ jobs:
           credential_file="$RUNNER_TEMP/hf-space-credentials"
           trap 'rm -f "$credential_file"' EXIT
           umask 077
-          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \\
             | git credential-store --file="$credential_file" store
-          git -c credential.helper="store --file=$credential_file" \
+          git -c credential.helper="store --file=$credential_file" \\
             clone "https://huggingface.co/spaces/$HF_SPACE_ID" "$RUNNER_TEMP/hf-space"
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='.env*' \
-            --exclude='node_modules/' \
-            --exclude='dist/' \
-            --exclude='coverage/' \
-            --exclude='android/' \
-            --exclude='.venv/' \
-            --exclude='venv/' \
-            --exclude='__pycache__/' \
-            --exclude='.pytest_cache/' \
-            --exclude='.next/' \
-            --exclude='.vercel/' \
-            --exclude='*.pem' \
-            --exclude='*.key' \
-            --exclude='secrets/' \
-            --exclude='*.sqlite' \
-            --exclude='*.sqlite3' \
-            --exclude='*.db' \
+          rsync -a \\
+            --exclude='.git/' \\
+            --exclude='.github/' \\
+            --exclude='.env*' \\
+            --exclude='node_modules/' \\
+            --exclude='dist/' \\
+            --exclude='coverage/' \\
+            --exclude='android/' \\
+            --exclude='.venv/' \\
+            --exclude='venv/' \\
+            --exclude='__pycache__/' \\
+            --exclude='.pytest_cache/' \\
+            --exclude='.next/' \\
+            --exclude='.vercel/' \\
+            --exclude='*.pem' \\
+            --exclude='*.key' \\
+            --exclude='secrets/' \\
+            --exclude='*.sqlite' \\
+            --exclude='*.sqlite3' \\
+            --exclude='*.db' \\
             ./ "$RUNNER_TEMP/hf-space/"
-          printf '%s\n' \
-            '---' \
-            'title: GLORIFIER' \
-            'emoji: 🧠' \
-            'colorFrom: blue' \
-            'colorTo: purple' \
-            'sdk: docker' \
-            'app_port: 3000' \
-            'pinned: false' \
-            '---' \
-            '' \
-            '# GLORIFIER' \
-            '' \
-            'Governed, provider-neutral AI orchestration. This Space builds the repository Dockerfile.' \
-            '' \
-            'Configure application-specific runtime credentials through the Hugging Face Space Settings → Variables and secrets. Never put credentials in repository files.' \
+          printf '%s\\n' \\
+            '---' \\
+            'title: GLORIFIER' \\
+            'emoji: 🧠' \\
+            'colorFrom: blue' \\
+            'colorTo: purple' \\
+            'sdk: docker' \\
+            'app_port: 3000' \\
+            'pinned: false' \\
+            '---' \\
+            '' \\
+            '# GLORIFIER' \\
+            '' \\
+            'Governed, provider-neutral AI orchestration. This Space builds the repository Dockerfile.' \\
+            '' \\
+            'Configure application-specific runtime credentials through the Hugging Face Space Settings → Variables and secrets. Never put credentials in repository files.' \\
             > "$RUNNER_TEMP/hf-space/README.md"
           cd "$RUNNER_TEMP/hf-space"
           git lfs install --local
@@ -113,7 +117,7 @@ jobs:
           credential_file="$RUNNER_TEMP/hf-space-credentials"
           trap 'rm -f "$credential_file"' EXIT
           umask 077
-          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \\
             | git credential-store --file="$credential_file" store
           cd "$RUNNER_TEMP/hf-space"
           git config user.name "github-actions[bot]"
@@ -124,6 +128,5 @@ jobs:
             exit 0
           fi
           git commit -m "Deploy GLORIFIER from GitHub ${GITHUB_SHA}"
-          credential_file="$RUNNER_TEMP/hf-space-credentials"
           git -c credential.helper="store --file=$credential_file" lfs push origin HEAD
           git -c credential.helper="store --file=$credential_file" push origin HEAD:main
