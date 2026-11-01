@@ -220,7 +220,7 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'rate-limited MCP calls must not reach GitHub');
     mcpRateLimitAllowed = true;
 
-    for (const inheritedToolName of ['constructor', 'toString']) {
+    for (const inheritedToolName of ['constructor', 'toString', 'github_delete_repository']) {
       capturedRequest = null;
       const inheritedToolCall = await worker.fetch(
         mcpPost({
@@ -245,6 +245,7 @@ async function run(): Promise<void> {
       env,
     );
     assert.equal(mcpGetMethodNotAllowed.status, 405, 'MCP must reject non-POST requests');
+    assert.equal(mcpGetMethodNotAllowed.headers.get('allow'), 'POST', 'MCP must advertise its supported method');
 
     const mcpWrongContentType = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -255,6 +256,29 @@ async function run(): Promise<void> {
       env,
     );
     assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
+
+    capturedRequest = null;
+    const malformedMcpJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid-json',
+      }),
+      env,
+    );
+    assert.equal(malformedMcpJson.status, 400, 'MCP must reject malformed JSON');
+    assert.equal(capturedRequest, null, 'malformed MCP requests must not contact GitHub');
+
+    const invalidMcpContentLength = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': 'invalid' },
+        body: '{}',
+      }),
+      env,
+    );
+    assert.equal(invalidMcpContentLength.status, 400, 'MCP must reject invalid Content-Length headers');
+    assert.equal(capturedRequest, null, 'invalid Content-Length requests must not contact GitHub');
 
     let oversizedMcpRequestCancelled = false;
     const mcpOversizedRequest = await worker.fetch(
@@ -311,6 +335,57 @@ async function run(): Promise<void> {
     assert.match(oversizedUpstreamBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
     assert.equal(oversizedUpstreamCancellationObserved, true, 'oversized upstream responses must be cancelled as soon as the byte limit is exceeded');
     upstreamResponse = previousOversizedMcpResponse;
+
+    const previousMalformedGithubResponse = upstreamResponse;
+    upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const malformedGithubJsonCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 9,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const malformedGithubJsonBody = await malformedGithubJsonCall.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(malformedGithubJsonBody.result.isError, true);
+    assert.match(malformedGithubJsonBody.result.content[0]?.text || '', /invalid JSON/i);
+    upstreamResponse = new Response(JSON.stringify({ content: '?', encoding: 'base64' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const invalidGithubFileEncoding = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: { name: 'github_read_file', arguments: { path: 'README.md' } },
+      }),
+      env,
+    );
+    const invalidGithubFileBody = await invalidGithubFileEncoding.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(invalidGithubFileBody.result.isError, true);
+    assert.match(invalidGithubFileBody.result.content[0]?.text || '', /not valid Base64/i);
+    upstreamResponse = new Response(JSON.stringify({ message: 'forbidden' }), { status: 403 });
+    const failedGithubRequest = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const failedGithubRequestBody = await failedGithubRequest.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(failedGithubRequestBody.result.isError, true);
+    assert.match(failedGithubRequestBody.result.content[0]?.text || '', /HTTP 403/i);
+    upstreamResponse = previousMalformedGithubResponse;
 
     capturedRequest = null;
     const rejectedMcpOrigin = await worker.fetch(
