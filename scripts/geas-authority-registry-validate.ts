@@ -104,7 +104,11 @@ if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) 
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
 
-const commentOnlyObjectFixture = "const SOURCES: ArchitectureSource[] = [\\n  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },\\n];";
+const commentOnlyObjectFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
+  '];',
+].join('\\n');
 if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
   throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
 }
