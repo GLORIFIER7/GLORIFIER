@@ -47,7 +47,12 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
 };
 
 
-const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\\n  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\\n  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\\n];";
+const scannerParserFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),",
+  "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },",
+  '];',
+].join('\\n');
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
@@ -59,7 +64,11 @@ if (fixtureResult.declaredCount !== 2
   throw new Error('scanner source parser must preserve factory-call and object-literal entries');
 }
 
-const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\\n  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),\\n];";
+const unsupportedScannerFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),",
+  '];',
+].join('\\n');
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
@@ -147,8 +156,8 @@ if (!isRecord(parsed)) {
 
 
 if (isRecord(parsed)) {
-  // Parse the scanner catalog as TypeScript so both factory calls and object literals
-  // are counted. A pattern that silently misses a declaration must fail closed.
+  // Parse the scanner catalog with a comment- and string-aware tokenizer so both
+  // factory calls and object literals are counted; unsupported forms fail closed.
   const scannerText = readFileSync(scannerPath, 'utf8');
   const scannerCatalog = parseScannerSourceCatalog(scannerText);
   failures.push(...scannerCatalog.failures);
