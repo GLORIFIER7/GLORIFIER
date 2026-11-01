@@ -27,6 +27,16 @@ function getCapturedRequest(): Request {
   return capturedRequest;
 }
 
+const mcpPost = (message: unknown, connectingIp?: string): Request => {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (connectingIp) headers.set('CF-Connecting-IP', connectingIp);
+  return new Request('https://glorifier.glorifier.workers.dev/mcp', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(message),
+  });
+};
+
 const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
@@ -172,16 +182,12 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     const mcpGetRepository = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/mcp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 3,
-          method: 'tools/call',
-          params: { name: 'github_get_repository', arguments: {} },
-        }),
-      }),
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }, '203.0.113.42'),
       env,
     );
     assert.equal(mcpGetRepository.status, 200);
@@ -199,16 +205,12 @@ async function run(): Promise<void> {
     capturedRequest = null;
     mcpRateLimitAllowed = false;
     const rateLimitedMcpToolCall = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/mcp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 7,
-          method: 'tools/call',
-          params: { name: 'github_get_repository', arguments: {} },
-        }),
-      }),
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }, '203.0.113.42'),
       env,
     );
     assert.equal(rateLimitedMcpToolCall.status, 429, 'MCP must stop tool calls when the Cloudflare rate limit is exhausted');
@@ -219,16 +221,12 @@ async function run(): Promise<void> {
     for (const inheritedToolName of ['constructor', 'toString']) {
       capturedRequest = null;
       const inheritedToolCall = await worker.fetch(
-        new Request('https://glorifier.glorifier.workers.dev/mcp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 8,
-            method: 'tools/call',
-            params: { name: inheritedToolName, arguments: {} },
-          }),
-        }),
+        mcpPost({
+          jsonrpc: '2.0',
+          id: 8,
+          method: 'tools/call',
+          params: { name: inheritedToolName, arguments: {} },
+        }, '203.0.113.42'),
         env,
       );
       assert.equal(inheritedToolCall.status, 200);
@@ -295,15 +293,11 @@ async function run(): Promise<void> {
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const oversizedUpstreamCall = await worker.fetch(
-      new Request('https://glorifier.glorifier.workers.dev/mcp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 6,
-          method: 'tools/call',
-          params: { name: 'github_get_repository', arguments: {} },
-        }),
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 6,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
       }),
       env,
     );
