@@ -63,13 +63,8 @@ for (const [method, pathname, expected] of authenticationBypassCases) {
 const server = readFileSync('server.ts', 'utf8');
 assert.match(
   server,
-  /const protectedRead = isProtectedApiReadPath\(req\.path \|\| ''\)/,
-  'the Express API middleware must use the tested protected-path matcher',
-);
-assert.match(
-  server,
-  /\(req\.method === 'GET' \|\| req\.method === 'HEAD'\) && !protectedRead/,
-  'both GET and HEAD must enforce the protected-path classification',
+  /if \(shouldBypassApiAuthentication\(req\.method, req\.path \|\| ''\)\) return next\(\)/,
+  'the Express API middleware must use the tested authentication bypass policy',
 );
 assert.match(
   server,
