@@ -211,9 +211,13 @@ const cancelResponseBody = async (response: Response): Promise<void> => {
   }
 };
 
+const hasOversizedContentLength = (response: Response, maximumBytes: number): boolean => {
+  const value = response.headers.get('content-length');
+  return Boolean(value && /^\d+$/.test(value) && Number(value) > maximumBytes);
+};
+
 const readBoundedResponseText = async (response: Response): Promise<string> => {
-  const declaredLength = response.headers.get('content-length');
-  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
+  if (hasOversizedContentLength(response, MAX_UPSTREAM_BYTES)) {
     await cancelResponseBody(response);
     throw new Error('GitHub API response exceeded the configured size limit.');
   }
@@ -253,20 +257,34 @@ const readGithubJson = async (pathname: string, query?: URLSearchParams): Promis
   }
 };
 
+const isSafeRepositoryPathSegment = (segment: string): boolean =>
+  segment.length > 0 && segment !== '.' && segment !== '..';
+
+const isValidRepositoryPath = (path: string): boolean =>
+  path.length > 0
+  && path.length <= 200
+  && !path.startsWith('/')
+  && !path.includes('\\')
+  && !path.includes('\0')
+  && path.split('/').every(isSafeRepositoryPathSegment);
+
 const repositoryPathSegments = (path: string): string[] => {
-  if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
-    throw new Error('Invalid repository-relative file path.');
-  }
-  const segments = path.split('/');
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
-    throw new Error('Invalid repository-relative file path.');
-  }
-  return segments;
+  if (!isValidRepositoryPath(path)) throw new Error('Invalid repository-relative file path.');
+  return path.split('/');
 };
 
 const assertValidGitReference = (ref: string): void => {
   if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.split('/').some((segment) => segment === '..')) {
     throw new Error('Invalid Git reference.');
+  }
+};
+
+const decodeBase64 = (value: string): Uint8Array => {
+  try {
+    const binary = atob(value);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    throw new Error('GitHub file content was not valid Base64.');
   }
 };
 
@@ -278,18 +296,8 @@ const decodeGithubTextFile = (data: JsonRecord): string => {
   if (compact.length > Math.ceil(MAX_UPSTREAM_BYTES * 4 / 3)) {
     throw new Error('GitHub file exceeded the configured size limit.');
   }
-  let binary: string;
-  try {
-    binary = atob(compact);
-  } catch {
-    throw new Error('GitHub file content was not valid Base64.');
-  }
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    throw new Error('GitHub file content was not valid UTF-8.');
-  }
+  const bytes = decodeBase64(compact);
+  return decodeUtf8(bytes, 'GitHub file content was not valid UTF-8.');
 };
 
 const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
