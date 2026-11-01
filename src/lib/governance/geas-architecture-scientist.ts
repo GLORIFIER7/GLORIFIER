@@ -1,6 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
 import type { StateEvidence as ReconciliationStateEvidence } from './geas-architecture-reconciliation';
@@ -73,7 +71,7 @@ export interface SourceObservation {
 }
 
 export interface CachedSourceObservation {
-  observed_at: string;
+  observed_at: string | Date;
   ok: boolean;
   status: number | null;
   content_hash: string | null;
@@ -262,216 +260,61 @@ interface PatternDefinition {
   keywords: string[];
 }
 
+const createArchitectureSource = (
+  id: string,
+  authority: string,
+  domain: ArchitectureDomain,
+  url: string,
+  patternIds: string[],
+  cadenceHours: number,
+): ArchitectureSource => ({ id, authority, domain, url, patternIds, cadenceHours });
+
 const SOURCES: ArchitectureSource[] = [
-  {
-    id: 'microsoft-architecture',
-    authority: 'Microsoft',
-    domain: 'enterprise-architecture',
-    url: 'https://learn.microsoft.com/en-us/azure/architecture/',
-    patternIds: ['cross-cutting-cloud-controls'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'aws-well-architected',
-    authority: 'AWS',
-    domain: 'cloud',
-    url: 'https://aws.amazon.com/architecture/well-architected/',
-    patternIds: ['cross-cutting-cloud-controls', 'durable-agent-execution'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'google-architecture',
-    authority: 'Google Cloud',
-    domain: 'cloud',
-    url: 'https://docs.cloud.google.com/architecture/',
-    patternIds: ['federated-data-access'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-ai-rmf',
-    authority: 'NIST',
-    domain: 'ai',
-    url: 'https://www.nist.gov/itl/ai-risk-management-framework',
-    patternIds: ['ai-lifecycle-risk'],
-    cadenceHours: 720,
-  },
-  {
-    id: 'nist-ai-agents',
-    authority: 'NIST',
-    domain: 'ai',
-    url: 'https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative',
-    patternIds: ['agent-identity-delegation'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-csf',
-    authority: 'NIST',
-    domain: 'cybersecurity',
-    url: 'https://www.nist.gov/cyberframework',
-    patternIds: ['identity-risk-controls'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-ssdf',
-    authority: 'NIST',
-    domain: 'software',
-    url: 'https://csrc.nist.gov/Projects/ssdf',
-    patternIds: ['software-supply-chain'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'opentelemetry-semconv',
-    authority: 'OpenTelemetry',
-    domain: 'observability',
-    url: 'https://opentelemetry.io/docs/concepts/semantic-conventions/',
-    patternIds: ['vendor-neutral-telemetry', 'evidence-minimization'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'finops-focus',
-    authority: 'FinOps Foundation',
-    domain: 'finops',
-    url: 'https://focus.finops.org/',
-    patternIds: ['cost-outcome-accounting'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'cncf-kyverno',
-    authority: 'CNCF',
-    domain: 'platform-engineering',
-    url: 'https://www.cncf.io/projects/kyverno/',
-    patternIds: ['policy-as-code'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'cncf-dapr-agents',
-    authority: 'CNCF',
-    domain: 'reliability',
-    url: 'https://www.cncf.io/projects/dapr/',
-    patternIds: ['durable-agent-execution'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'etsi-eni',
-    authority: 'ETSI',
-    domain: 'networking',
-    url: 'https://www.etsi.org/technical-groups/eni/',
-    patternIds: ['federated-continuum', 'intent-closed-loop'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'ietf-rfcs',
-    authority: 'IETF',
-    domain: 'integration',
-    url: 'https://www.ietf.org/process/rfcs/',
-    patternIds: ['protocol-neutral-interoperability'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-iot',
-    authority: 'NIST',
-    domain: 'iot',
-    url: 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program',
-    patternIds: ['iot-device-boundaries'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'etsi-edge',
-    authority: 'ETSI',
-    domain: 'edge',
-    url: 'https://www.etsi.org/technologies/multi-access-edge-computing',
-    patternIds: ['edge-degradation'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-blockchain',
-    authority: 'NIST',
-    domain: 'blockchain',
-    url: 'https://csrc.nist.gov/pubs/ir/8202/final',
-    patternIds: ['selective-trust-anchoring'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'iso-42001',
-    authority: 'ISO',
-    domain: 'governance',
-    url: 'https://www.iso.org/standard/42001',
-    patternIds: ['ai-management-system'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'w3c-vc',
-    authority: 'W3C',
-    domain: 'emerging-technology',
-    url: 'https://www.w3.org/TR/vc-data-model-2.0/',
-    patternIds: ['verifiable-credentials'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'owasp-agent-control',
-    authority: 'OWASP',
-    domain: 'cybersecurity',
-    url: 'https://genai.owasp.org/resource/agent-control-standard-acs/',
-    patternIds: ['runtime-agent-controls'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'mitre-atlas',
-    authority: 'MITRE',
-    domain: 'cybersecurity',
-    url: 'https://atlas.mitre.org/',
-    patternIds: ['adversarial-ai-controls'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-token-protection',
-    authority: 'NIST',
-    domain: 'cybersecurity',
-    url: 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation',
-    patternIds: ['token-lifecycle-protection'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'otel-genai-agents',
-    authority: 'OpenTelemetry',
-    domain: 'observability',
-    url: 'https://github.com/open-telemetry/semantic-conventions-genai',
-    patternIds: ['genai-agent-telemetry'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'finops-focus-1-4',
-    authority: 'FinOps Foundation',
-    domain: 'finops',
-    url: 'https://focus.finops.org/docs/specification/v1-4/',
-    patternIds: ['cost-outcome-accounting'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-zero-trust',
-    authority: 'NIST',
-    domain: 'networking',
-    url: 'https://csrc.nist.gov/pubs/sp/800/207/final',
-    patternIds: ['zero-trust-resource-access'],
-    cadenceHours: 336,
-  },
-  {
-    id: 'nist-traceability',
-    authority: 'NIST',
-    domain: 'data',
-    url: 'https://csrc.nist.gov/pubs/ir/8536/final',
-    patternIds: ['provenance-graph'],
-    cadenceHours: 336,
-  },
-  { id: 'opengroup-togaf', authority: 'The Open Group', domain: 'enterprise-architecture', url: 'https://www.opengroup.org/togaf', patternIds: ['enterprise-architecture-traceability'], cadenceHours: 336 },
-  { id: 'ietf-oauth-security', authority: 'IETF', domain: 'cybersecurity', url: 'https://datatracker.ietf.org/doc/html/rfc9700', patternIds: ['oauth-security-best-practice'], cadenceHours: 336 },
-  { id: 'ietf-http-problem-details', authority: 'IETF', domain: 'integration', url: 'https://datatracker.ietf.org/doc/html/rfc9457', patternIds: ['standard-api-error-contracts'], cadenceHours: 336 },
-  { id: 'slsa-v1-2', authority: 'SLSA', domain: 'software', url: 'https://slsa.dev/spec/v1.2/', patternIds: ['build-provenance'], cadenceHours: 336 },
-  { id: 'openssf-scorecard', authority: 'OpenSSF', domain: 'software', url: 'https://securityscorecards.dev/', patternIds: ['open-source-supply-chain-risk'], cadenceHours: 336 },
-  { id: 'google-sre-workbook', authority: 'Google SRE', domain: 'reliability', url: 'https://sre.google/workbook/table-of-contents/', patternIds: ['slo-error-budget-release-gates'], cadenceHours: 336 }
+  createArchitectureSource('microsoft-architecture', 'Microsoft', 'enterprise-architecture', 'https://learn.microsoft.com/en-us/azure/architecture/', ['cross-cutting-cloud-controls'], 336),
+  createArchitectureSource('aws-well-architected', 'AWS', 'cloud', 'https://aws.amazon.com/architecture/well-architected/', ['cross-cutting-cloud-controls', 'durable-agent-execution'], 336),
+  createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/', ['federated-data-access'], 336),
+  createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720),
+  createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720),
+  createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative', ['agent-identity-delegation'], 336),
+  createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336),
+  createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336),
+  createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336),
+  createArchitectureSource('finops-focus', 'FinOps Foundation', 'finops', 'https://focus.finops.org/', ['cost-outcome-accounting'], 336),
+  createArchitectureSource('cncf-kyverno', 'CNCF', 'platform-engineering', 'https://www.cncf.io/projects/kyverno/', ['policy-as-code'], 336),
+  createArchitectureSource('cncf-dapr-agents', 'CNCF', 'reliability', 'https://www.cncf.io/projects/dapr/', ['durable-agent-execution'], 336),
+  createArchitectureSource('etsi-eni', 'ETSI', 'networking', 'https://www.etsi.org/technical-groups/eni/', ['federated-continuum', 'intent-closed-loop'], 336),
+  createArchitectureSource('ietf-rfcs', 'IETF', 'integration', 'https://www.ietf.org/process/rfcs/', ['protocol-neutral-interoperability'], 336),
+  createArchitectureSource('nist-iot', 'NIST', 'iot', 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program', ['iot-device-boundaries'], 336),
+  createArchitectureSource('etsi-edge', 'ETSI', 'edge', 'https://www.etsi.org/technologies/multi-access-edge-computing', ['edge-degradation'], 336),
+  createArchitectureSource('nist-blockchain', 'NIST', 'blockchain', 'https://csrc.nist.gov/pubs/ir/8202/final', ['selective-trust-anchoring'], 336),
+  createArchitectureSource('iso-42001', 'ISO', 'governance', 'https://www.iso.org/standard/42001', ['ai-management-system'], 336),
+  createArchitectureSource('w3c-vc', 'W3C', 'emerging-technology', 'https://www.w3.org/TR/vc-data-model-2.0/', ['verifiable-credentials'], 336),
+  createArchitectureSource('owasp-agent-control', 'OWASP', 'cybersecurity', 'https://genai.owasp.org/resource/agent-control-standard-acs/', ['runtime-agent-controls'], 336),
+  createArchitectureSource('owasp-agentic-asi01', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md', ['owasp-agentic-asi01'], 336),
+  createArchitectureSource('owasp-agentic-asi02', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md', ['owasp-agentic-asi02'], 336),
+  createArchitectureSource('owasp-agentic-asi03', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md', ['owasp-agentic-asi03'], 336),
+  createArchitectureSource('owasp-agentic-asi04', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md', ['owasp-agentic-asi04'], 336),
+  createArchitectureSource('owasp-agentic-asi05', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md', ['owasp-agentic-asi05'], 336),
+  createArchitectureSource('owasp-agentic-asi06', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md', ['owasp-agentic-asi06'], 336),
+  createArchitectureSource('owasp-agentic-asi07', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md', ['owasp-agentic-asi07'], 336),
+  createArchitectureSource('owasp-agentic-asi08', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md', ['owasp-agentic-asi08'], 336),
+  createArchitectureSource('owasp-agentic-asi09', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md', ['owasp-agentic-asi09'], 336),
+  createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336),
+  createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336),
+  createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336),
+  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai', ['genai-agent-telemetry'], 336),
+  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['cost-outcome-accounting'], 336),
+  createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336),
+  createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336),
+  createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336),
+  createArchitectureSource('ietf-oauth-security', 'IETF', 'cybersecurity', 'https://datatracker.ietf.org/doc/html/rfc9700', ['oauth-security-best-practice'], 336),
+  createArchitectureSource('ietf-http-problem-details', 'IETF', 'integration', 'https://datatracker.ietf.org/doc/html/rfc9457', ['standard-api-error-contracts'], 336),
+  createArchitectureSource('slsa-v1-2', 'SLSA', 'software', 'https://slsa.dev/spec/v1.2/', ['build-provenance'], 336),
+  createArchitectureSource('openssf-scorecard', 'OpenSSF', 'software', 'https://securityscorecards.dev/', ['open-source-supply-chain-risk'], 336),
+  createArchitectureSource('google-sre-workbook', 'Google SRE', 'reliability', 'https://sre.google/workbook/table-of-contents/', ['slo-error-budget-release-gates'], 336)
 ];
 
-const P = (
+const definePattern = (
   id: string,
   title: string,
   domain: ArchitectureDomain,
@@ -491,38 +334,71 @@ const P = (
   keywords,
 });
 
+/** Shared OWASP ASI metadata keeps source-derived control mappings consistent. */
+const OWASP_AGENTIC_PATTERN_INPUTS = [
+  { id: 'owasp-agentic-asi01', label: 'ASI01', title: 'OWASP ASI01 — Agent Goal Hijack', controlIds: ['AI-01','SEC-01','POL-01','EVID-01'], keywords: ['goal hijack','task selection','decision pathways','prompt-based manipulation','deceptive tool outputs'] },
+  { id: 'owasp-agentic-asi02', label: 'ASI02', title: 'OWASP ASI02 — Tool Misuse and Exploitation', controlIds: ['SEC-01','AUTH-01','POL-01','REL-01','OBS-01'], keywords: ['tool misuse','legitimate tools','unsafe delegation','data exfiltration','workflow hijacking'] },
+  { id: 'owasp-agentic-asi03', label: 'ASI03', title: 'OWASP ASI03 — Identity and Privilege Abuse', controlIds: ['AUTH-01','FED-01','POL-01','EVID-01'], keywords: ['identity and privilege abuse','delegation chains','cached credentials','least privilege','agent-to-agent trust'] },
+  { id: 'owasp-agentic-asi04', label: 'ASI04', title: 'OWASP ASI04 — Agentic Supply Chain Vulnerabilities', controlIds: ['SUPPLY-01','EVID-01','SEC-01','FED-01'], keywords: ['agentic supply chain vulnerabilities','third parties','model weights','MCP','A2A','update channels'] },
+  { id: 'owasp-agentic-asi05', label: 'ASI05', title: 'OWASP ASI05 — Unexpected Code Execution', controlIds: ['SEC-01','POL-01','REL-01'], keywords: ['unexpected code execution','remote code execution','RCE','generated code','sandbox escape'] },
+  { id: 'owasp-agentic-asi06', label: 'ASI06', title: 'OWASP ASI06 — Memory and Context Poisoning', controlIds: ['EVID-01','SEC-01','POL-01'], keywords: ['memory and context poisoning','stored and retrievable information','persistent corruption','RAG stores','conversation history'] },
+  { id: 'owasp-agentic-asi07', label: 'ASI07', title: 'OWASP ASI07 — Insecure Inter-Agent Communication', controlIds: ['FED-01','AUTH-01','SEC-01','OBS-01'], keywords: ['insecure inter-agent communication','authentication','integrity','confidentiality','authorization','spoof'] },
+  { id: 'owasp-agentic-asi08', label: 'ASI08', title: 'OWASP ASI08 — Cascading Failures', controlIds: ['REL-01','OBS-01','POL-01'], keywords: ['cascading failures','fault propagates','fan-out','feedback loops','queue storms'] },
+  { id: 'owasp-agentic-asi09', label: 'ASI09', title: 'OWASP ASI09 — Human-Agent Trust Exploitation', controlIds: ['GOV-01','POL-01','EVID-01'], keywords: ['human-agent trust exploitation','over-rely','automation bias','perceived authority','human oversight'] },
+  { id: 'owasp-agentic-asi10', label: 'ASI10', title: 'OWASP ASI10 — Rogue Agents', controlIds: ['GOV-01','SEC-01','OBS-01','POL-01'], keywords: ['rogue agents','deviate from their intended function','behavioral integrity','containment gap','unauthorized actions'] },
+] as const;
 const PATTERN_DEFINITIONS: PatternDefinition[] = [
-  P('cross-cutting-cloud-controls', 'Cross-cutting architecture controls', 'cloud', 'aws-well-architected', 'Treat operational excellence, security, reliability, performance and cost as architecture concerns.', 'GEAS architecture evidence and drift model', ['REL-01', 'SEC-01', 'FIN-01'], ['security', 'reliability', 'cost']),
-  P('ai-lifecycle-risk', 'Continuous AI risk lifecycle', 'ai', 'nist-ai-rmf', 'Manage AI trustworthiness and risk across design, development, use and evaluation.', 'GEAS + AI impact assessment', ['AI-01', 'GOV-01'], ['risk', 'design', 'development', 'evaluation']),
-  P('agent-identity-delegation', 'Agent identity and authorization', 'ai', 'nist-ai-agents', 'Treat agent identity, authorization, auditing and non-repudiation as explicit architecture concerns.', 'Agent Identity + Delegation Plane', ['SEC-01', 'AUTH-01'], ['identity', 'authorization', 'auditing', 'agent']),
-  P('identity-risk-controls', 'Risk-based cybersecurity controls', 'cybersecurity', 'nist-csf', 'Organize cybersecurity outcomes around governance, identification, protection, detection, response and recovery.', 'GEAS security control crosswalk', ['SEC-01', 'REL-01'], ['governance', 'identify', 'protect', 'detect', 'respond', 'recover']),
-  P('software-supply-chain', 'Secure software supply chain', 'software', 'nist-ssdf', 'Integrate secure software practices throughout the software development lifecycle.', 'Code Sentinel + provenance graph + release gates', ['SUPPLY-01', 'POL-01'], ['software', 'secure', 'development', 'supply chain']),
-  P('vendor-neutral-telemetry', 'Common telemetry semantics', 'observability', 'opentelemetry-semconv', 'Use common semantic conventions so telemetry can be correlated across systems.', 'Agent observability + evidence graph', ['OBS-01'], ['semantic conventions', 'telemetry', 'traces', 'metrics']),
-  P('evidence-minimization', 'Sensitive telemetry minimization', 'observability', 'opentelemetry-semconv', 'Treat telemetry data as potentially sensitive and apply redaction and retention controls.', 'Evidence minimization policy', ['EVID-01'], ['sensitive', 'redact', 'privacy']),
-  P('cost-outcome-accounting', 'Standardized cost and usage accounting', 'finops', 'finops-focus', 'Normalize technology cost and usage data so architecture and economic decisions can be compared.', 'Revenue Control Plane + cost-per-verified-outcome', ['FIN-01'], ['cost', 'usage', 'standard']),
-  P('policy-as-code', 'Declarative policy enforcement', 'platform-engineering', 'cncf-kyverno', 'Encode guardrails as versioned policies and enforce them at platform control points.', 'GEAS policy engine + deployment gates', ['POL-01'], ['policy', 'enforce']),
-  P('durable-agent-execution', 'Durable agent execution', 'reliability', 'cncf-dapr-agents', 'Use durable state and recovery patterns for long-running agent workflows.', 'Daemon + durable work coordinator', ['REL-01', 'STATE-01'], ['durable', 'state', 'recovery', 'workflow']),
-  P('federated-continuum', 'Federated cloud-network-edge-device continuum', 'networking', 'etsi-eni', 'Use semantic interoperability and common information models across network, edge and compute domains.', 'Connection Registry + provider-neutral orchestration', ['FED-01'], ['interoperability', 'common information', 'edge']),
-  P('intent-closed-loop', 'Intent-driven closed-loop automation', 'networking', 'etsi-eni', 'Translate high-level intent into policy-driven automated actions with assurance.', 'GEAS policy → governed execution + verification', ['POL-01', 'GOV-01'], ['intent', 'policy', 'automated', 'assurance']),
-  P('protocol-neutral-interoperability', 'Protocol-neutral interoperability', 'integration', 'ietf-rfcs', 'Prefer explicit, versioned protocols and interoperable interfaces over provider-specific coupling.', 'A2A/MCP/API adapters + capability registry', ['FED-01'], ['protocol', 'interoperability', 'interface']),
-  P('iot-device-boundaries', 'Explicit IoT device security boundaries', 'iot', 'nist-iot', 'Treat device identity, security capabilities and lifecycle boundaries as explicit controls.', 'Device identity + capability + lifecycle governance', ['SEC-01'], ['device', 'identity', 'lifecycle']),
-  P('edge-degradation', 'Edge graceful degradation', 'edge', 'etsi-edge', 'Design edge systems around constrained connectivity, locality and resilient operation.', 'Degraded-mode contracts', ['REL-01', 'FED-01'], ['edge', 'connectivity', 'resilience']),
-  P('selective-trust-anchoring', 'Selective distributed trust anchoring', 'blockchain', 'nist-blockchain', 'Use distributed ledger concepts selectively where multi-party integrity or provenance requires them.', 'Optional external receipt/proof anchoring', ['EVID-01'], ['blockchain', 'distributed', 'ledger', 'trust']),
-  P('ai-management-system', 'AI management system', 'governance', 'iso-42001', 'Establish and continually improve a management system for responsible AI governance.', 'GEAS governance lifecycle + audit evidence', ['AI-01', 'GOV-01'], ['management system', 'AI', 'continuous', 'governance']),
-  P('verifiable-credentials', 'Machine-verifiable credentials', 'emerging-technology', 'w3c-vc', 'Use cryptographically secure, privacy-respecting, machine-verifiable credentials where portable trust is required.', 'Future portable agent/provider credentials', ['AUTH-01', 'EVID-01'], ['verifiable', 'credential', 'cryptographic']),
-  P('runtime-agent-controls', 'Runtime agent control hooks', 'cybersecurity', 'owasp-agent-control', 'Expose inspectable, traceable and enforceable runtime controls for agents.', 'GEAS runtime policy adapters', ['SEC-01', 'POL-01', 'OBS-01'], ['agent', 'runtime', 'control', 'traceable']),
-  P('adversarial-ai-controls', 'Adversarial AI threat-informed controls', 'cybersecurity', 'mitre-atlas', 'Use threat-informed adversarial AI knowledge to identify and prioritize defensive controls.', 'Code Sentinel + agent threat model', ['SEC-01'], ['attack', 'adversarial', 'machine learning']),
-  P('provenance-graph', 'Cryptographically linked provenance', 'data', 'nist-traceability', 'Link traceability events into a verifiable provenance chain while enabling selective disclosure.', 'Evidence Graph + provider/model/software provenance', ['EVID-01', 'SUPPLY-01'], ['provenance', 'traceability', 'cryptographic', 'selective disclosure']),
-  P('token-lifecycle-protection', 'Token lifecycle protection', 'cybersecurity', 'nist-token-protection', 'Protect tokens and assertions against forgery, theft and misuse with verification, key management and lifecycle controls.', 'Token lifecycle contract + GEAS authorization gates', ['AUTH-01', 'SEC-01'], ['token', 'assertion', 'verification', 'key management']),
-  P('genai-agent-telemetry', 'GenAI agent telemetry semantics', 'observability', 'otel-genai-agents', 'Use common spans and attributes for agent creation, invocation, planning and tool execution.', 'Versioned GEAS agent telemetry contract', ['OBS-01', 'EVID-01'], ['agent', 'invoke', 'tool', 'span']),
-  P('zero-trust-resource-access', 'Resource-centric zero trust access', 'networking', 'nist-zero-trust', 'Authenticate and authorize subjects and devices before resource access without implicit trust from network location.', 'Per-resource GEAS capability and authorization gates', ['SEC-01', 'AUTH-01'], ['zero trust', 'resource', 'authorization', 'authentication']),
-  P('federated-data-access', 'Federated data access', 'data', 'google-architecture', 'Use fit-for-purpose governed data access rather than assuming all workloads require centralized movement.', 'Data governance + provider-neutral connectors', ['DATA-01'], ['data', 'access', 'architecture']),
-  P('enterprise-architecture-traceability', 'Enterprise architecture traceability', 'enterprise-architecture', 'opengroup-togaf', 'Link business, information, application and technology architecture decisions to governed outcomes and traceable change.', 'GEAS architecture baseline and five-state reconciliation', ['TRACE-01', 'GOV-01'], ['architecture', 'capability', 'governance', 'traceability']),
-  P('oauth-security-best-practice', 'OAuth security best current practice', 'cybersecurity', 'ietf-oauth-security', 'Apply current OAuth security guidance including constrained authorization flows, secure redirect handling and token misuse defenses.', 'GEAS identity, delegation, audience and token lifecycle controls', ['AUTH-01', 'SEC-01'], ['OAuth', 'authorization', 'token', 'security']),
-  P('standard-api-error-contracts', 'Standard API error contracts', 'integration', 'ietf-http-problem-details', 'Use a consistent machine-readable HTTP API error representation without exposing sensitive implementation details.', 'Versioned API adapters and sanitized operational diagnostics', ['FED-01', 'OBS-01'], ['problem details', 'HTTP API', 'status', 'error']),
-  P('build-provenance', 'Verifiable build provenance', 'software', 'slsa-v1-2', 'Generate and verify provenance that identifies how software artifacts were built and which trusted process produced them.', 'Release evidence graph and artifact provenance gates', ['SUPPLY-01', 'EVID-01'], ['provenance', 'build', 'artifact', 'builder']),
-  P('open-source-supply-chain-risk', 'Open-source supply-chain risk signals', 'software', 'openssf-scorecard', 'Use transparent, repeatable security health checks as one signal in dependency and repository risk assessment.', 'Dependency review and repository security posture evidence', ['SUPPLY-01', 'SEC-01'], ['scorecard', 'security', 'dependency', 'branch protection']),
-  P('slo-error-budget-release-gates', 'SLO and error-budget release gates', 'reliability', 'google-sre-workbook', 'Use service-level objectives and error-budget policy to balance reliability with release velocity.', 'Release gates tied to verified service health and reliability evidence', ['REL-01', 'GOV-01'], ['SLO', 'error budget', 'release', 'reliability']),
+  definePattern('cross-cutting-cloud-controls', 'Cross-cutting architecture controls', 'cloud', 'aws-well-architected', 'Treat operational excellence, security, reliability, performance and cost as architecture concerns.', 'GEAS architecture evidence and drift model', ['REL-01', 'SEC-01', 'FIN-01'], ['security', 'reliability', 'cost']),
+  definePattern('ai-lifecycle-risk', 'Continuous AI risk lifecycle', 'ai', 'nist-ai-rmf', 'Manage AI trustworthiness and risk across design, development, use and evaluation.', 'GEAS + AI impact assessment', ['AI-01', 'GOV-01'], ['risk', 'design', 'development', 'evaluation']),
+  definePattern(
+    'ai-governance-lifecycle',
+    'AI risk governance lifecycle',
+    'governance',
+    'nist-ai-rmf-playbook',
+    'Use the NIST AI RMF Playbook to structure AI risk governance across the Govern, Map, Measure and Manage functions.',
+    'GEAS governance evidence: named risk ownership, impact/context mapping, measurement, risk treatment, monitoring and continual improvement. The Playbook is voluntary guidance; it does not establish GLORIFIER implementation or conformance.',
+    ['AI-01', 'GOV-01', 'POL-01', 'EVID-01'],
+    ['four AI RMF functions', 'Govern 1.1', 'governance and oversight', 'risk management'],
+  ),
+  definePattern('agent-identity-delegation', 'Agent identity and authorization', 'ai', 'nist-ai-agents', 'Treat agent identity, authorization, auditing and non-repudiation as explicit architecture concerns.', 'Agent Identity + Delegation Plane', ['SEC-01', 'AUTH-01'], ['identity', 'authorization', 'auditing', 'agent']),
+  definePattern('identity-risk-controls', 'Risk-based cybersecurity controls', 'cybersecurity', 'nist-csf', 'Organize cybersecurity outcomes around governance, identification, protection, detection, response and recovery.', 'GEAS security control crosswalk', ['SEC-01', 'REL-01'], ['governance', 'identify', 'protect', 'detect', 'respond', 'recover']),
+  definePattern('software-supply-chain', 'Secure software supply chain', 'software', 'nist-ssdf', 'Integrate secure software practices throughout the software development lifecycle.', 'Code Sentinel + provenance graph + release gates', ['SUPPLY-01', 'POL-01'], ['software', 'secure', 'development', 'supply chain']),
+  definePattern('vendor-neutral-telemetry', 'Common telemetry semantics', 'observability', 'opentelemetry-semconv', 'Use common semantic conventions so telemetry can be correlated across systems.', 'Agent observability + evidence graph', ['OBS-01'], ['semantic conventions', 'telemetry', 'traces', 'metrics']),
+  definePattern('evidence-minimization', 'Sensitive telemetry minimization', 'observability', 'opentelemetry-semconv', 'Treat telemetry data as potentially sensitive and apply redaction and retention controls.', 'Evidence minimization policy', ['EVID-01'], ['sensitive', 'redact', 'privacy']),
+  definePattern('cost-outcome-accounting', 'Standardized cost and usage accounting', 'finops', 'finops-focus', 'Normalize technology cost and usage data so architecture and economic decisions can be compared.', 'Revenue Control Plane + cost-per-verified-outcome', ['FIN-01'], ['cost', 'usage', 'standard']),
+  definePattern('policy-as-code', 'Declarative policy enforcement', 'platform-engineering', 'cncf-kyverno', 'Encode guardrails as versioned policies and enforce them at platform control points.', 'GEAS policy engine + deployment gates', ['POL-01'], ['policy', 'enforce']),
+  definePattern('durable-agent-execution', 'Durable agent execution', 'reliability', 'cncf-dapr-agents', 'Use durable state and recovery patterns for long-running agent workflows.', 'Daemon + durable work coordinator', ['REL-01', 'STATE-01'], ['durable', 'state', 'recovery', 'workflow']),
+  definePattern('federated-continuum', 'Federated cloud-network-edge-device continuum', 'networking', 'etsi-eni', 'Use semantic interoperability and common information models across network, edge and compute domains.', 'Connection Registry + provider-neutral orchestration', ['FED-01'], ['interoperability', 'common information', 'edge']),
+  definePattern('intent-closed-loop', 'Intent-driven closed-loop automation', 'networking', 'etsi-eni', 'Translate high-level intent into policy-driven automated actions with assurance.', 'GEAS policy → governed execution + verification', ['POL-01', 'GOV-01'], ['intent', 'policy', 'automated', 'assurance']),
+  definePattern('protocol-neutral-interoperability', 'Protocol-neutral interoperability', 'integration', 'ietf-rfcs', 'Prefer explicit, versioned protocols and interoperable interfaces over provider-specific coupling.', 'A2A/MCP/API adapters + capability registry', ['FED-01'], ['protocol', 'interoperability', 'interface']),
+  definePattern('iot-device-boundaries', 'Explicit IoT device security boundaries', 'iot', 'nist-iot', 'Treat device identity, security capabilities and lifecycle boundaries as explicit controls.', 'Device identity + capability + lifecycle governance', ['SEC-01'], ['device', 'identity', 'lifecycle']),
+  definePattern('edge-degradation', 'Edge graceful degradation', 'edge', 'etsi-edge', 'Design edge systems around constrained connectivity, locality and resilient operation.', 'Degraded-mode contracts', ['REL-01', 'FED-01'], ['edge', 'connectivity', 'resilience']),
+  definePattern('selective-trust-anchoring', 'Selective distributed trust anchoring', 'blockchain', 'nist-blockchain', 'Use distributed ledger concepts selectively where multi-party integrity or provenance requires them.', 'Optional external receipt/proof anchoring', ['EVID-01'], ['blockchain', 'distributed', 'ledger', 'trust']),
+  definePattern('ai-management-system', 'AI management system', 'governance', 'iso-42001', 'Establish and continually improve a management system for responsible AI governance.', 'GEAS governance lifecycle + audit evidence', ['AI-01', 'GOV-01'], ['management system', 'AI', 'continuous', 'governance']),
+  definePattern('verifiable-credentials', 'Machine-verifiable credentials', 'emerging-technology', 'w3c-vc', 'Use cryptographically secure, privacy-respecting, machine-verifiable credentials where portable trust is required.', 'Future portable agent/provider credentials', ['AUTH-01', 'EVID-01'], ['verifiable', 'credential', 'cryptographic']),
+  definePattern('runtime-agent-controls', 'Runtime agent control hooks', 'cybersecurity', 'owasp-agent-control', 'Expose inspectable, traceable and enforceable runtime controls for agents.', 'GEAS runtime policy adapters', ['SEC-01', 'POL-01', 'OBS-01'], ['agent', 'runtime', 'control', 'traceable']),
+  ...OWASP_AGENTIC_PATTERN_INPUTS.map((risk) => definePattern(
+    risk.id,
+    risk.title,
+    'cybersecurity' as const,
+    risk.id,
+    `Analyze the ${risk.label} threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.`,
+    'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
+    [...risk.controlIds],
+    [...risk.keywords],
+  )),
+  definePattern('adversarial-ai-controls', 'Adversarial AI threat-informed controls', 'cybersecurity', 'mitre-atlas', 'Use threat-informed adversarial AI knowledge to identify and prioritize defensive controls.', 'Code Sentinel + agent threat model', ['SEC-01'], ['attack', 'adversarial', 'machine learning']),
+  definePattern('provenance-graph', 'Cryptographically linked provenance', 'data', 'nist-traceability', 'Link traceability events into a verifiable provenance chain while enabling selective disclosure.', 'Evidence Graph + provider/model/software provenance', ['EVID-01', 'SUPPLY-01'], ['provenance', 'traceability', 'cryptographic', 'selective disclosure']),
+  definePattern('token-lifecycle-protection', 'Token lifecycle protection', 'cybersecurity', 'nist-token-protection', 'Protect tokens and assertions against forgery, theft and misuse with verification, key management and lifecycle controls.', 'Token lifecycle contract + GEAS authorization gates', ['AUTH-01', 'SEC-01'], ['token', 'assertion', 'verification', 'key management']),
+  definePattern('genai-agent-telemetry', 'GenAI agent telemetry semantics', 'observability', 'otel-genai-agents', 'Use common spans and attributes for agent creation, invocation, planning and tool execution.', 'Versioned GEAS agent telemetry contract', ['OBS-01', 'EVID-01'], ['agent', 'invoke', 'tool', 'span']),
+  definePattern('zero-trust-resource-access', 'Resource-centric zero trust access', 'networking', 'nist-zero-trust', 'Authenticate and authorize subjects and devices before resource access without implicit trust from network location.', 'Per-resource GEAS capability and authorization gates', ['SEC-01', 'AUTH-01'], ['zero trust', 'resource', 'authorization', 'authentication']),
+  definePattern('federated-data-access', 'Federated data access', 'data', 'google-architecture', 'Use fit-for-purpose governed data access rather than assuming all workloads require centralized movement.', 'Data governance + provider-neutral connectors', ['DATA-01'], ['data', 'access', 'architecture']),
+  definePattern('enterprise-architecture-traceability', 'Enterprise architecture traceability', 'enterprise-architecture', 'opengroup-togaf', 'Link business, information, application and technology architecture decisions to governed outcomes and traceable change.', 'GEAS architecture baseline and five-state reconciliation', ['TRACE-01', 'GOV-01'], ['architecture', 'capability', 'governance', 'traceability']),
+  definePattern('oauth-security-best-practice', 'OAuth security best current practice', 'cybersecurity', 'ietf-oauth-security', 'Apply current OAuth security guidance including constrained authorization flows, secure redirect handling and token misuse defenses.', 'GEAS identity, delegation, audience and token lifecycle controls', ['AUTH-01', 'SEC-01'], ['OAuth', 'authorization', 'token', 'security']),
+  definePattern('standard-api-error-contracts', 'Standard API error contracts', 'integration', 'ietf-http-problem-details', 'Use a consistent machine-readable HTTP API error representation without exposing sensitive implementation details.', 'Versioned API adapters and sanitized operational diagnostics', ['FED-01', 'OBS-01'], ['problem details', 'HTTP API', 'status', 'error']),
+  definePattern('build-provenance', 'Verifiable build provenance', 'software', 'slsa-v1-2', 'Generate and verify provenance that identifies how software artifacts were built and which trusted process produced them.', 'Release evidence graph and artifact provenance gates', ['SUPPLY-01', 'EVID-01'], ['provenance', 'build', 'artifact', 'builder']),
+  definePattern('open-source-supply-chain-risk', 'Open-source supply-chain risk signals', 'software', 'openssf-scorecard', 'Use transparent, repeatable security health checks as one signal in dependency and repository risk assessment.', 'Dependency review and repository security posture evidence', ['SUPPLY-01', 'SEC-01'], ['scorecard', 'security', 'dependency', 'branch protection']),
+  definePattern('slo-error-budget-release-gates', 'SLO and error-budget release gates', 'reliability', 'google-sre-workbook', 'Use service-level objectives and error-budget policy to balance reliability with release velocity.', 'Release gates tied to verified service health and reliability evidence', ['REL-01', 'GOV-01'], ['SLO', 'error budget', 'release', 'reliability']),
 ];
 
 const CONTROLS: ArchitectureControl[] = [
@@ -592,69 +468,148 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
-export function stripHtml(input: string) {
-  return input
-    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
-    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, ' and ')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+export const stripHtml = (input: string): string => input
+  .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+  .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&amp;/gi, ' and ')
+  .replace(/&quot;/gi, '"')
+  .replace(/&#39;|&apos;/gi, "'")
+  .replace(/\s+/g, ' ')
+  .trim();
 
-export function isClaimSupportedEvidence(status: EvidenceStatus): boolean {
-  return status === 'claim-supported';
-}
+export const isClaimSupportedEvidence = (status: EvidenceStatus): boolean =>
+  status === 'claim-supported';
 
-export function classifyArchitectureEvidence(status: EvidenceStatus): EvidenceClass {
-  return status === 'claim-supported' ? 'observed-fact' : 'analysis';
-}
+export const classifyArchitectureEvidence = (status: EvidenceStatus): EvidenceClass =>
+  status === 'claim-supported' ? 'observed-fact' : 'analysis';
 
-export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
-  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt) return true;
-  const observedMs = Date.parse(observedAt);
-  // A future timestamp is not trustworthy freshness evidence; force a fresh observation.
-  if (!Number.isFinite(observedMs) || observedMs > nowMs) return true;
-  return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
-}
+const isLeapYear = (year: number): boolean =>
+  year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+const isValidMonth = (month: number): boolean => month >= 1 && month <= 12;
+
+const daysInCalendarMonth = (year: number, month: number): number => {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  const daysInMonth = [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return daysInMonth[month - 1] ?? 0;
+};
+
+const isValidCalendarDate = (year: number, month: number, day: number): boolean =>
+  isValidMonth(month) && day >= 1 && day <= daysInCalendarMonth(year, month);
+
+const isValidClockTime = (hour: number, minute: number, second: number): boolean =>
+  hour <= 23 && minute <= 59 && second <= 59;
+
+const isKnownUtcOffset = (offset: string): boolean => {
+  if (offset === '-00:00') return false;
+  if (offset === 'Z') return true;
+  const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+  return offsetHour <= 23 && offsetMinute <= 59;
+};
+
+const isValidSourceObservationTimestamp = (match: RegExpExecArray): boolean => {
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  return isValidCalendarDate(year, month, day)
+    && isValidClockTime(hour, minute, second)
+    && isKnownUtcOffset(match[8]);
+};
+
+const parseSourceObservationTimestampText = (value: string): number | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match || !isValidSourceObservationTimestamp(match)) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+/** Accept PostgreSQL TIMESTAMPTZ Date objects and the canonical persisted RFC 3339 text form. */
+const parseSourceObservationTimestamp = (value: unknown): number | null => {
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  return typeof value === 'string' ? parseSourceObservationTimestampText(value) : null;
+};
+
+const isValidSourceCadence = (cadenceHours: number, nowMs: number): boolean =>
+  Number.isFinite(cadenceHours) && cadenceHours > 0 && Number.isFinite(nowMs);
+
+const isSourceObservationExpired = (observedMs: number, cadenceHours: number, nowMs: number): boolean =>
+  observedMs > nowMs || nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
+
+const isParsedSourceObservationDue = (
+  observedMs: number | null,
+  cadenceHours: number,
+  nowMs: number,
+): boolean => observedMs === null || isSourceObservationExpired(observedMs, cadenceHours, nowMs);
+
+export const isSourceObservationDue = (
+  cadenceHours: number,
+  observedAt: string | Date | null | undefined,
+  nowMs = Date.now(),
+): boolean => !isValidSourceCadence(cadenceHours, nowMs)
+  || isParsedSourceObservationDue(parseSourceObservationTimestamp(observedAt), cadenceHours, nowMs);
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
 
-function isAdmissibleCachedSourceObservation(input: {
+type CachedSourceEvidence = {
   ok: boolean;
   status: number | null;
   contentHash: string | null;
   evidenceExcerpt: string | null;
   evidenceStatus: string;
-}): boolean {
-  if (input.ok) {
-    const statusIsSuccessful = Number.isInteger(input.status)
-      && ((input.status !== null && input.status >= 200 && input.status < 300) || input.status === 304);
-    if (!statusIsSuccessful || typeof input.contentHash !== 'string'
-        || !/^[a-f0-9]{64}$/i.test(input.contentHash)) return false;
+};
 
-    // Retrieval can establish only availability or a keyword/content match. A cache entry
-    // must never upgrade either into claim verification, even if persisted data is corrupt.
-    if (input.evidenceStatus === 'content-matched') {
-      return typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length > 0;
-    }
-    if (input.evidenceStatus === 'source-available') {
-      return input.evidenceExcerpt == null
-        || (typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length === 0);
-    }
-    return false;
-  }
+const isSuccessfulHttpStatus = (status: number | null): boolean =>
+  Number.isInteger(status) && status !== null
+    && ((status >= 200 && status < 300) || status === 304);
 
+const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
+  typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
+
+const isValidContentMatchedExcerpt = (excerpt: string | null): boolean =>
+  typeof excerpt === 'string' && excerpt.trim().length > 0;
+
+const isValidSourceAvailableExcerpt = (excerpt: string | null): boolean =>
+  excerpt === null || excerpt.trim().length === 0;
+
+const isValidSuccessfulEvidenceShape = (input: CachedSourceEvidence): boolean =>
+  (input.evidenceStatus === 'content-matched' && isValidContentMatchedExcerpt(input.evidenceExcerpt))
+  || (input.evidenceStatus === 'source-available' && isValidSourceAvailableExcerpt(input.evidenceExcerpt));
+
+const isAdmissibleSuccessfulCache = (input: CachedSourceEvidence): boolean =>
+  isSuccessfulHttpStatus(input.status)
+  && hasValidSha256ContentHash(input.contentHash)
+  && isValidSuccessfulEvidenceShape(input);
+
+const isAllowedFailedHttpStatus = (status: number | null): boolean =>
+  status === null || (Number.isInteger(status) && !(status >= 200 && status < 300));
+
+const isAdmissibleFailedCache = (input: CachedSourceEvidence): boolean => {
   if (input.evidenceStatus !== 'not-observed' && input.evidenceStatus !== 'unavailable') return false;
-  if (input.status !== null && (!Number.isInteger(input.status) || (input.status >= 200 && input.status < 300))) return false;
-  if (input.evidenceStatus === 'not-observed' && input.status === null) return false;
-  return true;
-}
+  if (!isAllowedFailedHttpStatus(input.status)) return false;
+  return input.evidenceStatus !== 'not-observed' || input.status !== null;
+};
 
-export function shouldReuseSourceObservation(input: {
+const isAdmissibleCachedSourceObservation = (input: CachedSourceEvidence): boolean =>
+  input.ok ? isAdmissibleSuccessfulCache(input) : isAdmissibleFailedCache(input);
+
+const isMatchingCachedSourceUrl = (configuredUrl: string, cachedUrl: string | null | undefined): boolean =>
+  typeof cachedUrl === 'string' && cachedUrl === configuredUrl;
+
+const isFailedObservationRetryDue = (
+  ok: boolean,
+  observedAt: string | Date | null | undefined,
+  nowMs: number,
+): boolean => !ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, observedAt, nowMs);
+
+type SourceObservationReuseInput = {
   configuredUrl: string;
   cachedUrl: string | null | undefined;
   ok: boolean;
@@ -663,38 +618,66 @@ export function shouldReuseSourceObservation(input: {
   evidenceExcerpt: string | null;
   evidenceStatus: string;
   cadenceHours: number;
-  observedAt: string | null | undefined;
+  observedAt: string | Date | null | undefined;
   nowMs?: number;
-}): boolean {
-  // URL changes or inconsistent/claim-promoting cache records force a new source fetch.
-  if (!input.cachedUrl || input.cachedUrl !== input.configuredUrl
-      || !isAdmissibleCachedSourceObservation(input)) return false;
-  const nowMs = input.nowMs ?? Date.now();
-  // Failed observations retry hourly instead of waiting for the normal source cadence.
-  if (!input.ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, input.observedAt, nowMs)) return false;
-  return !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
-}
+};
 
-export function buildConditionalRequestHeaders(
+const isReusableSourceObservationIdentity = (input: SourceObservationReuseInput): boolean =>
+  isMatchingCachedSourceUrl(input.configuredUrl, input.cachedUrl)
+  && isAdmissibleCachedSourceObservation(input);
+
+const isReusableSourceObservationTime = (input: SourceObservationReuseInput, nowMs: number): boolean =>
+  !isFailedObservationRetryDue(input.ok, input.observedAt, nowMs)
+  && !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
+
+export const shouldReuseSourceObservation = (input: SourceObservationReuseInput): boolean => {
+  const nowMs = input.nowMs ?? Date.now();
+  return isReusableSourceObservationIdentity(input)
+    && isReusableSourceObservationTime(input, nowMs);
+};
+
+const cachedSourceEvidence = (cached: CachedSourceObservation): CachedSourceEvidence => ({
+  ok: cached.ok,
+  status: cached.status,
+  contentHash: cached.content_hash,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+});
+
+const hasCurrentCacheObservationTimestamp = (cachedAt: number | null, nowMs: number): boolean =>
+  Number.isFinite(nowMs) && cachedAt !== null && cachedAt <= nowMs;
+
+const hasMatchingConditionalRequestUrl = (configuredUrl: string, cachedUrl: string | null | undefined): boolean =>
+  cachedUrl === configuredUrl;
+
+const hasReusableConditionalRequestEvidence = (cached: CachedSourceObservation): boolean =>
+  cached.ok && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached));
+
+const isConditionalRequestCacheUsable = (
+  configuredUrl: string,
+  cached: CachedSourceObservation,
+  nowMs: number,
+): boolean => {
+  const hasCurrentTimestamp = hasCurrentCacheObservationTimestamp(
+    parseSourceObservationTimestamp(cached.observed_at),
+    nowMs,
+  );
+  return hasMatchingConditionalRequestUrl(configuredUrl, cached.source_url)
+    && hasReusableConditionalRequestEvidence(cached)
+    && hasCurrentTimestamp;
+};
+
+export const buildConditionalRequestHeaders = (
   configuredUrl: string,
   cached?: CachedSourceObservation | null,
   nowMs = Date.now(),
-): Record<string, string> {
+): Record<string, string> => {
   const headers: Record<string, string> = {};
-  if (!cached || cached.source_url !== configuredUrl || !cached.ok || !isAdmissibleCachedSourceObservation({
-    ok: cached.ok,
-    status: cached.status,
-    contentHash: cached.content_hash,
-    evidenceExcerpt: cached.evidence_excerpt,
-    evidenceStatus: cached.evidence_status,
-  })) return headers;
-  const cachedObservedAt = Date.parse(cached.observed_at);
-  // Do not let a clock-skewed or corrupted future observation seed a conditional request.
-  if (!Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs) return headers;
+  if (!cached || !isConditionalRequestCacheUsable(configuredUrl, cached, nowMs)) return headers;
   if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
   if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
   return headers;
-}
+};
 
 export interface SourceFetchContext {
   /** One clock snapshot shared by conditional request construction and 304 cache validation. */
@@ -703,86 +686,234 @@ export interface SourceFetchContext {
   conditionalHeaders: Record<string, string>;
 }
 
-export function createSourceFetchContext(
+export const createSourceFetchContext = (
   sourceUrl: string,
   cached?: CachedSourceObservation | null,
   nowMs = Date.now(),
-): SourceFetchContext {
+): SourceFetchContext => {
+  if (!Number.isFinite(nowMs)) throw new TypeError('source fetch clock must be a finite timestamp');
   return {
     nowMs,
     observedAt: new Date(nowMs).toISOString(),
     conditionalHeaders: buildConditionalRequestHeaders(sourceUrl, cached, nowMs),
   };
-}
+};
 
-export function reuseNotModifiedSourceObservation(
+const isCachedObservationForSource = (
+  source: Pick<ArchitectureSource, 'url'>,
+  cached: CachedSourceObservation,
+  finalUrl: string,
+): boolean =>
+  cached.source_url === source.url
+  && cached.ok
+  && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached))
+  && typeof cached.final_url === 'string'
+  && cached.final_url === finalUrl;
+
+const isObservationTimestampCurrent = (timestamp: number | null, nowMs: number): boolean =>
+  Number.isFinite(nowMs) && timestamp !== null && timestamp <= nowMs;
+
+const isObservationTimestampMonotonic = (cachedAt: number | null, observedAt: number | null): boolean =>
+  cachedAt !== null && observedAt !== null && observedAt >= cachedAt;
+
+const isMonotonicObservationWindow = (
+  cachedAt: number | null,
+  observedAt: number | null,
+  nowMs: number,
+): boolean => [
+  isObservationTimestampCurrent(cachedAt, nowMs),
+  isObservationTimestampCurrent(observedAt, nowMs),
+  isObservationTimestampMonotonic(cachedAt, observedAt),
+].every(Boolean);
+
+const buildRevalidatedSourceObservation = (
+  source: Pick<ArchitectureSource, 'id'>,
+  cached: CachedSourceObservation,
+  response: { finalUrl: string; etag: string | null; lastModified: string | null },
+  observedAt: string,
+): SourceObservation => ({
+  sourceId: source.id,
+  ok: true,
+  status: 304,
+  contentHash: cached.content_hash,
+  observedAt,
+  finalUrl: response.finalUrl,
+  etag: response.etag ?? cached.etag ?? null,
+  lastModified: response.lastModified ?? cached.last_modified ?? null,
+  revalidatedNotModified: true,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+});
+
+const isValidNotModifiedRevalidation = (
+  source: Pick<ArchitectureSource, 'url'>,
+  cached: CachedSourceObservation,
+  finalUrl: string,
+  observedAt: string,
+  nowMs: number,
+): boolean => isCachedObservationForSource(source, cached, finalUrl)
+  && isMonotonicObservationWindow(
+    parseSourceObservationTimestamp(cached.observed_at),
+    parseSourceObservationTimestamp(observedAt),
+    nowMs,
+  );
+
+export const reuseNotModifiedSourceObservation = (
   source: Pick<ArchitectureSource, 'id' | 'url'>,
   cached: CachedSourceObservation | null | undefined,
   response: { finalUrl: string; etag: string | null; lastModified: string | null },
   observedAt: string,
   nowMs = Date.now(),
-): SourceObservation | null {
-  const cachedObservedAt = cached ? Date.parse(cached.observed_at) : Number.NaN;
-  const newObservedAtMs = Date.parse(observedAt);
-  if (!cached || cached.source_url !== source.url || !cached.ok
-      || !isAdmissibleCachedSourceObservation({
-        ok: cached.ok,
-        status: cached.status,
-        contentHash: cached.content_hash,
-        evidenceExcerpt: cached.evidence_excerpt,
-        evidenceStatus: cached.evidence_status,
-      })
-      || typeof cached.final_url !== 'string'
-      || cached.final_url !== response.finalUrl
-      || !Number.isFinite(cachedObservedAt) || cachedObservedAt > nowMs
-      || !Number.isFinite(newObservedAtMs) || newObservedAtMs > nowMs) return null;
-  return {
-    sourceId: source.id,
-    ok: true,
-    status: 304,
-    contentHash: cached.content_hash,
-    observedAt,
-    finalUrl: response.finalUrl,
-    etag: response.etag ?? cached.etag ?? null,
-    lastModified: response.lastModified ?? cached.last_modified ?? null,
-    revalidatedNotModified: true,
-    evidenceExcerpt: cached.evidence_excerpt,
-    evidenceStatus: cached.evidence_status,
-  };
-}
-
-function extractEvidence(body: string, keywords: string[]) {
-  const text = stripHtml(body);
-  const lower = text.toLowerCase();
-  let index = -1;
-  for (const keyword of keywords) {
-    const needle = keyword.toLowerCase();
-    const i = lower.indexOf(needle);
-    if (i >= 0 && (index === -1 || i < index)) index = i;
+): SourceObservation | null => {
+  if (!cached || !isValidNotModifiedRevalidation(source, cached, response.finalUrl, observedAt, nowMs)) {
+    return null;
   }
-  if (index < 0) return null;
-  const start = Math.max(0, index - 240);
-  const end = Math.min(text.length, index + 760);
-  return text.slice(start, end).trim();
-}
+  return buildRevalidatedSourceObservation(source, cached, response, observedAt);
+};
+
+const isAsciiAlphanumericCode = (code: number): boolean =>
+  (code >= 48 && code <= 57)
+  || (code >= 97 && code <= 122);
+
+const isUppercaseAcronymKeyword = (keyword: string): boolean => {
+  if (keyword.length < 2 || keyword.length > 5) return false;
+  for (let index = 0; index < keyword.length; index += 1) {
+    const code = keyword.charCodeAt(index);
+    const isUppercaseLetter = code >= 65 && code <= 90;
+    const isDigit = code >= 48 && code <= 57;
+    if (!isUppercaseLetter && !isDigit) return false;
+  }
+  return true;
+};
+
+const findStandaloneAcronymIndex = (text: string, keyword: string): number => {
+  let candidate = text.indexOf(keyword);
+  while (candidate >= 0) {
+    const before = candidate > 0 ? text.charCodeAt(candidate - 1) : -1;
+    const afterIndex = candidate + keyword.length;
+    const after = afterIndex < text.length ? text.charCodeAt(afterIndex) : -1;
+    const beforeIsWordCharacter = isAsciiAlphanumericCode(before) || before === 45 || before === 95;
+    const afterIsWordCharacter = isAsciiAlphanumericCode(after) || after === 45 || after === 95;
+    if (!beforeIsWordCharacter && !afterIsWordCharacter) return candidate;
+    candidate = text.indexOf(keyword, candidate + 1);
+  }
+  return -1;
+};
+
+export const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
+  const lower = text.toLowerCase();
+  let firstIndex = -1;
+  for (const keyword of keywords) {
+    const normalizedKeyword = keyword.toLowerCase();
+    const matchIndex = isUppercaseAcronymKeyword(keyword)
+      ? findStandaloneAcronymIndex(lower, normalizedKeyword)
+      : lower.indexOf(normalizedKeyword);
+    if (matchIndex >= 0 && (firstIndex < 0 || matchIndex < firstIndex)) firstIndex = matchIndex;
+  }
+  return firstIndex;
+};
+
+const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
+  text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
+
+const extractEvidence = (body: string, keywords: string[]): string | null => {
+  const text = stripHtml(body);
+  const matchIndex = findEarliestKeywordIndex(text, keywords);
+  return matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+};
 
 const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
 const SOURCE_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-async function fetchCuratedSource(
-  sourceUrl: string,
-  signal: AbortSignal,
-  conditionalHeaders: Record<string, string> = {},
-): Promise<{ response: Response; finalUrl: URL; body: string }> {
-  const originalUrl = new URL(sourceUrl);
-  if (originalUrl.protocol !== 'https:' || originalUrl.username || originalUrl.password) {
-    throw new Error('curated source URL must use HTTPS without embedded credentials');
-  }
+const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
+  'airc.nist.gov',
+  'atlas.mitre.org',
+  'aws.amazon.com',
+  'csrc.nist.gov',
+  'datatracker.ietf.org',
+  'docs.cloud.google.com',
+  'focus.finops.org',
+  'genai.owasp.org',
+  'github.com',
+  'learn.microsoft.com',
+  'opentelemetry.io',
+  'raw.githubusercontent.com',
+  'securityscorecards.dev',
+  'slsa.dev',
+  'sre.google',
+  'www.cncf.io',
+  'www.etsi.org',
+  'www.ietf.org',
+  'www.iso.org',
+  'www.nist.gov',
+  'www.opengroup.org',
+  'www.w3.org',
+]);
 
+export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+  try {
+    const url = new URL(sourceUrl);
+    return url.protocol === 'https:'
+      && CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
+      && !url.username
+      && !url.password
+      && (!url.port || url.port === '443');
+  } catch {
+    return false;
+  }
+};
+
+const validateCuratedSourceUrl = (sourceUrl: string): URL => {
+  if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
+    throw new Error('curated source URL must use HTTPS on an approved hostname without credentials or unsafe ports');
+  }
+  return new URL(sourceUrl);
+};
+
+const hasExpectedRedirectOrigin = (nextUrl: URL, originalUrl: URL): boolean =>
+  nextUrl.protocol === 'https:' && nextUrl.hostname === originalUrl.hostname;
+
+const hasNoRedirectCredentials = (nextUrl: URL): boolean =>
+  !nextUrl.username && !nextUrl.password;
+
+const hasAllowedRedirectPort = (nextUrl: URL): boolean =>
+  !nextUrl.port || nextUrl.port === '443';
+
+const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
+  if (!hasExpectedRedirectOrigin(nextUrl, originalUrl)) return false;
+  if (!hasNoRedirectCredentials(nextUrl)) return false;
+  return hasAllowedRedirectPort(nextUrl);
+};
+
+const resolveCuratedRedirectTarget = async (
+  response: Response,
+  requestUrl: URL,
+  originalUrl: URL,
+  redirects: number,
+): Promise<URL> => {
+  const location = response.headers.get('location');
+  await response.body?.cancel();
+  if (!location) throw new Error('source redirect is missing a Location header');
+  if (redirects === 10) throw new Error('source redirect limit exceeded');
+
+  const nextUrl = new URL(location, requestUrl);
+  if (!isSafeCuratedRedirectTarget(nextUrl, originalUrl)) {
+    throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
+  }
+  return nextUrl;
+};
+
+const fetchCuratedRedirectChain = async (
+  originalUrl: URL,
+  signal: AbortSignal,
+  conditionalHeaders: Record<string, string>,
+): Promise<{ response: Response; requestUrl: URL }> => {
   let requestUrl = originalUrl;
-  let response: Response | undefined;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    response = await fetch(requestUrl, {
+    if (!isTrustedArchitectureSourceUrl(requestUrl.href) || requestUrl.origin !== originalUrl.origin) {
+      throw new Error('source fetch rejected: target must remain HTTPS on the curated hostname allowlist');
+    }
+    const response = await fetch(requestUrl.toString(), {
       redirect: 'manual',
       headers: {
         'User-Agent': 'GLORIFIER-GEAS-Architecture-Scientist/2.0',
@@ -791,304 +922,411 @@ async function fetchCuratedSource(
       },
       signal,
     });
-    if (!SOURCE_REDIRECT_STATUSES.has(response.status)) break;
-
-    const location = response.headers.get('location');
-    await response.body?.cancel();
-    if (!location) throw new Error('source redirect is missing a Location header');
-    if (redirects === 10) throw new Error('source redirect limit exceeded');
-
-    const nextUrl = new URL(location, requestUrl);
-    const unsafeTarget =
-      nextUrl.protocol !== 'https:' ||
-      nextUrl.hostname !== originalUrl.hostname ||
-      Boolean(nextUrl.username || nextUrl.password) ||
-      Boolean(nextUrl.port && nextUrl.port !== '443');
-    if (unsafeTarget) {
-      throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
-    }
-    requestUrl = nextUrl;
+    if (!SOURCE_REDIRECT_STATUSES.has(response.status)) return { response, requestUrl };
+    requestUrl = await resolveCuratedRedirectTarget(response, requestUrl, originalUrl, redirects);
   }
+  throw new Error('source redirect limit exceeded or no response returned');
+};
 
-  if (!response || SOURCE_REDIRECT_STATUSES.has(response.status)) {
-    await response?.body?.cancel();
-    throw new Error('source redirect limit exceeded or no response returned');
-  }
-
+const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, originalUrl: URL): Promise<URL> => {
   const finalUrl = new URL(response.url || requestUrl.toString());
   if (finalUrl.protocol !== 'https:' || finalUrl.hostname !== originalUrl.hostname) {
-    await response.body?.cancel();
+    await response.body?.cancel().catch(() => undefined);
     throw new Error('source redirect rejected: final host/protocol differs from curated source');
   }
+  return finalUrl;
+};
 
-  if (response.status === 304) {
-    // A 304 has no new representation body. The caller must validate and reuse the exact URL's cached evidence.
-    return { response, finalUrl, body: '' };
-  }
+const SOURCE_SIZE_LIMIT_ERROR = 'source response exceeds 2 MiB limit';
 
+const validateDeclaredResponseSize = async (response: Response): Promise<void> => {
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
   if (declaredLength > SOURCE_MAX_BYTES) {
     await response.body?.cancel();
-    throw new Error('source response exceeds 2 MiB limit');
+    throw new Error(SOURCE_SIZE_LIMIT_ERROR);
   }
+};
 
-  const reader = response.body?.getReader();
+const readResponseChunks = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<{ chunks: Uint8Array[]; totalBytes: number }> => {
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  if (reader) {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > SOURCE_MAX_BYTES) {
-        await reader.cancel();
-        throw new Error('source response exceeds 2 MiB limit');
-      }
-      chunks.push(value);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > SOURCE_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error(SOURCE_SIZE_LIMIT_ERROR);
     }
+    chunks.push(value);
   }
+  return { chunks, totalBytes };
+};
 
+const combineResponseChunks = (chunks: Uint8Array[], totalBytes: number): Uint8Array => {
   const bytes = new Uint8Array(totalBytes);
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return { response, finalUrl, body: new TextDecoder().decode(bytes) };
-}
+  return bytes;
+};
 
-async function fetchSource(source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> {
-  const fetchContext = createSourceFetchContext(source.url, cached);
-  const { nowMs, observedAt, conditionalHeaders } = fetchContext;
+const readBoundedResponseBytes = async (response: Response): Promise<Uint8Array> => {
+  await validateDeclaredResponseSize(response);
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const collected = await readResponseChunks(reader);
+  return combineResponseChunks(collected.chunks, collected.totalBytes);
+};
+
+const fetchCuratedSource = async (
+  sourceUrl: string,
+  signal: AbortSignal,
+  conditionalHeaders: Record<string, string> = {},
+): Promise<{ response: Response; finalUrl: URL; body: string }> => {
+  const originalUrl = validateCuratedSourceUrl(sourceUrl);
+  const { response, requestUrl } = await fetchCuratedRedirectChain(originalUrl, signal, conditionalHeaders);
+  const finalUrl = await validateCuratedFinalUrl(response, requestUrl, originalUrl);
+  const body = response.status === 304
+    ? ''
+    : new TextDecoder().decode(await readBoundedResponseBytes(response));
+  return { response, finalUrl, body };
+};
+
+const getSourcePatternKeywords = (sourceId: string): string[] =>
+  PATTERN_DEFINITIONS
+    .filter((pattern) => pattern.sourceId === sourceId)
+    .flatMap((pattern) => pattern.keywords);
+
+const createUnavailableSourceObservation = (
+  sourceId: string,
+  observedAt: string,
+  status: number | null,
+  finalUrl: string | undefined,
+  error: string,
+): SourceObservation => ({
+  sourceId,
+  ok: false,
+  status,
+  contentHash: null,
+  observedAt,
+  finalUrl,
+  evidenceExcerpt: null,
+  evidenceStatus: 'unavailable',
+  error,
+});
+
+const createNotModifiedSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | null | undefined,
+  response: Response,
+  finalUrl: URL,
+  observedAt: string,
+  nowMs: number,
+): SourceObservation => reuseNotModifiedSourceObservation(
+  source,
+  cached,
+  {
+    finalUrl: finalUrl.toString(),
+    etag: response.headers.get('etag'),
+    lastModified: response.headers.get('last-modified'),
+  },
+  observedAt,
+  nowMs,
+) ?? createUnavailableSourceObservation(
+  source.id,
+  observedAt,
+  304,
+  finalUrl.toString(),
+  'source returned 304 without valid cached evidence for the exact configured URL',
+);
+
+const createFetchedSourceObservation = (
+  source: ArchitectureSource,
+  response: Response,
+  finalUrl: URL,
+  body: string,
+  observedAt: string,
+): SourceObservation => {
+  const normalizedText = stripHtml(body);
+  const contentHash = createHash('sha256').update(normalizedText).digest('hex');
+  const excerpt = response.ok ? extractEvidence(body, getSourcePatternKeywords(source.id)) : null;
+  const evidenceStatus: EvidenceStatus = excerpt
+    ? 'content-matched'
+    : response.ok ? 'source-available' : 'not-observed';
+  return {
+    sourceId: source.id,
+    ok: response.ok,
+    status: response.status,
+    contentHash,
+    observedAt,
+    finalUrl: finalUrl.toString(),
+    etag: response.headers.get('etag'),
+    lastModified: response.headers.get('last-modified'),
+    evidenceExcerpt: excerpt,
+    evidenceStatus,
+    error: response.ok ? undefined : `source fetch returned ${response.status}`,
+  };
+};
+
+const createSourceFetchFailure = (source: ArchitectureSource, observedAt: string, error: unknown): SourceObservation =>
+  createUnavailableSourceObservation(
+    source.id,
+    observedAt,
+    null,
+    undefined,
+    error instanceof Error ? error.message : 'source fetch failed',
+  );
+
+const createSourceFetchObservation = async (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | null | undefined,
+  context: SourceFetchContext,
+  signal: AbortSignal,
+): Promise<SourceObservation> => {
+  const { response, finalUrl, body } = await fetchCuratedSource(
+    source.url,
+    signal,
+    context.conditionalHeaders,
+  );
+  if (response.status === 304) {
+    return createNotModifiedSourceObservation(
+      source,
+      cached,
+      response,
+      finalUrl,
+      context.observedAt,
+      context.nowMs,
+    );
+  }
+  return createFetchedSourceObservation(source, response, finalUrl, body, context.observedAt);
+};
+
+const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
+  const context = createSourceFetchContext(source.url, cached);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const { response, finalUrl, body } = await fetchCuratedSource(
-      source.url,
-      controller.signal,
-      conditionalHeaders,
-    );
-    if (response.status === 304) {
-      const revalidated = reuseNotModifiedSourceObservation(
-        source,
-        cached,
-        {
-          finalUrl: finalUrl.toString(),
-          etag: response.headers.get('etag'),
-          lastModified: response.headers.get('last-modified'),
-        },
-        observedAt,
-        nowMs,
-      );
-      if (revalidated) return revalidated;
-      return {
-        sourceId: source.id,
-        ok: false,
-        status: 304,
-        contentHash: null,
-        observedAt,
-        finalUrl: finalUrl.toString(),
-        evidenceExcerpt: null,
-        evidenceStatus: 'unavailable',
-        error: 'source returned 304 without valid cached evidence for the exact configured URL',
-      };
-    }
-    const normalizedText = stripHtml(body);
-    const contentHash = createHash('sha256').update(normalizedText).digest('hex');
-    const keywords = PATTERN_DEFINITIONS
-      .filter((pattern) => pattern.sourceId === source.id)
-      .flatMap((pattern) => pattern.keywords);
-    const excerpt = response.ok ? extractEvidence(body, keywords) : null;
-    return {
-      sourceId: source.id,
-      ok: response.ok,
-      status: response.status,
-      contentHash,
-      observedAt,
-      finalUrl: finalUrl.toString(),
-      etag: response.headers.get('etag'),
-      lastModified: response.headers.get('last-modified'),
-      evidenceExcerpt: excerpt,
-      evidenceStatus: excerpt ? 'content-matched' : response.ok ? 'source-available' : 'not-observed',
-      error: response.ok ? undefined : `source fetch returned ${response.status}`,
-    };
+    return await createSourceFetchObservation(source, cached, context, controller.signal);
   } catch (error) {
-    return {
-      sourceId: source.id,
-      ok: false,
-      status: null,
-      contentHash: null,
-      observedAt,
-      evidenceExcerpt: null,
-      evidenceStatus: 'unavailable',
-      error: error instanceof Error ? error.message : 'source fetch failed',
-    };
+    return createSourceFetchFailure(source, context.observedAt, error);
   } finally {
     clearTimeout(timer);
   }
-}
+};
+type PatternSourceObservation = SourceObservation & { evidenceExcerpt: string };
 
-function observedPatterns(results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] {
-  const map = new Map(results.map((result) => [result.sourceId, result]));
+const isPatternSourceObservation = (
+  source: SourceObservation | undefined,
+): source is PatternSourceObservation =>
+  source?.ok === true
+  && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
+  && typeof source.evidenceExcerpt === 'string'
+  && source.evidenceExcerpt.length > 0;
+
+const createObservedArchitecturePattern = (
+  pattern: PatternDefinition,
+  source: PatternSourceObservation,
+): ArchitecturePattern => ({
+  id: pattern.id,
+  title: pattern.title,
+  domain: pattern.domain,
+  evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
+  sourceId: source.sourceId,
+  evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
+  evidenceExcerpt: source.evidenceExcerpt,
+  pattern: pattern.pattern,
+  GLORIFIERMapping: pattern.GLORIFIERMapping,
+  controlIds: pattern.controlIds,
+  lastReviewed: source.observedAt,
+});
+
+const observedPatterns = (results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] => {
+  const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
-    const source = map.get(pattern.sourceId);
-    if (!source || !source.ok || !['content-matched', 'claim-supported'].includes(source.evidenceStatus) || !source.evidenceExcerpt) {
-      return [] as ArchitecturePattern[];
-    }
-    return [{
-      id: pattern.id,
-      title: pattern.title,
-      domain: pattern.domain,
-      evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
-      sourceId: source.sourceId,
-      evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
-      evidenceExcerpt: source.evidenceExcerpt,
-      pattern: pattern.pattern,
-      GLORIFIERMapping: pattern.GLORIFIERMapping,
-      controlIds: pattern.controlIds,
-      lastReviewed: source.observedAt,
-    }];
+    const source = observationsBySource.get(pattern.sourceId);
+    return isPatternSourceObservation(source) ? [createObservedArchitecturePattern(pattern, source)] : [];
   });
-}
+};
 
-function buildEvidence(results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] {
+const indexPatternIdsBySource = (patterns: ArchitecturePattern[]): Map<string, string[]> => {
   const ids = new Map<string, string[]>();
   for (const pattern of patterns) {
-    const arr = ids.get(pattern.sourceId) ?? [];
-    arr.push(pattern.id);
-    ids.set(pattern.sourceId, arr);
+    const sourceIds = ids.get(pattern.sourceId) ?? [];
+    sourceIds.push(pattern.id);
+    ids.set(pattern.sourceId, sourceIds);
   }
+  return ids;
+};
 
-  return results.flatMap((result) => {
-    if (!result.ok || !result.evidenceExcerpt || !['content-matched', 'claim-supported'].includes(result.evidenceStatus)) return [] as ArchitectureEvidence[];
-    return [{
-      id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
-      sourceId: result.sourceId,
-      sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
-      observedAt: result.observedAt,
-      contentHash: result.contentHash ?? 'unknown',
-      excerpt: result.evidenceExcerpt,
-      evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
-      sourceStatus: result.status ?? 0,
-      patternIds: ids.get(result.sourceId) ?? [],
-    }];
+const architectureEvidenceId = (sourceId: string, contentHash: string | null): string => {
+  const digest = contentHash === null ? 'unknown' : contentHash.slice(0, 16);
+  return `evidence-${sourceId}-${digest}`;
+};
+
+const architectureEvidenceSourceUrl = (sourceId: string): string => {
+  const source = SOURCES.find((item) => item.id === sourceId);
+  return source ? source.url : '';
+};
+
+const architectureEvidencePatternIds = (
+  sourceId: string,
+  patternIdsBySource: Map<string, string[]>,
+): string[] => {
+  const patternIds = patternIdsBySource.get(sourceId);
+  return patternIds ? patternIds : [];
+};
+
+const architectureEvidenceContentHash = (contentHash: string | null): string =>
+  contentHash ?? 'unknown';
+
+const architectureEvidenceHttpStatus = (status: number | null): number => status ?? 0;
+
+const createArchitectureEvidence = (
+  result: PatternSourceObservation,
+  patternIdsBySource: Map<string, string[]>,
+): ArchitectureEvidence => ({
+  id: architectureEvidenceId(result.sourceId, result.contentHash),
+  sourceId: result.sourceId,
+  sourceUrl: architectureEvidenceSourceUrl(result.sourceId),
+  observedAt: result.observedAt,
+  contentHash: architectureEvidenceContentHash(result.contentHash),
+  excerpt: result.evidenceExcerpt,
+  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
+  sourceStatus: architectureEvidenceHttpStatus(result.status),
+  patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
+});
+
+const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] => {
+  const patternIdsBySource = indexPatternIdsBySource(patterns);
+  return results.flatMap((result) => isPatternSourceObservation(result)
+    ? [createArchitectureEvidence(result, patternIdsBySource)]
+    : []);
+};
+
+const getDomainCoverage = (
+  domain: ArchitectureDomain,
+  results: SourceObservation[],
+  patterns: ArchitecturePattern[],
+): ArchitectureScanResult['coverage'][ArchitectureDomain] => {
+  const domainSources = results.filter((result) =>
+    SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
+  const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
+  const status = domainSources.length === 0
+    ? 'source-unavailable'
+    : observedPatterns > 0 ? 'covered' : 'no-observed-pattern';
+  return { sources: domainSources.length, observedPatterns, status };
+};
+
+const coverage = (
+  results: SourceObservation[],
+  patterns: ArchitecturePattern[],
+): ArchitectureScanResult['coverage'] => {
+  const output = {} as ArchitectureScanResult['coverage'];
+  const domains = [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[];
+  domains.forEach((domain) => {
+    output[domain] = getDomainCoverage(domain, results, patterns);
   });
-}
+  return output;
+};
 
-function coverage(results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureScanResult['coverage'] {
-  const out = {} as ArchitectureScanResult['coverage'];
-  for (const domain of [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[]) {
-    const domainSources = results.filter((result) => SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
-    const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
-    const status = !domainSources.length
-      ? 'source-unavailable'
-      : observedPatterns > 0
-        ? 'covered'
-        : 'no-observed-pattern';
+const UNKNOWN_DRIFT_OBSERVATION = 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.';
 
-    out[domain] = {
-      sources: domainSources.length,
-      observedPatterns,
-      status,
-    };
-  }
-  return out;
-}
+const createUnknownDriftFinding = (
+  id: string,
+  controlId: string,
+  severity: RiskLevel,
+  intended: string,
+  recommendation: string,
+  createdAt: string,
+): DriftFinding => ({
+  id,
+  controlId,
+  status: 'unknown',
+  severity,
+  intended,
+  observed: UNKNOWN_DRIFT_OBSERVATION,
+  evidenceRefs: [],
+  recommendation,
+  createdAt,
+});
 
-function drift(): DriftFinding[] {
-  const ts = new Date().toISOString();
-  return [
-    {
-      id: 'drift-agent-identity',
-      controlId: 'AUTH-01',
-      status: 'unknown',
-      severity: 'high',
-      intended: 'Agents have explicit identity, delegation scope, audience, expiration and revocation semantics.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Adopt AgentIdentityContract for governed agent actions.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-telemetry-contract',
-      controlId: 'OBS-01',
-      status: 'unknown',
-      severity: 'medium',
-      intended: 'Agent/model/tool/deployment/outcome events share stable correlation semantics.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Adopt a versioned GEAS telemetry contract.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-evidence-minimization',
-      controlId: 'EVID-01',
-      status: 'unknown',
-      severity: 'medium',
-      intended: 'Evidence has integrity, classification, retention and disclosure controls.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Add classification, redaction, retention and selective-disclosure metadata.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-policy-enforcement',
-      controlId: 'POL-01',
-      status: 'unknown',
-      severity: 'medium',
-      intended: 'Applicable policies are machine-evaluable before governed execution.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Publish versioned policies and add enforcement adapters.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-provenance',
-      controlId: 'SUPPLY-01',
-      status: 'unknown',
-      severity: 'high',
-      intended: 'Software, model, provider and deployment dependencies have traceable provenance.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Link provider/model/software/deployment provenance into one evidence graph.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-finops',
-      controlId: 'FIN-01',
-      status: 'unknown',
-      severity: 'low',
-      intended: 'Material architecture choices record cost, value and placement tradeoffs.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Add normalized cost/usage attribution and verified-outcome correlation.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-daemon-ha',
-      controlId: 'STATE-01',
-      status: 'unknown',
-      severity: 'high',
-      intended: 'Long-running governed work has durable ownership, checkpoint and recovery semantics.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Evaluate durable lease/checkpoint coordination before claiming HA.',
-      createdAt: ts,
-    },
-    {
-      id: 'drift-architecture-reconciliation',
-      controlId: 'GOV-01',
-      status: 'unknown',
-      severity: 'high',
-      intended: 'Desired, declared, deployed, observed and verified states are reconciled.',
-      observed: 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.',
-      evidenceRefs: [],
-      recommendation: 'Persist the five-state reconciliation and never infer compliance from missing evidence.',
-      createdAt: ts,
-    },
-  ];
-}
+type DriftFindingDefinition = readonly [
+  id: string,
+  controlId: string,
+  severity: RiskLevel,
+  intended: string,
+  recommendation: string,
+];
 
+const DRIFT_FINDING_DEFINITIONS: readonly DriftFindingDefinition[] = [
+  [
+    'drift-agent-identity',
+    'AUTH-01',
+    'high',
+    'Agents have explicit identity, delegation scope, audience, expiration and revocation semantics.',
+    'Adopt AgentIdentityContract for governed agent actions.',
+  ],
+  [
+    'drift-telemetry-contract',
+    'OBS-01',
+    'medium',
+    'Agent/model/tool/deployment/outcome events share stable correlation semantics.',
+    'Adopt a versioned GEAS telemetry contract.',
+  ],
+  [
+    'drift-evidence-minimization',
+    'EVID-01',
+    'medium',
+    'Evidence has integrity, classification, retention and disclosure controls.',
+    'Add classification, redaction, retention and selective-disclosure metadata.',
+  ],
+  [
+    'drift-policy-enforcement',
+    'POL-01',
+    'medium',
+    'Applicable policies are machine-evaluable before governed execution.',
+    'Publish versioned policies and add enforcement adapters.',
+  ],
+  [
+    'drift-provenance',
+    'SUPPLY-01',
+    'high',
+    'Software, model, provider and deployment dependencies have traceable provenance.',
+    'Link provider/model/software/deployment provenance into one evidence graph.',
+  ],
+  [
+    'drift-finops',
+    'FIN-01',
+    'low',
+    'Material architecture choices record cost, value and placement tradeoffs.',
+    'Add normalized cost/usage attribution and verified-outcome correlation.',
+  ],
+  [
+    'drift-daemon-ha',
+    'STATE-01',
+    'high',
+    'Long-running governed work has durable ownership, checkpoint and recovery semantics.',
+    'Evaluate durable lease/checkpoint coordination before claiming HA.',
+  ],
+  [
+    'drift-architecture-reconciliation',
+    'GOV-01',
+    'high',
+    'Desired, declared, deployed, observed and verified states are reconciled.',
+    'Persist the five-state reconciliation and never infer compliance from missing evidence.',
+  ],
+];
+
+const drift = (): DriftFinding[] => {
+  const createdAt = new Date().toISOString();
+  return DRIFT_FINDING_DEFINITIONS.map(([id, controlId, severity, intended, recommendation]) =>
+    createUnknownDriftFinding(id, controlId, severity, intended, recommendation, createdAt));
+};
 export const initializeGeasArchitectureScientist = async (): Promise<void> => {
   const db = getPostgresPool();
   await db.query(`
@@ -1205,7 +1443,7 @@ export const initializeGeasArchitectureScientist = async (): Promise<void> => {
   `);
 };
 
-async function acquireArchitectureScanLease(ownerId: string, ttlMinutes = 30): Promise<boolean> {
+const acquireArchitectureScanLease = async (ownerId: string, ttlMinutes = 30): Promise<boolean> => {
   try {
     await initializeGeasArchitectureScientist();
     const db = getPostgresPool();
@@ -1217,72 +1455,95 @@ async function acquireArchitectureScanLease(ownerId: string, ttlMinutes = 30): P
   } catch {
     return false;
   }
-}
+};
 
-async function releaseArchitectureScanLease(ownerId: string): Promise<void> {
+const releaseArchitectureScanLease = async (ownerId: string): Promise<void> => {
   try {
     const db = getPostgresPool();
     await db.query('DELETE FROM geas_architecture_scan_leases WHERE lease_name = $1 AND owner_id = $2', ['global', ownerId]);
   } catch {
     // Expiration provides recovery if cleanup cannot run.
   }
-}
+};
 
-export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult> {
-  const persist = String(process.env.GEAS_SCAN_PERSIST ?? 'true').toLowerCase() !== 'false';
-  const ownerId = `geas-scanner-${randomUUID()}`;
-  const leaseAcquired = persist ? await acquireArchitectureScanLease(ownerId) : true;
-  if (!leaseAcquired) throw new Error('GEAS architecture scan lease is held by another instance');
+const shouldPersistArchitectureScan = (): boolean =>
+  String(process.env.GEAS_SCAN_PERSIST ?? 'true').toLowerCase() !== 'false';
 
+const loadPreviousSourceObservations = async (
+  persist: boolean,
+): Promise<Map<string, CachedSourceObservation>> => {
+  const previous = new Map<string, CachedSourceObservation>();
+  if (!persist) return previous;
   try {
-  const scanId = `geas-scan-${randomUUID()}`;
-  const startedAt = new Date().toISOString();
-  const previous = new Map<string, { observed_at: string; ok: boolean; status: number | null; content_hash: string | null; evidence_excerpt: string | null; evidence_status: EvidenceStatus; error: string | null; final_url?: string | null; etag?: string | null; last_modified?: string | null; source_url?: string | null }>();
-  if (persist) {
-    try {
-      const db = getPostgresPool();
-      const prior = await db.query('SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url FROM geas_source_observations');
-      for (const row of prior.rows) previous.set(String(row.source_id), row);
-    } catch (error) {
-      console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
-    }
+    const db = getPostgresPool();
+    const prior = await db.query(
+      'SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url FROM geas_source_observations',
+    );
+    for (const row of prior.rows) previous.set(String(row.source_id), row);
+  } catch (error) {
+    console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
   }
-  const nowMs = Date.now();
-  const sources = await Promise.all(SOURCES.map(async (source) => {
-    const cached = previous.get(source.id);
-    if (cached && shouldReuseSourceObservation({
-      configuredUrl: source.url,
-      cachedUrl: cached.source_url,
-      ok: cached.ok,
-      status: cached.status,
-      contentHash: cached.content_hash,
-      evidenceExcerpt: cached.evidence_excerpt,
-      evidenceStatus: cached.evidence_status,
-      cadenceHours: source.cadenceHours,
-      observedAt: cached.observed_at,
-      nowMs,
-    })) {
-      return {
-        sourceId: source.id,
-        ok: cached.ok,
-        status: cached.status,
-        contentHash: cached.content_hash,
-        observedAt: new Date(cached.observed_at).toISOString(),
-        reusedCachedObservation: true,
-        finalUrl: cached.final_url ?? undefined,
-        etag: cached.etag ?? null,
-        lastModified: cached.last_modified ?? null,
-        evidenceExcerpt: cached.evidence_excerpt,
-        evidenceStatus: cached.evidence_status,
-        error: cached.error ?? undefined,
-      } satisfies SourceObservation;
-    }
-    return fetchSource(source, cached);
-  }));
+  return previous;
+};
+
+const sourceObservationTimestamp = (observedAt: string | Date): string =>
+  observedAt instanceof Date ? observedAt.toISOString() : new Date(observedAt).toISOString();
+
+const reuseCachedSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation,
+): SourceObservation => ({
+  sourceId: source.id,
+  ok: cached.ok,
+  status: cached.status,
+  contentHash: cached.content_hash,
+  observedAt: sourceObservationTimestamp(cached.observed_at),
+  reusedCachedObservation: true,
+  finalUrl: cached.final_url ?? undefined,
+  etag: cached.etag ?? null,
+  lastModified: cached.last_modified ?? null,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+  error: cached.error ?? undefined,
+});
+
+const getSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | undefined,
+  nowMs: number,
+): Promise<SourceObservation> => {
+  const reusable = cached && shouldReuseSourceObservation({
+    configuredUrl: source.url,
+    cachedUrl: cached.source_url,
+    ok: cached.ok,
+    status: cached.status,
+    contentHash: cached.content_hash,
+    evidenceExcerpt: cached.evidence_excerpt,
+    evidenceStatus: cached.evidence_status,
+    cadenceHours: source.cadenceHours,
+    observedAt: cached.observed_at,
+    nowMs,
+  });
+  return reusable && cached
+    ? Promise.resolve(reuseCachedSourceObservation(source, cached))
+    : fetchSource(source, cached);
+};
+
+const collectSourceObservations = (
+  previous: Map<string, CachedSourceObservation>,
+  nowMs: number,
+): Promise<SourceObservation[]> =>
+  Promise.all(SOURCES.map((source) => getSourceObservation(source, previous.get(source.id), nowMs)));
+
+const buildArchitectureScanResult = (
+  scanId: string,
+  startedAt: string,
+  sources: SourceObservation[],
+): ArchitectureScanResult => {
   const completedAt = new Date().toISOString();
   const patterns = observedPatterns(sources, completedAt);
   const evidence = buildEvidence(sources, patterns);
-  const result: ArchitectureScanResult = {
+  return {
     scanId,
     repositoryRevision: process.env.GITHUB_SHA ?? 'unknown',
     startedAt,
@@ -1297,58 +1558,136 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     architectureStateModel: ['desired', 'declared', 'deployed', 'observed', 'verified'],
     sourcePolicyVersion: 'GEAS-AUTHORITY-2',
   };
+};
 
-  if (persist) try {
-    await initializeGeasArchitectureScientist();
-    const db = getPostgresPool();
-    await db.query('INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)', [scanId, startedAt, completedAt, result]);
-    for (const source of sources) {
-      await db.query(
-        'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, source_url = EXCLUDED.source_url',
-        [source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt, source.evidenceStatus, source.error ?? null, source.finalUrl ?? null, source.etag ?? null, source.lastModified ?? null, SOURCES.find((candidate) => candidate.id === source.sourceId)?.url ?? null],
-      );
-    }
-    for (const item of evidence) {
-      await db.query(
-        'INSERT INTO geas_architecture_evidence(id, source_id, source_url, observed_at, content_hash, excerpt, evidence_class, source_status, pattern_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT(id) DO UPDATE SET source_id = EXCLUDED.source_id, source_url = EXCLUDED.source_url, observed_at = EXCLUDED.observed_at, content_hash = EXCLUDED.content_hash, excerpt = EXCLUDED.excerpt, evidence_class = EXCLUDED.evidence_class, source_status = EXCLUDED.source_status, pattern_ids = EXCLUDED.pattern_ids',
-        [item.id, item.sourceId, item.sourceUrl, item.observedAt, item.contentHash, item.excerpt, item.evidenceClass, item.sourceStatus, JSON.stringify(item.patternIds)],
-      );
-    }
-  } catch (error) {
-    console.warn('[GEAS] architecture scan persistence deferred:', error instanceof Error ? error.message : error);
+const sourceObservationPersistenceValues = (source: SourceObservation) => {
+  const configuredSource = SOURCES.find(candidate => candidate.id === source.sourceId);
+  return [
+    source.sourceId,
+    source.observedAt,
+    source.ok,
+    source.status,
+    source.contentHash,
+    source.evidenceExcerpt,
+    source.evidenceStatus,
+    source.error ?? null,
+    source.finalUrl ?? null,
+    source.etag ?? null,
+    source.lastModified ?? null,
+    configuredSource?.url ?? null,
+  ];
+};
+
+const persistSourceObservation = async (
+  db: ReturnType<typeof getPostgresPool>,
+  source: SourceObservation,
+): Promise<void> => {
+  await db.query(
+    'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, source_url = EXCLUDED.source_url',
+    sourceObservationPersistenceValues(source),
+  );
+};
+
+const persistSourceObservations = async (
+  db: ReturnType<typeof getPostgresPool>,
+  sources: SourceObservation[],
+): Promise<void> => {
+  for (const source of sources) {
+    await persistSourceObservation(db, source);
   }
+};
 
+const persistArchitectureEvidence = async (
+  db: ReturnType<typeof getPostgresPool>,
+  item: ArchitectureEvidence,
+): Promise<void> => {
+  await db.query(
+    'INSERT INTO geas_architecture_evidence(id, source_id, source_url, observed_at, content_hash, excerpt, evidence_class, source_status, pattern_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT(id) DO UPDATE SET source_id = EXCLUDED.source_id, source_url = EXCLUDED.source_url, observed_at = EXCLUDED.observed_at, content_hash = EXCLUDED.content_hash, excerpt = EXCLUDED.excerpt, evidence_class = EXCLUDED.evidence_class, source_status = EXCLUDED.source_status, pattern_ids = EXCLUDED.pattern_ids',
+    [
+      item.id, item.sourceId, item.sourceUrl, item.observedAt, item.contentHash, item.excerpt,
+      item.evidenceClass, item.sourceStatus, JSON.stringify(item.patternIds),
+    ],
+  );
+};
+
+const persistArchitectureEvidenceRows = async (
+  db: ReturnType<typeof getPostgresPool>,
+  evidence: ArchitectureEvidence[],
+): Promise<void> => {
+  for (const item of evidence) {
+    await persistArchitectureEvidence(db, item);
+  }
+};
+
+const persistArchitectureScanResult = async (result: ArchitectureScanResult): Promise<void> => {
+  await initializeGeasArchitectureScientist();
+  const db = getPostgresPool();
+  await db.query(
+    'INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)',
+    [result.scanId, result.startedAt, result.completedAt, result],
+  );
+  await persistSourceObservations(db, result.sources);
+  await persistArchitectureEvidenceRows(db, result.evidence);
+};
+
+const executeArchitectureScan = async (
+  scanId: string,
+  startedAt: string,
+  persist: boolean,
+): Promise<ArchitectureScanResult> => {
+  const previous = await loadPreviousSourceObservations(persist);
+  const sources = await collectSourceObservations(previous, Date.now());
+  const result = buildArchitectureScanResult(scanId, startedAt, sources);
+  if (persist) {
+    try {
+      await persistArchitectureScanResult(result);
+    } catch (error) {
+      console.warn('[GEAS] architecture scan persistence deferred:', error instanceof Error ? error.message : error);
+    }
+  }
   return result;
+};
+
+export const runGeasArchitectureScan = async (): Promise<ArchitectureScanResult> => {
+  const persist = shouldPersistArchitectureScan();
+  const ownerId = `geas-scanner-${randomUUID()}`;
+  if (persist && !(await acquireArchitectureScanLease(ownerId))) {
+    throw new Error('GEAS architecture scan lease is held by another instance');
+  }
+  try {
+    const scanId = `geas-scan-${randomUUID()}`;
+    const startedAt = new Date().toISOString();
+    return await executeArchitectureScan(scanId, startedAt, persist);
   } finally {
     if (persist) await releaseArchitectureScanLease(ownerId);
   }
-}
+};
 
-export async function persistEvidenceGovernance(evidenceId: string, governance: EvidenceGovernance) {
+export const persistEvidenceGovernance = async (evidenceId: string, governance: EvidenceGovernance) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query('INSERT INTO geas_evidence_governance(evidence_id, governance, updated_at) VALUES($1, $2, NOW()) ON CONFLICT(evidence_id) DO UPDATE SET governance = EXCLUDED.governance, updated_at = NOW()', [evidenceId, JSON.stringify(governance)]);
   return governance;
-}
+};
 
-export async function persistAgentTelemetryContract(contract: AgentTelemetryContract) {
+export const persistAgentTelemetryContract = async (contract: AgentTelemetryContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query('INSERT INTO geas_agent_telemetry_contracts(trace_id, contract) VALUES($1, $2) ON CONFLICT(trace_id) DO UPDATE SET contract = EXCLUDED.contract', [contract.traceId, JSON.stringify(contract)]);
   return contract;
-}
+};
 
-export async function persistFinOpsEvidence(contract: FinOpsEvidenceContract) {
+export const persistFinOpsEvidence = async (contract: FinOpsEvidenceContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
-  const id = 'finops-evidence-' + createHash('sha256').update(JSON.stringify(contract)).digest('hex');
+  const id = `finops-evidence-${createHash('sha256').update(JSON.stringify(contract)).digest('hex')}`;
   await db.query('INSERT INTO geas_finops_evidence(id, contract) VALUES($1, $2) ON CONFLICT(id) DO UPDATE SET contract = EXCLUDED.contract', [id, JSON.stringify(contract)]);
   return { id, ...contract };
-}
+};
 
 const memory: { last?: ArchitectureScanResult } = {};
 
-export async function getLatestGeasArchitectureScan() {
+export const getLatestGeasArchitectureScan = async () => {
   try {
     if (memory.last) return memory.last;
     await initializeGeasArchitectureScientist();
@@ -1361,10 +1700,9 @@ export async function getLatestGeasArchitectureScan() {
   } catch {
     return memory.last ?? null;
   }
-}
+};
 
-export function getGeasArchitectureModel() {
-  return {
+export const getGeasArchitectureModel = () => ({
     version: 'GEAS-ARCHITECTURE-SCIENTIST-2.0',
     operatingRule: 'GEAS may observe, compare, explain, prioritize and recommend; it must not autonomously apply irreversible production changes.',
     sourcePolicy: 'Only curated authoritative public sources are accepted as architecture evidence.',
@@ -1382,37 +1720,34 @@ export function getGeasArchitectureModel() {
     aiLifecycle: ['design', 'build', 'evaluate', 'deploy', 'operate', 'monitor', 'retire'],
     architectureBaseline: GLORIFIER_ARCHITECTURE_MODEL,
     recommendations: RECOMMENDATIONS,
-  };
-}
+});
 
-export function getGeasArchitectureSources() {
+export const getGeasArchitectureSources = () => {
   return SOURCES;
-}
+};
 
-export function getGeasArchitecturePatterns() {
+export const getGeasArchitecturePatterns = () => {
   return PATTERN_DEFINITIONS;
-}
+};
 
-export function getGeasArchitectureControls() {
+export const getGeasArchitectureControls = () => {
   return CONTROLS;
-}
+};
 
-export function getGeasArchitectureReliabilityContract() {
+export const getGeasArchitectureReliabilityContract = () => {
   return RELIABILITY_CONTRACT;
-}
+};
 
-export function getGeasSovereigntyDefaults() {
+export const getGeasSovereigntyDefaults = () => {
   return SOVEREIGNTY_DEFAULTS;
-}
+};
 
-export function createAgentIdentityContract(input: Omit<AgentIdentityContract, 'identityType'> & { identityType?: AgentIdentityContract['identityType'] }): AgentIdentityContract {
-  return {
-    identityType: input.identityType ?? 'agent',
-    ...input,
-  };
-}
+export const createAgentIdentityContract = (input: Omit<AgentIdentityContract, 'identityType'> & { identityType?: AgentIdentityContract['identityType'] }): AgentIdentityContract => ({
+  identityType: input.identityType ?? 'agent',
+  ...input,
+});
 
-export async function persistAgentIdentityContract(contract: AgentIdentityContract) {
+export const persistAgentIdentityContract = async (contract: AgentIdentityContract) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query(
@@ -1420,17 +1755,15 @@ export async function persistAgentIdentityContract(contract: AgentIdentityContra
     [contract.subject, JSON.stringify(contract)],
   );
   return contract;
-}
+};
 
-export function createTokenLifecycleContract(input: Omit<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'> & Partial<Pick<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'>>): TokenLifecycleContract {
-  return {
-    verificationRequired: true,
-    replayProtectionRequired: true,
-    ...input,
-  };
-}
+export const createTokenLifecycleContract = (input: Omit<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'> & Partial<Pick<TokenLifecycleContract, 'verificationRequired' | 'replayProtectionRequired'>>): TokenLifecycleContract => ({
+  verificationRequired: true,
+  replayProtectionRequired: true,
+  ...input,
+});
 
-export function createGovernedActionEvidencePackage(input: Omit<GovernedActionEvidencePackage, 'id' | 'actionHash' | 'createdAt' | 'verificationStatus'> & { verificationStatus?: GovernedActionEvidencePackage['verificationStatus'] }): GovernedActionEvidencePackage {
+export const createGovernedActionEvidencePackage = (input: Omit<GovernedActionEvidencePackage, 'id' | 'actionHash' | 'createdAt' | 'verificationStatus'> & { verificationStatus?: GovernedActionEvidencePackage['verificationStatus'] }): GovernedActionEvidencePackage => {
   const canonical = JSON.stringify({
     actorIdentity: input.actorIdentity,
     authorityRef: input.authorityRef,
@@ -1453,9 +1786,9 @@ export function createGovernedActionEvidencePackage(input: Omit<GovernedActionEv
     verificationStatus: input.verificationStatus ?? 'UNKNOWN',
     createdAt: new Date().toISOString(),
   };
-}
+};
 
-export async function persistGovernedActionEvidencePackage(pkg: GovernedActionEvidencePackage) {
+export const persistGovernedActionEvidencePackage = async (pkg: GovernedActionEvidencePackage) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query(
@@ -1463,24 +1796,20 @@ export async function persistGovernedActionEvidencePackage(pkg: GovernedActionEv
     [pkg.id, pkg.actionHash, pkg.actorIdentity, pkg.authorityRef, pkg.capability, pkg.policyDecisionRef, pkg.executionIdentity, pkg.provider ?? null, pkg.model ?? null, pkg.tool ?? null, pkg.traceId ?? null, JSON.stringify(pkg.evidenceRefs), pkg.outcomeRef ?? null, pkg.economicImpactRef ?? null, pkg.verificationStatus],
   );
   return pkg;
-}
+};
 
-export function createAIImpactAssessment(input: Omit<AIImpactAssessment, 'id' | 'createdAt'>): AIImpactAssessment {
-  return {
-    ...input,
-    id: `impact-${randomUUID()}`,
-    createdAt: new Date().toISOString(),
-  };
-}
+export const createAIImpactAssessment = (input: Omit<AIImpactAssessment, 'id' | 'createdAt'>): AIImpactAssessment => ({
+  ...input,
+  id: `impact-${randomUUID()}`,
+  createdAt: new Date().toISOString(),
+});
 
-export function createFinOpsArchitectureDecision(input: Omit<FinOpsArchitectureDecision, 'id'>): FinOpsArchitectureDecision {
-  return {
-    ...input,
-    id: `finops-${randomUUID()}`,
-  };
-}
+export const createFinOpsArchitectureDecision = (input: Omit<FinOpsArchitectureDecision, 'id'>): FinOpsArchitectureDecision => ({
+  ...input,
+  id: `finops-${randomUUID()}`,
+});
 
-export async function persistArchitectureReconciliation(input: {
+export const persistArchitectureReconciliation = async (input: {
   id?: string;
   resourceId: string;
   desired: Record<string, unknown>;
@@ -1490,7 +1819,7 @@ export async function persistArchitectureReconciliation(input: {
   verified: Record<string, unknown>;
   status?: string;
   evidenceRefs?: string[];
-}) {
+}) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   const id = input.id ?? `reconcile-${randomUUID()}`;
@@ -1499,11 +1828,11 @@ export async function persistArchitectureReconciliation(input: {
     [id, input.resourceId, JSON.stringify(input.desired), JSON.stringify(input.declared), JSON.stringify(input.deployed), JSON.stringify(input.observed), JSON.stringify(input.verified), input.status ?? 'UNKNOWN', JSON.stringify(input.evidenceRefs ?? [])],
   );
   return { ...input, id };
-}
+};
 
 let scannerTimer: ReturnType<typeof setInterval> | undefined;
 
-export function startGeasArchitectureScientistDaemon() {
+export const startGeasArchitectureScientistDaemon = () => {
   if (scannerTimer) return;
   const enabled = String(process.env.GEAS_ARCHITECTURE_SCAN_ENABLED ?? 'true').toLowerCase() !== 'false';
   if (!enabled) return;
@@ -1521,4 +1850,4 @@ export function startGeasArchitectureScientistDaemon() {
   }, hours * 60 * 60 * 1000);
 
   scannerTimer.unref?.();
-}
+};
