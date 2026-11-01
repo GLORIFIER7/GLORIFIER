@@ -1,7 +1,36 @@
 import { readFileSync } from 'node:fs';
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, type ArchitectureDomain } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, isTrustedArchitectureSourceUrl, type ArchitectureDomain } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
+
+const approvedCuratedSourceUrls = [
+  'https://www.nist.gov/itl/ai-risk-management-framework',
+  'https://airc.nist.gov/airmf-resources/playbook/',
+  'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
+  'https://focus.finops.org/docs/specification/v1-4/',
+];
+for (const sourceUrl of approvedCuratedSourceUrls) {
+  if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
+    throw new Error(`curated source hostname should be explicitly trusted: ${sourceUrl}`);
+  }
+}
+
+const rejectedCuratedSourceUrls = [
+  'http://www.nist.gov/itl/ai-risk-management-framework',
+  'https://127.0.0.1/internal',
+  'https://[::1]/internal',
+  'https://169.254.169.254/latest/meta-data',
+  'https://localhost/internal',
+  'https://www.nist.gov.attacker.example/forged',
+  'https://user:password@www.nist.gov/forged',
+  'https://www.nist.gov:8443/forged',
+  'file:///etc/passwd',
+];
+for (const sourceUrl of rejectedCuratedSourceUrls) {
+  if (isTrustedArchitectureSourceUrl(sourceUrl)) {
+    throw new Error(`unsafe or unapproved curated source URL was accepted: ${sourceUrl}`);
+  }
+}
 
 if (isClaimSupportedEvidence('content-matched')) throw new Error('keyword match must not count as claim verification');
 if (!isClaimSupportedEvidence('claim-supported')) throw new Error('claim-supported evidence state missing');
