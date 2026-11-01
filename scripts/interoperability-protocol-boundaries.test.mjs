@@ -60,8 +60,11 @@ test('cross-document protocol target is consistent and never promotes conformanc
   assert.match(gapRegister, /MCP target: specification revision 2026-07-28/);
   assert.match(mcpPlan, /2026-07-28/);
   assert.equal(capability.status, 'NOT VERIFIED');
-  assert.match(capability.limitations.join('\n'), /no MCP server transport/i);
+  assert.match(capability.limitations.join('\n'), /fixed-scope.*read-only.*GitHub MCP.*endpoint/i);
   assert.match(capability.limitations.join('\n'), /do not establish A2A 1\.0/i);
+  assert.match(capability.limitations.join('\n'), /MCP 2026-07-28/i);
+  assert.match(mcpPlan, /fixed-scope.*GitHub.*MCP/i);
+  assert.match(mcpPlan, /NOT VERIFIED/i);
 });
 
 
