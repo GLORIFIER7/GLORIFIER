@@ -145,10 +145,8 @@ const captureAsyncResult = async <T>(
 };
 
 const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
-  const connection = await captureAsyncResult(() => client.connect());
-  if (!connection.ok) throw connection.error;
-
   const query = await captureAsyncResult(async () => {
+    await client.connect();
     const result = await client.query(OPERATIONAL_COUNTS_SQL);
     return parseOperationalCounts(result.rows);
   });
