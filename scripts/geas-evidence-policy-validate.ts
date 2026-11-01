@@ -8,17 +8,17 @@ try {
   scientist = readFileSync(scientistPath, 'utf8');
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error);
-  process.stderr.write(JSON.stringify({
+  process.stderr.write(`${JSON.stringify({
     valid: false,
     failures: [`unable to read required GEAS source file (${scientistPath}): ${detail}`],
-  }, null, 2) + '\n');
+  }, null, 2)}\n`);
   process.exit(1);
 }
 
-function requirePattern(pattern: RegExp, message: string) {
+const requirePattern = (pattern: RegExp, message: string): void => {
   checks += 1;
   if (!pattern.test(scientist)) failures.push(message);
-}
+};
 
 // Retrieval and keyword matching establish availability/content matches, never claim truth.
 requirePattern(/evidenceStatus:\s*excerpt\s*\?\s*'content-matched'\s*:\s*response\.ok\s*\?\s*'source-available'/,
@@ -43,13 +43,13 @@ requirePattern(/export type DriftStatus = 'aligned' \| 'partial' \| 'drift' \| '
   'drift status must preserve UNKNOWN for missing evidence');
 
 if (failures.length) {
-  process.stderr.write(JSON.stringify({ valid: false, failures }, null, 2) + '\n');
+  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\n`);
   process.exit(1);
 }
-process.stdout.write(JSON.stringify({
+process.stdout.write(`${JSON.stringify({
   valid: true,
   checks,
   policy: 'GEAS-EVIDENCE-GUARD-1',
   note: 'Static invariant checks only; they do not prove live claim support, runtime drift, or production conformance.',
   irreversibleChangesExecuted: false
-}, null, 2) + '\n');
+}, null, 2)}\n`);
