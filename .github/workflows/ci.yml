@@ -154,6 +154,9 @@ jobs:
       - name: Auth0 access-token validation regression tests
         run: npm run test:auth0-token
 
+      - name: Shared PostgreSQL pool optional-connection regression tests
+        run: npm run test:postgres-pool
+
       - name: Internal-service authentication regression tests
         run: npm run test:backend-auth
 
