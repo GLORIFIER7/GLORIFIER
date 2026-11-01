@@ -882,6 +882,25 @@ async function run(): Promise<void> {
     assert.equal(await streamedOversizeTask.json().then((body: { code?: string }) => body.code), 'REQUEST_BODY_TOO_LARGE');
     assert.equal(capturedRequest, null, 'oversized streamed bodies must never reach Neural');
 
+    let streamedBodyCancellationObserved = false;
+    const cancellationAwareBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(65_537));
+      },
+      cancel() {
+        streamedBodyCancellationObserved = true;
+      },
+    });
+    const cancellationAwareOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+      body: cancellationAwareBody,
+      duplex: 'half',
+    } as RequestInit), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+    assert.equal(cancellationAwareOversizeTask.status, 413, 'oversized streamed bodies must return 413');
+    assert.equal(streamedBodyCancellationObserved, true, 'the oversized input stream must be cancelled after the byte limit is exceeded');
+    assert.equal(capturedRequest, null, 'cancelled oversized request bodies must never reach Neural');
+
     capturedRequest = null;
     const unsupportedTaskMediaType = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
       method: 'POST',
