@@ -214,6 +214,9 @@ interface ParsedNormalizedCharge {
   billedCost: string;
 }
 
+const hasRequiredChargeFields = (values: readonly (string | null)[]): boolean =>
+  values.every((value) => Boolean(value));
+
 const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCharge | null => {
   const issuer = textValue(row.invoiceIssuerName);
   const id = textValue(row.invoiceId);
@@ -223,48 +226,58 @@ const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCh
   const currency = textValue(row.billingCurrency);
   const amount = textValue(row.billedCost);
   const invoiceDetailIdValue = row.invoiceDetailId;
-  const invoiceDetailId = invoiceDetailIdValue === null || invoiceDetailIdValue === undefined
-    ? null
-    : textValue(invoiceDetailIdValue);
+  const invoiceDetailId = textValue(invoiceDetailIdValue);
 
-  if (!issuer || !id || !billingPeriodStart || !billingPeriodEnd || !category || !currency
-      || !amount || decimalScale(amount) === null) return null;
+  const requiredFields = [issuer, id, billingPeriodStart, billingPeriodEnd, category, currency, amount];
+  if (!hasRequiredChargeFields(requiredFields) || decimalScale(amount) === null) return null;
   return {
-    invoiceIssuerName: issuer,
-    invoiceId: id,
-    billingPeriodStart,
-    billingPeriodEnd,
+    invoiceIssuerName: issuer as string,
+    invoiceId: id as string,
+    billingPeriodStart: billingPeriodStart as string,
+    billingPeriodEnd: billingPeriodEnd as string,
     invoiceDetailId,
     invoiceDetailIdValue,
-    chargeCategory: category,
-    billingCurrency: currency,
-    billedCost: amount,
+    chargeCategory: category as string,
+    billingCurrency: currency as string,
+    billedCost: amount as string,
   };
 };
+
+const billingPeriodFailure = (
+  row: ParsedNormalizedCharge,
+  context: NormalizeRowsContext,
+): string | null => {
+  const startMs = utcTimestamp(row.billingPeriodStart);
+  const endMs = utcTimestamp(row.billingPeriodEnd);
+  if (startMs === null || endMs === null || startMs >= endMs) return 'has invalid FOCUS UTC billing-period bounds';
+  return row.billingPeriodStart === context.billingPeriodStart && row.billingPeriodEnd === context.billingPeriodEnd
+    ? null
+    : 'has a billing-period mismatch';
+};
+
+const invoiceDetailIdFailure = (row: ParsedNormalizedCharge): string | null =>
+  row.invoiceDetailIdValue !== null && row.invoiceDetailIdValue !== undefined && !row.invoiceDetailId
+    ? 'has an invalid InvoiceDetailId'
+    : null;
+
+const invoiceIdentityFailure = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): string | null =>
+  row.invoiceIssuerName === context.invoiceIssuerName && row.invoiceId === context.invoiceId
+    ? null
+    : 'is outside the target invoice';
+
+const invoiceCurrencyFailure = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): string | null =>
+  row.billingCurrency === context.billingCurrency && /^[A-Z]{3}$/.test(row.billingCurrency)
+    ? null
+    : 'has a billing-currency mismatch';
 
 const normalizedChargeFailure = (
   row: ParsedNormalizedCharge,
   context: NormalizeRowsContext,
-): string | null => {
-  const rowPeriodStartMs = utcTimestamp(row.billingPeriodStart);
-  const rowPeriodEndMs = utcTimestamp(row.billingPeriodEnd);
-  if (rowPeriodStartMs === null || rowPeriodEndMs === null || rowPeriodStartMs >= rowPeriodEndMs) {
-    return 'has invalid FOCUS UTC billing-period bounds';
-  }
-  if (row.billingPeriodStart !== context.billingPeriodStart || row.billingPeriodEnd !== context.billingPeriodEnd) {
-    return 'has a billing-period mismatch';
-  }
-  if (row.invoiceDetailIdValue !== null && row.invoiceDetailIdValue !== undefined && !row.invoiceDetailId) {
-    return 'has an invalid InvoiceDetailId';
-  }
-  if (row.invoiceIssuerName !== context.invoiceIssuerName || row.invoiceId !== context.invoiceId) {
-    return 'is outside the target invoice';
-  }
-  if (row.billingCurrency !== context.billingCurrency || !/^[A-Z]{3}$/.test(row.billingCurrency)) {
-    return 'has a billing-currency mismatch';
-  }
-  return null;
-};
+): string | null =>
+  billingPeriodFailure(row, context)
+  ?? invoiceDetailIdFailure(row)
+  ?? invoiceIdentityFailure(row, context)
+  ?? invoiceCurrencyFailure(row, context);
 
 const normalizeSingleRow = (
   value: unknown,
@@ -311,69 +324,124 @@ const normalizeRows = (values: unknown[], context: NormalizeRowsContext): Normal
  * Missing lineage, invalid UTC period bounds or cross-period rows fail closed
  * as UNKNOWN; matched IDs with amounts outside tolerance become VARIANCE.
  */
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-export function reconcileFocusInvoice(
+interface InvoiceMetadata {
+  issuer: string;
+  invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  currency: string;
+  tolerance: string;
+  toleranceScale: number;
+  usageValues: unknown[];
+  detailValues: unknown[];
+}
+
+interface NormalizedInvoiceDatasets {
+  usageRows: NormalizedCharge[];
+  detailRows: NormalizedCharge[];
+  scale: number;
+}
+
+interface ComparableInvoiceRows {
+  usageNonTaxRows: NormalizedCharge[];
+  detailNonTaxRows: NormalizedCharge[];
+  toleranceUnits: bigint;
+}
+
+interface InvoiceLineComparison {
+  lineItems: FocusInvoiceLineItemReconciliation[];
+  hasMissingMapping: boolean;
+  hasVariance: boolean;
+}
+
+const requiredDatasetRows = (
+  value: unknown,
+  datasetName: 'CostAndUsage' | 'InvoiceDetail',
+  reasons: string[],
+): unknown[] => {
+  if (!Array.isArray(value)) {
+    reasons.push(`${datasetName} rows are required`);
+    return [];
+  }
+  if (value.length === 0) reasons.push(`${datasetName} dataset is empty`);
+  return value;
+};
+
+const validateInvoiceMetadata = (
+  values: Omit<InvoiceMetadata, 'usageValues' | 'detailValues'>,
+  reasons: string[],
+): boolean => {
+  if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
+  const startMs = utcTimestamp(values.billingPeriodStart);
+  const endMs = utcTimestamp(values.billingPeriodEnd);
+  if (startMs === null || endMs === null) {
+    reasons.push('billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ');
+  } else if (startMs >= endMs) {
+    reasons.push('billing period end must be later than billing period start');
+  }
+  if (!/^[A-Z]{3}$/.test(values.currency)) reasons.push('billing currency must be an uppercase three-letter code');
+  if (decimalScale(values.tolerance) === null) {
+    reasons.push('an explicit decimal rounding tolerance is required');
+  } else if (decimalUnits(values.tolerance, values.toleranceScale) < 0n) {
+    reasons.push('rounding tolerance must not be negative');
+  }
+  return reasons.length === 0;
+};
+
+const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
-): FocusInvoiceReconciliationResult {
+  reasons: string[],
+): InvoiceMetadata | null => {
   const record = asRecord(input);
   const issuer = textValue(record?.invoiceIssuerName);
   const invoiceId = textValue(record?.invoiceId);
   const billingPeriodStart = typeof record?.billingPeriodStart === 'string' ? record.billingPeriodStart : null;
   const billingPeriodEnd = typeof record?.billingPeriodEnd === 'string' ? record.billingPeriodEnd : null;
-  const billingPeriodStartMs = utcTimestamp(billingPeriodStart);
-  const billingPeriodEndMs = utcTimestamp(billingPeriodEnd);
   const currency = textValue(record?.billingCurrency);
   const tolerance = textValue(record?.roundingTolerance);
-  const reasons: string[] = [];
-
-  if (!issuer || !invoiceId) reasons.push('invoice issuer and invoice ID are required');
-  if (billingPeriodStartMs === null || billingPeriodEndMs === null) reasons.push('billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ');
-  else if (billingPeriodStartMs >= billingPeriodEndMs) reasons.push('billing period end must be later than billing period start');
-  if (!currency || !/^[A-Z]{3}$/.test(currency)) reasons.push('billing currency must be an uppercase three-letter code');
   const toleranceScale = decimalScale(tolerance);
-  if (!tolerance || toleranceScale === null) reasons.push('an explicit decimal rounding tolerance is required');
-  else if (decimalUnits(tolerance, toleranceScale) < 0n) reasons.push('rounding tolerance must not be negative');
+  const usageValues = requiredDatasetRows(record?.costAndUsage, 'CostAndUsage', reasons);
+  const detailValues = requiredDatasetRows(record?.invoiceDetail, 'InvoiceDetail', reasons);
 
-  const usageValues = Array.isArray(record?.costAndUsage) ? record.costAndUsage as unknown[] : [];
-  const detailValues = Array.isArray(record?.invoiceDetail) ? record.invoiceDetail as unknown[] : [];
-  if (!Array.isArray(record?.costAndUsage)) reasons.push('CostAndUsage rows are required');
-  if (!Array.isArray(record?.invoiceDetail)) reasons.push('InvoiceDetail rows are required');
-  if (usageValues.length === 0) reasons.push('CostAndUsage dataset is empty');
-  if (detailValues.length === 0) reasons.push('InvoiceDetail dataset is empty');
-
-  if (reasons.length > 0 || !issuer || !invoiceId || !billingPeriodStart || !billingPeriodEnd || !currency || !tolerance || toleranceScale === null) {
-    return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, reasons);
+  if (!issuer || !invoiceId || !billingPeriodStart || !billingPeriodEnd || !currency || !tolerance || toleranceScale === null) {
+    reasons.push('invoice metadata is incomplete');
+    return null;
   }
+  const metadata = { issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, toleranceScale };
+  if (!validateInvoiceMetadata(metadata, reasons)) return null;
+  return { ...metadata, usageValues, detailValues };
+};
 
-  const usageRows = normalizeRows(usageValues, {
-    datasetName: 'CostAndUsage',
-    invoiceIssuerName: issuer,
-    invoiceId,
-    billingPeriodStart,
-    billingPeriodEnd,
-    billingCurrency: currency,
+const normalizeInvoiceDatasets = (
+  metadata: InvoiceMetadata,
+  reasons: string[],
+): NormalizedInvoiceDatasets | null => {
+  const sharedContext = {
+    invoiceIssuerName: metadata.issuer,
+    invoiceId: metadata.invoiceId,
+    billingPeriodStart: metadata.billingPeriodStart,
+    billingPeriodEnd: metadata.billingPeriodEnd,
+    billingCurrency: metadata.currency,
     reasons,
-  });
-  const detailRows = normalizeRows(detailValues, {
-    datasetName: 'InvoiceDetail',
-    invoiceIssuerName: issuer,
-    invoiceId,
-    billingPeriodStart,
-    billingPeriodEnd,
-    billingCurrency: currency,
-    reasons,
-  });
-  const allRows = [...usageRows, ...detailRows];
-  const scales = allRows.map((row) => decimalScale(row.billedCost));
-  if (scales.some((scale) => scale === null)) reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
-  if (reasons.length > 0) return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, reasons);
-
-  let scale = toleranceScale;
-  for (const candidateScale of scales) {
-    if (candidateScale !== null && candidateScale > scale) scale = candidateScale;
+  };
+  const usageRows = normalizeRows(metadata.usageValues, { ...sharedContext, datasetName: 'CostAndUsage' });
+  const detailRows = normalizeRows(metadata.detailValues, { ...sharedContext, datasetName: 'InvoiceDetail' });
+  const scales = [...usageRows, ...detailRows].map((row) => decimalScale(row.billedCost));
+  if (scales.some((scale) => scale === null)) {
+    reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
   }
-  const toleranceUnits = decimalUnits(tolerance, scale);
+  if (reasons.length > 0) return null;
+  const scale = Math.max(metadata.toleranceScale, ...scales.filter((value): value is number => value !== null));
+  return { usageRows, detailRows, scale };
+};
+
+const validateInvoiceLineage = (
+  usageRows: NormalizedCharge[],
+  detailRows: NormalizedCharge[],
+  scale: number,
+  tolerance: string,
+  reasons: string[],
+): ComparableInvoiceRows | null => {
   const detailIds = new Set<string>();
   for (const row of detailRows) {
     if (!row.invoiceDetailId) reasons.push('every InvoiceDetail row must have an InvoiceDetailId');
@@ -381,41 +449,65 @@ export function reconcileFocusInvoice(
     else detailIds.add(row.invoiceDetailId);
   }
   for (const row of usageRows) {
-    if (!isTax(row) && !row.invoiceDetailId) reasons.push('non-tax CostAndUsage rows require InvoiceDetailId for line-item reconciliation');
+    if (!isTax(row) && !row.invoiceDetailId) {
+      reasons.push('non-tax CostAndUsage rows require InvoiceDetailId for line-item reconciliation');
+    }
   }
-
   const usageNonTaxRows = usageRows.filter((row) => !isTax(row));
   const detailNonTaxRows = detailRows.filter((row) => !isTax(row));
   if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
   if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
+  if (reasons.length > 0) return null;
+  return {
+    usageNonTaxRows,
+    detailNonTaxRows,
+    toleranceUnits: decimalUnits(tolerance, scale),
+  };
+};
 
-  if (reasons.length > 0) return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, formatUnits(decimalUnits(tolerance, scale), scale), reasons);
+const sumBilledCosts = (rows: NormalizedCharge[], scale: number): bigint =>
+  rows.reduce((total, row) => total + decimalUnits(row.billedCost, scale), 0n);
 
-  const sum = (rows: NormalizedCharge[]): bigint =>
-    rows.reduce((total, row) => total + decimalUnits(row.billedCost, scale), 0n);
-  const usageByDetailId = new Map<string, bigint>();
-  for (const row of usageNonTaxRows) {
-    const id = row.invoiceDetailId as string;
-    usageByDetailId.set(id, (usageByDetailId.get(id) ?? 0n) + decimalUnits(row.billedCost, scale));
+const aggregateUsageByDetailId = (rows: NormalizedCharge[], scale: number): Map<string, bigint> => {
+  const amounts = new Map<string, bigint>();
+  for (const row of rows) {
+    if (!row.invoiceDetailId) continue;
+    amounts.set(row.invoiceDetailId, (amounts.get(row.invoiceDetailId) ?? 0n) + decimalUnits(row.billedCost, scale));
   }
-  const detailById = new Map<string, bigint>();
-  for (const row of detailNonTaxRows) {
-    const id = row.invoiceDetailId as string;
-    detailById.set(id, decimalUnits(row.billedCost, scale));
-  }
+  return amounts;
+};
 
-  const ids = [...new Set([...usageByDetailId.keys(), ...detailById.keys()])].sort(compareCodeUnits);
+const aggregateInvoiceDetailById = (rows: NormalizedCharge[], scale: number): Map<string, bigint> => {
+  const amounts = new Map<string, bigint>();
+  for (const row of rows) {
+    if (!row.invoiceDetailId) continue;
+    amounts.set(row.invoiceDetailId, decimalUnits(row.billedCost, scale));
+  }
+  return amounts;
+};
+
+const compareInvoiceLineItems = (
+  usageRows: NormalizedCharge[],
+  detailRows: NormalizedCharge[],
+  toleranceUnits: bigint,
+  scale: number,
+  reasons: string[],
+): InvoiceLineComparison => {
+  const usageById = aggregateUsageByDetailId(usageRows, scale);
+  const detailById = aggregateInvoiceDetailById(detailRows, scale);
+  const ids = [...new Set([...usageById.keys(), ...detailById.keys()])].sort(compareCodeUnits);
   const lineItems: FocusInvoiceLineItemReconciliation[] = [];
   let hasMissingMapping = false;
   let hasVariance = false;
+
   for (const id of ids) {
-    const hasUsage = usageByDetailId.has(id);
+    const hasUsage = usageById.has(id);
     const hasDetail = detailById.has(id);
     if (!hasUsage || !hasDetail) {
       hasMissingMapping = true;
       reasons.push(`InvoiceDetailId ${id} is not present in both datasets`);
     }
-    const usageAmount = usageByDetailId.get(id) ?? 0n;
+    const usageAmount = usageById.get(id) ?? 0n;
     const detailAmount = detailById.get(id) ?? 0n;
     const variance = usageAmount - detailAmount;
     const withinTolerance = hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
@@ -431,25 +523,70 @@ export function reconcileFocusInvoice(
       withinTolerance,
     });
   }
+  return { lineItems, hasMissingMapping, hasVariance };
+};
 
-  return {
-    specVersion: 'FOCUS-1.4',
-    status: hasMissingMapping ? 'UNKNOWN' : hasVariance ? 'VARIANCE' : 'RECONCILED',
-    evidenceClass: 'analysis',
-    reconciliationScope: 'provided-dataset-consistency-only',
-    reconciliationBasis: 'non-tax-line-items-only',
-    invoiceIssuerName: issuer,
-    invoiceId,
-    billingPeriodStart,
-    billingPeriodEnd,
-    billingCurrency: currency,
-    roundingTolerance: formatUnits(toleranceUnits, scale),
-    costAndUsageNonTaxTotal: formatUnits(sum(usageNonTaxRows), scale),
-    costAndUsageTaxTotal: formatUnits(sum(usageRows.filter(isTax)), scale),
-    invoiceDetailNonTaxTotal: formatUnits(sum(detailNonTaxRows), scale),
-    invoiceDetailTaxTotal: formatUnits(sum(detailRows.filter(isTax)), scale),
-    invoiceDetailGrandTotal: formatUnits(sum(detailRows), scale),
-    lineItems,
-    reasons: [...new Set(reasons)],
-  };
+const buildInvoiceResult = (
+  metadata: InvoiceMetadata,
+  datasets: NormalizedInvoiceDatasets,
+  comparableRows: ComparableInvoiceRows,
+  comparison: InvoiceLineComparison,
+  reasons: string[],
+): FocusInvoiceReconciliationResult => ({
+  specVersion: 'FOCUS-1.4',
+  status: comparison.hasMissingMapping ? 'UNKNOWN' : comparison.hasVariance ? 'VARIANCE' : 'RECONCILED',
+  evidenceClass: 'analysis',
+  reconciliationScope: 'provided-dataset-consistency-only',
+  reconciliationBasis: 'non-tax-line-items-only',
+  invoiceIssuerName: metadata.issuer,
+  invoiceId: metadata.invoiceId,
+  billingPeriodStart: metadata.billingPeriodStart,
+  billingPeriodEnd: metadata.billingPeriodEnd,
+  billingCurrency: metadata.currency,
+  roundingTolerance: formatUnits(comparableRows.toleranceUnits, datasets.scale),
+  costAndUsageNonTaxTotal: formatUnits(sumBilledCosts(comparableRows.usageNonTaxRows, datasets.scale), datasets.scale),
+  costAndUsageTaxTotal: formatUnits(sumBilledCosts(datasets.usageRows.filter(isTax), datasets.scale), datasets.scale),
+  invoiceDetailNonTaxTotal: formatUnits(sumBilledCosts(comparableRows.detailNonTaxRows, datasets.scale), datasets.scale),
+  invoiceDetailTaxTotal: formatUnits(sumBilledCosts(datasets.detailRows.filter(isTax), datasets.scale), datasets.scale),
+  invoiceDetailGrandTotal: formatUnits(sumBilledCosts(datasets.detailRows, datasets.scale), datasets.scale),
+  lineItems: comparison.lineItems,
+  reasons: [...new Set(reasons)],
+});
+
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
+export function reconcileFocusInvoice(
+  input: FocusInvoiceReconciliationInput,
+): FocusInvoiceReconciliationResult {
+  const reasons: string[] = [];
+  const metadata = parseInvoiceMetadata(input, reasons);
+  if (!metadata) return unknownResult(null, null, null, null, null, null, reasons);
+  const datasets = normalizeInvoiceDatasets(metadata, reasons);
+  if (!datasets) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons);
+  const comparableRows = validateInvoiceLineage(
+    datasets.usageRows,
+    datasets.detailRows,
+    datasets.scale,
+    metadata.tolerance,
+    reasons,
+  );
+  if (!comparableRows) {
+    return unknownResult(
+      metadata.issuer,
+      metadata.invoiceId,
+      metadata.billingPeriodStart,
+      metadata.billingPeriodEnd,
+      metadata.currency,
+      formatUnits(decimalUnits(metadata.tolerance, datasets.scale), datasets.scale),
+      reasons,
+    );
+  }
+  const comparison = compareInvoiceLineItems(
+    comparableRows.usageNonTaxRows,
+    comparableRows.detailNonTaxRows,
+    comparableRows.toleranceUnits,
+    datasets.scale,
+    reasons,
+  );
+  return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons);
 }
