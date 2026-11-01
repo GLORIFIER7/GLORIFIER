@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
 import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
@@ -7,6 +8,8 @@ type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
+let mcpRateLimitAllowed = true;
+const mcpRateLimitKeys: string[] = [];
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
 let openSeaResponseQueue: Response[] | null = null;
@@ -35,6 +38,12 @@ const env: TestEnv = {
       return new Response('static asset', { status: 200 });
     },
   },
+  MCP_RATE_LIMITER: {
+    async limit({ key }: { key: string }) {
+      mcpRateLimitKeys.push(key);
+      return { success: mcpRateLimitAllowed };
+    },
+  },
 };
 
 async function run(): Promise<void> {
@@ -52,6 +61,12 @@ async function run(): Promise<void> {
   }) as typeof fetch;
 
   try {
+    const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+      assets?: { run_worker_first?: string[] };
+    };
+    assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp'), 'Cloudflare assets must route /mcp through the Worker before SPA fallback');
+    assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp/*'), 'Cloudflare assets must route nested /mcp paths through the Worker');
+
     const staticResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/assets/app.js'),
       env,
@@ -159,7 +174,7 @@ async function run(): Promise<void> {
     const mcpGetRepository = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/mcp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 3,
@@ -178,7 +193,52 @@ async function run(): Promise<void> {
     assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
     assert.equal(getCapturedRequest().method, 'GET');
     assert.equal(getCapturedRequest().headers.get('authorization'), null, 'public read-only GitHub access must not forward credentials');
+    assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'], 'MCP upstream tool calls must be rate-limited per connecting client');
     upstreamResponse = previousMcpUpstreamResponse;
+
+    capturedRequest = null;
+    mcpRateLimitAllowed = false;
+    const rateLimitedMcpToolCall = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'tools/call',
+          params: { name: 'github_get_repository', arguments: {} },
+        }),
+      }),
+      env,
+    );
+    assert.equal(rateLimitedMcpToolCall.status, 429, 'MCP must stop tool calls when the Cloudflare rate limit is exhausted');
+    assert.equal(rateLimitedMcpToolCall.headers.get('retry-after'), '60');
+    assert.equal(capturedRequest, null, 'rate-limited MCP calls must not reach GitHub');
+    mcpRateLimitAllowed = true;
+
+    for (const inheritedToolName of ['constructor', 'toString']) {
+      capturedRequest = null;
+      const inheritedToolCall = await worker.fetch(
+        new Request('https://glorifier.glorifier.workers.dev/mcp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.42' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 8,
+            method: 'tools/call',
+            params: { name: inheritedToolName, arguments: {} },
+          }),
+        }),
+        env,
+      );
+      assert.equal(inheritedToolCall.status, 200);
+      const inheritedToolBody = await inheritedToolCall.json() as {
+        result: { isError?: boolean; content: Array<{ text: string }> };
+      };
+      assert.equal(inheritedToolBody.result.isError, true, 'prototype properties must not be callable as MCP tools');
+      assert.match(inheritedToolBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
+      assert.equal(capturedRequest, null, 'prototype-property tool names must not reach GitHub');
+    }
 
     const mcpGetMethodNotAllowed = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/mcp'),
@@ -196,15 +256,28 @@ async function run(): Promise<void> {
     );
     assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
 
+    let oversizedMcpRequestCancelled = false;
     const mcpOversizedRequest = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/mcp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 5, method: 'tools/list', padding: 'x'.repeat(66_000) }),
-      }),
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(66_000));
+            setTimeout(() => {
+              if (!oversizedMcpRequestCancelled) controller.close();
+            }, 25);
+          },
+          cancel() {
+            oversizedMcpRequestCancelled = true;
+          },
+        }),
+        duplex: 'half',
+      } as RequestInit),
       env,
     );
     assert.equal(mcpOversizedRequest.status, 413, 'MCP must reject request bodies above its byte limit');
+    assert.equal(oversizedMcpRequestCancelled, true, 'MCP must cancel request streams as soon as the byte limit is exceeded');
 
     const previousOversizedMcpResponse = upstreamResponse;
     let oversizedUpstreamCancellationObserved = false;
