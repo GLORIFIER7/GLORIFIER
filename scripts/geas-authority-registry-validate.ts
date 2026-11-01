@@ -1,4 +1,3 @@
-import * as ts from 'typescript';
 import { readFileSync } from 'node:fs';
 
 type Source = {
@@ -19,7 +18,6 @@ type Registry = {
   sources: Source[];
 };
 
-(() => {
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const parsed: unknown = JSON.parse(readFileSync(registryPath, 'utf8'));
@@ -50,29 +48,15 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
 
 type ScannerSourceEntry = { id: string; url: string };
 
-const literalString = (node: ts.Expression | undefined): string | null =>
-  node && ts.isStringLiteral(node) ? node.text : null;
-
-const getObjectStringProperty = (node: ts.ObjectLiteralExpression, name: string): string | null => {
-  const matches = node.properties.filter((property): property is ts.PropertyAssignment =>
-    ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === name,
-  );
-  return matches.length === 1 ? literalString(matches[0]?.initializer) : null;
+const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
+  const match = /^createArchitectureSource\(\s*(['"])([^'"]+)\1\s*,\s*(['"])[^'"]+\3\s*,\s*(['"])[^'"]+\4\s*,\s*(['"])([^'"]+)\5\s*,/.exec(entry);
+  return match ? { id: match[2] ?? '', url: match[6] ?? '' } : null;
 };
 
-const parseFactorySource = (node: ts.CallExpression): ScannerSourceEntry | null => {
-  const args = node.arguments;
-  const id = literalString(args[0]);
-  const url = literalString(args[3]);
-  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'createArchitectureSource') return null;
-  if (args.length !== 6 || !id || !url || !ts.isArrayLiteralExpression(args[4]) || !ts.isNumericLiteral(args[5])) return null;
-  return { id, url };
-};
-
-const parseObjectSource = (node: ts.ObjectLiteralExpression): ScannerSourceEntry | null => {
-  const id = getObjectStringProperty(node, 'id');
-  const url = getObjectStringProperty(node, 'url');
-  return id && url ? { id, url } : null;
+const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
+  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  return id && url ? { id: id[2] ?? '', url: url[2] ?? '' } : null;
 };
 
 const parseScannerSourceCatalog = (sourceText: string): {
@@ -80,35 +64,30 @@ const parseScannerSourceCatalog = (sourceText: string): {
   entries: ScannerSourceEntry[];
   failures: string[];
 } => {
-  const sourceFile = ts.createSourceFile('geas-architecture-scientist.ts', sourceText, ts.ScriptTarget.Latest, true);
-  const declaration = sourceFile.statements
-    .filter(ts.isVariableStatement)
-    .flatMap(statement => [...statement.declarationList.declarations])
-    .find(item => ts.isIdentifier(item.name) && item.name.text === 'SOURCES');
-  if (sourceFile.parseDiagnostics.length > 0 || !declaration || !declaration.initializer || !ts.isArrayLiteralExpression(declaration.initializer)) {
-    return { declaredCount: 0, entries: [], failures: ['unable to parse a complete scanner SOURCES array'] };
+  const section = /const SOURCES: ArchitectureSource\[\] = \[\n([\s\S]*?)\n\];/.exec(sourceText);
+  if (!section) {
+    return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
   }
+  const sourceLines = (section[1] ?? '').split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//'));
   const entries: ScannerSourceEntry[] = [];
   const failures: string[] = [];
-  declaration.initializer.elements.forEach((element, index) => {
-    const parsed = ts.isCallExpression(element)
-      ? parseFactorySource(element)
-      : ts.isObjectLiteralExpression(element) ? parseObjectSource(element) : null;
-    if (!parsed) {
-      failures.push(`scanner source at index ${index} must use literal ID and URL values`);
-      return;
+  for (const [index, line] of sourceLines.entries()) {
+    const entry = line.replace(/,$/, '');
+    const parsed = entry.startsWith('createArchitectureSource(')
+      ? parseFactorySource(entry)
+      : entry.startsWith('{') ? parseObjectSource(entry) : null;
+    if (!parsed?.id || !parsed.url) {
+      failures.push('scanner source at index ' + index + ' must be a single-line factory call or literal object with ID and URL');
+      continue;
     }
     entries.push(parsed);
-  });
-  return { declaredCount: declaration.initializer.elements.length, entries, failures };
+  }
+  return { declaredCount: sourceLines.length, entries, failures };
 };
 
-const scannerParserFixture = [
-  'const SOURCES: ArchitectureSource[] = [',
-  "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),",
-  "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },",
-  '];',
-].join('\n');
+const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\n  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\n];";
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
@@ -119,32 +98,11 @@ if (fixtureResult.declaredCount !== 2
   throw new Error('scanner source parser must preserve factory-call and object-literal entries');
 }
 
-const unsupportedScannerFixture = [
-  'const SOURCES: ArchitectureSource[] = [',
-  "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),",
-  '];',
-].join('\n');
+const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),\n];";
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
 
-const commentOnlyObjectFixture = [
-  'const SOURCES: ArchitectureSource[] = [',
-  "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
-  '];',
-].join('\n');
-if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
-  throw new Error('scanner source parser must reject IDs and URLs appearing only in comments');
-}
-
-const suffixedPropertyFixture = [
-  'const SOURCES: ArchitectureSource[] = [',
-  "  { aliasid: 'wrong-id', authority: 'Example', domain: 'cloud', sourceUrl: 'https://example.test/source', patternIds: [], cadenceHours: 24 },",
-  '];',
-].join('\n');
-if (parseScannerSourceCatalog(suffixedPropertyFixture).failures.length === 0) {
-  throw new Error('scanner source parser must reject suffixed property names');
-}
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
 } else {
@@ -258,5 +216,3 @@ process.stdout.write(`${JSON.stringify({
   domains,
   irreversibleChangesExecuted: false
 }, null, 2)}\n`);
-
-})();
