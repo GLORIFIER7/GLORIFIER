@@ -806,6 +806,24 @@ async function run(): Promise<void> {
       assert.equal(assetCalls, assetsBeforeRoute, `${route.path} must not fall through to static assets`);
     }
 
+    const governanceHead = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/governance/policy', { method: 'HEAD' }),
+      env,
+    );
+    assert.equal(governanceHead.status, 200);
+    assert.equal(await governanceHead.text(), '');
+    const rejectedGovernanceWrite = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/governance/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policy: 'should-not-be-applied' }),
+      }),
+      env,
+    );
+    assert.equal(rejectedGovernanceWrite.status, 405);
+    assert.equal(rejectedGovernanceWrite.headers.get('allow'), 'GET, HEAD');
+    assert.equal(capturedRequest, null, 'read-only governance routes must reject writes without contacting the legacy backend');
+
     const nativeRuntimeWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
