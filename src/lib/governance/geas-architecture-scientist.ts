@@ -1715,7 +1715,7 @@ export const createGovernedActionEvidencePackage = (input: Omit<GovernedActionEv
   };
 };
 
-export const persistGovernedActionEvidencePackage(pkg: GovernedActionEvidencePackage) {
+export const persistGovernedActionEvidencePackage = async (pkg: GovernedActionEvidencePackage) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   await db.query(
@@ -1723,7 +1723,7 @@ export const persistGovernedActionEvidencePackage(pkg: GovernedActionEvidencePac
     [pkg.id, pkg.actionHash, pkg.actorIdentity, pkg.authorityRef, pkg.capability, pkg.policyDecisionRef, pkg.executionIdentity, pkg.provider ?? null, pkg.model ?? null, pkg.tool ?? null, pkg.traceId ?? null, JSON.stringify(pkg.evidenceRefs), pkg.outcomeRef ?? null, pkg.economicImpactRef ?? null, pkg.verificationStatus],
   );
   return pkg;
-}
+};
 
 export const createAIImpactAssessment = (input: Omit<AIImpactAssessment, 'id' | 'createdAt'>): AIImpactAssessment => ({
   ...input,
