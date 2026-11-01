@@ -712,14 +712,14 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
 };
 
 export const stripHtml = (input: string): string => input
-  .replace(/<script\\b[\\s\\S]*?<\\/script\\b[^>]*>/gi, ' ')
-  .replace(/<style\\b[\\s\\S]*?<\\/style\\b[^>]*>/gi, ' ')
+  .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+  .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
   .replace(/<[^>]+>/g, ' ')
   .replace(/&nbsp;/gi, ' ')
   .replace(/&amp;/gi, ' and ')
   .replace(/&quot;/gi, '"')
   .replace(/&#39;|&apos;/gi, "'")
-  .replace(/\\s+/g, ' ')
+  .replace(/\s+/g, ' ')
   .trim();
 
 export const isClaimSupportedEvidence = (status: EvidenceStatus): boolean =>
@@ -750,7 +750,7 @@ const isKnownUtcOffset = (offset: string): boolean => {
 /** Parse the canonical RFC 3339 millisecond-precision subset used by persisted source observations. */
 const parseSourceObservationTimestamp = (value: unknown): number | null => {
   if (typeof value !== 'string') return null;
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d{1,3}))?(Z|[+-]\\d{2}:\\d{2})$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
   if (!match) return null;
 
   const year = Number(match[1]);
