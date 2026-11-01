@@ -13,18 +13,19 @@ concurrency:
 
 jobs:
   deployment-disabled:
-    if: ${{ github.ref != 'refs/heads/main' || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
+    if: ${{ github.ref != 'refs/heads/main' || vars.HF_SPACE_APPROVAL_GATE_CONFIGURED != 'true' || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Explain why deployment was skipped
         shell: bash
         run: |
-          echo "::notice::Hugging Face deployment requires a manual dispatch from main, HF_SPACE_DEPLOY_ENABLED=true, and HF_SPACE_ID configured. The protected huggingface-space-production environment must also have required reviewers configured in repository settings."
+          echo "::notice::Hugging Face deployment is disabled unless dispatched from main with HF_SPACE_APPROVAL_GATE_CONFIGURED=true, HF_SPACE_DEPLOY_ENABLED=true, and HF_SPACE_ID configured. Configure required reviewers on the huggingface-space-production environment first; set the approval-gate flag only after verifying that protection in repository settings."
 
   deploy-space:
-    if: ${{ github.ref == 'refs/heads/main' && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
+    if: ${{ github.ref == 'refs/heads/main' && vars.HF_SPACE_APPROVAL_GATE_CONFIGURED == 'true' && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
     # Configure required reviewers for this environment in Settings → Environments.
-    # GitHub pauses this job before it starts until an authorized reviewer approves it.
+    # Set HF_SPACE_APPROVAL_GATE_CONFIGURED=true only after confirming that protection is active.
+    # GitHub pauses this job before runner steps until an authorized reviewer approves it when reviewers are configured.
     environment:
       name: huggingface-space-production
       url: https://huggingface.co/spaces/${{ vars.HF_SPACE_ID }}
@@ -44,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${HF_SPACE_WRITE_TOKEN:-}" ]]; then
-            echo "::error::Repository secret HF_SPACE_WRITE_TOKEN is missing. Create a fine-grained Hugging Face write token scoped to the target Space and store it as a GitHub Actions secret. Prefer an environment secret for huggingface-space-production."
+            echo "::error::Repository secret HF_SPACE_WRITE_TOKEN is missing. Create a fine-grained Hugging Face write token scoped to the target Space and store it as a GitHub Actions secret. Prefer an environment secret for huggingface-space-production. Keep HF_SPACE_APPROVAL_GATE_CONFIGURED unset until required reviewers have been verified."
             exit 1
           fi
           if [[ ! "$HF_SPACE_ID" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
