@@ -19,16 +19,16 @@ concurrency:
 
 jobs:
   deployment-disabled:
-    if: ${{ inputs.deploy_space != true || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
+    if: ${{ github.ref != 'refs/heads/main' || inputs.deploy_space != true || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Explain why deployment was skipped
         shell: bash
         run: |
-          echo "::notice::Hugging Face deployment was not authorized or is not configured. Dispatch with deploy_space=true and require HF_SPACE_DEPLOY_ENABLED=true plus HF_SPACE_ID."
+          echo "::notice::Hugging Face deployment requires a manual dispatch from main with deploy_space=true, HF_SPACE_DEPLOY_ENABLED=true, and HF_SPACE_ID configured."
 
   deploy-space:
-    if: ${{ inputs.deploy_space == true && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
+    if: ${{ github.ref == 'refs/heads/main' && inputs.deploy_space == true && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
