@@ -1,8 +1,6 @@
 name: GLORIFIER 24x7 AI Coding Fleet
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -43,7 +41,6 @@ jobs:
 
       - name: Run Codex
         id: codex
-        continue-on-error: true
         if: ${{ env.OPENAI_API_KEY != '' }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 tag target observed 2026-10-26
         with:
@@ -84,7 +81,7 @@ jobs:
           gh pr create --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. Review CI and the diff before merge."
 
       - name: Report Codex capacity limitation
-        if: ${{ steps.codex.outcome == 'failure' }}
+        if: ${{ failure() && steps.codex.outcome == 'failure' }}
         run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
 
       - name: Missing API key notice
