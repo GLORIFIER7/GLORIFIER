@@ -44,3 +44,33 @@ jobs:
 
       - name: Production frontend build
         run: npm run build:frontend
+
+      - name: Verify production-only dependency tree and Firestore runtime imports
+        run: |
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+          npm ls rimraf glob minimatch --all --omit=dev
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { mkdtemp, mkdir, writeFile, access } from 'node:fs/promises';
+          import { tmpdir } from 'node:os';
+          import { join } from 'node:path';
+          import { rimraf } from 'rimraf';
+
+          const firestore = await import('firebase-admin/firestore');
+          assert.equal(typeof firestore.getFirestore, 'function');
+
+          const root = await mkdtemp(join(tmpdir(), 'glorifier-rimraf-production-'));
+          try {
+            await mkdir(join(root, 'nested'), { recursive: true });
+            const fixture = join(root, 'nested', 'fixture.txt');
+            await writeFile(fixture, 'production dependency smoke test');
+            // Exercise rimraf's glob integration against the patched glob@14 API.
+            assert.equal(await rimraf(join(root, 'nested', '*.txt'), { glob: {} }), true);
+            await assert.rejects(access(fixture));
+            assert.equal(await rimraf(root), true);
+            await assert.rejects(access(root));
+          } finally {
+            await rimraf(root);
+          }
+          console.log('Production-only dependency and Firebase Admin Firestore smoke tests passed.');
+          NODE
