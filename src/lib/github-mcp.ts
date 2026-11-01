@@ -343,7 +343,7 @@ const decodeGithubTextFile = (data: JsonRecord): string => {
 };
 
 const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
-  const segments = repositoryPathSegments(path);
+  repositoryPathSegments(path);
   assertValidGitReference(ref);
   const encodedPath = encodeURIComponent(path).replaceAll('%2F', '/');
   const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }));

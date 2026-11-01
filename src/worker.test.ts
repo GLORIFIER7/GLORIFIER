@@ -357,6 +357,39 @@ async function run(): Promise<void> {
     assert.match(invalidUpstreamContentLengthBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
     upstreamResponse = previousInvalidContentLengthResponse;
 
+    const previousValidGithubFileResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ content: 'b2s=', encoding: 'base64' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    capturedRequest = null;
+    const validGithubFileCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: { name: 'github_read_file', arguments: { path: 'docs/architecture/README.md' } },
+      }),
+      env,
+    );
+    const validGithubFileBody = await validGithubFileCall.json() as {
+      result: { content: Array<{ text: string }>; isError?: boolean };
+    };
+    const validGithubFileResult = JSON.parse(validGithubFileBody.result.content[0]?.text || '{}') as {
+      path: string;
+      ref: string;
+      content: string;
+    };
+    assert.equal(validGithubFileBody.result.isError, undefined);
+    assert.equal(validGithubFileResult.path, 'docs/architecture/README.md');
+    assert.equal(validGithubFileResult.ref, 'main');
+    assert.equal(validGithubFileResult.content, 'ok');
+    const githubFileRequestUrl = new URL(getCapturedRequest().url);
+    assert.equal(githubFileRequestUrl.origin, 'https://api.github.com');
+    assert.equal(githubFileRequestUrl.pathname, '/repos/GLORIFIER7/GLORIFIER/contents/docs/architecture/README.md');
+    assert.equal(githubFileRequestUrl.searchParams.get('ref'), 'main');
+    upstreamResponse = previousValidGithubFileResponse;
+
     const previousMalformedGithubResponse = upstreamResponse;
     upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } });
     const malformedGithubJsonCall = await worker.fetch(
