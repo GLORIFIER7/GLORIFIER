@@ -263,15 +263,15 @@ const parseObjectSource = (objectText: string): ScannerSource => {
 };
 
 const parseFactorySources = (arrayText: string): ScannerSource[] => {
-  const pattern = /createArchitectureSource\\(\\s*'((?:\\\\.|[^'\\\\])*)'\\s*,\\s*'[^']+'\\s*,\\s*'[^']+'\\s*,\\s*'[^']+'\\s*,\\s*\\[[\\s\\S]*?\\]\\s*,\\s*(\\d+)\\s*\\)/g;
+  const pattern = /createArchitectureSource\(\s*'((?:\\.|[^'\\])*)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*\[[\s\S]*?\]\s*,\s*(\d+)\s*\)/g;
   const entries = [...arrayText.matchAll(pattern)].map(match => ({ id: match[1] ?? '', cadenceHours: Number(match[2]) }));
-  const declaredCount = (arrayText.match(/\\bcreateArchitectureSource\\s*\\(/g) ?? []).length;
+  const declaredCount = (arrayText.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
   if (entries.length !== declaredCount) throw new Error('every factory-form scanner source must use literal ID, URL, pattern list and cadence values');
   return entries;
 };
 
 const extractScannerArray = (sourceText: string): string => {
-  const declaration = /\\b(?:const|let|var)\\s+SOURCES\\b/.exec(sourceText);
+  const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(sourceText);
   if (!declaration) throw new Error('unable to locate the scanner SOURCES declaration');
   const equals = sourceText.indexOf('=', declaration.index + declaration[0].length);
   const arrayStart = sourceText.indexOf('[', equals + 1);
