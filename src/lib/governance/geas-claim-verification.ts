@@ -403,28 +403,3 @@ export const validateClaimReview = (
   validateDecision(record.decision, failures);
   return createClaimReviewResult(record, sourcePolicyDigest, failures);
 };
-
-export const validateClaimReview = (
-  record: Partial<ClaimReviewRecord>,
-  registry: ClaimSourceRegistry,
-  nowMs: number = Date.now(),
-): ClaimReviewResult => {
-  const failures: string[] = [];
-  if (!Number.isFinite(nowMs)) failures.push('validation clock must be a finite timestamp');
-  validateRequiredFields(record, failures);
-  const { canonical } = validateSourceUrls(record, failures);
-  const trustedSource = resolveTrustedSource(record, registry, failures);
-  const sourcePolicyDigest = validateTrustedSource(trustedSource, record, canonical, nowMs, failures);
-  validateObservedTimestamp(record.observedAt, failures);
-  validateSourceSnapshot(record, failures);
-  validateReviewLimits(record, failures);
-  if (!isClaimReviewDecision(record.decision)) failures.push('decision must be an explicit reviewer decision');
-
-  const admissible = failures.length === 0 && record.decision === 'supported';
-  return {
-    admissible,
-    decision: failures.length || !isClaimReviewDecision(record.decision) ? 'unknown' : record.decision,
-    evidenceRef: admissible ? createEvidenceReference(record, sourcePolicyDigest) : null,
-    failures,
-  };
-};
