@@ -106,7 +106,7 @@ const skipWhitespace = (source: string, start: number): number => {
 
 const readIdentifierEnd = (source: string, start: number): number => {
   let index = start + 1;
-  while (index < source.length && /\s/.test(source[index])) index += 1;
+  while (index < source.length && /[A-Za-z0-9_$]/.test(source[index])) index += 1;
   return index;
 };
 
@@ -235,7 +235,7 @@ const collectObjectEntries = (arrayText: string): string[] => {
       continue;
     }
     const character = arrayText[index];
-    if (character === '\\') {
+    if (character === '{') {
       if (depth === 0) objectStart = index;
       depth += 1;
     } else if (character === '}') {
