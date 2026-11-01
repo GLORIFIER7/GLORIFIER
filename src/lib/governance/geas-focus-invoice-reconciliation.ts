@@ -442,7 +442,7 @@ const normalizeInvoiceDatasets = (
     reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
   }
   if (reasons.length > 0) return null;
-  const scale = scales.reduce((maximum, value) => value === null ? maximum : Math.max(maximum, value), metadata.toleranceScale);
+  const scale = scales.reduce<number>((maximum, value) => value === null ? maximum : Math.max(maximum, value), metadata.toleranceScale);
   return { usageRows, detailRows, scale };
 };
 
