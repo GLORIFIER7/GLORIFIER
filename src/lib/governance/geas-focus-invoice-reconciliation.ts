@@ -234,16 +234,22 @@ const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCh
   };
 };
 
+const hasValidRowBillingPeriod = (row: ParsedNormalizedCharge): boolean => {
+  const startMs = utcTimestamp(row.billingPeriodStart);
+  const endMs = utcTimestamp(row.billingPeriodEnd);
+  return startMs !== null && endMs !== null && startMs < endMs;
+};
+
+const matchesInvoiceBillingPeriod = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): boolean =>
+  row.billingPeriodStart === context.billingPeriodStart
+  && row.billingPeriodEnd === context.billingPeriodEnd;
+
 const billingPeriodFailure = (
   row: ParsedNormalizedCharge,
   context: NormalizeRowsContext,
 ): string | null => {
-  const startMs = utcTimestamp(row.billingPeriodStart);
-  const endMs = utcTimestamp(row.billingPeriodEnd);
-  if (startMs === null || endMs === null || startMs >= endMs) return 'has invalid FOCUS UTC billing-period bounds';
-  return row.billingPeriodStart === context.billingPeriodStart && row.billingPeriodEnd === context.billingPeriodEnd
-    ? null
-    : 'has a billing-period mismatch';
+  if (!hasValidRowBillingPeriod(row)) return 'has invalid FOCUS UTC billing-period bounds';
+  return matchesInvoiceBillingPeriod(row, context) ? null : 'has a billing-period mismatch';
 };
 
 const invoiceDetailIdFailure = (row: ParsedNormalizedCharge): string | null =>
@@ -368,11 +374,17 @@ const requiredDatasetRows = (
   return rows;
 };
 
-const validateInvoiceMetadata = (
+const validateInvoiceIdentity = (
   values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
+};
+
+const validateInvoiceBillingPeriod = (
+  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
+  reasons: string[],
+): void => {
   const startMs = values.billingPeriodStart ? utcTimestamp(values.billingPeriodStart) : null;
   const endMs = values.billingPeriodEnd ? utcTimestamp(values.billingPeriodEnd) : null;
   if (startMs === null || endMs === null) {
@@ -380,19 +392,45 @@ const validateInvoiceMetadata = (
   } else if (startMs >= endMs) {
     reasons.push('billing period end must be later than billing period start');
   }
-  if (!values.currency || !isUppercaseCurrencyCode(values.currency)) {
+};
+
+const validateInvoiceCurrency = (
+  currency: string | null,
+  reasons: string[],
+): void => {
+  if (!currency || !isUppercaseCurrencyCode(currency)) {
     reasons.push('billing currency must be an uppercase three-letter code');
   }
-  if (!values.tolerance || values.toleranceScale === null) {
+};
+
+const validateRoundingTolerance = (
+  tolerance: string | null,
+  toleranceScale: number | null,
+  reasons: string[],
+): void => {
+  if (!tolerance || toleranceScale === null) {
     reasons.push('an explicit decimal rounding tolerance is required');
-  } else if (decimalUnits(values.tolerance, values.toleranceScale) < 0n) {
+  } else if (decimalUnits(tolerance, toleranceScale) < 0n) {
     reasons.push('rounding tolerance must not be negative');
   }
 };
 
+const validateInvoiceMetadata = (
+  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
+  reasons: string[],
+): void => {
+  validateInvoiceIdentity(values, reasons);
+  validateInvoiceBillingPeriod(values, reasons);
+  validateInvoiceCurrency(values.currency, reasons);
+  validateRoundingTolerance(values.tolerance, values.toleranceScale, reasons);
+};
+
+const hasRequiredInvoiceTextValues = (draft: InvoiceMetadataDraft): boolean =>
+  [draft.issuer, draft.invoiceId, draft.billingPeriodStart, draft.billingPeriodEnd, draft.currency, draft.tolerance]
+    .every((value) => typeof value === 'string' && value.length > 0);
+
 const isCompleteInvoiceMetadata = (draft: InvoiceMetadataDraft): draft is InvoiceMetadata =>
-  Boolean(draft.issuer && draft.invoiceId && draft.billingPeriodStart && draft.billingPeriodEnd
-    && draft.currency && draft.tolerance && draft.toleranceScale !== null);
+  hasRequiredInvoiceTextValues(draft) && draft.toleranceScale !== null && Number.isInteger(draft.toleranceScale);
 
 const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
@@ -437,6 +475,42 @@ const normalizeInvoiceDatasets = (
   return { usageRows, detailRows, scale };
 };
 
+const validateInvoiceDetailIdentifiers = (
+  rows: NormalizedCharge[],
+  reasons: string[],
+): void => {
+  const seenIds = new Set<string>();
+  for (const row of rows) {
+    if (!row.invoiceDetailId) {
+      reasons.push('every InvoiceDetail row must have an InvoiceDetailId');
+    } else if (seenIds.has(row.invoiceDetailId)) {
+      reasons.push('InvoiceDetailId must be unique within the invoice');
+    } else {
+      seenIds.add(row.invoiceDetailId);
+    }
+  }
+};
+
+const validateUsageIdentifiers = (rows: NormalizedCharge[], reasons: string[]): void => {
+  for (const row of rows) {
+    if (!isTax(row) && !row.invoiceDetailId) {
+      reasons.push('non-tax CostAndUsage rows require InvoiceDetailId for line-item reconciliation');
+    }
+  }
+};
+
+const getComparableInvoiceRows = (
+  usageRows: NormalizedCharge[],
+  detailRows: NormalizedCharge[],
+  reasons: string[],
+): { usageNonTaxRows: NormalizedCharge[]; detailNonTaxRows: NormalizedCharge[] } => {
+  const usageNonTaxRows = usageRows.filter((row) => !isTax(row));
+  const detailNonTaxRows = detailRows.filter((row) => !isTax(row));
+  if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
+  if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
+  return { usageNonTaxRows, detailNonTaxRows };
+};
+
 const validateInvoiceLineage = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
@@ -444,25 +518,12 @@ const validateInvoiceLineage = (
   tolerance: string,
   reasons: string[],
 ): ComparableInvoiceRows | null => {
-  const detailIds = new Set<string>();
-  for (const row of detailRows) {
-    if (!row.invoiceDetailId) reasons.push('every InvoiceDetail row must have an InvoiceDetailId');
-    else if (detailIds.has(row.invoiceDetailId)) reasons.push('InvoiceDetailId must be unique within the invoice');
-    else detailIds.add(row.invoiceDetailId);
-  }
-  for (const row of usageRows) {
-    if (!isTax(row) && !row.invoiceDetailId) {
-      reasons.push('non-tax CostAndUsage rows require InvoiceDetailId for line-item reconciliation');
-    }
-  }
-  const usageNonTaxRows = usageRows.filter((row) => !isTax(row));
-  const detailNonTaxRows = detailRows.filter((row) => !isTax(row));
-  if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
-  if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
+  validateInvoiceDetailIdentifiers(detailRows, reasons);
+  validateUsageIdentifiers(usageRows, reasons);
+  const comparable = getComparableInvoiceRows(usageRows, detailRows, reasons);
   if (reasons.length > 0) return null;
   return {
-    usageNonTaxRows,
-    detailNonTaxRows,
+    ...comparable,
     toleranceUnits: decimalUnits(tolerance, scale),
   };
 };
@@ -488,6 +549,45 @@ const aggregateInvoiceDetailById = (rows: NormalizedCharge[], scale: number): Ma
   return amounts;
 };
 
+interface InvoiceLineItemComparison {
+  lineItem: FocusInvoiceLineItemReconciliation;
+  missingMapping: boolean;
+  variance: boolean;
+  reasons: string[];
+}
+
+const compareOneInvoiceLineItem = (
+  id: string,
+  usageById: Map<string, bigint>,
+  detailById: Map<string, bigint>,
+  toleranceUnits: bigint,
+  scale: number,
+): InvoiceLineItemComparison => {
+  const hasUsage = usageById.has(id);
+  const hasDetail = detailById.has(id);
+  const missingMapping = !hasUsage || !hasDetail;
+  const usageAmount = usageById.get(id) ?? 0n;
+  const detailAmount = detailById.get(id) ?? 0n;
+  const varianceAmount = usageAmount - detailAmount;
+  const withinTolerance = hasUsage && hasDetail && absolute(varianceAmount) <= toleranceUnits;
+  const hasVariance = hasUsage && hasDetail && !withinTolerance;
+  const reasons: string[] = [];
+  if (missingMapping) reasons.push(`InvoiceDetailId ${id} is not present in both datasets`);
+  if (hasVariance) reasons.push(`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`);
+  return {
+    lineItem: {
+      invoiceDetailId: id,
+      costAndUsageBilledCost: formatUnits(usageAmount, scale),
+      invoiceDetailBilledCost: formatUnits(detailAmount, scale),
+      variance: formatUnits(varianceAmount, scale),
+      withinTolerance,
+    },
+    missingMapping,
+    variance: hasVariance,
+    reasons,
+  };
+};
+
 const compareInvoiceLineItems = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
@@ -501,29 +601,12 @@ const compareInvoiceLineItems = (
   const lineItems: FocusInvoiceLineItemReconciliation[] = [];
   let hasMissingMapping = false;
   let hasVariance = false;
-
   for (const id of ids) {
-    const hasUsage = usageById.has(id);
-    const hasDetail = detailById.has(id);
-    if (!hasUsage || !hasDetail) {
-      hasMissingMapping = true;
-      reasons.push(`InvoiceDetailId ${id} is not present in both datasets`);
-    }
-    const usageAmount = usageById.get(id) ?? 0n;
-    const detailAmount = detailById.get(id) ?? 0n;
-    const variance = usageAmount - detailAmount;
-    const withinTolerance = hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
-    if (hasUsage && hasDetail && !withinTolerance) {
-      hasVariance = true;
-      reasons.push(`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`);
-    }
-    lineItems.push({
-      invoiceDetailId: id,
-      costAndUsageBilledCost: formatUnits(usageAmount, scale),
-      invoiceDetailBilledCost: formatUnits(detailAmount, scale),
-      variance: formatUnits(variance, scale),
-      withinTolerance,
-    });
+    const comparison = compareOneInvoiceLineItem(id, usageById, detailById, toleranceUnits, scale);
+    lineItems.push(comparison.lineItem);
+    hasMissingMapping ||= comparison.missingMapping;
+    hasVariance ||= comparison.variance;
+    reasons.push(...comparison.reasons);
   }
   return { lineItems, hasMissingMapping, hasVariance };
 };
