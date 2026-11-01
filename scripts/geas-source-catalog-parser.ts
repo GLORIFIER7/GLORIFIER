@@ -317,33 +317,40 @@ const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | 
     : null;
 };
 
-const findArrayStart = (source: string): number => {
+const isVariableDeclaration = (token: Token | null): boolean =>
+  token?.kind === 'identifier'
+  && (token.text === 'const' || token.text === 'let' || token.text === 'var');
+
+const findSourcesDeclarationEnd = (source: string): number | null => {
   let index = 0;
   while (index < source.length) {
     const keyword = readNextToken(source, index);
-    if (!keyword.token) break;
+    if (!keyword.token) return null;
     index = keyword.end;
-    if (keyword.token.kind !== 'identifier'
-      || (keyword.token.text !== 'const' && keyword.token.text !== 'let' && keyword.token.text !== 'var')) {
-      continue;
-    }
-
+    if (!isVariableDeclaration(keyword.token)) continue;
     const name = readNextToken(source, index);
-    if (name.token?.kind !== 'identifier' || name.token.text !== 'SOURCES') continue;
-    let declarationIndex = name.end;
-    while (declarationIndex < source.length) {
-      const part = readNextToken(source, declarationIndex);
-      if (!part.token || part.token.text === ';') break;
-      if (part.token.text === '=') {
-        const initializer = readNextToken(source, part.end);
-        if (initializer.token?.text !== '[') return -1;
-        return initializer.end - initializer.token.text.length;
-      }
-      declarationIndex = part.end;
+    if (name.token?.kind === 'identifier' && name.token.text === 'SOURCES') return name.end;
+  }
+  return null;
+};
+
+const findArrayInitializerStart = (source: string, declarationEnd: number): number => {
+  let index = declarationEnd;
+  while (index < source.length) {
+    const token = readNextToken(source, index);
+    if (!token.token || token.token.text === ';') return -1;
+    if (token.token.text === '=') {
+      const initializer = readNextToken(source, token.end);
+      return initializer.token?.text === '[' ? initializer.end - 1 : -1;
     }
-    return -1;
+    index = token.end;
   }
   return -1;
+};
+
+const findArrayStart = (source: string): number => {
+  const declarationEnd = findSourcesDeclarationEnd(source);
+  return declarationEnd === null ? -1 : findArrayInitializerStart(source, declarationEnd);
 };
 
 export const parseScannerSourceCatalog = (source: string): ScannerSourceCatalog => {
