@@ -52,7 +52,7 @@ const scannerParserFixture = [
   "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),",
   "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },",
   '];',
-].join('\\n');
+].join('\n');
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
@@ -68,7 +68,7 @@ const unsupportedScannerFixture = [
   'const SOURCES: ArchitectureSource[] = [',
   "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),",
   '];',
-].join('\\n');
+].join('\n');
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
@@ -77,7 +77,7 @@ const commentOnlyObjectFixture = [
   'const SOURCES: ArchitectureSource[] = [',
   "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
   '];',
-].join('\\n');
+].join('\n');
 if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
   throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
 }
@@ -86,7 +86,7 @@ const fakeFieldsInsideStringFixture = [
   'const SOURCES: ArchitectureSource[] = [',
   `  { authority: "reference text, id: 'forged-source', url: 'https://forged.example/source'", domain: 'cloud', patternIds: [], cadenceHours: 24 },`,
   '];',
-].join('\\n');
+].join('\n');
 if (parseScannerSourceCatalog(fakeFieldsInsideStringFixture).failures.length === 0) {
   throw new Error('scanner source parser must not treat property-like text inside string values as real properties');
 }
