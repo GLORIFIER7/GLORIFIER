@@ -202,6 +202,65 @@ function readTopLevelProperty(
   return undefined;
 }
 
+function maskComments(source: string): string {
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  const output = [...source];
+
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    const next = source[i + 1];
+
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      else output[i] = ' ';
+      continue;
+    }
+    if (blockComment) {
+      if (ch === '*' && next === '/') {
+        output[i] = ' ';
+        output[i + 1] = ' ';
+        blockComment = false;
+        i += 1;
+      } else if (ch !== '\n') {
+        output[i] = ' ';
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch.charCodeAt(0) === 96) {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      output[i] = ' ';
+      output[i + 1] = ' ';
+      lineComment = true;
+      i += 1;
+    } else if (ch === '/' && next === '*') {
+      output[i] = ' ';
+      output[i + 1] = ' ';
+      blockComment = true;
+      i += 1;
+    }
+  }
+  if (quote || blockComment) throw new Error('unterminated string or block comment in scanner source');
+  return output.join('');
+}
+
 function parseScannerSources(sourceText: string): ScannerSource[] {
   const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(sourceText);
   if (!declaration) throw new Error('unable to locate the scanner SOURCES declaration');
@@ -284,12 +343,13 @@ function parseScannerSources(sourceText: string): ScannerSource[] {
     return { id, cadenceHours };
   });
 
+  const activeArrayText = maskComments(arrayText);
   const factoryPattern = /createArchitectureSource\(\s*'((?:\\.|[^'\\])*)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*\[[\s\S]*?\]\s*,\s*(\d+)\s*\)/g;
-  const factoryEntries = [...arrayText.matchAll(factoryPattern)].map((match) => ({
+  const factoryEntries = [...activeArrayText.matchAll(factoryPattern)].map((match) => ({
     id: match[1] ?? '',
     cadenceHours: Number(match[2]),
   }));
-  const declaredFactoryCount = (arrayText.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
+  const declaredFactoryCount = (activeArrayText.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
   if (factoryEntries.length !== declaredFactoryCount) {
     throw new Error('every factory-form scanner source must use literal ID, URL, pattern list and cadence values');
   }
@@ -310,6 +370,18 @@ function verifyParserHandlesFactoryCalls(): void {
       || parsed[1]?.id !== 'factory-two'
       || parsed[1]?.cadenceHours !== 336) {
     throw new Error('scanner parser must read factory-form ID and cadence values');
+  }
+}
+
+function verifyParserIgnoresCommentedFactoryCalls(): void {
+  const fixture = `const SOURCES: ArchitectureSource[] = [
+    // createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24),
+    /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24), */
+    createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24),
+  ];`;
+  const parsed = parseScannerSources(fixture);
+  if (parsed.length !== 1 || parsed[0]?.id !== 'active') {
+    throw new Error('commented-out factory calls must not be counted as active scanner sources');
   }
 }
 
@@ -404,6 +476,7 @@ function verifyParserRejectsComputedFieldValues(): void {
 }
 
 verifyParserHandlesFactoryCalls();
+verifyParserIgnoresCommentedFactoryCalls();
 verifyParserRejectsComputedFactoryValues();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedFieldValues();
