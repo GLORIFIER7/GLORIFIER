@@ -258,6 +258,19 @@ const getObservationAgeMs = (observedAt: unknown, nowMs: number): number | null 
   return observedAtMs === null ? null : nowMs - observedAtMs;
 };
 
+const validateObservationAge = (
+  ageMs: number | null,
+  cadenceDays: number,
+  failures: string[],
+): void => {
+  if (ageMs === null) return;
+  if (ageMs < 0) {
+    failures.push('observedAt cannot be in the future');
+  } else if (ageMs > cadenceDays * DAYS_PER_MILLISECOND) {
+    failures.push('source observation is older than the trusted source review cadence');
+  }
+};
+
 const validateSourceFreshness = (
   source: ClaimReviewSource,
   observedAt: unknown,
@@ -268,13 +281,7 @@ const validateSourceFreshness = (
     failures.push('trusted source reviewCadenceDays must be a positive integer');
     return;
   }
-  const ageMs = getObservationAgeMs(observedAt, nowMs);
-  if (ageMs === null) return;
-  if (ageMs < 0) {
-    failures.push('observedAt cannot be in the future');
-  } else if (ageMs > source.reviewCadenceDays * DAYS_PER_MILLISECOND) {
-    failures.push('source observation is older than the trusted source review cadence');
-  }
+  validateObservationAge(getObservationAgeMs(observedAt, nowMs), source.reviewCadenceDays, failures);
 };
 
 const validateTrustedSource = (
