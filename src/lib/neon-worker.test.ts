@@ -27,12 +27,18 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
   const factory: NeonPgClientFactory = (connectionString) => {
     capturedConnectionString = connectionString;
     return {
-      async connect() { connected = true; },
-      async query(sql) {
-        capturedSql = sql;
-        return { rows: expectedRows };
+      connect() {
+        connected = true;
+        return Promise.resolve();
       },
-      async end() { closed = true; },
+      query(sql) {
+        capturedSql = sql;
+        return Promise.resolve({ rows: expectedRows });
+      },
+      end() {
+        closed = true;
+        return Promise.resolve();
+      },
     };
   };
 
@@ -57,7 +63,7 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
     'intelligence_evidence',
     'intelligence_reports',
   ]) {
-    assert.match(capturedSql, new RegExp('FROM public\\.' + table));
+    assert.match(capturedSql, new RegExp(`FROM public\\.\${table}`));
   }
   assert.doesNotMatch(capturedSql, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\b/i);
 });
@@ -72,9 +78,12 @@ test('rejects missing, duplicate, or unexpected operational count rows', async (
   for (const rows of cases) {
     let closed = false;
     const factory: NeonPgClientFactory = () => ({
-      async connect() {},
-      async query() { return { rows }; },
-      async end() { closed = true; },
+      connect: () => Promise.resolve(),
+      query: () => Promise.resolve({ rows }),
+      end: () => {
+        closed = true;
+        return Promise.resolve();
+      },
     });
     await assert.rejects(() => readNeonOperationalCounts(binding, factory));
     assert.equal(closed, true);
@@ -86,9 +95,12 @@ test('rejects unsafe, negative, fractional, and non-numeric row counts', async (
     let closed = false;
     const rows = expectedRows.map((row, index) => index === 0 ? { ...row, row_count: rowCount } : row);
     const factory: NeonPgClientFactory = () => ({
-      async connect() {},
-      async query() { return { rows }; },
-      async end() { closed = true; },
+      connect: () => Promise.resolve(),
+      query: () => Promise.resolve({ rows }),
+      end: () => {
+        closed = true;
+        return Promise.resolve();
+      },
     });
     await assert.rejects(() => readNeonOperationalCounts(binding, factory));
     assert.equal(closed, true);
@@ -98,9 +110,12 @@ test('rejects unsafe, negative, fractional, and non-numeric row counts', async (
 test('always closes a connected client after a query error', async () => {
   let closed = false;
   const factory: NeonPgClientFactory = () => ({
-    async connect() {},
-    async query() { throw new Error('simulated query failure'); },
-    async end() { closed = true; },
+    connect: () => Promise.resolve(),
+    query: () => Promise.reject(new Error('simulated query failure')),
+    end: () => {
+      closed = true;
+      return Promise.resolve();
+    },
   });
 
   await assert.rejects(() => readNeonOperationalCounts(binding, factory), /simulated query failure/);
@@ -112,13 +127,14 @@ test('fails closed when the Hyperdrive connection string is absent or invalid', 
   const factory: NeonPgClientFactory = () => {
     factoryCalls += 1;
     return {
-      async connect() {},
-      async query() { return { rows: expectedRows }; },
-      async end() {},
+      connect: () => Promise.resolve(),
+      query: () => Promise.resolve({ rows: expectedRows }),
+      end: () => Promise.resolve(),
     };
   };
 
   await assert.rejects(() => readNeonOperationalCounts({ connectionString: '' }, factory));
   await assert.rejects(() => readNeonOperationalCounts({ connectionString: 'https://not-postgres.invalid' }, factory));
+  await assert.rejects(() => readNeonOperationalCounts({ connectionString: 'postgresql://bad host/glorifier' }, factory));
   assert.equal(factoryCalls, 0);
 });
