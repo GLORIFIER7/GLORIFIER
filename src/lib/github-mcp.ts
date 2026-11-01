@@ -229,32 +229,45 @@ const readBoundedResponseText = async (response: Response): Promise<string> => {
   return decodeUtf8(bytes, 'GitHub API returned invalid UTF-8.');
 };
 
-const readGithubJson = async (pathname: string, query?: URLSearchParams): Promise<unknown> => {
+const createGithubApiUrl = (pathname: string, query?: URLSearchParams): URL => {
   const url = new URL(pathname, API_ROOT);
-  if (url.protocol !== 'https:' || url.origin !== API_ROOT || url.username || url.password) {
-    throw new Error('Blocked GitHub API URL outside the trusted HTTPS origin.');
-  }
+  const trustedOrigin = url.protocol === 'https:' && url.origin === API_ROOT && !url.username && !url.password;
+  if (!trustedOrigin) throw new Error('Blocked GitHub API URL outside the trusted HTTPS origin.');
   if (query) url.search = query.toString();
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': USER_AGENT,
-    },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) {
-    await cancelResponseBody(response);
-    throw new Error(`GitHub API request failed with HTTP ${response.status}.`);
-  }
-  const text = await readBoundedResponseText(response);
+  return url;
+};
+
+const fetchGithubApi = (url: URL): Promise<Response> => fetch(url, {
+  method: 'GET',
+  headers: {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': USER_AGENT,
+  },
+  redirect: 'manual',
+  signal: AbortSignal.timeout(8_000),
+});
+
+const assertGithubApiSuccess = async (response: Response): Promise<Response> => {
+  if (response.ok) return response;
+  await cancelResponseBody(response);
+  throw new Error(`GitHub API request failed with HTTP ${response.status}.`);
+};
+
+const parseGithubJson = (text: string): unknown => {
   try {
     return JSON.parse(text) as unknown;
   } catch {
     throw new Error('GitHub API returned invalid JSON.');
   }
+};
+
+const readGithubJson = async (pathname: string, query?: URLSearchParams): Promise<unknown> => {
+  const url = createGithubApiUrl(pathname, query);
+  const response = await fetchGithubApi(url);
+  const successfulResponse = await assertGithubApiSuccess(response);
+  const body = await readBoundedResponseText(successfulResponse);
+  return parseGithubJson(body);
 };
 
 const isSafeRepositoryPathSegment = (segment: string): boolean =>
