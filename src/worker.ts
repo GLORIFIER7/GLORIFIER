@@ -3,6 +3,12 @@ import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
 import { GITHUB_MCP_PATH, githubMcpRoute, type GithubMcpRateLimiter } from './lib/github-mcp';
 import { readNeonOperationalCounts, type NeonHyperdriveBinding, type NeonOperationalCounts } from './lib/neon-worker';
+import { getGeasPolicy } from './lib/governance/geas-policy-engine';
+import { LINUX_PHILOSOPHY_ARCHITECTURE } from './lib/governance/linux-philosophy';
+import { getPermanentGlorifierStack, validatePermanentStack } from './lib/governance/permanent-stack';
+import { getGeasArchitectureManifest, validateGeasArchitectureManifest, getGeasDegradedModeContracts } from './lib/governance/geas-reconciliation';
+import { getAssetVerificationPolicy } from './lib/asset-verification';
+import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-asset-verification';
 
 export type CloudflareEnv = {
   MCP_RATE_LIMITER: GithubMcpRateLimiter;
@@ -936,6 +942,22 @@ const rewriteBackendRedirect = (
   }
 };
 
+const workerNativeReadOnlyJson = (
+  request: Request,
+  buildBody: () => unknown,
+): Response => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, error: 'Method not allowed' }, {
+      status: 405,
+      headers: { ...headers, Allow: 'GET, HEAD' },
+    });
+  }
+  return request.method === 'HEAD'
+    ? new Response(null, { status: 200, headers })
+    : Response.json(buildBody(), { headers });
+};
+
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
@@ -1081,6 +1103,93 @@ export default {
       return Response.json({ ok: true, model: getBusinessModel() }, {
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
+    }
+
+    // Deterministic governance and architecture read models are served natively.
+    // These routes are intentionally read-only and do not depend on a backend, database,
+    // provider credential, or client-supplied authority.
+    if (incomingUrl.pathname === '/api/governance/architecture') {
+      return workerNativeReadOnlyJson(request, () => ({
+        ok: true,
+        version: 'GLORIFIER-ARCH-3.1',
+        roleModel: LINUX_PHILOSOPHY_ARCHITECTURE,
+        controlPlanes: [
+          'human-authority', 'ai-ceo', 'geas-governance', 'agent-control', 'provider-control',
+          'compute-control', 'tool-integration', 'evidence-truth', 'cryptographic-provenance', 'economic-control', 'reliability-security',
+        ],
+        trustLayer: {
+          databaseAuthority: 'Neon is the canonical database target; production Worker cutover is not verified.',
+          externalBlockchainAnchoring: 'optional',
+          privateDataOnChain: false,
+        },
+        principles: getGeasPolicy().principles,
+      }));
+    }
+
+    if (incomingUrl.pathname === '/api/governance/policy') {
+      return workerNativeReadOnlyJson(request, () => ({ ok: true, policy: getGeasPolicy() }));
+    }
+
+    if (incomingUrl.pathname === '/api/architecture/permanent-stack') {
+      return workerNativeReadOnlyJson(request, () => {
+        const stack = getPermanentGlorifierStack();
+        return { ok: true, stack, validation: validatePermanentStack(stack) };
+      });
+    }
+
+    if (incomingUrl.pathname === '/api/governance/geas/reconciliation/manifest') {
+      return workerNativeReadOnlyJson(request, () => {
+        const manifest = getGeasArchitectureManifest();
+        return { ok: true, manifest, validation: validateGeasArchitectureManifest(manifest) };
+      });
+    }
+
+    if (incomingUrl.pathname === '/api/governance/geas/reconciliation/degraded-modes') {
+      return workerNativeReadOnlyJson(request, () => ({ ok: true, contracts: getGeasDegradedModeContracts() }));
+    }
+
+    if (incomingUrl.pathname === '/api/assets/verification/policy') {
+      return workerNativeReadOnlyJson(request, () => ({ ok: true, policy: getAssetVerificationPolicy() }));
+    }
+
+    if (incomingUrl.pathname === '/api/assets/verification/crypto/policy') {
+      return workerNativeReadOnlyJson(request, () => ({ ok: true, policy: getCryptographicAssetVerificationPolicy() }));
+    }
+
+    if (incomingUrl.pathname === '/api/business-intelligence/architecture') {
+      return workerNativeReadOnlyJson(request, () => ({
+        ok: true,
+        architecture: {
+          version: 'GBIS-2.0',
+          identity: 'Continuous business intelligence operating system for evidence-backed decision support.',
+          layers: [
+            'source systems',
+            'ingestion and connectors',
+            'data foundation and lineage',
+            'semantic business layer',
+            'intelligence and analytics',
+            'AI orchestration and specialist scientists',
+            'opportunity and monetization evidence',
+            'governance, security and compliance',
+            'human decision and authorized execution',
+            'outcome verification and economic truth',
+          ],
+          principles: [
+            'provider-neutral orchestration',
+            'evidence provenance',
+            'semantic consistency',
+            'security and privacy by design',
+            'estimated value is not verified revenue',
+            'human authority for consequential actions',
+            'measurable verified outcomes',
+          ],
+          sourceOfTruth: {
+            revenue: 'Neon/PostgreSQL canonical target; production route cutover pending verification.',
+            verification: 'Evidence-backed outcome records',
+            orchestration: 'GLORIFIER provider-neutral AI layer',
+          },
+        },
+      }));
     }
 
     // Backend endpoints must never fall through to the SPA's index.html.
