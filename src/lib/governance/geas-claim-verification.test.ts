@@ -149,6 +149,11 @@ assert.ok(impossibleCalendarDate.failures.some((failure) => failure.includes('RF
 const equivalentOffsetTimestamp = review({ ...valid, observedAt: '2026-10-18T14:00:00+02:00' });
 assert.equal(equivalentOffsetTimestamp.admissible, true, 'valid timestamps with an explicit numeric UTC offset must remain supported');
 
+const unknownOffsetTimestamp = review({ ...valid, observedAt: '2026-10-18T12:00:00-00:00' });
+assert.equal(unknownOffsetTimestamp.admissible, false, 'RFC 3339 unknown-local-offset timestamps must not be accepted as verified evidence time');
+assert.ok(unknownOffsetTimestamp.failures.some((failure) => failure.includes('RFC 3339')));
+assert.equal(unknownOffsetTimestamp.evidenceRef, null);
+
 const whitespaceNormalized = review({
   ...valid,
   supportingExcerpt: 'The specification\n\tdefines   a versioned interface.',
