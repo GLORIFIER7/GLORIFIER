@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isProtectedApiReadPath } from './protected-api-paths';
+import { isProtectedApiReadPath, shouldBypassApiAuthentication } from './protected-api-paths';
 
 const protectedPaths = [
   '/api/economy/glr/intents',
@@ -40,6 +40,25 @@ for (const path of [
 }
 
 console.log('protected API path case-insensitivity regression tests passed');
+const authenticationBypassCases: Array<[string, string, boolean]> = [
+  ['OPTIONS', '/public/status', true],
+  ['GET', '/public/status', true],
+  ['HEAD', '/public/status', true],
+  ['GET', '/economy/glr/intents/intent-123', false],
+  ['HEAD', '/A2A/TASKS/task-123', false],
+  ['POST', '/public/status', false],
+  ['PUT', '/public/status', false],
+  ['DELETE', '/public/status', false],
+];
+
+for (const [method, pathname, expected] of authenticationBypassCases) {
+  assert.equal(
+    shouldBypassApiAuthentication(method, pathname),
+    expected,
+    `unexpected authentication bypass decision for ${method} ${pathname}`,
+  );
+}
+
 
 const server = readFileSync('server.ts', 'utf8');
 assert.match(
