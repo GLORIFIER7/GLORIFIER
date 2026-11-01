@@ -37,6 +37,29 @@ const review = (
 ) => validateClaimReview(record, sourceRegistry, nowMs);
 
 const supported = review(valid);
+
+const discoveryOnlySource = registry.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
+if (!discoveryOnlySource) throw new Error('The curated registry must include the discovery-only OWASP landing page source.');
+
+const discoveryOnlyClaim = review({
+  ...valid,
+  claim: 'An agentic application may misuse tools.',
+  claimType: 'agent-tool-misuse',
+  sourceId: discoveryOnlySource.id,
+  canonicalSourceUrl: discoveryOnlySource.url,
+  observedSourceUrl: discoveryOnlySource.url,
+});
+assert.equal(
+  discoveryOnlyClaim.admissible,
+  false,
+  'discovery-only sources must never admit claims, even when claimsAllowed lists the claim type',
+);
+assert.ok(
+  discoveryOnlyClaim.failures.some((failure) => failure.includes('discovery-only')),
+  'discovery-only rejection must identify the source trust boundary',
+);
+assert.equal(discoveryOnlyClaim.evidenceRef, null);
+
 assert.equal(supported.admissible, true);
 
 const futureDatedReview = review({
