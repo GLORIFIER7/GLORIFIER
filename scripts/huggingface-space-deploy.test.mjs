@@ -4,28 +4,42 @@ import { readFileSync } from 'node:fs';
 const workflow = readFileSync(new URL('../.github/workflows/huggingface-space-deploy.yml', import.meta.url), 'utf8');
 const prepareStart = workflow.indexOf('- name: Prepare Docker Space source');
 const publishStart = workflow.indexOf('- name: Publish source to Hugging Face Space');
+const deployStart = workflow.indexOf('  deploy-space:');
 
 assert.ok(prepareStart >= 0, 'deployment workflow must define its source-preparation step');
 assert.ok(publishStart > prepareStart, 'source preparation must precede publication');
+assert.ok(deployStart >= 0, 'deployment workflow must define its publish job');
 
 const prepare = workflow.slice(prepareStart, publishStart);
 const publish = workflow.slice(publishStart);
+const deployJob = workflow.slice(deployStart);
 
-assert.match(workflow, /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+deploy_space:\s*\n\s+description:/, 'Space publishing must be available only through an explicit manual-dispatch input');
 assert.match(
   workflow,
-  /deploy_space:\s*\n\s+description:[^\n]*\n\s+required:\s*true\n\s+type:\s*boolean\n\s+default:\s*false/,
-  'manual Space publishing must default to disabled',
+  /^on:\s*\n\s{2}workflow_dispatch:\s*$/m,
+  'Space publishing must be available only through manual dispatch without caller-controlled inputs',
+);
+assert.doesNotMatch(workflow, /^\s{4}inputs:/m, 'deployment authorization must not be supplied through workflow-dispatch inputs');
+assert.doesNotMatch(workflow, /inputs\.|deploy_space/, 'the workflow must not use dispatch inputs as an authorization control');
+assert.match(
+  workflow,
+  /deployment-disabled:\s*\n\s+if:\s+\$\{\{\s*github\.ref != 'refs\/heads\/main'\s*\|\|\s*vars\.HF_SPACE_DEPLOY_ENABLED != 'true'\s*\|\|\s*vars\.HF_SPACE_ID == ''\s*\}\}/,
+  'the no-deployment path must cover non-main dispatches and missing deployment configuration',
 );
 assert.match(
   workflow,
-  /deployment-disabled:\s*\n\s+if:\s+\$\{\{\s*github\.ref != 'refs\/heads\/main'\s*\|\|\s*inputs\.deploy_space != true\s*\|\|\s*vars\.HF_SPACE_DEPLOY_ENABLED != 'true'\s*\|\|\s*vars\.HF_SPACE_ID == ''\s*\}\}/,
-  'the no-deployment path must cover every missing authorization or configuration condition',
+  /deploy-space:\s*\n\s+if:\s+\$\{\{\s*github\.ref == 'refs\/heads\/main'\s*&&\s*vars\.HF_SPACE_DEPLOY_ENABLED == 'true'\s*&&\s*vars\.HF_SPACE_ID != ''\s*\}\}/,
+  'publishing must require main and both repository-controlled configuration values',
+);
+assert.match(
+  deployJob,
+  /environment:\s*\n\s+name:\s*huggingface-space-production\s*\n\s+url:\s+https:\/\/huggingface\.co\/spaces\/\$\{\{\s*vars\.HF_SPACE_ID\s*\}\}/,
+  'publishing must use the dedicated GitHub deployment environment',
 );
 assert.match(
   workflow,
-  /deploy-space:\s*\n\s+if:\s+\$\{\{\s*github\.ref == 'refs\/heads\/main'\s*&&\s*inputs\.deploy_space == true\s*&&\s*vars\.HF_SPACE_DEPLOY_ENABLED == 'true'\s*&&\s*vars\.HF_SPACE_ID != ''\s*\}\}/,
-  'publishing must require main, explicit dispatch approval, and both repository configuration values',
+  /Configure required reviewers for this environment in Settings/,
+  'the deployment environment must explicitly document its required-reviewer configuration',
 );
 assert.doesNotMatch(workflow, /^\s{2}push\s*:/m, 'push events must not trigger external Space publishing');
 assert.doesNotMatch(workflow, /^\s{2}pull_request\s*:/m, 'pull requests must not trigger external Space publishing');
