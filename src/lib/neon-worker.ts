@@ -51,7 +51,7 @@ ORDER BY table_name
 `;
 
 const isValidPostgresConnectionString = (value: string): boolean => {
-  if (!value || value !== value.trim() || /\\s/.test(value)) return false;
+  if (!value || value !== value.trim() || /\s/.test(value)) return false;
   try {
     const url = new URL(value);
     return (url.protocol === 'postgres:' || url.protocol === 'postgresql:')
