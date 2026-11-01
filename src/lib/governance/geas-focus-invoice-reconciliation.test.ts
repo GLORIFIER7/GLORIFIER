@@ -166,6 +166,24 @@ const mismatchedBillingPeriod = reconcileFocusInvoice({
 assert.equal(mismatchedBillingPeriod.status, 'UNKNOWN');
 assert.ok(mismatchedBillingPeriod.reasons.some((reason) => reason.includes('billing-period mismatch')));
 
+const invalidCostAndUsageRowPeriod = reconcileFocusInvoice({
+  ...input,
+  costAndUsage: input.costAndUsage.map((row) => row.invoiceDetailId === 'line-1'
+    ? { ...row, billingPeriodStart: '2026-02-30T00:00:00Z', billingPeriodEnd: '2026-03-01T00:00:00Z' }
+    : row),
+});
+assert.equal(invalidCostAndUsageRowPeriod.status, 'UNKNOWN');
+assert.ok(invalidCostAndUsageRowPeriod.reasons.some((reason) => reason.includes('invalid FOCUS UTC billing-period bounds')));
+
+const invalidInvoiceDetailRowPeriod = reconcileFocusInvoice({
+  ...input,
+  invoiceDetail: input.invoiceDetail.map((row) => row.invoiceDetailId === 'line-1'
+    ? { ...row, billingPeriodStart: '2026-02-30T00:00:00Z', billingPeriodEnd: '2026-03-01T00:00:00Z' }
+    : row),
+});
+assert.equal(invalidInvoiceDetailRowPeriod.status, 'UNKNOWN');
+assert.ok(invalidInvoiceDetailRowPeriod.reasons.some((reason) => reason.includes('invalid FOCUS UTC billing-period bounds')));
+
 const invalidUtcOffset = reconcileFocusInvoice({
   ...input,
   billingPeriodStart: '2026-01-01T00:00:00+00:00',
