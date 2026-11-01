@@ -576,7 +576,7 @@ const readBoundedNeuralRequestBody = async (request: Request): Promise<ArrayBuff
       if (totalBytes > MAX_NEURAL_TASK_BODY_BYTES) {
         // Do not await stream cancellation: a cloned request body can remain pending
         // while its tee'd sibling is still active, which would stall the 413 response.
-        void reader.cancel().catch(() => undefined);
+        reader.cancel().catch(() => undefined);
         throw new NeuralRequestBodyTooLargeError();
       }
       chunks.push(value);
