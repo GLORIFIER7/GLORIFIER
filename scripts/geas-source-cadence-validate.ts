@@ -79,6 +79,40 @@ const verifyParserRejectsComputedValues = (): void => {
   }
 };
 
+const verifyParserRejectsEmptySourceSlots = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [',
+    "  createArchitectureSource('first', 'Test', 'cloud', 'https://example.org/first', [], 24),",
+    ',',
+    "  createArchitectureSource('third', 'Test', 'cloud', 'https://example.org/third', [], 24),",
+    '];',
+  ].join('\n');
+  const parsed = parseScannerSourceCatalog(fixture);
+  if (parsed.declaredCount !== 3 || parsed.entries.length !== 2 || parsed.failures.length !== 1) {
+    throw new Error('scanner parser must report empty catalog slots instead of silently dropping them');
+  }
+};
+
+const verifyParserSkipsCommentsBeforeArrayInitializer = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] =',
+    "  /* fake catalog: [ { id: 'forged', url: 'https://forged.example', cadenceHours: 24 } ] */",
+    "  [{ id: 'real', url: 'https://real.example/source', cadenceHours: 24 }];",
+  ].join('\n');
+  const parsed = parseScannerSourceCatalog(fixture);
+  if (parsed.declaredCount !== 1 || parsed.entries.length !== 1 || parsed.entries[0]?.id !== 'real') {
+    throw new Error('scanner parser must skip comments when locating the executable SOURCES initializer');
+  }
+};
+
+const verifyParserRejectsStringInitializerWithBracketText = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] =',
+    "'fake [ { id: 'forged', url: 'https://forged.example', cadenceHours: 24 } ]';",
+  ].join('\n');
+  expectParserFailure(fixture, 'scanner parser accepted an array-like string initializer as executable source data');
+};
+
 const verifyParserRejectsCommentOnlyFields = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] = [{',
@@ -99,6 +133,9 @@ verifyParserHandlesFactoryCalls();
 verifyParserIgnoresCommentedFactoryCalls();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedValues();
+verifyParserRejectsEmptySourceSlots();
+verifyParserSkipsCommentsBeforeArrayInitializer();
+verifyParserRejectsStringInitializerWithBracketText();
 verifyParserRejectsCommentOnlyFields();
 verifyParserRejectsUnterminatedLineComment();
 
