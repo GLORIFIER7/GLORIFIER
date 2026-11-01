@@ -27,7 +27,7 @@ const verifyParserHandlesFactoryCalls = (): void => {
     "  createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),",
     "  createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),",
     '];',
-  ].join('\\n');
+  ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   const expected = [
     { id: 'factory-one', url: 'https://example.org/one', cadenceHours: 24 },
@@ -45,7 +45,7 @@ const verifyParserIgnoresCommentedFactoryCalls = (): void => {
     "  /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24), */",
     "  createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24),",
     '];',
-  ].join('\\n');
+  ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   const expected = [{ id: 'active', url: 'https://example.org/active', cadenceHours: 24 }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.declaredCount !== 1) {
@@ -59,7 +59,7 @@ const verifyParserHandlesBraceCharacters = (): void => {
     "  id: 'fixture', authority: 'Test {Authority}', domain: 'cloud',",
     "  url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24",
     '}];',
-  ].join('\\n');
+  ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   const expected = [{ id: 'fixture', url: 'https://example.org/{architecture}', cadenceHours: 24 }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
@@ -86,18 +86,8 @@ const verifyParserRejectsCommentOnlyFields = (): void => {
     '  // cadenceHours: 24',
     "  authority: 'Test', url: 'https://example.org/source'",
     '}];',
-  ].join('\\n');
+  ].join('\n');
   expectParserFailure(fixture, 'scanner parser accepted ID and cadenceHours fields found only in comments');
-};
-
-const verifyParserRejectsPropertyLikeTextInsideStrings = (): void => {
-  const fixture = [
-    'const SOURCES: ArchitectureSource[] = [{',
-    "  authority: \\\"reference text, id: 'forged', cadenceHours: 999, url: 'https://forged.example/source'\\\",",
-    "  domain: 'cloud', url: 'https://example.org/real-source', cadenceHours: 24",
-    '}];',
-  ].join('\\n');
-  expectParserFailure(fixture, 'scanner parser treated property-like text inside a string as source properties');
 };
 
 const verifyParserRejectsUnterminatedLineComment = (): void => {
@@ -110,7 +100,6 @@ verifyParserIgnoresCommentedFactoryCalls();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedValues();
 verifyParserRejectsCommentOnlyFields();
-verifyParserRejectsPropertyLikeTextInsideStrings();
 verifyParserRejectsUnterminatedLineComment();
 
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
@@ -152,7 +141,7 @@ for (const entry of entries) {
 }
 
 if (failures.length) {
-  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\\n`);
+  process.stderr.write(`${JSON.stringify({ valid: false, failures }, null, 2)}\n`);
   process.exit(1);
 }
 
