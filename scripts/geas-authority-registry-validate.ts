@@ -54,8 +54,10 @@ const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
 };
 
 const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
-  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(entry);
-  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  // Strip inline comments so id/url values found only in comments are never accepted.
+  const uncommented = entry.replace(/\/\/[^
+  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
+  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
   return id && url ? { id: id[2] ?? '', url: url[2] ?? '' } : null;
 };
 
@@ -77,7 +79,7 @@ const parseScannerSourceCatalog = (sourceText: string): {
     const entry = line.replace(/,$/, '');
     const parsed = entry.startsWith('createArchitectureSource(')
       ? parseFactorySource(entry)
-      : entry.startsWith('{') ? parseObjectSource(entry) : null;
+      failures.push(`scanner source at index ${index} must be a single-line factory call or literal object with ID and URL`);
     if (!parsed?.id || !parsed.url) {
       failures.push('scanner source at index ' + index + ' must be a single-line factory call or literal object with ID and URL');
       continue;
@@ -102,9 +104,14 @@ const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\n  cr
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
+const commentOnlyObjectFixture = "const SOURCES: ArchitectureSource[] = [
 
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
+if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
+  throw new Error('parseObjectSource must reject entries whose id or url appears only in a comment');
+}
+
 } else {
   if (parsed.version !== 'GEAS-AUTHORITY-2') failures.push('unexpected registry version');
   if (!isNonEmptyString(parsed.policy) || !parsed.policy.toLowerCase().includes('not proof')) {

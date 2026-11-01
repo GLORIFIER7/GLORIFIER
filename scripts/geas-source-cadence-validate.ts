@@ -100,6 +100,21 @@ function isValueTerminated(source: string, start: number): boolean {
 }
 
 function readTopLevelProperty(
+function readQuotedStringValue(objectText: string, valueStart: number): string | undefined {
+  const valueQuote = objectText[valueStart];
+  if (valueQuote !== "'" && valueQuote !== '"') return undefined;
+  let value = '';
+  let valueEscaped = false;
+  for (let j = valueStart + 1; j < objectText.length; j += 1) {
+    const valueChar = objectText[j];
+    if (valueEscaped) { value += valueChar; valueEscaped = false; continue; }
+    if (valueChar === '\\') { valueEscaped = true; continue; }
+    if (valueChar === valueQuote) return isValueTerminated(objectText, j + 1) ? value : undefined;
+    value += valueChar;
+  }
+  return undefined;
+}
+
   objectText: string,
   property: 'id' | 'cadenceHours',
 ): string | number | undefined {
@@ -170,27 +185,7 @@ function readTopLevelProperty(
       let valueStart = colon + 1;
       while (valueStart < objectText.length && /\s/.test(objectText[valueStart])) valueStart += 1;
 
-      if (property === 'id') {
-        const valueQuote = objectText[valueStart];
-        if (valueQuote !== "'" && valueQuote !== '"') return undefined;
-        let value = '';
-        let valueEscaped = false;
-        for (let j = valueStart + 1; j < objectText.length; j += 1) {
-          const valueChar = objectText[j];
-          if (valueEscaped) {
-            value += valueChar;
-            valueEscaped = false;
-            continue;
-          }
-          if (valueChar === '\\') {
-            valueEscaped = true;
-            continue;
-          }
-          if (valueChar === valueQuote) return isValueTerminated(objectText, j + 1) ? value : undefined;
-          value += valueChar;
-        }
-        return undefined;
-      }
+      if (property === 'id') return readQuotedStringValue(objectText, valueStart);
 
       const numberMatch = /^\d+/.exec(objectText.slice(valueStart));
       return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
