@@ -27,3 +27,13 @@ export function isProtectedApiReadPath(pathname: string): boolean {
     (prefix) => normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`),
   );
 }
+/**
+ * Public API authentication bypass policy. Only preflight requests and
+ * unprotected read-only paths bypass identity verification; all mutations
+ * and protected reads continue through the authentication middleware.
+ */
+export function shouldBypassApiAuthentication(method: string, pathname: string): boolean {
+  if (method === 'OPTIONS') return true;
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  return !isProtectedApiReadPath(pathname);
+}
