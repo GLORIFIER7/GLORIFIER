@@ -1111,76 +1111,78 @@ const createUnknownDriftFinding = (
   createdAt,
 });
 
-const drift = (): DriftFinding[] => {
-  const ts = new Date().toISOString();
-  return [
-    createUnknownDriftFinding(
-      'drift-agent-identity',
-      'AUTH-01',
-      'high',
-      'Agents have explicit identity, delegation scope, audience, expiration and revocation semantics.',
-      'Adopt AgentIdentityContract for governed agent actions.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-telemetry-contract',
-      'OBS-01',
-      'medium',
-      'Agent/model/tool/deployment/outcome events share stable correlation semantics.',
-      'Adopt a versioned GEAS telemetry contract.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-evidence-minimization',
-      'EVID-01',
-      'medium',
-      'Evidence has integrity, classification, retention and disclosure controls.',
-      'Add classification, redaction, retention and selective-disclosure metadata.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-policy-enforcement',
-      'POL-01',
-      'medium',
-      'Applicable policies are machine-evaluable before governed execution.',
-      'Publish versioned policies and add enforcement adapters.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-provenance',
-      'SUPPLY-01',
-      'high',
-      'Software, model, provider and deployment dependencies have traceable provenance.',
-      'Link provider/model/software/deployment provenance into one evidence graph.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-finops',
-      'FIN-01',
-      'low',
-      'Material architecture choices record cost, value and placement tradeoffs.',
-      'Add normalized cost/usage attribution and verified-outcome correlation.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-daemon-ha',
-      'STATE-01',
-      'high',
-      'Long-running governed work has durable ownership, checkpoint and recovery semantics.',
-      'Evaluate durable lease/checkpoint coordination before claiming HA.',
-      ts,
-    ),
-    createUnknownDriftFinding(
-      'drift-architecture-reconciliation',
-      'GOV-01',
-      'high',
-      'Desired, declared, deployed, observed and verified states are reconciled.',
-      'Persist the five-state reconciliation and never infer compliance from missing evidence.',
-      ts,
-    ),
-  ];
-};
+type DriftFindingDefinition = readonly [
+  id: string,
+  controlId: string,
+  severity: RiskLevel,
+  intended: string,
+  recommendation: string,
+];
 
+const DRIFT_FINDING_DEFINITIONS: readonly DriftFindingDefinition[] = [
+  [
+    'drift-agent-identity',
+    'AUTH-01',
+    'high',
+    'Agents have explicit identity, delegation scope, audience, expiration and revocation semantics.',
+    'Adopt AgentIdentityContract for governed agent actions.',
+  ],
+  [
+    'drift-telemetry-contract',
+    'OBS-01',
+    'medium',
+    'Agent/model/tool/deployment/outcome events share stable correlation semantics.',
+    'Adopt a versioned GEAS telemetry contract.',
+  ],
+  [
+    'drift-evidence-minimization',
+    'EVID-01',
+    'medium',
+    'Evidence has integrity, classification, retention and disclosure controls.',
+    'Add classification, redaction, retention and selective-disclosure metadata.',
+  ],
+  [
+    'drift-policy-enforcement',
+    'POL-01',
+    'medium',
+    'Applicable policies are machine-evaluable before governed execution.',
+    'Publish versioned policies and add enforcement adapters.',
+  ],
+  [
+    'drift-provenance',
+    'SUPPLY-01',
+    'high',
+    'Software, model, provider and deployment dependencies have traceable provenance.',
+    'Link provider/model/software/deployment provenance into one evidence graph.',
+  ],
+  [
+    'drift-finops',
+    'FIN-01',
+    'low',
+    'Material architecture choices record cost, value and placement tradeoffs.',
+    'Add normalized cost/usage attribution and verified-outcome correlation.',
+  ],
+  [
+    'drift-daemon-ha',
+    'STATE-01',
+    'high',
+    'Long-running governed work has durable ownership, checkpoint and recovery semantics.',
+    'Evaluate durable lease/checkpoint coordination before claiming HA.',
+  ],
+  [
+    'drift-architecture-reconciliation',
+    'GOV-01',
+    'high',
+    'Desired, declared, deployed, observed and verified states are reconciled.',
+    'Persist the five-state reconciliation and never infer compliance from missing evidence.',
+  ],
+];
+
+const drift = (): DriftFinding[] => {
+  const createdAt = new Date().toISOString();
+  return DRIFT_FINDING_DEFINITIONS.map(([id, controlId, severity, intended, recommendation]) =>
+    createUnknownDriftFinding(id, controlId, severity, intended, recommendation, createdAt));
+};
 export const initializeGeasArchitectureScientist = async (): Promise<void> => {
   const db = getPostgresPool();
   await db.query(`
