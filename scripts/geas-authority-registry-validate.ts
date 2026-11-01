@@ -28,15 +28,21 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
-const normalizeHttpsUrl = (value: unknown): string | null => {
-  if (!isNonEmptyString(value)) return null;
+const isSafeHttpsUrl = (url: URL): boolean =>
+  url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+
+const parseHttpsUrl = (value: string): URL | null => {
   try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
-    return url.href;
+    return new URL(value);
   } catch {
     return null;
   }
+};
+
+const normalizeHttpsUrl = (value: unknown): string | null => {
+  if (!isNonEmptyString(value)) return null;
+  const url = parseHttpsUrl(value);
+  return url && isSafeHttpsUrl(url) ? url.href : null;
 };
 
 if (!isRecord(parsed)) {
