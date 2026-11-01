@@ -74,7 +74,6 @@ interface NormalizedCharge {
   billedCost: string;
 }
 
-const reconciliationApi = (() => {
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -94,19 +93,19 @@ const utcTimestamp = (value: unknown): number | null => {
   return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === value ? milliseconds : null;
 };
 
-function decimalScale(value: unknown): number | null {
+const decimalScale = (value: unknown): number | null => {
   if (typeof value !== 'string') return null;
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) return null;
   const scale = match[3]?.length ?? 0;
   return scale <= 12 ? scale : null;
-}
+};
 
-function hasValidDecimalScale(scale: number, fractionLength: number): boolean {
+const hasValidDecimalScale = (scale: number, fractionLength: number): boolean => {
   return Number.isInteger(scale) && scale >= 0 && fractionLength <= scale;
-}
+};
 
-function decimalUnits(value: string, scale: number): bigint {
+const decimalUnits = (value: string, scale: number): bigint => {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) throw new Error('invalid decimal amount');
   const fraction = match[3] ?? '';
@@ -115,9 +114,9 @@ function decimalUnits(value: string, scale: number): bigint {
   }
   const units = BigInt(`${match[2]}${fraction.padEnd(scale, '0')}`);
   return match[1] === '-' ? -units : units;
-}
+};
 
-function formatUnits(value: bigint, scale: number): string {
+const formatUnits = (value: bigint, scale: number): string => {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
   const digits = absolute.toString().padStart(scale + 1, '0');
@@ -126,17 +125,17 @@ function formatUnits(value: bigint, scale: number): string {
   const whole = digits.slice(0, -scale);
   const fraction = digits.slice(-scale).replace(/0+$/, '');
   return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
-}
+};
 
-function absolute(value: bigint): bigint {
+const absolute = (value: bigint): bigint => {
   return value < 0n ? -value : value;
-}
+};
 
-function isTax(row: NormalizedCharge): boolean {
+const isTax = (row: NormalizedCharge): boolean => {
   return row.chargeCategory.toLowerCase() === 'tax';
-}
+};
 
-function unknownResult(
+const unknownResult = (
   invoiceIssuerName: string | null,
   invoiceId: string | null,
   billingPeriodStart: string | null,
@@ -144,7 +143,7 @@ function unknownResult(
   billingCurrency: string | null,
   roundingTolerance: string | null,
   reasons: string[],
-): FocusInvoiceReconciliationResult {
+): FocusInvoiceReconciliationResult => {
   return {
     specVersion: 'FOCUS-1.4',
     status: 'UNKNOWN',
@@ -165,7 +164,7 @@ function unknownResult(
     lineItems: [],
     reasons: [...new Set(reasons)],
   };
-}
+};
 
 interface NormalizeRowsContext {
   datasetName: 'CostAndUsage' | 'InvoiceDetail';
@@ -195,29 +194,47 @@ interface ParsedNormalizedCharge {
 const hasRequiredChargeFields = (values: readonly (string | null)[]): boolean =>
   values.every((value) => Boolean(value));
 
-const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCharge | null => {
-  const issuer = textValue(row.invoiceIssuerName);
-  const id = textValue(row.invoiceId);
-  const billingPeriodStart = typeof row.billingPeriodStart === 'string' ? row.billingPeriodStart : null;
-  const billingPeriodEnd = typeof row.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null;
-  const category = textValue(row.chargeCategory);
-  const currency = textValue(row.billingCurrency);
-  const amount = textValue(row.billedCost);
-  const invoiceDetailIdValue = row.invoiceDetailId;
-  const invoiceDetailId = textValue(invoiceDetailIdValue);
+interface NormalizedChargeFields {
+  invoiceIssuerName: string;
+  invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  chargeCategory: string;
+  billingCurrency: string;
+  billedCost: string;
+}
 
-  const requiredFields = [issuer, id, billingPeriodStart, billingPeriodEnd, category, currency, amount];
-  if (!hasRequiredChargeFields(requiredFields) || decimalScale(amount) === null) return null;
+const readNormalizedChargeFields = (row: Record<string, unknown>): NormalizedChargeFields | null => {
+  const fields = {
+    invoiceIssuerName: textValue(row.invoiceIssuerName),
+    invoiceId: textValue(row.invoiceId),
+    billingPeriodStart: typeof row.billingPeriodStart === 'string' ? row.billingPeriodStart : null,
+    billingPeriodEnd: typeof row.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null,
+    chargeCategory: textValue(row.chargeCategory),
+    billingCurrency: textValue(row.billingCurrency),
+    billedCost: textValue(row.billedCost),
+  };
+  const values = Object.values(fields);
+  if (!hasRequiredChargeFields(values) || decimalScale(fields.billedCost) === null) return null;
   return {
-    invoiceIssuerName: issuer as string,
-    invoiceId: id as string,
-    billingPeriodStart: billingPeriodStart as string,
-    billingPeriodEnd: billingPeriodEnd as string,
-    invoiceDetailId,
+    invoiceIssuerName: fields.invoiceIssuerName as string,
+    invoiceId: fields.invoiceId as string,
+    billingPeriodStart: fields.billingPeriodStart as string,
+    billingPeriodEnd: fields.billingPeriodEnd as string,
+    chargeCategory: fields.chargeCategory as string,
+    billingCurrency: fields.billingCurrency as string,
+    billedCost: fields.billedCost as string,
+  };
+};
+
+const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCharge | null => {
+  const fields = readNormalizedChargeFields(row);
+  if (!fields) return null;
+  const invoiceDetailIdValue = row.invoiceDetailId;
+  return {
+    ...fields,
+    invoiceDetailId: textValue(invoiceDetailIdValue),
     invoiceDetailIdValue,
-    chargeCategory: category as string,
-    billingCurrency: currency as string,
-    billedCost: amount as string,
   };
 };
 
@@ -420,8 +437,11 @@ const hasRequiredInvoiceTextValues = (draft: InvoiceMetadataDraft): boolean =>
   [draft.issuer, draft.invoiceId, draft.billingPeriodStart, draft.billingPeriodEnd, draft.currency, draft.tolerance]
     .every((value) => typeof value === 'string' && value.length > 0);
 
+const hasValidToleranceScale = (scale: number | null): scale is number =>
+  scale !== null && Number.isInteger(scale) && scale >= 0;
+
 const isCompleteInvoiceMetadata = (draft: InvoiceMetadataDraft): draft is InvoiceMetadata =>
-  hasRequiredInvoiceTextValues(draft) && draft.toleranceScale !== null && Number.isInteger(draft.toleranceScale);
+  hasRequiredInvoiceTextValues(draft) && hasValidToleranceScale(draft.toleranceScale);
 
 const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
@@ -629,6 +649,24 @@ const compareOneInvoiceLineItem = (
   };
 };
 
+const appendInvoiceLineComparison = (
+  accumulated: InvoiceLineComparison,
+  id: string,
+  usageById: Map<string, bigint>,
+  detailById: Map<string, bigint>,
+  toleranceUnits: bigint,
+  scale: number,
+  reasons: string[],
+): InvoiceLineComparison => {
+  const comparison = compareOneInvoiceLineItem(id, usageById, detailById, toleranceUnits, scale);
+  reasons.push(...comparison.reasons);
+  return {
+    lineItems: [...accumulated.lineItems, comparison.lineItem],
+    hasMissingMapping: accumulated.hasMissingMapping || comparison.missingMapping,
+    hasVariance: accumulated.hasVariance || comparison.variance,
+  };
+};
+
 const compareInvoiceLineItems = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
@@ -639,17 +677,10 @@ const compareInvoiceLineItems = (
   const usageById = aggregateUsageByDetailId(usageRows, scale);
   const detailById = aggregateInvoiceDetailById(detailRows, scale);
   const ids = [...new Set([...usageById.keys(), ...detailById.keys()])].sort(compareCodeUnits);
-  const lineItems: FocusInvoiceLineItemReconciliation[] = [];
-  let hasMissingMapping = false;
-  let hasVariance = false;
-  for (const id of ids) {
-    const comparison = compareOneInvoiceLineItem(id, usageById, detailById, toleranceUnits, scale);
-    lineItems.push(comparison.lineItem);
-    hasMissingMapping ||= comparison.missingMapping;
-    hasVariance ||= comparison.variance;
-    reasons.push(...comparison.reasons);
-  }
-  return { lineItems, hasMissingMapping, hasVariance };
+  return ids.reduce<InvoiceLineComparison>(
+    (accumulated, id) => appendInvoiceLineComparison(accumulated, id, usageById, detailById, toleranceUnits, scale, reasons),
+    { lineItems: [], hasMissingMapping: false, hasVariance: false },
+  );
 };
 
 const buildInvoiceResult = (
@@ -679,7 +710,7 @@ const buildInvoiceResult = (
   reasons: [...new Set(reasons)],
 });
 
-const reconcileFocusInvoice = (
+export const reconcileFocusInvoice = (
   input: FocusInvoiceReconciliationInput,
 ): FocusInvoiceReconciliationResult => {
   const reasons: string[] = [];
@@ -737,8 +768,4 @@ const reconcileFocusInvoice = (
   return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons);
 };
 
-  return { reconcileFocusInvoice };
-})();
 
-export const reconcileFocusInvoice: (input: FocusInvoiceReconciliationInput) => FocusInvoiceReconciliationResult =
-  reconciliationApi.reconcileFocusInvoice;
