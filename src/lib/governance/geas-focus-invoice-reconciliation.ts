@@ -649,24 +649,6 @@ const compareOneInvoiceLineItem = (
   };
 };
 
-const appendInvoiceLineComparison = (
-  accumulated: InvoiceLineComparison,
-  id: string,
-  usageById: Map<string, bigint>,
-  detailById: Map<string, bigint>,
-  toleranceUnits: bigint,
-  scale: number,
-  reasons: string[],
-): InvoiceLineComparison => {
-  const comparison = compareOneInvoiceLineItem(id, usageById, detailById, toleranceUnits, scale);
-  reasons.push(...comparison.reasons);
-  return {
-    lineItems: [...accumulated.lineItems, comparison.lineItem],
-    hasMissingMapping: accumulated.hasMissingMapping || comparison.missingMapping,
-    hasVariance: accumulated.hasVariance || comparison.variance,
-  };
-};
-
 const compareInvoiceLineItems = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
@@ -677,10 +659,19 @@ const compareInvoiceLineItems = (
   const usageById = aggregateUsageByDetailId(usageRows, scale);
   const detailById = aggregateInvoiceDetailById(detailRows, scale);
   const ids = [...new Set([...usageById.keys(), ...detailById.keys()])].sort(compareCodeUnits);
-  return ids.reduce<InvoiceLineComparison>(
-    (accumulated, id) => appendInvoiceLineComparison(accumulated, id, usageById, detailById, toleranceUnits, scale, reasons),
-    { lineItems: [], hasMissingMapping: false, hasVariance: false },
-  );
+  const lineItems: FocusInvoiceLineItemReconciliation[] = [];
+  let hasMissingMapping = false;
+  let hasVariance = false;
+
+  for (const id of ids) {
+    const comparison = compareOneInvoiceLineItem(id, usageById, detailById, toleranceUnits, scale);
+    lineItems.push(comparison.lineItem);
+    hasMissingMapping ||= comparison.missingMapping;
+    hasVariance ||= comparison.variance;
+    reasons.push(...comparison.reasons);
+  }
+
+  return { lineItems, hasMissingMapping, hasVariance };
 };
 
 const buildInvoiceResult = (
