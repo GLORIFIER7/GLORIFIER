@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
+import { reportsSummaryResponse, runtimeVerificationResponse } from './worker.ts';
+import type { NeonOperationalCounts } from './lib/neon-worker';
 import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
@@ -886,6 +888,91 @@ async function run(): Promise<void> {
     assert.equal(nativeReportsWithoutSupabase.status, 503);
     assert.equal(await nativeReportsWithoutSupabase.json().then((body: { code?: string }) => body.code), 'SUPABASE_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'native reports must not proxy to a legacy backend');
+
+    const expectedNeonCounts: NeonOperationalCounts = {
+      connection_approvals: 9,
+      connection_events: 251212,
+      connection_registry: 30,
+      intelligence_analyses: 266,
+      intelligence_evidence: 1099,
+      intelligence_reports: 133,
+    };
+    const neonEnvironment: TestEnv = {
+      ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'neon',
+      GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+      GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+      HYPERDRIVE: { connectionString: 'postgresql://hyperdrive.test/glorifier' },
+    };
+    let neonCountReaderCalls = 0;
+    const neonCountReader = async (binding: { connectionString: string }) => {
+      neonCountReaderCalls += 1;
+      assert.equal(binding.connectionString, 'postgresql://hyperdrive.test/glorifier');
+      return expectedNeonCounts;
+    };
+
+    const neonReportsResponse = await reportsSummaryResponse(neonEnvironment, neonCountReader);
+    assert.equal(neonReportsResponse.status, 200);
+    const neonReportsBody = await neonReportsResponse.json() as {
+      ok: boolean;
+      status: string;
+      summary: { connectionEvents: number; registeredConnections: number };
+      evidence: { source: string; exactRowCounts: boolean };
+    };
+    assert.equal(neonReportsBody.ok, true);
+    assert.equal(neonReportsBody.status, 'operational-data-observed');
+    assert.equal(neonReportsBody.summary.connectionEvents, 251212);
+    assert.equal(neonReportsBody.summary.registeredConnections, 30);
+    assert.equal(neonReportsBody.evidence.source, 'neon-hyperdrive');
+    assert.equal(neonReportsBody.evidence.exactRowCounts, true);
+    assert.equal(neonCountReaderCalls, 1);
+
+    const neonRuntimeResponse = await runtimeVerificationResponse(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      neonEnvironment,
+      neonCountReader,
+    );
+    assert.equal(neonRuntimeResponse.status, 200);
+    const neonRuntimeBody = await neonRuntimeResponse.json() as {
+      ok: boolean;
+      checks: { database: { ok: boolean; source: string; connectionRegistryRows: number } };
+    };
+    assert.equal(neonRuntimeBody.ok, true);
+    assert.equal(neonRuntimeBody.checks.database.ok, true);
+    assert.equal(neonRuntimeBody.checks.database.source, 'neon-hyperdrive');
+    assert.equal(neonRuntimeBody.checks.database.connectionRegistryRows, 30);
+    assert.equal(neonCountReaderCalls, 2);
+
+    // Selecting Neon must never silently query Supabase when the Hyperdrive
+    // binding is absent, even if Supabase configuration is still present.
+    requestedUrls.length = 0;
+    const neonWithoutHyperdrive: TestEnv = { ...neonEnvironment, HYPERDRIVE: undefined };
+    const missingNeonBinding = await reportsSummaryResponse(neonWithoutHyperdrive, neonCountReader);
+    assert.equal(missingNeonBinding.status, 503);
+    assert.equal(await missingNeonBinding.json().then((body: { code?: string }) => body.code), 'NEON_HYPERDRIVE_NOT_CONFIGURED');
+    const missingNeonRuntime = await runtimeVerificationResponse(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      neonWithoutHyperdrive,
+      neonCountReader,
+    );
+    assert.equal(missingNeonRuntime.status, 503);
+    assert.equal(await missingNeonRuntime.json().then((body: { checks: { database: { code?: string } } }) => body.checks.database.code), 'NEON_HYPERDRIVE_NOT_CONFIGURED');
+    assert.deepEqual(requestedUrls, [], 'Neon mode must not fall back to Supabase PostgREST');
+    assert.equal(neonCountReaderCalls, 2);
+
+    const invalidDatabaseProvider = await reportsSummaryResponse({
+      ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'unknown-provider',
+    });
+    assert.equal(invalidDatabaseProvider.status, 503);
+    assert.equal(await invalidDatabaseProvider.json().then((body: { code?: string }) => body.code), 'DATABASE_PROVIDER_INVALID');
+
+    const neonQueryFailure = await reportsSummaryResponse(
+      neonEnvironment,
+      async () => { throw new Error('simulated Neon query failure'); },
+    );
+    assert.equal(neonQueryFailure.status, 502);
+    assert.equal(await neonQueryFailure.json().then((body: { code?: string }) => body.code), 'NEON_REPORTS_QUERY_FAILED');
 
     // With no backend configured, unauthenticated app-state requests must be rejected
     // by the authentication boundary rather than surfacing as a generic upstream 502.
