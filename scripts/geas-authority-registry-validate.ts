@@ -117,12 +117,14 @@ const sourceSection = scannerText.split('const SOURCES: ArchitectureSource[] = [
 if (!sourceSection) {
   failures.push('unable to locate scanner SOURCES catalog');
 } else {
-  const scannerIds = [...sourceSection.matchAll(/\bid:\s*'([^']+)'/g)].map((match) => match[1]);
-  const scannerIdSet = new Set(scannerIds);
-  const scannerSourceEntries = [...sourceSection.matchAll(/\{\s*id:\s*'([^']+)'([^{}]*)\}/g)].map((match) => ({
+  const scannerSourceEntries = [...sourceSection.matchAll(
+    /createArchitectureSource\(\s*'([^']+)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g,
+  )].map((match) => ({
     id: match[1],
-    url: match[2].match(/\burl:\s*'([^']+)'/)?.[1] ?? '',
+    url: match[2],
   }));
+  const scannerIds = scannerSourceEntries.map((entry) => entry.id);
+  const scannerIdSet = new Set(scannerIds);
   const scannerUrls = new Map(scannerSourceEntries.map((entry) => [entry.id, entry.url]));
   if (scannerSourceEntries.length !== scannerIds.length) failures.push('unable to parse each scanner source URL within its source object');
   if (scannerIds.length === 0) failures.push('scanner source catalog is empty');
