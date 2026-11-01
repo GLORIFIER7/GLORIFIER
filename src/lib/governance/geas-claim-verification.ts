@@ -78,6 +78,8 @@ function parseRfc3339Timestamp(value: unknown): number | null {
       || hour > 23 || minute > 59 || second > 59) return null;
 
   const offset = match[8];
+  // RFC 3339 -00:00 means the local UTC offset is unknown, not known UTC.
+  if (offset === '-00:00') return null;
   if (offset.toUpperCase() !== 'Z') {
     const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
     if (offsetHour > 23 || offsetMinute > 59) return null;
