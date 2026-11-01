@@ -351,7 +351,7 @@ References: [Neon Free 1 GB announcement](https://neon.com/blog/neon-free-plan-1
 
 1. Create a dedicated Neon database role for the Worker with the minimum grants needed for the first reporting route; do not use a superuser/owner role.
 2. Configure Cloudflare Hyperdrive with the Neon connection string in secure Cloudflare configuration only. Add a `HYPERDRIVE` Worker binding; never put connection strings in Wrangler variables, GitHub files, issue comments, build output, or chat.
-3. Implement the Worker SQL adapter in a reviewable PR and add tests for success, unconfigured binding, timeout, database error, bounded results, and response contract.
+3. **Worker adapter implementation is present in draft PR #597** (`src/lib/neon-worker.ts`, `src/worker.ts`) with fixed six-table read-only SQL, bounded result validation, client cleanup, explicit provider selection, and fail-closed behavior when Hyperdrive is absent. The Cloudflare Worker CI run passed TypeScript, Worker tests, the dedicated Neon adapter tests, frontend build, and Wrangler no-deploy dry run on commit `be467814d61bfddd3115f8451e26192005aae4f3`. This is mock-client/contract evidence only; the actual Hyperdrive binding and live Neon query remain unverified.
 4. Validate against a non-production Neon branch, then compare exact counts and deterministic per-table checksums on stable primary-key order.
 5. Reconcile index definitions, constraints, foreign keys, sequences, role grants, and required extensions.
 6. Test rollback to the previous Worker version and previous known-good database path before any production route switch.
