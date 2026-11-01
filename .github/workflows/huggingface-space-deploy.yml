@@ -64,47 +64,47 @@ jobs:
           credential_file="$RUNNER_TEMP/hf-space-credentials"
           trap 'rm -f "$credential_file"' EXIT
           umask 077
-          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \\
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
             | git credential-store --file="$credential_file" store
-          git -c credential.helper="store --file=$credential_file" \\
+          git -c credential.helper="store --file=$credential_file" \
             clone "https://huggingface.co/spaces/$HF_SPACE_ID" "$RUNNER_TEMP/hf-space"
-          rsync -a \\
-            --exclude='.git/' \\
-            --exclude='.github/' \\
-            --exclude='.env*' \\
-            --exclude='node_modules/' \\
-            --exclude='dist/' \\
-            --exclude='coverage/' \\
-            --exclude='android/' \\
-            --exclude='.venv/' \\
-            --exclude='venv/' \\
-            --exclude='__pycache__/' \\
-            --exclude='.pytest_cache/' \\
-            --exclude='.next/' \\
-            --exclude='.vercel/' \\
-            --exclude='*.pem' \\
-            --exclude='*.key' \\
-            --exclude='secrets/' \\
-            --exclude='*.sqlite' \\
-            --exclude='*.sqlite3' \\
-            --exclude='*.db' \\
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.env*' \
+            --exclude='node_modules/' \
+            --exclude='dist/' \
+            --exclude='coverage/' \
+            --exclude='android/' \
+            --exclude='.venv/' \
+            --exclude='venv/' \
+            --exclude='__pycache__/' \
+            --exclude='.pytest_cache/' \
+            --exclude='.next/' \
+            --exclude='.vercel/' \
+            --exclude='*.pem' \
+            --exclude='*.key' \
+            --exclude='secrets/' \
+            --exclude='*.sqlite' \
+            --exclude='*.sqlite3' \
+            --exclude='*.db' \
             ./ "$RUNNER_TEMP/hf-space/"
-          printf '%s\\n' \\
-            '---' \\
-            'title: GLORIFIER' \\
-            'emoji: 🧠' \\
-            'colorFrom: blue' \\
-            'colorTo: purple' \\
-            'sdk: docker' \\
-            'app_port: 3000' \\
-            'pinned: false' \\
-            '---' \\
-            '' \\
-            '# GLORIFIER' \\
-            '' \\
-            'Governed, provider-neutral AI orchestration. This Space builds the repository Dockerfile.' \\
-            '' \\
-            'Configure application-specific runtime credentials through the Hugging Face Space Settings → Variables and secrets. Never put credentials in repository files.' \\
+          printf '%s\n' \
+            '---' \
+            'title: GLORIFIER' \
+            'emoji: 🧠' \
+            'colorFrom: blue' \
+            'colorTo: purple' \
+            'sdk: docker' \
+            'app_port: 3000' \
+            'pinned: false' \
+            '---' \
+            '' \
+            '# GLORIFIER' \
+            '' \
+            'Governed, provider-neutral AI orchestration. This Space builds the repository Dockerfile.' \
+            '' \
+            'Configure application-specific runtime credentials through the Hugging Face Space Settings → Variables and secrets. Never put credentials in repository files.' \
             > "$RUNNER_TEMP/hf-space/README.md"
           cd "$RUNNER_TEMP/hf-space"
           git lfs install --local
@@ -117,7 +117,7 @@ jobs:
           credential_file="$RUNNER_TEMP/hf-space-credentials"
           trap 'rm -f "$credential_file"' EXIT
           umask 077
-          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \\
+          printf 'protocol=https\nhost=huggingface.co\nusername=user\npassword=%s\n\n' "$HF_SPACE_WRITE_TOKEN" \
             | git credential-store --file="$credential_file" store
           cd "$RUNNER_TEMP/hf-space"
           git config user.name "github-actions[bot]"
