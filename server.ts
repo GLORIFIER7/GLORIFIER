@@ -61,7 +61,7 @@ import { getPermanentGlorifierStack, validatePermanentStack } from './src/lib/go
 import { getGeasArchitectureManifest, validateGeasArchitectureManifest, evaluateAuthorityChain, attenuateAuthority, createTelemetryEnvelope, getGeasDegradedModeContracts, reconcileGeasArchitecture, persistGeasManifest, persistGeasAuthorityEnvelope, persistGeasTelemetryEnvelope, persistGeasReconciliation, persistGeasFinOpsRecord, initializeGeasReconciliation } from './src/lib/governance/geas-reconciliation';
 import { requireAuthentication, requireOwner, requireOwnerOrInternalService, authenticationStatus, isOwner, isInternalServiceRequest, type AuthenticatedRequest } from './src/lib/auth/backend-auth';
 import { createAuthenticatedPayerIntent } from './src/lib/auth/payer-identity';
-import { isProtectedApiReadPath } from './src/lib/auth/protected-api-paths';
+import { shouldBypassApiAuthentication } from './src/lib/auth/protected-api-paths';
 import { startAutonomousAuthenticationVerificationDaemon, getAutonomousAuthenticationVerificationSnapshot, runAutonomousAuthenticationVerification } from './src/lib/autonomous-auth-verification';
 import { startGlobalVerificationFabric, getGlobalVerificationFabricSnapshot, runGlobalVerificationFabricNow } from './src/lib/global-verification-fabric';
 import { reconcileIntegrationControlPlane, getIntegrationControlSnapshot } from './src/lib/integration-control-plane';
@@ -241,9 +241,7 @@ app.use((req: Request, res: Response, next) => {
 // unauthenticated writes into orchestration, integrations, finance, evidence,
 // synchronization, or AI execution.
 app.use('/api', (req: Request, res: Response, next) => {
-  if (req.method === 'OPTIONS') return next();
-  const protectedRead = isProtectedApiReadPath(req.path || '');
-  if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
+  if (shouldBypassApiAuthentication(req.method, req.path || '')) return next();
   return requireAuthentication(req, res, next);
 });
 
