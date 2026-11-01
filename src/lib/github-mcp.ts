@@ -198,7 +198,7 @@ const cancelResponseBody = async (response: Response): Promise<void> => {
 
 const readBoundedResponseText = async (response: Response): Promise<string> => {
   const declaredLength = response.headers.get('content-length');
-  if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
+  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
     await cancelResponseBody(response);
     throw new Error('GitHub API response exceeded the configured size limit.');
   }
