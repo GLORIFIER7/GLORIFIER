@@ -139,7 +139,7 @@ const requiredDomains: ArchitectureDomain[] = [
   'iot', 'edge', 'blockchain', 'integration', 'governance', 'emerging-technology',
 ];
 for (const domain of requiredDomains) {
-  if (!model.domains.includes(domain)) throw new Error('authoritative source coverage missing for domain: ' + domain);
+  if (!model.domains.includes(domain)) throw new Error(`authoritative source coverage missing for domain: ${domain}`);
 }
 if (model.sources.some((source) => source.id === 'owasp-agentic-applications-top10')) {
   throw new Error('the OWASP landing page must remain discovery-only until its content can support risk-level extraction');
@@ -160,13 +160,13 @@ for (const risk of agenticRisks) {
   const source = model.sources.find((candidate) => candidate.id === risk.sourceId);
   const pattern = model.patterns.find((candidate) => candidate.id === risk.patternId);
   if (!source || source.cadenceHours !== 336 || !source.patternIds.includes(risk.patternId)) {
-    throw new Error('OWASP ' + risk.patternId + ' must have an active 14-day source entry');
+    throw new Error(`OWASP ${risk.patternId} must have an active 14-day source entry`);
   }
   if (!pattern || pattern.sourceId !== risk.sourceId || pattern.domain !== 'cybersecurity') {
-    throw new Error('OWASP ' + risk.patternId + ' must be linked to its dedicated cybersecurity source');
+    throw new Error(`OWASP ${risk.patternId} must be linked to its dedicated cybersecurity source`);
   }
   if (!pattern.keywords.length || !pattern.controlIds.length) {
-    throw new Error('OWASP ' + risk.patternId + ' must have explicit extraction terms and GEAS control mappings');
+    throw new Error(`OWASP ${risk.patternId} must have explicit extraction terms and GEAS control mappings`);
   }
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
@@ -251,7 +251,7 @@ const invalidSourceObservationTimestamps = [
 ];
 for (const observedAt of invalidSourceObservationTimestamps) {
   if (!isSourceObservationDue(24, observedAt, 1000)) {
-    throw new Error('non-canonical or impossible source timestamps must force a fresh fetch: ' + observedAt);
+    throw new Error(`non-canonical or impossible source timestamps must force a fresh fetch: ${observedAt}`);
   }
 }
 if (isSourceObservationDue(24, '1970-01-01T02:00:00+02:00', 1000)) {
