@@ -1,6 +1,7 @@
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
+import { GITHUB_MCP_PATH, githubMcpRoute } from './lib/github-mcp';
 
 export type CloudflareEnv = {
   ASSETS: {
@@ -837,6 +838,10 @@ const rewriteBackendRedirect = (
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
+
+    if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
+      return githubMcpRoute(request);
+    }
 
     if (incomingUrl.pathname.replace(/\/+$/, '') === A2A_JSONRPC_PATH) {
       // Canonicalize the accepted trailing-slash form before route matching.
