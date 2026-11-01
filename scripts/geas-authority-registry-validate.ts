@@ -53,9 +53,13 @@ const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
   return match ? { id: match[2] ?? '', url: match[6] ?? '' } : null;
 };
 
+const stripSourceComments = (entry: string): string => entry.replace(
+  /("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])*')|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g,
+  (match, doubleQuoted: string | undefined, singleQuoted: string | undefined) => doubleQuoted ?? singleQuoted ?? '',
+);
+
 const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
-  // Strip inline comments so id/url values found only in comments are never accepted.
-  const uncommented = entry.replace(/\/\/[^
+  const uncommented = stripSourceComments(entry);
   const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
   const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
   return id && url ? { id: id[2] ?? '', url: url[2] ?? '' } : null;
@@ -79,9 +83,9 @@ const parseScannerSourceCatalog = (sourceText: string): {
     const entry = line.replace(/,$/, '');
     const parsed = entry.startsWith('createArchitectureSource(')
       ? parseFactorySource(entry)
-      failures.push(`scanner source at index ${index} must be a single-line factory call or literal object with ID and URL`);
+      : entry.startsWith('{') ? parseObjectSource(entry) : null;
     if (!parsed?.id || !parsed.url) {
-      failures.push('scanner source at index ' + index + ' must be a single-line factory call or literal object with ID and URL');
+      failures.push(`scanner source at index ${index} must be a single-line factory call or literal object with ID and URL`);
       continue;
     }
     entries.push(parsed);
@@ -104,14 +108,13 @@ const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\n  cr
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
-const commentOnlyObjectFixture = "const SOURCES: ArchitectureSource[] = [
 
+const commentOnlyObjectFixture = "const SOURCES: ArchitectureSource[] = [\\n  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },\\n];";
+if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
+  throw new Error('scanner source parser must reject IDs and URLs that appear only in comments');
+}
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
-if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
-  throw new Error('parseObjectSource must reject entries whose id or url appears only in a comment');
-}
-
 } else {
   if (parsed.version !== 'GEAS-AUTHORITY-2') failures.push('unexpected registry version');
   if (!isNonEmptyString(parsed.policy) || !parsed.policy.toLowerCase().includes('not proof')) {
