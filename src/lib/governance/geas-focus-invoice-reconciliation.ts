@@ -84,13 +84,17 @@ function textValue(value: unknown): string | null {
 }
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
+function hasCanonicalUtcTimestampShape(value: string): boolean {
+  return value.trim() === value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
+}
+
 function utcTimestamp(value: unknown): number | null {
-  if (typeof value !== 'string' || value.trim() !== value) return null;
-  const timestamp = value;
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(timestamp)) return null;
-  const milliseconds = Date.parse(timestamp);
+  if (typeof value !== 'string') return null;
+  if (!hasCanonicalUtcTimestampShape(value)) return null;
+  const milliseconds = Date.parse(value);
   if (!Number.isFinite(milliseconds)) return null;
-  return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === timestamp ? milliseconds : null;
+  const canonicalValue = new Date(milliseconds).toISOString().replace('.000Z', 'Z');
+  return canonicalValue === value ? milliseconds : null;
 }
 
 function decimalScale(value: unknown): number | null {
@@ -101,11 +105,15 @@ function decimalScale(value: unknown): number | null {
   return scale <= 12 ? scale : null;
 }
 
+function hasValidDecimalScale(scale: number, fractionLength: number): boolean {
+  return Number.isInteger(scale) && scale >= 0 && fractionLength <= scale;
+}
+
 function decimalUnits(value: string, scale: number): bigint {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) throw new Error('invalid decimal amount');
   const fraction = match[3] ?? '';
-  if (!Number.isInteger(scale) || scale < 0 || fraction.length > scale) {
+  if (!hasValidDecimalScale(scale, fraction.length)) {
     throw new Error('decimal scale is smaller than amount precision');
   }
   const units = BigInt(match[2] + fraction.padEnd(scale, '0'));
@@ -116,10 +124,11 @@ function formatUnits(value: bigint, scale: number): string {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
   const digits = absolute.toString().padStart(scale + 1, '0');
-  if (scale === 0) return (negative ? '-' : '') + digits;
+  const sign = negative ? '-' : '';
+  if (scale === 0) return `${sign}${digits}`;
   const whole = digits.slice(0, -scale);
   const fraction = digits.slice(-scale).replace(/0+$/, '');
-  return (negative ? '-' : '') + whole + (fraction ? '.' + fraction : '');
+  return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
 }
 
 function absolute(value: bigint): bigint {
