@@ -1746,7 +1746,7 @@ export const persistArchitectureReconciliation = async (input: {
   verified: Record<string, unknown>;
   status?: string;
   evidenceRefs?: string[];
-}) {
+}) => {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
   const id = input.id ?? `reconcile-${randomUUID()}`;
