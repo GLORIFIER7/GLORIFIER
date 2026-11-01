@@ -18,6 +18,7 @@ type Registry = {
   sources: Source[];
 };
 
+(() => {
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const parsed: unknown = JSON.parse(readFileSync(registryPath, 'utf8'));
@@ -54,9 +55,20 @@ const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
 };
 
 const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
-  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(entry);
-  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  const uncommented = entry.replace(
+    /("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])*')|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g,
+    (_match: string, doubleQuoted?: string, singleQuoted?: string) => doubleQuoted ?? singleQuoted ?? '',
+  );
+  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
+  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(uncommented);
   return id && url ? { id: id[2] ?? '', url: url[2] ?? '' } : null;
+};
+
+const parseScannerSourceLine = (line: string): ScannerSourceEntry | null => {
+  const entry = line.replace(/,$/, '');
+  if (entry.startsWith('createArchitectureSource(')) return parseFactorySource(entry);
+  if (entry.startsWith('{')) return parseObjectSource(entry);
+  return null;
 };
 
 const parseScannerSourceCatalog = (sourceText: string): {
@@ -65,28 +77,17 @@ const parseScannerSourceCatalog = (sourceText: string): {
   failures: string[];
 } => {
   const section = /const SOURCES: ArchitectureSource\[\] = \[\n([\s\S]*?)\n\];/.exec(sourceText);
-  if (!section) {
-    return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
-  }
-  const sourceLines = (section[1] ?? '').split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('//'));
+  if (!section) return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
+  const sourceLines = (section[1] ?? '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
   const entries: ScannerSourceEntry[] = [];
   const failures: string[] = [];
-  for (const [index, line] of sourceLines.entries()) {
-    const entry = line.replace(/,$/, '');
-    const parsed = entry.startsWith('createArchitectureSource(')
-      ? parseFactorySource(entry)
-      : entry.startsWith('{') ? parseObjectSource(entry) : null;
-    if (!parsed?.id || !parsed.url) {
-      failures.push('scanner source at index ' + index + ' must be a single-line factory call or literal object with ID and URL');
-      continue;
-    }
-    entries.push(parsed);
-  }
+  sourceLines.forEach((line, index) => {
+    const parsed = parseScannerSourceLine(line);
+    if (parsed?.id && parsed.url) entries.push(parsed);
+    else failures.push(`scanner source at index ${index} must use literal ID and URL values`);
+  });
   return { declaredCount: sourceLines.length, entries, failures };
 };
-
 const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\n  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\n];";
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
@@ -101,6 +102,11 @@ if (fixtureResult.declaredCount !== 2
 const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),\n];";
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
   throw new Error('scanner source parser must fail closed on computed factory arguments');
+}
+
+const commentOnlyObjectFixture = "const SOURCES: ArchitectureSource[] = [\\n  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },\\n];";
+if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
+  throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
 }
 
 if (!isRecord(parsed)) {
@@ -216,3 +222,4 @@ process.stdout.write(`${JSON.stringify({
   domains,
   irreversibleChangesExecuted: false
 }, null, 2)}\n`);
+})();
