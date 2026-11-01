@@ -124,7 +124,7 @@ const readQuotedStringValue = (source: string, start: number): string | undefine
   let value = '';
   for (let index = start + 1; index < source.length; index += 1) {
     const character = source[index];
-    if (character === '{') {
+    if (character === '\\') {
       const escaped = source[index + 1];
       if (escaped === undefined) return undefined;
       value += escaped;
