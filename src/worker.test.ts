@@ -123,10 +123,33 @@ async function run(): Promise<void> {
     const mcpToolsBody = await mcpToolsList.json() as {
       result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
     };
+    assert.deepEqual(
+      mcpToolsBody.result.tools.map((tool) => tool.name).sort(),
+      ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
+      'MCP must expose the complete, fixed read-only GitHub tool surface',
+    );
     assert.ok(mcpToolsBody.result.tools.length >= 3);
     assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
     assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.destructiveHint === false));
     assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
+
+    const unsupportedMcpMethod = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 90, method: 'resources/list' }),
+      }),
+      env,
+    );
+    assert.equal(unsupportedMcpMethod.status, 200, 'unsupported MCP methods must remain JSON-RPC errors, not transport failures');
+    const unsupportedMcpBody = await unsupportedMcpMethod.json() as {
+      jsonrpc: string;
+      id: number;
+      error: { code: number };
+    };
+    assert.equal(unsupportedMcpBody.jsonrpc, '2.0');
+    assert.equal(unsupportedMcpBody.id, 90);
+    assert.equal(unsupportedMcpBody.error.code, -32601);
 
     const previousMcpUpstreamResponse = upstreamResponse;
     upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER', visibility: 'public' }), {
