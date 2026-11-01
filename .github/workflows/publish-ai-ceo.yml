@@ -13,7 +13,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-disabled:
+    if: ${{ github.ref != 'refs/heads/main' || vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED != 'true' || vars.PAGES_AI_CEO_DEPLOY_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why deployment was skipped
+        shell: bash
+        run: |
+          echo "::notice::AI CEO Pages publishing is disabled unless dispatched from main with PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED=true and PAGES_AI_CEO_DEPLOY_ENABLED=true. Configure required reviewers on the github-pages-ai-ceo environment first; set the approval-gate flag only after verifying that protection in repository settings."
+
   build:
+    if: ${{ github.ref == 'refs/heads/main' && vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED == 'true' && vars.PAGES_AI_CEO_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,8 +47,10 @@ jobs:
           path: ./dist
 
   deploy:
+    if: ${{ github.ref == 'refs/heads/main' && vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED == 'true' && vars.PAGES_AI_CEO_DEPLOY_ENABLED == 'true' }}
     needs: build
     runs-on: ubuntu-latest
+    # Set PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED=true only after required reviewers are verified.
     environment:
       name: github-pages-ai-ceo
       url: ${{ steps.deployment.outputs.page_url }}

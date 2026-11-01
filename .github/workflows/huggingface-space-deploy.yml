@@ -2,29 +2,33 @@ name: Hugging Face Space deployment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
 
-# Do not interrupt an active publish midway through pushing to the Space.
+# Do not interrupt an explicitly authorized publish midway through pushing to the Space.
 concurrency:
   group: huggingface-space-deploy
   cancel-in-progress: false
 
 jobs:
   deployment-disabled:
-    if: ${{ vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
+    if: ${{ github.ref != 'refs/heads/main' || vars.HF_SPACE_APPROVAL_GATE_CONFIGURED != 'true' || vars.HF_SPACE_DEPLOY_ENABLED != 'true' || vars.HF_SPACE_ID == '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Explain why deployment was skipped
         shell: bash
         run: |
-          echo "::notice::Hugging Face deployment is disabled. Set repository variable HF_SPACE_DEPLOY_ENABLED=true and set HF_SPACE_ID to owner/space-name to enable it."
+          echo "::notice::Hugging Face deployment is disabled unless dispatched from main with HF_SPACE_APPROVAL_GATE_CONFIGURED=true, HF_SPACE_DEPLOY_ENABLED=true, and HF_SPACE_ID configured. Configure required reviewers on the huggingface-space-production environment first; set the approval-gate flag only after verifying that protection in repository settings."
 
   deploy-space:
-    if: ${{ vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
+    if: ${{ github.ref == 'refs/heads/main' && vars.HF_SPACE_APPROVAL_GATE_CONFIGURED == 'true' && vars.HF_SPACE_DEPLOY_ENABLED == 'true' && vars.HF_SPACE_ID != '' }}
+    # Configure required reviewers for this environment in Settings → Environments.
+    # Set HF_SPACE_APPROVAL_GATE_CONFIGURED=true only after confirming that protection is active.
+    # GitHub pauses this job before runner steps until an authorized reviewer approves it when reviewers are configured.
+    environment:
+      name: huggingface-space-production
+      url: https://huggingface.co/spaces/${{ vars.HF_SPACE_ID }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -41,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${HF_SPACE_WRITE_TOKEN:-}" ]]; then
-            echo "::error::Repository secret HF_SPACE_WRITE_TOKEN is missing. Create a fine-grained Hugging Face write token scoped to the target Space and store it as a GitHub Actions secret."
+            echo "::error::Repository secret HF_SPACE_WRITE_TOKEN is missing. Create a fine-grained Hugging Face write token scoped to the target Space and store it as a GitHub Actions secret. Prefer an environment secret for huggingface-space-production. Keep HF_SPACE_APPROVAL_GATE_CONFIGURED unset until required reviewers have been verified."
             exit 1
           fi
           if [[ ! "$HF_SPACE_ID" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
@@ -124,6 +128,5 @@ jobs:
             exit 0
           fi
           git commit -m "Deploy GLORIFIER from GitHub ${GITHUB_SHA}"
-          credential_file="$RUNNER_TEMP/hf-space-credentials"
           git -c credential.helper="store --file=$credential_file" lfs push origin HEAD
           git -c credential.helper="store --file=$credential_file" push origin HEAD:main
