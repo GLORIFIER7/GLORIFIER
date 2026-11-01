@@ -49,7 +49,7 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
 type ScannerSourceEntry = { id: string; url: string };
 
 const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
-  const match = /^createArchitectureSource\(\s*(['"])([^'"]+)\1\s*,\s*(['"])[^'"]+\3\s*,\s*(['"])[^'"]+\5\s*,\s*(['"])([^'"]+)\7\s*,/.exec(entry);
+  const match = /^createArchitectureSource\(\s*(['"])([^'"]+)\1\s*,\s*(['"])[^'"]+\3\s*,\s*(['"])[^'"]+\4\s*,\s*(['"])([^'"]+)\5\s*,/.exec(entry);
   return match ? { id: match[2] ?? '', url: match[8] ?? '' } : null;
 };
 
