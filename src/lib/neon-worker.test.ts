@@ -122,6 +122,26 @@ test('always closes a connected client after a query error', async () => {
   assert.equal(closed, true);
 });
 
+test('closes the client after connection failure and preserves the original error', async () => {
+  let closed = false;
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.reject(new Error('simulated connection failure')),
+    query: () => {
+      throw new Error('query must not run after connection failure');
+    },
+    end: () => {
+      closed = true;
+      return Promise.reject(new Error('simulated cleanup failure'));
+    },
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    /simulated connection failure/,
+  );
+  assert.equal(closed, true);
+});
+
 test('fails closed when the Hyperdrive connection string is absent or invalid', async () => {
   let factoryCalls = 0;
   const factory: NeonPgClientFactory = () => {
