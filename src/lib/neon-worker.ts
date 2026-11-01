@@ -145,12 +145,21 @@ const captureAsyncResult = async <T>(
 };
 
 const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
-  const query = await captureAsyncResult(async () => {
-    await client.connect();
-    const result = await client.query(OPERATIONAL_COUNTS_SQL);
-    return parseOperationalCounts(result.rows);
-  });
-  const close = await captureAsyncResult(() => client.end());
+  let query: AsyncResult<NeonOperationalCounts> = {
+    ok: false,
+    error: new Error('Neon count query did not execute.'),
+  };
+  let close: AsyncResult<void> = { ok: true, value: undefined };
+
+  try {
+    query = await captureAsyncResult(async () => {
+      await client.connect();
+      const result = await client.query(OPERATIONAL_COUNTS_SQL);
+      return parseOperationalCounts(result.rows);
+    });
+  } finally {
+    close = await captureAsyncResult(() => client.end());
+  }
 
   if (!query.ok) throw query.error;
   if (!close.ok) throw close.error;
