@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-10-30T03:59:28Z",
+  "updatedAt": "2026-11-01T14:55:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -513,10 +513,10 @@
       "id": "protocol.a2a-mcp-adapters",
       "title": "Standards-backed A2A and MCP adapters",
       "boundary": "Explicit protocol adapters behind GLORIFIER governance",
-      "scope": "A2A 1.0.1 and MCP 2026-07-28 source/specification gap audit; no conformant runtime transport established",
+      "scope": "A2A 1.0.1 and MCP 2026-07-28 general-purpose protocol adapter and interoperability audit; a fixed public-repository GitHub MCP bridge exists but does not satisfy this broader target",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Repository source review only; no A2A/MCP runtime or external endpoint tested"
+        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test"
       ],
       "evidence": [
         {
@@ -553,16 +553,32 @@
           "targetEnvironment": "MCP 2026-07-28 normative specification; repository commit b488c16623e5202a3961e551886044577ae0f096",
           "observedAt": null,
           "notes": "Immutable upstream source snapshot. server/discover.mdx Git blob SHA-1: f6fc1acf974819d99338d2be25ad953fcb9e57a6. Used only to define the audit target; it is not implementation or conformance evidence."
+        },
+        {
+          "kind": "source",
+          "reference": "src/lib/github-mcp.ts",
+          "targetEnvironment": "Main branch Worker implementation at 2026-11-01 commit a9040e48449274d8531d1760a1e2b7d74ef39c87",
+          "observedAt": "2026-11-01T13:19:54Z",
+          "notes": "A fixed-scope, stateless, POST-only GitHub MCP endpoint exposes four read-only tools for the public GLORIFIER7/GLORIFIER repository. It is not a general-purpose adapter and does not implement the 2026-07-28 server/discover operation or A2A."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts",
+          "targetEnvironment": "Mocked Cloudflare Worker; fixed /mcp route; PR #595 implementation merged to main",
+          "observedAt": null,
+          "notes": "Tests cover 2025-03-26 initialize, notifications, tools/list, mocked tools/call, exact read-only tool set, malformed/oversized requests, origin rejection, and rate limiting. They do not establish external MCP client interoperability, live public endpoint reachability, or 2026-07-28 conformance."
         }
       ],
       "limitations": [
         "The existing /.well-known/a2a-agent-card.json is a proprietary GLORIFIER discovery document, not the A2A 1.0.1 standard Agent Card endpoint or schema.",
         "The existing /api/a2a/tasks and federated lifecycle are GLORIFIER-specific; they do not establish A2A 1.0.1 message/task binding, version negotiation, or cross-agent conformance.",
         "The Cloudflare Worker does not currently serve the standard A2A Agent Card or A2A 1.0.1 service endpoint natively.",
-        "The MCP target is pinned to 2026-07-28, but no MCP server transport, server/discover, tools/list, or tools/call implementation is established.",
-        "Agent-harness tool authorization is not MCP protocol conformance.",
-        "A2A and MCP remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
-        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in this documentation-only review.",
+        "A fixed-scope, read-only GitHub MCP endpoint exists at POST /mcp for four tools against the public GLORIFIER7/GLORIFIER repository; it is not a general-purpose MCP adapter.",
+        "The GitHub MCP endpoint does not implement MCP 2026-07-28 server/discover, resources, prompts, or full target-revision transport behavior.",
+        "The endpoint returns protocol version identifiers for 2025-03-26, 2025-06-18, and 2025-11-25, but only 2025-03-26 initialization is covered by the checked-in Worker test; version identifiers alone do not prove revision conformance.",
+        "No external MCP client or end-to-end client/server interoperability result has been recorded.",
+        "A2A and broad MCP adapters remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
+        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in the earlier source/specification review.",
         "No arbitrary proxy or implied provider fallback is authorized."
       ]
     },
