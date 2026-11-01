@@ -324,7 +324,19 @@ const normalizeRows = (values: unknown[], context: NormalizeRowsContext): Normal
  * Missing lineage, invalid UTC period bounds or cross-period rows fail closed
  * as UNKNOWN; matched IDs with amounts outside tolerance become VARIANCE.
  */
-interface InvoiceMetadata {
+interface InvoiceMetadataDraft {
+  issuer: string | null;
+  invoiceId: string | null;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+  currency: string | null;
+  tolerance: string | null;
+  toleranceScale: number | null;
+  usageValues: unknown[];
+  detailValues: unknown[];
+}
+
+interface InvoiceMetadata extends Omit<InvoiceMetadataDraft, 'issuer' | 'invoiceId' | 'billingPeriodStart' | 'billingPeriodEnd' | 'currency' | 'tolerance' | 'toleranceScale'> {
   issuer: string;
   invoiceId: string;
   billingPeriodStart: string;
@@ -332,8 +344,6 @@ interface InvoiceMetadata {
   currency: string;
   tolerance: string;
   toleranceScale: number;
-  usageValues: unknown[];
-  detailValues: unknown[];
 }
 
 interface NormalizedInvoiceDatasets {
@@ -359,57 +369,56 @@ const requiredDatasetRows = (
   datasetName: 'CostAndUsage' | 'InvoiceDetail',
   reasons: string[],
 ): unknown[] => {
-  if (!Array.isArray(value)) {
-    reasons.push(`${datasetName} rows are required`);
-    return [];
-  }
-  if (value.length === 0) reasons.push(`${datasetName} dataset is empty`);
-  return value;
+  const rows = Array.isArray(value) ? value : [];
+  if (!Array.isArray(value)) reasons.push(`${datasetName} rows are required`);
+  if (rows.length === 0) reasons.push(`${datasetName} dataset is empty`);
+  return rows;
 };
 
 const validateInvoiceMetadata = (
-  values: Omit<InvoiceMetadata, 'usageValues' | 'detailValues'>,
+  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
   reasons: string[],
-): boolean => {
+): void => {
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
-  const startMs = utcTimestamp(values.billingPeriodStart);
-  const endMs = utcTimestamp(values.billingPeriodEnd);
+  const startMs = values.billingPeriodStart ? utcTimestamp(values.billingPeriodStart) : null;
+  const endMs = values.billingPeriodEnd ? utcTimestamp(values.billingPeriodEnd) : null;
   if (startMs === null || endMs === null) {
     reasons.push('billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ');
   } else if (startMs >= endMs) {
     reasons.push('billing period end must be later than billing period start');
   }
-  if (!/^[A-Z]{3}$/.test(values.currency)) reasons.push('billing currency must be an uppercase three-letter code');
-  if (decimalScale(values.tolerance) === null) {
+  if (!values.currency || !/^[A-Z]{3}$/.test(values.currency)) {
+    reasons.push('billing currency must be an uppercase three-letter code');
+  }
+  if (!values.tolerance || values.toleranceScale === null) {
     reasons.push('an explicit decimal rounding tolerance is required');
   } else if (decimalUnits(values.tolerance, values.toleranceScale) < 0n) {
     reasons.push('rounding tolerance must not be negative');
   }
-  return reasons.length === 0;
 };
+
+const isCompleteInvoiceMetadata = (draft: InvoiceMetadataDraft): draft is InvoiceMetadata =>
+  Boolean(draft.issuer && draft.invoiceId && draft.billingPeriodStart && draft.billingPeriodEnd
+    && draft.currency && draft.tolerance && draft.toleranceScale !== null);
 
 const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
   reasons: string[],
-): InvoiceMetadata | null => {
+): InvoiceMetadataDraft => {
   const record = asRecord(input);
-  const issuer = textValue(record?.invoiceIssuerName);
-  const invoiceId = textValue(record?.invoiceId);
-  const billingPeriodStart = typeof record?.billingPeriodStart === 'string' ? record.billingPeriodStart : null;
-  const billingPeriodEnd = typeof record?.billingPeriodEnd === 'string' ? record.billingPeriodEnd : null;
-  const currency = textValue(record?.billingCurrency);
-  const tolerance = textValue(record?.roundingTolerance);
-  const toleranceScale = decimalScale(tolerance);
+  const values = {
+    issuer: textValue(record?.invoiceIssuerName),
+    invoiceId: textValue(record?.invoiceId),
+    billingPeriodStart: typeof record?.billingPeriodStart === 'string' ? record.billingPeriodStart : null,
+    billingPeriodEnd: typeof record?.billingPeriodEnd === 'string' ? record.billingPeriodEnd : null,
+    currency: textValue(record?.billingCurrency),
+    tolerance: textValue(record?.roundingTolerance),
+    toleranceScale: decimalScale(textValue(record?.roundingTolerance)),
+  };
+  validateInvoiceMetadata(values, reasons);
   const usageValues = requiredDatasetRows(record?.costAndUsage, 'CostAndUsage', reasons);
   const detailValues = requiredDatasetRows(record?.invoiceDetail, 'InvoiceDetail', reasons);
-
-  if (!issuer || !invoiceId || !billingPeriodStart || !billingPeriodEnd || !currency || !tolerance || toleranceScale === null) {
-    reasons.push('invoice metadata is incomplete');
-    return null;
-  }
-  const metadata = { issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, toleranceScale };
-  if (!validateInvoiceMetadata(metadata, reasons)) return null;
-  return { ...metadata, usageValues, detailValues };
+  return { ...values, usageValues, detailValues };
 };
 
 const normalizeInvoiceDatasets = (
@@ -559,8 +568,19 @@ export function reconcileFocusInvoice(
   input: FocusInvoiceReconciliationInput,
 ): FocusInvoiceReconciliationResult {
   const reasons: string[] = [];
-  const metadata = parseInvoiceMetadata(input, reasons);
-  if (!metadata) return unknownResult(null, null, null, null, null, null, reasons);
+  const metadataDraft = parseInvoiceMetadata(input, reasons);
+  if (reasons.length > 0 || !isCompleteInvoiceMetadata(metadataDraft)) {
+    return unknownResult(
+      metadataDraft.issuer,
+      metadataDraft.invoiceId,
+      metadataDraft.billingPeriodStart,
+      metadataDraft.billingPeriodEnd,
+      metadataDraft.currency,
+      metadataDraft.tolerance,
+      reasons,
+    );
+  }
+  const metadata = metadataDraft;
   const datasets = normalizeInvoiceDatasets(metadata, reasons);
   if (!datasets) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons);
   const comparableRows = validateInvoiceLineage(
