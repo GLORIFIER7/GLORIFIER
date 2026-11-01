@@ -181,6 +181,7 @@ assert.equal(
 const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
   id: localeClaimsSource.id,
   url: localeClaimsSource.url,
+  scannerStatus: localeClaimsSource.scannerStatus,
   claimsAllowed: [...localeClaimsSource.claimsAllowed].sort(compareCodeUnits),
   reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
 })).digest('hex');
