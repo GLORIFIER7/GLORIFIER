@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 type ClosablePool = { end: () => Promise<void> };
 
 const postgresModule = await import('./postgres') as unknown as {
-  getOptionalPostgresPool?: () => unknown;
-  getPostgresPool: () => unknown;
+  getOptionalPostgresPool?: () => ClosablePool | null;
+  getPostgresPool: () => ClosablePool;
 };
 assert.equal(
   typeof postgresModule.getOptionalPostgresPool,
@@ -30,8 +30,8 @@ const originalEnvironment = {
   databaseSsl: process.env.DATABASE_SSL,
   nodeEnv: process.env.NODE_ENV,
 };
-const getOptionalPostgresPool = postgresModule.getOptionalPostgresPool as () => ClosablePool | null;
-let pool: ClosablePool | null = null;
+let optionalPool: ClosablePool | null = null;
+let sharedPool: ClosablePool | null = null;
 
 function restoreEnvironment(name: string, value: string | undefined): void {
   if (value === undefined) delete process.env[name];
@@ -41,7 +41,7 @@ function restoreEnvironment(name: string, value: string | undefined): void {
 try {
   delete process.env.DATABASE_URL;
   assert.equal(
-    getOptionalPostgresPool(),
+    postgresModule.getOptionalPostgresPool(),
     null,
     'optional PostgreSQL access must remain unavailable when DATABASE_URL is not configured',
   );
@@ -50,15 +50,17 @@ try {
   delete process.env.DATABASE_SSL;
   process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:5432/glorifier_test';
 
-  pool = getOptionalPostgresPool();
-  assert.ok(pool, 'configured optional PostgreSQL access must return a pool');
+  optionalPool = postgresModule.getOptionalPostgresPool();
+  assert.ok(optionalPool, 'configured optional PostgreSQL access must return a pool');
+  sharedPool = postgresModule.getPostgresPool();
   assert.equal(
-    pool,
-    postgresModule.getPostgresPool(),
+    optionalPool,
+    sharedPool,
     'optional database consumers must reuse the shared PostgreSQL pool and its centralized TLS policy',
   );
 } finally {
-  if (pool) await pool.end();
+  if (optionalPool) await optionalPool.end();
+  if (sharedPool && sharedPool !== optionalPool) await sharedPool.end();
   restoreEnvironment('DATABASE_URL', originalEnvironment.databaseUrl);
   restoreEnvironment('DATABASE_SSL', originalEnvironment.databaseSsl);
   restoreEnvironment('NODE_ENV', originalEnvironment.nodeEnv);
