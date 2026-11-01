@@ -23,12 +23,12 @@ assert.doesNotMatch(workflow, /^\s{4}inputs:/m, 'deployment authorization must n
 assert.doesNotMatch(workflow, /inputs\.|deploy_space/, 'the workflow must not use dispatch inputs as an authorization control');
 assert.match(
   workflow,
-  /deployment-disabled:\s*\n\s+if:\s+\$\{\{\s*github\.ref != 'refs\/heads\/main'\s*\|\|\s*vars\.HF_SPACE_DEPLOY_ENABLED != 'true'\s*\|\|\s*vars\.HF_SPACE_ID == ''\s*\}\}/,
+  /deployment-disabled:\s*\n\s+if:\s+\$\{\{\s*github\.ref != 'refs\/heads\/main'\s*\|\|\s*vars\.HF_SPACE_APPROVAL_GATE_CONFIGURED != 'true'\s*\|\|\s*vars\.HF_SPACE_DEPLOY_ENABLED != 'true'\s*\|\|\s*vars\.HF_SPACE_ID == ''\s*\}\}/,
   'the no-deployment path must cover non-main dispatches and missing deployment configuration',
 );
 assert.match(
   workflow,
-  /deploy-space:\s*\n\s+if:\s+\$\{\{\s*github\.ref == 'refs\/heads\/main'\s*&&\s*vars\.HF_SPACE_DEPLOY_ENABLED == 'true'\s*&&\s*vars\.HF_SPACE_ID != ''\s*\}\}/,
+  /deploy-space:\s*\n\s+if:\s+\$\{\{\s*github\.ref == 'refs\/heads\/main'\s*&&\s*vars\.HF_SPACE_APPROVAL_GATE_CONFIGURED == 'true'\s*&&\s*vars\.HF_SPACE_DEPLOY_ENABLED == 'true'\s*&&\s*vars\.HF_SPACE_ID != ''\s*\}\}/,
   'publishing must require main and both repository-controlled configuration values',
 );
 assert.match(
@@ -40,6 +40,11 @@ assert.match(
   workflow,
   /Configure required reviewers for this environment in Settings/,
   'the deployment environment must explicitly document its required-reviewer configuration',
+);
+assert.match(
+  workflow,
+  /Set HF_SPACE_APPROVAL_GATE_CONFIGURED=true only after confirming that protection is active/,
+  'the separate approval attestation must not be enabled until required reviewers are configured',
 );
 assert.doesNotMatch(workflow, /^\s{2}push\s*:/m, 'push events must not trigger external Space publishing');
 assert.doesNotMatch(workflow, /^\s{2}pull_request\s*:/m, 'pull requests must not trigger external Space publishing');
