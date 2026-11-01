@@ -69,7 +69,108 @@ async function run(): Promise<void> {
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
 
+    // MCP must be a real read-only Streamable HTTP endpoint, not the SPA asset fallback.
     capturedRequest = null;
+    const mcpInitialize = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'Claude', version: 'test' },
+          },
+        }),
+      }),
+      env,
+    );
+    assert.equal(mcpInitialize.status, 200, 'MCP initialize must be handled by the Worker');
+    assert.match(mcpInitialize.headers.get('content-type') || '', /^application\/json/i);
+    const mcpInitializeBody = await mcpInitialize.json() as {
+      jsonrpc: string;
+      id: number;
+      result: { protocolVersion: string; capabilities: { tools?: unknown }; serverInfo: { name: string } };
+    };
+    assert.equal(mcpInitializeBody.jsonrpc, '2.0');
+    assert.equal(mcpInitializeBody.id, 1);
+    assert.equal(mcpInitializeBody.result.protocolVersion, '2025-03-26');
+    assert.ok(mcpInitializeBody.result.capabilities.tools);
+    assert.equal(mcpInitializeBody.result.serverInfo.name, 'GLORIFIER GitHub Read-Only');
+
+    const mcpInitializedNotification = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+      }),
+      env,
+    );
+    assert.equal(mcpInitializedNotification.status, 202, 'MCP initialization notification must not return a JSON-RPC result');
+
+    const mcpToolsList = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+      }),
+      env,
+    );
+    assert.equal(mcpToolsList.status, 200);
+    const mcpToolsBody = await mcpToolsList.json() as {
+      result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
+    };
+    assert.ok(mcpToolsBody.result.tools.length >= 3);
+    assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
+    assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.destructiveHint === false));
+    assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
+
+    const previousMcpUpstreamResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER', visibility: 'public' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const mcpGetRepository = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 3,
+          method: 'tools/call',
+          params: { name: 'github_get_repository', arguments: {} },
+        }),
+      }),
+      env,
+    );
+    assert.equal(mcpGetRepository.status, 200);
+    const mcpGetRepositoryBody = await mcpGetRepository.json() as {
+      result: { content: Array<{ type: string; text: string }>; isError?: boolean };
+    };
+    assert.equal(mcpGetRepositoryBody.result.isError, undefined);
+    assert.equal(JSON.parse(mcpGetRepositoryBody.result.content[0]?.text || '{}').full_name, 'GLORIFIER7/GLORIFIER');
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
+    assert.equal(getCapturedRequest().method, 'GET');
+    assert.equal(getCapturedRequest().headers.get('authorization'), null, 'public read-only GitHub access must not forward credentials');
+    upstreamResponse = previousMcpUpstreamResponse;
+
+    capturedRequest = null;
+    const rejectedMcpOrigin = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { Origin: 'https://untrusted.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' }),
+      }),
+      env,
+    );
+    assert.equal(rejectedMcpOrigin.status, 403, 'MCP must reject untrusted Origin values');
+    assert.equal(capturedRequest, null, 'an untrusted MCP Origin must never reach GitHub');
+
+    capturedRequest = null;
+    const previousA2ACardResponse = upstreamResponse;
     const previousA2ACardResponse = upstreamResponse;
     upstreamResponse = new Response(JSON.stringify({
       name: 'GLORIFIER Services',
