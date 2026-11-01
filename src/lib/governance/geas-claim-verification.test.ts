@@ -189,14 +189,15 @@ const localeClaimsRegistry: ClaimSourceRegistry = {
           'z-extra',
           'ä-extra',
           'a-extra',
-          'a-extra' + zeroWidth,
+          `a-extra${zeroWidth}`,
           'é-extra',
-          'e' + combiningAcute + '-extra',
+          `e${combiningAcute}-extra`,
         ],
       }
     : source),
 };
-const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
+const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id);
+assert.ok(localeClaimsSource, 'the locale-policy fixture must retain the trusted source');
 const localeClaimsReview = review(valid, localeClaimsRegistry);
 const reorderedLocaleClaimsRegistry: ClaimSourceRegistry = {
   ...localeClaimsRegistry,
@@ -217,7 +218,7 @@ const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
   claimsAllowed: [...localeClaimsSource.claimsAllowed].sort(compareCodeUnits),
   reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
 })).digest('hex');
-const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({
+const expectedLocaleEvidenceRef = `claim-review-${createHash('sha256').update(JSON.stringify({
   claimId: valid.claimId,
   claim: valid.claim,
   claimType: valid.claimType,
@@ -232,7 +233,7 @@ const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(
   reviewer: valid.reviewer,
   decision: valid.decision,
   rationale: valid.rationale,
-})).digest('hex').slice(0, 24);
+})).digest('hex').slice(0, 24)}`;
 assert.equal(localeClaimsReview.admissible, true);
 assert.equal(
   localeClaimsReview.evidenceRef,
@@ -256,7 +257,7 @@ assert.equal(unregisteredSource.admissible, false);
 assert.ok(unregisteredSource.failures.some((failure) => failure.includes('exactly one trusted source registry entry')));
 assert.equal(unregisteredSource.evidenceRef, null);
 
-const unregisteredCanonicalUrl = trustedSource.url + '/not-in-registry';
+const unregisteredCanonicalUrl = `${trustedSource.url}/not-in-registry`;
 const mismatchedRegistryUrl = review({
   ...valid,
   canonicalSourceUrl: unregisteredCanonicalUrl,
@@ -300,7 +301,7 @@ assert.equal(mismatchedHost.admissible, false);
 assert.ok(mismatchedHost.failures.some((failure) => failure.includes('host differs')));
 
 const sameHostDifferentPathUrl = new URL(trustedSource.url);
-sameHostDifferentPathUrl.pathname = sameHostDifferentPathUrl.pathname.replace(/\/+$/, '') + '/unregistered-path';
+sameHostDifferentPathUrl.pathname = `${sameHostDifferentPathUrl.pathname.replace(/\/+$/, '')}/unregistered-path`;
 const sameHostDifferentPath = review({ ...valid, observedSourceUrl: sameHostDifferentPathUrl.href });
 assert.equal(sameHostDifferentPath.admissible, false);
 assert.ok(sameHostDifferentPath.failures.some((failure) => failure.includes('does not match the curated canonical source resource')));
@@ -315,7 +316,7 @@ const badHash = review({ ...valid, sourceContentHash: 'not-a-hash' });
 assert.equal(badHash.admissible, false);
 assert.ok(badHash.failures.some((failure) => failure.includes('SHA-256')));
 
-const tamperedSnapshot = review({ ...valid, sourceSnapshot: sourceSnapshot + ' tampered' });
+const tamperedSnapshot = review({ ...valid, sourceSnapshot: `${sourceSnapshot} tampered` });
 assert.equal(tamperedSnapshot.admissible, false);
 assert.ok(tamperedSnapshot.failures.some((failure) => failure.includes('does not match sourceSnapshot')));
 assert.equal(tamperedSnapshot.evidenceRef, null);
