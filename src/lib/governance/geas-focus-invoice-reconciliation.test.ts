@@ -10,23 +10,21 @@ const invoiceIssuerName = 'Example Cloud Billing';
 const invoiceId = 'INV-2026-001';
 const billingCurrency = 'USD';
 
-function charge(
+const charge = (
   invoiceDetailId: string | null,
   chargeCategory: string,
   billedCost: string,
   overrides: Partial<FocusInvoiceCharge> = {},
-): FocusInvoiceCharge {
-  return {
-    invoiceIssuerName,
-    invoiceId,
-    ...billingPeriod,
-    invoiceDetailId,
-    chargeCategory,
-    billingCurrency,
-    billedCost,
-    ...overrides,
-  };
-}
+): FocusInvoiceCharge => ({
+  invoiceIssuerName,
+  invoiceId,
+  ...billingPeriod,
+  invoiceDetailId,
+  chargeCategory,
+  billingCurrency,
+  billedCost,
+  ...overrides,
+});
 
 const input = {
   invoiceIssuerName,
@@ -61,7 +59,7 @@ assert.equal(aligned.invoiceDetailGrandTotal, '32.4');
 assert.equal(aligned.lineItems.find((item) => item.invoiceDetailId === 'line-2')?.withinTolerance, true);
 assert.deepEqual(aligned.reasons, []);
 
-const localeSortedIds = ['line-z', 'line-ä', 'line-a', 'line-a' + String.fromCharCode(0x200b)];
+const localeSortedIds = ['line-z', 'line-ä', 'line-a', `line-a${String.fromCharCode(0x200b)}`];
 const localeSortedRows = localeSortedIds.map((invoiceDetailId) => ({
   ...input.costAndUsage[0],
   invoiceDetailId,
@@ -119,7 +117,7 @@ assert.equal(
 const largeCount = 70_000;
 const largeUsage = Array.from({ length: largeCount }, (_, index) => ({
   ...input.costAndUsage[0],
-  invoiceDetailId: 'large-' + index,
+  invoiceDetailId: `large-${index}`,
   billedCost: '1.00',
 }));
 const largeDetail = largeUsage.map((row) => ({ ...row }));
