@@ -1,7 +1,21 @@
 import { readFileSync } from 'node:fs';
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, isTrustedArchitectureSourceUrl, type ArchitectureDomain } from './geas-architecture-scientist';
+import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, isTrustedArchitectureSourceUrl, findEarliestKeywordIndex, type ArchitectureDomain } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
+
+if (findEarliestKeywordIndex('resource enforcement is a source of force', ['RCE']) !== -1) {
+  throw new Error('ASI05 RCE matching must not accept incidental substrings inside ordinary words');
+}
+if (findEarliestKeywordIndex('Unexpected Code Execution (RCE) is a named risk', ['RCE']) < 0) {
+  throw new Error('ASI05 RCE matching must still accept a standalone acronym');
+}
+if (findEarliestKeywordIndex('model context protocol (MCP) and agent-to-agent (A2A)', ['MCP']) < 0
+    || findEarliestKeywordIndex('model context protocol (MCP) and agent-to-agent (A2A)', ['A2A']) < 0) {
+  throw new Error('ASI04 acronym matching must accept standalone MCP and A2A references');
+}
+if (findEarliestKeywordIndex('resource enforcement and a2a-like tokenization', ['A2A']) !== -1) {
+  throw new Error('ASI04 A2A matching must not accept acronym-like substrings inside words');
+}
 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
