@@ -752,13 +752,6 @@ const isKnownUtcOffset = (offset: string): boolean => {
   return offsetHour <= 23 && offsetMinute <= 59;
 };
 
-const parseSourceObservationTimestampText = (value: string): number | null => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
-  if (!match || !isValidSourceObservationTimestamp(match)) return null;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : null;
-};
-
 const isValidSourceObservationTimestamp = (match: RegExpExecArray): boolean => {
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -771,6 +764,13 @@ const isValidSourceObservationTimestamp = (match: RegExpExecArray): boolean => {
     && isKnownUtcOffset(match[8]);
 };
 
+const parseSourceObservationTimestampText = (value: string): number | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match || !isValidSourceObservationTimestamp(match)) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
 /** Accept PostgreSQL TIMESTAMPTZ Date objects and the canonical persisted RFC 3339 text form. */
 const parseSourceObservationTimestamp = (value: unknown): number | null => {
   if (value instanceof Date) {
@@ -780,15 +780,20 @@ const parseSourceObservationTimestamp = (value: unknown): number | null => {
   return typeof value === 'string' ? parseSourceObservationTimestampText(value) : null;
 };
 
+const isValidSourceCadence = (cadenceHours: number, nowMs: number): boolean =>
+  Number.isFinite(cadenceHours) && cadenceHours > 0 && Number.isFinite(nowMs);
+
+const isSourceObservationExpired = (observedMs: number, cadenceHours: number, nowMs: number): boolean =>
+  observedMs > nowMs || nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
+
 export const isSourceObservationDue = (
   cadenceHours: number,
   observedAt: string | Date | null | undefined,
   nowMs = Date.now(),
 ): boolean => {
-  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !Number.isFinite(nowMs)) return true;
+  if (!isValidSourceCadence(cadenceHours, nowMs)) return true;
   const observedMs = parseSourceObservationTimestamp(observedAt);
-  return observedMs === null || observedMs > nowMs
-    || nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
+  return observedMs === null || isSourceObservationExpired(observedMs, cadenceHours, nowMs);
 };
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
@@ -808,16 +813,15 @@ const isSuccessfulHttpStatus = (status: number | null): boolean =>
 const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
-const isValidSuccessfulEvidenceShape = (input: CachedSourceEvidence): boolean => {
-  const excerpt = input.evidenceExcerpt;
-  if (input.evidenceStatus === 'content-matched') {
-    return typeof excerpt === 'string' && excerpt.trim().length > 0;
-  }
-  if (input.evidenceStatus === 'source-available') {
-    return excerpt == null || (typeof excerpt === 'string' && excerpt.trim().length === 0);
-  }
-  return false;
-};
+const isValidContentMatchedExcerpt = (excerpt: string | null): boolean =>
+  typeof excerpt === 'string' && excerpt.trim().length > 0;
+
+const isValidSourceAvailableExcerpt = (excerpt: string | null): boolean =>
+  excerpt === null || excerpt.trim().length === 0;
+
+const isValidSuccessfulEvidenceShape = (input: CachedSourceEvidence): boolean =>
+  (input.evidenceStatus === 'content-matched' && isValidContentMatchedExcerpt(input.evidenceExcerpt))
+  || (input.evidenceStatus === 'source-available' && isValidSourceAvailableExcerpt(input.evidenceExcerpt));
 
 const isAdmissibleSuccessfulCache = (input: CachedSourceEvidence): boolean =>
   isSuccessfulHttpStatus(input.status)
@@ -864,22 +868,26 @@ export const shouldReuseSourceObservation = (input: {
     && !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
 };
 
+const cachedSourceEvidence = (cached: CachedSourceObservation): CachedSourceEvidence => ({
+  ok: cached.ok,
+  status: cached.status,
+  contentHash: cached.content_hash,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+});
+
+const hasCurrentCacheObservationTimestamp = (cachedAt: number | null, nowMs: number): boolean =>
+  Number.isFinite(nowMs) && cachedAt !== null && cachedAt <= nowMs;
+
 const isConditionalRequestCacheUsable = (
   configuredUrl: string,
   cached: CachedSourceObservation,
   nowMs: number,
-): boolean => {
-  if (cached.source_url !== configuredUrl || !cached.ok) return false;
-  if (!isAdmissibleCachedSourceObservation({
-    ok: cached.ok,
-    status: cached.status,
-    contentHash: cached.content_hash,
-    evidenceExcerpt: cached.evidence_excerpt,
-    evidenceStatus: cached.evidence_status,
-  })) return false;
-  const cachedObservedAt = parseSourceObservationTimestamp(cached.observed_at);
-  return Number.isFinite(nowMs) && cachedObservedAt !== null && cachedObservedAt <= nowMs;
-};
+): boolean =>
+  cached.source_url === configuredUrl
+  && cached.ok
+  && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached))
+  && hasCurrentCacheObservationTimestamp(parseSourceObservationTimestamp(cached.observed_at), nowMs);
 
 export const buildConditionalRequestHeaders = (
   configuredUrl: string,
@@ -913,6 +921,48 @@ export const createSourceFetchContext = (
   };
 };
 
+const isCachedObservationForSource = (
+  source: Pick<ArchitectureSource, 'url'>,
+  cached: CachedSourceObservation,
+  finalUrl: string,
+): boolean =>
+  cached.source_url === source.url
+  && cached.ok
+  && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached))
+  && typeof cached.final_url === 'string'
+  && cached.final_url === finalUrl;
+
+const isMonotonicObservationWindow = (
+  cachedAt: number | null,
+  observedAt: number | null,
+  nowMs: number,
+): boolean =>
+  Number.isFinite(nowMs)
+  && cachedAt !== null
+  && cachedAt <= nowMs
+  && observedAt !== null
+  && observedAt >= cachedAt
+  && observedAt <= nowMs;
+
+const buildRevalidatedSourceObservation = (
+  source: Pick<ArchitectureSource, 'id'>,
+  cached: CachedSourceObservation,
+  response: { finalUrl: string; etag: string | null; lastModified: string | null },
+  observedAt: string,
+): SourceObservation => ({
+  sourceId: source.id,
+  ok: true,
+  status: 304,
+  contentHash: cached.content_hash,
+  observedAt,
+  finalUrl: response.finalUrl,
+  etag: response.etag ?? cached.etag ?? null,
+  lastModified: response.lastModified ?? cached.last_modified ?? null,
+  revalidatedNotModified: true,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+});
+
 export const reuseNotModifiedSourceObservation = (
   source: Pick<ArchitectureSource, 'id' | 'url'>,
   cached: CachedSourceObservation | null | undefined,
@@ -920,34 +970,15 @@ export const reuseNotModifiedSourceObservation = (
   observedAt: string,
   nowMs = Date.now(),
 ): SourceObservation | null => {
-  const cachedObservedAt = cached ? parseSourceObservationTimestamp(cached.observed_at) : null;
-  const newObservedAtMs = parseSourceObservationTimestamp(observedAt);
-  if (!cached || cached.source_url !== source.url || !cached.ok
-      || !isAdmissibleCachedSourceObservation({
-        ok: cached.ok,
-        status: cached.status,
-        contentHash: cached.content_hash,
-        evidenceExcerpt: cached.evidence_excerpt,
-        evidenceStatus: cached.evidence_status,
-      })
-      || typeof cached.final_url !== 'string'
-      || cached.final_url !== response.finalUrl
-      || !Number.isFinite(nowMs)
-      || cachedObservedAt === null || cachedObservedAt > nowMs
-      || newObservedAtMs === null || newObservedAtMs < cachedObservedAt || newObservedAtMs > nowMs) return null;
-  return {
-    sourceId: source.id,
-    ok: true,
-    status: 304,
-    contentHash: cached.content_hash,
-    observedAt,
-    finalUrl: response.finalUrl,
-    etag: response.etag ?? cached.etag ?? null,
-    lastModified: response.lastModified ?? cached.last_modified ?? null,
-    revalidatedNotModified: true,
-    evidenceExcerpt: cached.evidence_excerpt,
-    evidenceStatus: cached.evidence_status,
-  };
+  if (!cached || !isCachedObservationForSource(source, cached, response.finalUrl)) return null;
+  const timeWindowIsValid = isMonotonicObservationWindow(
+    parseSourceObservationTimestamp(cached.observed_at),
+    parseSourceObservationTimestamp(observedAt),
+    nowMs,
+  );
+  return timeWindowIsValid
+    ? buildRevalidatedSourceObservation(source, cached, response, observedAt)
+    : null;
 };
 
 function extractEvidence(body: string, keywords: string[]) {
