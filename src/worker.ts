@@ -2,6 +2,7 @@ import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
 import { GITHUB_MCP_PATH, githubMcpRoute, type GithubMcpRateLimiter } from './lib/github-mcp';
+import { readNeonOperationalCounts, type NeonHyperdriveBinding, type NeonOperationalCounts } from './lib/neon-worker';
 
 export type CloudflareEnv = {
   MCP_RATE_LIMITER: GithubMcpRateLimiter;
@@ -21,6 +22,8 @@ export type CloudflareEnv = {
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
+  GLORIFIER_DATABASE_PROVIDER?: string;
+  HYPERDRIVE?: NeonHyperdriveBinding;
   OPENSEA_API_KEY?: string;
   // Reserved for future wallet-scoped OpenSea features; public collection reads do not use it.
   OPENSEA_SCOPED_TOKEN?: string;
@@ -179,27 +182,60 @@ const supabaseUnavailable = (code: string, message: string, status = 503): Respo
     headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
   });
 
-const reportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => {
+const selectedDatabaseProvider = (env: CloudflareEnv): 'supabase' | 'neon' | 'invalid' => {
+  const provider = configured(env.GLORIFIER_DATABASE_PROVIDER || 'supabase').toLowerCase();
+  if (provider === 'supabase' || provider === 'neon') return provider;
+  return 'invalid';
+};
+
+const operationalSummaryResponse = (
+  counts: NeonOperationalCounts,
+  source: 'supabase-postgrest' | 'neon-hyperdrive',
+): Response => Response.json({
+  ok: true,
+  status: 'operational-data-observed',
+  generatedAt: new Date().toISOString(),
+  summary: {
+    connectionApprovals: counts.connection_approvals,
+    connectionEvents: counts.connection_events,
+    registeredConnections: counts.connection_registry,
+    intelligenceAnalyses: counts.intelligence_analyses,
+    intelligenceEvidence: counts.intelligence_evidence,
+    intelligenceReports: counts.intelligence_reports,
+  },
+  evidence: { source, exactRowCounts: true, revenue: 'not-observable-from-operational-tables', legacyEconomicSummary: 'not-ported' },
+}, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+
+type NeonOperationalCountReader = (binding: NeonHyperdriveBinding) => Promise<NeonOperationalCounts>;
+
+export const reportsSummaryResponse = async (
+  env: CloudflareEnv,
+  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+): Promise<Response> => {
+  const provider = selectedDatabaseProvider(env);
+  if (provider === 'invalid') {
+    return supabaseUnavailable('DATABASE_PROVIDER_INVALID', 'GLORIFIER_DATABASE_PROVIDER must be supabase or neon.', 503);
+  }
+
+  if (provider === 'neon') {
+    if (!env.HYPERDRIVE?.connectionString) {
+      return supabaseUnavailable('NEON_HYPERDRIVE_NOT_CONFIGURED', 'Neon mode requires a configured Cloudflare Hyperdrive binding.', 503);
+    }
+    try {
+      const counts = await neonCountReader(env.HYPERDRIVE);
+      return operationalSummaryResponse(counts, 'neon-hyperdrive');
+    } catch {
+      return supabaseUnavailable('NEON_REPORTS_QUERY_FAILED', 'Neon operational reporting could not be verified.', 502);
+    }
+  }
+
   const config = supabaseConfig(env);
   if (!config) return supabaseUnavailable('SUPABASE_NOT_CONFIGURED', 'Worker-native reporting requires GLORIFIER_SUPABASE_URL and the server-side GLORIFIER_SUPABASE_SERVICE_ROLE_KEY secret.');
   const tables = ['connection_approvals', 'connection_events', 'connection_registry', 'intelligence_analyses', 'intelligence_evidence', 'intelligence_reports'] as const;
   try {
     const entries = await Promise.all(tables.map(async (table) => [table, await supabaseTableCount(config, table)] as const));
-    const counts = Object.fromEntries(entries) as Record<(typeof tables)[number], number>;
-    return Response.json({
-      ok: true,
-      status: 'operational-data-observed',
-      generatedAt: new Date().toISOString(),
-      summary: {
-        connectionApprovals: counts.connection_approvals,
-        connectionEvents: counts.connection_events,
-        registeredConnections: counts.connection_registry,
-        intelligenceAnalyses: counts.intelligence_analyses,
-        intelligenceEvidence: counts.intelligence_evidence,
-        intelligenceReports: counts.intelligence_reports,
-      },
-      evidence: { source: 'supabase-postgrest', exactRowCounts: true, revenue: 'not-observable-from-operational-tables', legacyEconomicSummary: 'not-ported' },
-    }, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    const counts = Object.fromEntries(entries) as NeonOperationalCounts;
+    return operationalSummaryResponse(counts, 'supabase-postgrest');
   } catch {
     return supabaseUnavailable('SUPABASE_REPORTS_QUERY_FAILED', 'Supabase operational reporting could not be verified.', 502);
   }
@@ -518,11 +554,23 @@ const neuralConfigurationStatus = (env: CloudflareEnv): {
   return { ok: null, status: 'configured-not-probed' };
 };
 
-const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv): Promise<Response> => {
+export const runtimeVerificationResponse = async (
+  request: Request,
+  env: CloudflareEnv,
+  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+): Promise<Response> => {
+  const response = (
+    body: unknown,
+    status: number,
+  ): Response => request.method === 'HEAD'
+    ? new Response(null, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
+    : Response.json(body, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   }
-  const config = supabaseConfig(env);
+
+  const provider = selectedDatabaseProvider(env);
   const checks: Record<string, unknown> = {
     worker: { ok: true, layer: 'cloudflare-worker' },
     assets: { ok: Boolean(env.ASSETS) },
@@ -530,21 +578,47 @@ const runtimeVerificationResponse = async (request: Request, env: CloudflareEnv)
     authentication: { ok: null, status: 'not-probed', reason: 'No public authentication probe is configured.' },
     ai: { ok: null, executed: false, status: 'not-probed', reason: 'AI provider calls are excluded from this infrastructure probe.' },
   };
+
+  if (provider === 'invalid') {
+    checks.database = { ok: false, status: 'invalid-provider', code: 'DATABASE_PROVIDER_INVALID' };
+    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
+  }
+
+  if (provider === 'neon') {
+    if (!env.HYPERDRIVE?.connectionString) {
+      checks.database = { ok: false, status: 'not-configured', code: 'NEON_HYPERDRIVE_NOT_CONFIGURED' };
+      return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
+    }
+    try {
+      const startedAt = Date.now();
+      const counts = await neonCountReader(env.HYPERDRIVE);
+      checks.database = {
+        ok: true,
+        source: 'neon-hyperdrive',
+        probe: 'fixed-operational-exact-count-query',
+        latencyMs: Date.now() - startedAt,
+        connectionRegistryRows: counts.connection_registry,
+      };
+      return response({ ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
+    } catch {
+      checks.database = { ok: false, status: 'unavailable', code: 'NEON_PROBE_FAILED' };
+      return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
+    }
+  }
+
+  const config = supabaseConfig(env);
   if (!config) {
     checks.database = { ok: false, status: 'not-configured', code: 'SUPABASE_NOT_CONFIGURED' };
-    const body = { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks };
-    return request.method === 'HEAD' ? new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
   }
   try {
     const startedAt = Date.now();
     const count = await supabaseTableCount(config, 'connection_registry');
     checks.database = { ok: true, source: 'supabase-postgrest', probe: 'exact-count-query', latencyMs: Date.now() - startedAt, connectionRegistryRows: count };
-    const body = { ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks };
-    return request.method === 'HEAD' ? new Response(null, { status: 200, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return response({ ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
   } catch {
     checks.database = { ok: false, status: 'unavailable', code: 'SUPABASE_PROBE_FAILED' };
-    const body = { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks };
-    return request.method === 'HEAD' ? new Response(null, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }) : Response.json(body, { status: 502, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
   }
 };
 
