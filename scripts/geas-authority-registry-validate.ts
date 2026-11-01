@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { parseScannerSourceCatalog } from './geas-source-catalog-parser.ts';
 
 type Source = {
   id: string;
@@ -28,16 +29,67 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
-const normalizeHttpsUrl = (value: unknown): string | null => {
-  if (!isNonEmptyString(value)) return null;
+const isSafeHttpsUrl = (url: URL): boolean =>
+  url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+
+const parseHttpsUrl = (value: string): URL | null => {
   try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
-    return url.href;
+    return new URL(value);
   } catch {
     return null;
   }
 };
+
+const normalizeHttpsUrl = (value: unknown): string | null => {
+  if (!isNonEmptyString(value)) return null;
+  const url = parseHttpsUrl(value);
+  return url && isSafeHttpsUrl(url) ? url.href : null;
+};
+
+
+const scannerParserFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),",
+  "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },",
+  '];',
+].join('\n');
+const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
+if (fixtureResult.declaredCount !== 2
+    || fixtureResult.entries.length !== 2
+    || fixtureResult.failures.length > 0
+    || fixtureResult.entries[0]?.id !== 'factory-source'
+    || fixtureResult.entries[0]?.url !== 'https://factory.example/source'
+    || fixtureResult.entries[1]?.id !== 'literal-source'
+    || fixtureResult.entries[1]?.url !== 'https://literal.example/source') {
+  throw new Error('scanner source parser must preserve factory-call and object-literal entries');
+}
+
+const unsupportedScannerFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),",
+  '];',
+].join('\n');
+if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
+  throw new Error('scanner source parser must fail closed on computed factory arguments');
+}
+
+const commentOnlyObjectFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
+  '];',
+].join('\n');
+if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
+  throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
+}
+
+const fakeFieldsInsideStringFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  `  { authority: "reference text, id: 'forged-source', url: 'https://forged.example/source'", domain: 'cloud', patternIds: [], cadenceHours: 24 },`,
+  '];',
+].join('\n');
+if (parseScannerSourceCatalog(fakeFieldsInsideStringFixture).failures.length === 0) {
+  throw new Error('scanner source parser must not treat property-like text inside string values as real properties');
+}
 
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
@@ -102,23 +154,19 @@ if (!isRecord(parsed)) {
   }
 }
 
+
 if (isRecord(parsed)) {
-  // Keep the machine-readable registry and executable scanner catalog in sync.
-// The scanner catalog is deliberately bounded to the SOURCES declaration so pattern IDs
-// elsewhere in the file cannot be mistaken for source IDs.
-const scannerText = readFileSync(scannerPath, 'utf8');
-const sourceSection = scannerText.split('const SOURCES: ArchitectureSource[] = [')[1]?.split('const P = (')[0];
-if (!sourceSection) {
-  failures.push('unable to locate scanner SOURCES catalog');
-} else {
-  const scannerIds = [...sourceSection.matchAll(/\bid:\s*'([^']+)'/g)].map((match) => match[1]);
+  // Parse the scanner catalog with a comment- and string-aware tokenizer so both
+  // factory calls and object literals are counted; unsupported forms fail closed.
+  const scannerText = readFileSync(scannerPath, 'utf8');
+  const scannerCatalog = parseScannerSourceCatalog(scannerText);
+  failures.push(...scannerCatalog.failures);
+  const scannerIds = scannerCatalog.entries.map((entry) => entry.id);
   const scannerIdSet = new Set(scannerIds);
-  const scannerSourceEntries = [...sourceSection.matchAll(/\{\s*id:\s*'([^']+)'([^{}]*)\}/g)].map((match) => ({
-    id: match[1],
-    url: match[2].match(/\burl:\s*'([^']+)'/)?.[1] ?? '',
-  }));
-  const scannerUrls = new Map(scannerSourceEntries.map((entry) => [entry.id, entry.url]));
-  if (scannerSourceEntries.length !== scannerIds.length) failures.push('unable to parse each scanner source URL within its source object');
+  const scannerUrls = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.url]));
+  if (scannerCatalog.declaredCount !== scannerCatalog.entries.length) {
+    failures.push('unable to parse every scanner source catalog entry');
+  }
   if (scannerIds.length === 0) failures.push('scanner source catalog is empty');
   if (scannerIdSet.size !== scannerIds.length) failures.push('scanner source catalog contains duplicate IDs');
   for (const id of scannerIdSet) {
@@ -140,7 +188,6 @@ if (!sourceSection) {
       failures.push(`registry source ${source.id} is marked discovery-only but present in scanner catalog`);
     }
   }
-}
 }
 
 if (failures.length > 0) {
