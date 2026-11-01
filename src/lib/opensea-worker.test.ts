@@ -8,6 +8,7 @@ const originalFetch = globalThis.fetch;
 const env: CloudflareEnv = {
   OPENSEA_API_KEY: 'test-personal-api-key',
   OPENSEA_SCOPED_TOKEN: 'test-scoped-token-must-not-be-used-for-public-read',
+  MCP_RATE_LIMITER: { async limit() { return { success: true }; } },
   ASSETS: { async fetch() { return new Response('assets'); } },
 };
 
