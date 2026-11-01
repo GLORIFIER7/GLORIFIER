@@ -32,8 +32,8 @@ export function isProtectedApiReadPath(pathname: string): boolean {
  * unprotected read-only paths bypass identity verification; all mutations
  * and protected reads continue through the authentication middleware.
  */
-export function shouldBypassApiAuthentication(method: string, pathname: string): boolean {
+export const shouldBypassApiAuthentication = (method: string, pathname: string): boolean => {
   if (method === 'OPTIONS') return true;
   if (method !== 'GET' && method !== 'HEAD') return false;
   return !isProtectedApiReadPath(pathname);
-}
+};
