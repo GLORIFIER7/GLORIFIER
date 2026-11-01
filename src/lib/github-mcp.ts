@@ -117,13 +117,26 @@ const isValidOrigin = (request: Request): boolean => {
   }
 };
 
+const parseContentLength = (value: string): number | null => {
+  if (value.length === 0 || value.length > 16) return null;
+  let length = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const digit = value.charCodeAt(index) - 48;
+    if (digit < 0 || digit > 9) return null;
+    length = length * 10 + digit;
+    if (!Number.isSafeInteger(length)) return null;
+  }
+  return length;
+};
+
 const validateRequestSize = (request: Request): Response | null => {
   const declaredLength = request.headers.get('content-length');
   if (declaredLength !== null) {
-    if (!/^\d+$/.test(declaredLength) || !Number.isSafeInteger(Number(declaredLength))) {
+    const parsedLength = parseContentLength(declaredLength);
+    if (parsedLength === null) {
       return rpcError(null, -32600, 'Invalid Content-Length.', 400);
     }
-    if (Number(declaredLength) > MAX_REQUEST_BYTES) {
+    if (parsedLength > MAX_REQUEST_BYTES) {
       return rpcError(null, -32600, 'MCP request body exceeds 65,536 bytes.', 413);
     }
   }
@@ -213,7 +226,9 @@ const cancelResponseBody = async (response: Response): Promise<void> => {
 
 const hasOversizedContentLength = (response: Response, maximumBytes: number): boolean => {
   const value = response.headers.get('content-length');
-  return Boolean(value && /^\d+$/.test(value) && Number(value) > maximumBytes);
+  if (value === null) return false;
+  const parsedLength = parseContentLength(value);
+  return parsedLength === null || parsedLength > maximumBytes;
 };
 
 const readBoundedResponseText = async (response: Response): Promise<string> => {
@@ -237,16 +252,28 @@ const createGithubApiUrl = (pathname: string, query?: URLSearchParams): URL => {
   return url;
 };
 
-const fetchGithubApi = (url: URL): Promise<Response> => fetch(url, {
-  method: 'GET',
-  headers: {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': USER_AGENT,
-  },
-  redirect: 'manual',
-  signal: AbortSignal.timeout(8_000),
-});
+const isTrustedGithubApiUrl = (url: URL): boolean =>
+  url.protocol === 'https:'
+  && url.origin === API_ROOT
+  && url.hostname === 'api.github.com'
+  && !url.username
+  && !url.password;
+
+const fetchGithubApi = (url: URL): Promise<Response> => {
+  if (!isTrustedGithubApiUrl(url)) {
+    throw new Error('Blocked GitHub API request outside the trusted HTTPS origin.');
+  }
+  return fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': USER_AGENT,
+    },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(8_000),
+  });
+};
 
 const assertGithubApiSuccess = async (response: Response): Promise<Response> => {
   if (response.ok) return response;
@@ -360,18 +387,19 @@ const readFileTool = (args: unknown): Promise<unknown> => {
   return readGithubFile(input.path, ref);
 };
 
-const toolHandlers: Record<string, (args: unknown) => Promise<unknown>> = {
-  github_get_repository: getRepositoryTool,
-  github_list_open_pull_requests: listPullRequestsTool,
-  github_list_workflow_runs: listWorkflowRunsTool,
-  github_read_file: readFileTool,
-};
-
 const callTool = (name: string, args: unknown): Promise<unknown> => {
-  if (!Object.prototype.hasOwnProperty.call(toolHandlers, name)) {
-    throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
+  switch (name) {
+    case 'github_get_repository':
+      return getRepositoryTool();
+    case 'github_list_open_pull_requests':
+      return listPullRequestsTool(args);
+    case 'github_list_workflow_runs':
+      return listWorkflowRunsTool(args);
+    case 'github_read_file':
+      return readFileTool(args);
+    default:
+      throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
   }
-  return toolHandlers[name](args);
 };
 
 const resultText = (value: unknown): string => typeof value === 'string' ? value : String(JSON.stringify(value));

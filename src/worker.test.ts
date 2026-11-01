@@ -336,6 +336,27 @@ async function run(): Promise<void> {
     assert.equal(oversizedUpstreamCancellationObserved, true, 'oversized upstream responses must be cancelled as soon as the byte limit is exceeded');
     upstreamResponse = previousOversizedMcpResponse;
 
+    const previousInvalidContentLengthResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': 'not-a-number' },
+    });
+    const invalidUpstreamContentLengthCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const invalidUpstreamContentLengthBody = await invalidUpstreamContentLengthCall.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(invalidUpstreamContentLengthBody.result.isError, true);
+    assert.match(invalidUpstreamContentLengthBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
+    upstreamResponse = previousInvalidContentLengthResponse;
+
     const previousMalformedGithubResponse = upstreamResponse;
     upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } });
     const malformedGithubJsonCall = await worker.fetch(
