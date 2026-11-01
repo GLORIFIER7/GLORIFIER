@@ -771,11 +771,17 @@ export const reuseNotModifiedSourceObservation = (
   return buildRevalidatedSourceObservation(source, cached, response, observedAt);
 };
 
-const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
+export const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
   const lower = text.toLowerCase();
   let firstIndex = -1;
   for (const keyword of keywords) {
-    const matchIndex = lower.indexOf(keyword.toLowerCase());
+    const normalizedKeyword = keyword.toLowerCase();
+    const isAcronym = /^[A-Z0-9]{2,5}$/.test(keyword);
+    let matchIndex = lower.indexOf(normalizedKeyword);
+    if (isAcronym) {
+      const boundaryMatch = new RegExp(`(^|[^a-z0-9])${normalizedKeyword}(?=$|[^a-z0-9])`).exec(lower);
+      matchIndex = boundaryMatch ? boundaryMatch.index + (boundaryMatch[1]?.length ?? 0) : -1;
+    }
     if (matchIndex >= 0 && (firstIndex < 0 || matchIndex < firstIndex)) firstIndex = matchIndex;
   }
   return firstIndex;
@@ -893,9 +899,10 @@ const fetchCuratedRedirectChain = async (
   throw new Error('source redirect limit exceeded or no response returned');
 };
 
-const validateCuratedFinalUrl = (response: Response, requestUrl: URL, originalUrl: URL): URL => {
+const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, originalUrl: URL): Promise<URL> => {
   const finalUrl = new URL(response.url || requestUrl.toString());
   if (finalUrl.protocol !== 'https:' || finalUrl.hostname !== originalUrl.hostname) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error('source redirect rejected: final host/protocol differs from curated source');
   }
   return finalUrl;
@@ -954,7 +961,7 @@ const fetchCuratedSource = async (
 ): Promise<{ response: Response; finalUrl: URL; body: string }> => {
   const originalUrl = validateCuratedSourceUrl(sourceUrl);
   const { response, requestUrl } = await fetchCuratedRedirectChain(originalUrl, signal, conditionalHeaders);
-  const finalUrl = validateCuratedFinalUrl(response, requestUrl, originalUrl);
+  const finalUrl = await validateCuratedFinalUrl(response, requestUrl, originalUrl);
   const body = response.status === 304
     ? ''
     : new TextDecoder().decode(await readBoundedResponseBytes(response));
