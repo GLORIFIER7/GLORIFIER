@@ -307,10 +307,10 @@ const readGithubFile = async (path: string, ref: string): Promise<{ path: string
 
 const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
 
-const getRepositoryTool = async (): Promise<unknown> =>
+const getRepositoryTool = (): Promise<unknown> =>
   readGithubJson(`/repos/${OWNER}/${REPOSITORY}`);
 
-const listPullRequestsTool = async (args: unknown): Promise<unknown> => {
+const listPullRequestsTool = (args: unknown): Promise<unknown> => {
   const input = toolArguments(args);
   const state = input.state === undefined ? 'open' : input.state;
   if (state !== 'open' && state !== 'closed' && state !== 'all') {
@@ -326,7 +326,7 @@ const listPullRequestsTool = async (args: unknown): Promise<unknown> => {
   }));
 };
 
-const listWorkflowRunsTool = async (args: unknown): Promise<unknown> => {
+const listWorkflowRunsTool = (args: unknown): Promise<unknown> => {
   const input = toolArguments(args);
   const perPage = input.per_page === undefined ? 10 : input.per_page;
   if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
@@ -335,7 +335,7 @@ const listWorkflowRunsTool = async (args: unknown): Promise<unknown> => {
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }));
 };
 
-const readFileTool = async (args: unknown): Promise<unknown> => {
+const readFileTool = (args: unknown): Promise<unknown> => {
   const input = toolArguments(args);
   if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
   const ref = input.ref === undefined ? 'main' : input.ref;
@@ -350,7 +350,7 @@ const toolHandlers: Record<string, (args: unknown) => Promise<unknown>> = {
   github_read_file: readFileTool,
 };
 
-const callTool = async (name: string, args: unknown): Promise<unknown> => {
+const callTool = (name: string, args: unknown): Promise<unknown> => {
   if (!Object.prototype.hasOwnProperty.call(toolHandlers, name)) {
     throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
   }
@@ -405,7 +405,7 @@ const handleToolCall = async (id: string | number | null, paramsValue: unknown):
   }
 };
 
-const handleJsonRpcMethod = async (message: McpMessage, id: string | number | null): Promise<Response> => {
+const handleJsonRpcMethod = (message: McpMessage, id: string | number | null): Response | Promise<Response> => {
   switch (message.method) {
     case 'initialize':
       return handleInitialize(id, message.params);
@@ -420,7 +420,7 @@ const handleJsonRpcMethod = async (message: McpMessage, id: string | number | nu
   }
 };
 
-const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
+const handleJsonRpc = (message: McpMessage): Response | Promise<Response> => {
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
     : null;
