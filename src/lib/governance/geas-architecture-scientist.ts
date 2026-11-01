@@ -1043,19 +1043,37 @@ const indexPatternIdsBySource = (patterns: ArchitecturePattern[]): Map<string, s
   return ids;
 };
 
+const architectureEvidenceId = (sourceId: string, contentHash: string | null): string => {
+  const digest = contentHash === null ? 'unknown' : contentHash.slice(0, 16);
+  return `evidence-${sourceId}-${digest}`;
+};
+
+const architectureEvidenceSourceUrl = (sourceId: string): string => {
+  const source = SOURCES.find((item) => item.id === sourceId);
+  return source ? source.url : '';
+};
+
+const architectureEvidencePatternIds = (
+  sourceId: string,
+  patternIdsBySource: Map<string, string[]>,
+): string[] => {
+  const patternIds = patternIdsBySource.get(sourceId);
+  return patternIds ? patternIds : [];
+};
+
 const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
 ): ArchitectureEvidence => ({
-  id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
+  id: architectureEvidenceId(result.sourceId, result.contentHash),
   sourceId: result.sourceId,
-  sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
+  sourceUrl: architectureEvidenceSourceUrl(result.sourceId),
   observedAt: result.observedAt,
-  contentHash: result.contentHash ?? 'unknown',
+  contentHash: result.contentHash === null ? 'unknown' : result.contentHash,
   excerpt: result.evidenceExcerpt,
   evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
-  sourceStatus: result.status ?? 0,
-  patternIds: patternIdsBySource.get(result.sourceId) ?? [],
+  sourceStatus: result.status === null ? 0 : result.status,
+  patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
 const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] => {
