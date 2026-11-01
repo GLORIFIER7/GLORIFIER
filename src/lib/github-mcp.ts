@@ -136,7 +136,7 @@ const cancelResponseBody = async (response: Response): Promise<void> => {
 
 const readBoundedResponseText = async (response: Response): Promise<string> => {
   const declaredLength = response.headers.get('content-length');
-  if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
+  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > MAX_UPSTREAM_BYTES) {
     await cancelResponseBody(response);
     throw new Error('GitHub API response exceeded the configured size limit.');
   }
@@ -208,7 +208,7 @@ const readGithubJson = async (pathname: string, query?: URLSearchParams): Promis
 };
 
 const repositoryPathSegments = (path: string): string[] => {
-  if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\\\') || path.includes('\\0')) {
+  if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
     throw new Error('Invalid repository-relative file path.');
   }
   const segments = path.split('/');
@@ -228,7 +228,7 @@ const decodeGithubTextFile = (data: JsonRecord): string => {
   if (typeof data.content !== 'string' || data.encoding !== 'base64') {
     throw new Error('The requested path is not a supported text file.');
   }
-  const compact = data.content.replace(/\\s/g, '');
+  const compact = data.content.replace(/\s/g, '');
   if (compact.length > Math.ceil(MAX_UPSTREAM_BYTES * 4 / 3)) {
     throw new Error('GitHub file exceeded the configured size limit.');
   }
