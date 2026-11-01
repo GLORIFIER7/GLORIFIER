@@ -576,6 +576,54 @@ const invoiceLineItemReasons = (
   ...(hasVariance ? [`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`] : []),
 ];
 
+interface InvoiceLineAmounts {
+  hasUsage: boolean;
+  hasDetail: boolean;
+  usageAmount: bigint;
+  detailAmount: bigint;
+  varianceAmount: bigint;
+  withinTolerance: boolean;
+}
+
+const calculateInvoiceLineAmounts = (
+  id: string,
+  usageById: Map<string, bigint>,
+  detailById: Map<string, bigint>,
+  toleranceUnits: bigint,
+): InvoiceLineAmounts => {
+  const hasUsage = usageById.has(id);
+  const hasDetail = detailById.has(id);
+  const usageAmount = usageById.get(id) ?? 0n;
+  const detailAmount = detailById.get(id) ?? 0n;
+  const varianceAmount = usageAmount - detailAmount;
+  return {
+    hasUsage,
+    hasDetail,
+    usageAmount,
+    detailAmount,
+    varianceAmount,
+    withinTolerance: isInvoiceLineWithinTolerance(hasUsage, hasDetail, varianceAmount, toleranceUnits),
+  };
+};
+
+const hasMissingInvoiceLineMapping = (amounts: InvoiceLineAmounts): boolean =>
+  !amounts.hasUsage || !amounts.hasDetail;
+
+const hasInvoiceLineVariance = (amounts: InvoiceLineAmounts): boolean =>
+  amounts.hasUsage && amounts.hasDetail && !amounts.withinTolerance;
+
+const createInvoiceLineItem = (
+  id: string,
+  amounts: InvoiceLineAmounts,
+  scale: number,
+): FocusInvoiceLineItemReconciliation => ({
+  invoiceDetailId: id,
+  costAndUsageBilledCost: formatUnits(amounts.usageAmount, scale),
+  invoiceDetailBilledCost: formatUnits(amounts.detailAmount, scale),
+  variance: formatUnits(amounts.varianceAmount, scale),
+  withinTolerance: amounts.withinTolerance,
+});
+
 const compareOneInvoiceLineItem = (
   id: string,
   usageById: Map<string, bigint>,
@@ -583,22 +631,11 @@ const compareOneInvoiceLineItem = (
   toleranceUnits: bigint,
   scale: number,
 ): InvoiceLineItemComparison => {
-  const hasUsage = usageById.has(id);
-  const hasDetail = detailById.has(id);
-  const missingMapping = !hasUsage || !hasDetail;
-  const usageAmount = usageById.get(id) ?? 0n;
-  const detailAmount = detailById.get(id) ?? 0n;
-  const varianceAmount = usageAmount - detailAmount;
-  const withinTolerance = isInvoiceLineWithinTolerance(hasUsage, hasDetail, varianceAmount, toleranceUnits);
-  const hasVariance = hasUsage && hasDetail && !withinTolerance;
+  const amounts = calculateInvoiceLineAmounts(id, usageById, detailById, toleranceUnits);
+  const missingMapping = hasMissingInvoiceLineMapping(amounts);
+  const hasVariance = hasInvoiceLineVariance(amounts);
   return {
-    lineItem: {
-      invoiceDetailId: id,
-      costAndUsageBilledCost: formatUnits(usageAmount, scale),
-      invoiceDetailBilledCost: formatUnits(detailAmount, scale),
-      variance: formatUnits(varianceAmount, scale),
-      withinTolerance,
-    },
+    lineItem: createInvoiceLineItem(id, amounts, scale),
     missingMapping,
     variance: hasVariance,
     reasons: invoiceLineItemReasons(id, missingMapping, hasVariance),
