@@ -59,7 +59,7 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
   ]) {
     assert.match(capturedSql, new RegExp('FROM public\\.' + table));
   }
-  assert.doesNotMatch(capturedSql, /\\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\\b/i);
+  assert.doesNotMatch(capturedSql, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\b/i);
 });
 
 test('rejects missing, duplicate, or unexpected operational count rows', async () => {
