@@ -171,7 +171,6 @@ async function run(): Promise<void> {
 
     capturedRequest = null;
     const previousA2ACardResponse = upstreamResponse;
-    const previousA2ACardResponse = upstreamResponse;
     upstreamResponse = new Response(JSON.stringify({
       name: 'GLORIFIER Services',
       supportedInterfaces: [{
