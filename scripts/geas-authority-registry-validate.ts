@@ -18,7 +18,6 @@ type Registry = {
   sources: Source[];
 };
 
-(() => {
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const parsed: unknown = JSON.parse(readFileSync(registryPath, 'utf8'));
@@ -71,14 +70,16 @@ const parseScannerSourceLine = (line: string): ScannerSourceEntry | null => {
   return null;
 };
 
-const parseScannerSourceCatalog = (sourceText: string): {
-  declaredCount: number;
+const extractScannerSourceLines = (sourceText: string): string[] | null => {
+  const section = /const SOURCES: ArchitectureSource\[\] = \[\n([\s\S]*?)\n\];/.exec(sourceText);
+  if (!section) return null;
+  return (section[1] ?? '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
+};
+
+const parseScannerSourceLines = (sourceLines: string[]): {
   entries: ScannerSourceEntry[];
   failures: string[];
 } => {
-  const section = /const SOURCES: ArchitectureSource\[\] = \[\n([\s\S]*?)\n\];/.exec(sourceText);
-  if (!section) return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
-  const sourceLines = (section[1] ?? '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('//'));
   const entries: ScannerSourceEntry[] = [];
   const failures: string[] = [];
   sourceLines.forEach((line, index) => {
@@ -86,8 +87,19 @@ const parseScannerSourceCatalog = (sourceText: string): {
     if (parsed?.id && parsed.url) entries.push(parsed);
     else failures.push(`scanner source at index ${index} must use literal ID and URL values`);
   });
-  return { declaredCount: sourceLines.length, entries, failures };
+  return { entries, failures };
 };
+
+const parseScannerSourceCatalog = (sourceText: string): {
+  declaredCount: number;
+  entries: ScannerSourceEntry[];
+  failures: string[];
+} => {
+  const sourceLines = extractScannerSourceLines(sourceText);
+  if (!sourceLines) return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
+  return { declaredCount: sourceLines.length, ...parseScannerSourceLines(sourceLines) };
+};
+
 const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\n  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\n];";
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
@@ -108,7 +120,7 @@ const commentOnlyObjectFixture = [
   'const SOURCES: ArchitectureSource[] = [',
   "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
   '];',
-].join('\\n');
+].join('\n');
 if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
   throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
 }
@@ -226,4 +238,3 @@ process.stdout.write(`${JSON.stringify({
   domains,
   irreversibleChangesExecuted: false
 }, null, 2)}\n`);
-})();
