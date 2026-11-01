@@ -71,7 +71,7 @@ export interface SourceObservation {
 }
 
 export interface CachedSourceObservation {
-  observed_at: string;
+  observed_at: string | Date;
   ok: boolean;
   status: number | null;
   content_hash: string | null;
@@ -731,11 +731,16 @@ export const classifyArchitectureEvidence = (status: EvidenceStatus): EvidenceCl
 const isLeapYear = (year: number): boolean =>
   year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 
-const isValidCalendarDate = (year: number, month: number, day: number): boolean => {
-  if (month < 1 || month > 12 || day < 1) return false;
-  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return day <= (daysInMonth[month - 1] ?? 0);
+const isValidMonth = (month: number): boolean => month >= 1 && month <= 12;
+
+const daysInCalendarMonth = (year: number, month: number): number => {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  const daysInMonth = [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return daysInMonth[month - 1] ?? 0;
 };
+
+const isValidCalendarDate = (year: number, month: number, day: number): boolean =>
+  isValidMonth(month) && day >= 1 && day <= daysInCalendarMonth(year, month);
 
 const isValidClockTime = (hour: number, minute: number, second: number): boolean =>
   hour <= 23 && minute <= 59 && second <= 59;
@@ -747,35 +752,43 @@ const isKnownUtcOffset = (offset: string): boolean => {
   return offsetHour <= 23 && offsetMinute <= 59;
 };
 
-/** Parse the canonical RFC 3339 millisecond-precision subset used by persisted source observations. */
-const parseSourceObservationTimestamp = (value: unknown): number | null => {
-  if (typeof value !== 'string') return null;
+const parseSourceObservationTimestampText = (value: string): number | null => {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
-  if (!match) return null;
+  if (!match || !isValidSourceObservationTimestamp(match)) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
 
+const isValidSourceObservationTimestamp = (match: RegExpExecArray): boolean => {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   const hour = Number(match[4]);
   const minute = Number(match[5]);
   const second = Number(match[6]);
-  if (!isValidCalendarDate(year, month, day)
-      || !isValidClockTime(hour, minute, second)
-      || !isKnownUtcOffset(match[8])) return null;
+  return isValidCalendarDate(year, month, day)
+    && isValidClockTime(hour, minute, second)
+    && isKnownUtcOffset(match[8]);
+};
 
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : null;
+/** Accept PostgreSQL TIMESTAMPTZ Date objects and the canonical persisted RFC 3339 text form. */
+const parseSourceObservationTimestamp = (value: unknown): number | null => {
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  return typeof value === 'string' ? parseSourceObservationTimestampText(value) : null;
 };
 
 export const isSourceObservationDue = (
   cadenceHours: number,
-  observedAt: string | null | undefined,
+  observedAt: string | Date | null | undefined,
   nowMs = Date.now(),
 ): boolean => {
-  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt || !Number.isFinite(nowMs)) return true;
+  if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !Number.isFinite(nowMs)) return true;
   const observedMs = parseSourceObservationTimestamp(observedAt);
-  if (observedMs === null || observedMs > nowMs) return true;
-  return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
+  return observedMs === null || observedMs > nowMs
+    || nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 };
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
@@ -795,17 +808,21 @@ const isSuccessfulHttpStatus = (status: number | null): boolean =>
 const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
-const isAdmissibleSuccessfulCache = (input: CachedSourceEvidence): boolean => {
-  if (!isSuccessfulHttpStatus(input.status) || !hasValidSha256ContentHash(input.contentHash)) return false;
+const isValidSuccessfulEvidenceShape = (input: CachedSourceEvidence): boolean => {
+  const excerpt = input.evidenceExcerpt;
   if (input.evidenceStatus === 'content-matched') {
-    return typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length > 0;
+    return typeof excerpt === 'string' && excerpt.trim().length > 0;
   }
   if (input.evidenceStatus === 'source-available') {
-    return input.evidenceExcerpt == null
-      || (typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length === 0);
+    return excerpt == null || (typeof excerpt === 'string' && excerpt.trim().length === 0);
   }
   return false;
 };
+
+const isAdmissibleSuccessfulCache = (input: CachedSourceEvidence): boolean =>
+  isSuccessfulHttpStatus(input.status)
+  && hasValidSha256ContentHash(input.contentHash)
+  && isValidSuccessfulEvidenceShape(input);
 
 const isAllowedFailedHttpStatus = (status: number | null): boolean =>
   status === null || (Number.isInteger(status) && !(status >= 200 && status < 300));
@@ -819,6 +836,15 @@ const isAdmissibleFailedCache = (input: CachedSourceEvidence): boolean => {
 const isAdmissibleCachedSourceObservation = (input: CachedSourceEvidence): boolean =>
   input.ok ? isAdmissibleSuccessfulCache(input) : isAdmissibleFailedCache(input);
 
+const isMatchingCachedSourceUrl = (configuredUrl: string, cachedUrl: string | null | undefined): boolean =>
+  typeof cachedUrl === 'string' && cachedUrl === configuredUrl;
+
+const isFailedObservationRetryDue = (
+  ok: boolean,
+  observedAt: string | Date | null | undefined,
+  nowMs: number,
+): boolean => !ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, observedAt, nowMs);
+
 export const shouldReuseSourceObservation = (input: {
   configuredUrl: string;
   cachedUrl: string | null | undefined;
@@ -828,16 +854,14 @@ export const shouldReuseSourceObservation = (input: {
   evidenceExcerpt: string | null;
   evidenceStatus: string;
   cadenceHours: number;
-  observedAt: string | null | undefined;
+  observedAt: string | Date | null | undefined;
   nowMs?: number;
 }): boolean => {
-  // URL changes or inconsistent/claim-promoting cache records force a new source fetch.
-  if (!input.cachedUrl || input.cachedUrl !== input.configuredUrl
+  if (!isMatchingCachedSourceUrl(input.configuredUrl, input.cachedUrl)
       || !isAdmissibleCachedSourceObservation(input)) return false;
   const nowMs = input.nowMs ?? Date.now();
-  // Failed observations retry hourly instead of waiting for the normal source cadence.
-  if (!input.ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, input.observedAt, nowMs)) return false;
-  return !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
+  return !isFailedObservationRetryDue(input.ok, input.observedAt, nowMs)
+    && !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
 };
 
 const isConditionalRequestCacheUsable = (
@@ -876,26 +900,26 @@ export interface SourceFetchContext {
   conditionalHeaders: Record<string, string>;
 }
 
-export function createSourceFetchContext(
+export const createSourceFetchContext = (
   sourceUrl: string,
   cached?: CachedSourceObservation | null,
   nowMs = Date.now(),
-): SourceFetchContext {
+): SourceFetchContext => {
   if (!Number.isFinite(nowMs)) throw new TypeError('source fetch clock must be a finite timestamp');
   return {
     nowMs,
     observedAt: new Date(nowMs).toISOString(),
     conditionalHeaders: buildConditionalRequestHeaders(sourceUrl, cached, nowMs),
   };
-}
+};
 
-export function reuseNotModifiedSourceObservation(
+export const reuseNotModifiedSourceObservation = (
   source: Pick<ArchitectureSource, 'id' | 'url'>,
   cached: CachedSourceObservation | null | undefined,
   response: { finalUrl: string; etag: string | null; lastModified: string | null },
   observedAt: string,
   nowMs = Date.now(),
-): SourceObservation | null {
+): SourceObservation | null => {
   const cachedObservedAt = cached ? parseSourceObservationTimestamp(cached.observed_at) : null;
   const newObservedAtMs = parseSourceObservationTimestamp(observedAt);
   if (!cached || cached.source_url !== source.url || !cached.ok
@@ -924,7 +948,7 @@ export function reuseNotModifiedSourceObservation(
     evidenceExcerpt: cached.evidence_excerpt,
     evidenceStatus: cached.evidence_status,
   };
-}
+};
 
 function extractEvidence(body: string, keywords: string[]) {
   const text = stripHtml(body);
@@ -1516,7 +1540,7 @@ export async function persistAgentTelemetryContract(contract: AgentTelemetryCont
 export async function persistFinOpsEvidence(contract: FinOpsEvidenceContract) {
   await initializeGeasArchitectureScientist();
   const db = getPostgresPool();
-  const id = 'finops-evidence-' + createHash('sha256').update(JSON.stringify(contract)).digest('hex');
+  const id = `finops-evidence-${createHash('sha256').update(JSON.stringify(contract)).digest('hex')}`;
   await db.query('INSERT INTO geas_finops_evidence(id, contract) VALUES($1, $2) ON CONFLICT(id) DO UPDATE SET contract = EXCLUDED.contract', [id, JSON.stringify(contract)]);
   return { id, ...contract };
 }
