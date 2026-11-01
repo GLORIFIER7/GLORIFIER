@@ -324,7 +324,7 @@ Next gate: port a small, explicitly reviewed route group to Worker-native handle
 
 ## Database authority decision and fresh production evidence — 2026-11-01
 
-### Decision
+### Database authority decision
 
 Neon PostgreSQL is the recommended canonical database for GLORIFIER. The current Neon database already contains the operational dataset and the full database is approximately 662 MB. Neon Free storage is 1 GB per project as of 2026-10-02. Supabase Free database storage is 500 MB per project, so it is not a suitable full-database replacement under the zero-budget constraint. Cloudflare documents Hyperdrive integration for both Neon and Supabase and recommends Hyperdrive for Worker database connections; the Neon target can therefore remain within the Cloudflare Workers-only architecture.
 
