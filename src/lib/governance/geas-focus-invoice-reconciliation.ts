@@ -130,7 +130,7 @@ function decimalUnits(value: string, scale: number): bigint {
   if (!hasValidDecimalScale(scale, fraction.length)) {
     throw new Error('decimal scale is smaller than amount precision');
   }
-  const units = BigInt(match[2] + fraction.padEnd(scale, '0'));
+  const units = BigInt(`${match[2]}${fraction.padEnd(scale, '0')}`);
   return match[1] === '-' ? -units : units;
 }
 
@@ -413,7 +413,7 @@ export function reconcileFocusInvoice(
     const hasDetail = detailById.has(id);
     if (!hasUsage || !hasDetail) {
       hasMissingMapping = true;
-      reasons.push('InvoiceDetailId ' + id + ' is not present in both datasets');
+      reasons.push(`InvoiceDetailId ${id} is not present in both datasets`);
     }
     const usageAmount = usageByDetailId.get(id) ?? 0n;
     const detailAmount = detailById.get(id) ?? 0n;
@@ -421,7 +421,7 @@ export function reconcileFocusInvoice(
     const withinTolerance = hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
     if (hasUsage && hasDetail && !withinTolerance) {
       hasVariance = true;
-      reasons.push('BilledCost variance for InvoiceDetailId ' + id + ' exceeds tolerance');
+      reasons.push(`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`);
     }
     lineItems.push({
       invoiceDetailId: id,
