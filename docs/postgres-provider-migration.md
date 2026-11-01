@@ -104,6 +104,22 @@ The existing Worker uses Supabase REST today. Merely adding a Hyperdrive binding
 - Do not upgrade a plan, accept a charge, create paid infrastructure, or enable a paid add-on without explicit approval.
 - After cutover, retain the previous Worker version and Supabase configuration until the agreed observation window and owner-approved retirement.
 
+## Hyperdrive and Neon role readiness audit — 2026-11-01T15:30Z
+
+Cloudflare's read-only Hyperdrive configuration list returned `total_count: 0` for the GLORIFIER account. There is currently no Hyperdrive resource to bind to the Worker.
+
+A read-only Neon `pg_roles` catalog query returned these login roles:
+
+| Role | Superuser | Create role | Create database | Bypass RLS |
+|---|---:|---:|---:|---:|
+| `cloud_admin` | yes | yes | yes | yes |
+| `glorifier_owner` | no | yes | yes | yes |
+| `neon_service` | no | yes | yes | yes |
+
+No dedicated `glorifier_worker` login role was present. These existing administrative roles are not acceptable as the Worker credential. Do not put `glorifier_owner`, `cloud_admin`, or `neon_service` credentials into Hyperdrive.
+
+For the initial reporting-only route, create a separate login role with no role/database creation, no superuser, no `BYPASSRLS`, and read-only `SELECT` access limited to the six approved operational tables. The credential must be generated and stored through a secure, owner-controlled channel; it must never appear in source, chat, issue text, or CI logs. Role creation and Hyperdrive provisioning remain separate owner-approved operational actions and were not performed in this audit.
+
 ## Current status
 
 **PARTIALLY VERIFIED.** Neon is the recommended canonical database and its current data is reachable after the quota reset. Supabase's six table schemas match at the observed column/primary-key/foreign-key level but are empty, and index definitions differ. The Worker still reports against Supabase in production. A bounded read-only Neon adapter and explicit fail-closed provider switch are implemented in draft PR #597; its Worker tests and Wrangler no-deploy dry run passed on the recorded PR head. Hyperdrive is not provisioned or bound, no dedicated Worker database role exists yet, no real Neon query has run through the Worker, complete schema/index reconciliation remains open, and production cutover has not been performed.
