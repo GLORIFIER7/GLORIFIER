@@ -10,6 +10,7 @@ const invoiceIssuerName = 'Example Cloud Billing';
 const invoiceId = 'INV-2026-001';
 const billingCurrency = 'USD';
 
+// skipcq: JS-0067
 const charge = (
   invoiceDetailId: string | null,
   chargeCategory: string,
