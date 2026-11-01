@@ -37,6 +37,54 @@ const review = (
 ) => validateClaimReview(record, sourceRegistry, nowMs);
 
 const supported = review(valid);
+
+const discoveryOnlySource = registry.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
+if (!discoveryOnlySource) throw new Error('The curated registry must include the discovery-only OWASP landing page source.');
+assert.ok(
+  discoveryOnlySource.claimsAllowed.includes('agent-tool-misuse'),
+  'the discovery-only source must allow this claim type so the test isolates the scanner-status trust boundary',
+);
+
+const discoveryOnlySnapshot = 'OWASP agentic application risk overview for discovery.';
+const discoveryOnlyClaim = review({
+  ...valid,
+  claim: 'An agentic application may misuse tools.',
+  claimType: 'agent-tool-misuse',
+  sourceId: discoveryOnlySource.id,
+  canonicalSourceUrl: discoveryOnlySource.url,
+  observedSourceUrl: discoveryOnlySource.url,
+  sourceSnapshot: discoveryOnlySnapshot,
+  sourceContentHash: createHash('sha256').update(discoveryOnlySnapshot, 'utf8').digest('hex'),
+  supportingExcerpt: discoveryOnlySnapshot,
+});
+assert.equal(
+  discoveryOnlyClaim.admissible,
+  false,
+  'discovery-only sources must never admit claims, even when claimsAllowed lists the claim type',
+);
+assert.equal(discoveryOnlyClaim.evidenceRef, null);
+
+const unknownScannerStatusRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, scannerStatus: 'unknown' }
+    : source),
+} as unknown as ClaimSourceRegistry;
+const unknownScannerStatusReview = review(valid, unknownScannerStatusRegistry);
+assert.equal(unknownScannerStatusReview.admissible, false, 'unknown scanner status must fail closed');
+assert.equal(unknownScannerStatusReview.evidenceRef, null);
+
+const missingScannerStatusRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => {
+    if (source.id !== trustedSource.id) return source;
+    return Object.fromEntries(Object.entries(source).filter(([key]) => key !== 'scannerStatus'));
+  }),
+} as unknown as ClaimSourceRegistry;
+const missingScannerStatusReview = review(valid, missingScannerStatusRegistry);
+assert.equal(missingScannerStatusReview.admissible, false, 'missing scanner status must fail closed');
+assert.equal(missingScannerStatusReview.evidenceRef, null);
+
 assert.equal(supported.admissible, true);
 
 const futureDatedReview = review({
@@ -99,6 +147,11 @@ assert.ok(impossibleCalendarDate.failures.some((failure) => failure.includes('RF
 const equivalentOffsetTimestamp = review({ ...valid, observedAt: '2026-10-18T14:00:00+02:00' });
 assert.equal(equivalentOffsetTimestamp.admissible, true, 'valid timestamps with an explicit numeric UTC offset must remain supported');
 
+const unknownOffsetTimestamp = review({ ...valid, observedAt: '2026-10-18T12:00:00-00:00' });
+assert.equal(unknownOffsetTimestamp.admissible, false, 'RFC 3339 unknown-local-offset timestamps must not be accepted as verified evidence time');
+assert.ok(unknownOffsetTimestamp.failures.some((failure) => failure.includes('RFC 3339')));
+assert.equal(unknownOffsetTimestamp.evidenceRef, null);
+
 const whitespaceNormalized = review({
   ...valid,
   supportingExcerpt: 'The specification\n\tdefines   a versioned interface.',
@@ -134,14 +187,15 @@ const localeClaimsRegistry: ClaimSourceRegistry = {
           'z-extra',
           'ä-extra',
           'a-extra',
-          'a-extra' + zeroWidth,
+          `a-extra${zeroWidth}`,
           'é-extra',
-          'e' + combiningAcute + '-extra',
+          `e${combiningAcute}-extra`,
         ],
       }
     : source),
 };
-const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id)!;
+const localeClaimsSource = localeClaimsRegistry.sources.find((source) => source.id === trustedSource.id);
+assert.ok(localeClaimsSource, 'the locale-policy fixture must retain the trusted source');
 const localeClaimsReview = review(valid, localeClaimsRegistry);
 const reorderedLocaleClaimsRegistry: ClaimSourceRegistry = {
   ...localeClaimsRegistry,
@@ -158,10 +212,11 @@ assert.equal(
 const expectedLocalePolicyDigest = createHash('sha256').update(JSON.stringify({
   id: localeClaimsSource.id,
   url: localeClaimsSource.url,
+  scannerStatus: localeClaimsSource.scannerStatus,
   claimsAllowed: [...localeClaimsSource.claimsAllowed].sort(compareCodeUnits),
   reviewCadenceDays: localeClaimsSource.reviewCadenceDays,
 })).digest('hex');
-const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(JSON.stringify({
+const expectedLocaleEvidenceRef = `claim-review-${createHash('sha256').update(JSON.stringify({
   claimId: valid.claimId,
   claim: valid.claim,
   claimType: valid.claimType,
@@ -176,7 +231,7 @@ const expectedLocaleEvidenceRef = 'claim-review-' + createHash('sha256').update(
   reviewer: valid.reviewer,
   decision: valid.decision,
   rationale: valid.rationale,
-})).digest('hex').slice(0, 24);
+})).digest('hex').slice(0, 24)}`;
 assert.equal(localeClaimsReview.admissible, true);
 assert.equal(
   localeClaimsReview.evidenceRef,
@@ -200,7 +255,7 @@ assert.equal(unregisteredSource.admissible, false);
 assert.ok(unregisteredSource.failures.some((failure) => failure.includes('exactly one trusted source registry entry')));
 assert.equal(unregisteredSource.evidenceRef, null);
 
-const unregisteredCanonicalUrl = trustedSource.url + '/not-in-registry';
+const unregisteredCanonicalUrl = `${trustedSource.url}/not-in-registry`;
 const mismatchedRegistryUrl = review({
   ...valid,
   canonicalSourceUrl: unregisteredCanonicalUrl,
@@ -244,7 +299,7 @@ assert.equal(mismatchedHost.admissible, false);
 assert.ok(mismatchedHost.failures.some((failure) => failure.includes('host differs')));
 
 const sameHostDifferentPathUrl = new URL(trustedSource.url);
-sameHostDifferentPathUrl.pathname = sameHostDifferentPathUrl.pathname.replace(/\/+$/, '') + '/unregistered-path';
+sameHostDifferentPathUrl.pathname = `${sameHostDifferentPathUrl.pathname.replace(/\/+$/, '')}/unregistered-path`;
 const sameHostDifferentPath = review({ ...valid, observedSourceUrl: sameHostDifferentPathUrl.href });
 assert.equal(sameHostDifferentPath.admissible, false);
 assert.ok(sameHostDifferentPath.failures.some((failure) => failure.includes('does not match the curated canonical source resource')));
@@ -259,7 +314,7 @@ const badHash = review({ ...valid, sourceContentHash: 'not-a-hash' });
 assert.equal(badHash.admissible, false);
 assert.ok(badHash.failures.some((failure) => failure.includes('SHA-256')));
 
-const tamperedSnapshot = review({ ...valid, sourceSnapshot: sourceSnapshot + ' tampered' });
+const tamperedSnapshot = review({ ...valid, sourceSnapshot: `${sourceSnapshot} tampered` });
 assert.equal(tamperedSnapshot.admissible, false);
 assert.ok(tamperedSnapshot.failures.some((failure) => failure.includes('does not match sourceSnapshot')));
 assert.equal(tamperedSnapshot.evidenceRef, null);
