@@ -9,7 +9,7 @@ test('Hugging Face deployment is manually gated and source publication is safe',
   
   assert.match(
     projectPage,
-    /GLORIFIER — Governed intelligence for business/,
+    /GLORIFIER — Governed intelligence for business/u,
     'the existing GitHub Pages project source must remain in the repository',
   );
   assert.match(
