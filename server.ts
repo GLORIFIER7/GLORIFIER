@@ -242,10 +242,9 @@ app.use((req: Request, res: Response, next) => {
 // synchronization, or AI execution.
 app.use('/api', (req: Request, res: Response, next) => {
   if (req.method === 'OPTIONS') return next();
-  const pathName = req.path || '';
   const protectedRead = isProtectedApiReadPath(req.path || '');
   if ((req.method === 'GET' || req.method === 'HEAD') && !protectedRead) return next();
-  return requireAuthentication(req as any, res, next);
+  return requireAuthentication(req, res, next);
 });
 
 // GEAS architecture-control surfaces: evidence, canonical action identity, and API inventory.
