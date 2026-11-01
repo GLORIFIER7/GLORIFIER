@@ -306,12 +306,12 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['cost-outcome-accounting'], 336),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336),
   createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336),
-  { id: 'opengroup-togaf', authority: 'The Open Group', domain: 'enterprise-architecture', url: 'https://www.opengroup.org/togaf', patternIds: ['enterprise-architecture-traceability'], cadenceHours: 336 },
-  { id: 'ietf-oauth-security', authority: 'IETF', domain: 'cybersecurity', url: 'https://datatracker.ietf.org/doc/html/rfc9700', patternIds: ['oauth-security-best-practice'], cadenceHours: 336 },
-  { id: 'ietf-http-problem-details', authority: 'IETF', domain: 'integration', url: 'https://datatracker.ietf.org/doc/html/rfc9457', patternIds: ['standard-api-error-contracts'], cadenceHours: 336 },
-  { id: 'slsa-v1-2', authority: 'SLSA', domain: 'software', url: 'https://slsa.dev/spec/v1.2/', patternIds: ['build-provenance'], cadenceHours: 336 },
-  { id: 'openssf-scorecard', authority: 'OpenSSF', domain: 'software', url: 'https://securityscorecards.dev/', patternIds: ['open-source-supply-chain-risk'], cadenceHours: 336 },
-  { id: 'google-sre-workbook', authority: 'Google SRE', domain: 'reliability', url: 'https://sre.google/workbook/table-of-contents/', patternIds: ['slo-error-budget-release-gates'], cadenceHours: 336 }
+  createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336),
+  createArchitectureSource('ietf-oauth-security', 'IETF', 'cybersecurity', 'https://datatracker.ietf.org/doc/html/rfc9700', ['oauth-security-best-practice'], 336),
+  createArchitectureSource('ietf-http-problem-details', 'IETF', 'integration', 'https://datatracker.ietf.org/doc/html/rfc9457', ['standard-api-error-contracts'], 336),
+  createArchitectureSource('slsa-v1-2', 'SLSA', 'software', 'https://slsa.dev/spec/v1.2/', ['build-provenance'], 336),
+  createArchitectureSource('openssf-scorecard', 'OpenSSF', 'software', 'https://securityscorecards.dev/', ['open-source-supply-chain-risk'], 336),
+  createArchitectureSource('google-sre-workbook', 'Google SRE', 'reliability', 'https://sre.google/workbook/table-of-contents/', ['slo-error-budget-release-gates'], 336)
 ];
 
 const definePattern = (
