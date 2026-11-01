@@ -74,20 +74,28 @@ interface NormalizedCharge {
   billedCost: string;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function textValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function hasCanonicalUtcTimestampShape(value: string): boolean {
   return value.trim() === value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function utcTimestamp(value: unknown): number | null {
   if (typeof value !== 'string') return null;
   if (!hasCanonicalUtcTimestampShape(value)) return null;
@@ -97,6 +105,8 @@ function utcTimestamp(value: unknown): number | null {
   return canonicalValue === value ? milliseconds : null;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function decimalScale(value: unknown): number | null {
   if (typeof value !== 'string') return null;
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
@@ -105,10 +115,14 @@ function decimalScale(value: unknown): number | null {
   return scale <= 12 ? scale : null;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function hasValidDecimalScale(scale: number, fractionLength: number): boolean {
   return Number.isInteger(scale) && scale >= 0 && fractionLength <= scale;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function decimalUnits(value: string, scale: number): bigint {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) throw new Error('invalid decimal amount');
@@ -120,6 +134,8 @@ function decimalUnits(value: string, scale: number): bigint {
   return match[1] === '-' ? -units : units;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function formatUnits(value: bigint, scale: number): string {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
@@ -131,14 +147,20 @@ function formatUnits(value: bigint, scale: number): string {
   return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function absolute(value: bigint): bigint {
   return value < 0n ? -value : value;
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function isTax(row: NormalizedCharge): boolean {
   return row.chargeCategory.toLowerCase() === 'tax';
 }
 
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 function unknownResult(
   invoiceIssuerName: string | null,
   invoiceId: string | null,
@@ -180,72 +202,108 @@ interface NormalizeRowsContext {
   reasons: string[];
 }
 
-function normalizeRows(values: unknown[], context: NormalizeRowsContext): NormalizedCharge[] {
-  const {
-    datasetName,
-    invoiceIssuerName,
-    invoiceId,
+interface ParsedNormalizedCharge {
+  invoiceIssuerName: string;
+  invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  invoiceDetailId: string | null;
+  invoiceDetailIdValue: unknown;
+  chargeCategory: string;
+  billingCurrency: string;
+  billedCost: string;
+}
+
+const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCharge | null => {
+  const issuer = textValue(row.invoiceIssuerName);
+  const id = textValue(row.invoiceId);
+  const billingPeriodStart = typeof row.billingPeriodStart === 'string' ? row.billingPeriodStart : null;
+  const billingPeriodEnd = typeof row.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null;
+  const category = textValue(row.chargeCategory);
+  const currency = textValue(row.billingCurrency);
+  const amount = textValue(row.billedCost);
+  const invoiceDetailIdValue = row.invoiceDetailId;
+  const invoiceDetailId = invoiceDetailIdValue === null || invoiceDetailIdValue === undefined
+    ? null
+    : textValue(invoiceDetailIdValue);
+
+  if (!issuer || !id || !billingPeriodStart || !billingPeriodEnd || !category || !currency
+      || !amount || decimalScale(amount) === null) return null;
+  return {
+    invoiceIssuerName: issuer,
+    invoiceId: id,
     billingPeriodStart,
     billingPeriodEnd,
-    billingCurrency,
-    reasons,
-  } = context;
+    invoiceDetailId,
+    invoiceDetailIdValue,
+    chargeCategory: category,
+    billingCurrency: currency,
+    billedCost: amount,
+  };
+};
+
+const normalizedChargeFailure = (
+  row: ParsedNormalizedCharge,
+  context: NormalizeRowsContext,
+): string | null => {
+  const rowPeriodStartMs = utcTimestamp(row.billingPeriodStart);
+  const rowPeriodEndMs = utcTimestamp(row.billingPeriodEnd);
+  if (rowPeriodStartMs === null || rowPeriodEndMs === null || rowPeriodStartMs >= rowPeriodEndMs) {
+    return 'has invalid FOCUS UTC billing-period bounds';
+  }
+  if (row.billingPeriodStart !== context.billingPeriodStart || row.billingPeriodEnd !== context.billingPeriodEnd) {
+    return 'has a billing-period mismatch';
+  }
+  if (row.invoiceDetailIdValue !== null && row.invoiceDetailIdValue !== undefined && !row.invoiceDetailId) {
+    return 'has an invalid InvoiceDetailId';
+  }
+  if (row.invoiceIssuerName !== context.invoiceIssuerName || row.invoiceId !== context.invoiceId) {
+    return 'is outside the target invoice';
+  }
+  if (row.billingCurrency !== context.billingCurrency || !/^[A-Z]{3}$/.test(row.billingCurrency)) {
+    return 'has a billing-currency mismatch';
+  }
+  return null;
+};
+
+const normalizeSingleRow = (
+  value: unknown,
+  index: number,
+  context: NormalizeRowsContext,
+): NormalizedCharge | null => {
+  const row = asRecord(value);
+  if (!row) {
+    context.reasons.push(`${context.datasetName} row ${index} must be an object`);
+    return null;
+  }
+  const parsed = parseNormalizedCharge(row);
+  if (!parsed) {
+    context.reasons.push(`${context.datasetName} row ${index} has missing or invalid required fields`);
+    return null;
+  }
+  const failure = normalizedChargeFailure(parsed, context);
+  if (failure) {
+    context.reasons.push(`${context.datasetName} row ${index} ${failure}`);
+    return null;
+  }
+  return {
+    invoiceIssuerName: parsed.invoiceIssuerName,
+    invoiceId: parsed.invoiceId,
+    invoiceDetailId: parsed.invoiceDetailId,
+    chargeCategory: parsed.chargeCategory,
+    billingCurrency: parsed.billingCurrency,
+    billedCost: parsed.billedCost,
+  };
+};
+
+const normalizeRows = (values: unknown[], context: NormalizeRowsContext): NormalizedCharge[] => {
   const rows: NormalizedCharge[] = [];
   values.forEach((value, index) => {
-    const row = asRecord(value);
-    if (!row) {
-      reasons.push(datasetName + ' row ' + index + ' must be an object');
-      return;
-    }
-    const issuer = textValue(row.invoiceIssuerName);
-    const id = textValue(row.invoiceId);
-    const rowPeriodStart = typeof row.billingPeriodStart === 'string' ? row.billingPeriodStart : null;
-    const rowPeriodEnd = typeof row.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null;
-    const category = textValue(row.chargeCategory);
-    const currency = textValue(row.billingCurrency);
-    const amount = textValue(row.billedCost);
-    const detailIdValue = row.invoiceDetailId;
-    const detailId = detailIdValue === null || detailIdValue === undefined
-      ? null
-      : textValue(detailIdValue);
-
-    if (!issuer || !id || !rowPeriodStart || !rowPeriodEnd || !category || !currency || !amount || decimalScale(amount) === null) {
-      reasons.push(datasetName + ' row ' + index + ' has missing or invalid required fields');
-      return;
-    }
-    const rowPeriodStartMs = utcTimestamp(rowPeriodStart);
-    const rowPeriodEndMs = utcTimestamp(rowPeriodEnd);
-    if (rowPeriodStartMs === null || rowPeriodEndMs === null || rowPeriodStartMs >= rowPeriodEndMs) {
-      reasons.push(datasetName + ' row ' + index + ' has invalid FOCUS UTC billing-period bounds');
-      return;
-    }
-    if (rowPeriodStart !== billingPeriodStart || rowPeriodEnd !== billingPeriodEnd) {
-      reasons.push(datasetName + ' row ' + index + ' has a billing-period mismatch');
-      return;
-    }
-    if (detailIdValue !== null && detailIdValue !== undefined && !detailId) {
-      reasons.push(datasetName + ' row ' + index + ' has an invalid InvoiceDetailId');
-      return;
-    }
-    if (issuer !== invoiceIssuerName || id !== invoiceId) {
-      reasons.push(datasetName + ' row ' + index + ' is outside the target invoice');
-      return;
-    }
-    if (currency !== billingCurrency || !/^[A-Z]{3}$/.test(currency)) {
-      reasons.push(datasetName + ' row ' + index + ' has a billing-currency mismatch');
-      return;
-    }
-    rows.push({
-      invoiceIssuerName: issuer,
-      invoiceId: id,
-      invoiceDetailId: detailId,
-      chargeCategory: category,
-      billingCurrency: currency,
-      billedCost: amount,
-    });
+    const row = normalizeSingleRow(value, index, context);
+    if (row) rows.push(row);
   });
   return rows;
-}
+};
 
 /**
  * Compare non-tax charges by InvoiceDetailId within one exact FOCUS billing
@@ -253,6 +311,8 @@ function normalizeRows(values: unknown[], context: NormalizeRowsContext): Normal
  * Missing lineage, invalid UTC period bounds or cross-period rows fail closed
  * as UNKNOWN; matched IDs with amounts outside tolerance become VARIANCE.
  */
+// TypeScript ES-module declarations are module-scoped, not global script bindings.
+// skipcq: JS-0067
 export function reconcileFocusInvoice(
   input: FocusInvoiceReconciliationInput,
 ): FocusInvoiceReconciliationResult {
