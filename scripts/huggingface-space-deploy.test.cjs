@@ -4,6 +4,11 @@ const { join } = require('node:path');
 const { test } = require('node:test');
 
 test('secondary deployment paths are gated and existing Pages content is preserved', () => {
+  assert.throws(
+    () => readFileSync(join(__dirname, '../.github/workflows/pages.yml'), 'utf8'),
+    { code: 'ENOENT' },
+    'the duplicate automatic Pages workflow must remain removed without deleting the hosted source assets',
+  );
   const aiCeoWorkflow = readFileSync(join(__dirname, '../.github/workflows/publish-ai-ceo.yml'), 'utf8');
 
   assert.match(
