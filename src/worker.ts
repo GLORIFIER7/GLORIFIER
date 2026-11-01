@@ -208,29 +208,27 @@ const operationalSummaryResponse = (
 
 type NeonOperationalCountReader = (binding: NeonHyperdriveBinding) => Promise<NeonOperationalCounts>;
 
-export const reportsSummaryResponse = async (
+const neonReportsSummaryResponse = async (
   env: CloudflareEnv,
-  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+  neonCountReader: NeonOperationalCountReader,
 ): Promise<Response> => {
-  const provider = selectedDatabaseProvider(env);
-  if (provider === 'invalid') {
-    return supabaseUnavailable('DATABASE_PROVIDER_INVALID', 'GLORIFIER_DATABASE_PROVIDER must be supabase or neon.', 503);
+  const binding = env.HYPERDRIVE;
+  if (!binding?.connectionString) {
+    return supabaseUnavailable('NEON_HYPERDRIVE_NOT_CONFIGURED', 'Neon mode requires a configured Cloudflare Hyperdrive binding.', 503);
   }
-
-  if (provider === 'neon') {
-    if (!env.HYPERDRIVE?.connectionString) {
-      return supabaseUnavailable('NEON_HYPERDRIVE_NOT_CONFIGURED', 'Neon mode requires a configured Cloudflare Hyperdrive binding.', 503);
-    }
-    try {
-      const counts = await neonCountReader(env.HYPERDRIVE);
-      return operationalSummaryResponse(counts, 'neon-hyperdrive');
-    } catch {
-      return supabaseUnavailable('NEON_REPORTS_QUERY_FAILED', 'Neon operational reporting could not be verified.', 502);
-    }
+  try {
+    const counts = await neonCountReader(binding);
+    return operationalSummaryResponse(counts, 'neon-hyperdrive');
+  } catch {
+    return supabaseUnavailable('NEON_REPORTS_QUERY_FAILED', 'Neon operational reporting could not be verified.', 502);
   }
+};
 
+const supabaseReportsSummaryResponse = async (env: CloudflareEnv): Promise<Response> => {
   const config = supabaseConfig(env);
-  if (!config) return supabaseUnavailable('SUPABASE_NOT_CONFIGURED', 'Worker-native reporting requires GLORIFIER_SUPABASE_URL and the server-side GLORIFIER_SUPABASE_SERVICE_ROLE_KEY secret.');
+  if (!config) {
+    return supabaseUnavailable('SUPABASE_NOT_CONFIGURED', 'Worker-native reporting requires GLORIFIER_SUPABASE_URL and the server-side GLORIFIER_SUPABASE_SERVICE_ROLE_KEY secret.');
+  }
   const tables = ['connection_approvals', 'connection_events', 'connection_registry', 'intelligence_analyses', 'intelligence_evidence', 'intelligence_reports'] as const;
   try {
     const entries = await Promise.all(tables.map(async (table) => [table, await supabaseTableCount(config, table)] as const));
@@ -239,6 +237,16 @@ export const reportsSummaryResponse = async (
   } catch {
     return supabaseUnavailable('SUPABASE_REPORTS_QUERY_FAILED', 'Supabase operational reporting could not be verified.', 502);
   }
+};
+
+export const reportsSummaryResponse = (
+  env: CloudflareEnv,
+  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+): Promise<Response> => {
+  const provider = selectedDatabaseProvider(env);
+  if (provider === 'neon') return neonReportsSummaryResponse(env, neonCountReader);
+  if (provider === 'supabase') return supabaseReportsSummaryResponse(env);
+  return Promise.resolve(supabaseUnavailable('DATABASE_PROVIDER_INVALID', 'GLORIFIER_DATABASE_PROVIDER must be supabase or neon.', 503));
 };
 
 
@@ -554,72 +562,90 @@ const neuralConfigurationStatus = (env: CloudflareEnv): {
   return { ok: null, status: 'configured-not-probed' };
 };
 
-export const runtimeVerificationResponse = async (
+const runtimeVerificationHttpResponse = (
+  request: Request,
+  body: unknown,
+  status: number,
+): Response => request.method === 'HEAD'
+  ? new Response(null, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
+  : Response.json(body, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+
+const runtimeVerificationChecks = (env: CloudflareEnv): Record<string, unknown> => ({
+  worker: { ok: true, layer: 'cloudflare-worker' },
+  assets: { ok: Boolean(env.ASSETS) },
+  neural: neuralConfigurationStatus(env),
+  authentication: { ok: null, status: 'not-probed', reason: 'No public authentication probe is configured.' },
+  ai: { ok: null, executed: false, status: 'not-probed', reason: 'AI provider calls are excluded from this infrastructure probe.' },
+});
+
+const neonRuntimeVerificationResponse = async (
   request: Request,
   env: CloudflareEnv,
-  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+  checks: Record<string, unknown>,
+  neonCountReader: NeonOperationalCountReader,
 ): Promise<Response> => {
-  const response = (
-    body: unknown,
-    status: number,
-  ): Response => request.method === 'HEAD'
-    ? new Response(null, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
-    : Response.json(body, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
-    return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  const binding = env.HYPERDRIVE;
+  if (!binding?.connectionString) {
+    checks.database = { ok: false, status: 'not-configured', code: 'NEON_HYPERDRIVE_NOT_CONFIGURED' };
+    return runtimeVerificationHttpResponse(request, { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
   }
-
-  const provider = selectedDatabaseProvider(env);
-  const checks: Record<string, unknown> = {
-    worker: { ok: true, layer: 'cloudflare-worker' },
-    assets: { ok: Boolean(env.ASSETS) },
-    neural: neuralConfigurationStatus(env),
-    authentication: { ok: null, status: 'not-probed', reason: 'No public authentication probe is configured.' },
-    ai: { ok: null, executed: false, status: 'not-probed', reason: 'AI provider calls are excluded from this infrastructure probe.' },
-  };
-
-  if (provider === 'invalid') {
-    checks.database = { ok: false, status: 'invalid-provider', code: 'DATABASE_PROVIDER_INVALID' };
-    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
+  try {
+    const startedAt = Date.now();
+    const counts = await neonCountReader(binding);
+    checks.database = {
+      ok: true,
+      source: 'neon-hyperdrive',
+      probe: 'fixed-operational-exact-count-query',
+      latencyMs: Date.now() - startedAt,
+      connectionRegistryRows: counts.connection_registry,
+    };
+    return runtimeVerificationHttpResponse(request, { ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
+  } catch {
+    checks.database = { ok: false, status: 'unavailable', code: 'NEON_PROBE_FAILED' };
+    return runtimeVerificationHttpResponse(request, { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
   }
+};
 
-  if (provider === 'neon') {
-    if (!env.HYPERDRIVE?.connectionString) {
-      checks.database = { ok: false, status: 'not-configured', code: 'NEON_HYPERDRIVE_NOT_CONFIGURED' };
-      return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
-    }
-    try {
-      const startedAt = Date.now();
-      const counts = await neonCountReader(env.HYPERDRIVE);
-      checks.database = {
-        ok: true,
-        source: 'neon-hyperdrive',
-        probe: 'fixed-operational-exact-count-query',
-        latencyMs: Date.now() - startedAt,
-        connectionRegistryRows: counts.connection_registry,
-      };
-      return response({ ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
-    } catch {
-      checks.database = { ok: false, status: 'unavailable', code: 'NEON_PROBE_FAILED' };
-      return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
-    }
-  }
-
+const supabaseRuntimeVerificationResponse = async (
+  request: Request,
+  env: CloudflareEnv,
+  checks: Record<string, unknown>,
+): Promise<Response> => {
   const config = supabaseConfig(env);
   if (!config) {
     checks.database = { ok: false, status: 'not-configured', code: 'SUPABASE_NOT_CONFIGURED' };
-    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
+    return runtimeVerificationHttpResponse(request, { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503);
   }
   try {
     const startedAt = Date.now();
     const count = await supabaseTableCount(config, 'connection_registry');
     checks.database = { ok: true, source: 'supabase-postgrest', probe: 'exact-count-query', latencyMs: Date.now() - startedAt, connectionRegistryRows: count };
-    return response({ ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
+    return runtimeVerificationHttpResponse(request, { ok: true, status: 'verified-for-probed-dependencies', generatedAt: new Date().toISOString(), checks }, 200);
   } catch {
     checks.database = { ok: false, status: 'unavailable', code: 'SUPABASE_PROBE_FAILED' };
-    return response({ ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
+    return runtimeVerificationHttpResponse(request, { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 502);
   }
+};
+
+export const runtimeVerificationResponse = (
+  request: Request,
+  env: CloudflareEnv,
+  neonCountReader: NeonOperationalCountReader = readNeonOperationalCounts,
+): Promise<Response> => {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Promise.resolve(Response.json({ ok: false, error: 'Method not allowed' }, {
+      status: 405,
+      headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    }));
+  }
+
+  const provider = selectedDatabaseProvider(env);
+  const checks = runtimeVerificationChecks(env);
+  if (provider === 'neon') return neonRuntimeVerificationResponse(request, env, checks, neonCountReader);
+  if (provider === 'supabase') return supabaseRuntimeVerificationResponse(request, env, checks);
+
+  checks.database = { ok: false, status: 'invalid-provider', code: 'DATABASE_PROVIDER_INVALID' };
+  return Promise.resolve(runtimeVerificationHttpResponse(request, { ok: false, status: 'degraded', generatedAt: new Date().toISOString(), checks }, 503));
 };
 
 
