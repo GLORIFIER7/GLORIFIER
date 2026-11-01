@@ -66,9 +66,6 @@ const normalizeExcerpt = (value: string): string => value.replace(/\s+/g, ' ').t
 const isSafeHttpsUrl = (url: URL): boolean =>
   url.protocol === 'https:' && !url.username && !url.password;
 
-const isSafeHttpsUrl = (url: URL): boolean =>
-  url.protocol === 'https:' && !url.username && !url.password;
-
 const parseHttpsUrl = (value: string): URL | null => {
   try {
     return new URL(value);
