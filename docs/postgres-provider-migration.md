@@ -73,7 +73,8 @@ Use Cloudflare Hyperdrive to connect the Worker to Neon through a dedicated leas
 - Bind the Hyperdrive configuration to the Worker as `HYPERDRIVE`.
 - Use a dedicated non-superuser database role for the Worker. Begin with `SELECT` only on the reporting tables. Do not grant schema ownership, superuser, `BYPASSRLS`, or broad database privileges.
 - Use the standard `pg` driver through Hyperdrive, following the Cloudflare Worker runtime requirements. Keep connection creation request-safe and let Hyperdrive own pooling.
-- Add Worker unit tests for successful SQL counts, missing binding, connection errors, query timeouts, malformed results, and exact response shape. Add a staging integration test against a non-production Neon branch.
+- The draft implementation is now present in `src/lib/neon-worker.ts` and `src/worker.ts` on PR #597: a fixed six-table read-only query, bounded count parsing, per-request client cleanup, and explicit `GLORIFIER_DATABASE_PROVIDER` selection. Neon mode fails closed when `HYPERDRIVE` is absent and does not fall back to Supabase. The Cloudflare Worker workflow passed the adapter tests and Wrangler no-deploy dry run on commit `be467814d61bfddd3115f8451e26192005aae4f3`.
+- A live Hyperdrive integration test against a non-production Neon branch is still required; the adapter's CI tests inject a fake PostgreSQL client and do not prove that a real Cloudflare Hyperdrive connection succeeds.
 - Migrate one route group at a time. Compare live counts and deterministic per-table checksums before promoting the Neon-backed implementation.
 - Only after all required Worker routes and checks pass should the Supabase service-role secret/URL be removed from Worker configuration. Retain the Supabase project read-only until owner-approved retirement.
 
@@ -105,6 +106,6 @@ The existing Worker uses Supabase REST today. Merely adding a Hyperdrive binding
 
 ## Current status
 
-**PARTIALLY VERIFIED.** Neon is the recommended canonical database and its current data is reachable after the quota reset. Supabase's six table schemas largely match at the column/foreign-key level but are empty, and index definitions differ. The Worker still reports against Supabase. Hyperdrive configuration, Worker SQL implementation, dedicated role, live Neon Worker query, complete schema/index reconciliation, and production cutover have not been performed.
+**PARTIALLY VERIFIED.** Neon is the recommended canonical database and its current data is reachable after the quota reset. Supabase's six table schemas match at the observed column/primary-key/foreign-key level but are empty, and index definitions differ. The Worker still reports against Supabase in production. A bounded read-only Neon adapter and explicit fail-closed provider switch are implemented in draft PR #597; its Worker tests and Wrangler no-deploy dry run passed on the recorded PR head. Hyperdrive is not provisioned or bound, no dedicated Worker database role exists yet, no real Neon query has run through the Worker, complete schema/index reconciliation remains open, and production cutover has not been performed.
 
 This runbook does not claim that the Worker is already connected to Neon or that the whole GLORIFIER system is fully verified.
