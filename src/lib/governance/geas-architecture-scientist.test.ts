@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, type ArchitectureDomain } from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
@@ -169,6 +170,27 @@ for (const risk of agenticRisks) {
     throw new Error(`OWASP ${risk.patternId} must have explicit extraction terms and GEAS control mappings`);
   }
 }
+const authoritativeRegistry = JSON.parse(readFileSync(
+  new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url),
+  'utf8',
+)) as {
+  sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[] }>;
+};
+const discoveryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'owasp-agentic-applications-top10');
+if (!discoveryEntry
+    || discoveryEntry.scannerStatus !== 'discovery-only'
+    || discoveryEntry.claimsAllowed.length !== 1
+    || discoveryEntry.claimsAllowed[0] !== 'agentic-application-threats-discovery') {
+  throw new Error('OWASP landing-page registry entry must allow only discovery-level claims');
+}
+for (const risk of agenticRisks) {
+  const authorizedSources = authoritativeRegistry.sources.filter((entry) => entry.claimsAllowed.includes(risk.claimType));
+  if (authorizedSources.length !== 1
+      || authorizedSources[0]?.id !== risk.sourceId
+      || authorizedSources[0]?.scannerStatus !== 'active') {
+    throw new Error(`registry must allow ${risk.claimType} only via active source ${risk.sourceId}`);
+  }
+}
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('OWASP source keyword matches must remain analysis, not verified implementation');
 }
@@ -259,6 +281,13 @@ if (isSourceObservationDue(24, '1970-01-01T02:00:00+02:00', 1000)) {
 }
 if (isSourceObservationDue(24, '1970-01-01T00:00:00.123Z', 1000)) {
   throw new Error('valid millisecond-precision source timestamps must remain reusable within cadence');
+}
+const postgresDateObservation = new Date(0);
+if (isSourceObservationDue(24, postgresDateObservation as unknown as string, 1000)) {
+  throw new Error('valid Date values returned for persisted PostgreSQL TIMESTAMPTZ observations must remain reusable');
+}
+if (isSourceObservationDue(24, new Date(Number.NaN) as unknown as string, 1000)) {
+  throw new Error('invalid Date values must force source revalidation');
 }
 if (!isSourceObservationDue(24, new Date(0).toISOString(), Number.NaN)) {
   throw new Error('an invalid source-observation clock must force a fresh fetch');
