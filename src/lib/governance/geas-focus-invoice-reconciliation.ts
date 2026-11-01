@@ -336,7 +336,7 @@ interface InvoiceMetadataDraft {
   detailValues: unknown[];
 }
 
-interface InvoiceMetadata extends Omit<InvoiceMetadataDraft, 'issuer' | 'invoiceId' | 'billingPeriodStart' | 'billingPeriodEnd' | 'currency' | 'tolerance' | 'toleranceScale'> {
+interface InvoiceMetadata {
   issuer: string;
   invoiceId: string;
   billingPeriodStart: string;
@@ -344,6 +344,8 @@ interface InvoiceMetadata extends Omit<InvoiceMetadataDraft, 'issuer' | 'invoice
   currency: string;
   tolerance: string;
   toleranceScale: number;
+  usageValues: unknown[];
+  detailValues: unknown[];
 }
 
 interface NormalizedInvoiceDatasets {
