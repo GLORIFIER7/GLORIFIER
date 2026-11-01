@@ -794,7 +794,7 @@ async function run(): Promise<void> {
 
     for (const route of workerNativeReadOnlyRoutes) {
       capturedRequest = null;
-      const assetsBeforeRoute = assetCalls;
+      const assetsBeforeRoute: number = assetCalls;
       const response = await worker.fetch(
         new Request(`https://glorifier.glorifier.workers.dev${route.path}`),
         env,
