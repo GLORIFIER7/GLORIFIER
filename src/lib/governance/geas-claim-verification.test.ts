@@ -40,6 +40,10 @@ const supported = review(valid);
 
 const discoveryOnlySource = registry.sources.find((source) => source.id === 'owasp-agentic-applications-top10');
 if (!discoveryOnlySource) throw new Error('The curated registry must include the discovery-only OWASP landing page source.');
+assert.ok(
+  discoveryOnlySource.claimsAllowed.includes('agent-tool-misuse'),
+  'the discovery-only source must allow this claim type so the test isolates the scanner-status trust boundary',
+);
 
 const discoveryOnlySnapshot = 'OWASP agentic application risk overview for discovery.';
 const discoveryOnlyClaim = review({
@@ -59,6 +63,29 @@ assert.equal(
   'discovery-only sources must never admit claims, even when claimsAllowed lists the claim type',
 );
 assert.equal(discoveryOnlyClaim.evidenceRef, null);
+
+const unknownScannerStatusRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => source.id === trustedSource.id
+    ? { ...source, scannerStatus: 'unknown' }
+    : source),
+} as unknown as ClaimSourceRegistry;
+const unknownScannerStatusReview = review(valid, unknownScannerStatusRegistry);
+assert.equal(unknownScannerStatusReview.admissible, false, 'unknown scanner status must fail closed');
+assert.ok(unknownScannerStatusReview.failures.some((failure) => failure.includes('scannerStatus active')));
+assert.equal(unknownScannerStatusReview.evidenceRef, null);
+
+const missingScannerStatusRegistry = {
+  ...registry,
+  sources: registry.sources.map((source) => {
+    if (source.id !== trustedSource.id) return source;
+    return Object.fromEntries(Object.entries(source).filter(([key]) => key !== 'scannerStatus'));
+  }),
+} as unknown as ClaimSourceRegistry;
+const missingScannerStatusReview = review(valid, missingScannerStatusRegistry);
+assert.equal(missingScannerStatusReview.admissible, false, 'missing scanner status must fail closed');
+assert.ok(missingScannerStatusReview.failures.some((failure) => failure.includes('scannerStatus active')));
+assert.equal(missingScannerStatusReview.evidenceRef, null);
 
 assert.equal(supported.admissible, true);
 
