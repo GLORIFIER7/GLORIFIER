@@ -2,7 +2,7 @@ name: GLORIFIER Gemini AI Collaborator
 
 on:
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "17 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -28,12 +28,13 @@ jobs:
           persist-credentials: false
 
       - name: Run Gemini
+        id: gemini
         if: ${{ env.GEMINI_API_KEY != '' }}
-        continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0.1.22
         with:
           gemini_api_key: ${{ env.GEMINI_API_KEY }}
           gemini_cli_version: latest
+          gemini_model: gemini-3.5-flash-lite
           prompt: |
             You are the Gemini engineering collaborator for the GLORIFIER project.
             Read GEMINI.md and inspect the repository.
@@ -47,7 +48,7 @@ jobs:
             Do not deploy directly. Leave the workspace ready for a reviewable PR.
 
       - name: Create Gemini PR
-        if: ${{ env.GEMINI_API_KEY != '' && success() }}
+        if: ${{ env.GEMINI_API_KEY != '' && steps.gemini.outcome == 'success' }}
         id: branch
         env:
           GH_TOKEN: ${{ github.token }}

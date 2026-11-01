@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
 import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
@@ -7,6 +8,8 @@ type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
+let mcpRateLimitAllowed = true;
+const mcpRateLimitKeys: string[] = [];
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
 let openSeaResponseQueue: Response[] | null = null;
@@ -24,15 +27,33 @@ function getCapturedRequest(): Request {
   return capturedRequest;
 }
 
+const mcpPost = (message: unknown, connectingIp?: string): Request => {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (connectingIp) headers.set('CF-Connecting-IP', connectingIp);
+  return new Request('https://glorifier.glorifier.workers.dev/mcp', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(message),
+  });
+};
+
 const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
   ASSETS: {
-    async fetch() {
+    fetch() {
       assetCalls += 1;
-      if (returnHtmlForAssets) return new Response('<!doctype html><title>SPA</title>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-      return new Response('static asset', { status: 200 });
+      const response = returnHtmlForAssets
+        ? new Response('<!doctype html><title>SPA</title>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+        : new Response('static asset', { status: 200 });
+      return Promise.resolve(response);
+    },
+  },
+  MCP_RATE_LIMITER: {
+    limit({ key }: { key: string }) {
+      mcpRateLimitKeys.push(key);
+      return Promise.resolve({ success: mcpRateLimitAllowed });
     },
   },
 };
@@ -52,6 +73,12 @@ async function run(): Promise<void> {
   }) as typeof fetch;
 
   try {
+    const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+      assets?: { run_worker_first?: string[] };
+    };
+    assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp'), 'Cloudflare assets must route /mcp through the Worker before SPA fallback');
+    assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp/*'), 'Cloudflare assets must route nested /mcp paths through the Worker');
+
     const staticResponse = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/assets/app.js'),
       env,
@@ -68,6 +95,363 @@ async function run(): Promise<void> {
     assert.equal(missingAsset.status, 404, 'SPA HTML must not be served as a missing JavaScript asset');
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
+
+    // MCP must be a real read-only Streamable HTTP endpoint, not the SPA asset fallback.
+    capturedRequest = null;
+    const mcpInitialize = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'Claude', version: 'test' },
+          },
+        }),
+      }),
+      env,
+    );
+    assert.equal(mcpInitialize.status, 200, 'MCP initialize must be handled by the Worker');
+    assert.match(mcpInitialize.headers.get('content-type') || '', /^application\/json/i);
+    const mcpInitializeBody = await mcpInitialize.json() as {
+      jsonrpc: string;
+      id: number;
+      result: { protocolVersion: string; capabilities: { tools?: unknown }; serverInfo: { name: string } };
+    };
+    assert.equal(mcpInitializeBody.jsonrpc, '2.0');
+    assert.equal(mcpInitializeBody.id, 1);
+    assert.equal(mcpInitializeBody.result.protocolVersion, '2025-03-26');
+    assert.ok(mcpInitializeBody.result.capabilities.tools);
+    assert.equal(mcpInitializeBody.result.serverInfo.name, 'GLORIFIER GitHub Read-Only');
+
+    const mcpInitializedNotification = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+      }),
+      env,
+    );
+    assert.equal(mcpInitializedNotification.status, 202, 'MCP initialization notification must not return a JSON-RPC result');
+
+    const mcpToolsList = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+      }),
+      env,
+    );
+    assert.equal(mcpToolsList.status, 200);
+    const mcpToolsBody = await mcpToolsList.json() as {
+      result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
+    };
+    assert.deepEqual(
+      mcpToolsBody.result.tools.map((tool) => tool.name).sort(),
+      ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
+      'MCP must expose the complete, fixed read-only GitHub tool surface',
+    );
+    assert.ok(mcpToolsBody.result.tools.length >= 3);
+    assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
+    assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.destructiveHint === false));
+    assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
+
+    const unsupportedMcpMethod = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 90, method: 'resources/list' }),
+      }),
+      env,
+    );
+    assert.equal(unsupportedMcpMethod.status, 200, 'unsupported MCP methods must remain JSON-RPC errors, not transport failures');
+    const unsupportedMcpBody = await unsupportedMcpMethod.json() as {
+      jsonrpc: string;
+      id: number;
+      error: { code: number };
+    };
+    assert.equal(unsupportedMcpBody.jsonrpc, '2.0');
+    assert.equal(unsupportedMcpBody.id, 90);
+    assert.equal(unsupportedMcpBody.error.code, -32601);
+
+    const previousMcpUpstreamResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER', visibility: 'public' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const mcpGetRepository = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }, '203.0.113.42'),
+      env,
+    );
+    assert.equal(mcpGetRepository.status, 200);
+    const mcpGetRepositoryBody = await mcpGetRepository.json() as {
+      result: { content: Array<{ type: string; text: string }>; isError?: boolean };
+    };
+    assert.equal(Object.prototype.hasOwnProperty.call(mcpGetRepositoryBody.result, 'isError'), false);
+    assert.equal(JSON.parse(mcpGetRepositoryBody.result.content[0]?.text || '{}').full_name, 'GLORIFIER7/GLORIFIER');
+    assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
+    assert.equal(getCapturedRequest().method, 'GET');
+    assert.equal(getCapturedRequest().headers.get('authorization'), null, 'public read-only GitHub access must not forward credentials');
+    assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'], 'MCP upstream tool calls must be rate-limited per connecting client');
+    upstreamResponse = previousMcpUpstreamResponse;
+
+    capturedRequest = null;
+    mcpRateLimitAllowed = false;
+    const rateLimitedMcpToolCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }, '203.0.113.42'),
+      env,
+    );
+    assert.equal(rateLimitedMcpToolCall.status, 429, 'MCP must stop tool calls when the Cloudflare rate limit is exhausted');
+    assert.equal(rateLimitedMcpToolCall.headers.get('retry-after'), '60');
+    assert.equal(capturedRequest, null, 'rate-limited MCP calls must not reach GitHub');
+    mcpRateLimitAllowed = true;
+
+    for (const inheritedToolName of ['constructor', 'toString', 'github_delete_repository']) {
+      capturedRequest = null;
+      const inheritedToolCall = await worker.fetch(
+        mcpPost({
+          jsonrpc: '2.0',
+          id: 8,
+          method: 'tools/call',
+          params: { name: inheritedToolName, arguments: {} },
+        }, '203.0.113.42'),
+        env,
+      );
+      assert.equal(inheritedToolCall.status, 200);
+      const inheritedToolBody = await inheritedToolCall.json() as {
+        result: { isError?: boolean; content: Array<{ text: string }> };
+      };
+      assert.equal(inheritedToolBody.result.isError, true, 'prototype properties must not be callable as MCP tools');
+      assert.match(inheritedToolBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
+      assert.equal(capturedRequest, null, 'prototype-property tool names must not reach GitHub');
+    }
+
+    const mcpGetMethodNotAllowed = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp'),
+      env,
+    );
+    assert.equal(mcpGetMethodNotAllowed.status, 405, 'MCP must reject non-POST requests');
+    assert.equal(mcpGetMethodNotAllowed.headers.get('allow'), 'POST', 'MCP must advertise its supported method');
+
+    const mcpWrongContentType = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: '{}',
+      }),
+      env,
+    );
+    assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
+
+    capturedRequest = null;
+    const malformedMcpJson = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid-json',
+      }),
+      env,
+    );
+    assert.equal(malformedMcpJson.status, 400, 'MCP must reject malformed JSON');
+    assert.equal(capturedRequest, null, 'malformed MCP requests must not contact GitHub');
+
+    const invalidMcpContentLength = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': 'invalid' },
+        body: '{}',
+      }),
+      env,
+    );
+    assert.equal(invalidMcpContentLength.status, 400, 'MCP must reject invalid Content-Length headers');
+    assert.equal(capturedRequest, null, 'invalid Content-Length requests must not contact GitHub');
+
+    let oversizedMcpRequestCancelled = false;
+    const mcpOversizedRequest = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(66_000));
+            setTimeout(() => {
+              if (!oversizedMcpRequestCancelled) controller.close();
+            }, 25);
+          },
+          cancel() {
+            oversizedMcpRequestCancelled = true;
+          },
+        }),
+        duplex: 'half',
+      } as RequestInit),
+      env,
+    );
+    assert.equal(mcpOversizedRequest.status, 413, 'MCP must reject request bodies above its byte limit');
+    assert.equal(oversizedMcpRequestCancelled, true, 'MCP must cancel request streams as soon as the byte limit is exceeded');
+
+    const previousOversizedMcpResponse = upstreamResponse;
+    let oversizedUpstreamCancellationObserved = false;
+    let oversizedUpstreamBodyCancelled = false;
+    upstreamResponse = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(1_000_001));
+        setTimeout(() => {
+          if (!oversizedUpstreamBodyCancelled) controller.close();
+        }, 25);
+      },
+      cancel() {
+        oversizedUpstreamBodyCancelled = true;
+        oversizedUpstreamCancellationObserved = true;
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const oversizedUpstreamCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 6,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    assert.equal(oversizedUpstreamCall.status, 200);
+    const oversizedUpstreamBody = await oversizedUpstreamCall.json() as {
+      result: { content: Array<{ text: string }>; isError?: boolean };
+    };
+    assert.equal(oversizedUpstreamBody.result.isError, true);
+    assert.match(oversizedUpstreamBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
+    assert.equal(oversizedUpstreamCancellationObserved, true, 'oversized upstream responses must be cancelled as soon as the byte limit is exceeded');
+    upstreamResponse = previousOversizedMcpResponse;
+
+    const previousInvalidContentLengthResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': 'not-a-number' },
+    });
+    const invalidUpstreamContentLengthCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const invalidUpstreamContentLengthBody = await invalidUpstreamContentLengthCall.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(invalidUpstreamContentLengthBody.result.isError, true);
+    assert.match(invalidUpstreamContentLengthBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
+    upstreamResponse = previousInvalidContentLengthResponse;
+
+    const previousValidGithubFileResponse = upstreamResponse;
+    upstreamResponse = new Response(JSON.stringify({ content: 'b2s=', encoding: 'base64' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    capturedRequest = null;
+    const validGithubFileCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: { name: 'github_read_file', arguments: { path: 'docs/architecture/README.md' } },
+      }),
+      env,
+    );
+    const validGithubFileBody = await validGithubFileCall.json() as {
+      result: { content: Array<{ text: string }>; isError?: boolean };
+    };
+    const validGithubFileResult = JSON.parse(validGithubFileBody.result.content[0]?.text || '{}') as {
+      path: string;
+      ref: string;
+      content: string;
+    };
+    assert.equal(validGithubFileBody.result.isError, undefined);
+    assert.equal(validGithubFileResult.path, 'docs/architecture/README.md');
+    assert.equal(validGithubFileResult.ref, 'main');
+    assert.equal(validGithubFileResult.content, 'ok');
+    const githubFileRequestUrl = new URL(getCapturedRequest().url);
+    assert.equal(githubFileRequestUrl.origin, 'https://api.github.com');
+    assert.equal(githubFileRequestUrl.pathname, '/repos/GLORIFIER7/GLORIFIER/contents/docs/architecture/README.md');
+    assert.equal(githubFileRequestUrl.searchParams.get('ref'), 'main');
+    upstreamResponse = previousValidGithubFileResponse;
+
+    const previousMalformedGithubResponse = upstreamResponse;
+    upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const malformedGithubJsonCall = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 9,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const malformedGithubJsonBody = await malformedGithubJsonCall.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(malformedGithubJsonBody.result.isError, true);
+    assert.match(malformedGithubJsonBody.result.content[0]?.text || '', /invalid JSON/i);
+    upstreamResponse = new Response(JSON.stringify({ content: '?', encoding: 'base64' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const invalidGithubFileEncoding = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: { name: 'github_read_file', arguments: { path: 'README.md' } },
+      }),
+      env,
+    );
+    const invalidGithubFileBody = await invalidGithubFileEncoding.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(invalidGithubFileBody.result.isError, true);
+    assert.match(invalidGithubFileBody.result.content[0]?.text || '', /not valid Base64/i);
+    upstreamResponse = new Response(JSON.stringify({ message: 'forbidden' }), { status: 403 });
+    const failedGithubRequest = await worker.fetch(
+      mcpPost({
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'github_get_repository', arguments: {} },
+      }),
+      env,
+    );
+    const failedGithubRequestBody = await failedGithubRequest.json() as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+    assert.equal(failedGithubRequestBody.result.isError, true);
+    assert.match(failedGithubRequestBody.result.content[0]?.text || '', /HTTP 403/i);
+    upstreamResponse = previousMalformedGithubResponse;
+
+    capturedRequest = null;
+    const rejectedMcpOrigin = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { Origin: 'https://untrusted.example', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/list' }),
+      }),
+      env,
+    );
+    assert.equal(rejectedMcpOrigin.status, 403, 'MCP must reject untrusted Origin values');
+    assert.equal(capturedRequest, null, 'an untrusted MCP Origin must never reach GitHub');
 
     capturedRequest = null;
     const previousA2ACardResponse = upstreamResponse;
