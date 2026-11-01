@@ -271,17 +271,66 @@ function parseScannerSources(sourceText: string): ScannerSource[] {
       }
     }
   }
-  if (depth !== 0 || quote || blockComment || lineComment) throw new Error('unterminated object, string, or comment in SOURCES array');
-  if (objects.length === 0) throw new Error('scanner SOURCES array contains no object entries');
+  if (depth !== 0 || quote || blockComment || lineComment) {
+    throw new Error('unterminated object, string, or comment in SOURCES array');
+  }
 
-  return objects.map((objectText) => {
+  const objectEntries = objects.map((objectText) => {
     const id = readTopLevelProperty(objectText, 'id');
     const cadenceHours = readTopLevelProperty(objectText, 'cadenceHours');
     if (typeof id !== 'string' || !id || typeof cadenceHours !== 'number') {
-      throw new Error('every scanner source must have a string id and numeric cadenceHours');
+      throw new Error('every object-form scanner source must have a string id and numeric cadenceHours');
     }
     return { id, cadenceHours };
   });
+
+  const factoryPattern = /createArchitectureSource\(\s*'((?:\\.|[^'\\])*)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*\[[\s\S]*?\]\s*,\s*(\d+)\s*\)/g;
+  const factoryEntries = [...arrayText.matchAll(factoryPattern)].map((match) => ({
+    id: match[1] ?? '',
+    cadenceHours: Number(match[2]),
+  }));
+  const declaredFactoryCount = (arrayText.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
+  if (factoryEntries.length !== declaredFactoryCount) {
+    throw new Error('every factory-form scanner source must use literal ID, URL, pattern list and cadence values');
+  }
+
+  const entries = [...objectEntries, ...factoryEntries];
+  if (entries.length === 0) throw new Error('scanner SOURCES array contains no supported source entries');
+  return entries;
+}
+function verifyParserHandlesFactoryCalls(): void {
+  const fixture = `const SOURCES: ArchitectureSource[] = [
+    createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),
+    createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),
+  ];`;
+  const parsed = parseScannerSources(fixture);
+  if (parsed.length !== 2
+      || parsed[0]?.id !== 'factory-one'
+      || parsed[0]?.cadenceHours !== 24
+      || parsed[1]?.id !== 'factory-two'
+      || parsed[1]?.cadenceHours !== 336) {
+    throw new Error('scanner parser must read factory-form ID and cadence values');
+  }
+}
+
+function verifyParserRejectsComputedFactoryValues(): void {
+  const fixtures = [
+    `const SOURCES: ArchitectureSource[] = [
+      createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24),
+    ];`,
+    `const SOURCES: ArchitectureSource[] = [
+      createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30),
+    ];`,
+  ];
+  for (const fixture of fixtures) {
+    let rejected = false;
+    try {
+      parseScannerSources(fixture);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error('scanner parser accepted computed factory ID or cadence values');
+  }
 }
 
 function verifyParserHandlesBraceCharacters(): void {
@@ -354,6 +403,8 @@ function verifyParserRejectsComputedFieldValues(): void {
   }
 }
 
+verifyParserHandlesFactoryCalls();
+verifyParserRejectsComputedFactoryValues();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedFieldValues();
 verifyParserRejectsUnterminatedLineComment();
