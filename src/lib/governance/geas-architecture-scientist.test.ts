@@ -3,6 +3,12 @@ import { createGovernedActionEvidencePackage, createAgentIdentityContract, creat
 
 const model = getGeasArchitectureModel();
 
+for (const source of model.sources) {
+  if (!isTrustedArchitectureSourceUrl(source.url)) {
+    throw new Error(`model source is not covered by the curated hostname allowlist: ${source.id}`);
+  }
+}
+
 if (findEarliestKeywordIndex('resource enforcement is a source of force', ['RCE']) !== -1) {
   throw new Error('ASI05 RCE matching must not accept incidental substrings inside ordinary words');
 }
