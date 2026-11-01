@@ -711,31 +711,46 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
-export function stripHtml(input: string) {
-  return input
-    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
-    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, ' and ')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+export const stripHtml = (input: string): string => input
+  .replace(/<script\\b[\\s\\S]*?<\\/script\\b[^>]*>/gi, ' ')
+  .replace(/<style\\b[\\s\\S]*?<\\/style\\b[^>]*>/gi, ' ')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&amp;/gi, ' and ')
+  .replace(/&quot;/gi, '"')
+  .replace(/&#39;|&apos;/gi, "'")
+  .replace(/\\s+/g, ' ')
+  .trim();
 
-export function isClaimSupportedEvidence(status: EvidenceStatus): boolean {
-  return status === 'claim-supported';
-}
+export const isClaimSupportedEvidence = (status: EvidenceStatus): boolean =>
+  status === 'claim-supported';
 
-export function classifyArchitectureEvidence(status: EvidenceStatus): EvidenceClass {
-  return status === 'claim-supported' ? 'observed-fact' : 'analysis';
-}
+export const classifyArchitectureEvidence = (status: EvidenceStatus): EvidenceClass =>
+  status === 'claim-supported' ? 'observed-fact' : 'analysis';
+
+const isLeapYear = (year: number): boolean =>
+  year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+const isValidCalendarDate = (year: number, month: number, day: number): boolean => {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (daysInMonth[month - 1] ?? 0);
+};
+
+const isValidClockTime = (hour: number, minute: number, second: number): boolean =>
+  hour <= 23 && minute <= 59 && second <= 59;
+
+const isKnownUtcOffset = (offset: string): boolean => {
+  if (offset === '-00:00') return false;
+  if (offset === 'Z') return true;
+  const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+  return offsetHour <= 23 && offsetMinute <= 59;
+};
 
 /** Parse the canonical RFC 3339 millisecond-precision subset used by persisted source observations. */
-function parseSourceObservationTimestamp(value: unknown): number | null {
+const parseSourceObservationTimestamp = (value: unknown): number | null => {
   if (typeof value !== 'string') return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.(\\d{1,3}))?(Z|[+-]\\d{2}:\\d{2})$/.exec(value);
   if (!match) return null;
 
   const year = Number(match[1]);
@@ -744,62 +759,67 @@ function parseSourceObservationTimestamp(value: unknown): number | null {
   const hour = Number(match[4]);
   const minute = Number(match[5]);
   const second = Number(match[6]);
-  const daysInMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
-      || hour > 23 || minute > 59 || second > 59) return null;
-
-  const offset = match[8];
-  if (offset !== 'Z') {
-    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
-    if (offset === '-00:00' || offsetHour > 23 || offsetMinute > 59) return null;
-  }
+  if (!isValidCalendarDate(year, month, day)
+      || !isValidClockTime(hour, minute, second)
+      || !isKnownUtcOffset(match[8])) return null;
 
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
-}
+};
 
-export function isSourceObservationDue(cadenceHours: number, observedAt: string | null | undefined, nowMs = Date.now()): boolean {
+export const isSourceObservationDue = (
+  cadenceHours: number,
+  observedAt: string | null | undefined,
+  nowMs = Date.now(),
+): boolean => {
   if (!Number.isFinite(cadenceHours) || cadenceHours <= 0 || !observedAt || !Number.isFinite(nowMs)) return true;
   const observedMs = parseSourceObservationTimestamp(observedAt);
-  // A future timestamp is not trustworthy freshness evidence; force a fresh observation.
   if (observedMs === null || observedMs > nowMs) return true;
   return nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
-}
+};
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
 
-function isAdmissibleCachedSourceObservation(input: {
+type CachedSourceEvidence = {
   ok: boolean;
   status: number | null;
   contentHash: string | null;
   evidenceExcerpt: string | null;
   evidenceStatus: string;
-}): boolean {
-  if (input.ok) {
-    const statusIsSuccessful = Number.isInteger(input.status)
-      && ((input.status !== null && input.status >= 200 && input.status < 300) || input.status === 304);
-    if (!statusIsSuccessful || typeof input.contentHash !== 'string'
-        || !/^[a-f0-9]{64}$/i.test(input.contentHash)) return false;
+};
 
-    // Retrieval can establish only availability or a keyword/content match. A cache entry
-    // must never upgrade either into claim verification, even if persisted data is corrupt.
-    if (input.evidenceStatus === 'content-matched') {
-      return typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length > 0;
-    }
-    if (input.evidenceStatus === 'source-available') {
-      return input.evidenceExcerpt == null
-        || (typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length === 0);
-    }
-    return false;
+const isSuccessfulHttpStatus = (status: number | null): boolean =>
+  Number.isInteger(status) && status !== null
+    && ((status >= 200 && status < 300) || status === 304);
+
+const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
+  typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
+
+const isAdmissibleSuccessfulCache = (input: CachedSourceEvidence): boolean => {
+  if (!isSuccessfulHttpStatus(input.status) || !hasValidSha256ContentHash(input.contentHash)) return false;
+  if (input.evidenceStatus === 'content-matched') {
+    return typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length > 0;
   }
+  if (input.evidenceStatus === 'source-available') {
+    return input.evidenceExcerpt == null
+      || (typeof input.evidenceExcerpt === 'string' && input.evidenceExcerpt.trim().length === 0);
+  }
+  return false;
+};
 
+const isAllowedFailedHttpStatus = (status: number | null): boolean =>
+  status === null || (Number.isInteger(status) && !(status >= 200 && status < 300));
+
+const isAdmissibleFailedCache = (input: CachedSourceEvidence): boolean => {
   if (input.evidenceStatus !== 'not-observed' && input.evidenceStatus !== 'unavailable') return false;
-  if (input.status !== null && (!Number.isInteger(input.status) || (input.status >= 200 && input.status < 300))) return false;
-  if (input.evidenceStatus === 'not-observed' && input.status === null) return false;
-  return true;
-}
+  if (!isAllowedFailedHttpStatus(input.status)) return false;
+  return input.evidenceStatus !== 'not-observed' || input.status !== null;
+};
 
-export function shouldReuseSourceObservation(input: {
+const isAdmissibleCachedSourceObservation = (input: CachedSourceEvidence): boolean =>
+  input.ok ? isAdmissibleSuccessfulCache(input) : isAdmissibleFailedCache(input);
+
+export const shouldReuseSourceObservation = (input: {
   configuredUrl: string;
   cachedUrl: string | null | undefined;
   ok: boolean;
@@ -810,7 +830,7 @@ export function shouldReuseSourceObservation(input: {
   cadenceHours: number;
   observedAt: string | null | undefined;
   nowMs?: number;
-}): boolean {
+}): boolean => {
   // URL changes or inconsistent/claim-promoting cache records force a new source fetch.
   if (!input.cachedUrl || input.cachedUrl !== input.configuredUrl
       || !isAdmissibleCachedSourceObservation(input)) return false;
@@ -818,28 +838,36 @@ export function shouldReuseSourceObservation(input: {
   // Failed observations retry hourly instead of waiting for the normal source cadence.
   if (!input.ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, input.observedAt, nowMs)) return false;
   return !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
-}
+};
 
-export function buildConditionalRequestHeaders(
+const isConditionalRequestCacheUsable = (
   configuredUrl: string,
-  cached?: CachedSourceObservation | null,
-  nowMs = Date.now(),
-): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (!cached || cached.source_url !== configuredUrl || !cached.ok || !isAdmissibleCachedSourceObservation({
+  cached: CachedSourceObservation,
+  nowMs: number,
+): boolean => {
+  if (cached.source_url !== configuredUrl || !cached.ok) return false;
+  if (!isAdmissibleCachedSourceObservation({
     ok: cached.ok,
     status: cached.status,
     contentHash: cached.content_hash,
     evidenceExcerpt: cached.evidence_excerpt,
     evidenceStatus: cached.evidence_status,
-  })) return headers;
+  })) return false;
   const cachedObservedAt = parseSourceObservationTimestamp(cached.observed_at);
-  // Do not let a clock-skewed, malformed, or corrupted observation seed a conditional request.
-  if (!Number.isFinite(nowMs) || cachedObservedAt === null || cachedObservedAt > nowMs) return headers;
+  return Number.isFinite(nowMs) && cachedObservedAt !== null && cachedObservedAt <= nowMs;
+};
+
+export const buildConditionalRequestHeaders = (
+  configuredUrl: string,
+  cached?: CachedSourceObservation | null,
+  nowMs = Date.now(),
+): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  if (!cached || !isConditionalRequestCacheUsable(configuredUrl, cached, nowMs)) return headers;
   if (cached.etag?.trim()) headers['If-None-Match'] = cached.etag;
   if (cached.last_modified?.trim()) headers['If-Modified-Since'] = cached.last_modified;
   return headers;
-}
+};
 
 export interface SourceFetchContext {
   /** One clock snapshot shared by conditional request construction and 304 cache validation. */
