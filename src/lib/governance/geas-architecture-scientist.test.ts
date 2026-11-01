@@ -19,7 +19,7 @@ if (findEarliestKeywordIndex('model context protocol (MCP) and agent-to-agent (A
     || findEarliestKeywordIndex('model context protocol (MCP) and agent-to-agent (A2A)', ['A2A']) < 0) {
   throw new Error('ASI04 acronym matching must accept standalone MCP and A2A references');
 }
-if (findEarliestKeywordIndex('resource enforcement and a2a-like tokenization', ['A2A']) !== -1) {
+if (findEarliestKeywordIndex('resource enforcement and dataA2Abased tokenization', ['A2A']) !== -1) {
   throw new Error('ASI04 A2A matching must not accept acronym-like substrings inside words');
 }
 
