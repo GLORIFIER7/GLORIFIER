@@ -125,6 +125,15 @@ if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
   throw new Error('scanner source parser must reject ID and URL values that appear only in comments');
 }
 
+const fakeFieldsInsideStringFixture = [
+  'const SOURCES: ArchitectureSource[] = [',
+  `  { authority: "reference text, id: 'forged-source', url: 'https://forged.example/source'", domain: 'cloud', patternIds: [], cadenceHours: 24 },`,
+  '];',
+].join('\\n');
+if (parseScannerSourceCatalog(fakeFieldsInsideStringFixture).failures.length === 0) {
+  throw new Error('scanner source parser must not treat property-like text inside string values as real properties');
+}
+
 if (!isRecord(parsed)) {
   failures.push('registry must be a JSON object');
 } else {
