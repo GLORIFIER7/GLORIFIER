@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import * as ts from 'typescript';
 
 type Source = {
   id: string;
@@ -54,65 +53,35 @@ const parseScannerSourceCatalog = (sourceText: string): {
   entries: ScannerSourceEntry[];
   failures: string[];
 } => {
-  const sourceFile = ts.createSourceFile(scannerPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  let sourceArray: ts.ArrayLiteralExpression | null = null;
-  for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declaration.name)
-          && declaration.name.text === 'SOURCES'
-          && declaration.initializer
-          && ts.isArrayLiteralExpression(declaration.initializer)) {
-        sourceArray = declaration.initializer;
-      }
-    }
+  const sourceArray = /const SOURCES: ArchitectureSource\[\] = \[([\s\S]*?)^\];/m.exec(sourceText);
+  if (!sourceArray) {
+    return { declaredCount: 0, entries: [], failures: ['unable to locate scanner SOURCES array'] };
   }
 
+  const sourceSection = sourceArray[1] ?? '';
+  const factoryCallPattern = /createArchitectureSource\(\s*'([^']+)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'([^']+)'/g;
+  const entries = [...sourceSection.matchAll(factoryCallPattern)].map((match) => ({
+    id: match[1] ?? '',
+    url: match[2] ?? '',
+  }));
+  const declaredCount = (sourceSection.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
   const failures: string[] = [];
-  if (!sourceArray) return { declaredCount: 0, entries: [], failures: ['unable to locate scanner SOURCES array'] };
-
-  const readString = (expression: ts.Expression | undefined): string | null =>
-    expression && ts.isStringLiteralLike(expression) ? expression.text : null;
-  const readObjectString = (object: ts.ObjectLiteralExpression, name: string): string | null => {
-    const property = object.properties.find((candidate) =>
-      ts.isPropertyAssignment(candidate)
-      && (ts.isIdentifier(candidate.name) || ts.isStringLiteral(candidate.name))
-      && candidate.name.text === name,
-    );
-    return property && ts.isPropertyAssignment(property)
-      ? readString(property.initializer)
-      : null;
-  };
-
-  const entries: ScannerSourceEntry[] = [];
-  for (const [index, element] of sourceArray.elements.entries()) {
-    let id: string | null = null;
-    let url: string | null = null;
-    if (ts.isCallExpression(element)
-        && ts.isIdentifier(element.expression)
-        && element.expression.text === 'createArchitectureSource') {
-      id = readString(element.arguments[0]);
-      url = readString(element.arguments[3]);
-    } else if (ts.isObjectLiteralExpression(element)) {
-      id = readObjectString(element, 'id');
-      url = readObjectString(element, 'url');
-    } else {
-      failures.push(`scanner source at index ${index} uses an unsupported declaration form`);
-      continue;
-    }
-    if (!id || !url) {
-      failures.push(`scanner source at index ${index} must declare literal id and url values`);
-      continue;
-    }
-    entries.push({ id, url });
+  if (declaredCount !== entries.length) {
+    failures.push('every scanner source must use a literal createArchitectureSource declaration');
   }
-  return { declaredCount: sourceArray.elements.length, entries, failures };
+  if (/\{\s*id\s*:/.test(sourceSection)) {
+    failures.push('legacy scanner source object literals must be converted to createArchitectureSource');
+  }
+  if (entries.some((entry) => !entry.id || !entry.url)) {
+    failures.push('scanner source declarations must contain literal id and URL values');
+  }
+  return { declaredCount, entries, failures };
 };
 
 const scannerParserFixture = `
-const SOURCES = [
+const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),
-  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },
+  createArchitectureSource('second-source', 'Example', 'cloud', 'https://second.example/source', ['pattern'], 24),
 ];
 `;
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
@@ -120,9 +89,18 @@ if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
     || fixtureResult.entries[0]?.id !== 'factory-source'
     || fixtureResult.entries[0]?.url !== 'https://factory.example/source'
-    || fixtureResult.entries[1]?.id !== 'literal-source'
-    || fixtureResult.entries[1]?.url !== 'https://literal.example/source') {
-  throw new Error('scanner source parser must preserve factory-call and object-literal entries');
+    || fixtureResult.entries[1]?.id !== 'second-source'
+    || fixtureResult.entries[1]?.url !== 'https://second.example/source') {
+  throw new Error('scanner source parser must preserve every factory declaration');
+}
+
+const unsupportedScannerFixture = `
+const SOURCES: ArchitectureSource[] = [
+  { id: 'legacy-source', authority: 'Example', domain: 'cloud', url: 'https://legacy.example/source', patternIds: [], cadenceHours: 24 },
+];
+`;
+if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
+  throw new Error('scanner source parser must fail closed on legacy object literals');
 }
 
 if (!isRecord(parsed)) {
