@@ -23,9 +23,9 @@ function requirePattern(pattern: RegExp, message: string) {
 // Retrieval and keyword matching establish availability/content matches, never claim truth.
 requirePattern(/evidenceStatus:\s*excerpt\s*\?\s*'content-matched'\s*:\s*response\.ok\s*\?\s*'source-available'/,
   'source retrieval must not assign claim-supported status');
-requirePattern(/export function isClaimSupportedEvidence\(status: EvidenceStatus\): boolean\s*\{\s*return status === 'claim-supported';\s*\}/,
+requirePattern(/(?:export function isClaimSupportedEvidence\(status: EvidenceStatus\): boolean\s*\{\s*return status === 'claim-supported';\s*\}|export const isClaimSupportedEvidence\s*=\s*\(status: EvidenceStatus\): boolean\s*=>\s*status === 'claim-supported';)/,
   'claim-supported status must be explicit');
-requirePattern(/export function classifyArchitectureEvidence\(status: EvidenceStatus\): EvidenceClass\s*\{\s*return status === 'claim-supported' \? 'observed-fact' : 'analysis';\s*\}/,
+requirePattern(/(?:export function classifyArchitectureEvidence\(status: EvidenceStatus\): EvidenceClass\s*\{\s*return status === 'claim-supported' \? 'observed-fact' : 'analysis';\s*\}|export const classifyArchitectureEvidence\s*=\s*\(status: EvidenceStatus\): EvidenceClass\s*=>\s*status === 'claim-supported' \? 'observed-fact' : 'analysis';)/,
   'only claim-supported evidence may be classified as observed-fact');
 requirePattern(/source\.evidenceStatus === 'claim-supported' \? 'observed-fact' : 'analysis'/,
   'observed patterns must preserve evidence classification');
