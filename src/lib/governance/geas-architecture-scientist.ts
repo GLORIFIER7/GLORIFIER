@@ -1297,7 +1297,7 @@ export const initializeGeasArchitectureScientist = async (): Promise<void> => {
   `);
 };
 
-async function acquireArchitectureScanLease(ownerId: string, ttlMinutes = 30): Promise<boolean> {
+const acquireArchitectureScanLease = async (ownerId: string, ttlMinutes = 30): Promise<boolean> => {
   try {
     await initializeGeasArchitectureScientist();
     const db = getPostgresPool();
@@ -1309,72 +1309,95 @@ async function acquireArchitectureScanLease(ownerId: string, ttlMinutes = 30): P
   } catch {
     return false;
   }
-}
+};
 
-async function releaseArchitectureScanLease(ownerId: string): Promise<void> {
+const releaseArchitectureScanLease = async (ownerId: string): Promise<void> => {
   try {
     const db = getPostgresPool();
     await db.query('DELETE FROM geas_architecture_scan_leases WHERE lease_name = $1 AND owner_id = $2', ['global', ownerId]);
   } catch {
     // Expiration provides recovery if cleanup cannot run.
   }
-}
+};
 
-export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult> {
-  const persist = String(process.env.GEAS_SCAN_PERSIST ?? 'true').toLowerCase() !== 'false';
-  const ownerId = `geas-scanner-${randomUUID()}`;
-  const leaseAcquired = persist ? await acquireArchitectureScanLease(ownerId) : true;
-  if (!leaseAcquired) throw new Error('GEAS architecture scan lease is held by another instance');
+const shouldPersistArchitectureScan = (): boolean =>
+  String(process.env.GEAS_SCAN_PERSIST ?? 'true').toLowerCase() !== 'false';
 
+const loadPreviousSourceObservations = async (
+  persist: boolean,
+): Promise<Map<string, CachedSourceObservation>> => {
+  const previous = new Map<string, CachedSourceObservation>();
+  if (!persist) return previous;
   try {
-  const scanId = `geas-scan-${randomUUID()}`;
-  const startedAt = new Date().toISOString();
-  const previous = new Map<string, { observed_at: string; ok: boolean; status: number | null; content_hash: string | null; evidence_excerpt: string | null; evidence_status: EvidenceStatus; error: string | null; final_url?: string | null; etag?: string | null; last_modified?: string | null; source_url?: string | null }>();
-  if (persist) {
-    try {
-      const db = getPostgresPool();
-      const prior = await db.query('SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url FROM geas_source_observations');
-      for (const row of prior.rows) previous.set(String(row.source_id), row);
-    } catch (error) {
-      console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
-    }
+    const db = getPostgresPool();
+    const prior = await db.query(
+      'SELECT source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url FROM geas_source_observations',
+    );
+    for (const row of prior.rows) previous.set(String(row.source_id), row);
+  } catch (error) {
+    console.warn('[GEAS] source cadence cache unavailable; scanning all sources:', error instanceof Error ? error.message : error);
   }
-  const nowMs = Date.now();
-  const sources = await Promise.all(SOURCES.map(async (source) => {
-    const cached = previous.get(source.id);
-    if (cached && shouldReuseSourceObservation({
-      configuredUrl: source.url,
-      cachedUrl: cached.source_url,
-      ok: cached.ok,
-      status: cached.status,
-      contentHash: cached.content_hash,
-      evidenceExcerpt: cached.evidence_excerpt,
-      evidenceStatus: cached.evidence_status,
-      cadenceHours: source.cadenceHours,
-      observedAt: cached.observed_at,
-      nowMs,
-    })) {
-      return {
-        sourceId: source.id,
-        ok: cached.ok,
-        status: cached.status,
-        contentHash: cached.content_hash,
-        observedAt: new Date(cached.observed_at).toISOString(),
-        reusedCachedObservation: true,
-        finalUrl: cached.final_url ?? undefined,
-        etag: cached.etag ?? null,
-        lastModified: cached.last_modified ?? null,
-        evidenceExcerpt: cached.evidence_excerpt,
-        evidenceStatus: cached.evidence_status,
-        error: cached.error ?? undefined,
-      } satisfies SourceObservation;
-    }
-    return fetchSource(source, cached);
-  }));
+  return previous;
+};
+
+const sourceObservationTimestamp = (observedAt: string | Date): string =>
+  observedAt instanceof Date ? observedAt.toISOString() : new Date(observedAt).toISOString();
+
+const reuseCachedSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation,
+): SourceObservation => ({
+  sourceId: source.id,
+  ok: cached.ok,
+  status: cached.status,
+  contentHash: cached.content_hash,
+  observedAt: sourceObservationTimestamp(cached.observed_at),
+  reusedCachedObservation: true,
+  finalUrl: cached.final_url ?? undefined,
+  etag: cached.etag ?? null,
+  lastModified: cached.last_modified ?? null,
+  evidenceExcerpt: cached.evidence_excerpt,
+  evidenceStatus: cached.evidence_status,
+  error: cached.error ?? undefined,
+});
+
+const getSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | undefined,
+  nowMs: number,
+): Promise<SourceObservation> => {
+  const reusable = cached && shouldReuseSourceObservation({
+    configuredUrl: source.url,
+    cachedUrl: cached.source_url,
+    ok: cached.ok,
+    status: cached.status,
+    contentHash: cached.content_hash,
+    evidenceExcerpt: cached.evidence_excerpt,
+    evidenceStatus: cached.evidence_status,
+    cadenceHours: source.cadenceHours,
+    observedAt: cached.observed_at,
+    nowMs,
+  });
+  return reusable && cached
+    ? Promise.resolve(reuseCachedSourceObservation(source, cached))
+    : fetchSource(source, cached);
+};
+
+const collectSourceObservations = (
+  previous: Map<string, CachedSourceObservation>,
+  nowMs: number,
+): Promise<SourceObservation[]> =>
+  Promise.all(SOURCES.map((source) => getSourceObservation(source, previous.get(source.id), nowMs)));
+
+const buildArchitectureScanResult = (
+  scanId: string,
+  startedAt: string,
+  sources: SourceObservation[],
+): ArchitectureScanResult => {
   const completedAt = new Date().toISOString();
   const patterns = observedPatterns(sources, completedAt);
   const evidence = buildEvidence(sources, patterns);
-  const result: ArchitectureScanResult = {
+  return {
     scanId,
     repositoryRevision: process.env.GITHUB_SHA ?? 'unknown',
     startedAt,
@@ -1389,32 +1412,68 @@ export async function runGeasArchitectureScan(): Promise<ArchitectureScanResult>
     architectureStateModel: ['desired', 'declared', 'deployed', 'observed', 'verified'],
     sourcePolicyVersion: 'GEAS-AUTHORITY-2',
   };
+};
 
-  if (persist) try {
-    await initializeGeasArchitectureScientist();
-    const db = getPostgresPool();
-    await db.query('INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)', [scanId, startedAt, completedAt, result]);
-    for (const source of sources) {
-      await db.query(
-        'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, source_url = EXCLUDED.source_url',
-        [source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt, source.evidenceStatus, source.error ?? null, source.finalUrl ?? null, source.etag ?? null, source.lastModified ?? null, SOURCES.find((candidate) => candidate.id === source.sourceId)?.url ?? null],
-      );
-    }
-    for (const item of evidence) {
-      await db.query(
-        'INSERT INTO geas_architecture_evidence(id, source_id, source_url, observed_at, content_hash, excerpt, evidence_class, source_status, pattern_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT(id) DO UPDATE SET source_id = EXCLUDED.source_id, source_url = EXCLUDED.source_url, observed_at = EXCLUDED.observed_at, content_hash = EXCLUDED.content_hash, excerpt = EXCLUDED.excerpt, evidence_class = EXCLUDED.evidence_class, source_status = EXCLUDED.source_status, pattern_ids = EXCLUDED.pattern_ids',
-        [item.id, item.sourceId, item.sourceUrl, item.observedAt, item.contentHash, item.excerpt, item.evidenceClass, item.sourceStatus, JSON.stringify(item.patternIds)],
-      );
-    }
-  } catch (error) {
-    console.warn('[GEAS] architecture scan persistence deferred:', error instanceof Error ? error.message : error);
+const persistArchitectureScanResult = async (result: ArchitectureScanResult): Promise<void> => {
+  await initializeGeasArchitectureScientist();
+  const db = getPostgresPool();
+  await db.query(
+    'INSERT INTO geas_architecture_scans(scan_id, started_at, completed_at, result) VALUES($1, $2, $3, $4)',
+    [result.scanId, result.startedAt, result.completedAt, result],
+  );
+  for (const source of result.sources) {
+    await db.query(
+      'INSERT INTO geas_source_observations(source_id, observed_at, ok, status, content_hash, evidence_excerpt, evidence_status, error, final_url, etag, last_modified, source_url) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT(source_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, ok = EXCLUDED.ok, status = EXCLUDED.status, content_hash = EXCLUDED.content_hash, evidence_excerpt = EXCLUDED.evidence_excerpt, evidence_status = EXCLUDED.evidence_status, error = EXCLUDED.error, final_url = EXCLUDED.final_url, etag = EXCLUDED.etag, last_modified = EXCLUDED.last_modified, source_url = EXCLUDED.source_url',
+      [
+        source.sourceId, source.observedAt, source.ok, source.status, source.contentHash, source.evidenceExcerpt,
+        source.evidenceStatus, source.error ?? null, source.finalUrl ?? null, source.etag ?? null,
+        source.lastModified ?? null, SOURCES.find((candidate) => candidate.id === source.sourceId)?.url ?? null,
+      ],
+    );
   }
+  for (const item of result.evidence) {
+    await db.query(
+      'INSERT INTO geas_architecture_evidence(id, source_id, source_url, observed_at, content_hash, excerpt, evidence_class, source_status, pattern_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT(id) DO UPDATE SET source_id = EXCLUDED.source_id, source_url = EXCLUDED.source_url, observed_at = EXCLUDED.observed_at, content_hash = EXCLUDED.content_hash, excerpt = EXCLUDED.excerpt, evidence_class = EXCLUDED.evidence_class, source_status = EXCLUDED.source_status, pattern_ids = EXCLUDED.pattern_ids',
+      [
+        item.id, item.sourceId, item.sourceUrl, item.observedAt, item.contentHash, item.excerpt,
+        item.evidenceClass, item.sourceStatus, JSON.stringify(item.patternIds),
+      ],
+    );
+  }
+};
 
+const executeArchitectureScan = async (
+  scanId: string,
+  startedAt: string,
+  persist: boolean,
+): Promise<ArchitectureScanResult> => {
+  const previous = await loadPreviousSourceObservations(persist);
+  const sources = await collectSourceObservations(previous, Date.now());
+  const result = buildArchitectureScanResult(scanId, startedAt, sources);
+  if (persist) {
+    try {
+      await persistArchitectureScanResult(result);
+    } catch (error) {
+      console.warn('[GEAS] architecture scan persistence deferred:', error instanceof Error ? error.message : error);
+    }
+  }
   return result;
+};
+
+export const runGeasArchitectureScan = async (): Promise<ArchitectureScanResult> => {
+  const persist = shouldPersistArchitectureScan();
+  const ownerId = `geas-scanner-${randomUUID()}`;
+  if (persist && !(await acquireArchitectureScanLease(ownerId))) {
+    throw new Error('GEAS architecture scan lease is held by another instance');
+  }
+  try {
+    const scanId = `geas-scan-${randomUUID()}`;
+    const startedAt = new Date().toISOString();
+    return await executeArchitectureScan(scanId, startedAt, persist);
   } finally {
     if (persist) await releaseArchitectureScanLease(ownerId);
   }
-}
+};
 
 export async function persistEvidenceGovernance(evidenceId: string, governance: EvidenceGovernance) {
   await initializeGeasArchitectureScientist();
