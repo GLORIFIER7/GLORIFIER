@@ -39,15 +39,22 @@ const quotedPattern = (quote: string): RegExp => {
   return /^`(?:\\.|[^`\\])*`/;
 };
 
+const readStaticQuotedValue = (quote: string, text: string, value: string): string | null => {
+  if (text.includes('\\')) return null;
+  if (quote === '`' && value.includes('${')) return null;
+  return value;
+};
+
 const readQuotedToken = (source: string, start: number): { token: Token; end: number } => {
   const quote = source[start] ?? '';
   const match = quotedPattern(quote).exec(source.slice(start));
   if (!match) throw new Error('unterminated string or template literal in scanner source');
   const text = match[0];
   const value = text.slice(1, -1);
-  const isDynamicTemplate = quote === '`' && value.includes('${');
-  const staticValue = text.includes('\\') || isDynamicTemplate ? null : value;
-  return { token: { kind: 'string', text, value: staticValue }, end: start + text.length };
+  return {
+    token: { kind: 'string', text, value: readStaticQuotedValue(quote, text, value) },
+    end: start + text.length,
+  };
 };
 
 const readIdentifierToken = (source: string, start: number): { token: Token; end: number } => {
@@ -69,16 +76,29 @@ const readPunctuationToken = (source: string, start: number): { token: Token; en
   return { token: { kind: 'punctuation', text, value: text }, end: start + text.length };
 };
 
+type TokenReader = {
+  matches: (character: string) => boolean;
+  read: (source: string, start: number) => { token: Token; end: number };
+};
+
+const tokenReaders: TokenReader[] = [
+  { matches: character => character === "'" || character === '"' || character === '`', read: readQuotedToken },
+  { matches: isIdentifierStart, read: readIdentifierToken },
+  { matches: isDigit, read: readNumberToken },
+];
+
+const readCodeToken = (source: string, start: number): { token: Token; end: number } => {
+  const character = source[start] ?? '';
+  const reader = tokenReaders.find(candidate => candidate.matches(character));
+  return reader ? reader.read(source, start) : readPunctuationToken(source, start);
+};
+
 const readNextToken = (source: string, start: number): { token: Token | null; end: number } => {
   const whitespaceEnd = skipWhitespace(source, start);
   if (whitespaceEnd > start) return { token: null, end: whitespaceEnd };
   const commentEnd = skipComment(source, start);
   if (commentEnd !== null) return { token: null, end: commentEnd };
-  const character = source[start] ?? '';
-  if (character === "'" || character === '"' || character === '`') return readQuotedToken(source, start);
-  if (isIdentifierStart(character)) return readIdentifierToken(source, start);
-  if (isDigit(character)) return readNumberToken(source, start);
-  return readPunctuationToken(source, start);
+  return readCodeToken(source, start);
 };
 
 const expectedClosingDelimiter = (token: Token): string | null => {
@@ -101,6 +121,9 @@ const updateDelimiterState = (token: Token, state: DelimiterState): void => {
   if (expectedActual !== actual) throw new Error('mismatched delimiter in scanner source');
 };
 
+const isScannerArrayClosed = (tokens: Token[], state: DelimiterState): boolean =>
+  tokens[0]?.text === '[' && state.expected.length === 0;
+
 const tokenizeScannerArray = (source: string, start: number): Token[] => {
   const tokens: Token[] = [];
   const state: DelimiterState = { expected: [] };
@@ -111,13 +134,17 @@ const tokenizeScannerArray = (source: string, start: number): Token[] => {
     if (!next.token) continue;
     tokens.push(next.token);
     updateDelimiterState(next.token, state);
-    if (tokens[0]?.text === '[' && state.expected.length === 0) break;
+    if (isScannerArrayClosed(tokens, state)) break;
   }
-  if (tokens[0]?.text !== '[' || tokens[tokens.length - 1]?.text !== ']') {
+  const lastToken = tokens[tokens.length - 1];
+  if (tokens[0]?.text !== '[' || lastToken?.text !== ']') {
     throw new Error('unterminated scanner SOURCES array');
   }
   return tokens;
 };
+
+const isTopLevelSeparator = (token: Token, state: DelimiterState, delimiter: string): boolean =>
+  token.kind === 'punctuation' && token.text === delimiter && state.expected.length === 0;
 
 const splitTopLevelRanges = (tokens: Token[], start: number, end: number, delimiter: string): Range[] => {
   const ranges: Range[] = [];
@@ -126,12 +153,12 @@ const splitTopLevelRanges = (tokens: Token[], start: number, end: number, delimi
   for (let index = start; index < end; index += 1) {
     const token = tokens[index];
     if (!token) continue;
-    if (token.kind === 'punctuation' && token.text === delimiter && state.expected.length === 0) {
+    if (isTopLevelSeparator(token, state, delimiter)) {
       ranges.push({ start: rangeStart, end: index });
       rangeStart = index + 1;
-      continue;
+    } else {
+      updateDelimiterState(token, state);
     }
-    updateDelimiterState(token, state);
   }
   if (state.expected.length !== 0) throw new Error('unterminated nested expression in scanner source entry');
   ranges.push({ start: rangeStart, end });
@@ -149,17 +176,28 @@ const getPropertyRange = (tokens: Token[], ranges: Range[], name: string): Range
   return matches.length === 1 ? matches[0] ?? null : null;
 };
 
-const readLiteralProperty = (tokens: Token[], ranges: Range[], name: string, kind: 'string' | 'number'): string | number | null => {
-  const range = getPropertyRange(tokens, ranges, name);
+const readSinglePropertyValueToken = (tokens: Token[], range: Range | null): Token | null => {
   if (!range || range.end - range.start !== 3 || tokens[range.start + 1]?.text !== ':') return null;
-  const value = tokens[range.start + 2];
-  if (!value || value.kind !== kind || value.value === null) return null;
-  return kind === 'number' ? Number(value.value) : value.value;
+  return tokens[range.start + 2] ?? null;
 };
 
+const readLiteralTokenValue = (token: Token | null, kind: 'string' | 'number'): string | number | null => {
+  if (!token || token.kind !== kind || token.value === null) return null;
+  return kind === 'number' ? Number(token.value) : token.value;
+};
+
+const readLiteralProperty = (tokens: Token[], ranges: Range[], name: string, kind: 'string' | 'number'): string | number | null =>
+  readLiteralTokenValue(readSinglePropertyValueToken(tokens, getPropertyRange(tokens, ranges, name)), kind);
+
+const isNonEmptyStringValue = (value: string | number | null): value is string =>
+  typeof value === 'string' && value.length > 0;
+
+const isPositiveIntegerValue = (value: string | number | null): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0;
+
 const createSourceEntry = (id: string | number | null, url: string | number | null, cadenceHours: string | number | null): ScannerSourceEntry | null => {
-  if (typeof id !== 'string' || !id || typeof url !== 'string' || !url) return null;
-  if (typeof cadenceHours !== 'number' || !Number.isInteger(cadenceHours) || cadenceHours < 1) return null;
+  if (!isNonEmptyStringValue(id) || !isNonEmptyStringValue(url)) return null;
+  if (!isPositiveIntegerValue(cadenceHours)) return null;
   return { id, url, cadenceHours };
 };
 
@@ -193,13 +231,12 @@ const readNumberArgument = (tokens: Token[], arguments_: Range[], index: number)
 const isLiteralPatternArray = (tokens: Token[], range: Range | null): boolean =>
   Boolean(range && tokens[range.start]?.text === '[' && tokens[range.end - 1]?.text === ']');
 
-const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
-  const isFactoryCall = tokens[range.start]?.text === 'createArchitectureSource'
-    && tokens[range.start + 1]?.text === '('
-    && tokens[range.end - 1]?.text === ')';
-  if (!isFactoryCall) return null;
-  const arguments_ = splitTopLevelRanges(tokens, range.start + 2, range.end - 1, ',');
-  if (arguments_.length !== 6 || !isLiteralPatternArray(tokens, argumentRange(arguments_, 4))) return null;
+const isFactoryCallRange = (tokens: Token[], range: Range): boolean =>
+  tokens[range.start]?.text === 'createArchitectureSource'
+  && tokens[range.start + 1]?.text === '('
+  && tokens[range.end - 1]?.text === ')';
+
+const readFactorySourceEntry = (tokens: Token[], arguments_: Range[]): ScannerSourceEntry | null => {
   const id = readStringArgument(tokens, arguments_, 0);
   const authority = readStringArgument(tokens, arguments_, 1);
   const domain = readStringArgument(tokens, arguments_, 2);
@@ -207,6 +244,14 @@ const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | 
   const cadence = readNumberArgument(tokens, arguments_, 5);
   if (!authority || !domain) return null;
   return createSourceEntry(id, url, cadence);
+};
+
+const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
+  if (!isFactoryCallRange(tokens, range)) return null;
+  const arguments_ = splitTopLevelRanges(tokens, range.start + 2, range.end - 1, ',');
+  if (arguments_.length !== 6) return null;
+  if (!isLiteralPatternArray(tokens, argumentRange(arguments_, 4))) return null;
+  return readFactorySourceEntry(tokens, arguments_);
 };
 
 const findArrayStart = (source: string): number => {
