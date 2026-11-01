@@ -74,6 +74,7 @@ interface NormalizedCharge {
   billedCost: string;
 }
 
+const reconciliationApi = (() => {
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -83,11 +84,9 @@ const textValue = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
-// skipcq: JS-0067
 const hasCanonicalUtcTimestampShape = (value: string): boolean =>
   value.trim() === value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
 
-// skipcq: JS-0067
 const utcTimestamp = (value: unknown): number | null => {
   if (typeof value !== 'string' || !hasCanonicalUtcTimestampShape(value)) return null;
   const milliseconds = Date.parse(value);
@@ -95,8 +94,6 @@ const utcTimestamp = (value: unknown): number | null => {
   return new Date(milliseconds).toISOString().replace('.000Z', 'Z') === value ? milliseconds : null;
 };
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function decimalScale(value: unknown): number | null {
   if (typeof value !== 'string') return null;
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
@@ -105,14 +102,10 @@ function decimalScale(value: unknown): number | null {
   return scale <= 12 ? scale : null;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function hasValidDecimalScale(scale: number, fractionLength: number): boolean {
   return Number.isInteger(scale) && scale >= 0 && fractionLength <= scale;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function decimalUnits(value: string, scale: number): bigint {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
   if (!match) throw new Error('invalid decimal amount');
@@ -124,8 +117,6 @@ function decimalUnits(value: string, scale: number): bigint {
   return match[1] === '-' ? -units : units;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function formatUnits(value: bigint, scale: number): string {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
@@ -137,20 +128,14 @@ function formatUnits(value: bigint, scale: number): string {
   return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function absolute(value: bigint): bigint {
   return value < 0n ? -value : value;
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function isTax(row: NormalizedCharge): boolean {
   return row.chargeCategory.toLowerCase() === 'tax';
 }
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
 function unknownResult(
   invoiceIssuerName: string | null,
   invoiceId: string | null,
@@ -193,7 +178,6 @@ interface NormalizeRowsContext {
 }
 
 const isUppercaseCurrencyCode = (value: string): boolean =>
-// skipcq: JS-0067
   value.length === 3 && [...value].every((character) => character >= 'A' && character <= 'Z');
 
 interface ParsedNormalizedCharge {
@@ -208,11 +192,9 @@ interface ParsedNormalizedCharge {
   billedCost: string;
 }
 
-// skipcq: JS-0067
 const hasRequiredChargeFields = (values: readonly (string | null)[]): boolean =>
   values.every((value) => Boolean(value));
 
-// skipcq: JS-0067
 const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCharge | null => {
   const issuer = textValue(row.invoiceIssuerName);
   const id = textValue(row.invoiceId);
@@ -239,19 +221,16 @@ const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCh
   };
 };
 
-// skipcq: JS-0067
 const hasValidRowBillingPeriod = (row: ParsedNormalizedCharge): boolean => {
   const startMs = utcTimestamp(row.billingPeriodStart);
   const endMs = utcTimestamp(row.billingPeriodEnd);
   return startMs !== null && endMs !== null && startMs < endMs;
 };
 
-// skipcq: JS-0067
 const matchesInvoiceBillingPeriod = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): boolean =>
   row.billingPeriodStart === context.billingPeriodStart
   && row.billingPeriodEnd === context.billingPeriodEnd;
 
-// skipcq: JS-0067
 const billingPeriodFailure = (
   row: ParsedNormalizedCharge,
   context: NormalizeRowsContext,
@@ -262,24 +241,20 @@ const billingPeriodFailure = (
 
 const invoiceDetailIdFailure = (row: ParsedNormalizedCharge): string | null =>
   row.invoiceDetailIdValue !== null && row.invoiceDetailIdValue !== undefined && !row.invoiceDetailId
-// skipcq: JS-0067
     ? 'has an invalid InvoiceDetailId'
     : null;
 
 const invoiceIdentityFailure = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): string | null =>
   row.invoiceIssuerName === context.invoiceIssuerName && row.invoiceId === context.invoiceId
-// skipcq: JS-0067
     ? null
     : 'is outside the target invoice';
 
 const invoiceCurrencyFailure = (row: ParsedNormalizedCharge, context: NormalizeRowsContext): string | null =>
   row.billingCurrency === context.billingCurrency && isUppercaseCurrencyCode(row.billingCurrency)
-// skipcq: JS-0067
     ? null
     : 'has a billing-currency mismatch';
 
 const normalizedChargeFailure = (
-// skipcq: JS-0067
   row: ParsedNormalizedCharge,
   context: NormalizeRowsContext,
 ): string | null =>
@@ -292,7 +267,6 @@ const normalizeSingleRow = (
   value: unknown,
   index: number,
   context: NormalizeRowsContext,
-// skipcq: JS-0067
 ): NormalizedCharge | null => {
   const row = asRecord(value);
   if (!row) {
@@ -328,7 +302,6 @@ const normalizeRows = (values: unknown[], context: NormalizeRowsContext): Normal
   return rows;
 };
 
-// skipcq: JS-0067
 /**
  * Compare non-tax charges by InvoiceDetailId within one exact FOCUS billing
  * period, aggregate granular usage rows, and report invoice tax separately.
@@ -384,7 +357,6 @@ const requiredDatasetRows = (
 ): unknown[] => {
   const rows = Array.isArray(value) ? value : [];
   if (!Array.isArray(value)) reasons.push(`${datasetName} rows are required`);
-// skipcq: JS-0067
   if (rows.length === 0) reasons.push(`${datasetName} dataset is empty`);
   return rows;
 };
@@ -396,7 +368,6 @@ const validateInvoiceIdentity = (
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
 };
 
-// skipcq: JS-0067
 const invoicePeriodValidationFailure = (startMs: number | null, endMs: number | null): string | null => {
   if (startMs === null || endMs === null) {
     return 'billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ';
@@ -405,7 +376,6 @@ const invoicePeriodValidationFailure = (startMs: number | null, endMs: number | 
 };
 
 const validateInvoiceBillingPeriod = (
-// skipcq: JS-0067
   values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
@@ -414,7 +384,6 @@ const validateInvoiceBillingPeriod = (
   const failure = invoicePeriodValidationFailure(startMs, endMs);
   if (failure) reasons.push(failure);
 };
-// skipcq: JS-0067
 
 const validateInvoiceCurrency = (
   currency: string | null,
@@ -425,7 +394,6 @@ const validateInvoiceCurrency = (
   }
 };
 
-// skipcq: JS-0067
 const validateRoundingTolerance = (
   tolerance: string | null,
   toleranceScale: number | null,
@@ -435,7 +403,6 @@ const validateRoundingTolerance = (
     reasons.push('an explicit decimal rounding tolerance is required');
   } else if (decimalUnits(tolerance, toleranceScale) < 0n) {
     reasons.push('rounding tolerance must not be negative');
-// skipcq: JS-0067
   }
 };
 
@@ -449,7 +416,6 @@ const validateInvoiceMetadata = (
   validateRoundingTolerance(values.tolerance, values.toleranceScale, reasons);
 };
 
-// skipcq: JS-0067
 const hasRequiredInvoiceTextValues = (draft: InvoiceMetadataDraft): boolean =>
   [draft.issuer, draft.invoiceId, draft.billingPeriodStart, draft.billingPeriodEnd, draft.currency, draft.tolerance]
     .every((value) => typeof value === 'string' && value.length > 0);
@@ -461,16 +427,13 @@ const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
   reasons: string[],
 ): InvoiceMetadataDraft => {
-// skipcq: JS-0067
   const record = asRecord(input);
   const values = {
     issuer: textValue(record?.invoiceIssuerName),
     invoiceId: textValue(record?.invoiceId),
-// skipcq: JS-0067
     billingPeriodStart: typeof record?.billingPeriodStart === 'string' ? record.billingPeriodStart : null,
     billingPeriodEnd: typeof record?.billingPeriodEnd === 'string' ? record.billingPeriodEnd : null,
     currency: textValue(record?.billingCurrency),
-// skipcq: JS-0067
     tolerance: textValue(record?.roundingTolerance),
     toleranceScale: decimalScale(textValue(record?.roundingTolerance)),
   };
@@ -488,7 +451,6 @@ const normalizeInvoiceDatasets = (
     invoiceIssuerName: metadata.issuer,
     invoiceId: metadata.invoiceId,
     billingPeriodStart: metadata.billingPeriodStart,
-// skipcq: JS-0067
     billingPeriodEnd: metadata.billingPeriodEnd,
     billingCurrency: metadata.currency,
     reasons,
@@ -512,7 +474,6 @@ const validateInvoiceDetailIdentifiers = (
   for (const row of rows) {
     if (!row.invoiceDetailId) {
       reasons.push('every InvoiceDetail row must have an InvoiceDetailId');
-// skipcq: JS-0067
     } else if (seenIds.has(row.invoiceDetailId)) {
       reasons.push('InvoiceDetailId must be unique within the invoice');
     } else {
@@ -529,7 +490,6 @@ const validateUsageIdentifiers = (rows: NormalizedCharge[], reasons: string[]): 
   }
 };
 
-// skipcq: JS-0067
 const getComparableInvoiceRows = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
@@ -539,7 +499,6 @@ const getComparableInvoiceRows = (
   const detailNonTaxRows = detailRows.filter((row) => !isTax(row));
   if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
   if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
-// skipcq: JS-0067
   return { usageNonTaxRows, detailNonTaxRows };
 };
 
@@ -551,7 +510,6 @@ const validateInvoiceLineage = (
   reasons: string[],
 ): ComparableInvoiceRows | null => {
   validateInvoiceDetailIdentifiers(detailRows, reasons);
-// skipcq: JS-0067
   validateUsageIdentifiers(usageRows, reasons);
   const comparable = getComparableInvoiceRows(usageRows, detailRows, reasons);
   if (reasons.length > 0) return null;
@@ -569,11 +527,9 @@ const aggregateUsageByDetailId = (rows: NormalizedCharge[], scale: number): Map<
   for (const row of rows) {
     if (!row.invoiceDetailId) continue;
     amounts.set(row.invoiceDetailId, (amounts.get(row.invoiceDetailId) ?? 0n) + decimalUnits(row.billedCost, scale));
-// skipcq: JS-0067
   }
   return amounts;
 };
-// skipcq: JS-0067
 
 const aggregateInvoiceDetailById = (rows: NormalizedCharge[], scale: number): Map<string, bigint> => {
   const amounts = new Map<string, bigint>();
@@ -583,7 +539,6 @@ const aggregateInvoiceDetailById = (rows: NormalizedCharge[], scale: number): Ma
   }
   return amounts;
 };
-// skipcq: JS-0067
 
 interface InvoiceLineItemComparison {
   lineItem: FocusInvoiceLineItemReconciliation;
@@ -599,7 +554,6 @@ const isInvoiceLineWithinTolerance = (
   toleranceUnits: bigint,
 ): boolean => hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
 
-// skipcq: JS-0067
 const invoiceLineItemReasons = (
   id: string,
   missingMapping: boolean,
@@ -607,7 +561,6 @@ const invoiceLineItemReasons = (
 ): string[] => [
   ...(missingMapping ? [`InvoiceDetailId ${id} is not present in both datasets`] : []),
   ...(hasVariance ? [`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`] : []),
-// skipcq: JS-0067
 ];
 
 interface InvoiceLineAmounts {
@@ -622,7 +575,6 @@ interface InvoiceLineAmounts {
 const calculateInvoiceLineAmounts = (
   id: string,
   usageById: Map<string, bigint>,
-// skipcq: JS-0067
   detailById: Map<string, bigint>,
   toleranceUnits: bigint,
 ): InvoiceLineAmounts => {
@@ -641,15 +593,12 @@ const calculateInvoiceLineAmounts = (
   };
 };
 
-// skipcq: JS-0067
 const hasMissingInvoiceLineMapping = (amounts: InvoiceLineAmounts): boolean =>
   !amounts.hasUsage || !amounts.hasDetail;
 
-// skipcq: JS-0067
 const hasInvoiceLineVariance = (amounts: InvoiceLineAmounts): boolean =>
   amounts.hasUsage && amounts.hasDetail && !amounts.withinTolerance;
 
-// skipcq: JS-0067
 const createInvoiceLineItem = (
   id: string,
   amounts: InvoiceLineAmounts,
@@ -662,7 +611,6 @@ const createInvoiceLineItem = (
   withinTolerance: amounts.withinTolerance,
 });
 
-// skipcq: JS-0067
 const compareOneInvoiceLineItem = (
   id: string,
   usageById: Map<string, bigint>,
@@ -682,7 +630,6 @@ const compareOneInvoiceLineItem = (
 };
 
 const compareInvoiceLineItems = (
-// skipcq: JS-0067
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
   toleranceUnits: bigint,
@@ -703,7 +650,6 @@ const compareInvoiceLineItems = (
     reasons.push(...comparison.reasons);
   }
   return { lineItems, hasMissingMapping, hasVariance };
-// skipcq: JS-0067
 };
 
 const buildInvoiceResult = (
@@ -733,11 +679,9 @@ const buildInvoiceResult = (
   reasons: [...new Set(reasons)],
 });
 
-// TypeScript ES-module declarations are module-scoped, not global script bindings.
-// skipcq: JS-0067
-export function reconcileFocusInvoice(
+const reconcileFocusInvoice = (
   input: FocusInvoiceReconciliationInput,
-): FocusInvoiceReconciliationResult {
+): FocusInvoiceReconciliationResult => {
   const reasons: string[] = [];
   const metadataDraft = parseInvoiceMetadata(input, reasons);
   if (reasons.length > 0) {
@@ -791,4 +735,10 @@ export function reconcileFocusInvoice(
     reasons,
   );
   return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons);
-}
+};
+
+  return { reconcileFocusInvoice };
+})();
+
+export const reconcileFocusInvoice: (input: FocusInvoiceReconciliationInput) => FocusInvoiceReconciliationResult =
+  reconciliationApi.reconcileFocusInvoice;
