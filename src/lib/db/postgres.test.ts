@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 type ClosablePool = { end: () => Promise<void> };
 
 const postgresModule = await import('./postgres') as unknown as {
-  getOptionalPostgresPool?: () => ClosablePool | null;
+  getOptionalPostgresPool: () => ClosablePool | null;
   getPostgresPool: () => ClosablePool;
 };
 assert.equal(
