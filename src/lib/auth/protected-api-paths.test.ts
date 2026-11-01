@@ -54,8 +54,13 @@ assert.match(
 );
 assert.match(
   server,
+  /return requireAuthentication\(req, res, next\)/,
+  'protected reads and state-changing requests must continue through the typed authentication middleware',
+);
+assert.doesNotMatch(
+  server,
   /return requireAuthentication\(req as any, res, next\)/,
-  'protected reads and state-changing requests must continue through authentication',
+  'the API authentication middleware must not use an unsafe any cast',
 );
 
 assert.match(
