@@ -180,6 +180,65 @@ async function run(): Promise<void> {
     assert.equal(getCapturedRequest().headers.get('authorization'), null, 'public read-only GitHub access must not forward credentials');
     upstreamResponse = previousMcpUpstreamResponse;
 
+    const mcpGetMethodNotAllowed = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp'),
+      env,
+    );
+    assert.equal(mcpGetMethodNotAllowed.status, 405, 'MCP must reject non-POST requests');
+
+    const mcpWrongContentType = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: '{}',
+      }),
+      env,
+    );
+    assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
+
+    const mcpOversizedRequest = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 5, method: 'tools/list', padding: 'x'.repeat(66_000) }),
+      }),
+      env,
+    );
+    assert.equal(mcpOversizedRequest.status, 413, 'MCP must reject request bodies above its byte limit');
+
+    const previousOversizedMcpResponse = upstreamResponse;
+    let oversizedUpstreamCancellationObserved = false;
+    upstreamResponse = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(1_000_001));
+        setTimeout(() => controller.close(), 25);
+      },
+      cancel() {
+        oversizedUpstreamCancellationObserved = true;
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const oversizedUpstreamCall = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 6,
+          method: 'tools/call',
+          params: { name: 'github_get_repository', arguments: {} },
+        }),
+      }),
+      env,
+    );
+    assert.equal(oversizedUpstreamCall.status, 200);
+    const oversizedUpstreamBody = await oversizedUpstreamCall.json() as {
+      result: { content: Array<{ text: string }>; isError?: boolean };
+    };
+    assert.equal(oversizedUpstreamBody.result.isError, true);
+    assert.match(oversizedUpstreamBody.result.content[0]?.text || '', /response exceeded the configured size limit/i);
+    assert.equal(oversizedUpstreamCancellationObserved, true, 'oversized upstream responses must be cancelled as soon as the byte limit is exceeded');
+    upstreamResponse = previousOversizedMcpResponse;
+
     capturedRequest = null;
     const rejectedMcpOrigin = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/mcp', {
