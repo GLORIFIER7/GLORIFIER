@@ -36,7 +36,7 @@ let latestReport: IntelligenceReport | null = null;
 function getPool() {
   return getOptionalPostgresPool();
 }
-async function ensureSchema() {
+const ensureSchema = async () => {
   if (initialized) return;
   const db = getPool();
   if (!db) return;
@@ -73,7 +73,7 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS intelligence_evidence_published_idx ON intelligence_evidence(published_at DESC);
   `);
   initialized = true;
-}
+};
 
 function stripHtml(value: string) {
   const withoutTags = value.replace(/<[^>]+>/g, ' ');
