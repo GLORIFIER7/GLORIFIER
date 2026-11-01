@@ -42,16 +42,18 @@ const env: TestEnv = {
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
   ASSETS: {
-    async fetch() {
+    fetch() {
       assetCalls += 1;
-      if (returnHtmlForAssets) return new Response('<!doctype html><title>SPA</title>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-      return new Response('static asset', { status: 200 });
+      const response = returnHtmlForAssets
+        ? new Response('<!doctype html><title>SPA</title>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+        : new Response('static asset', { status: 200 });
+      return Promise.resolve(response);
     },
   },
   MCP_RATE_LIMITER: {
-    async limit({ key }: { key: string }) {
+    limit({ key }: { key: string }) {
       mcpRateLimitKeys.push(key);
-      return { success: mcpRateLimitAllowed };
+      return Promise.resolve({ success: mcpRateLimitAllowed });
     },
   },
 };
@@ -194,7 +196,7 @@ async function run(): Promise<void> {
     const mcpGetRepositoryBody = await mcpGetRepository.json() as {
       result: { content: Array<{ type: string; text: string }>; isError?: boolean };
     };
-    assert.equal(mcpGetRepositoryBody.result.isError, undefined);
+    assert.equal(Object.prototype.hasOwnProperty.call(mcpGetRepositoryBody.result, 'isError'), false);
     assert.equal(JSON.parse(mcpGetRepositoryBody.result.content[0]?.text || '{}').full_name, 'GLORIFIER7/GLORIFIER');
     assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
     assert.equal(getCapturedRequest().method, 'GET');
