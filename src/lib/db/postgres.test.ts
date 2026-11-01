@@ -19,6 +19,11 @@ const restoreNodeEnv = (value: string | undefined): void => {
   else process.env.NODE_ENV = value;
 };
 
+const closePools = async (first: ClosablePool | null, second: ClosablePool | null): Promise<void> => {
+  if (first) await first.end();
+  if (second && second !== first) await second.end();
+};
+
 const postgresModule = await import('./postgres') as unknown as {
   getOptionalPostgresPool: () => ClosablePool | null;
   getPostgresPool: () => ClosablePool;
@@ -77,8 +82,7 @@ test('optional PostgreSQL access reuses the shared pool when DATABASE_URL is con
       'optional database consumers must reuse the shared PostgreSQL pool and its centralized TLS policy',
     );
   } finally {
-    if (optionalPool) await optionalPool.end();
-    if (sharedPool && sharedPool !== optionalPool) await sharedPool.end();
+    await closePools(optionalPool, sharedPool);
     restoreDatabaseUrl(originalEnvironment.databaseUrl);
     restoreDatabaseSsl(originalEnvironment.databaseSsl);
     restoreNodeEnv(originalEnvironment.nodeEnv);
