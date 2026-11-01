@@ -13,8 +13,13 @@ const registryPath = 'docs/architecture/geas-authoritative-source-registry.json'
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 
 const expectParserFailure = (fixture: string, description: string): void => {
-  const result = parseScannerSourceCatalog(fixture);
-  if (result.failures.length === 0) throw new Error(description);
+  let rejected = false;
+  try {
+    rejected = parseScannerSourceCatalog(fixture).failures.length > 0;
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) throw new Error(description);
 };
 
 const verifyParserHandlesFactoryCalls = (): void => {
