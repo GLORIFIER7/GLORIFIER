@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { parseScannerSourceCatalog } from './geas-scanner-source-parser.ts';
+import { parseScannerSourceCatalog } from './geas-source-catalog-parser.ts';
 
 type Source = {
   id: string;
