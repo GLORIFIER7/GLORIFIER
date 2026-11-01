@@ -33,9 +33,7 @@ export type IntelligenceReport = {
 let initialized = false;
 let latestReport: IntelligenceReport | null = null;
 
-function getPool() {
-  return getOptionalPostgresPool();
-}
+const getPool = () => getOptionalPostgresPool();
 const ensureSchema = async () => {
   if (initialized) return;
   const db = getPool();
