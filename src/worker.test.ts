@@ -208,12 +208,16 @@ async function run(): Promise<void> {
 
     const previousOversizedMcpResponse = upstreamResponse;
     let oversizedUpstreamCancellationObserved = false;
+    let oversizedUpstreamBodyCancelled = false;
     upstreamResponse = new Response(new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new Uint8Array(1_000_001));
-        setTimeout(() => controller.close(), 25);
+        setTimeout(() => {
+          if (!oversizedUpstreamBodyCancelled) controller.close();
+        }, 25);
       },
       cancel() {
+        oversizedUpstreamBodyCancelled = true;
         oversizedUpstreamCancellationObserved = true;
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
