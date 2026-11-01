@@ -58,9 +58,8 @@ export function getPostgresPool(): Pool {
  * Optional persistence modules can preserve memory-only behavior without
  * creating a separate pool or weakening the central TLS policy.
  */
-export function getOptionalPostgresPool(): Pool | null {
-  return process.env.DATABASE_URL ? getPostgresPool() : null;
-}
+export const getOptionalPostgresPool = (): Pool | null =>
+  process.env.DATABASE_URL ? getPostgresPool() : null;
 
 export async function checkPostgres(): Promise<{ ok: boolean; database?: string; latencyMs?: number; error?: string }> {
   const started = Date.now();
