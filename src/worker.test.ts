@@ -709,6 +709,102 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
     assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
 
+    const workerNativeReadOnlyRoutes: Array<{
+      path: string;
+      verify: (body: Record<string, unknown>) => void;
+    }> = [
+      {
+        path: '/api/governance/architecture',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          assert.equal(body.version, 'GLORIFIER-ARCH-3.1');
+          const trustLayer = body.trustLayer as { databaseAuthority?: string } | undefined;
+          assert.match(trustLayer?.databaseAuthority || '', /Neon.*target.*cutover.*not verified/i);
+        },
+      },
+      {
+        path: '/api/governance/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; principles?: string[] } | undefined;
+          assert.equal(policy?.version, 'GEAS-3.0');
+          assert.ok(policy?.principles?.includes('human authority remains final'));
+        },
+      },
+      {
+        path: '/api/architecture/permanent-stack',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const stack = body.stack as { schemaVersion?: string } | undefined;
+          const validation = body.validation as { valid?: boolean } | undefined;
+          assert.equal(stack?.schemaVersion, 'GLORIFIER-STACK-1.0');
+          assert.equal(validation?.valid, true);
+        },
+      },
+      {
+        path: '/api/governance/geas/reconciliation/manifest',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const manifest = body.manifest as { nodes?: Array<{ id?: string; name?: string }> } | undefined;
+          const neonNode = manifest?.nodes?.find((node) => node.id === 'neon');
+          assert.match(neonNode?.name || '', /canonical.*target.*cutover.*not verified/i);
+          const validation = body.validation as { valid?: boolean } | undefined;
+          assert.equal(validation?.valid, true);
+        },
+      },
+      {
+        path: '/api/governance/geas/reconciliation/degraded-modes',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          assert.ok(Array.isArray(body.contracts));
+          assert.ok((body.contracts as unknown[]).length > 0);
+        },
+      },
+      {
+        path: '/api/assets/verification/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; humanAuthority?: boolean } | undefined;
+          assert.equal(policy?.version, 'GAV-1.1');
+          assert.equal(policy?.humanAuthority, true);
+        },
+      },
+      {
+        path: '/api/assets/verification/crypto/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; noBypassOfProviderAuthorization?: boolean } | undefined;
+          assert.equal(policy?.version, 'GCAV-1.0');
+          assert.equal(policy?.noBypassOfProviderAuthorization, true);
+        },
+      },
+      {
+        path: '/api/business-intelligence/architecture',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const architecture = body.architecture as {
+            version?: string;
+            sourceOfTruth?: { revenue?: string };
+          } | undefined;
+          assert.equal(architecture?.version, 'GBIS-2.0');
+          assert.match(architecture?.sourceOfTruth?.revenue || '', /Neon.*target.*cutover.*pending verification/i);
+        },
+      },
+    ];
+
+    for (const route of workerNativeReadOnlyRoutes) {
+      capturedRequest = null;
+      const assetsBeforeRoute = assetCalls;
+      const response = await worker.fetch(
+        new Request(`https://glorifier.glorifier.workers.dev${route.path}`),
+        env,
+      );
+      assert.equal(response.status, 200, `${route.path} must be served natively by the Worker`);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      route.verify(await response.json() as Record<string, unknown>);
+      assert.equal(capturedRequest, null, `${route.path} must not call the legacy backend`);
+      assert.equal(assetCalls, assetsBeforeRoute, `${route.path} must not fall through to static assets`);
+    }
 
     const nativeRuntimeWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
