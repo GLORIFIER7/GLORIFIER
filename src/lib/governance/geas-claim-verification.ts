@@ -63,12 +63,14 @@ const normalizeSourceResource = (value: URL): string => {
 
 const normalizeExcerpt = (value: string): string => value.replace(/\s+/g, ' ').trim();
 
+const isSafeHttpsUrl = (url: URL): boolean =>
+  url.protocol === 'https:' && !url.username && !url.password;
+
 const parseSafeHttpsUrl = (value: unknown): URL | null => {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password) return null;
-    return url;
+    return isSafeHttpsUrl(url) ? url : null;
   } catch {
     return null;
   }
@@ -76,11 +78,16 @@ const parseSafeHttpsUrl = (value: unknown): URL | null => {
 
 const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 
-const isValidCalendarDate = (year: number, month: number, day: number): boolean => {
-  if (month < 1 || month > 12 || day < 1) return false;
-  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return day <= (daysInMonth[month - 1] ?? 0);
+const isValidMonth = (month: number): boolean => month >= 1 && month <= 12;
+
+const daysInCalendarMonth = (year: number, month: number): number => {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  const daysInMonth = [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return daysInMonth[month - 1] ?? 0;
 };
+
+const isValidCalendarDate = (year: number, month: number, day: number): boolean =>
+  isValidMonth(month) && day >= 1 && day <= daysInCalendarMonth(year, month);
 
 const isValidClockTime = (hour: number, minute: number, second: number): boolean =>
   hour <= 23 && minute <= 59 && second <= 59;
@@ -97,11 +104,9 @@ const isKnownUtcOffset = (offset: string): boolean => {
  * An explicit known UTC offset is required; loose Date.parse formats are not evidence timestamps.
  * Leap-second notation is intentionally rejected because JavaScript Date cannot represent it.
  */
-const parseRfc3339Timestamp = (value: unknown): number | null => {
-  if (typeof value !== 'string') return null;
+const parseRfc3339TimestampParts = (value: string): RegExpExecArray | null => {
   const match = RFC3339_TIMESTAMP_PATTERN.exec(value);
   if (!match) return null;
-
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
@@ -111,7 +116,17 @@ const parseRfc3339Timestamp = (value: unknown): number | null => {
   if (!isValidCalendarDate(year, month, day)
       || !isValidClockTime(hour, minute, second)
       || !isKnownUtcOffset(match[8])) return null;
+  return match;
+};
 
+/**
+ * Parse the supported RFC 3339 timestamp subset used by evidence records.
+ * An explicit known UTC offset is required; loose Date.parse formats are not evidence timestamps.
+ * Leap-second notation is intentionally rejected because JavaScript Date cannot represent it.
+ */
+const parseRfc3339Timestamp = (value: unknown): number | null => {
+  if (typeof value !== 'string') return null;
+  if (!parseRfc3339TimestampParts(value)) return null;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
 };
@@ -119,11 +134,33 @@ const parseRfc3339Timestamp = (value: unknown): number | null => {
 const isClaimReviewDecision = (value: unknown): value is ClaimReviewDecision =>
   value === 'supported' || value === 'contradicted' || value === 'insufficient';
 
+const validateValidationClock = (nowMs: number, failures: string[]): void => {
+  if (!Number.isFinite(nowMs)) failures.push('validation clock must be a finite timestamp');
+};
+
+const validateDecision = (decision: unknown, failures: string[]): void => {
+  if (!isClaimReviewDecision(decision)) failures.push('decision must be an explicit reviewer decision');
+};
+
 const validateRequiredFields = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
   for (const key of REQUIRED_REVIEW_FIELDS) {
     if (typeof record[key] !== 'string' || !(record[key] as string).trim()) {
       failures.push(`missing required field: ${key}`);
     }
+  }
+};
+
+const validateObservedSourceIdentity = (
+  canonical: URL,
+  observed: URL,
+  failures: string[],
+): void => {
+  if (canonical.hostname !== observed.hostname) {
+    failures.push('observed source host differs from the curated canonical source host');
+  } else if (normalizeSourceResource(canonical) !== normalizeSourceResource(observed)) {
+    // Same-host URLs can still identify different documents. Bind the observed
+    // resource to the registry path and query; ignore fragments and harmless trailing slashes.
+    failures.push('observedSourceUrl does not match the curated canonical source resource');
   }
 };
 
@@ -135,17 +172,27 @@ const validateSourceUrls = (
   const observed = parseSafeHttpsUrl(record.observedSourceUrl);
   if (!canonical) failures.push('canonicalSourceUrl must be HTTPS without credentials');
   if (!observed) failures.push('observedSourceUrl must be HTTPS without credentials');
-
-  if (canonical && observed) {
-    if (canonical.hostname !== observed.hostname) {
-      failures.push('observed source host differs from the curated canonical source host');
-    } else if (normalizeSourceResource(canonical) !== normalizeSourceResource(observed)) {
-      // Same-host URLs can still identify different documents. Bind the observed
-      // resource to the registry path and query; ignore fragments and harmless trailing slashes.
-      failures.push('observedSourceUrl does not match the curated canonical source resource');
-    }
-  }
+  if (canonical && observed) validateObservedSourceIdentity(canonical, observed, failures);
   return { canonical, observed };
+};
+
+const isValidSourceRegistry = (registry: ClaimSourceRegistry): boolean =>
+  Boolean(registry)
+  && typeof registry.version === 'string'
+  && registry.version.trim().length > 0
+  && Array.isArray(registry.sources);
+
+const findUniqueTrustedSource = (
+  record: Partial<ClaimReviewRecord>,
+  registry: ClaimSourceRegistry,
+  failures: string[],
+): ClaimReviewSource | null => {
+  const matches = registry.sources.filter((source) => source && source.id === record.sourceId);
+  if (matches.length !== 1) {
+    failures.push('sourceId must resolve to exactly one trusted source registry entry');
+    return null;
+  }
+  return matches[0];
 };
 
 const resolveTrustedSource = (
@@ -153,19 +200,14 @@ const resolveTrustedSource = (
   registry: ClaimSourceRegistry,
   failures: string[],
 ): ClaimReviewSource | null => {
-  if (!registry || typeof registry.version !== 'string' || !registry.version.trim() || !Array.isArray(registry.sources)) {
+  if (!isValidSourceRegistry(registry)) {
     failures.push('trusted source registry with version and sources is required');
     return null;
   }
   if (typeof record.sourceRegistryVersion === 'string' && record.sourceRegistryVersion !== registry.version) {
     failures.push('sourceRegistryVersion does not match the trusted source registry');
   }
-  const matches = registry.sources.filter((source) => source && source.id === record.sourceId);
-  if (matches.length !== 1) {
-    failures.push('sourceId must resolve to exactly one trusted source registry entry');
-    return null;
-  }
-  return matches[0];
+  return findUniqueTrustedSource(record, registry, failures);
 };
 
 const createSourcePolicyDigest = (source: ClaimReviewSource): string => createHash('sha256').update(JSON.stringify({
@@ -191,17 +233,29 @@ const validateTrustedSourceUrl = (
   }
 };
 
+const hasValidClaimAllowance = (claimsAllowed: readonly string[]): boolean =>
+  Array.isArray(claimsAllowed)
+  && claimsAllowed.length > 0
+  && claimsAllowed.every((allowed: unknown) => typeof allowed === 'string' && allowed.trim().length > 0);
+
 const validateTrustedClaimAllowance = (
   source: ClaimReviewSource,
   claimType: unknown,
   failures: string[],
 ): void => {
-  if (!Array.isArray(source.claimsAllowed) || source.claimsAllowed.length === 0
-      || !source.claimsAllowed.every((allowed: unknown) => typeof allowed === 'string' && allowed.trim().length > 0)) {
+  if (!hasValidClaimAllowance(source.claimsAllowed)) {
     failures.push('trusted source claimsAllowed must be a non-empty string array');
-  } else if (typeof claimType === 'string' && !source.claimsAllowed.includes(claimType)) {
+    return;
+  }
+  if (typeof claimType === 'string' && !source.claimsAllowed.includes(claimType)) {
     failures.push(`claimType ${claimType} is not allowed by the trusted source registry`);
   }
+};
+
+const getObservationAgeMs = (observedAt: unknown, nowMs: number): number | null => {
+  if (typeof observedAt !== 'string' || !Number.isFinite(nowMs)) return null;
+  const observedAtMs = parseRfc3339Timestamp(observedAt);
+  return observedAtMs === null ? null : nowMs - observedAtMs;
 };
 
 const validateSourceFreshness = (
@@ -214,12 +268,11 @@ const validateSourceFreshness = (
     failures.push('trusted source reviewCadenceDays must be a positive integer');
     return;
   }
-  if (typeof observedAt !== 'string') return;
-  const observedAtMs = parseRfc3339Timestamp(observedAt);
-  if (observedAtMs === null || !Number.isFinite(nowMs)) return;
-  if (observedAtMs > nowMs) {
+  const ageMs = getObservationAgeMs(observedAt, nowMs);
+  if (ageMs === null) return;
+  if (ageMs < 0) {
     failures.push('observedAt cannot be in the future');
-  } else if (nowMs - observedAtMs > source.reviewCadenceDays * DAYS_PER_MILLISECOND) {
+  } else if (ageMs > source.reviewCadenceDays * DAYS_PER_MILLISECOND) {
     failures.push('source observation is older than the trusted source review cadence');
   }
 };
@@ -248,22 +301,38 @@ const validateObservedTimestamp = (value: unknown, failures: string[]): void => 
   }
 };
 
-const validateSourceSnapshot = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
-  if (typeof record.sourceContentHash === 'string' && !/^[a-f0-9]{64}$/i.test(record.sourceContentHash)) {
+const isSha256HexDigest = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+
+const validateSourceContentHashFormat = (value: unknown, failures: string[]): void => {
+  if (typeof value === 'string' && !isSha256HexDigest(value)) {
     failures.push('sourceContentHash must be a SHA-256 hex digest');
   }
-  if (typeof record.sourceSnapshot === 'string' && typeof record.sourceContentHash === 'string'
-      && /^[a-f0-9]{64}$/i.test(record.sourceContentHash)) {
-    const actualHash = createHash('sha256').update(record.sourceSnapshot, 'utf8').digest('hex');
-    if (actualHash.toLowerCase() !== record.sourceContentHash.toLowerCase()) {
-      failures.push('sourceContentHash does not match sourceSnapshot');
-    }
+};
+
+const validateSnapshotDigest = (
+  snapshot: unknown,
+  contentHash: unknown,
+  failures: string[],
+): void => {
+  if (typeof snapshot !== 'string' || !isSha256HexDigest(contentHash)) return;
+  const actualHash = createHash('sha256').update(snapshot, 'utf8').digest('hex');
+  if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
+    failures.push('sourceContentHash does not match sourceSnapshot');
   }
-  if (typeof record.sourceSnapshot === 'string' && typeof record.supportingExcerpt === 'string'
-      && record.supportingExcerpt.trim()
-      && !normalizeExcerpt(record.sourceSnapshot).includes(normalizeExcerpt(record.supportingExcerpt))) {
+};
+
+const validateSupportingExcerpt = (snapshot: unknown, excerpt: unknown, failures: string[]): void => {
+  if (typeof snapshot !== 'string' || typeof excerpt !== 'string' || !excerpt.trim()) return;
+  if (!normalizeExcerpt(snapshot).includes(normalizeExcerpt(excerpt))) {
     failures.push('supportingExcerpt is not present in sourceSnapshot after whitespace normalization');
   }
+};
+
+const validateSourceSnapshot = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
+  validateSourceContentHashFormat(record.sourceContentHash, failures);
+  validateSnapshotDigest(record.sourceSnapshot, record.sourceContentHash, failures);
+  validateSupportingExcerpt(record.sourceSnapshot, record.supportingExcerpt, failures);
 };
 
 const validateReviewLimits = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
@@ -299,6 +368,42 @@ const createEvidenceReference = (
 };
 
 /** Deterministic integrity and source-registry gate; reviewer authentication and semantic truth are external. */
+const createClaimReviewResult = (
+  record: Partial<ClaimReviewRecord>,
+  sourcePolicyDigest: string | null,
+  failures: string[],
+): ClaimReviewResult => {
+  const admissible = failures.length === 0 && record.decision === 'supported';
+  const decision = failures.length === 0 && isClaimReviewDecision(record.decision)
+    ? record.decision
+    : 'unknown';
+  return {
+    admissible,
+    decision,
+    evidenceRef: admissible ? createEvidenceReference(record, sourcePolicyDigest) : null,
+    failures,
+  };
+};
+
+/** Deterministic integrity and source-registry gate; reviewer authentication and semantic truth are external. */
+export const validateClaimReview = (
+  record: Partial<ClaimReviewRecord>,
+  registry: ClaimSourceRegistry,
+  nowMs: number = Date.now(),
+): ClaimReviewResult => {
+  const failures: string[] = [];
+  validateValidationClock(nowMs, failures);
+  validateRequiredFields(record, failures);
+  const { canonical } = validateSourceUrls(record, failures);
+  const trustedSource = resolveTrustedSource(record, registry, failures);
+  const sourcePolicyDigest = validateTrustedSource(trustedSource, record, canonical, nowMs, failures);
+  validateObservedTimestamp(record.observedAt, failures);
+  validateSourceSnapshot(record, failures);
+  validateReviewLimits(record, failures);
+  validateDecision(record.decision, failures);
+  return createClaimReviewResult(record, sourcePolicyDigest, failures);
+};
+
 export const validateClaimReview = (
   record: Partial<ClaimReviewRecord>,
   registry: ClaimSourceRegistry,
