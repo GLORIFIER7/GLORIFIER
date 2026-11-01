@@ -22,6 +22,9 @@ if (findEarliestKeywordIndex('model context protocol (MCP) and agent-to-agent (A
 if (findEarliestKeywordIndex('resource enforcement and dataA2Abased tokenization', ['A2A']) !== -1) {
   throw new Error('ASI04 A2A matching must not accept acronym-like substrings inside words');
 }
+if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A tokens', ['A2A']) !== -1) {
+  throw new Error('ASI04 A2A matching must not accept hyphenated compounds as standalone acronyms');
+}
 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',

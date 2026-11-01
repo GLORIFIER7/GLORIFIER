@@ -771,17 +771,43 @@ export const reuseNotModifiedSourceObservation = (
   return buildRevalidatedSourceObservation(source, cached, response, observedAt);
 };
 
+const isAsciiAlphanumericCode = (code: number): boolean =>
+  (code >= 48 && code <= 57)
+  || (code >= 97 && code <= 122);
+
+const isUppercaseAcronymKeyword = (keyword: string): boolean => {
+  if (keyword.length < 2 || keyword.length > 5) return false;
+  for (let index = 0; index < keyword.length; index += 1) {
+    const code = keyword.charCodeAt(index);
+    const isUppercaseLetter = code >= 65 && code <= 90;
+    const isDigit = code >= 48 && code <= 57;
+    if (!isUppercaseLetter && !isDigit) return false;
+  }
+  return true;
+};
+
+const findStandaloneAcronymIndex = (text: string, keyword: string): number => {
+  let candidate = text.indexOf(keyword);
+  while (candidate >= 0) {
+    const before = candidate > 0 ? text.charCodeAt(candidate - 1) : -1;
+    const afterIndex = candidate + keyword.length;
+    const after = afterIndex < text.length ? text.charCodeAt(afterIndex) : -1;
+    const beforeIsWordCharacter = isAsciiAlphanumericCode(before) || before === 45 || before === 95;
+    const afterIsWordCharacter = isAsciiAlphanumericCode(after) || after === 45 || after === 95;
+    if (!beforeIsWordCharacter && !afterIsWordCharacter) return candidate;
+    candidate = text.indexOf(keyword, candidate + 1);
+  }
+  return -1;
+};
+
 export const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
   const lower = text.toLowerCase();
   let firstIndex = -1;
   for (const keyword of keywords) {
     const normalizedKeyword = keyword.toLowerCase();
-    const isAcronym = /^[A-Z0-9]{2,5}$/.test(keyword);
-    let matchIndex = lower.indexOf(normalizedKeyword);
-    if (isAcronym) {
-      const boundaryMatch = new RegExp(`(^|[^a-z0-9])${normalizedKeyword}(?=$|[^a-z0-9])`).exec(lower);
-      matchIndex = boundaryMatch ? boundaryMatch.index + (boundaryMatch[1]?.length ?? 0) : -1;
-    }
+    const matchIndex = isUppercaseAcronymKeyword(keyword)
+      ? findStandaloneAcronymIndex(lower, normalizedKeyword)
+      : lower.indexOf(normalizedKeyword);
     if (matchIndex >= 0 && (firstIndex < 0 || matchIndex < firstIndex)) firstIndex = matchIndex;
   }
   return firstIndex;
@@ -884,7 +910,10 @@ const fetchCuratedRedirectChain = async (
 ): Promise<{ response: Response; requestUrl: URL }> => {
   let requestUrl = originalUrl;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    const response = await fetch(requestUrl, {
+    if (!isTrustedArchitectureSourceUrl(requestUrl.href) || requestUrl.origin !== originalUrl.origin) {
+      throw new Error('source fetch rejected: target must remain HTTPS on the curated hostname allowlist');
+    }
+    const response = await fetch(requestUrl.toString(), {
       redirect: 'manual',
       headers: {
         'User-Agent': 'GLORIFIER-GEAS-Architecture-Scientist/2.0',
