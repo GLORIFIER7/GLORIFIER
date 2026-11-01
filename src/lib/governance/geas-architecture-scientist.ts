@@ -543,15 +543,18 @@ const isValidSourceCadence = (cadenceHours: number, nowMs: number): boolean =>
 const isSourceObservationExpired = (observedMs: number, cadenceHours: number, nowMs: number): boolean =>
   observedMs > nowMs || nowMs - observedMs >= cadenceHours * 60 * 60 * 1000;
 
+const isParsedSourceObservationDue = (
+  observedMs: number | null,
+  cadenceHours: number,
+  nowMs: number,
+): boolean => observedMs === null || isSourceObservationExpired(observedMs, cadenceHours, nowMs);
+
 export const isSourceObservationDue = (
   cadenceHours: number,
   observedAt: string | Date | null | undefined,
   nowMs = Date.now(),
-): boolean => {
-  if (!isValidSourceCadence(cadenceHours, nowMs)) return true;
-  const observedMs = parseSourceObservationTimestamp(observedAt);
-  return observedMs === null || isSourceObservationExpired(observedMs, cadenceHours, nowMs);
-};
+): boolean => !isValidSourceCadence(cadenceHours, nowMs)
+  || isParsedSourceObservationDue(parseSourceObservationTimestamp(observedAt), cadenceHours, nowMs);
 
 const FAILED_SOURCE_RETRY_HOURS = 1;
 
@@ -606,7 +609,7 @@ const isFailedObservationRetryDue = (
   nowMs: number,
 ): boolean => !ok && isSourceObservationDue(FAILED_SOURCE_RETRY_HOURS, observedAt, nowMs);
 
-export const shouldReuseSourceObservation = (input: {
+type SourceObservationReuseInput = {
   configuredUrl: string;
   cachedUrl: string | null | undefined;
   ok: boolean;
@@ -617,12 +620,20 @@ export const shouldReuseSourceObservation = (input: {
   cadenceHours: number;
   observedAt: string | Date | null | undefined;
   nowMs?: number;
-}): boolean => {
-  if (!isMatchingCachedSourceUrl(input.configuredUrl, input.cachedUrl)
-      || !isAdmissibleCachedSourceObservation(input)) return false;
+};
+
+const isReusableSourceObservationIdentity = (input: SourceObservationReuseInput): boolean =>
+  isMatchingCachedSourceUrl(input.configuredUrl, input.cachedUrl)
+  && isAdmissibleCachedSourceObservation(input);
+
+const isReusableSourceObservationTime = (input: SourceObservationReuseInput, nowMs: number): boolean =>
+  !isFailedObservationRetryDue(input.ok, input.observedAt, nowMs)
+  && !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
+
+export const shouldReuseSourceObservation = (input: SourceObservationReuseInput): boolean => {
   const nowMs = input.nowMs ?? Date.now();
-  return !isFailedObservationRetryDue(input.ok, input.observedAt, nowMs)
-    && !isSourceObservationDue(input.cadenceHours, input.observedAt, nowMs);
+  return isReusableSourceObservationIdentity(input)
+    && isReusableSourceObservationTime(input, nowMs);
 };
 
 const cachedSourceEvidence = (cached: CachedSourceObservation): CachedSourceEvidence => ({
@@ -636,15 +647,25 @@ const cachedSourceEvidence = (cached: CachedSourceObservation): CachedSourceEvid
 const hasCurrentCacheObservationTimestamp = (cachedAt: number | null, nowMs: number): boolean =>
   Number.isFinite(nowMs) && cachedAt !== null && cachedAt <= nowMs;
 
+const hasMatchingConditionalRequestUrl = (configuredUrl: string, cachedUrl: string): boolean =>
+  cachedUrl === configuredUrl;
+
+const hasReusableConditionalRequestEvidence = (cached: CachedSourceObservation): boolean =>
+  cached.ok && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached));
+
 const isConditionalRequestCacheUsable = (
   configuredUrl: string,
   cached: CachedSourceObservation,
   nowMs: number,
-): boolean =>
-  cached.source_url === configuredUrl
-  && cached.ok
-  && isAdmissibleCachedSourceObservation(cachedSourceEvidence(cached))
-  && hasCurrentCacheObservationTimestamp(parseSourceObservationTimestamp(cached.observed_at), nowMs);
+): boolean => {
+  const hasCurrentTimestamp = hasCurrentCacheObservationTimestamp(
+    parseSourceObservationTimestamp(cached.observed_at),
+    nowMs,
+  );
+  return hasMatchingConditionalRequestUrl(configuredUrl, cached.source_url)
+    && hasReusableConditionalRequestEvidence(cached)
+    && hasCurrentTimestamp;
+};
 
 export const buildConditionalRequestHeaders = (
   configuredUrl: string,
@@ -699,10 +720,11 @@ const isMonotonicObservationWindow = (
   cachedAt: number | null,
   observedAt: number | null,
   nowMs: number,
-): boolean =>
-  isObservationTimestampCurrent(cachedAt, nowMs)
-  && isObservationTimestampCurrent(observedAt, nowMs)
-  && isObservationTimestampMonotonic(cachedAt, observedAt);
+): boolean => [
+  isObservationTimestampCurrent(cachedAt, nowMs),
+  isObservationTimestampCurrent(observedAt, nowMs),
+  isObservationTimestampMonotonic(cachedAt, observedAt),
+].every(Boolean);
 
 const buildRevalidatedSourceObservation = (
   source: Pick<ArchitectureSource, 'id'>,
@@ -723,6 +745,19 @@ const buildRevalidatedSourceObservation = (
   evidenceStatus: cached.evidence_status,
 });
 
+const isValidNotModifiedRevalidation = (
+  source: Pick<ArchitectureSource, 'url'>,
+  cached: CachedSourceObservation,
+  finalUrl: string,
+  observedAt: string,
+  nowMs: number,
+): boolean => isCachedObservationForSource(source, cached, finalUrl)
+  && isMonotonicObservationWindow(
+    parseSourceObservationTimestamp(cached.observed_at),
+    parseSourceObservationTimestamp(observedAt),
+    nowMs,
+  );
+
 export const reuseNotModifiedSourceObservation = (
   source: Pick<ArchitectureSource, 'id' | 'url'>,
   cached: CachedSourceObservation | null | undefined,
@@ -730,15 +765,10 @@ export const reuseNotModifiedSourceObservation = (
   observedAt: string,
   nowMs = Date.now(),
 ): SourceObservation | null => {
-  if (!cached || !isCachedObservationForSource(source, cached, response.finalUrl)) return null;
-  const timeWindowIsValid = isMonotonicObservationWindow(
-    parseSourceObservationTimestamp(cached.observed_at),
-    parseSourceObservationTimestamp(observedAt),
-    nowMs,
-  );
-  return timeWindowIsValid
-    ? buildRevalidatedSourceObservation(source, cached, response, observedAt)
-    : null;
+  if (!cached || !isValidNotModifiedRevalidation(source, cached, response.finalUrl, observedAt, nowMs)) {
+    return null;
+  }
+  return buildRevalidatedSourceObservation(source, cached, response, observedAt);
 };
 
 const findEarliestKeywordIndex = (text: string, keywords: string[]): number => {
@@ -780,10 +810,11 @@ const hasNoRedirectCredentials = (nextUrl: URL): boolean =>
 const hasAllowedRedirectPort = (nextUrl: URL): boolean =>
   !nextUrl.port || nextUrl.port === '443';
 
-const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
-  hasExpectedRedirectOrigin(nextUrl, originalUrl)
-  && hasNoRedirectCredentials(nextUrl)
-  && hasAllowedRedirectPort(nextUrl);
+const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
+  if (!hasExpectedRedirectOrigin(nextUrl, originalUrl)) return false;
+  if (!hasNoRedirectCredentials(nextUrl)) return false;
+  return hasAllowedRedirectPort(nextUrl);
+};
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
@@ -978,22 +1009,38 @@ const createSourceFetchFailure = (source: ArchitectureSource, observedAt: string
     error instanceof Error ? error.message : 'source fetch failed',
   );
 
+const createSourceFetchObservation = async (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | null | undefined,
+  context: SourceFetchContext,
+  signal: AbortSignal,
+): Promise<SourceObservation> => {
+  const { response, finalUrl, body } = await fetchCuratedSource(
+    source.url,
+    signal,
+    context.conditionalHeaders,
+  );
+  if (response.status === 304) {
+    return createNotModifiedSourceObservation(
+      source,
+      cached,
+      response,
+      finalUrl,
+      context.observedAt,
+      context.nowMs,
+    );
+  }
+  return createFetchedSourceObservation(source, response, finalUrl, body, context.observedAt);
+};
+
 const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
-  const fetchContext = createSourceFetchContext(source.url, cached);
-  const { nowMs, observedAt, conditionalHeaders } = fetchContext;
+  const context = createSourceFetchContext(source.url, cached);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const { response, finalUrl, body } = await fetchCuratedSource(
-      source.url,
-      controller.signal,
-      conditionalHeaders,
-    );
-    return response.status === 304
-      ? createNotModifiedSourceObservation(source, cached, response, finalUrl, observedAt, nowMs)
-      : createFetchedSourceObservation(source, response, finalUrl, body, observedAt);
+    return await createSourceFetchObservation(source, cached, context, controller.signal);
   } catch (error) {
-    return createSourceFetchFailure(source, observedAt, error);
+    return createSourceFetchFailure(source, context.observedAt, error);
   } finally {
     clearTimeout(timer);
   }
@@ -1061,6 +1108,11 @@ const architectureEvidencePatternIds = (
   return patternIds ? patternIds : [];
 };
 
+const architectureEvidenceContentHash = (contentHash: string | null): string =>
+  contentHash ?? 'unknown';
+
+const architectureEvidenceHttpStatus = (status: number | null): number => status ?? 0;
+
 const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
@@ -1069,10 +1121,10 @@ const createArchitectureEvidence = (
   sourceId: result.sourceId,
   sourceUrl: architectureEvidenceSourceUrl(result.sourceId),
   observedAt: result.observedAt,
-  contentHash: result.contentHash === null ? 'unknown' : result.contentHash,
+  contentHash: architectureEvidenceContentHash(result.contentHash),
   excerpt: result.evidenceExcerpt,
   evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
-  sourceStatus: result.status === null ? 0 : result.status,
+  sourceStatus: architectureEvidenceHttpStatus(result.status),
   patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
