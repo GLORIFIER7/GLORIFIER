@@ -4,6 +4,21 @@ import { test } from 'node:test';
 
 type ClosablePool = { end: () => Promise<void> };
 
+const restoreDatabaseUrl = (value: string | undefined): void => {
+  if (value === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = value;
+};
+
+const restoreDatabaseSsl = (value: string | undefined): void => {
+  if (value === undefined) delete process.env.DATABASE_SSL;
+  else process.env.DATABASE_SSL = value;
+};
+
+const restoreNodeEnv = (value: string | undefined): void => {
+  if (value === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = value;
+};
+
 const postgresModule = await import('./postgres') as unknown as {
   getOptionalPostgresPool: () => ClosablePool | null;
   getPostgresPool: () => ClosablePool;
@@ -35,8 +50,7 @@ test('optional PostgreSQL access preserves memory-only mode without DATABASE_URL
       'optional PostgreSQL access must remain unavailable when DATABASE_URL is not configured',
     );
   } finally {
-    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = originalDatabaseUrl;
+    restoreDatabaseUrl(originalDatabaseUrl);
   }
 });
 
@@ -65,11 +79,8 @@ test('optional PostgreSQL access reuses the shared pool when DATABASE_URL is con
   } finally {
     if (optionalPool) await optionalPool.end();
     if (sharedPool && sharedPool !== optionalPool) await sharedPool.end();
-    if (originalEnvironment.databaseUrl === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = originalEnvironment.databaseUrl;
-    if (originalEnvironment.databaseSsl === undefined) delete process.env.DATABASE_SSL;
-    else process.env.DATABASE_SSL = originalEnvironment.databaseSsl;
-    if (originalEnvironment.nodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = originalEnvironment.nodeEnv;
+    restoreDatabaseUrl(originalEnvironment.databaseUrl);
+    restoreDatabaseSsl(originalEnvironment.databaseSsl);
+    restoreNodeEnv(originalEnvironment.nodeEnv);
   }
 });
