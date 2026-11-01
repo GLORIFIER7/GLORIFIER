@@ -279,7 +279,7 @@ const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
       });
     }
   }
-  return rpcError(id, -32601, 'Method not found.', 404);
+  return rpcError(id, -32601, 'Method not found.');
 };
 
 export const githubMcpRoute = async (request: Request): Promise<Response> => {
