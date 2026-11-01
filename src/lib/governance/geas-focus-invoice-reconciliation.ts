@@ -68,8 +68,6 @@ export interface FocusInvoiceReconciliationResult {
 interface NormalizedCharge {
   invoiceIssuerName: string;
   invoiceId: string;
-  billingPeriodStart: string;
-  billingPeriodEnd: string;
   invoiceDetailId: string | null;
   chargeCategory: string;
   billingCurrency: string;
@@ -163,16 +161,26 @@ function unknownResult(
   };
 }
 
-function normalizeRows(
-  values: unknown[],
-  datasetName: 'CostAndUsage' | 'InvoiceDetail',
-  invoiceIssuerName: string,
-  invoiceId: string,
-  billingPeriodStart: string,
-  billingPeriodEnd: string,
-  billingCurrency: string,
-  reasons: string[],
-): NormalizedCharge[] {
+interface NormalizeRowsContext {
+  datasetName: 'CostAndUsage' | 'InvoiceDetail';
+  invoiceIssuerName: string;
+  invoiceId: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  billingCurrency: string;
+  reasons: string[];
+}
+
+function normalizeRows(values: unknown[], context: NormalizeRowsContext): NormalizedCharge[] {
+  const {
+    datasetName,
+    invoiceIssuerName,
+    invoiceId,
+    billingPeriodStart,
+    billingPeriodEnd,
+    billingCurrency,
+    reasons,
+  } = context;
   const rows: NormalizedCharge[] = [];
   values.forEach((value, index) => {
     const row = asRecord(value);
@@ -221,8 +229,6 @@ function normalizeRows(
     rows.push({
       invoiceIssuerName: issuer,
       invoiceId: id,
-      billingPeriodStart: rowPeriodStart,
-      billingPeriodEnd: rowPeriodEnd,
       invoiceDetailId: detailId,
       chargeCategory: category,
       billingCurrency: currency,
@@ -271,8 +277,24 @@ export function reconcileFocusInvoice(
     return unknownResult(issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, tolerance, reasons);
   }
 
-  const usageRows = normalizeRows(usageValues, 'CostAndUsage', issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, reasons);
-  const detailRows = normalizeRows(detailValues, 'InvoiceDetail', issuer, invoiceId, billingPeriodStart, billingPeriodEnd, currency, reasons);
+  const usageRows = normalizeRows(usageValues, {
+    datasetName: 'CostAndUsage',
+    invoiceIssuerName: issuer,
+    invoiceId,
+    billingPeriodStart,
+    billingPeriodEnd,
+    billingCurrency: currency,
+    reasons,
+  });
+  const detailRows = normalizeRows(detailValues, {
+    datasetName: 'InvoiceDetail',
+    invoiceIssuerName: issuer,
+    invoiceId,
+    billingPeriodStart,
+    billingPeriodEnd,
+    billingCurrency: currency,
+    reasons,
+  });
   const allRows = [...usageRows, ...detailRows];
   const scales = allRows.map((row) => decimalScale(row.billedCost));
   if (scales.some((scale) => scale === null)) reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
