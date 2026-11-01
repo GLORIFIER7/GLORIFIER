@@ -107,7 +107,7 @@ if (isRecord(parsed)) {
 // The scanner catalog is deliberately bounded to the SOURCES declaration so pattern IDs
 // elsewhere in the file cannot be mistaken for source IDs.
 const scannerText = readFileSync(scannerPath, 'utf8');
-const sourceSection = scannerText.split('const SOURCES: ArchitectureSource[] = [')[1]?.split('const P = (')[0];
+const sourceSection = scannerText.split('const SOURCES: ArchitectureSource[] = [')[1]?.split('const PATTERN_DEFINITIONS: PatternDefinition[] = [')[0];
 if (!sourceSection) {
   failures.push('unable to locate scanner SOURCES catalog');
 } else {
