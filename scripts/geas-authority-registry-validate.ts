@@ -50,7 +50,7 @@ type ScannerSourceEntry = { id: string; url: string };
 
 const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
   const match = /^createArchitectureSource\(\s*(['"])([^'"]+)\1\s*,\s*(['"])[^'"]+\3\s*,\s*(['"])[^'"]+\4\s*,\s*(['"])([^'"]+)\5\s*,/.exec(entry);
-  return match ? { id: match[2] ?? '', url: match[8] ?? '' } : null;
+  return match ? { id: match[2] ?? '', url: match[6] ?? '' } : null;
 };
 
 const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
