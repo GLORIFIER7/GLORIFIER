@@ -1,9 +1,10 @@
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
-import { GITHUB_MCP_PATH, githubMcpRoute } from './lib/github-mcp';
+import { GITHUB_MCP_PATH, githubMcpRoute, type GithubMcpRateLimiter } from './lib/github-mcp';
 
 export type CloudflareEnv = {
+  MCP_RATE_LIMITER: GithubMcpRateLimiter;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
@@ -840,7 +841,7 @@ export default {
     const incomingUrl = new URL(request.url);
 
     if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
-      return githubMcpRoute(request);
+      return githubMcpRoute(request, env.MCP_RATE_LIMITER);
     }
 
     if (incomingUrl.pathname.replace(/\/+$/, '') === A2A_JSONRPC_PATH) {
