@@ -49,8 +49,10 @@ FROM (
 ORDER BY table_name
 `;
 
+const hasWhitespace = (value: string): boolean => /\s/.test(value);
+
 const parsePostgresConnectionUrl = (value: string): URL | null => {
-  if (!value || value !== value.trim() || /\s/.test(value)) return null;
+  if (!value || value !== value.trim() || hasWhitespace(value)) return null;
   try {
     return new URL(value);
   } catch {
@@ -58,11 +60,12 @@ const parsePostgresConnectionUrl = (value: string): URL | null => {
   }
 };
 
+const isSupportedPostgresUrl = (url: URL): boolean =>
+  url.protocol === 'postgres:' || url.protocol === 'postgresql:';
+
 const isValidPostgresConnectionString = (value: string): boolean => {
   const url = parsePostgresConnectionUrl(value);
-  if (!url) return false;
-  const supportedProtocol = url.protocol === 'postgres:' || url.protocol === 'postgresql:';
-  return supportedProtocol && Boolean(url.hostname) && !url.hash;
+  return Boolean(url && isSupportedPostgresUrl(url) && url.hostname && !url.hash);
 };
 
 const defaultNeonPgClientFactory: NeonPgClientFactory = (connectionString) =>
@@ -75,15 +78,21 @@ const defaultNeonPgClientFactory: NeonPgClientFactory = (connectionString) =>
 const isOperationalTable = (value: unknown): value is NeonOperationalTable =>
   typeof value === 'string' && OPERATIONAL_TABLES.includes(value as NeonOperationalTable);
 
-const parseSafeNonNegativeCount = (value: unknown): number | null => {
-  const normalized = typeof value === 'number'
-    ? String(value)
-    : typeof value === 'string'
-      ? value
-      : null;
-  if (normalized === null || !/^(0|[1-9][0-9]*)$/.test(normalized)) return null;
-  const count = Number(normalized);
+const normalizeCountValue = (value: unknown): string | null => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const parseNonNegativeCountText = (value: string): number | null => {
+  if (!/^(0|[1-9][0-9]*)$/.test(value)) return null;
+  const count = Number(value);
   return Number.isSafeInteger(count) ? count : null;
+};
+
+const parseSafeNonNegativeCount = (value: unknown): number | null => {
+  const normalized = normalizeCountValue(value);
+  return normalized === null ? null : parseNonNegativeCountText(normalized);
 };
 
 const parseOperationalCountRow = (
@@ -94,55 +103,60 @@ const parseOperationalCountRow = (
   return count === null ? null : { table: row.table_name, count };
 };
 
+const hasMissingOperationalTable = (counts: Partial<NeonOperationalCounts>): boolean =>
+  OPERATIONAL_TABLES.some((table) => !Object.hasOwn(counts, table));
+
+const addOperationalCount = (
+  counts: Partial<NeonOperationalCounts>,
+  row: NeonPgQueryResult['rows'][number],
+): void => {
+  const parsed = parseOperationalCountRow(row);
+  if (!parsed || Object.hasOwn(counts, parsed.table)) {
+    throw new Error('Neon returned an invalid, duplicate, or unexpected operational table count.');
+  }
+  counts[parsed.table] = parsed.count;
+};
+
 const parseOperationalCounts = (rows: NeonPgQueryResult['rows']): NeonOperationalCounts => {
   if (!Array.isArray(rows) || rows.length !== OPERATIONAL_TABLES.length) {
     throw new Error('Neon did not return exactly six operational table counts.');
   }
 
   const counts: Partial<NeonOperationalCounts> = {};
-  for (const row of rows) {
-    const parsed = parseOperationalCountRow(row);
-    if (!parsed || Object.hasOwn(counts, parsed.table)) {
-      throw new Error('Neon returned an invalid, duplicate, or unexpected operational table count.');
-    }
-    counts[parsed.table] = parsed.count;
+  rows.forEach((row) => addOperationalCount(counts, row));
+  if (hasMissingOperationalTable(counts)) {
+    throw new Error('Neon omitted one or more operational table counts.');
   }
-
-  const hasMissingTable = OPERATIONAL_TABLES.some((table) => !Object.hasOwn(counts, table));
-  if (hasMissingTable) throw new Error('Neon omitted one or more operational table counts.');
   return counts as NeonOperationalCounts;
 };
 
-const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
-  let connected = false;
-  let operationFailed = false;
-  let operationError: unknown;
-  let counts: NeonOperationalCounts | undefined;
+type AsyncResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: unknown };
 
+const captureAsyncResult = async <T>(
+  operation: () => Promise<T>,
+): Promise<AsyncResult<T>> => {
   try {
-    await client.connect();
-    connected = true;
-    const result = await client.query(OPERATIONAL_COUNTS_SQL);
-    counts = parseOperationalCounts(result.rows);
+    return { ok: true, value: await operation() };
   } catch (error) {
-    operationFailed = true;
-    operationError = error;
+    return { ok: false, error };
   }
+};
 
-  if (connected) {
-    try {
-      await client.end();
-    } catch (closeError) {
-      if (!operationFailed) {
-        operationFailed = true;
-        operationError = closeError;
-      }
-    }
-  }
+const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
+  const connection = await captureAsyncResult(() => client.connect());
+  if (!connection.ok) throw connection.error;
 
-  if (operationFailed) throw operationError;
-  if (!counts) throw new Error('Neon operational row counts were not returned.');
-  return counts;
+  const query = await captureAsyncResult(async () => {
+    const result = await client.query(OPERATIONAL_COUNTS_SQL);
+    return parseOperationalCounts(result.rows);
+  });
+  const close = await captureAsyncResult(() => client.end());
+
+  if (!query.ok) throw query.error;
+  if (!close.ok) throw close.error;
+  return query.value;
 };
 
 /**
@@ -150,7 +164,7 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
  * Cloudflare Hyperdrive binding. This adapter deliberately exposes no
  * arbitrary SQL input and performs no writes.
  */
-export const readNeonOperationalCounts = async (
+export const readNeonOperationalCounts = (
   binding: NeonHyperdriveBinding,
   clientFactory: NeonPgClientFactory = defaultNeonPgClientFactory,
 ): Promise<NeonOperationalCounts> => {
@@ -158,7 +172,7 @@ export const readNeonOperationalCounts = async (
     ? binding.connectionString
     : '';
   if (!isValidPostgresConnectionString(connectionString)) {
-    throw new Error('A valid PostgreSQL Hyperdrive connection string is required.');
+    return Promise.reject(new Error('A valid PostgreSQL Hyperdrive connection string is required.'));
   }
 
   const client = clientFactory(connectionString);
