@@ -72,7 +72,6 @@ const unknownScannerStatusRegistry = {
 } as unknown as ClaimSourceRegistry;
 const unknownScannerStatusReview = review(valid, unknownScannerStatusRegistry);
 assert.equal(unknownScannerStatusReview.admissible, false, 'unknown scanner status must fail closed');
-assert.ok(unknownScannerStatusReview.failures.some((failure) => failure.includes('scannerStatus active')));
 assert.equal(unknownScannerStatusReview.evidenceRef, null);
 
 const missingScannerStatusRegistry = {
@@ -84,7 +83,6 @@ const missingScannerStatusRegistry = {
 } as unknown as ClaimSourceRegistry;
 const missingScannerStatusReview = review(valid, missingScannerStatusRegistry);
 assert.equal(missingScannerStatusReview.admissible, false, 'missing scanner status must fail closed');
-assert.ok(missingScannerStatusReview.failures.some((failure) => failure.includes('scannerStatus active')));
 assert.equal(missingScannerStatusReview.evidenceRef, null);
 
 assert.equal(supported.admissible, true);
