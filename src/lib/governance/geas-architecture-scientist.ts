@@ -893,6 +893,91 @@ const fetchCuratedSource = async (
   return { response, finalUrl, body };
 };
 
+const getSourcePatternKeywords = (sourceId: string): string[] =>
+  PATTERN_DEFINITIONS
+    .filter((pattern) => pattern.sourceId === sourceId)
+    .flatMap((pattern) => pattern.keywords);
+
+const createUnavailableSourceObservation = (
+  sourceId: string,
+  observedAt: string,
+  status: number | null,
+  finalUrl: string | undefined,
+  error: string,
+): SourceObservation => ({
+  sourceId,
+  ok: false,
+  status,
+  contentHash: null,
+  observedAt,
+  finalUrl,
+  evidenceExcerpt: null,
+  evidenceStatus: 'unavailable',
+  error,
+});
+
+const createNotModifiedSourceObservation = (
+  source: ArchitectureSource,
+  cached: CachedSourceObservation | null | undefined,
+  response: Response,
+  finalUrl: URL,
+  observedAt: string,
+  nowMs: number,
+): SourceObservation => reuseNotModifiedSourceObservation(
+  source,
+  cached,
+  {
+    finalUrl: finalUrl.toString(),
+    etag: response.headers.get('etag'),
+    lastModified: response.headers.get('last-modified'),
+  },
+  observedAt,
+  nowMs,
+) ?? createUnavailableSourceObservation(
+  source.id,
+  observedAt,
+  304,
+  finalUrl.toString(),
+  'source returned 304 without valid cached evidence for the exact configured URL',
+);
+
+const createFetchedSourceObservation = (
+  source: ArchitectureSource,
+  response: Response,
+  finalUrl: URL,
+  body: string,
+  observedAt: string,
+): SourceObservation => {
+  const normalizedText = stripHtml(body);
+  const contentHash = createHash('sha256').update(normalizedText).digest('hex');
+  const excerpt = response.ok ? extractEvidence(body, getSourcePatternKeywords(source.id)) : null;
+  const evidenceStatus: EvidenceStatus = excerpt
+    ? 'content-matched'
+    : response.ok ? 'source-available' : 'not-observed';
+  return {
+    sourceId: source.id,
+    ok: response.ok,
+    status: response.status,
+    contentHash,
+    observedAt,
+    finalUrl: finalUrl.toString(),
+    etag: response.headers.get('etag'),
+    lastModified: response.headers.get('last-modified'),
+    evidenceExcerpt: excerpt,
+    evidenceStatus,
+    error: response.ok ? undefined : `source fetch returned ${response.status}`,
+  };
+};
+
+const createSourceFetchFailure = (source: ArchitectureSource, observedAt: string, error: unknown): SourceObservation =>
+  createUnavailableSourceObservation(
+    source.id,
+    observedAt,
+    null,
+    undefined,
+    error instanceof Error ? error.message : 'source fetch failed',
+  );
+
 const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
   const fetchContext = createSourceFetchContext(source.url, cached);
   const { nowMs, observedAt, conditionalHeaders } = fetchContext;
@@ -904,66 +989,15 @@ const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObse
       controller.signal,
       conditionalHeaders,
     );
-    if (response.status === 304) {
-      const revalidated = reuseNotModifiedSourceObservation(
-        source,
-        cached,
-        {
-          finalUrl: finalUrl.toString(),
-          etag: response.headers.get('etag'),
-          lastModified: response.headers.get('last-modified'),
-        },
-        observedAt,
-        nowMs,
-      );
-      if (revalidated) return revalidated;
-      return {
-        sourceId: source.id,
-        ok: false,
-        status: 304,
-        contentHash: null,
-        observedAt,
-        finalUrl: finalUrl.toString(),
-        evidenceExcerpt: null,
-        evidenceStatus: 'unavailable',
-        error: 'source returned 304 without valid cached evidence for the exact configured URL',
-      };
-    }
-    const normalizedText = stripHtml(body);
-    const contentHash = createHash('sha256').update(normalizedText).digest('hex');
-    const keywords = PATTERN_DEFINITIONS
-      .filter((pattern) => pattern.sourceId === source.id)
-      .flatMap((pattern) => pattern.keywords);
-    const excerpt = response.ok ? extractEvidence(body, keywords) : null;
-    return {
-      sourceId: source.id,
-      ok: response.ok,
-      status: response.status,
-      contentHash,
-      observedAt,
-      finalUrl: finalUrl.toString(),
-      etag: response.headers.get('etag'),
-      lastModified: response.headers.get('last-modified'),
-      evidenceExcerpt: excerpt,
-      evidenceStatus: excerpt ? 'content-matched' : response.ok ? 'source-available' : 'not-observed',
-      error: response.ok ? undefined : `source fetch returned ${response.status}`,
-    };
+    return response.status === 304
+      ? createNotModifiedSourceObservation(source, cached, response, finalUrl, observedAt, nowMs)
+      : createFetchedSourceObservation(source, response, finalUrl, body, observedAt);
   } catch (error) {
-    return {
-      sourceId: source.id,
-      ok: false,
-      status: null,
-      contentHash: null,
-      observedAt,
-      evidenceExcerpt: null,
-      evidenceStatus: 'unavailable',
-      error: error instanceof Error ? error.message : 'source fetch failed',
-    };
+    return createSourceFetchFailure(source, observedAt, error);
   } finally {
     clearTimeout(timer);
   }
 };
-
 function observedPatterns(results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] {
   const map = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
