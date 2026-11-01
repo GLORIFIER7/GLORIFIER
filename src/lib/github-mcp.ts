@@ -16,6 +16,9 @@ const MAX_UPSTREAM_BYTES = 1_000_000;
 const USER_AGENT = 'GLORIFIER-GitHub-MCP-ReadOnly';
 
 type JsonRecord = Record<string, unknown>;
+export type GithubMcpRateLimiter = {
+  limit(input: { key: string }): Promise<{ success: boolean }>;
+};
 type McpMessage = {
   jsonrpc?: unknown;
   id?: string | number | null;
@@ -88,12 +91,13 @@ const tools: ToolDefinition[] = [
   },
 ];
 
-const jsonResponse = (body: unknown, status = 200): Response =>
+const jsonResponse = (body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response =>
   Response.json(body, {
     status,
     headers: {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
+      ...extraHeaders,
     },
   });
 
@@ -124,6 +128,52 @@ const validateRequestSize = (request: Request): Response | null => {
     }
   }
   return null;
+};
+
+class McpRequestBodyTooLargeError extends Error {
+  constructor() {
+    super('MCP request body exceeds 65,536 bytes.');
+    this.name = 'McpRequestBodyTooLargeError';
+  }
+}
+
+const readBoundedRequestText = async (request: Request): Promise<string> => {
+  const body = request.body;
+  if (!body) return '';
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      if (!next.value) continue;
+      totalBytes += next.value.byteLength;
+      if (totalBytes > MAX_REQUEST_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new McpRequestBodyTooLargeError();
+      }
+      chunks.push(next.value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('MCP request body must be valid UTF-8.');
+  }
 };
 
 const cancelResponseBody = async (response: Response): Promise<void> => {
@@ -301,9 +351,10 @@ const toolHandlers: Record<string, (args: unknown) => Promise<unknown>> = {
 };
 
 const callTool = async (name: string, args: unknown): Promise<unknown> => {
-  const handler = toolHandlers[name];
-  if (!handler) throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
-  return handler(args);
+  if (!Object.prototype.hasOwnProperty.call(toolHandlers, name)) {
+    throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
+  }
+  return toolHandlers[name](args);
 };
 
 const resultText = (value: unknown): string => typeof value === 'string' ? value : String(JSON.stringify(value));
@@ -381,7 +432,10 @@ const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
   return handleJsonRpcMethod(message, id);
 };
 
-export const githubMcpRoute = async (request: Request): Promise<Response> => {
+export const githubMcpRoute = async (
+  request: Request,
+  rateLimiter: GithubMcpRateLimiter,
+): Promise<Response> => {
   if (!isValidOrigin(request)) {
     return jsonResponse({ error: 'Forbidden origin.' }, 403);
   }
@@ -395,16 +449,21 @@ export const githubMcpRoute = async (request: Request): Promise<Response> => {
     return rpcError(null, -32600, 'Content-Type must be application/json.', 415);
   }
   const sizeFailure = validateRequestSize(request);
-  if (sizeFailure) return sizeFailure;
+  if (sizeFailure) {
+    await request.body?.cancel().catch(() => undefined);
+    return sizeFailure;
+  }
+
   let text: string;
   try {
-    text = await request.text();
-  } catch {
-    return rpcError(null, -32700, 'Unable to read request body.', 400);
+    text = await readBoundedRequestText(request);
+  } catch (error) {
+    if (error instanceof McpRequestBodyTooLargeError) {
+      return rpcError(null, -32600, 'MCP request body exceeds 65,536 bytes.', 413);
+    }
+    return rpcError(null, -32700, 'Unable to read a valid UTF-8 request body.', 400);
   }
-  if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BYTES) {
-    return rpcError(null, -32600, 'MCP request body exceeds 65,536 bytes.', 413);
-  }
+
   let message: unknown;
   try {
     message = JSON.parse(text) as unknown;
@@ -412,5 +471,18 @@ export const githubMcpRoute = async (request: Request): Promise<Response> => {
     return rpcError(null, -32700, 'Parse error.', 400);
   }
   if (!isRecord(message)) return rpcError(null, -32600, 'Invalid JSON-RPC request.', 400);
+
+  if (message.method === 'tools/call') {
+    const clientKey = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
+    try {
+      const limit = await rateLimiter.limit({ key: clientKey });
+      if (!limit.success) {
+        return jsonResponse({ error: 'MCP tool-call rate limit exceeded.' }, 429, { 'Retry-After': '60' });
+      }
+    } catch {
+      return jsonResponse({ error: 'MCP rate-limit service is unavailable.' }, 503);
+    }
+  }
+
   return handleJsonRpc(message as McpMessage);
 };
