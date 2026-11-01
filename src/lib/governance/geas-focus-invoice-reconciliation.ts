@@ -381,17 +381,21 @@ const validateInvoiceIdentity = (
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
 };
 
+const invoicePeriodValidationFailure = (startMs: number | null, endMs: number | null): string | null => {
+  if (startMs === null || endMs === null) {
+    return 'billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ';
+  }
+  return startMs >= endMs ? 'billing period end must be later than billing period start' : null;
+};
+
 const validateInvoiceBillingPeriod = (
   values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
   const startMs = values.billingPeriodStart ? utcTimestamp(values.billingPeriodStart) : null;
   const endMs = values.billingPeriodEnd ? utcTimestamp(values.billingPeriodEnd) : null;
-  if (startMs === null || endMs === null) {
-    reasons.push('billing period bounds must use FOCUS UTC ISO 8601 format YYYY-MM-DDTHH:mm:ssZ');
-  } else if (startMs >= endMs) {
-    reasons.push('billing period end must be later than billing period start');
-  }
+  const failure = invoicePeriodValidationFailure(startMs, endMs);
+  if (failure) reasons.push(failure);
 };
 
 const validateInvoiceCurrency = (
@@ -556,6 +560,22 @@ interface InvoiceLineItemComparison {
   reasons: string[];
 }
 
+const isInvoiceLineWithinTolerance = (
+  hasUsage: boolean,
+  hasDetail: boolean,
+  variance: bigint,
+  toleranceUnits: bigint,
+): boolean => hasUsage && hasDetail && absolute(variance) <= toleranceUnits;
+
+const invoiceLineItemReasons = (
+  id: string,
+  missingMapping: boolean,
+  hasVariance: boolean,
+): string[] => [
+  ...(missingMapping ? [`InvoiceDetailId ${id} is not present in both datasets`] : []),
+  ...(hasVariance ? [`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`] : []),
+];
+
 const compareOneInvoiceLineItem = (
   id: string,
   usageById: Map<string, bigint>,
@@ -569,11 +589,8 @@ const compareOneInvoiceLineItem = (
   const usageAmount = usageById.get(id) ?? 0n;
   const detailAmount = detailById.get(id) ?? 0n;
   const varianceAmount = usageAmount - detailAmount;
-  const withinTolerance = hasUsage && hasDetail && absolute(varianceAmount) <= toleranceUnits;
+  const withinTolerance = isInvoiceLineWithinTolerance(hasUsage, hasDetail, varianceAmount, toleranceUnits);
   const hasVariance = hasUsage && hasDetail && !withinTolerance;
-  const reasons: string[] = [];
-  if (missingMapping) reasons.push(`InvoiceDetailId ${id} is not present in both datasets`);
-  if (hasVariance) reasons.push(`BilledCost variance for InvoiceDetailId ${id} exceeds tolerance`);
   return {
     lineItem: {
       invoiceDetailId: id,
@@ -584,7 +601,7 @@ const compareOneInvoiceLineItem = (
     },
     missingMapping,
     variance: hasVariance,
-    reasons,
+    reasons: invoiceLineItemReasons(id, missingMapping, hasVariance),
   };
 };
 
