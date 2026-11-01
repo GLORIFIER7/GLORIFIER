@@ -286,7 +286,7 @@ const postgresDateObservation = new Date(0);
 if (isSourceObservationDue(24, postgresDateObservation as unknown as string, 1000)) {
   throw new Error('valid Date values returned for persisted PostgreSQL TIMESTAMPTZ observations must remain reusable');
 }
-if (isSourceObservationDue(24, new Date(Number.NaN) as unknown as string, 1000)) {
+if (!isSourceObservationDue(24, new Date(Number.NaN) as unknown as string, 1000)) {
   throw new Error('invalid Date values must force source revalidation');
 }
 if (!isSourceObservationDue(24, new Date(0).toISOString(), Number.NaN)) {
