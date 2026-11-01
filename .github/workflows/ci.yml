@@ -283,6 +283,9 @@ jobs:
       - name: Cloudflare Worker API proxy tests
         run: npm run test:cloudflare-worker
 
+      - name: OpenSea public collection integration tests
+        run: npm run test:opensea-worker
+
       - name: Hugging Face Space binary asset deployment contract
         run: npm run test:huggingface-space-deploy
 
