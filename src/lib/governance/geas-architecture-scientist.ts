@@ -262,20 +262,6 @@ interface PatternDefinition {
   keywords: string[];
 }
 
-const OWASP_AGENTIC_SOURCE_BASE_URL = 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/';
-
-const OWASP_AGENTIC_RISKS = [
-  { id: 'owasp-agentic-asi01', label: 'ASI01', sourceFile: 'ASI01_Agent_Goal_Hijack.md', title: 'OWASP ASI01 — Agent Goal Hijack', controlIds: ['AI-01','SEC-01','POL-01','EVID-01'], keywords: ['goal hijack','task selection','decision pathways','prompt-based manipulation','deceptive tool outputs'] },
-  { id: 'owasp-agentic-asi02', label: 'ASI02', sourceFile: 'ASI02_Tool_Misuse_and_Exploitation.md', title: 'OWASP ASI02 — Tool Misuse and Exploitation', controlIds: ['SEC-01','AUTH-01','POL-01','REL-01','OBS-01'], keywords: ['tool misuse','legitimate tools','unsafe delegation','data exfiltration','workflow hijacking'] },
-  { id: 'owasp-agentic-asi03', label: 'ASI03', sourceFile: 'ASI03_Identity_and_Privilege_Abuse.md', title: 'OWASP ASI03 — Identity and Privilege Abuse', controlIds: ['AUTH-01','FED-01','POL-01','EVID-01'], keywords: ['identity and privilege abuse','delegation chains','cached credentials','least privilege','agent-to-agent trust'] },
-  { id: 'owasp-agentic-asi04', label: 'ASI04', sourceFile: 'ASI04_Agentic_Supply_Chain_Vulnerabilities.md', title: 'OWASP ASI04 — Agentic Supply Chain Vulnerabilities', controlIds: ['SUPPLY-01','EVID-01','SEC-01','FED-01'], keywords: ['agentic supply chain vulnerabilities','third parties','model weights','MCP','A2A','update channels'] },
-  { id: 'owasp-agentic-asi05', label: 'ASI05', sourceFile: 'ASI05_Unexpected_Code_Execution_RCE.md', title: 'OWASP ASI05 — Unexpected Code Execution', controlIds: ['SEC-01','POL-01','REL-01'], keywords: ['unexpected code execution','remote code execution','RCE','generated code','sandbox escape'] },
-  { id: 'owasp-agentic-asi06', label: 'ASI06', sourceFile: 'ASI06_Memory_Context_Poisoning.md', title: 'OWASP ASI06 — Memory and Context Poisoning', controlIds: ['EVID-01','SEC-01','POL-01'], keywords: ['memory and context poisoning','stored and retrievable information','persistent corruption','RAG stores','conversation history'] },
-  { id: 'owasp-agentic-asi07', label: 'ASI07', sourceFile: 'ASI07_Insecure_Inter_Agent_Communication.md', title: 'OWASP ASI07 — Insecure Inter-Agent Communication', controlIds: ['FED-01','AUTH-01','SEC-01','OBS-01'], keywords: ['insecure inter-agent communication','authentication','integrity','confidentiality','authorization','spoof'] },
-  { id: 'owasp-agentic-asi08', label: 'ASI08', sourceFile: 'ASI08_Cascading_Failures.md', title: 'OWASP ASI08 — Cascading Failures', controlIds: ['REL-01','OBS-01','POL-01'], keywords: ['cascading failures','fault propagates','fan-out','feedback loops','queue storms'] },
-  { id: 'owasp-agentic-asi09', label: 'ASI09', sourceFile: 'ASI09_Human_Agent_Trust_Exploitation.md', title: 'OWASP ASI09 — Human-Agent Trust Exploitation', controlIds: ['GOV-01','POL-01','EVID-01'], keywords: ['human-agent trust exploitation','over-rely','automation bias','perceived authority','human oversight'] },
-  { id: 'owasp-agentic-asi10', label: 'ASI10', sourceFile: 'ASI10_Rogue_Agents.md', title: 'OWASP ASI10 — Rogue Agents', controlIds: ['GOV-01','SEC-01','OBS-01','POL-01'], keywords: ['rogue agents','deviate from their intended function','behavioral integrity','containment gap','unauthorized actions'] },
-] as const;
 const SOURCES: ArchitectureSource[] = [
   {
     id: 'microsoft-architecture',
@@ -437,14 +423,86 @@ const SOURCES: ArchitectureSource[] = [
     patternIds: ['runtime-agent-controls'],
     cadenceHours: 336,
   },
-  ...OWASP_AGENTIC_RISKS.map((risk) => ({
-    id: risk.id,
+  {
+    id: 'owasp-agentic-asi01',
     authority: 'OWASP GenAI Security Project',
     domain: 'cybersecurity',
-    url: OWASP_AGENTIC_SOURCE_BASE_URL + risk.sourceFile,
-    patternIds: [risk.id],
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
+    patternIds: ['owasp-agentic-asi01'],
     cadenceHours: 336,
-  })),
+  },
+  {
+    id: 'owasp-agentic-asi02',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md',
+    patternIds: ['owasp-agentic-asi02'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi03',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md',
+    patternIds: ['owasp-agentic-asi03'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi04',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md',
+    patternIds: ['owasp-agentic-asi04'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi05',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md',
+    patternIds: ['owasp-agentic-asi05'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi06',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md',
+    patternIds: ['owasp-agentic-asi06'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi07',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md',
+    patternIds: ['owasp-agentic-asi07'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi08',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md',
+    patternIds: ['owasp-agentic-asi08'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi09',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md',
+    patternIds: ['owasp-agentic-asi09'],
+    cadenceHours: 336,
+  },
+  {
+    id: 'owasp-agentic-asi10',
+    authority: 'OWASP GenAI Security Project',
+    domain: 'cybersecurity',
+    url: 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md',
+    patternIds: ['owasp-agentic-asi10'],
+    cadenceHours: 336,
+  },
   {
     id: 'mitre-atlas',
     authority: 'MITRE',
@@ -521,6 +579,19 @@ const P = (
   keywords,
 });
 
+/** Shared OWASP ASI metadata keeps source-derived control mappings consistent. */
+const OWASP_AGENTIC_PATTERN_INPUTS = [
+  { id: 'owasp-agentic-asi01', label: 'ASI01', title: 'OWASP ASI01 — Agent Goal Hijack', controlIds: ['AI-01','SEC-01','POL-01','EVID-01'], keywords: ['goal hijack','task selection','decision pathways','prompt-based manipulation','deceptive tool outputs'] },
+  { id: 'owasp-agentic-asi02', label: 'ASI02', title: 'OWASP ASI02 — Tool Misuse and Exploitation', controlIds: ['SEC-01','AUTH-01','POL-01','REL-01','OBS-01'], keywords: ['tool misuse','legitimate tools','unsafe delegation','data exfiltration','workflow hijacking'] },
+  { id: 'owasp-agentic-asi03', label: 'ASI03', title: 'OWASP ASI03 — Identity and Privilege Abuse', controlIds: ['AUTH-01','FED-01','POL-01','EVID-01'], keywords: ['identity and privilege abuse','delegation chains','cached credentials','least privilege','agent-to-agent trust'] },
+  { id: 'owasp-agentic-asi04', label: 'ASI04', title: 'OWASP ASI04 — Agentic Supply Chain Vulnerabilities', controlIds: ['SUPPLY-01','EVID-01','SEC-01','FED-01'], keywords: ['agentic supply chain vulnerabilities','third parties','model weights','MCP','A2A','update channels'] },
+  { id: 'owasp-agentic-asi05', label: 'ASI05', title: 'OWASP ASI05 — Unexpected Code Execution', controlIds: ['SEC-01','POL-01','REL-01'], keywords: ['unexpected code execution','remote code execution','RCE','generated code','sandbox escape'] },
+  { id: 'owasp-agentic-asi06', label: 'ASI06', title: 'OWASP ASI06 — Memory and Context Poisoning', controlIds: ['EVID-01','SEC-01','POL-01'], keywords: ['memory and context poisoning','stored and retrievable information','persistent corruption','RAG stores','conversation history'] },
+  { id: 'owasp-agentic-asi07', label: 'ASI07', title: 'OWASP ASI07 — Insecure Inter-Agent Communication', controlIds: ['FED-01','AUTH-01','SEC-01','OBS-01'], keywords: ['insecure inter-agent communication','authentication','integrity','confidentiality','authorization','spoof'] },
+  { id: 'owasp-agentic-asi08', label: 'ASI08', title: 'OWASP ASI08 — Cascading Failures', controlIds: ['REL-01','OBS-01','POL-01'], keywords: ['cascading failures','fault propagates','fan-out','feedback loops','queue storms'] },
+  { id: 'owasp-agentic-asi09', label: 'ASI09', title: 'OWASP ASI09 — Human-Agent Trust Exploitation', controlIds: ['GOV-01','POL-01','EVID-01'], keywords: ['human-agent trust exploitation','over-rely','automation bias','perceived authority','human oversight'] },
+  { id: 'owasp-agentic-asi10', label: 'ASI10', title: 'OWASP ASI10 — Rogue Agents', controlIds: ['GOV-01','SEC-01','OBS-01','POL-01'], keywords: ['rogue agents','deviate from their intended function','behavioral integrity','containment gap','unauthorized actions'] },
+] as const;
 const PATTERN_DEFINITIONS: PatternDefinition[] = [
   P('cross-cutting-cloud-controls', 'Cross-cutting architecture controls', 'cloud', 'aws-well-architected', 'Treat operational excellence, security, reliability, performance and cost as architecture concerns.', 'GEAS architecture evidence and drift model', ['REL-01', 'SEC-01', 'FIN-01'], ['security', 'reliability', 'cost']),
   P('ai-lifecycle-risk', 'Continuous AI risk lifecycle', 'ai', 'nist-ai-rmf', 'Manage AI trustworthiness and risk across design, development, use and evaluation.', 'GEAS + AI impact assessment', ['AI-01', 'GOV-01'], ['risk', 'design', 'development', 'evaluation']),
@@ -551,10 +622,10 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   P('ai-management-system', 'AI management system', 'governance', 'iso-42001', 'Establish and continually improve a management system for responsible AI governance.', 'GEAS governance lifecycle + audit evidence', ['AI-01', 'GOV-01'], ['management system', 'AI', 'continuous', 'governance']),
   P('verifiable-credentials', 'Machine-verifiable credentials', 'emerging-technology', 'w3c-vc', 'Use cryptographically secure, privacy-respecting, machine-verifiable credentials where portable trust is required.', 'Future portable agent/provider credentials', ['AUTH-01', 'EVID-01'], ['verifiable', 'credential', 'cryptographic']),
   P('runtime-agent-controls', 'Runtime agent control hooks', 'cybersecurity', 'owasp-agent-control', 'Expose inspectable, traceable and enforceable runtime controls for agents.', 'GEAS runtime policy adapters', ['SEC-01', 'POL-01', 'OBS-01'], ['agent', 'runtime', 'control', 'traceable']),
-  ...OWASP_AGENTIC_RISKS.map((risk) => P(
+  ...OWASP_AGENTIC_PATTERN_INPUTS.map((risk) => P(
     risk.id,
     risk.title,
-    'cybersecurity',
+    'cybersecurity' as const,
     risk.id,
     'Analyze the ' + risk.label + ' threat class from its dedicated OWASP source document. A source match is not evidence that the threat is present in GLORIFIER.',
     'Map the threat to GEAS control recommendations and require separate implementation, runtime, and independent verification evidence before making a conformance claim.',
