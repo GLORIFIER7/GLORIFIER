@@ -48,136 +48,15 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
 
 type ScannerSourceEntry = { id: string; url: string };
 
-const skipWhitespace = (value: string, start: number): number => {
-  let index = start;
-  while (index < value.length && /\s/.test(value[index] ?? '')) index += 1;
-  return index;
-};
-
-const readStringLiteral = (value: string, start: number): { value: string; end: number } | null => {
-  const quote = value[start];
-  if (quote !== "'" && quote !== '"') return null;
-  let index = start + 1;
-  let result = '';
-  while (index < value.length) {
-    const character = value[index] ?? '';
-    if (character === quote) return { value: result, end: index + 1 };
-    if (character === '\\') {
-      const escaped = value[index + 1] ?? '';
-      if (!escaped) return null;
-      const replacements: Record<string, string> = { n: '\n', r: '\r', t: '\t', '\\': '\\', "'": "'", '"': '"' };
-      result += replacements[escaped] ?? escaped;
-      index += 2;
-      continue;
-    }
-    result += character;
-    index += 1;
-  }
-  return null;
-};
-
-const splitTopLevelSourceEntries = (sourceText: string): { entries: string[]; closed: boolean } => {
-  const marker = 'const SOURCES: ArchitectureSource[] = [';
-  const markerIndex = sourceText.indexOf(marker);
-  if (markerIndex < 0) return { entries: [], closed: false };
-  const entryStartIndex = markerIndex + marker.length;
-  const entries: string[] = [];
-  let entryStart = entryStartIndex;
-  let bracketDepth = 1;
-  let braceDepth = 0;
-  let parenthesisDepth = 0;
-  let quote: "'" | '"' | null = null;
-  let lineComment = false;
-  let blockComment = false;
-
-  for (let index = entryStartIndex; index < sourceText.length; index += 1) {
-    const character = sourceText[index] ?? '';
-    const next = sourceText[index + 1] ?? '';
-    if (lineComment) {
-      if (character === '\n') lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (character === '*' && next === '/') {
-        blockComment = false;
-        index += 1;
-      }
-      continue;
-    }
-    if (quote) {
-      if (character === '\\') index += 1;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (character === '/' && next === '/') {
-      lineComment = true;
-      index += 1;
-      continue;
-    }
-    if (character === '/' && next === '*') {
-      blockComment = true;
-      index += 1;
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      continue;
-    }
-    if (character === '(') parenthesisDepth += 1;
-    else if (character === ')') parenthesisDepth -= 1;
-    else if (character === '{') braceDepth += 1;
-    else if (character === '}') braceDepth -= 1;
-    else if (character === '[') bracketDepth += 1;
-    else if (character === ']') {
-      bracketDepth -= 1;
-      if (bracketDepth === 0) {
-        const lastEntry = sourceText.slice(entryStart, index).trim();
-        if (lastEntry) entries.push(lastEntry);
-        return { entries, closed: true };
-      }
-    } else if (character === ',' && bracketDepth === 1 && braceDepth === 0 && parenthesisDepth === 0) {
-      const entry = sourceText.slice(entryStart, index).trim();
-      if (entry) entries.push(entry);
-      entryStart = index + 1;
-    }
-    if (bracketDepth < 0 || braceDepth < 0 || parenthesisDepth < 0) return { entries, closed: false };
-  }
-  return { entries, closed: false };
-};
-
 const parseFactorySource = (entry: string): ScannerSourceEntry | null => {
-  const name = 'createArchitectureSource';
-  if (!entry.startsWith(name)) return null;
-  let index = skipWhitespace(entry, name.length);
-  if (entry[index] !== '(') return null;
-  index = skipWhitespace(entry, index + 1);
-  const id = readStringLiteral(entry, index);
-  if (!id) return null;
-  index = skipWhitespace(entry, id.end);
-  if (entry[index] !== ',') return null;
-  index = skipWhitespace(entry, index + 1);
-  const authority = readStringLiteral(entry, index);
-  if (!authority) return null;
-  index = skipWhitespace(entry, authority.end);
-  if (entry[index] !== ',') return null;
-  index = skipWhitespace(entry, index + 1);
-  const domain = readStringLiteral(entry, index);
-  if (!domain) return null;
-  index = skipWhitespace(entry, domain.end);
-  if (entry[index] !== ',') return null;
-  index = skipWhitespace(entry, index + 1);
-  const url = readStringLiteral(entry, index);
-  return url && id.value ? { id: id.value, url: url.value } : null;
+  const match = /^createArchitectureSource\(\s*(['"])([^'"]+)\1\s*,\s*(['"])[^'"]+\3\s*,\s*(['"])[^'"]+\5\s*,\s*(['"])([^'"]+)\7\s*,/.exec(entry);
+  return match ? { id: match[2] ?? '', url: match[8] ?? '' } : null;
 };
 
 const parseObjectSource = (entry: string): ScannerSourceEntry | null => {
-  const readProperty = (name: 'id' | 'url'): string | null => {
-    const match = new RegExp(name + "\\s*:\\s*(['\\\"])([^'\\\"]+)\\1").exec(entry);
-    return match?.[2] ?? null;
-  };
-  const id = readProperty('id');
-  const url = readProperty('url');
-  return id && url ? { id, url } : null;
+  const id = /(?:^|[{,]\s*)id\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  const url = /(?:^|[,]\s*)url\s*:\s*(['"])([^'"]+)\1/.exec(entry);
+  return id && url ? { id: id[2] ?? '', url: url[2] ?? '' } : null;
 };
 
 const parseScannerSourceCatalog = (sourceText: string): {
@@ -185,27 +64,30 @@ const parseScannerSourceCatalog = (sourceText: string): {
   entries: ScannerSourceEntry[];
   failures: string[];
 } => {
-  const split = splitTopLevelSourceEntries(sourceText);
-  const failures: string[] = [];
-  if (!split.closed) failures.push('unable to locate a complete scanner SOURCES array');
+  const section = /const SOURCES: ArchitectureSource\[\] = \[\n([\s\S]*?)\n\];/.exec(sourceText);
+  if (!section) {
+    return { declaredCount: 0, entries: [], failures: ['unable to locate a complete scanner SOURCES array'] };
+  }
+  const sourceLines = (section[1] ?? '').split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//'));
   const entries: ScannerSourceEntry[] = [];
-  for (const [index, entry] of split.entries.entries()) {
-    const parsed = entry.startsWith('createArchitectureSource')
+  const failures: string[] = [];
+  for (const [index, line] of sourceLines.entries()) {
+    const entry = line.replace(/,$/, '');
+    const parsed = entry.startsWith('createArchitectureSource(')
       ? parseFactorySource(entry)
       : entry.startsWith('{') ? parseObjectSource(entry) : null;
-    if (!parsed) {
-      failures.push('scanner source at index ' + index + ' uses an unsupported declaration form or non-literal id/url');
+    if (!parsed?.id || !parsed.url) {
+      failures.push('scanner source at index ' + index + ' must be a single-line factory call or literal object with ID and URL');
       continue;
     }
     entries.push(parsed);
   }
-  return { declaredCount: split.entries.length, entries, failures };
+  return { declaredCount: sourceLines.length, entries, failures };
 };
 
-const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\n"
-  + "createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\n"
-  + "{ id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\n"
-  + "];";
+const scannerParserFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),\n  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },\n];";
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
 if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
@@ -214,6 +96,11 @@ if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries[1]?.id !== 'literal-source'
     || fixtureResult.entries[1]?.url !== 'https://literal.example/source') {
   throw new Error('scanner source parser must preserve factory-call and object-literal entries');
+}
+
+const unsupportedScannerFixture = "const SOURCES: ArchitectureSource[] = [\n  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),\n];";
+if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
+  throw new Error('scanner source parser must fail closed on computed factory arguments');
 }
 
 if (!isRecord(parsed)) {
