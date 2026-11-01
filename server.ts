@@ -3212,7 +3212,7 @@ app.get('/api/business-intelligence/architecture', (_req: Request, res: Response
         'measurable verified outcomes'
       ],
       sourceOfTruth: {
-        revenue: 'Neon/PostgreSQL authoritative ledger',
+        revenue: 'Neon/PostgreSQL canonical target; production route cutover pending verification',
         verification: 'Evidence-backed outcome records',
         orchestration: 'GLORIFIER provider-neutral AI layer'
       }
@@ -3372,7 +3372,7 @@ app.get('/api/governance/architecture', (_req: Request, res: Response) => {
   return res.json({ ok: true, version: 'GLORIFIER-ARCH-3.1', roleModel: LINUX_PHILOSOPHY_ARCHITECTURE, controlPlanes: [
     'human-authority','ai-ceo','geas-governance','agent-control','provider-control',
     'compute-control','tool-integration','evidence-truth','cryptographic-provenance','economic-control','reliability-security'
-  ], trustLayer: { databaseAuthority: 'Neon', externalBlockchainAnchoring: 'optional', privateDataOnChain: false }, principles: getGeasPolicy().principles });
+  ], trustLayer: { databaseAuthority: 'Neon canonical target; production Worker cutover not verified', externalBlockchainAnchoring: 'optional', privateDataOnChain: false }, principles: getGeasPolicy().principles });
 });
 
 app.get('/api/governance/policy', (_req: Request, res: Response) => {

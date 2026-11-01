@@ -200,7 +200,7 @@ export function getGeasArchitectureManifest(): ArchitectureManifest {
       { id: 'verification', type: 'system', name: 'Verification' },
       { id: 'evidence-graph', type: 'system', name: 'Architecture Evidence Graph' },
       { id: 'economic-truth', type: 'system', name: 'Economic Truth' },
-      { id: 'neon', type: 'resource', name: 'Neon/PostgreSQL Authoritative State' }
+      { id: 'neon', type: 'resource', name: 'Neon/PostgreSQL Canonical Target (production cutover not verified)' }
     ],
     edges: [
       { from: 'human-authority', to: 'governance-kernel', relation: 'governed-by' },

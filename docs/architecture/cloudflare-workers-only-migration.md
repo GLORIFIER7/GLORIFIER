@@ -20,7 +20,7 @@ Cloudflare Workers is the only approved production hosting and application execu
 3. Port endpoints to Worker-native `fetch(Request, Env)` handlers in groups. `GET /api/health` is a Worker-runtime-only probe and explicitly reports backend/auth/database as `not-probed`; `GET /api/identity` is also Worker-native. Add contract tests for success, validation errors, authentication, authorization, rate limiting, provider failures, and persistence.
 4. Replace Node-specific dependencies with Workers-compatible APIs or bindings. Use Cloudflare bindings/secrets for runtime configuration; never commit credentials. Until route migration is complete, `GLORIFIER_BACKEND_ORIGIN` may point the proxy at a reviewed HTTPS origin only (origin only; no credentials, path, query, or fragment). The Worker fails closed when this binding is unset; do not configure Railway as the origin if the goal is Railway independence. Unported routes remain unavailable until they are ported or an approved replacement runtime is configured.
 5. Keep backend egress and redirect destinations separate. `GLORIFIER_BACKEND_ALLOWED_HOSTS` is an exact hostname allowlist for the configured HTTPS backend origin. Upstream requests are constructed against that validated origin and fixed `/api/*`, `/auth/*`, or A2A discovery routes; incoming query values remain query data and cannot select a host. Backend redirects are not followed by the Worker. Same-origin redirects are accepted only for the implemented `/auth/broker/callback` route and only OAuth callback parameters (`state`, `code`, `error`, `error_description`, `iss`, `session_state`) are retained. External HTTPS redirect hosts must be explicitly listed, without wildcards, in the non-secret Cloudflare variable `GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS`; otherwise the Worker fails closed with `BACKEND_REDIRECT_NOT_ALLOWED`. Do not configure an IdP host until its exact hostname and callback/return URLs have been reviewed.
-6. Decide and document database access for Supabase and Neon. Do not assume their records synchronize automatically; implement and test explicit ownership, idempotency, conflict resolution, and recovery before dual writes.
+6. Use Neon PostgreSQL as the canonical database target for the Cloudflare Worker, accessed through Hyperdrive and a dedicated least-privilege role. The Worker still uses Supabase PostgREST for some reporting today; do not claim the cutover is complete until a reviewed Hyperdrive implementation, live Neon query, row/checksum reconciliation, and rollback test pass. Do not assume Neon and Supabase synchronize automatically or introduce dual writes.
 7. Move scheduled/background work to supported Cloudflare primitives (Cron Triggers, Queues, Workflows, or Durable Objects as appropriate) with idempotency and bounded execution. Do not start infinite daemons inside request handlers.
 8. Remove Railway forwarding only after the relevant Worker-native route group passes contract tests. Remove Vercel configuration and deployment automation only after the Cloudflare frontend deployment is verified.
 9. Keep Cloudflare production deployment gated until owner-approved secrets/configuration, CI checks, health checks, auth, data access, and rollback have been verified.
@@ -320,3 +320,62 @@ Next gate: port a small, explicitly reviewed route group to Worker-native handle
 - The route sets `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
 - `src/worker.test.ts` now covers unconfigured identity, configured identity, normalization of domain/email values, and the assertion that this endpoint does not call the upstream or static assets.
 - This is a narrow first migration slice. All other API/auth routes still use the legacy upstream unless separately ported. The test changes have been pushed, but their latest CI run is still pending at the time of this note.
+
+
+## Database authority decision and fresh production evidence — 2026-11-01
+
+### Database authority decision
+
+Neon PostgreSQL is the recommended canonical database for GLORIFIER. The current Neon database already contains the operational dataset and the full database is approximately 662 MB. Neon Free storage is 1 GB per project as of 2026-10-02. Supabase Free database storage is 500 MB per project, so it is not a suitable full-database replacement under the zero-budget constraint. Cloudflare documents Hyperdrive integration for both Neon and Supabase and recommends Hyperdrive for Worker database connections; the Neon target can therefore remain within the Cloudflare Workers-only architecture.
+
+References: [Neon Free 1 GB announcement](https://neon.com/blog/neon-free-plan-1-gb-per-project), [Neon Free plan limits](https://neon.com/docs/introduction/free-plan), [Supabase billing limits](https://supabase.com/docs/guides/platform/billing-on-supabase), and [Cloudflare Neon integration](https://developers.cloudflare.com/workers/databases/third-party-integrations/neon/).
+
+### Database evidence observed at 2026-11-01
+
+- Neon project `frosty-leaf-46030505`, database `glorifier`, PostgreSQL 18, default `main` branch ready, logical size 661,938,176 bytes, 141 public base tables.
+- Supabase project `ymbhbxrobfpqlxhyulbt`, PostgreSQL 17.11, six shared operational tables.
+- Six shared table columns match by name, ordinal position, data type, nullability, and default. Primary keys and operational foreign-key relationships were observed in both databases.
+- The six shared tables contain 252,749 Neon rows and zero Supabase rows. Exact Neon counts: 9 approvals, 251,212 events, 30 registry rows, 266 analyses, 1,099 evidence rows, and 133 reports.
+- Index definitions differ: Neon has a composite connection/time event index and provider/status registry indexes absent from Supabase; Supabase has different single-column indexes. Do not mark full schema parity or silently drop/add indexes.
+- Supabase's restrictive client-role RLS policies remain present on all six operational tables. The Cloudflare Worker still reads Supabase PostgREST for `/api/reports/summary` and runtime database checks; therefore Neon is the designated target architecture, but production Worker cutover is not complete.
+
+### Fresh live Worker probes — approximately 2026-11-01T15:04Z
+
+- `GET /api/health`: HTTP 200; Worker/assets liveness only.
+- `GET /api/reports/summary`: HTTP 200; Supabase PostgREST exact counts, all six operational tables zero.
+- `GET /api/runtime-verification?probeAi=false`: HTTP 200; Worker/assets and Supabase exact-count query passed; Neural reports not configured; authentication and AI were not probed.
+- `GET /api/identity`: HTTP 503; canonical domain and organizational email readiness not configured.
+- `GET /api/neural/health`: HTTP 503; `NEURAL_ORIGIN_NOT_CONFIGURED`.
+
+### Worker-native read-only route slice added in draft PR #597
+
+The draft branch now handles these existing GET contracts directly in `src/worker.ts`:
+
+- `GET /api/governance/architecture`
+- `GET /api/governance/policy`
+- `GET /api/architecture/permanent-stack`
+- `GET /api/governance/geas/reconciliation/manifest`
+- `GET /api/governance/geas/reconciliation/degraded-modes`
+- `GET /api/assets/verification/policy`
+- `GET /api/assets/verification/crypto/policy`
+- `GET /api/business-intelligence/architecture`
+
+Each route is GET/HEAD-only, uses `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`, rejects other methods with HTTP 405 and `Allow: GET, HEAD`, and does not call the legacy backend or fall through to static assets. The tests assert response contracts and these network/fallback boundaries.
+
+The source metadata was also corrected so Neon is described as the canonical target, not as an already verified production authority. The GEAS manifest identifies Neon as a canonical target with production cutover explicitly not verified.
+
+**Scope qualification:** these are source changes on draft PR #597, not deployed production fixes. The latest commit's CI is still running. The production Worker continues to run `main` and its previously probed legacy routes continue to fail closed with HTTP 502 until this branch is reviewed, merged, and deployed through the separately approved release process.
+
+Other backend-dependent routes remain unported, including authentication/session, connections, integrations, app-state storage, agent persistence, economic/revenue ledgers, and Neural runtime dependencies. Do not claim the Workers-only migration is complete from this static read-only slice.
+
+### Hyperdrive implementation gates
+
+1. Create a dedicated Neon database role for the Worker with the minimum grants needed for the first reporting route; do not use a superuser/owner role.
+2. Configure Cloudflare Hyperdrive with the Neon connection string in secure Cloudflare configuration only. Add a `HYPERDRIVE` Worker binding; never put connection strings in Wrangler variables, GitHub files, issue comments, build output, or chat.
+3. **Worker adapter implementation is present in draft PR #597** (`src/lib/neon-worker.ts`, `src/worker.ts`) with fixed six-table read-only SQL, bounded result validation, client cleanup, explicit provider selection, and fail-closed behavior when Hyperdrive is absent. The Cloudflare Worker CI run passed TypeScript, Worker tests, the dedicated Neon adapter tests, frontend build, and Wrangler no-deploy dry run on commit `be467814d61bfddd3115f8451e26192005aae4f3`. This is mock-client/contract evidence only; the actual Hyperdrive binding and live Neon query remain unverified.
+4. Validate against a non-production Neon branch, then compare exact counts and deterministic per-table checksums on stable primary-key order.
+5. Reconcile index definitions, constraints, foreign keys, sequences, role grants, and required extensions.
+6. Test rollback to the previous Worker version and previous known-good database path before any production route switch.
+7. Obtain separate owner approval for production binding/secret changes and deployment. Remove Supabase Worker bindings only after every dependent route has been migrated and verified.
+
+No data was copied, deleted, or updated; no database role, secret, Hyperdrive binding, or production Worker configuration was changed in this review. Neon remains intact. Supabase remains intact. No dual-write or automatic synchronization is claimed.

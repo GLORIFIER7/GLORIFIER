@@ -3,7 +3,8 @@
   "name": "glorifier",
   "compatibility_date": "2026-10-12",
   "vars": {
-    "GLORIFIER_SUPABASE_URL": "https://ymbhbxrobfpqlxhyulbt.supabase.co"
+    "GLORIFIER_SUPABASE_URL": "https://ymbhbxrobfpqlxhyulbt.supabase.co",
+    "GLORIFIER_DATABASE_PROVIDER": "supabase"
   },
   "secrets": {
     "required": [
@@ -53,5 +54,8 @@
     ]
   },
   "previews": {},
-  "main": "./src/worker.ts"
+  "main": "./src/worker.ts",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
 }

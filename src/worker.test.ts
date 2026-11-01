@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
+import { reportsSummaryResponse, runtimeVerificationResponse } from './worker.ts';
+import type { NeonOperationalCounts } from './lib/neon-worker';
 import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 
@@ -707,6 +709,120 @@ async function run(): Promise<void> {
     assert.equal(capturedRequest, null, 'business model endpoint must remain Worker-native');
     assert.equal(assetCalls, assetCallsBeforeBusinessModel, 'business model endpoint must not fall through to static assets');
 
+    const workerNativeReadOnlyRoutes: Array<{
+      path: string;
+      verify: (body: Record<string, unknown>) => void;
+    }> = [
+      {
+        path: '/api/governance/architecture',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          assert.equal(body.version, 'GLORIFIER-ARCH-3.1');
+          const trustLayer = body.trustLayer as { databaseAuthority?: string } | undefined;
+          assert.match(trustLayer?.databaseAuthority || '', /Neon.*target.*cutover.*not verified/i);
+        },
+      },
+      {
+        path: '/api/governance/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; principles?: string[] } | undefined;
+          assert.equal(policy?.version, 'GEAS-3.0');
+          assert.ok(policy?.principles?.includes('human authority remains final'));
+        },
+      },
+      {
+        path: '/api/architecture/permanent-stack',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const stack = body.stack as { schemaVersion?: string } | undefined;
+          const validation = body.validation as { valid?: boolean } | undefined;
+          assert.equal(stack?.schemaVersion, 'GLORIFIER-STACK-1.0');
+          assert.equal(validation?.valid, true);
+        },
+      },
+      {
+        path: '/api/governance/geas/reconciliation/manifest',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const manifest = body.manifest as { nodes?: Array<{ id?: string; name?: string }> } | undefined;
+          const neonNode = manifest?.nodes?.find((node) => node.id === 'neon');
+          assert.match(neonNode?.name || '', /canonical.*target.*cutover.*not verified/i);
+          const validation = body.validation as { valid?: boolean } | undefined;
+          assert.equal(validation?.valid, true);
+        },
+      },
+      {
+        path: '/api/governance/geas/reconciliation/degraded-modes',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          assert.ok(Array.isArray(body.contracts));
+          assert.ok((body.contracts as unknown[]).length > 0);
+        },
+      },
+      {
+        path: '/api/assets/verification/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; humanAuthority?: boolean } | undefined;
+          assert.equal(policy?.version, 'GAV-1.1');
+          assert.equal(policy?.humanAuthority, true);
+        },
+      },
+      {
+        path: '/api/assets/verification/crypto/policy',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const policy = body.policy as { version?: string; noBypassOfProviderAuthorization?: boolean } | undefined;
+          assert.equal(policy?.version, 'GCAV-1.0');
+          assert.equal(policy?.noBypassOfProviderAuthorization, true);
+        },
+      },
+      {
+        path: '/api/business-intelligence/architecture',
+        verify: (body) => {
+          assert.equal(body.ok, true);
+          const architecture = body.architecture as {
+            version?: string;
+            sourceOfTruth?: { revenue?: string };
+          } | undefined;
+          assert.equal(architecture?.version, 'GBIS-2.0');
+          assert.match(architecture?.sourceOfTruth?.revenue || '', /Neon.*target.*cutover.*pending verification/i);
+        },
+      },
+    ];
+
+    for (const route of workerNativeReadOnlyRoutes) {
+      capturedRequest = null;
+      const assetsBeforeRoute: number = assetCalls;
+      const response = await worker.fetch(
+        new Request(`https://glorifier.glorifier.workers.dev${route.path}`),
+        env,
+      );
+      assert.equal(response.status, 200, `${route.path} must be served natively by the Worker`);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      route.verify(await response.json() as Record<string, unknown>);
+      assert.equal(capturedRequest, null, `${route.path} must not call the legacy backend`);
+      assert.equal(assetCalls, assetsBeforeRoute, `${route.path} must not fall through to static assets`);
+    }
+
+    const governanceHead = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/governance/policy', { method: 'HEAD' }),
+      env,
+    );
+    assert.equal(governanceHead.status, 200);
+    assert.equal(await governanceHead.text(), '');
+    const rejectedGovernanceWrite = await worker.fetch(
+      new Request('https://glorifier.glorifier.workers.dev/api/governance/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policy: 'should-not-be-applied' }),
+      }),
+      env,
+    );
+    assert.equal(rejectedGovernanceWrite.status, 405);
+    assert.equal(rejectedGovernanceWrite.headers.get('allow'), 'GET, HEAD');
+    assert.equal(capturedRequest, null, 'read-only governance routes must reject writes without contacting the legacy backend');
 
     const nativeRuntimeWithoutSupabase = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
@@ -886,6 +1002,91 @@ async function run(): Promise<void> {
     assert.equal(nativeReportsWithoutSupabase.status, 503);
     assert.equal(await nativeReportsWithoutSupabase.json().then((body: { code?: string }) => body.code), 'SUPABASE_NOT_CONFIGURED');
     assert.equal(capturedRequest, null, 'native reports must not proxy to a legacy backend');
+
+    const expectedNeonCounts: NeonOperationalCounts = {
+      connection_approvals: 9,
+      connection_events: 251212,
+      connection_registry: 30,
+      intelligence_analyses: 266,
+      intelligence_evidence: 1099,
+      intelligence_reports: 133,
+    };
+    const neonEnvironment: TestEnv = {
+      ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'neon',
+      GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
+      GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+      HYPERDRIVE: { connectionString: 'postgresql://hyperdrive.test/glorifier' },
+    };
+    let neonCountReaderCalls = 0;
+    const neonCountReader = (binding: { connectionString: string }) => {
+      neonCountReaderCalls += 1;
+      assert.equal(binding.connectionString, 'postgresql://hyperdrive.test/glorifier');
+      return Promise.resolve(expectedNeonCounts);
+    };
+
+    const neonReportsResponse = await reportsSummaryResponse(neonEnvironment, neonCountReader);
+    assert.equal(neonReportsResponse.status, 200);
+    const neonReportsBody = await neonReportsResponse.json() as {
+      ok: boolean;
+      status: string;
+      summary: { connectionEvents: number; registeredConnections: number };
+      evidence: { source: string; exactRowCounts: boolean };
+    };
+    assert.equal(neonReportsBody.ok, true);
+    assert.equal(neonReportsBody.status, 'operational-data-observed');
+    assert.equal(neonReportsBody.summary.connectionEvents, 251212);
+    assert.equal(neonReportsBody.summary.registeredConnections, 30);
+    assert.equal(neonReportsBody.evidence.source, 'neon-hyperdrive');
+    assert.equal(neonReportsBody.evidence.exactRowCounts, true);
+    assert.equal(neonCountReaderCalls, 1);
+
+    const neonRuntimeResponse = await runtimeVerificationResponse(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      neonEnvironment,
+      neonCountReader,
+    );
+    assert.equal(neonRuntimeResponse.status, 200);
+    const neonRuntimeBody = await neonRuntimeResponse.json() as {
+      ok: boolean;
+      checks: { database: { ok: boolean; source: string; connectionRegistryRows: number } };
+    };
+    assert.equal(neonRuntimeBody.ok, true);
+    assert.equal(neonRuntimeBody.checks.database.ok, true);
+    assert.equal(neonRuntimeBody.checks.database.source, 'neon-hyperdrive');
+    assert.equal(neonRuntimeBody.checks.database.connectionRegistryRows, 30);
+    assert.equal(neonCountReaderCalls, 2);
+
+    // Selecting Neon must never silently query Supabase when the Hyperdrive
+    // binding is absent, even if Supabase configuration is still present.
+    requestedUrls.length = 0;
+    const neonWithoutHyperdrive: TestEnv = { ...neonEnvironment, HYPERDRIVE: undefined };
+    const missingNeonBinding = await reportsSummaryResponse(neonWithoutHyperdrive, neonCountReader);
+    assert.equal(missingNeonBinding.status, 503);
+    assert.equal(await missingNeonBinding.json().then((body: { code?: string }) => body.code), 'NEON_HYPERDRIVE_NOT_CONFIGURED');
+    const missingNeonRuntime = await runtimeVerificationResponse(
+      new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+      neonWithoutHyperdrive,
+      neonCountReader,
+    );
+    assert.equal(missingNeonRuntime.status, 503);
+    assert.equal(await missingNeonRuntime.json().then((body: { checks: { database: { code?: string } } }) => body.checks.database.code), 'NEON_HYPERDRIVE_NOT_CONFIGURED');
+    assert.deepEqual(requestedUrls, [], 'Neon mode must not fall back to Supabase PostgREST');
+    assert.equal(neonCountReaderCalls, 2);
+
+    const invalidDatabaseProvider = await reportsSummaryResponse({
+      ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'unknown-provider',
+    });
+    assert.equal(invalidDatabaseProvider.status, 503);
+    assert.equal(await invalidDatabaseProvider.json().then((body: { code?: string }) => body.code), 'DATABASE_PROVIDER_INVALID');
+
+    const neonQueryFailure = await reportsSummaryResponse(
+      neonEnvironment,
+      () => Promise.reject(new Error('simulated Neon query failure')),
+    );
+    assert.equal(neonQueryFailure.status, 502);
+    assert.equal(await neonQueryFailure.json().then((body: { code?: string }) => body.code), 'NEON_REPORTS_QUERY_FAILED');
 
     // With no backend configured, unauthenticated app-state requests must be rejected
     // by the authentication boundary rather than surfacing as a generic upstream 502.

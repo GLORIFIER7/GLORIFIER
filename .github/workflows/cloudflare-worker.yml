@@ -46,6 +46,9 @@ jobs:
       - name: Test Cloudflare Worker proxy and fallback handling
         run: npm run test:cloudflare-worker
 
+      - name: Test Neon Hyperdrive database adapter
+        run: npm run test:neon-worker
+
       - name: Test OpenSea read-only API integration
         run: npm run test:opensea-worker
 
