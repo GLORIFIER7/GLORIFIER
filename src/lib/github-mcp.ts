@@ -217,8 +217,7 @@ const callTool = async (name: string, args: unknown): Promise<unknown> => {
   throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
 };
 
-const resultText = (value: unknown): string =>
-  typeof value === 'string' ? value : JSON.stringify(value);
+const resultText = (value: unknown): string => typeof value === 'string' ? value : String(JSON.stringify(value));
 
 const handleJsonRpc = async (message: McpMessage): Promise<Response> => {
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
