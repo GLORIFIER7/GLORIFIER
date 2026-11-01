@@ -998,72 +998,97 @@ const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObse
     clearTimeout(timer);
   }
 };
-function observedPatterns(results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] {
-  const map = new Map(results.map((result) => [result.sourceId, result]));
-  return PATTERN_DEFINITIONS.flatMap((pattern) => {
-    const source = map.get(pattern.sourceId);
-    if (!source || !source.ok || !['content-matched', 'claim-supported'].includes(source.evidenceStatus) || !source.evidenceExcerpt) {
-      return [] as ArchitecturePattern[];
-    }
-    return [{
-      id: pattern.id,
-      title: pattern.title,
-      domain: pattern.domain,
-      evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
-      sourceId: source.sourceId,
-      evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
-      evidenceExcerpt: source.evidenceExcerpt,
-      pattern: pattern.pattern,
-      GLORIFIERMapping: pattern.GLORIFIERMapping,
-      controlIds: pattern.controlIds,
-      lastReviewed: source.observedAt,
-    }];
-  });
-}
+const isPatternSourceObservation = (source: SourceObservation | undefined): source is SourceObservation =>
+  Boolean(source && source.ok
+    && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
+    && source.evidenceExcerpt);
 
-function buildEvidence(results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] {
+const createObservedArchitecturePattern = (
+  pattern: PatternDefinition,
+  source: SourceObservation,
+): ArchitecturePattern => ({
+  id: pattern.id,
+  title: pattern.title,
+  domain: pattern.domain,
+  evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
+  sourceId: source.sourceId,
+  evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
+  evidenceExcerpt: source.evidenceExcerpt!,
+  pattern: pattern.pattern,
+  GLORIFIERMapping: pattern.GLORIFIERMapping,
+  controlIds: pattern.controlIds,
+  lastReviewed: source.observedAt,
+});
+
+const observedPatterns = (results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] => {
+  const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
+  return PATTERN_DEFINITIONS.flatMap((pattern) => {
+    const source = observationsBySource.get(pattern.sourceId);
+    return isPatternSourceObservation(source) ? [createObservedArchitecturePattern(pattern, source)] : [];
+  });
+};
+
+const indexPatternIdsBySource = (patterns: ArchitecturePattern[]): Map<string, string[]> => {
   const ids = new Map<string, string[]>();
   for (const pattern of patterns) {
-    const arr = ids.get(pattern.sourceId) ?? [];
-    arr.push(pattern.id);
-    ids.set(pattern.sourceId, arr);
+    const sourceIds = ids.get(pattern.sourceId) ?? [];
+    sourceIds.push(pattern.id);
+    ids.set(pattern.sourceId, sourceIds);
   }
+  return ids;
+};
 
+const createArchitectureEvidence = (
+  result: SourceObservation,
+  patternIdsBySource: Map<string, string[]>,
+): ArchitectureEvidence | null => {
+  if (!isPatternSourceObservation(result)) return null;
+  return {
+    id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
+    sourceId: result.sourceId,
+    sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
+    observedAt: result.observedAt,
+    contentHash: result.contentHash ?? 'unknown',
+    excerpt: result.evidenceExcerpt!,
+    evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
+    sourceStatus: result.status ?? 0,
+    patternIds: patternIdsBySource.get(result.sourceId) ?? [],
+  };
+};
+
+const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] => {
+  const patternIdsBySource = indexPatternIdsBySource(patterns);
   return results.flatMap((result) => {
-    if (!result.ok || !result.evidenceExcerpt || !['content-matched', 'claim-supported'].includes(result.evidenceStatus)) return [] as ArchitectureEvidence[];
-    return [{
-      id: `evidence-${result.sourceId}-${result.contentHash?.slice(0, 16) ?? 'unknown'}`,
-      sourceId: result.sourceId,
-      sourceUrl: SOURCES.find((source) => source.id === result.sourceId)?.url ?? '',
-      observedAt: result.observedAt,
-      contentHash: result.contentHash ?? 'unknown',
-      excerpt: result.evidenceExcerpt,
-      evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
-      sourceStatus: result.status ?? 0,
-      patternIds: ids.get(result.sourceId) ?? [],
-    }];
+    const evidence = createArchitectureEvidence(result, patternIdsBySource);
+    return evidence ? [evidence] : [];
   });
-}
+};
 
-function coverage(results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureScanResult['coverage'] {
-  const out = {} as ArchitectureScanResult['coverage'];
-  for (const domain of [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[]) {
-    const domainSources = results.filter((result) => SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
-    const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
-    const status = !domainSources.length
-      ? 'source-unavailable'
-      : observedPatterns > 0
-        ? 'covered'
-        : 'no-observed-pattern';
+const getDomainCoverage = (
+  domain: ArchitectureDomain,
+  results: SourceObservation[],
+  patterns: ArchitecturePattern[],
+): ArchitectureScanResult['coverage'][ArchitectureDomain] => {
+  const domainSources = results.filter((result) =>
+    SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
+  const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
+  const status = domainSources.length === 0
+    ? 'source-unavailable'
+    : observedPatterns > 0 ? 'covered' : 'no-observed-pattern';
+  return { sources: domainSources.length, observedPatterns, status };
+};
 
-    out[domain] = {
-      sources: domainSources.length,
-      observedPatterns,
-      status,
-    };
-  }
-  return out;
-}
+const coverage = (
+  results: SourceObservation[],
+  patterns: ArchitecturePattern[],
+): ArchitectureScanResult['coverage'] => {
+  const output = {} as ArchitectureScanResult['coverage'];
+  const domains = [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[];
+  domains.forEach((domain) => {
+    output[domain] = getDomainCoverage(domain, results, patterns);
+  });
+  return output;
+};
 
 const UNKNOWN_DRIFT_OBSERVATION = 'No fresh runtime comparison evidence was supplied to this baseline assessment; implementation state is UNKNOWN.';
 
