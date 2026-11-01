@@ -39,11 +39,11 @@ const quotedPattern = (quote: string): RegExp => {
   return /^`(?:\\.|[^`\\])*`/;
 };
 
-const readStaticQuotedValue = (quote: string, text: string, value: string): string | null => {
-  if (text.includes('\\')) return null;
-  if (quote === '`' && value.includes('${')) return null;
-  return value;
-};
+const isStaticQuotedValue = (quote: string, text: string, value: string): boolean =>
+  !text.includes('\\') && !(quote === '`' && value.includes('${'));
+
+const readStaticQuotedValue = (quote: string, text: string, value: string): string | null =>
+  isStaticQuotedValue(quote, text, value) ? value : null;
 
 const readQuotedToken = (source: string, start: number): { token: Token; end: number } => {
   const quote = source[start] ?? '';
@@ -93,12 +93,28 @@ const readCodeToken = (source: string, start: number): { token: Token; end: numb
   return reader ? reader.read(source, start) : readPunctuationToken(source, start);
 };
 
+const skipTrivia = (source: string, start: number): number => {
+  let index = start;
+  while (index < source.length) {
+    const whitespaceEnd = skipWhitespace(source, index);
+    if (whitespaceEnd > index) {
+      index = whitespaceEnd;
+      continue;
+    }
+    const commentEnd = skipComment(source, index);
+    if (commentEnd !== null) {
+      index = commentEnd;
+      continue;
+    }
+    break;
+  }
+  return index;
+};
+
 const readNextToken = (source: string, start: number): { token: Token | null; end: number } => {
-  const whitespaceEnd = skipWhitespace(source, start);
-  if (whitespaceEnd > start) return { token: null, end: whitespaceEnd };
-  const commentEnd = skipComment(source, start);
-  if (commentEnd !== null) return { token: null, end: commentEnd };
-  return readCodeToken(source, start);
+  const tokenStart = skipTrivia(source, start);
+  if (tokenStart >= source.length) return { token: null, end: tokenStart };
+  return readCodeToken(source, tokenStart);
 };
 
 const expectedClosingDelimiter = (token: Token): string | null => {
@@ -124,6 +140,12 @@ const updateDelimiterState = (token: Token, state: DelimiterState): void => {
 const isScannerArrayClosed = (tokens: Token[], state: DelimiterState): boolean =>
   tokens[0]?.text === '[' && state.expected.length === 0;
 
+const appendScannerToken = (tokens: Token[], state: DelimiterState, token: Token): boolean => {
+  tokens.push(token);
+  updateDelimiterState(token, state);
+  return isScannerArrayClosed(tokens, state);
+};
+
 const tokenizeScannerArray = (source: string, start: number): Token[] => {
   const tokens: Token[] = [];
   const state: DelimiterState = { expected: [] };
@@ -131,10 +153,7 @@ const tokenizeScannerArray = (source: string, start: number): Token[] => {
   while (index < source.length) {
     const next = readNextToken(source, index);
     index = next.end;
-    if (!next.token) continue;
-    tokens.push(next.token);
-    updateDelimiterState(next.token, state);
-    if (isScannerArrayClosed(tokens, state)) break;
+    if (next.token && appendScannerToken(tokens, state, next.token)) break;
   }
   const lastToken = tokens[tokens.length - 1];
   if (tokens[0]?.text !== '[' || lastToken?.text !== ']') {
@@ -146,19 +165,29 @@ const tokenizeScannerArray = (source: string, start: number): Token[] => {
 const isTopLevelSeparator = (token: Token, state: DelimiterState, delimiter: string): boolean =>
   token.kind === 'punctuation' && token.text === delimiter && state.expected.length === 0;
 
+const advanceRangeBoundary = (
+  ranges: Range[],
+  rangeStart: number,
+  index: number,
+  token: Token,
+  state: DelimiterState,
+  delimiter: string,
+): number => {
+  if (!isTopLevelSeparator(token, state, delimiter)) {
+    updateDelimiterState(token, state);
+    return rangeStart;
+  }
+  ranges.push({ start: rangeStart, end: index });
+  return index + 1;
+};
+
 const splitTopLevelRanges = (tokens: Token[], start: number, end: number, delimiter: string): Range[] => {
   const ranges: Range[] = [];
   const state: DelimiterState = { expected: [] };
   let rangeStart = start;
   for (let index = start; index < end; index += 1) {
     const token = tokens[index];
-    if (!token) continue;
-    if (isTopLevelSeparator(token, state, delimiter)) {
-      ranges.push({ start: rangeStart, end: index });
-      rangeStart = index + 1;
-    } else {
-      updateDelimiterState(token, state);
-    }
+    if (token) rangeStart = advanceRangeBoundary(ranges, rangeStart, index, token, state, delimiter);
   }
   if (state.expected.length !== 0) throw new Error('unterminated nested expression in scanner source entry');
   ranges.push({ start: rangeStart, end });
@@ -195,10 +224,18 @@ const isNonEmptyStringValue = (value: string | number | null): value is string =
 const isPositiveIntegerValue = (value: string | number | null): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value > 0;
 
+type ValidSourceEntryValues = { id: string; url: string; cadenceHours: number };
+
+const isValidSourceEntryValues = (
+  value: { id: string | number | null; url: string | number | null; cadenceHours: string | number | null },
+): value is ValidSourceEntryValues =>
+  isNonEmptyStringValue(value.id)
+  && isNonEmptyStringValue(value.url)
+  && isPositiveIntegerValue(value.cadenceHours);
+
 const createSourceEntry = (id: string | number | null, url: string | number | null, cadenceHours: string | number | null): ScannerSourceEntry | null => {
-  if (!isNonEmptyStringValue(id) || !isNonEmptyStringValue(url)) return null;
-  if (!isPositiveIntegerValue(cadenceHours)) return null;
-  return { id, url, cadenceHours };
+  const values = { id, url, cadenceHours };
+  return isValidSourceEntryValues(values) ? values : null;
 };
 
 const parseObjectEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
@@ -247,11 +284,14 @@ const readFactorySourceEntry = (tokens: Token[], arguments_: Range[]): ScannerSo
 };
 
 const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
-  if (!isFactoryCallRange(tokens, range)) return null;
-  const arguments_ = splitTopLevelRanges(tokens, range.start + 2, range.end - 1, ',');
-  if (arguments_.length !== 6) return null;
-  if (!isLiteralPatternArray(tokens, argumentRange(arguments_, 4))) return null;
-  return readFactorySourceEntry(tokens, arguments_);
+  const arguments_ = isFactoryCallRange(tokens, range)
+    ? splitTopLevelRanges(tokens, range.start + 2, range.end - 1, ',')
+    : [];
+  const hasExpectedArguments = arguments_.length === 6;
+  const hasLiteralPatterns = isLiteralPatternArray(tokens, argumentRange(arguments_, 4));
+  return hasExpectedArguments && hasLiteralPatterns
+    ? readFactorySourceEntry(tokens, arguments_)
+    : null;
 };
 
 const findArrayStart = (source: string): number => {
