@@ -9,7 +9,6 @@ type RegistrySource = {
 type Registry = { sources: RegistrySource[] };
 type ScannerSource = { id: string; cadenceHours: number };
 
-(() => {
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 
@@ -18,7 +17,7 @@ const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
  * This intentionally avoids relying on TypeScript's compiler API so this governance
  * check remains usable across compiler package/API changes.
  */
-function findMatchingDelimiter(source: string, start: number, open: string, close: string): number {
+const findMatchingDelimiter = (source: string, start: number, open: string, close: string): number => {
   if (source[start] !== open) throw new Error(`expected "${open}" at offset ${start}`);
   let depth = 0;
   let quote = '';
@@ -74,7 +73,7 @@ function findMatchingDelimiter(source: string, start: number, open: string, clos
     }
   }
   throw new Error(`unterminated "${open}" delimiter in scanner source`);
-}
+};
 
 const skipQuotedLiteral = (source: string, start: number): number | null => {
   const quote = source[start];
@@ -101,13 +100,13 @@ const skipSourceComment = (source: string, start: number): number | null => {
 
 const skipWhitespace = (source: string, start: number): number => {
   let index = start;
-  while (index < source.length && /\\s/.test(source[index])) index += 1;
+  while (index < source.length && /\s/.test(source[index])) index += 1;
   return index;
 };
 
 const readIdentifierEnd = (source: string, start: number): number => {
   let index = start + 1;
-  while (index < source.length && /[A-Za-z0-9_$]/.test(source[index])) index += 1;
+  while (index < source.length && /\s/.test(source[index])) index += 1;
   return index;
 };
 
@@ -139,7 +138,7 @@ const readQuotedStringValue = (source: string, start: number): string | undefine
 };
 
 const readNumericValue = (source: string, start: number): number | undefined => {
-  const match = /^\\d+/.exec(source.slice(start));
+  const match = /^\d+/.exec(source.slice(start));
   return match && isValueTerminated(source, start + match[0].length) ? Number(match[0]) : undefined;
 };
 
@@ -236,7 +235,7 @@ const collectObjectEntries = (arrayText: string): string[] => {
       continue;
     }
     const character = arrayText[index];
-    if (character === '{') {
+    if (character === '\\') {
       if (depth === 0) objectStart = index;
       depth += 1;
     } else if (character === '}') {
@@ -288,7 +287,7 @@ const parseScannerSources = (sourceText: string): ScannerSource[] => {
   if (entries.length === 0) throw new Error('scanner SOURCES array contains no supported source entries');
   return entries;
 };
-function verifyParserHandlesFactoryCalls(): void {
+const verifyParserHandlesFactoryCalls = (): void => {
   const fixture = `const SOURCES: ArchitectureSource[] = [
     createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),
     createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),
@@ -301,9 +300,9 @@ function verifyParserHandlesFactoryCalls(): void {
       || parsed[1]?.cadenceHours !== 336) {
     throw new Error('scanner parser must read factory-form ID and cadence values');
   }
-}
+};
 
-function verifyParserIgnoresCommentedFactoryCalls(): void {
+const verifyParserIgnoresCommentedFactoryCalls = (): void => {
   const fixture = `const SOURCES: ArchitectureSource[] = [
     // createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24),
     /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24), */
@@ -313,9 +312,9 @@ function verifyParserIgnoresCommentedFactoryCalls(): void {
   if (parsed.length !== 1 || parsed[0]?.id !== 'active') {
     throw new Error('commented-out factory calls must not be counted as active scanner sources');
   }
-}
+};
 
-function verifyParserRejectsComputedFactoryValues(): void {
+const verifyParserRejectsComputedFactoryValues = (): void => {
   const fixtures = [
     `const SOURCES: ArchitectureSource[] = [
       createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24),
@@ -333,9 +332,9 @@ function verifyParserRejectsComputedFactoryValues(): void {
     }
     if (!rejected) throw new Error('scanner parser accepted computed factory ID or cadence values');
   }
-}
+};
 
-function verifyParserHandlesBraceCharacters(): void {
+const verifyParserHandlesBraceCharacters = (): void => {
   const fixture = `const SOURCES: ArchitectureSource[] = [{
     id: 'fixture',
     authority: 'Test {Authority}',
@@ -349,9 +348,9 @@ function verifyParserHandlesBraceCharacters(): void {
   if (parsed.length !== 1 || parsed[0].id !== 'fixture' || parsed[0].cadenceHours !== 24) {
     throw new Error('structured scanner parser failed its brace-containing string regression fixture');
   }
-}
+};
 
-function verifyParserRejectsCommentOnlyFields(): void {
+const verifyParserRejectsCommentOnlyFields = (): void => {
   const fixture = `const SOURCES: ArchitectureSource[] = [{
     // id: 'comment-only',
     // cadenceHours: 24
@@ -366,9 +365,9 @@ function verifyParserRejectsCommentOnlyFields(): void {
   if (!rejected) {
     throw new Error('scanner parser accepted id and cadenceHours fields found only in comments');
   }
-}
+};
 
-function verifyParserRejectsUnterminatedLineComment(): void {
+const verifyParserRejectsUnterminatedLineComment = (): void => {
   const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', cadenceHours: 24 // no terminating newline or visible array close";
   let rejected = false;
   try {
@@ -379,9 +378,9 @@ function verifyParserRejectsUnterminatedLineComment(): void {
   if (!rejected) {
     throw new Error('scanner parser accepted a SOURCES array truncated inside a line comment');
   }
-}
+};
 
-function verifyParserRejectsComputedFieldValues(): void {
+const verifyParserRejectsComputedFieldValues = (): void => {
   const fixtures = [
     `const SOURCES: ArchitectureSource[] = [{
     id: 'computed' + '-id',
@@ -403,7 +402,7 @@ function verifyParserRejectsComputedFieldValues(): void {
       throw new Error('scanner parser accepted a computed id or cadenceHours expression');
     }
   }
-}
+};
 
 verifyParserHandlesFactoryCalls();
 verifyParserIgnoresCommentedFactoryCalls();
@@ -468,4 +467,3 @@ process.stdout.write(`${JSON.stringify({
   braceStringRegression: 'passed',
   irreversibleChangesExecuted: false,
 }, null, 2)}\n`);
-})();
