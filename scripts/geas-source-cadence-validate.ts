@@ -99,104 +99,91 @@ function isValueTerminated(source: string, start: number): boolean {
   return false;
 }
 
-function readTopLevelProperty(
-function readQuotedStringValue(objectText: string, valueStart: number): string | undefined {
+const readQuotedStringValue = (objectText: string, valueStart: number): string | undefined => {
   const valueQuote = objectText[valueStart];
   if (valueQuote !== "'" && valueQuote !== '"') return undefined;
   let value = '';
   let valueEscaped = false;
-  for (let j = valueStart + 1; j < objectText.length; j += 1) {
-    const valueChar = objectText[j];
-    if (valueEscaped) { value += valueChar; valueEscaped = false; continue; }
-    if (valueChar === '\\') { valueEscaped = true; continue; }
-    if (valueChar === valueQuote) return isValueTerminated(objectText, j + 1) ? value : undefined;
-    value += valueChar;
+  for (let index = valueStart + 1; index < objectText.length; index += 1) {
+    const character = objectText[index];
+    if (valueEscaped) {
+      value += character;
+      valueEscaped = false;
+      continue;
+    }
+    if (character === '\\') {
+      valueEscaped = true;
+      continue;
+    }
+    if (character === valueQuote) {
+      return isValueTerminated(objectText, index + 1) ? value : undefined;
+    }
+    value += character;
   }
   return undefined;
-}
+};
 
+const readNumericValue = (objectText: string, valueStart: number): number | undefined => {
+  const numberMatch = /^\\d+/.exec(objectText.slice(valueStart));
+  return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
+    ? Number(numberMatch[0])
+    : undefined;
+};
+
+const readTopLevelProperty = (
   objectText: string,
   property: 'id' | 'cadenceHours',
-): string | number | undefined {
+): string | number | undefined => {
   let depth = 0;
   let quote = '';
   let escaped = false;
   let lineComment = false;
   let blockComment = false;
 
-  for (let i = 0; i < objectText.length; i += 1) {
-    const ch = objectText[i];
-    const next = objectText[i + 1];
+  for (let index = 0; index < objectText.length; index += 1) {
+    const character = objectText[index];
+    const next = objectText[index + 1];
 
     if (lineComment) {
-      if (ch === '\n') lineComment = false;
+      if (character === '\n') lineComment = false;
       continue;
     }
     if (blockComment) {
-      if (ch === '*' && next === '/') {
+      if (character === '*' && next === '/') {
         blockComment = false;
-        i += 1;
+        index += 1;
       }
       continue;
     }
     if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (ch === quote) quote = '';
+      if (escaped) { escaped = false; continue; }
+      if (character === '\\') { escaped = true; continue; }
+      if (character === quote) quote = '';
       continue;
     }
-    if (ch === '/' && next === '/') {
-      lineComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      blockComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch.charCodeAt(0) === 96) {
-      quote = ch;
-      continue;
-    }
-    if (ch === '{' || ch === '[' || ch === '(') {
-      depth += 1;
-      continue;
-    }
-    if (ch === '}' || ch === ']' || ch === ')') {
-      depth -= 1;
-      continue;
-    }
-    if (depth !== 1 || !/[A-Za-z_$]/.test(ch)) continue;
+    if (character === '/' && next === '/') { lineComment = true; index += 1; continue; }
+    if (character === '/' && next === '*') { blockComment = true; index += 1; continue; }
+    if (character === "'" || character === '"' || character.charCodeAt(0) === 96) { quote = character; continue; }
+    if (character === '{' || character === '[' || character === '(') { depth += 1; continue; }
+    if (character === '}' || character === ']' || character === ')') { depth -= 1; continue; }
+    if (depth !== 1 || !/[A-Za-z_$]/.test(character)) continue;
 
-    let end = i + 1;
-    while (end < objectText.length && /[A-Za-z0-9_$]/.test(objectText[end])) end += 1;
-    const key = objectText.slice(i, end);
-    let colon = end;
-    while (colon < objectText.length && /\s/.test(objectText[colon])) colon += 1;
-
+    let keyEnd = index + 1;
+    while (keyEnd < objectText.length && /[A-Za-z0-9_$]/.test(objectText[keyEnd])) keyEnd += 1;
+    const key = objectText.slice(index, keyEnd);
+    let colon = keyEnd;
+    while (colon < objectText.length && /\\s/.test(objectText[colon])) colon += 1;
     if (key === property && objectText[colon] === ':') {
       let valueStart = colon + 1;
-      while (valueStart < objectText.length && /\s/.test(objectText[valueStart])) valueStart += 1;
-
-      if (property === 'id') return readQuotedStringValue(objectText, valueStart);
-
-      const numberMatch = /^\d+/.exec(objectText.slice(valueStart));
-      return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
-        ? Number(numberMatch[0])
-        : undefined;
+      while (valueStart < objectText.length && /\\s/.test(objectText[valueStart])) valueStart += 1;
+      return property === 'id'
+        ? readQuotedStringValue(objectText, valueStart)
+        : readNumericValue(objectText, valueStart);
     }
-    i = end - 1;
+    index = keyEnd - 1;
   }
   return undefined;
-}
-
+};
 function maskComments(source: string): string {
   let quote = '';
   let escaped = false;
