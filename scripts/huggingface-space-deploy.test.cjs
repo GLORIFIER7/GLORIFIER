@@ -2,6 +2,21 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
+
+const projectPage = readFileSync(join(__dirname, '../public/project.html'), 'utf8');
+const sitemap = readFileSync(join(__dirname, '../public/sitemap.xml'), 'utf8');
+
+assert.match(
+  projectPage,
+  /GLORIFIER — Governed intelligence for business/,
+  'the existing GitHub Pages project source must remain in the repository',
+);
+assert.match(
+  sitemap,
+  /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/,
+  'the existing public GitHub Pages project URL must remain listed in the sitemap',
+);
+
 const workflow = readFileSync(join(__dirname, '../.github/workflows/huggingface-space-deploy.yml'), 'utf8');
 const prepareStart = workflow.indexOf('- name: Prepare Docker Space source');
 const publishStart = workflow.indexOf('- name: Publish source to Hugging Face Space');
