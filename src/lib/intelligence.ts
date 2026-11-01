@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { getOptionalPostgresPool } from './db/postgres';
 
 export type IntelligenceEvidence = {
   id: string;
@@ -30,30 +30,12 @@ export type IntelligenceReport = {
   evidence: IntelligenceEvidence[];
 };
 
-let pool: Pool | null = null;
 let initialized = false;
 let latestReport: IntelligenceReport | null = null;
 
 function getPool() {
-  if (!process.env.DATABASE_URL) return null;
-  if (!pool) {
-    let connectionString = process.env.DATABASE_URL;
-    try {
-      const parsed = new URL(connectionString);
-      parsed.searchParams.delete('sslmode');
-      connectionString = parsed.toString();
-    } catch {
-      connectionString = connectionString.replace(/([?&])sslmode=[^&]*&?/i, '$1').replace(/[?&]$/, '');
-    }
-    pool = new Pool({
-      connectionString,
-      max: 3,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    });
-  }
-  return pool;
+  return getOptionalPostgresPool();
 }
-
 async function ensureSchema() {
   if (initialized) return;
   const db = getPool();
