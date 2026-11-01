@@ -146,17 +146,29 @@ const appendScannerToken = (tokens: Token[], state: DelimiterState, token: Token
   return isScannerArrayClosed(tokens, state);
 };
 
-const tokenizeScannerArray = (source: string, start: number): Token[] => {
-  const tokens: Token[] = [];
-  const state: DelimiterState = { expected: [] };
+const scanUntilArrayClosed = (
+  source: string,
+  start: number,
+  tokens: Token[],
+  state: DelimiterState,
+): boolean => {
   let index = start;
   while (index < source.length) {
     const next = readNextToken(source, index);
     index = next.end;
-    if (next.token && appendScannerToken(tokens, state, next.token)) break;
+    if (next.token && appendScannerToken(tokens, state, next.token)) return true;
   }
-  const lastToken = tokens[tokens.length - 1];
-  if (tokens[0]?.text !== '[' || lastToken?.text !== ']') {
+  return false;
+};
+
+const isCompleteScannerArray = (tokens: Token[]): boolean =>
+  tokens[0]?.text === '[' && tokens[tokens.length - 1]?.text === ']';
+
+const tokenizeScannerArray = (source: string, start: number): Token[] => {
+  const tokens: Token[] = [];
+  const state: DelimiterState = { expected: [] };
+  const isClosed = scanUntilArrayClosed(source, start, tokens, state);
+  if (!isClosed || !isCompleteScannerArray(tokens)) {
     throw new Error('unterminated scanner SOURCES array');
   }
   return tokens;
