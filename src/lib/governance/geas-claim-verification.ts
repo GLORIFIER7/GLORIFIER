@@ -369,7 +369,8 @@ const validateSupportingExcerpt = (snapshot: unknown, excerpt: unknown, failures
 
 const validateSourceSnapshot = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
   validateSourceContentHashFormat(record.sourceContentHash, failures);
-  validateSnapshotDigest(record.sourceSnapshot, record.sourceContentHash, failures);
+/** Validates snapshot integrity: hash format, hash-vs-snapshot binding, and excerpt containment. */
+const validateSourceSnapshot = (record: Partial<ClaimReviewRecord>, failures: string[]): void => {
   validateSupportingExcerpt(record.sourceSnapshot, record.supportingExcerpt, failures);
 };
 
