@@ -1,3 +1,4 @@
+import * as ts from 'typescript';
 import { readFileSync } from 'node:fs';
 
 type RegistrySource = {
@@ -17,454 +18,149 @@ const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
  * This intentionally avoids relying on TypeScript's compiler API so this governance
  * check remains usable across compiler package/API changes.
  */
-function findMatchingDelimiter(source: string, start: number, open: string, close: string): number {
-  if (source[start] !== open) throw new Error(`expected "${open}" at offset ${start}`);
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
+(() => {
+const literalString = (node: ts.Expression | undefined): string | null =>
+  node && ts.isStringLiteral(node) ? node.text : null;
 
-  for (let i = start; i < source.length; i += 1) {
-    const ch = source[i];
-    const next = source[i + 1];
+const literalNumber = (node: ts.Expression | undefined): number | null =>
+  node && ts.isNumericLiteral(node) ? Number(node.text) : null;
 
-    if (lineComment) {
-      if (ch === '\n') lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (ch === '*' && next === '/') {
-        blockComment = false;
-        i += 1;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      lineComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      blockComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      quote = ch;
-      continue;
-    }
-    if (ch === open) depth += 1;
-    if (ch === close) {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  throw new Error(`unterminated "${open}" delimiter in scanner source`);
-}
-
-function isValueTerminated(source: string, start: number): boolean {
-  let i = start;
-  while (i < source.length) {
-    if (/\s/.test(source[i])) {
-      i += 1;
-      continue;
-    }
-    if (source[i] === '/' && source[i + 1] === '*') {
-      const end = source.indexOf('*/', i + 2);
-      if (end < 0) return false;
-      i = end + 2;
-      continue;
-    }
-    if (source[i] === '/' && source[i + 1] === '/') {
-      const end = source.indexOf('\n', i + 2);
-      if (end < 0) return false;
-      i = end + 1;
-      continue;
-    }
-    return source[i] === ',' || source[i] === '}';
-  }
-  return false;
-}
-
-const readQuotedStringValue = (objectText: string, valueStart: number): string | undefined => {
-  const valueQuote = objectText[valueStart];
-  if (valueQuote !== "'" && valueQuote !== '"') return undefined;
-  let value = '';
-  let valueEscaped = false;
-  for (let index = valueStart + 1; index < objectText.length; index += 1) {
-    const character = objectText[index];
-    if (valueEscaped) {
-      value += character;
-      valueEscaped = false;
-      continue;
-    }
-    if (character === '\\') {
-      valueEscaped = true;
-      continue;
-    }
-    if (character === valueQuote) {
-      return isValueTerminated(objectText, index + 1) ? value : undefined;
-    }
-    value += character;
-  }
-  return undefined;
-};
-
-const readNumericValue = (objectText: string, valueStart: number): number | undefined => {
-  const numberMatch = /^\\d+/.exec(objectText.slice(valueStart));
-  return numberMatch && isValueTerminated(objectText, valueStart + numberMatch[0].length)
-    ? Number(numberMatch[0])
-    : undefined;
-};
-
-const readTopLevelProperty = (
-  objectText: string,
-  property: 'id' | 'cadenceHours',
-): string | number | undefined => {
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-
-  for (let index = 0; index < objectText.length; index += 1) {
-    const character = objectText[index];
-    const next = objectText[index + 1];
-
-    if (lineComment) {
-      if (character === '\n') lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (character === '*' && next === '/') {
-        blockComment = false;
-        index += 1;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) { escaped = false; continue; }
-      if (character === '\\') { escaped = true; continue; }
-      if (character === quote) quote = '';
-      continue;
-    }
-    if (character === '/' && next === '/') { lineComment = true; index += 1; continue; }
-    if (character === '/' && next === '*') { blockComment = true; index += 1; continue; }
-    if (character === "'" || character === '"' || character.charCodeAt(0) === 96) { quote = character; continue; }
-    if (character === '{' || character === '[' || character === '(') { depth += 1; continue; }
-    if (character === '}' || character === ']' || character === ')') { depth -= 1; continue; }
-    if (depth !== 1 || !/[A-Za-z_$]/.test(character)) continue;
-
-    let keyEnd = index + 1;
-    while (keyEnd < objectText.length && /[A-Za-z0-9_$]/.test(objectText[keyEnd])) keyEnd += 1;
-    const key = objectText.slice(index, keyEnd);
-    let colon = keyEnd;
-    while (colon < objectText.length && /\\s/.test(objectText[colon])) colon += 1;
-    if (key === property && objectText[colon] === ':') {
-      let valueStart = colon + 1;
-      while (valueStart < objectText.length && /\\s/.test(objectText[valueStart])) valueStart += 1;
-      return property === 'id'
-        ? readQuotedStringValue(objectText, valueStart)
-        : readNumericValue(objectText, valueStart);
-    }
-    index = keyEnd - 1;
-  }
-  return undefined;
-};
-function maskComments(source: string): string {
-  let quote = '';
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-  const output = [...source];
-
-  for (let i = 0; i < source.length; i += 1) {
-    const ch = source[i];
-    const next = source[i + 1];
-
-    if (lineComment) {
-      if (ch === '\n') lineComment = false;
-      else output[i] = ' ';
-      continue;
-    }
-    if (blockComment) {
-      if (ch === '*' && next === '/') {
-        output[i] = ' ';
-        output[i + 1] = ' ';
-        blockComment = false;
-        i += 1;
-      } else if (ch !== '\n') {
-        output[i] = ' ';
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch.charCodeAt(0) === 96) {
-      quote = ch;
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      output[i] = ' ';
-      output[i + 1] = ' ';
-      lineComment = true;
-      i += 1;
-    } else if (ch === '/' && next === '*') {
-      output[i] = ' ';
-      output[i + 1] = ' ';
-      blockComment = true;
-      i += 1;
-    }
-  }
-  if (quote || blockComment) throw new Error('unterminated string or block comment in scanner source');
-  return output.join('');
-}
-
-function parseScannerSources(sourceText: string): ScannerSource[] {
-  const declaration = /\b(?:const|let|var)\s+SOURCES\b/.exec(sourceText);
-  if (!declaration) throw new Error('unable to locate the scanner SOURCES declaration');
-  const equals = sourceText.indexOf('=', declaration.index + declaration[0].length);
-  if (equals < 0) throw new Error('unable to locate the SOURCES initializer');
-  const arrayStart = sourceText.indexOf('[', equals + 1);
-  if (arrayStart < 0) throw new Error('SOURCES initializer is not an array');
-  const arrayEnd = findMatchingDelimiter(sourceText, arrayStart, '[', ']');
-  const arrayText = sourceText.slice(arrayStart + 1, arrayEnd);
-
-  const objects: string[] = [];
-  let depth = 0;
-  let objectStart = -1;
-  let quote = '';
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-  for (let i = 0; i < arrayText.length; i += 1) {
-    const ch = arrayText[i];
-    const next = arrayText[i + 1];
-    if (lineComment) {
-      if (ch === '\n') lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (ch === '*' && next === '/') {
-        blockComment = false;
-        i += 1;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      lineComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      blockComment = true;
-      i += 1;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      quote = ch;
-      continue;
-    }
-    if (ch === '{') {
-      if (depth === 0) objectStart = i;
-      depth += 1;
-    } else if (ch === '}') {
-      depth -= 1;
-      if (depth < 0) throw new Error('unexpected closing brace in SOURCES array');
-      if (depth === 0 && objectStart >= 0) {
-        objects.push(arrayText.slice(objectStart, i + 1));
-        objectStart = -1;
-      }
-    }
-  }
-  if (depth !== 0 || quote || blockComment || lineComment) {
-    throw new Error('unterminated object, string, or comment in SOURCES array');
-  }
-
-  const objectEntries = objects.map((objectText) => {
-    const id = readTopLevelProperty(objectText, 'id');
-    const cadenceHours = readTopLevelProperty(objectText, 'cadenceHours');
-    if (typeof id !== 'string' || !id || typeof cadenceHours !== 'number') {
-      throw new Error('every object-form scanner source must have a string id and numeric cadenceHours');
-    }
-    return { id, cadenceHours };
+const getObjectProperty = (node: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined => {
+  const matches = node.properties.filter((property): property is ts.PropertyAssignment => {
+    if (!ts.isPropertyAssignment(property)) return false;
+    const propertyName = property.name;
+    return (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) && propertyName.text === name;
   });
+  if (matches.length !== 1) return undefined;
+  const match = matches[0];
+  return match ? match.initializer : undefined;
+};
 
-  const activeArrayText = maskComments(arrayText);
-  const factoryPattern = /createArchitectureSource\(\s*'((?:\\.|[^'\\])*)'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*'[^']+'\s*,\s*\[[\s\S]*?\]\s*,\s*(\d+)\s*\)/g;
-  const factoryEntries = [...activeArrayText.matchAll(factoryPattern)].map((match) => ({
-    id: match[1] ?? '',
-    cadenceHours: Number(match[2]),
-  }));
-  const declaredFactoryCount = (activeArrayText.match(/\bcreateArchitectureSource\s*\(/g) ?? []).length;
-  if (factoryEntries.length !== declaredFactoryCount) {
-    throw new Error('every factory-form scanner source must use literal ID, URL, pattern list and cadence values');
-  }
+const parseObjectSource = (node: ts.ObjectLiteralExpression): ScannerSource | null => {
+  const id = literalString(getObjectProperty(node, 'id'));
+  const cadenceHours = literalNumber(getObjectProperty(node, 'cadenceHours'));
+  return id && cadenceHours !== null ? { id, cadenceHours } : null;
+};
 
-  const entries = [...objectEntries, ...factoryEntries];
-  if (entries.length === 0) throw new Error('scanner SOURCES array contains no supported source entries');
-  return entries;
-}
-function verifyParserHandlesFactoryCalls(): void {
-  const fixture = `const SOURCES: ArchitectureSource[] = [
-    createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),
-    createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),
-  ];`;
+const parseFactorySource = (node: ts.CallExpression): ScannerSource | null => {
+  const expression = node.expression;
+  if (!ts.isIdentifier(expression) || expression.text !== 'createArchitectureSource') return null;
+  const args = node.arguments;
+  if (args.length !== 6 || !ts.isArrayLiteralExpression(args[4])) return null;
+  const id = literalString(args[0]);
+  const cadenceHours = literalNumber(args[5]);
+  return id && cadenceHours !== null ? { id, cadenceHours } : null;
+};
+
+const parseScannerSources = (sourceText: string): ScannerSource[] => {
+  const sourceFile = ts.createSourceFile('geas-architecture-scientist.ts', sourceText, ts.ScriptTarget.Latest, true);
+  if (sourceFile.parseDiagnostics.length > 0) throw new Error('scanner source file contains TypeScript syntax errors');
+  const declaration = sourceFile.statements
+    .filter(ts.isVariableStatement)
+    .flatMap(statement => [...statement.declarationList.declarations])
+    .find(item => ts.isIdentifier(item.name) && item.name.text === 'SOURCES');
+  const initializer = declaration?.initializer;
+  if (!initializer || !ts.isArrayLiteralExpression(initializer)) throw new Error('unable to locate a literal scanner SOURCES array');
+  return initializer.elements.map((element, index) => {
+    const parsed = ts.isCallExpression(element)
+      ? parseFactorySource(element)
+      : ts.isObjectLiteralExpression(element) ? parseObjectSource(element) : null;
+    if (!parsed) throw new Error(`scanner source at index ${index} must use literal ID and cadence values`);
+    return parsed;
+  });
+};
+
+const verifyParserHandlesFactoryCalls = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [',
+    "createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),",
+    "createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),",
+    '];',
+  ].join('\n');
   const parsed = parseScannerSources(fixture);
-  if (parsed.length !== 2
-      || parsed[0]?.id !== 'factory-one'
-      || parsed[0]?.cadenceHours !== 24
-      || parsed[1]?.id !== 'factory-two'
-      || parsed[1]?.cadenceHours !== 336) {
+  if (parsed.length !== 2 || parsed[0]?.id !== 'factory-one' || parsed[0]?.cadenceHours !== 24
+      || parsed[1]?.id !== 'factory-two' || parsed[1]?.cadenceHours !== 336) {
     throw new Error('scanner parser must read factory-form ID and cadence values');
   }
-}
+};
 
-function verifyParserIgnoresCommentedFactoryCalls(): void {
-  const fixture = `const SOURCES: ArchitectureSource[] = [
-    // createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24),
-    /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24), */
-    createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24),
-  ];`;
+const verifyParserIgnoresCommentedFactoryCalls = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [',
+    "// createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24)",
+    "/* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24) */",
+    "createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24),",
+    '];',
+  ].join('\n');
   const parsed = parseScannerSources(fixture);
   if (parsed.length !== 1 || parsed[0]?.id !== 'active') {
     throw new Error('commented-out factory calls must not be counted as active scanner sources');
   }
-}
+};
 
-function verifyParserRejectsComputedFactoryValues(): void {
+const verifyParserRejectsComputedFactoryValues = (): void => {
   const fixtures = [
-    `const SOURCES: ArchitectureSource[] = [
-      createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24),
-    ];`,
-    `const SOURCES: ArchitectureSource[] = [
-      createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30),
-    ];`,
+    ["const SOURCES: ArchitectureSource[] = [", "createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24),", '];'].join('\n'),
+    ["const SOURCES: ArchitectureSource[] = [", "createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30),", '];'].join('\n'),
   ];
   for (const fixture of fixtures) {
     let rejected = false;
-    try {
-      parseScannerSources(fixture);
-    } catch {
-      rejected = true;
-    }
+    try { parseScannerSources(fixture); } catch { rejected = true; }
     if (!rejected) throw new Error('scanner parser accepted computed factory ID or cadence values');
   }
-}
+};
 
-function verifyParserHandlesBraceCharacters(): void {
-  const fixture = `const SOURCES: ArchitectureSource[] = [{
-    id: 'fixture',
-    authority: 'Test {Authority}',
-    domain: 'cloud',
-    url: 'https://example.org/{architecture}',
-    patternIds: [],
-    cadenceHours: 24
-  }];
-  const P = () => {};`;
+const verifyParserHandlesBraceCharacters = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [{',
+    "id: 'fixture', authority: 'Test {Authority}', domain: 'cloud', url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24",
+    '}];',
+  ].join('\n');
   const parsed = parseScannerSources(fixture);
-  if (parsed.length !== 1 || parsed[0].id !== 'fixture' || parsed[0].cadenceHours !== 24) {
-    throw new Error('structured scanner parser failed its brace-containing string regression fixture');
+  if (parsed.length !== 1 || parsed[0]?.id !== 'fixture' || parsed[0]?.cadenceHours !== 24) {
+    throw new Error('scanner parser failed its brace-containing string regression fixture');
   }
-}
+};
 
-function verifyParserRejectsCommentOnlyFields(): void {
-  const fixture = `const SOURCES: ArchitectureSource[] = [{
-    // id: 'comment-only',
-    // cadenceHours: 24
-    authority: 'Test'
-  }];`;
+const verifyParserRejectsCommentOnlyFields = (): void => {
+  const fixture = [
+    'const SOURCES: ArchitectureSource[] = [{',
+    "// id: 'comment-only'",
+    '// cadenceHours: 24',
+    "authority: 'Test'",
+    '}];',
+  ].join('\n');
   let rejected = false;
-  try {
-    parseScannerSources(fixture);
-  } catch {
-    rejected = true;
-  }
-  if (!rejected) {
-    throw new Error('scanner parser accepted id and cadenceHours fields found only in comments');
-  }
-}
+  try { parseScannerSources(fixture); } catch { rejected = true; }
+  if (!rejected) throw new Error('scanner parser accepted id and cadenceHours fields found only in comments');
+};
 
-function verifyParserRejectsUnterminatedLineComment(): void {
-  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', cadenceHours: 24 // no terminating newline or visible array close";
+const verifyParserRejectsUnterminatedSource = (): void => {
+  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', cadenceHours: 24 // missing closure";
   let rejected = false;
-  try {
-    parseScannerSources(fixture);
-  } catch {
-    rejected = true;
-  }
-  if (!rejected) {
-    throw new Error('scanner parser accepted a SOURCES array truncated inside a line comment');
-  }
-}
+  try { parseScannerSources(fixture); } catch { rejected = true; }
+  if (!rejected) throw new Error('scanner parser accepted a truncated SOURCES array');
+};
 
-function verifyParserRejectsComputedFieldValues(): void {
+const verifyParserRejectsComputedFieldValues = (): void => {
   const fixtures = [
-    `const SOURCES: ArchitectureSource[] = [{
-    id: 'computed' + '-id',
-    cadenceHours: 24
-  }];`,
-    `const SOURCES: ArchitectureSource[] = [{
-    id: 'computed',
-    cadenceHours: 24 * 30
-  }];`,
+    ["const SOURCES: ArchitectureSource[] = [{", "id: 'computed' + '-id', cadenceHours: 24", '}];'].join('\n'),
+    ["const SOURCES: ArchitectureSource[] = [{", "id: 'computed', cadenceHours: 24 * 30", '}];'].join('\n'),
   ];
   for (const fixture of fixtures) {
     let rejected = false;
-    try {
-      parseScannerSources(fixture);
-    } catch {
-      rejected = true;
-    }
-    if (!rejected) {
-      throw new Error('scanner parser accepted a computed id or cadenceHours expression');
-    }
+    try { parseScannerSources(fixture); } catch { rejected = true; }
+    if (!rejected) throw new Error('scanner parser accepted computed ID or cadenceHours expression');
   }
-}
+};
 
 verifyParserHandlesFactoryCalls();
 verifyParserIgnoresCommentedFactoryCalls();
 verifyParserRejectsComputedFactoryValues();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedFieldValues();
-verifyParserRejectsUnterminatedLineComment();
+verifyParserRejectsUnterminatedSource();
 verifyParserRejectsCommentOnlyFields();
-
 const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Registry;
 const scanner = readFileSync(scannerPath, 'utf8');
 const failures: string[] = [];
@@ -520,3 +216,4 @@ process.stdout.write(`${JSON.stringify({
   braceStringRegression: 'passed',
   irreversibleChangesExecuted: false,
 }, null, 2)}\n`);
+})();
