@@ -449,57 +449,73 @@ const handleJsonRpc = (message: McpMessage): Response | Promise<Response> => {
   return handleJsonRpcMethod(message, id);
 };
 
-export const githubMcpRoute = async (
-  request: Request,
-  rateLimiter: GithubMcpRateLimiter,
-): Promise<Response> => {
-  if (!isValidOrigin(request)) {
-    return jsonResponse({ error: 'Forbidden origin.' }, 403);
-  }
+const validateMcpRequestHeaders = async (request: Request): Promise<Response | null> => {
+  if (!isValidOrigin(request)) return jsonResponse({ error: 'Forbidden origin.' }, 403);
   if (request.method !== 'POST') {
     return new Response(null, {
       status: 405,
       headers: { Allow: 'POST', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
     });
   }
-  if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
-    return rpcError(null, -32600, 'Content-Type must be application/json.', 415);
-  }
-  const sizeFailure = validateRequestSize(request);
-  if (sizeFailure) {
-    await request.body?.cancel().catch(() => undefined);
-    return sizeFailure;
-  }
+  const contentType = (request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+  if (contentType !== 'application/json') return rpcError(null, -32600, 'Content-Type must be application/json.', 415);
 
+  const sizeFailure = validateRequestSize(request);
+  if (sizeFailure) await request.body?.cancel().catch(() => undefined);
+  return sizeFailure;
+};
+
+type ParsedMcpRequest = { message: McpMessage } | { response: Response };
+
+const parseMcpRequest = async (request: Request): Promise<ParsedMcpRequest> => {
   let text: string;
   try {
     text = await readBoundedRequestText(request);
   } catch (error) {
-    if (error instanceof McpRequestBodyTooLargeError) {
-      return rpcError(null, -32600, 'MCP request body exceeds 65,536 bytes.', 413);
-    }
-    return rpcError(null, -32700, 'Unable to read a valid UTF-8 request body.', 400);
+    const response = error instanceof McpRequestBodyTooLargeError
+      ? rpcError(null, -32600, 'MCP request body exceeds 65,536 bytes.', 413)
+      : rpcError(null, -32700, 'Unable to read a valid UTF-8 request body.', 400);
+    return { response };
   }
 
-  let message: unknown;
   try {
-    message = JSON.parse(text) as unknown;
+    const message: unknown = JSON.parse(text);
+    return isRecord(message)
+      ? { message: message as McpMessage }
+      : { response: rpcError(null, -32600, 'Invalid JSON-RPC request.', 400) };
   } catch {
-    return rpcError(null, -32700, 'Parse error.', 400);
+    return { response: rpcError(null, -32700, 'Parse error.', 400) };
   }
-  if (!isRecord(message)) return rpcError(null, -32600, 'Invalid JSON-RPC request.', 400);
+};
 
-  if (message.method === 'tools/call') {
-    const clientKey = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
-    try {
-      const limit = await rateLimiter.limit({ key: clientKey });
-      if (!limit.success) {
-        return jsonResponse({ error: 'MCP tool-call rate limit exceeded.' }, 429, { 'Retry-After': '60' });
-      }
-    } catch {
-      return jsonResponse({ error: 'MCP rate-limit service is unavailable.' }, 503);
-    }
+const enforceMcpToolRateLimit = async (
+  request: Request,
+  message: McpMessage,
+  rateLimiter: GithubMcpRateLimiter,
+): Promise<Response | null> => {
+  if (message.method !== 'tools/call') return null;
+  const key = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
+  try {
+    const result = await rateLimiter.limit({ key });
+    return result.success
+      ? null
+      : jsonResponse({ error: 'MCP tool-call rate limit exceeded.' }, 429, { 'Retry-After': '60' });
+  } catch {
+    return jsonResponse({ error: 'MCP rate-limit service is unavailable.' }, 503);
   }
+};
 
-  return handleJsonRpc(message as McpMessage);
+export const githubMcpRoute = async (
+  request: Request,
+  rateLimiter: GithubMcpRateLimiter,
+): Promise<Response> => {
+  const headerFailure = await validateMcpRequestHeaders(request);
+  if (headerFailure) return headerFailure;
+
+  const parsed = await parseMcpRequest(request);
+  if ('response' in parsed) return parsed.response;
+
+  const rateLimitFailure = await enforceMcpToolRateLimit(request, parsed.message, rateLimiter);
+  if (rateLimitFailure) return rateLimitFailure;
+  return handleJsonRpc(parsed.message);
 };
