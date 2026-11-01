@@ -57,7 +57,7 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
     'intelligence_evidence',
     'intelligence_reports',
   ]) {
-    assert.match(capturedSql, new RegExp('FROM public\\\\.' + table));
+    assert.match(capturedSql, new RegExp('FROM public\\.' + table));
   }
   assert.doesNotMatch(capturedSql, /\\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\\b/i);
 });
