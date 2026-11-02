@@ -145,9 +145,15 @@ export interface ArchitectureScanResult {
   coverage: Record<
     ArchitectureDomain,
     {
+      /** Configured source observations attempted for this domain. */
       sources: number;
-      observedPatterns: number;
-      status: 'covered' | 'source-unavailable' | 'no-observed-pattern';
+      availableSources: number;
+      unavailableSources: number;
+      discoveredPatterns: number;
+      analysisPatterns: number;
+      claimSupportedPatterns: number;
+      recommendationPatterns: number;
+      status: 'source-unavailable' | 'discovery-covered' | 'no-discovered-pattern';
     }
   >;
   irreversibleChangesExecuted: false;
@@ -850,17 +856,38 @@ const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
   'www.w3.org',
 ]);
 
-export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+const CURATED_SOURCE_URLS = new Set(SOURCES.map((source) => new URL(source.url).href));
+
+const hasSecureSourceTransport = (url: URL): boolean => url.protocol === 'https:';
+
+const hasNoSourceCredentials = (url: URL): boolean => !url.username && !url.password;
+
+const hasAllowedSourcePort = (url: URL): boolean => !url.port || url.port === '443';
+
+const usesCuratedSourceHost = (url: URL): boolean =>
+  CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase());
+
+const isExactCuratedSourceUrl = (url: URL): boolean => CURATED_SOURCE_URLS.has(url.href);
+
+const parseCuratedSourceUrl = (sourceUrl: string): URL | null => {
   try {
-    const url = new URL(sourceUrl);
-    return url.protocol === 'https:'
-      && CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
-      && !url.username
-      && !url.password
-      && (!url.port || url.port === '443');
+    return new URL(sourceUrl);
   } catch {
-    return false;
+    return null;
   }
+};
+
+const TRUSTED_SOURCE_URL_CHECKS = [
+  hasSecureSourceTransport,
+  usesCuratedSourceHost,
+  hasNoSourceCredentials,
+  hasAllowedSourcePort,
+  isExactCuratedSourceUrl,
+] as const;
+
+export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+  const url = parseCuratedSourceUrl(sourceUrl);
+  return url !== null && TRUSTED_SOURCE_URL_CHECKS.every((check) => check(url));
 };
 
 const validateCuratedSourceUrl = (sourceUrl: string): URL => {
@@ -870,20 +897,55 @@ const validateCuratedSourceUrl = (sourceUrl: string): URL => {
   return new URL(sourceUrl);
 };
 
-const hasExpectedRedirectOrigin = (nextUrl: URL, originalUrl: URL): boolean =>
-  nextUrl.protocol === 'https:' && nextUrl.hostname === originalUrl.hostname;
-
-const hasNoRedirectCredentials = (nextUrl: URL): boolean =>
-  !nextUrl.username && !nextUrl.password;
-
-const hasAllowedRedirectPort = (nextUrl: URL): boolean =>
-  !nextUrl.port || nextUrl.port === '443';
-
-const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
-  if (!hasExpectedRedirectOrigin(nextUrl, originalUrl)) return false;
-  if (!hasNoRedirectCredentials(nextUrl)) return false;
-  return hasAllowedRedirectPort(nextUrl);
+const normalizeCuratedPath = (pathname: string): string => {
+  let normalized = pathname;
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
 };
+
+/**
+ * Only source-specific canonical redirects may leave the originally curated path.
+ * This keeps legitimate vendor URL moves explicit instead of trusting an entire host.
+ */
+const CURATED_SOURCE_REDIRECT_PATHS = new Map<string, string[]>([
+  [
+    'https://www.etsi.org/technologies/multi-access-edge-computing',
+    [
+      '/technologies/multi-access-edge-computing',
+      '/technologies/ict-infrastructure-operations/',
+    ],
+  ],
+]);
+
+const hasExpectedRedirectOrigin = (target: URL, original: URL): boolean =>
+  target.protocol === 'https:' && target.origin === original.origin;
+
+const hasNoRedirectCredentials = (target: URL): boolean =>
+  !target.username && !target.password;
+
+const hasAllowedRedirectPort = (target: URL): boolean => !target.port || target.port === '443';
+
+const hasPinnedRedirectQuery = (target: URL, original: URL): boolean =>
+  target.search === original.search && !target.hash;
+
+const hasAllowedRedirectPath = (target: URL, original: URL): boolean => {
+  const permittedPaths = CURATED_SOURCE_REDIRECT_PATHS.get(original.href) ?? [original.pathname];
+  const normalizedPath = normalizeCuratedPath(target.pathname);
+  return permittedPaths.some((path) => normalizeCuratedPath(path) === normalizedPath);
+};
+
+const TRUSTED_REDIRECT_CHECKS = [
+  hasExpectedRedirectOrigin,
+  hasNoRedirectCredentials,
+  hasAllowedRedirectPort,
+  hasPinnedRedirectQuery,
+  hasAllowedRedirectPath,
+] as const;
+
+export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
+  TRUSTED_REDIRECT_CHECKS.every((check) => check(nextUrl, originalUrl));
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
@@ -897,8 +959,8 @@ const resolveCuratedRedirectTarget = async (
   if (redirects === 10) throw new Error('source redirect limit exceeded');
 
   const nextUrl = new URL(location, requestUrl);
-  if (!isSafeCuratedRedirectTarget(nextUrl, originalUrl)) {
-    throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
+  if (!isTrustedCuratedRedirectTarget(nextUrl, originalUrl)) {
+    throw new Error('source redirect rejected: target is outside the source-specific curated redirect paths');
   }
   return nextUrl;
 };
@@ -910,8 +972,8 @@ const fetchCuratedRedirectChain = async (
 ): Promise<{ response: Response; requestUrl: URL }> => {
   let requestUrl = originalUrl;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    if (!isTrustedArchitectureSourceUrl(requestUrl.href) || requestUrl.origin !== originalUrl.origin) {
-      throw new Error('source fetch rejected: target must remain HTTPS on the curated hostname allowlist');
+    if (!isTrustedCuratedRedirectTarget(requestUrl, originalUrl)) {
+      throw new Error('source fetch rejected: target is outside the source-specific curated redirect paths');
     }
     const response = await fetch(requestUrl.toString(), {
       redirect: 'manual',
@@ -930,9 +992,9 @@ const fetchCuratedRedirectChain = async (
 
 const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, originalUrl: URL): Promise<URL> => {
   const finalUrl = new URL(response.url || requestUrl.toString());
-  if (finalUrl.protocol !== 'https:' || finalUrl.hostname !== originalUrl.hostname) {
+  if (!isTrustedCuratedRedirectTarget(finalUrl, originalUrl)) {
     await response.body?.cancel().catch(() => undefined);
-    throw new Error('source redirect rejected: final host/protocol differs from curated source');
+    throw new Error('source redirect rejected: final URL must remain within the source-specific curated redirect paths');
   }
   return finalUrl;
 };
@@ -1208,18 +1270,42 @@ const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePatte
     : []);
 };
 
-const getDomainCoverage = (
+/**
+ * Report source discovery coverage separately from claim verification.
+ * A source attempt is not a successful observation, and a keyword-derived
+ * analysis pattern is not a claim-supported observed fact.
+ */
+export const getArchitectureDomainCoverage = (
   domain: ArchitectureDomain,
   results: SourceObservation[],
   patterns: ArchitecturePattern[],
 ): ArchitectureScanResult['coverage'][ArchitectureDomain] => {
   const domainSources = results.filter((result) =>
     SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
-  const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
-  const status = domainSources.length === 0
-    ? 'source-unavailable'
-    : observedPatterns > 0 ? 'covered' : 'no-observed-pattern';
-  return { sources: domainSources.length, observedPatterns, status };
+  const availableSources = domainSources.filter((result) => result.ok).length;
+  const domainPatterns = patterns.filter((pattern) => pattern.domain === domain);
+  const discoveredPatterns = domainPatterns.length;
+  const analysisPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'analysis').length;
+  const claimSupportedPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'observed-fact').length;
+  const recommendationPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'recommendation').length;
+  let status: ArchitectureScanResult['coverage'][ArchitectureDomain]['status'];
+  if (availableSources === 0) {
+    status = 'source-unavailable';
+  } else if (discoveredPatterns > 0) {
+    status = 'discovery-covered';
+  } else {
+    status = 'no-discovered-pattern';
+  }
+  return {
+    sources: domainSources.length,
+    availableSources,
+    unavailableSources: domainSources.length - availableSources,
+    discoveredPatterns,
+    analysisPatterns,
+    claimSupportedPatterns,
+    recommendationPatterns,
+    status,
+  };
 };
 
 const coverage = (
@@ -1229,7 +1315,7 @@ const coverage = (
   const output = {} as ArchitectureScanResult['coverage'];
   const domains = [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[];
   domains.forEach((domain) => {
-    output[domain] = getDomainCoverage(domain, results, patterns);
+    output[domain] = getArchitectureDomainCoverage(domain, results, patterns);
   });
   return output;
 };

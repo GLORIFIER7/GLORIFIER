@@ -11,7 +11,7 @@ import { getAssetVerificationPolicy } from './lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-asset-verification';
 
 export type CloudflareEnv = {
-  MCP_RATE_LIMITER: GithubMcpRateLimiter;
+  MCP_RATE_LIMITER?: GithubMcpRateLimiter;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
@@ -963,6 +963,20 @@ export default {
     const incomingUrl = new URL(request.url);
 
     if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
+      if (!env.MCP_RATE_LIMITER) {
+        return Response.json({
+          ok: false,
+          status: 'unavailable',
+          code: 'MCP_RATE_LIMITER_NOT_CONFIGURED',
+          error: 'The MCP endpoint is disabled until this environment has its own rate-limit binding.',
+        }, {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+      }
       return githubMcpRoute(request, env.MCP_RATE_LIMITER);
     }
 

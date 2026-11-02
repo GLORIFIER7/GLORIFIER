@@ -49,6 +49,9 @@ jobs:
       - name: Test Neon Hyperdrive database adapter
         run: npm run test:neon-worker
 
+      - name: Test production deployment smoke contracts
+        run: npm run test:cloudflare-production-smoke
+
       - name: Test OpenSea read-only API integration
         run: npm run test:opensea-worker
 
@@ -210,12 +213,15 @@ jobs:
                 body.status !== "verified-for-probed-dependencies" ||
                 !body.checks || typeof body.checks !== "object" ||
                 !body.checks.database || typeof body.checks.database !== "object" ||
-                body.checks.database.ok !== true) {
+                body.checks.database.ok !== true ||
+                body.checks.database.source !== "neon-hyperdrive") {
               console.error("Runtime verification did not confirm healthy probed dependencies", raw);
               process.exit(1);
             }
           } else if (path === "/api/reports/summary") {
-            if (body.status !== "operational-data-observed" || body.ok !== true) {
+            if (body.status !== "operational-data-observed" || body.ok !== true ||
+                body.evidence?.source !== "neon-hyperdrive" ||
+                body.evidence?.exactRowCounts !== true) {
               console.error("Invalid reports-summary response contract", raw);
               process.exit(1);
             }

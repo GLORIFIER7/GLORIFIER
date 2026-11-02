@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { runGeasArchitectureScan } from '../src/lib/governance/geas-architecture-scientist';
 import { buildGeasRunProvenance } from './geas-architecture-run-provenance';
+import { summarizeArchitecturePatterns } from './geas-architecture-scan-summary';
 
 const outputDir = process.env.GEAS_SCAN_OUTPUT_DIR ?? 'artifacts/geas-architecture';
 
@@ -30,7 +31,7 @@ const summary = {
   repositoryRevision: result.repositoryRevision,
   runProvenance,
   completedAt: result.completedAt,
-  analysisPatterns: result.patterns.length,
+  ...summarizeArchitecturePatterns(result.patterns),
   evidenceRecords: result.evidence.length,
   driftFindings: result.drift.length,
   sourceStatuses: result.sources.reduce<Record<string, number>>((acc, source) => {

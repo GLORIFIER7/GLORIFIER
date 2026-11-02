@@ -76,8 +76,39 @@ async function run(): Promise<void> {
 
   try {
     const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+      vars?: Record<string, string>;
+      hyperdrive?: Array<{ binding: string; id: string }>;
       assets?: { run_worker_first?: string[] };
+      previews?: {
+        vars?: Record<string, string>;
+        hyperdrive?: Array<{ binding: string; id: string }>;
+      };
     };
+    assert.equal(wranglerConfig.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
+      'production must select the approved authoritative Neon database');
+    const productionHyperdrive = wranglerConfig.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
+    assert.ok(productionHyperdrive?.id, 'production must bind the approved Neon Hyperdrive resource');
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
+      'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
+    const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
+    assert.equal(previewHyperdrive?.id, productionHyperdrive.id,
+      'Previews must bind the same dedicated read-only Neon Hyperdrive resource for runtime verification');
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_URL, undefined,
+      'Preview configuration must not point to the production Supabase project');
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
+      'Preview configuration must never include production database secrets');
+    assert.equal((wranglerConfig as { observability?: { enabled?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability?.enabled, true,
+      'production Worker observability must be enabled');
+    const observability = (wranglerConfig as { observability?: { enabled?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability;
+    assert.equal(observability?.logs?.enabled, true);
+    assert.equal(observability?.logs?.invocation_logs, true);
+    assert.equal(observability?.logs?.head_sampling_rate, 0.1,
+      'Worker invocation logs must use a conservative 10% sampling rate');
+    assert.equal(observability?.traces?.enabled, true);
+    assert.equal(observability?.traces?.head_sampling_rate, 0.01,
+      'Worker traces must use a conservative 1% sampling rate');
+    assert.equal(observability?.issues?.enabled, true,
+      'Cloudflare Workers Issues detection must be enabled');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp'), 'Cloudflare assets must route /mcp through the Worker before SPA fallback');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp/*'), 'Cloudflare assets must route nested /mcp paths through the Worker');
 
@@ -97,6 +128,35 @@ async function run(): Promise<void> {
     assert.equal(missingAsset.status, 404, 'SPA HTML must not be served as a missing JavaScript asset');
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
+
+    // Preview deployments do not inherit production bindings. Missing rate limiting
+    // must fail closed with a deliberate service response, never an unhandled TypeError.
+    const previewWithoutRateLimiter = {
+      ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'neon',
+      GLORIFIER_SUPABASE_URL: undefined,
+      GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined,
+      MCP_RATE_LIMITER: undefined,
+    } as unknown as TestEnv;
+    const previewDatabaseStatus = await reportsSummaryResponse(previewWithoutRateLimiter);
+    assert.equal(previewDatabaseStatus.status, 503,
+      'Preview reporting must remain unavailable until an isolated Neon Hyperdrive binding is supplied');
+    const previewDatabaseBody = await previewDatabaseStatus.json() as { code?: string };
+    assert.equal(previewDatabaseBody.code, 'NEON_HYPERDRIVE_NOT_CONFIGURED',
+      'Preview must not silently fall back to the production database');
+
+    const previewMcpWithoutRateLimit = await worker.fetch(
+      mcpPost({ jsonrpc: '2.0', id: 'preview', method: 'initialize', params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'preview-test', version: '1' },
+      } }),
+      previewWithoutRateLimiter,
+    );
+    assert.equal(previewMcpWithoutRateLimit.status, 503,
+      'MCP must fail closed when an isolated Preview has no rate-limit binding');
+    assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
+    assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
 
     // MCP must be a real read-only Streamable HTTP endpoint, not the SPA asset fallback.
     capturedRequest = null;

@@ -1,5 +1,25 @@
 import { readFileSync } from 'node:fs';
-import { createGovernedActionEvidencePackage, createAgentIdentityContract, createTokenLifecycleContract, getGeasArchitectureModel, isClaimSupportedEvidence, classifyArchitectureEvidence, isSourceObservationDue, shouldReuseSourceObservation, buildConditionalRequestHeaders, createSourceFetchContext, reuseNotModifiedSourceObservation, stripHtml, isTrustedArchitectureSourceUrl, findEarliestKeywordIndex, type ArchitectureDomain } from './geas-architecture-scientist';
+import {
+  createGovernedActionEvidencePackage,
+  createAgentIdentityContract,
+  createTokenLifecycleContract,
+  getGeasArchitectureModel,
+  getArchitectureDomainCoverage,
+  isClaimSupportedEvidence,
+  classifyArchitectureEvidence,
+  isSourceObservationDue,
+  shouldReuseSourceObservation,
+  buildConditionalRequestHeaders,
+  createSourceFetchContext,
+  reuseNotModifiedSourceObservation,
+  stripHtml,
+  isTrustedArchitectureSourceUrl,
+  isTrustedCuratedRedirectTarget,
+  findEarliestKeywordIndex,
+  type ArchitectureDomain,
+  type ArchitecturePattern,
+  type SourceObservation,
+} from './geas-architecture-scientist';
 
 const model = getGeasArchitectureModel();
 
@@ -48,10 +68,48 @@ const rejectedCuratedSourceUrls = [
   'https://user:password@www.nist.gov/forged',
   'https://www.nist.gov:8443/forged',
   'file:///etc/passwd',
+  'https://www.nist.gov/internal',
+  'https://airc.nist.gov/another-document',
+  'https://raw.githubusercontent.com/attacker/repo/main/payload',
+  'https://www.nist.gov/itl/ai-risk-management-framework/../internal',
 ];
 for (const sourceUrl of rejectedCuratedSourceUrls) {
   if (isTrustedArchitectureSourceUrl(sourceUrl)) {
     throw new Error(`unsafe or unapproved curated source URL was accepted: ${sourceUrl}`);
+  }
+}
+
+const redirectSource = new URL('https://www.nist.gov/itl/ai-risk-management-framework');
+const allowedRedirectTargets = [
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework/'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework'),
+];
+const etsiRedirectSource = new URL('https://www.etsi.org/technologies/multi-access-edge-computing');
+const approvedEtsiCanonicalRedirect = new URL('https://www.etsi.org/technologies/ict-infrastructure-operations/');
+for (const target of allowedRedirectTargets) {
+  if (!isTrustedCuratedRedirectTarget(target, redirectSource)) {
+    throw new Error(`same-source canonical redirect should be allowed: ${target.href}`);
+  }
+}
+if (!isTrustedCuratedRedirectTarget(approvedEtsiCanonicalRedirect, etsiRedirectSource)) {
+  throw new Error('the explicitly registered ETSI canonical path should be allowed only for its curated source');
+}
+const rejectedRedirectTargets = [
+  new URL('https://www.nist.gov/internal'),
+  new URL('https://www.nist.gov/itl/other-standard'),
+  new URL('https://www.nist.gov:8443/itl/ai-risk-management-framework'),
+  new URL('http://www.nist.gov/itl/ai-risk-management-framework'),
+  new URL('https://attacker.example/itl/ai-risk-management-framework'),
+  new URL('https://user:password@www.nist.gov/itl/ai-risk-management-framework'),
+  new URL('https://www.nist.gov/internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework/../internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?hl=en'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?next=/internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework#section'),
+];
+for (const target of rejectedRedirectTargets) {
+  if (isTrustedCuratedRedirectTarget(target, redirectSource)) {
+    throw new Error(`unsafe curated source redirect target was accepted: ${target.href}`);
   }
 }
 
@@ -193,6 +251,70 @@ const requiredDomains: ArchitectureDomain[] = [
 ];
 for (const domain of requiredDomains) {
   if (!model.domains.includes(domain)) throw new Error(`authoritative source coverage missing for domain: ${domain}`);
+}
+
+const coverageObservedAt = '2026-11-02T01:00:00.000Z';
+const coverageObservation = (
+  sourceId: string,
+  ok: boolean,
+  evidenceStatus: SourceObservation['evidenceStatus'],
+): SourceObservation => ({
+  sourceId,
+  ok,
+  status: ok ? 200 : 503,
+  contentHash: ok ? 'a'.repeat(64) : null,
+  observedAt: coverageObservedAt,
+  evidenceExcerpt: evidenceStatus === 'content-matched' ? 'A source excerpt.' : null,
+  evidenceStatus,
+});
+const unavailableCloudCoverage = getArchitectureDomainCoverage('cloud', [
+  coverageObservation('aws-well-architected', false, 'unavailable'),
+  coverageObservation('google-architecture', false, 'unavailable'),
+], []);
+if (unavailableCloudCoverage.status !== 'source-unavailable'
+    || unavailableCloudCoverage.sources !== 2
+    || unavailableCloudCoverage.availableSources !== 0
+    || unavailableCloudCoverage.unavailableSources !== 2) {
+  throw new Error('all failed source attempts must be reported as source-unavailable');
+}
+const analysisCloudPattern: ArchitecturePattern = {
+  id: 'test-cloud-pattern',
+  title: 'Cloud discovery pattern',
+  domain: 'cloud',
+  evidenceClass: 'analysis',
+  sourceId: 'aws-well-architected',
+  evidenceUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  evidenceExcerpt: 'A source excerpt.',
+  pattern: 'A candidate architecture pattern.',
+  GLORIFIERMapping: 'Test-only mapping.',
+  controlIds: [],
+  lastReviewed: coverageObservedAt,
+};
+const mixedCloudCoverage = getArchitectureDomainCoverage('cloud', [
+  coverageObservation('aws-well-architected', true, 'content-matched'),
+  coverageObservation('google-architecture', false, 'unavailable'),
+], [analysisCloudPattern]);
+if (mixedCloudCoverage.status !== 'discovery-covered'
+    || mixedCloudCoverage.sources !== 2
+    || mixedCloudCoverage.availableSources !== 1
+    || mixedCloudCoverage.unavailableSources !== 1
+    || mixedCloudCoverage.discoveredPatterns !== 1
+    || mixedCloudCoverage.analysisPatterns !== 1
+    || mixedCloudCoverage.claimSupportedPatterns !== 0) {
+  throw new Error('keyword-derived patterns must remain explicitly analysis, not claim-supported coverage');
+}
+const claimSupportedCloudCoverage = getArchitectureDomainCoverage('cloud', [
+  coverageObservation('aws-well-architected', true, 'content-matched'),
+], [{ ...analysisCloudPattern, evidenceClass: 'observed-fact' }]);
+if (claimSupportedCloudCoverage.claimSupportedPatterns !== 1
+    || claimSupportedCloudCoverage.analysisPatterns !== 0) {
+  throw new Error('claim-supported patterns must be counted separately from analysis patterns');
+}
+const noPatternCloudCoverage = getArchitectureDomainCoverage('cloud', [
+  coverageObservation('aws-well-architected', true, 'source-available'),
+], []);
+if (noPatternCloudCoverage.status !== 'no-discovered-pattern') {
+  throw new Error('an available source without a matching pattern must not be reported as discovery-covered');
 }
 if (model.sources.some((source) => source.id === 'owasp-agentic-applications-top10')) {
   throw new Error('the OWASP landing page must remain discovery-only until its content can support risk-level extraction');

@@ -1,5 +1,22 @@
 import assert from 'node:assert/strict';
 import { buildGeasRunProvenance } from './geas-architecture-run-provenance';
+import { summarizeArchitecturePatterns } from './geas-architecture-scan-summary';
+
+const patternSummary = summarizeArchitecturePatterns([
+  { evidenceClass: 'analysis' },
+  { evidenceClass: 'analysis' },
+  { evidenceClass: 'observed-fact' },
+  { evidenceClass: 'recommendation' },
+  { evidenceClass: 'recommendation' },
+  { evidenceClass: 'future-class' },
+]);
+assert.deepEqual(patternSummary, {
+  discoveredPatterns: 6,
+  analysisPatterns: 2,
+  claimSupportedPatterns: 1,
+  recommendationPatterns: 2,
+  unclassifiedPatterns: 1,
+}, 'scan summaries must never count all discovered patterns as analysis');
 
 const mergeSha = '9'.repeat(40);
 const headSha = 'e'.repeat(40);
