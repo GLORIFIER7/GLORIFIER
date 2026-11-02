@@ -897,8 +897,13 @@ const validateCuratedSourceUrl = (sourceUrl: string): URL => {
   return new URL(sourceUrl);
 };
 
-const normalizeCuratedPath = (pathname: string): string =>
-  pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+const normalizeCuratedPath = (pathname: string): string => {
+  let normalized = pathname;
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
+};
 
 /**
  * Only source-specific canonical redirects may leave the originally curated path.
@@ -1283,9 +1288,14 @@ export const getArchitectureDomainCoverage = (
   const analysisPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'analysis').length;
   const claimSupportedPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'observed-fact').length;
   const recommendationPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'recommendation').length;
-  const status = availableSources === 0
-    ? 'source-unavailable'
-    : discoveredPatterns > 0 ? 'discovery-covered' : 'no-discovered-pattern';
+  let status: ArchitectureScanResult['coverage'][ArchitectureDomain]['status'];
+  if (availableSources === 0) {
+    status = 'source-unavailable';
+  } else if (discoveredPatterns > 0) {
+    status = 'discovery-covered';
+  } else {
+    status = 'no-discovered-pattern';
+  }
   return {
     sources: domainSources.length,
     availableSources,
