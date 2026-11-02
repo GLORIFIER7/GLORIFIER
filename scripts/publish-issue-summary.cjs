@@ -15,10 +15,13 @@ function buildIssueSummary({
     return `${ISSUE_SUMMARY_HEADING}\n\n${summary}\n`;
   }
 
-  const normalizedIssueNumber = typeof issueNumber === 'number'
-    ? String(issueNumber)
-    : typeof issueNumber === 'string' ? issueNumber.trim() : '';
-  if (!/^[1-9][0-9]*$/.test(normalizedIssueNumber) ||
+  let normalizedIssueNumber = '';
+  if (typeof issueNumber === 'number') {
+    normalizedIssueNumber = String(issueNumber);
+  } else if (typeof issueNumber === 'string') {
+    normalizedIssueNumber = issueNumber.trim();
+  }
+  if (!/^[1-9]\\d*$/.test(normalizedIssueNumber) ||
       !Number.isSafeInteger(Number(normalizedIssueNumber))) {
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
