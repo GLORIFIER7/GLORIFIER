@@ -142,8 +142,24 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
   try {
     query = await captureAsyncResult(async () => {
       await client.connect();
-      const result = await client.query(OPERATIONAL_COUNTS_SQL);
-      return parseOperationalCounts(result.rows);
+      let transactionStarted = false;
+
+      try {
+        await client.query('BEGIN READ ONLY');
+        transactionStarted = true;
+        const result = await client.query(OPERATIONAL_COUNTS_SQL);
+        const counts = parseOperationalCounts(result.rows);
+        await client.query('COMMIT');
+        transactionStarted = false;
+        return counts;
+      } catch (error) {
+        if (transactionStarted) {
+          await captureAsyncResult(async () => {
+            await client.query('ROLLBACK');
+          });
+        }
+        throw error;
+      }
     });
   } finally {
     close = await captureAsyncResult(() => client.end());
