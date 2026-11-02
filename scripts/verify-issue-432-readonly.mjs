@@ -50,16 +50,7 @@ function parseBase(value) {
   return parsed;
 }
 
-const base = process.argv[2];
-if (!base) {
-  console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://example.com');
-  process.exit(2);
-}
-
-const target = parseBase(base);
-let failures = 0;
-
-for (const path of PROBE_PATHS) {
+async function probe(target, path) {
   const recordedAt = new Date().toISOString();
   try {
     const response = await fetch(new URL(path, target), {
@@ -70,7 +61,7 @@ for (const path of PROBE_PATHS) {
     const contentType = response.headers.get('content-type') ?? 'unknown';
     const isJson = contentType.includes('application/json');
     const ok = REQUIRED_PATHS.has(path) ? response.ok : response.status < 500;
-    const evidence = {
+    console.log(JSON.stringify({
       recordedAt,
       target: target.origin,
       path,
@@ -80,11 +71,9 @@ for (const path of PROBE_PATHS) {
       responseShape: isJson ? 'json' : 'non-json',
       required: REQUIRED_PATHS.has(path),
       ok,
-    };
-    console.log(JSON.stringify(evidence));
-    if (!ok) failures += 1;
+    }));
+    return ok;
   } catch (error) {
-    failures += 1;
     console.log(JSON.stringify({
       recordedAt,
       target: target.origin,
@@ -93,7 +82,24 @@ for (const path of PROBE_PATHS) {
       error: error.name,
       ok: false,
     }));
+    return false;
   }
 }
 
-process.exit(failures ? 1 : 0);
+async function main() {
+  const base = process.argv[2];
+  if (!base) {
+    console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://example.com');
+    process.exit(2);
+  }
+
+  const target = parseBase(base);
+  const results = await Promise.all(PROBE_PATHS.map((path) => probe(target, path)));
+  const failures = results.filter((ok) => !ok).length;
+  process.exit(failures ? 1 : 0);
+}
+
+main().catch((error) => {
+  console.error(`ERROR: ${error.message}`);
+  process.exit(1);
+});
