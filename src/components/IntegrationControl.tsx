@@ -8,7 +8,7 @@ type CollaborationProvider = { id: string; name: string; category: string; capab
 
 type DataClassification = {
   verificationStatus: 'verified' | 'not-verified';
-  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional';
+  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional' | 'disabled';
   verificationEvidence: string | null;
   truthRule: string;
 };
