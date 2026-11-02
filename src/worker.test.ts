@@ -91,8 +91,8 @@ async function run(): Promise<void> {
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
       'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
     const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
-    assert.equal(previewHyperdrive?.id, productionHyperdrive.id,
-      'Previews must bind the same dedicated read-only Neon Hyperdrive resource for runtime verification');
+    assert.equal(previewHyperdrive, undefined,
+      'Cloudflare Previews must not bind the production Neon Hyperdrive resource; database access requires a separate non-production Hyperdrive configuration');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_URL, undefined,
       'Preview configuration must not point to the production Supabase project');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
@@ -136,6 +136,7 @@ async function run(): Promise<void> {
       GLORIFIER_DATABASE_PROVIDER: 'neon',
       GLORIFIER_SUPABASE_URL: undefined,
       GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined,
+      HYPERDRIVE: undefined,
       MCP_RATE_LIMITER: undefined,
     } as unknown as TestEnv;
     const previewDatabaseStatus = await reportsSummaryResponse(previewWithoutRateLimiter);
