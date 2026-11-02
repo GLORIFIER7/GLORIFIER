@@ -112,3 +112,16 @@ test('production smoke request fails immediately for deterministic client errors
   await assert.rejects(requestJson(fetchNotFound), /HTTP 404/);
   assert.equal(attempts, 1, 'a deterministic 4xx must not be retried');
 });
+
+test('production smoke request fails immediately for non-JSON error responses', async () => {
+  let attempts = 0;
+  const fetchHtmlError = async () => {
+    attempts += 1;
+    return new Response('<html>not found</html>', {
+      status: 404,
+      headers: { 'Content-Type': 'text/html' },
+    });
+  };
+  await assert.rejects(requestJson(fetchHtmlError), /non-JSON content/);
+  assert.equal(attempts, 1, 'a non-JSON error response must not be retried');
+});
