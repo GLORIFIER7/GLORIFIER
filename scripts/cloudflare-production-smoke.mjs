@@ -72,12 +72,12 @@ export const validateMcpReadOnlyTools = (body) => {
 
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
-const requestJson = async (baseUrl, path, options = {}, acceptedStatuses = [200]) => {
+const requestJson = async (path, options = {}, acceptedStatuses = [200]) => {
   const attempts = 4;
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await fetch(new URL(path, baseUrl), {
+      const response = await fetch(new URL(path, PRODUCTION_BASE_URL), {
         ...options,
         signal: AbortSignal.timeout(15_000),
       });
@@ -103,42 +103,38 @@ const requestJson = async (baseUrl, path, options = {}, acceptedStatuses = [200]
   throw lastError ?? new Error(`Unable to verify ${path}`);
 };
 
-export const runProductionSmoke = async ({
-  baseUrl = process.env.GLORIFIER_PRODUCTION_URL || PRODUCTION_BASE_URL,
-} = {}) => {
-  const base = new URL(baseUrl);
-  assert.equal(base.protocol, 'https:', 'production smoke must use HTTPS');
-  assert.equal(base.username, '');
-  assert.equal(base.password, '');
-
+const verifyWorkerAndDatabase = async () => {
   console.log('GLORIFIER production smoke: checking Worker and static assets');
-  const health = await requestJson(base, '/api/health');
+  const health = await requestJson('/api/health');
   assert.equal(health.body?.ok, true);
   assert.equal(health.body?.status, 'worker-ready');
 
   console.log('GLORIFIER production smoke: checking Neon exact operational counts');
-  const reports = await requestJson(base, '/api/reports/summary');
+  const reports = await requestJson('/api/reports/summary');
   const counts = validateOperationalSummary(reports.body);
-  console.log(`Neon exact counts verified: ${JSON.stringify(counts)}`);
 
   console.log('GLORIFIER production smoke: checking live runtime database provider');
-  const runtimeResponse = await requestJson(base, '/api/runtime-verification?probeAi=false');
+  const runtimeResponse = await requestJson('/api/runtime-verification?probeAi=false');
   const runtime = validateRuntimeVerification(runtimeResponse.body);
-  console.log(`Neon runtime probe verified; latencyMs=${runtime.database.latencyMs ?? 'not-reported'}`);
+  return { counts, runtime };
+};
 
+const verifyUnauthenticatedBoundary = async () => {
   console.log('GLORIFIER production smoke: checking unauthenticated application boundary');
-  const appState = await requestJson(base, '/api/app-state', {}, [401]);
+  const appState = await requestJson('/api/app-state', {}, [401]);
   const validAuthFailure = appState.body?.code === 'AUTHENTICATION_REQUIRED' ||
     (appState.body?.code === undefined && appState.body?.ok === false);
   assert.equal(validAuthFailure, true,
     'unauthenticated /api/app-state must return a structured authentication-required response');
+};
 
-  console.log('GLORIFIER production smoke: checking MCP initialize');
+const verifyMcpSurface = async () => {
   const mcpHeaders = {
     'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream',
   };
-  const initialize = await requestJson(base, '/mcp', {
+  console.log('GLORIFIER production smoke: checking MCP initialize');
+  const initialize = await requestJson('/mcp', {
     method: 'POST',
     headers: mcpHeaders,
     body: JSON.stringify({
@@ -155,20 +151,18 @@ export const runProductionSmoke = async ({
   validateMcpInitialize(initialize.body);
 
   console.log('GLORIFIER production smoke: checking MCP read-only tool surface');
-  const toolsResponse = await requestJson(base, '/mcp', {
+  const toolsResponse = await requestJson('/mcp', {
     method: 'POST',
     headers: mcpHeaders,
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
   });
-  const tools = validateMcpReadOnlyTools(toolsResponse.body);
-  console.log(`MCP verified: ${tools.length} read-only tools exposed`);
+  return validateMcpReadOnlyTools(toolsResponse.body);
+};
 
-  console.log('GLORIFIER production smoke: checking organizational identity readiness');
-  const identity = await requestJson(base, '/api/identity', {}, [200, 503]);
+const reportReadinessWarnings = (identity, runtime) => {
   if (identity.body?.status !== 'ready') {
     console.warn('PRODUCTION READINESS WARNING: organizational domain/email identity is not configured or verified.');
   }
-
   for (const [key, label] of [
     ['neural', 'Neural execution origin'],
     ['authentication', 'Authentication integration probe'],
@@ -179,7 +173,21 @@ export const runProductionSmoke = async ({
       console.warn(`PRODUCTION READINESS WARNING: ${label}: ${dependency?.status ?? 'not-observed'}`);
     }
   }
+};
 
+const verifyIdentity = async () => {
+  console.log('GLORIFIER production smoke: checking organizational identity readiness');
+  return requestJson('/api/identity', {}, [200, 503]);
+};
+
+export const runProductionSmoke = async () => {
+  const { counts, runtime } = await verifyWorkerAndDatabase();
+  await verifyUnauthenticatedBoundary();
+  const tools = await verifyMcpSurface();
+  const identity = await verifyIdentity();
+  console.log(`Neon exact counts verified: ${JSON.stringify(counts)}`);
+  console.log(`MCP verified: ${tools.length} read-only tools exposed`);
+  reportReadinessWarnings(identity, runtime);
   console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, auth boundary, MCP protocol and read-only tool policy.');
   console.log('This smoke test does not assert organizational identity, Neural execution, user login, or AI-provider execution.');
   return { counts, mcpTools: tools.length, identityStatus: identity.body?.status, runtime };
