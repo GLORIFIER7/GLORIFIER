@@ -137,7 +137,6 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
     ok: false,
     error: new Error('Neon count query did not execute.'),
   };
-  let rollback: AsyncResult<void> | null = null;
   let close: AsyncResult<void> = { ok: true, value: undefined };
 
   try {
@@ -155,9 +154,15 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
         return counts;
       } catch (error) {
         if (transactionStarted) {
-          rollback = await captureAsyncResult(async () => {
+          const rollback = await captureAsyncResult(async () => {
             await client.query('ROLLBACK');
           });
+          if (!rollback.ok) {
+            throw new AggregateError(
+              [error, rollback.error],
+              'Neon count query failed and the read-only transaction could not be rolled back.',
+            );
+          }
         }
         throw error;
       }
@@ -166,10 +171,15 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
     close = await captureAsyncResult(() => client.end());
   }
 
-  const errors: unknown[] = [];
-  if (!query.ok) errors.push(query.error);
-  if (rollback && !rollback.ok) errors.push(rollback.error);
-  if (!close.ok) errors.push(close.error);
+  const queryErrors = !query.ok && query.error instanceof AggregateError
+    ? query.error.errors
+    : !query.ok
+      ? [query.error]
+      : [];
+  const errors = [
+    ...queryErrors,
+    ...(!close.ok ? [close.error] : []),
+  ];
 
   if (errors.length > 1) {
     throw new AggregateError(
