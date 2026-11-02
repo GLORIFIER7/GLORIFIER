@@ -240,3 +240,6 @@ jobs:
           probe "/api/identity" "200,503"
           probe "/api/runtime-verification?probeAi=false" "200"
           probe "/api/reports/summary" "200"
+
+      - name: Verify all deployed production read-only contracts
+        run: node scripts/cloudflare-production-smoke.mjs
