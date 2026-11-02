@@ -11,10 +11,16 @@ jobs:
     if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) }}
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: read
       copilot-requests: write
 
     steps:
+      - name: Check out repository scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Set up Node.js for Copilot CLI
         uses: actions/setup-node@v7
         with:
