@@ -21,7 +21,7 @@ function buildIssueSummary({
   } else if (typeof issueNumber === 'string') {
     normalizedIssueNumber = issueNumber.trim();
   }
-  if (!/^[1-9]\\d*$/.test(normalizedIssueNumber) ||
+  if (!/^[1-9]\d*$/.test(normalizedIssueNumber) ||
       !Number.isSafeInteger(Number(normalizedIssueNumber))) {
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
