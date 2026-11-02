@@ -1,8 +1,6 @@
+import { assertCondition } from './test-assertion';
 import { amountToBaseUnits, parseSecureRpcUrl, createRpcClient } from './glr-rpc-verifier-common';
 
-function assertCondition(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
 
 assertCondition(amountToBaseUnits('1', 18, 'GLR') === 1_000_000_000_000_000_000n, '18-decimal amount must parse exactly');
 assertCondition(amountToBaseUnits('0.000000001', 9, 'Solana GLR') === 1n, '9-decimal amount must parse exactly');
