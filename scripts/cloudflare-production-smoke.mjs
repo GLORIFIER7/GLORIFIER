@@ -164,22 +164,33 @@ const verifyIdentity = async () => {
   return requestJson(fetchProductionIdentity, {}, [200, 503]);
 };
 
+const SAFE_SMOKE_FAILURE_MESSAGES = new Map([
+  ['503:NEON_HYPERDRIVE_NOT_CONFIGURED', 'HTTP 503: NEON_HYPERDRIVE_NOT_CONFIGURED'],
+  ['401:AUTHENTICATION_REQUIRED', 'HTTP 401: AUTHENTICATION_REQUIRED'],
+  ['503:MCP_RATE_LIMITER_NOT_CONFIGURED', 'HTTP 503: MCP_RATE_LIMITER_NOT_CONFIGURED'],
+]);
+
 export const formatSmokeFailure = (error) => {
   if (!(error instanceof Error)) return 'unknown error';
   if (error.name === 'AssertionError') return 'assertion failed';
 
-  const httpError = /^Production endpoint returned HTTP (\d{3}): ([\s\S]*)$/.exec(error.message);
+  const httpError = /^Production endpoint returned HTTP (\\d{3}): ([\\s\\S]*)$/.exec(error.message);
   if (httpError) {
-    const code = httpError[2];
-    return /^[A-Z][A-Z0-9_]{0,79}$/.test(code)
-      ? `HTTP ${httpError[1]}: ${code}`
-      : `HTTP ${httpError[1]}`;
+    const status = Number(httpError[1]);
+    if (!Number.isInteger(status) || status < 100 || status > 599) return 'unknown error';
+    const code = httpError[2].trim();
+    return SAFE_SMOKE_FAILURE_MESSAGES.get(`${status}:${code}`) ?? `HTTP ${status}`;
   }
 
-  const nonJson = /^Production endpoint returned non-JSON content \(HTTP (\d{3})\)$/.exec(error.message);
-  if (nonJson) return `non-JSON response (HTTP ${nonJson[1]})`;
+  const nonJson = /^Production endpoint returned non-JSON content \\(HTTP (\\d{3})\\)$/.exec(error.message);
+  if (nonJson) {
+    const status = Number(nonJson[1]);
+    return Number.isInteger(status) && status >= 100 && status <= 599
+      ? `non-JSON response (HTTP ${status})`
+      : 'unknown error';
+  }
 
-  return `smoke failed (${error.name || 'Error'})`;
+  return 'smoke failed (unexpected error)';
 };
 
 export const runProductionSmoke = async () => {
