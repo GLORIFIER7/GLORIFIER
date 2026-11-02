@@ -1,8 +1,6 @@
+import { assertCondition } from './test-assertion';
 import { SOLANA_GLR_MINT, SOLANA_TOKEN_2022_PROGRAM, solanaGLRAmountToBaseUnits, verifySolanaGLRTransfer } from './glr-solana-verifier';
 
-function assertCondition(condition: unknown, message: string) {
-  if (!condition) throw new Error(message);
-}
 
 assertCondition(solanaGLRAmountToBaseUnits('1') === 1000000000n, 'one GLR must equal 1e9 Solana base units');
 assertCondition(solanaGLRAmountToBaseUnits('0.000000001') === 1n, 'smallest Solana GLR unit must be represented exactly');
