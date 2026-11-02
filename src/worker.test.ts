@@ -76,11 +76,23 @@ async function run(): Promise<void> {
 
   try {
     const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+      vars?: Record<string, string>;
+      hyperdrive?: Array<{ binding: string; id: string }>;
       assets?: { run_worker_first?: string[] };
-      previews?: { vars?: Record<string, string> };
+      previews?: {
+        vars?: Record<string, string>;
+        hyperdrive?: Array<{ binding: string; id: string }>;
+      };
     };
+    assert.equal(wranglerConfig.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
+      'production must select the approved authoritative Neon database');
+    const productionHyperdrive = wranglerConfig.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
+    assert.ok(productionHyperdrive?.id, 'production must bind the approved Neon Hyperdrive resource');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
       'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
+    const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
+    assert.equal(previewHyperdrive?.id, productionHyperdrive.id,
+      'Previews must bind the same dedicated read-only Neon Hyperdrive resource for runtime verification');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_URL, undefined,
       'Preview configuration must not point to the production Supabase project');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
