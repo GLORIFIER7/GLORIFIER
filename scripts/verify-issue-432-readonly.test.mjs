@@ -9,10 +9,10 @@ import {
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 const RECORDED_AT = '2026-11-02T05:00:00.000Z';
 
-function response(status = 200) {
-  return new Response(null, {
+function response(status = 200, body = JSON.stringify({ ok: true }), contentType = 'application/json') {
+  return new Response(body, {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': contentType },
   });
 }
 
@@ -68,6 +68,7 @@ test('runs all six probes with injected fetch and requires HTTP 2xx', async () =
 
 test('treats unexpected 4xx and 5xx responses as verification failures', async () => {
   const statuses = [200, 200, 200, 404, 429, 503];
+  assert.equal(statuses.length, PROBE_PATHS.length, 'status fixtures must cover every probe');
   const result = await run({
     base: APPROVED_ORIGIN,
     fetchImpl: async () => response(statuses.shift()),
@@ -78,6 +79,24 @@ test('treats unexpected 4xx and 5xx responses as verification failures', async (
   assert.deepEqual(result.results.map((item) => item.ok), [
     true, true, true, false, false, false,
   ]);
+});
+
+test('rejects successful HTTP responses that do not contain valid JSON', async () => {
+  const responses = [
+    response(200, '<html>unexpected login page</html>', 'text/html'),
+    response(200, 'not-json'),
+    ...PROBE_PATHS.slice(2).map(() => response(200)),
+  ];
+  const result = await run({
+    base: APPROVED_ORIGIN,
+    fetchImpl: async () => responses.shift(),
+    now: () => new Date(RECORDED_AT),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.results[0].responseShape, 'non-json');
+  assert.equal(result.results[1].responseShape, 'invalid-json');
+  assert.ok(result.results.slice(2).every((item) => item.ok === true));
 });
 
 test('continues every probe after network failures and returns a nonzero result', async () => {
