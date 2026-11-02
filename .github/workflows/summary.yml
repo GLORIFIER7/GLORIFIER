@@ -49,8 +49,8 @@ jobs:
           RESPONSE: ${{ steps.inference.outputs.response }}
         run: |
           {
-            printf '%s\\n\\n' '## AI-generated issue summary (review before reuse)'
-            printf '%s\\n' "$RESPONSE"
+            printf '%s\n\n' '## AI-generated issue summary (review before reuse)'
+            printf '%s\n' "$RESPONSE"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish deterministic fallback when AI is unavailable
@@ -65,7 +65,7 @@ jobs:
               ;;
           esac
           {
-            printf '%s\\n\\n' '## Issue summary unavailable'
-            printf '%s\\n\\n' 'AI inference did not return a summary for this run. The issue remains authoritative; no issue content was copied or modified by this fallback.'
-            printf 'Review the source issue: [#%s](%s/%s/issues/%s).\\n' "$ISSUE_NUMBER" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$ISSUE_NUMBER"
+            printf '%s\n\n' '## Issue summary unavailable'
+            printf '%s\n\n' 'AI inference did not return a summary for this run. The issue remains authoritative; no issue content was copied or modified by this fallback.'
+            printf 'Review the source issue: [#%s](%s/%s/issues/%s).\n' "$ISSUE_NUMBER" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$ISSUE_NUMBER"
           } >> "$GITHUB_STEP_SUMMARY"
