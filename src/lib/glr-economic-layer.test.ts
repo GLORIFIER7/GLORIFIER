@@ -1,8 +1,6 @@
+import { assertCondition } from './test-assertion';
 import { canMarkGLRSettled, normalizeGLRAmount, glrEconomicPolicy } from './glr-economic-layer';
 
-function assertCondition(condition: unknown, message: string) {
-  if (!condition) throw new Error(message);
-}
 
 assertCondition(normalizeGLRAmount('001.2300') === '1.23', 'amount normalization should canonicalize decimals');
 assertCondition(normalizeGLRAmount(10) === '10', 'numeric compatibility should remain supported');
