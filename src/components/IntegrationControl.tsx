@@ -8,7 +8,7 @@ type CollaborationProvider = { id: string; name: string; category: string; capab
 
 type DataClassification = {
   verificationStatus: 'verified' | 'not-verified';
-  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional';
+  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional' | 'disabled' | 'not-observable';
   verificationEvidence: string | null;
   truthRule: string;
 };
@@ -34,6 +34,7 @@ type DataStatus = {
     configuredDoesNotMeanVerified: boolean;
     estimatedDoesNotMeanVerified: boolean;
     humanFinalAuthority: boolean;
+    privateRuntimeConfigurationIsNotExposed: boolean;
   };
   summary: {
     total: number;
@@ -41,6 +42,7 @@ type DataStatus = {
     notVerified: number;
     configured: number;
     needsConfiguration: number;
+    notObservable: number;
   };
   data: Integration[];
 };
@@ -52,6 +54,7 @@ type Registry = {
     secretsExposed: boolean | null;
     privateCredentialsReturned: boolean | null;
     coreInfrastructureIndependentOfGoogleCloud: boolean | null;
+    privateRuntimeConfigurationIsNotExposed: boolean;
   };
   integrations: Integration[];
 };
@@ -71,7 +74,9 @@ const statusLabel: Record<string, string> = {
   degraded: 'Degraded · source evidence required',
   revoked: 'Marked revoked · provider revocation NOT VERIFIED',
   expired: 'Marked expired · provider status NOT VERIFIED',
-  disabled: 'Disabled in registry'
+  disabled: 'Disabled in registry',
+  'not-observable': 'Private runtime configuration not exposed',
+  responding: 'Worker responded · overall health NOT VERIFIED'
 };
 
 export const IntegrationControl: React.FC = () => {
@@ -138,12 +143,13 @@ export const IntegrationControl: React.FC = () => {
             <div className="text-[10px] text-slate-500">Updated {new Date(dataStatus.generatedAt).toLocaleString()}</div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-800 mt-5 border border-slate-800">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-slate-800 mt-5 border border-slate-800">
             {[
               ['Total', dataStatus.summary.total],
               ['Verified', dataStatus.summary.verified],
               ['Not verified', dataStatus.summary.notVerified],
               ['Needs configuration', dataStatus.summary.needsConfiguration],
+              ['Not observable', dataStatus.summary.notObservable],
             ].map(([label, value]) => (
               <div key={String(label)} className="bg-slate-950 p-4">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>

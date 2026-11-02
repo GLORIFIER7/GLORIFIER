@@ -46,6 +46,9 @@ jobs:
       - name: Test Cloudflare Worker proxy and fallback handling
         run: npm run test:cloudflare-worker
 
+      - name: Test Worker integration registry and data truth contract
+        run: npm run test:worker-integration-registry
+
       - name: Test Neon Hyperdrive database adapter
         run: npm run test:neon-worker
 
