@@ -11,14 +11,23 @@ jobs:
     if: ${{ contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) }}
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: read
       copilot-requests: write
 
     steps:
+      - name: Check out repository scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Set up Node.js for Copilot CLI
         uses: actions/setup-node@v7
         with:
           node-version: 24
+
+      - name: Run issue summary formatter regression tests
+        run: node --test scripts/publish-issue-summary.test.cjs
 
       - name: Install pinned GitHub Copilot CLI
         run: npm install --global --ignore-scripts --no-audit --no-fund @github/copilot@1.0.88
@@ -26,6 +35,7 @@ jobs:
       - name: Run AI inference
         id: inference
         uses: actions/ai-inference@v3
+        continue-on-error: true
         with:
           model: gpt-4.1
           system-prompt: |
@@ -42,11 +52,12 @@ jobs:
         env:
           COPILOT_GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Publish summary to workflow run only
+      - name: Publish issue summary to workflow run only
+        if: ${{ always() }}
         env:
-          RESPONSE: ${{ steps.inference.outputs.response }}
-        run: |
-          {
-            printf '%s\n\n' '## AI-generated issue summary (review before reuse)'
-            printf '%s\n' "$RESPONSE"
-          } >> "$GITHUB_STEP_SUMMARY"
+          INFERENCE_OUTCOME: ${{ steps.inference.outcome }}
+          INFERENCE_RESPONSE: ${{ steps.inference.outputs.response }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/publish-issue-summary.cjs
