@@ -77,7 +77,14 @@ async function run(): Promise<void> {
   try {
     const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
       assets?: { run_worker_first?: string[] };
+      previews?: { vars?: Record<string, string> };
     };
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
+      'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_URL, undefined,
+      'Preview configuration must not point to the production Supabase project');
+    assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
+      'Preview configuration must never include production database secrets');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp'), 'Cloudflare assets must route /mcp through the Worker before SPA fallback');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp/*'), 'Cloudflare assets must route nested /mcp paths through the Worker');
 
