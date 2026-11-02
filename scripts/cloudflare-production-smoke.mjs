@@ -86,7 +86,9 @@ export const requestJson = async (fetchRequest, options = {}, acceptedStatuses =
       try {
         body = raw ? JSON.parse(raw) : {};
       } catch {
-        throw new Error(`Production endpoint returned non-JSON content (HTTP ${response.status})`);
+        const error = new Error(`Production endpoint returned non-JSON content (HTTP ${response.status})`);
+        error.retryable = false;
+        throw error;
       }
       if (acceptedStatuses.includes(response.status)) {
         return { status: response.status, body };
