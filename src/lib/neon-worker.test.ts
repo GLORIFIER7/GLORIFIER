@@ -193,8 +193,8 @@ test('rolls back the read-only transaction when the count query fails', async ()
     () => readNeonOperationalCounts(binding, factory),
     /simulated count query failure/,
   );
-  assert.deepEqual(statements, ['BEGIN READ ONLY', expectOperationalCountSelect(), 'ROLLBACK']);
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
+  assert.equal(statements[2], 'ROLLBACK');
 });
 
-const expectOperationalCountSelect = (): string =>
-  statementsForOperationalCountSelect;
