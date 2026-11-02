@@ -18,6 +18,122 @@ const OPERATIONAL_COUNT_KEYS = [
   'intelligenceReports',
 ];
 
+const PRIVATE_RUNTIME_INTEGRATION_IDS = [
+  'neon',
+  'opensea',
+  'github-mcp',
+  'identity',
+  'neural',
+  'ai-providers',
+];
+
+const REQUIRED_INTEGRATION_IDS = [
+  ...PRIVATE_RUNTIME_INTEGRATION_IDS,
+  'cloudflare-worker',
+  'railway',
+  'vercel',
+  'netlify-preview',
+  'netlify-production',
+];
+
+const ALLOWED_INTEGRATION_STATUSES = new Set([
+  'responding',
+  'not-observable',
+  'configured',
+  'disabled',
+]);
+
+const assertNoPrivateRecordFields = (records) => {
+  for (const record of records) {
+    for (const key of Object.keys(record)) {
+      assert.doesNotMatch(
+        key,
+        /(?:api[_-]?key|secret|token|password|connection[_-]?string|private[_-]?credential|runtime[_-]?origin)/i,
+        'public integration records must not contain private fields',
+      );
+    }
+  }
+};
+
+export const validateIntegrationRegistry = (body) => {
+  assert.equal(body?.ok, true, 'integration registry must report ok=true');
+  assert.equal(body?.policy?.secretsExposed, false);
+  assert.equal(body?.policy?.privateCredentialsReturned, false);
+  assert.equal(body?.policy?.privateRuntimeConfigurationIsNotExposed, true);
+
+  const integrations = body?.integrations;
+  assert.ok(Array.isArray(integrations), 'integration registry must return an array');
+  const byId = new Map(integrations.map((item) => [item.id, item]));
+  assert.equal(byId.size, integrations.length, 'integration identifiers must be unique');
+
+  for (const id of REQUIRED_INTEGRATION_IDS) {
+    assert.ok(byId.has(id), 'integration registry is missing ' + id);
+  }
+  for (const item of integrations) {
+    assert.ok(ALLOWED_INTEGRATION_STATUSES.has(item.status),
+      'integration ' + item.id + ' has an unsupported status');
+    assertNoPrivateRecordFields([item]);
+  }
+  for (const id of PRIVATE_RUNTIME_INTEGRATION_IDS) {
+    assert.equal(byId.get(id)?.status, 'not-observable',
+      'private runtime integration ' + id + ' must remain not-observable');
+  }
+  assert.equal(byId.get('cloudflare-worker')?.status, 'responding');
+  for (const id of ['railway', 'vercel', 'netlify-production']) {
+    assert.equal(byId.get(id)?.status, 'disabled');
+  }
+  assert.equal(byId.get('netlify-preview')?.status, 'configured');
+  assert.match(byId.get('netlify-preview')?.detail || '', /preview-only/i);
+  return integrations;
+};
+
+export const validateDataStatus = (body) => {
+  assert.equal(body?.ok, true, 'data status must report ok=true');
+  assert.equal(body?.policy?.verifiedMeansEvidenceBacked, true);
+  assert.equal(body?.policy?.configuredDoesNotMeanVerified, true);
+  assert.equal(body?.policy?.estimatedDoesNotMeanVerified, true);
+  assert.equal(body?.policy?.humanFinalAuthority, true);
+  assert.equal(body?.policy?.privateRuntimeConfigurationIsNotExposed, true);
+
+  const data = body?.data;
+  assert.ok(Array.isArray(data), 'data status must return a data array');
+  const byId = new Map(data.map((item) => [item.id, item]));
+  assert.equal(byId.size, data.length, 'data status identifiers must be unique');
+  for (const id of REQUIRED_INTEGRATION_IDS) {
+    assert.ok(byId.has(id), 'data status is missing ' + id);
+  }
+  assertNoPrivateRecordFields(data);
+
+  for (const item of data) {
+    assert.equal(item.verificationStatus, 'not-verified',
+      'data source ' + item.id + ' must remain not-verified without qualifying evidence');
+    assert.equal(item.verificationEvidence, null,
+      'data source ' + item.id + ' must not claim evidence without a verifier');
+  }
+  for (const id of PRIVATE_RUNTIME_INTEGRATION_IDS) {
+    assert.equal(byId.get(id)?.configurationStatus, 'not-observable',
+      'private runtime configuration for ' + id + ' must remain not-observable');
+  }
+  assert.equal(byId.get('cloudflare-worker')?.configurationStatus, 'not-observable');
+  assert.equal(byId.get('netlify-preview')?.configurationStatus, 'configured');
+  for (const id of ['railway', 'vercel', 'netlify-production']) {
+    assert.equal(byId.get(id)?.configurationStatus, 'disabled');
+  }
+
+  const summary = body.summary;
+  assert.equal(summary?.total, data.length);
+  assert.equal(summary?.verified, 0);
+  assert.equal(summary?.notVerified, data.length);
+  assert.equal(summary?.configured,
+    data.filter((item) => item.configurationStatus === 'configured').length);
+  assert.equal(summary?.needsConfiguration,
+    data.filter((item) => item.configurationStatus === 'needs-configuration').length);
+  assert.equal(summary?.notObservable,
+    data.filter((item) => item.configurationStatus === 'not-observable').length,
+  'notObservable summary must match the data rows');
+  return data;
+};
+
 export const validateOperationalSummary = (body) => {
   assert.equal(body?.ok, true, 'reports summary must report ok=true');
   assert.equal(body?.status, 'operational-data-observed');
@@ -118,6 +234,22 @@ const fetchProductionAppState = (options) =>
 const fetchProductionIdentity = (options) =>
   fetch('https://glorifier.glorifier.workers.dev/api/identity', options);
 
+const fetchProductionIntegrations = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/integrations', options);
+const fetchProductionDataStatus = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/data-status', options);
+
+const verifyPublicReadModels = async () => {
+  console.log('GLORIFIER production smoke: checking public integration registry and data-status read models');
+  const [integrationsResponse, dataStatusResponse] = await Promise.all([
+    requestJson(fetchProductionIntegrations),
+    requestJson(fetchProductionDataStatus),
+  ]);
+  const integrations = validateIntegrationRegistry(integrationsResponse.body);
+  const data = validateDataStatus(dataStatusResponse.body);
+  return { integrations: integrations.length, dataRows: data.length };
+};
+
 const verifyWorkerAndDatabase = async () => {
   console.log('GLORIFIER production smoke: checking Worker and static assets');
   const health = await requestJson(fetchProductionHealth);
@@ -197,12 +329,14 @@ export const runProductionSmoke = async () => {
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
   const identity = await verifyIdentity();
+  const publicReadModels = await verifyPublicReadModels();
   console.log('Neon exact operational counts verified for all six reporting tables.');
+  console.log('Production public read models verified: ' + publicReadModels.integrations + ' integrations and ' + publicReadModels.dataRows + ' data records.');
   console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
   reportReadinessWarnings(identity, runtime);
   console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, unauthenticated boundary, and identity response contract.');
   console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, Neural execution, user login, or AI-provider execution.');
-  return { counts, identityStatus: identity.body?.status, runtime };
+  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels };
 };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
