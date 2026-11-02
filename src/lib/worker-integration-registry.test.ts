@@ -40,7 +40,7 @@ const privateIntegrationIds = [
 test('GET /api/integrations never exposes private runtime binding presence', async () => {
   const response = await worker.fetch(request('/api/integrations'), createEnv());
   assert.equal(response.status, 200);
-  assert.match(response.headers.get('content-type') || '', /^application\\/json/i);
+  assert.ok((response.headers.get('content-type') || '').includes('application/json'));
   assert.equal(response.headers.get('cache-control'), 'no-store');
 
   const body = await response.json() as {
@@ -131,6 +131,9 @@ test('GET /api/data-status marks private configuration not-observable and all da
     assert.equal(item.verificationStatus, 'not-verified');
     assert.equal(item.verificationEvidence, null);
   }
+  const serialized = JSON.stringify(body);
+  assert.equal(serialized.includes(testSecret), false);
+  assert.equal(serialized.includes(testConnectionString), false);
 });
 
 test('integration read models accept GET and HEAD only', async () => {
