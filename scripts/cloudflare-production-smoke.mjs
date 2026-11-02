@@ -43,16 +43,24 @@ const ALLOWED_INTEGRATION_STATUSES = new Set([
   'disabled',
 ]);
 
+const PRIVATE_FIELD_KEY_PATTERN =
+  /(?:api[_-]?key|secret|token|password|connection[_-]?string|private[_-]?credential|runtime[_-]?origin)/i;
+
 const assertNoPrivateRecordFields = (records) => {
-  for (const record of records) {
-    for (const key of Object.keys(record)) {
+  const visited = new WeakSet();
+  const inspect = (value) => {
+    if (value === null || typeof value !== 'object' || visited.has(value)) return;
+    visited.add(value);
+    for (const [key, nestedValue] of Object.entries(value)) {
       assert.doesNotMatch(
         key,
-        /(?:api[_-]?key|secret|token|password|connection[_-]?string|private[_-]?credential|runtime[_-]?origin)/i,
+        PRIVATE_FIELD_KEY_PATTERN,
         'public integration records must not contain private fields',
       );
+      inspect(nestedValue);
     }
-  }
+  };
+  inspect(records);
 };
 
 export const validateIntegrationRegistry = (body) => {
