@@ -174,7 +174,7 @@ export const formatSmokeFailure = (error) => {
   if (!(error instanceof Error)) return 'unknown error';
   if (error.name === 'AssertionError') return 'assertion failed';
 
-  const httpError = /^Production endpoint returned HTTP (\\d{3}): ([\\s\\S]*)$/.exec(error.message);
+  const httpError = /^Production endpoint returned HTTP (\d{3}): ([\\s\\S]*)$/.exec(error.message);
   if (httpError) {
     const status = Number(httpError[1]);
     if (!Number.isInteger(status) || status < 100 || status > 599) return 'unknown error';
@@ -182,7 +182,7 @@ export const formatSmokeFailure = (error) => {
     return SAFE_SMOKE_FAILURE_MESSAGES.get(`${status}:${code}`) ?? `HTTP ${status}`;
   }
 
-  const nonJson = /^Production endpoint returned non-JSON content \\(HTTP (\\d{3})\\)$/.exec(error.message);
+  const nonJson = /^Production endpoint returned non-JSON content \(HTTP (\d{3})\)$/.exec(error.message);
   if (nonJson) {
     const status = Number(nonJson[1]);
     return Number.isInteger(status) && status >= 100 && status <= 599
