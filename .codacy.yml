@@ -1,8 +1,6 @@
 ---
-# The recovered bootstrap migration is PostgreSQL SQL and is byte-for-byte
-# sourced from the already-applied Supabase migration history. Codacy's
-# T-SQL-only rules are invalid for this file; PostgreSQL behavior remains
-# covered by the dedicated integration and migration-source fidelity tests.
+# This historical bootstrap file is PostgreSQL SQL recovered byte-for-byte
+# from applied Supabase migration history. Codacy's T-SQL-only directives do
+# not apply; PostgreSQL behavior is verified by dedicated CI tests.
 exclude_paths:
   - "supabase/migrations/20261021051653_bootstrap_basic_operations_schema.sql"
-  - "supabase/migrations/**/*.sql"
