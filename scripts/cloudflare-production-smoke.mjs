@@ -168,10 +168,10 @@ export const formatSmokeFailure = (error) => {
   if (!(error instanceof Error)) return 'unknown error';
   if (error.name === 'AssertionError') return 'assertion failed';
 
-  const httpCode = /^Production endpoint returned HTTP (\\d{3}): ([A-Z][A-Z0-9_]{0,79})$/.exec(error.message);
+  const httpCode = /^Production endpoint returned HTTP (\d{3}): ([A-Z][A-Z0-9_]{0,79})$/.exec(error.message);
   if (httpCode) return `HTTP ${httpCode[1]}: ${httpCode[2]}`;
 
-  const nonJson = /^Production endpoint returned non-JSON content \\(HTTP (\\d{3})\\)$/.exec(error.message);
+  const nonJson = /^Production endpoint returned non-JSON content \(HTTP (\d{3})\)$/.exec(error.message);
   if (nonJson) return `non-JSON response (HTTP ${nonJson[1]})`;
 
   return `smoke failed (${error.name || 'Error'})`;
