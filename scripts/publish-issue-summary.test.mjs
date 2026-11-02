@@ -53,6 +53,17 @@ test('rejects malformed repository identifiers and unsafe server URLs', () => {
       /valid GitHub repository identifier/,
     );
   }
+  for (const repository of ['owner/.github', 'owner/_config']) {
+    assert.match(
+      buildIssueSummary({ ...validFallbackInput, repository }),
+      new RegExp(repository.replace(/[.*+?^${}()|[\]\\]/g, '\\  for (const repository of ['owner/repo/issues/1', 'owner/..', '../repository']) {
+    assert.throws(
+      () => buildIssueSummary({ ...validFallbackInput, repository }),
+      /valid GitHub repository identifier/,
+    );
+  }')),
+    );
+  }
   assert.throws(
     () => buildIssueSummary({ ...validFallbackInput, serverUrl: 'javascript:alert(1)' }),
     /HTTPS GitHub server URL/,
