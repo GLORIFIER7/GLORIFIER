@@ -148,6 +148,10 @@ test('production smoke failure diagnostics retain safe HTTP codes without respon
   assert.equal(formatSmokeFailure(untrustedResponseText), 'HTTP 503');
   assert.doesNotMatch(formatSmokeFailure(untrustedResponseText), /customer-email/);
 
+  const untrustedUppercaseCode = new Error('Production endpoint returned HTTP 503: CUSTOMER_EMAIL_EXPOSED');
+  assert.equal(formatSmokeFailure(untrustedUppercaseCode), 'HTTP 503');
+  assert.doesNotMatch(formatSmokeFailure(untrustedUppercaseCode), /CUSTOMER_EMAIL/);
+
   const multilineResponseText = new Error('Production endpoint returned HTTP 503: untrusted response\nprivate detail');
   assert.equal(formatSmokeFailure(multilineResponseText), 'HTTP 503');
   assert.doesNotMatch(formatSmokeFailure(multilineResponseText), /private detail/);
@@ -155,5 +159,10 @@ test('production smoke failure diagnostics retain safe HTTP codes without respon
   const assertionFailure = new Error('smoke contract failed');
   assertionFailure.name = 'AssertionError';
   assert.equal(formatSmokeFailure(assertionFailure), 'assertion failed');
+
+  const forgedErrorName = new Error('network failure');
+  forgedErrorName.name = 'customer\\nPRIVATE_PAYLOAD';
+  assert.equal(formatSmokeFailure(forgedErrorName), 'smoke failed (unexpected error)');
+  assert.doesNotMatch(formatSmokeFailure(forgedErrorName), /customer|PRIVATE_PAYLOAD/);
   assert.equal(formatSmokeFailure({ message: 'untrusted response payload' }), 'unknown error');
 });
