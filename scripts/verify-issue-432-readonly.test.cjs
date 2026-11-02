@@ -161,8 +161,8 @@ test('CLI entrypoint handles promise completion without the void anti-pattern', 
     'utf8',
   );
 
-  assert.doesNotMatch(source, /\\bvoid\\s+main\\s*\\(/);
-  assert.match(source, /main\\(\\)\\.catch\\(/);
+  assert.doesNotMatch(source, /\bvoid\s+main\s*\(/);
+  assert.match(source, /main\(\)\.catch\(/);
 });
 
 test('CLI reports usage and exits with code 2 when no base URL is provided', async () => {
@@ -189,7 +189,7 @@ test('unexpected CLI rejection writes a safe error to stderr and sets exit code 
 
   handleUnexpectedCliRejection(new Error('unexpected failure'), processStub);
 
-  assert.deepEqual(writes, ['ERROR: unexpected failure\\n']);
+  assert.deepEqual(writes, ['ERROR: unexpected failure\n']);
   assert.equal(processStub.exitCode, 1);
 });
 
@@ -202,6 +202,6 @@ test('unexpected non-Error rejection uses a generic message', () => {
 
   handleUnexpectedCliRejection('untrusted rejection value', processStub);
 
-  assert.deepEqual(writes, ['ERROR: verification failed\\n']);
+  assert.deepEqual(writes, ['ERROR: verification failed\n']);
   assert.equal(processStub.exitCode, 1);
 });
