@@ -164,6 +164,19 @@ const verifyIdentity = async () => {
   return requestJson(fetchProductionIdentity, {}, [200, 503]);
 };
 
+export const formatSmokeFailure = (error) => {
+  if (!(error instanceof Error)) return 'unknown error';
+  if (error.name === 'AssertionError') return 'assertion failed';
+
+  const httpCode = /^Production endpoint returned HTTP (\\d{3}): ([A-Z][A-Z0-9_]{0,79})$/.exec(error.message);
+  if (httpCode) return `HTTP ${httpCode[1]}: ${httpCode[2]}`;
+
+  const nonJson = /^Production endpoint returned non-JSON content \\(HTTP (\\d{3})\\)$/.exec(error.message);
+  if (nonJson) return `non-JSON response (HTTP ${nonJson[1]})`;
+
+  return `smoke failed (${error.name || 'Error'})`;
+};
+
 export const runProductionSmoke = async () => {
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
@@ -179,8 +192,8 @@ export const runProductionSmoke = async () => {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   try {
     await runProductionSmoke();
-  } catch {
-    console.error('GLORIFIER production smoke failed; inspect the protected deployment log for details.');
+  } catch (error) {
+    console.error(`GLORIFIER production smoke failed: ${formatSmokeFailure(error)}`);
     process.exitCode = 1;
   }
 }
