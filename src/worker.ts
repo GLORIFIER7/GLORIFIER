@@ -962,7 +962,7 @@ export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
-    if (incomingUrl.pathname.replace(/\\/+$/, '') === GITHUB_MCP_PATH) {
+    if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
       if (!env.MCP_RATE_LIMITER) {
         return Response.json({
           ok: false,
