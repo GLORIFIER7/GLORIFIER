@@ -1,9 +1,5 @@
-import process from 'node:process';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-
-export const DEFAULT_VERIFIER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
-export const PROBE_PATHS = [
+const DEFAULT_VERIFIER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
+const PROBE_PATHS = [
   '/api/health',
   '/api/runtime-verification?probeAi=false',
   '/api/reports/summary',
@@ -12,14 +8,14 @@ export const PROBE_PATHS = [
   '/api/neural/ready',
 ];
 
-export function isJsonMediaType(contentType) {
+function isJsonMediaType(contentType) {
   if (typeof contentType !== 'string') return false;
   const mediaType = contentType.split(';')[0].trim().toLowerCase();
   return mediaType === 'application/json' ||
     (/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+\+json$/.test(mediaType));
 }
 
-export function parseBase(value) {
+function parseBase(value) {
   let parsed;
   try { parsed = new URL(value); }
   catch { throw new TypeError('base URL must be the approved HTTPS origin.'); }
@@ -31,7 +27,7 @@ export function parseBase(value) {
   return parsed;
 }
 
-export async function run({ base, fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
+async function run({ base, fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
   const target = parseBase(base);
   if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function.');
   const results = await Promise.all(PROBE_PATHS.map(async (path) => {
@@ -70,7 +66,7 @@ export async function run({ base, fetchImpl = globalThis.fetch, now = () => new 
 async function main() {
   const base = process.argv[2];
   if (!base) {
-    console.error('Usage: node scripts/verify-issue-432-readonly.js https://glorifier.glorifier.workers.dev');
+    console.error('Usage: node scripts/verify-issue-432-readonly.cjs https://glorifier.glorifier.workers.dev');
     process.exitCode = 2;
     return;
   }
@@ -84,6 +80,12 @@ async function main() {
   }
 }
 
-const isDirectExecution = process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
-if (isDirectExecution) void main();
+if (require.main === module) void main();
+
+module.exports = {
+  DEFAULT_VERIFIER_ORIGIN,
+  PROBE_PATHS,
+  isJsonMediaType,
+  parseBase,
+  run,
+};

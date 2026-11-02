@@ -1,11 +1,11 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import {
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const {
   isJsonMediaType,
   parseBase,
   PROBE_PATHS,
   run,
-} from './verify-issue-432-readonly.js';
+} = require('./verify-issue-432-readonly.cjs');
 
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 const RECORDED_AT = '2026-11-02T05:00:00.000Z';

@@ -41,7 +41,7 @@ jobs:
         run: npm audit --audit-level=low
 
       - name: Test read-only production verifier security and isolation
-        run: node --test scripts/verify-issue-432-readonly.test.js
+        run: node --test scripts/verify-issue-432-readonly.test.cjs
 
       - name: Validate Solana deployment and reconciliation scripts
         run: |
