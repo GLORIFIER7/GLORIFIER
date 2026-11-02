@@ -72,12 +72,12 @@ export const validateMcpReadOnlyTools = (body) => {
 
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
-const requestJson = async (path, options = {}, acceptedStatuses = [200]) => {
+const requestJson = async (fetchRequest, options = {}, acceptedStatuses = [200]) => {
   const attempts = 4;
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await fetch(new URL(path, PRODUCTION_BASE_URL), {
+      const response = await fetchRequest({
         ...options,
         signal: AbortSignal.timeout(15_000),
       });
@@ -86,42 +86,59 @@ const requestJson = async (path, options = {}, acceptedStatuses = [200]) => {
       try {
         body = raw ? JSON.parse(raw) : {};
       } catch {
-        throw new Error(`${path} returned non-JSON content (HTTP ${response.status})`);
+        throw new Error(`Production endpoint returned non-JSON content (HTTP ${response.status})`);
       }
       if (acceptedStatuses.includes(response.status)) {
         return { status: response.status, body };
       }
-      const error = new Error(`${path} returned HTTP ${response.status}: ${String(body?.code ?? body?.error ?? 'unexpected response')}`);
-      if (response.status < 500 || attempt === attempts - 1) throw error;
+      const error = new Error(`Production endpoint returned HTTP ${response.status}: ${String(body?.code ?? body?.error ?? 'unexpected response')}`);
+      if (response.status < 500 || attempt === attempts - 1) {
+        error.retryable = false;
+        throw error;
+      }
       lastError = error;
     } catch (error) {
+      if (error?.retryable === false) throw error;
       lastError = error;
       if (attempt === attempts - 1) break;
     }
     await sleep(2_000 * (attempt + 1));
   }
-  throw lastError ?? new Error(`Unable to verify ${path}`);
+  throw lastError ?? new Error('Unable to verify a production endpoint');
 };
+
+const fetchProductionHealth = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/health', options);
+const fetchProductionReports = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/reports/summary', options);
+const fetchProductionRuntime = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false', options);
+const fetchProductionAppState = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/app-state', options);
+const fetchProductionMcp = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/mcp', options);
+const fetchProductionIdentity = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/api/identity', options);
 
 const verifyWorkerAndDatabase = async () => {
   console.log('GLORIFIER production smoke: checking Worker and static assets');
-  const health = await requestJson('/api/health');
+  const health = await requestJson(fetchProductionHealth);
   assert.equal(health.body?.ok, true);
   assert.equal(health.body?.status, 'worker-ready');
 
   console.log('GLORIFIER production smoke: checking Neon exact operational counts');
-  const reports = await requestJson('/api/reports/summary');
+  const reports = await requestJson(fetchProductionReports);
   const counts = validateOperationalSummary(reports.body);
 
   console.log('GLORIFIER production smoke: checking live runtime database provider');
-  const runtimeResponse = await requestJson('/api/runtime-verification?probeAi=false');
+  const runtimeResponse = await requestJson(fetchProductionRuntime);
   const runtime = validateRuntimeVerification(runtimeResponse.body);
   return { counts, runtime };
 };
 
 const verifyUnauthenticatedBoundary = async () => {
   console.log('GLORIFIER production smoke: checking unauthenticated application boundary');
-  const appState = await requestJson('/api/app-state', {}, [401]);
+  const appState = await requestJson(fetchProductionAppState, {}, [401]);
   const validAuthFailure = appState.body?.code === 'AUTHENTICATION_REQUIRED' ||
     (appState.body?.code === undefined && appState.body?.ok === false);
   assert.equal(validAuthFailure, true,
@@ -134,7 +151,7 @@ const verifyMcpSurface = async () => {
     Accept: 'application/json, text/event-stream',
   };
   console.log('GLORIFIER production smoke: checking MCP initialize');
-  const initialize = await requestJson('/mcp', {
+  const initialize = await requestJson(fetchProductionMcp, {
     method: 'POST',
     headers: mcpHeaders,
     body: JSON.stringify({
@@ -177,7 +194,7 @@ const reportReadinessWarnings = (identity, runtime) => {
 
 const verifyIdentity = async () => {
   console.log('GLORIFIER production smoke: checking organizational identity readiness');
-  return requestJson('/api/identity', {}, [200, 503]);
+  return requestJson(fetchProductionIdentity, {}, [200, 503]);
 };
 
 export const runProductionSmoke = async () => {
