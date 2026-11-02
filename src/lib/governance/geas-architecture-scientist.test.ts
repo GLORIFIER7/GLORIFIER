@@ -67,6 +67,10 @@ const rejectedCuratedSourceUrls = [
   'https://user:password@www.nist.gov/forged',
   'https://www.nist.gov:8443/forged',
   'file:///etc/passwd',
+  'https://www.nist.gov/internal',
+  'https://airc.nist.gov/another-document',
+  'https://raw.githubusercontent.com/attacker/repo/main/payload',
+  'https://www.nist.gov/itl/ai-risk-management-framework/../internal',
 ];
 for (const sourceUrl of rejectedCuratedSourceUrls) {
   if (isTrustedArchitectureSourceUrl(sourceUrl)) {
