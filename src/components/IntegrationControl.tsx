@@ -34,6 +34,7 @@ type DataStatus = {
     configuredDoesNotMeanVerified: boolean;
     estimatedDoesNotMeanVerified: boolean;
     humanFinalAuthority: boolean;
+    privateRuntimeConfigurationIsNotExposed: boolean;
   };
   summary: {
     total: number;
@@ -71,7 +72,9 @@ const statusLabel: Record<string, string> = {
   degraded: 'Degraded · source evidence required',
   revoked: 'Marked revoked · provider revocation NOT VERIFIED',
   expired: 'Marked expired · provider status NOT VERIFIED',
-  disabled: 'Disabled in registry'
+  disabled: 'Disabled in registry',
+  'not-observable': 'Private runtime configuration not exposed',
+  responding: 'Worker responded · overall health NOT VERIFIED'
 };
 
 export const IntegrationControl: React.FC = () => {
