@@ -187,7 +187,7 @@ const reportReadinessWarnings = (identity, runtime) => {
   ]) {
     const dependency = runtime[key];
     if (dependency?.ok !== true) {
-      console.warn(`PRODUCTION READINESS WARNING: ${label}: ${dependency?.status ?? 'not-observed'}`);
+      console.warn(`PRODUCTION READINESS WARNING: ${label} requires setup or verification.`);
     }
   }
 };
