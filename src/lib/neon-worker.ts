@@ -137,6 +137,7 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
     ok: false,
     error: new Error('Neon count query did not execute.'),
   };
+  let rollback: AsyncResult<void> | null = null;
   let close: AsyncResult<void> = { ok: true, value: undefined };
 
   try {
@@ -154,7 +155,7 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
         return counts;
       } catch (error) {
         if (transactionStarted) {
-          await captureAsyncResult(async () => {
+          rollback = await captureAsyncResult(async () => {
             await client.query('ROLLBACK');
           });
         }
@@ -165,14 +166,19 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
     close = await captureAsyncResult(() => client.end());
   }
 
-  if (!query.ok && !close.ok) {
+  const errors: unknown[] = [];
+  if (!query.ok) errors.push(query.error);
+  if (rollback && !rollback.ok) errors.push(rollback.error);
+  if (!close.ok) errors.push(close.error);
+
+  if (errors.length > 1) {
     throw new AggregateError(
-      [query.error, close.error],
-      'Neon count query failed and the database client could not be closed.',
+      errors,
+      'Neon count query, rollback, or client cleanup failed.',
     );
   }
+  if (errors.length === 1) throw errors[0];
   if (!query.ok) throw query.error;
-  if (!close.ok) throw close.error;
   return query.value;
 };
 
