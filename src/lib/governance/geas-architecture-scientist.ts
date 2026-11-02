@@ -858,15 +858,25 @@ const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
 
 const CURATED_SOURCE_URLS = new Set(SOURCES.map((source) => new URL(source.url).href));
 
+const hasSecureSourceTransport = (url: URL): boolean => url.protocol === 'https:';
+
+const hasNoSourceCredentials = (url: URL): boolean => !url.username && !url.password;
+
+const hasAllowedSourcePort = (url: URL): boolean => !url.port || url.port === '443';
+
+const usesCuratedSourceHost = (url: URL): boolean =>
+  CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase());
+
+const isExactCuratedSourceUrl = (url: URL): boolean => CURATED_SOURCE_URLS.has(url.href);
+
 export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
   try {
     const url = new URL(sourceUrl);
-    return url.protocol === 'https:'
-      && CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
-      && !url.username
-      && !url.password
-      && (!url.port || url.port === '443')
-      && CURATED_SOURCE_URLS.has(url.href);
+    return hasSecureSourceTransport(url)
+      && usesCuratedSourceHost(url)
+      && hasNoSourceCredentials(url)
+      && hasAllowedSourcePort(url)
+      && isExactCuratedSourceUrl(url);
   } catch {
     return false;
   }
@@ -896,16 +906,33 @@ const CURATED_SOURCE_REDIRECT_PATHS = new Map<string, string[]>([
   ],
 ]);
 
-export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
-  const permittedPaths = CURATED_SOURCE_REDIRECT_PATHS.get(originalUrl.href) ?? [originalUrl.pathname];
-  const normalizedPath = normalizeCuratedPath(nextUrl.pathname);
-  return nextUrl.protocol === 'https:'
-    && nextUrl.origin === originalUrl.origin
-    && !nextUrl.username
-    && !nextUrl.password
-    && (!nextUrl.port || nextUrl.port === '443')
-    && permittedPaths.some((path) => normalizeCuratedPath(path) === normalizedPath);
+const hasExpectedRedirectOrigin = (target: URL, original: URL): boolean =>
+  target.protocol === 'https:' && target.origin === original.origin;
+
+const hasNoRedirectCredentials = (target: URL): boolean =>
+  !target.username && !target.password;
+
+const hasAllowedRedirectPort = (target: URL): boolean => !target.port || target.port === '443';
+
+const hasPinnedRedirectQuery = (target: URL, original: URL): boolean =>
+  target.search === original.search && !target.hash;
+
+const hasAllowedRedirectPath = (target: URL, original: URL): boolean => {
+  const permittedPaths = CURATED_SOURCE_REDIRECT_PATHS.get(original.href) ?? [original.pathname];
+  const normalizedPath = normalizeCuratedPath(target.pathname);
+  return permittedPaths.some((path) => normalizeCuratedPath(path) === normalizedPath);
 };
+
+const TRUSTED_REDIRECT_CHECKS = [
+  hasExpectedRedirectOrigin,
+  hasNoRedirectCredentials,
+  hasAllowedRedirectPort,
+  hasPinnedRedirectQuery,
+  hasAllowedRedirectPath,
+] as const;
+
+export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
+  TRUSTED_REDIRECT_CHECKS.every((check) => check(nextUrl, originalUrl));
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
