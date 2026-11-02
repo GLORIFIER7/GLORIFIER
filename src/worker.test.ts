@@ -98,6 +98,25 @@ async function run(): Promise<void> {
     assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
     returnHtmlForAssets = false;
 
+    // Preview deployments do not inherit production bindings. Missing rate limiting
+    // must fail closed with a deliberate service response, never an unhandled TypeError.
+    const previewWithoutRateLimiter = {
+      ...env,
+      MCP_RATE_LIMITER: undefined,
+    } as unknown as TestEnv;
+    const previewMcpWithoutRateLimit = await worker.fetch(
+      mcpPost({ jsonrpc: '2.0', id: 'preview', method: 'initialize', params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'preview-test', version: '1' },
+      } }),
+      previewWithoutRateLimiter,
+    );
+    assert.equal(previewMcpWithoutRateLimit.status, 503,
+      'MCP must fail closed when an isolated Preview has no rate-limit binding');
+    assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
+    assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
+
     // MCP must be a real read-only Streamable HTTP endpoint, not the SPA asset fallback.
     capturedRequest = null;
     const mcpInitialize = await worker.fetch(
