@@ -11,10 +11,14 @@ const createEnv = (overrides: Partial<CloudflareEnv> = {}): CloudflareEnv => ({
   HYPERDRIVE: { connectionString: testConnectionString },
   OPENSEA_API_KEY: testSecret,
   MCP_RATE_LIMITER: {
-    limit: async () => ({ success: true }),
+    limit() {
+      return Promise.resolve({ success: true });
+    },
   },
   ASSETS: {
-    fetch: async () => new Response('asset'),
+    fetch() {
+      return Promise.resolve(new Response('asset'));
+    },
   },
   ...overrides,
 } as CloudflareEnv);
@@ -24,10 +28,19 @@ const request = (path: string, method = 'GET') => new Request(
   { method },
 );
 
-test('GET /api/integrations exposes a Worker-native configuration inventory without secret values', async () => {
+const privateIntegrationIds = [
+  'neon',
+  'opensea',
+  'github-mcp',
+  'identity',
+  'neural',
+  'ai-providers',
+] as const;
+
+test('GET /api/integrations never exposes private runtime binding presence', async () => {
   const response = await worker.fetch(request('/api/integrations'), createEnv());
   assert.equal(response.status, 200);
-  assert.match(response.headers.get('content-type') || '', /^application\/json/i);
+  assert.match(response.headers.get('content-type') || '', /^application\\/json/i);
   assert.equal(response.headers.get('cache-control'), 'no-store');
 
   const body = await response.json() as {
@@ -37,28 +50,34 @@ test('GET /api/integrations exposes a Worker-native configuration inventory with
   assert.equal(body.ok, true);
   const byId = new Map(body.integrations.map((item) => [item.id, item]));
 
-  assert.equal(byId.get('neon')?.status, 'configured');
-  assert.equal(byId.get('opensea')?.status, 'configured');
-  assert.equal(byId.get('github-mcp')?.status, 'configured');
+  for (const id of privateIntegrationIds) {
+    assert.equal(byId.get(id)?.status, 'not-observable');
+    assert.match(byId.get(id)?.detail || '', /private runtime configuration.*not exposed/i);
+  }
 
-  const noRateLimiter = await worker.fetch(
-    request('/api/integrations'),
-    createEnv({ MCP_RATE_LIMITER: undefined }),
-  );
-  const noRateLimiterBody = await noRateLimiter.json() as {
-    integrations: Array<{ id: string; status: string; detail: string }>;
-  };
-  const mcpWithoutLimiter = noRateLimiterBody.integrations.find((item) => item.id === 'github-mcp');
-  assert.equal(mcpWithoutLimiter?.status, 'needs-config');
-  assert.match(mcpWithoutLimiter?.detail || '', /rate-limit binding/i);
-  assert.equal(byId.get('identity')?.status, 'needs-config');
-  assert.equal(byId.get('neural')?.status, 'needs-config');
-
+  assert.equal(byId.get('cloudflare-worker')?.status, 'responding');
   assert.equal(byId.get('railway')?.status, 'disabled');
   assert.equal(byId.get('vercel')?.status, 'disabled');
   assert.equal(byId.get('netlify-preview')?.status, 'configured');
   assert.match(byId.get('netlify-preview')?.detail || '', /preview-only/i);
   assert.equal(byId.get('netlify-production')?.status, 'disabled');
+
+  const noPrivateBindings = await worker.fetch(
+    request('/api/integrations'),
+    createEnv({
+      GLORIFIER_DATABASE_PROVIDER: undefined,
+      HYPERDRIVE: undefined,
+      OPENSEA_API_KEY: undefined,
+      MCP_RATE_LIMITER: undefined,
+    }),
+  );
+  const noPrivateBindingsBody = await noPrivateBindings.json() as {
+    integrations: Array<{ id: string; status: string }>;
+  };
+  assert.deepEqual(
+    noPrivateBindingsBody.integrations.map(({ id, status }) => [id, status]),
+    body.integrations.map(({ id, status }) => [id, status]),
+  );
 
   const serialized = JSON.stringify(body);
   assert.equal(serialized.includes(testSecret), false);
@@ -66,7 +85,7 @@ test('GET /api/integrations exposes a Worker-native configuration inventory with
   assert.equal(serialized.includes('private-password'), false);
 });
 
-test('GET /api/data-status never converts configuration into verification', async () => {
+test('GET /api/data-status marks private configuration not-observable and all data not-verified', async () => {
   const response = await worker.fetch(request('/api/data-status'), createEnv());
   assert.equal(response.status, 200);
 
@@ -77,9 +96,18 @@ test('GET /api/data-status never converts configuration into verification', asyn
       configuredDoesNotMeanVerified: boolean;
       estimatedDoesNotMeanVerified: boolean;
       humanFinalAuthority: boolean;
+      privateRuntimeConfigurationIsNotExposed: boolean;
     };
-    summary: { total: number; verified: number; notVerified: number };
+    summary: {
+      total: number;
+      verified: number;
+      notVerified: number;
+      configured: number;
+      needsConfiguration: number;
+      notObservable: number;
+    };
     data: Array<{
+      id: string;
       verificationStatus: string;
       verificationEvidence: string | null;
       configurationStatus: string;
@@ -90,9 +118,15 @@ test('GET /api/data-status never converts configuration into verification', asyn
   assert.equal(body.policy.configuredDoesNotMeanVerified, true);
   assert.equal(body.policy.estimatedDoesNotMeanVerified, true);
   assert.equal(body.policy.humanFinalAuthority, true);
+  assert.equal(body.policy.privateRuntimeConfigurationIsNotExposed, true);
   assert.equal(body.summary.total, body.data.length);
   assert.equal(body.summary.verified, 0);
   assert.equal(body.summary.notVerified, body.data.length);
+  assert.equal(body.summary.notObservable, body.data.filter((item) => item.configurationStatus === 'not-observable').length);
+  assert.equal(body.summary.configured, 1);
+  for (const id of privateIntegrationIds) {
+    assert.equal(body.data.find((item) => item.id === id)?.configurationStatus, 'not-observable');
+  }
   for (const item of body.data) {
     assert.equal(item.verificationStatus, 'not-verified');
     assert.equal(item.verificationEvidence, null);
