@@ -85,7 +85,7 @@ test('production MCP initialization must advertise the approved protocol and ser
   assert.throws(() => validateMcpInitialize({
     ...initialize,
     result: { ...initialize.result, protocolVersion: 'unapproved' },
-  }), /protocolVersion/);
+  }), /2025-03-26/);
 });
 
 test('production MCP tool surface must be the exact read-only allowlist', () => {
