@@ -242,16 +242,15 @@ const fetchProductionAppState = (options) =>
 const fetchProductionIdentity = (options) =>
   fetch('https://glorifier.glorifier.workers.dev/api/identity', options);
 
-const fetchProductionIntegrations = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/integrations', options);
-const fetchProductionDataStatus = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/data-status', options);
+const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 
-const verifyPublicReadModels = async () => {
+export const verifyPublicReadModels = async (fetchRequest = fetch) => {
   console.log('GLORIFIER production smoke: checking public integration registry and data-status read models');
+  const getEndpoint = (pathname) => (options) =>
+    fetchRequest(new URL(pathname, PRODUCTION_WORKER_ORIGIN), options);
   const [integrationsResponse, dataStatusResponse] = await Promise.all([
-    requestJson(fetchProductionIntegrations),
-    requestJson(fetchProductionDataStatus),
+    requestJson(getEndpoint('/api/integrations')),
+    requestJson(getEndpoint('/api/data-status')),
   ]);
   const integrations = validateIntegrationRegistry(integrationsResponse.body);
   const data = validateDataStatus(dataStatusResponse.body);
