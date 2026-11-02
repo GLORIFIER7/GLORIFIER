@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
-const PRODUCTION_BASE_URL = 'https://glorifier.glorifier.workers.dev';
 const EXPECTED_MCP_TOOLS = [
   'github_get_repository',
   'github_list_open_pull_requests',
