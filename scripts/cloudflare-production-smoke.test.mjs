@@ -9,6 +9,7 @@ import {
   validateOperationalSummary,
   validateRuntimeVerification,
   requestJson,
+  verifyPublicReadModels,
   formatSmokeFailure,
 } from './cloudflare-production-smoke.mjs';
 
@@ -22,10 +23,19 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     'the production deployment workflow must not issue HTTP mutation methods');
   assert.equal(smokeSource.includes('fetchProductionMcp'), false,
     'production smoke must not make MCP POST requests');
-  const deployIndex = workflow.indexOf('run: wrangler deploy');
-  const releaseSmokeIndex = workflow.indexOf('run: node scripts/cloudflare-production-smoke.mjs');
-  assert.ok(deployIndex >= 0 && releaseSmokeIndex > deployIndex,
-    'the read-only production smoke suite must run after the explicit deployment step');
+  const deployJobIndex = workflow.indexOf('\n  deploy-production:');
+  const deployIndex = workflow.indexOf('\n        run: wrangler deploy\n', deployJobIndex);
+  const releaseSmokeIndex = workflow.indexOf(
+    '\n        run: node scripts/cloudflare-production-smoke.mjs\n',
+    deployIndex,
+  );
+  const validationJobSmokeIndex = workflow.indexOf(
+    'run: node scripts/cloudflare-production-smoke.mjs',
+    workflow.indexOf('\n  validate-and-build:'),
+  );
+  assert.ok(deployJobIndex >= 0 && deployIndex > deployJobIndex &&
+    releaseSmokeIndex > deployIndex && validationJobSmokeIndex === -1,
+  'the GET-only production smoke suite must run only after the real deployment step');
 });
 
 const reports = {
@@ -266,6 +276,13 @@ test('production integration registry exposes only the reviewed static, non-secr
     integrations: integrationRows.map((item) =>
       item.id === 'opensea' ? { ...item, apiKey: 'must-not-be-returned' } : item),
   }), /private fields/);
+  assert.throws(() => validateIntegrationRegistry({
+    ...integrationRegistry,
+    integrations: integrationRows.map((item) =>
+      item.id === 'opensea'
+        ? { ...item, metadata: { providers: [{ runtimeToken: 'nested-secret' }] } }
+        : item),
+  }), /private fields/);
 });
 
 test('production data-status keeps every source not-verified and summaries exact', () => {
@@ -279,4 +296,53 @@ test('production data-status keeps every source not-verified and summaries exact
     ...dataStatus,
     summary: { ...dataStatus.summary, notObservable: 0 },
   }), /notObservable summary/);
+});
+
+
+test('production read-model smoke fetches both deployed GET endpoints and validates their responses', async () => {
+  const requests = [];
+  const fetchRequest = async (url, options) => {
+    requests.push({
+      pathname: new URL(url).pathname,
+      method: options?.method || 'GET',
+    });
+    const body = new URL(url).pathname === '/api/integrations'
+      ? integrationRegistry
+      : dataStatus;
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await verifyPublicReadModels(fetchRequest);
+  assert.deepEqual(requests, [
+    { pathname: '/api/integrations', method: 'GET' },
+    { pathname: '/api/data-status', method: 'GET' },
+  ]);
+  assert.deepEqual(result, {
+    integrations: integrationRows.length,
+    dataRows: dataRows.length,
+  });
+});
+
+test('production read-model smoke fails closed when either deployed endpoint is unavailable', async () => {
+  let dataStatusAttempts = 0;
+  const fetchRequest = async (url) => {
+    const pathname = new URL(url).pathname;
+    if (pathname === '/api/integrations') {
+      return new Response(JSON.stringify(integrationRegistry), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    dataStatusAttempts += 1;
+    return new Response(JSON.stringify({ ok: false, code: 'NOT_FOUND' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  await assert.rejects(verifyPublicReadModels(fetchRequest), /HTTP 404/);
+  assert.equal(dataStatusAttempts, 1, 'a deterministic 404 must not be retried');
 });
