@@ -844,11 +844,11 @@ const hasSessionCredential = (request: Request): boolean => {
   });
 };
 
-const apiError = (message: string, code: string): Response =>
+const apiError = (message: string, code: string, status = 502): Response =>
   Response.json(
     { ok: false, status: 'unavailable', error: message, code },
     {
-      status: 502,
+      status,
       headers: {
         'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
@@ -1227,7 +1227,7 @@ export default {
     if (!configuredBackendOrigin) {
       // Fail closed at the authentication boundary before reporting backend availability.
       // This is not a substitute for session validation: credentialed requests still fail
-      // with 502 until the route is implemented natively or a reviewed backend is configured.
+      // with 503 until the route is implemented natively or a reviewed backend is configured.
       if (incomingUrl.pathname === '/api/app-state' && !hasSessionCredential(request)) {
         return Response.json(
           { ok: false, status: 'unauthenticated', error: 'Authentication is required for app state.', code: 'AUTHENTICATION_REQUIRED' },
@@ -1237,6 +1237,7 @@ export default {
       return apiError(
         'No backend origin is configured. This route is not yet Worker-native; refusing to use a legacy provider implicitly.',
         'BACKEND_ORIGIN_NOT_CONFIGURED',
+        503,
       );
     }
     const backendOrigin = resolveBackendOrigin(configuredBackendOrigin);
