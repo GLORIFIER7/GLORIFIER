@@ -1227,7 +1227,7 @@ export default {
     if (!configuredBackendOrigin) {
       // Fail closed at the authentication boundary before reporting backend availability.
       // This is not a substitute for session validation: credentialed requests still fail
-      // with 502 until the route is implemented natively or a reviewed backend is configured.
+      // with 503 until the route is implemented natively or a reviewed backend is configured.
       if (incomingUrl.pathname === '/api/app-state' && !hasSessionCredential(request)) {
         return Response.json(
           { ok: false, status: 'unauthenticated', error: 'Authentication is required for app state.', code: 'AUTHENTICATION_REQUIRED' },
