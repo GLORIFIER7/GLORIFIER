@@ -103,26 +103,27 @@ test('increments concurrent session turns atomically and supports BIGINT counter
   );
 });
 
-test('maintains running-task heartbeats, ordering, and completion safety', async () => {
+test('refreshes running-task leases and refuses late heartbeats after completion', async () => {
+  const olderAt = new Date(Date.now() - 60_000).toISOString();
+  const peerAt = new Date(Date.now() - 30_000).toISOString();
   const recentTask = {
     id: 'task-heartbeat-' + randomUUID(),
     status: 'running',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: olderAt,
+    updatedAt: olderAt,
   };
-  const newestTask = {
+  const peerTask = {
     ...recentTask,
-    id: 'task-newest-' + randomUUID(),
-    updatedAt: new Date(Date.now() + 2_000).toISOString(),
+    id: 'task-peer-' + randomUUID(),
+    updatedAt: peerAt,
   };
   await store.save('task', recentTask);
-  await store.save('task', newestTask);
+  await store.save('task', peerTask);
   assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
-  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
   assert.deepEqual(
     (await store.list<typeof recentTask>('task', 1, undefined, true)).map((entry) => entry.id),
-    [newestTask.id],
-    'task listing must return the newest task row and respect the result limit',
+    [recentTask.id],
+    'heartbeat must refresh updated_at so the task becomes the newest row',
   );
 
   await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
@@ -174,9 +175,16 @@ test('recovers stale running tasks without replaying them or interrupting fresh 
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  const completedTask = {
+    id: 'task-completed-' + randomUUID(),
+    status: 'completed',
+    createdAt: staleAt,
+    updatedAt: staleAt,
+  };
   await store.save('task', staleTask);
   await store.save('task', recentTask);
   await store.save('task', recentlyRunningTask);
+  await store.save('task', completedTask);
 
   assert.equal(await store.recoverInterruptedTasks(30), 1);
   const recovered = await store.get<typeof staleTask & { error?: string }>('task', staleTask.id);
@@ -188,5 +196,10 @@ test('recovers stale running tasks without replaying them or interrupting fresh 
     (await store.get<typeof recentlyRunningTask>('task', recentlyRunningTask.id))?.status,
     'running',
     'a fresh running task must remain running when startup recovery uses the 30-minute grace period',
+  );
+  assert.equal(
+    (await store.get<typeof completedTask>('task', completedTask.id))?.status,
+    'completed',
+    'startup recovery must not change an already completed task',
   );
 });
