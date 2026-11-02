@@ -13,9 +13,9 @@ test('persists connection approvals atomically and memoizes initialization safel
   };
   const calls: Array<{ sql: string; values?: unknown[] }> = [];
   const persisted = await persistConnectionApprovalAtomically(
-    async (sql, values) => {
+    (sql, values) => {
       calls.push({ sql, values });
-      return { rows: [approval] };
+      return Promise.resolve({ rows: [approval] });
     },
     {
       approvalId: approval.id,
@@ -36,7 +36,7 @@ test('persists connection approvals atomically and memoizes initialization safel
   assert.equal(calls[0].values?.[6], approval.related_task_id);
   
   await assert.rejects(
-    () => persistConnectionApprovalAtomically(async () => ({ rows: [] }), {
+    () => persistConnectionApprovalAtomically(() => Promise.resolve({ rows: [] }), {
       approvalId: 'missing-approval',
       eventId: 'missing-event',
       connectionId: 'connection-test',
@@ -48,17 +48,18 @@ test('persists connection approvals atomically and memoizes initialization safel
   );
   
   let initializationCalls = 0;
-  const initializeOnce = createMemoizedAsyncInitializer(async () => {
+  const initializeOnce = createMemoizedAsyncInitializer(() => Promise.resolve().then(() => {
     initializationCalls += 1;
-  });
+  }));
   await Promise.all([initializeOnce(), initializeOnce(), initializeOnce()]);
   await initializeOnce();
   assert.equal(initializationCalls, 1, 'concurrent and later schema initialization calls must share one successful promise');
   
   let retryCalls = 0;
-  const initializeWithRetry = createMemoizedAsyncInitializer(async () => {
+  const initializeWithRetry = createMemoizedAsyncInitializer(() => {
     retryCalls += 1;
-    if (retryCalls === 1) throw new Error('transient schema connection failure');
+    if (retryCalls === 1) return Promise.reject(new Error('transient schema connection failure'));
+    return Promise.resolve();
   });
   await assert.rejects(() => initializeWithRetry(), /transient schema connection failure/);
   await initializeWithRetry();
