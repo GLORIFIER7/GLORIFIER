@@ -42,8 +42,17 @@ export interface ClaimSourceRegistry {
 }
 
 export interface ClaimReviewResult {
+  /** A structurally valid submitted review record, not a verified claim. */
   admissible: boolean;
+  /** The validator checks record integrity only; semantic truth is external. */
+  admissionScope: 'record-integrity-only';
+  /** This validator receives no authenticated identity assertion. */
+  reviewerIdentityStatus: 'not-authenticated';
+  /** A submitted "supported" decision is not independently verified here. */
+  semanticTruthStatus: 'not-verified';
+  /** The decision is the submitted reviewer's assertion, not an authenticated verdict. */
   decision: ClaimReviewDecision | 'unknown';
+  /** Integrity reference to the submitted review record, not proof of claim truth. */
   evidenceRef: string | null;
   failures: string[];
 }
@@ -418,6 +427,9 @@ const createClaimReviewResult = (
     : 'unknown';
   return {
     admissible,
+    admissionScope: 'record-integrity-only',
+    reviewerIdentityStatus: 'not-authenticated',
+    semanticTruthStatus: 'not-verified',
     decision,
     evidenceRef: admissible ? createEvidenceReference(record, sourcePolicyDigest) : null,
     failures,
