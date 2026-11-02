@@ -8,7 +8,7 @@ type CollaborationProvider = { id: string; name: string; category: string; capab
 
 type DataClassification = {
   verificationStatus: 'verified' | 'not-verified';
-  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional' | 'disabled';
+  configurationStatus: 'configured' | 'needs-configuration' | 'available' | 'optional' | 'disabled' | 'not-observable';
   verificationEvidence: string | null;
   truthRule: string;
 };
@@ -40,7 +40,7 @@ type DataStatus = {
     verified: number;
     notVerified: number;
     configured: number;
-    needsConfiguration: number;
+    needsConfiguration: number;\n    notObservable: number;
   };
   data: Integration[];
 };
@@ -138,12 +138,12 @@ export const IntegrationControl: React.FC = () => {
             <div className="text-[10px] text-slate-500">Updated {new Date(dataStatus.generatedAt).toLocaleString()}</div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-800 mt-5 border border-slate-800">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-slate-800 mt-5 border border-slate-800">
             {[
               ['Total', dataStatus.summary.total],
               ['Verified', dataStatus.summary.verified],
               ['Not verified', dataStatus.summary.notVerified],
-              ['Needs configuration', dataStatus.summary.needsConfiguration],
+              ['Needs configuration', dataStatus.summary.needsConfiguration],\n              ['Not observable', dataStatus.summary.notObservable],
             ].map(([label, value]) => (
               <div key={String(label)} className="bg-slate-950 p-4">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
