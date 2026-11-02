@@ -5,6 +5,7 @@ const {
   parseBase,
   PROBE_PATHS,
   run,
+  handleUnexpectedCliRejection,
 } = require('./verify-issue-432-readonly.cjs');
 
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
@@ -160,8 +161,8 @@ test('CLI entrypoint handles promise completion without the void anti-pattern', 
     'utf8',
   );
 
-  assert.doesNotMatch(source, /\bvoid\s+main\s*\(/);
-  assert.match(source, /main\(\)\.catch\(/);
+  assert.doesNotMatch(source, /\\bvoid\\s+main\\s*\\(/);
+  assert.match(source, /main\\(\\)\\.catch\\(/);
 });
 
 test('CLI reports usage and exits with code 2 when no base URL is provided', async () => {
@@ -177,4 +178,30 @@ test('CLI reports usage and exits with code 2 when no base URL is provided', asy
       return true;
     },
   );
+});
+
+test('unexpected CLI rejection writes a safe error to stderr and sets exit code 1', () => {
+  const writes = [];
+  const processStub = {
+    stderr: { write: (message) => writes.push(message) },
+    exitCode: 0,
+  };
+
+  handleUnexpectedCliRejection(new Error('unexpected failure'), processStub);
+
+  assert.deepEqual(writes, ['ERROR: unexpected failure\\n']);
+  assert.equal(processStub.exitCode, 1);
+});
+
+test('unexpected non-Error rejection uses a generic message', () => {
+  const writes = [];
+  const processStub = {
+    stderr: { write: (message) => writes.push(message) },
+    exitCode: 0,
+  };
+
+  handleUnexpectedCliRejection('untrusted rejection value', processStub);
+
+  assert.deepEqual(writes, ['ERROR: verification failed\\n']);
+  assert.equal(processStub.exitCode, 1);
 });
