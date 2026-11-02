@@ -168,8 +168,6 @@ jobs:
             process.exit(1);
           }
           NODE
-          output="$(mktemp)"
-          trap 'rm -f "$output"' EXIT
           status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors \
             --output "$output" --write-out '%{http_code}' \
             --request POST \
