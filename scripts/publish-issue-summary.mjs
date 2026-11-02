@@ -25,8 +25,11 @@ export function buildIssueSummary({
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
 
-  if (typeof repository !== 'string' ||
-      !/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repository)) {
+  const repositoryParts = typeof repository === 'string' ? repository.split('/') : [];
+  if (repositoryParts.length !== 2 ||
+      !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(repositoryParts[0]) ||
+      !/^[A-Za-z0-9_.-]+$/.test(repositoryParts[1]) ||
+      repositoryParts[1] === '.' || repositoryParts[1] === '..') {
     throw new Error('A valid GitHub repository identifier is required for the fallback link.');
   }
 
