@@ -116,22 +116,28 @@ test('always closes a connected client after a query error', async () => {
   assert.equal(closed, true);
 });
 
-test('closes the client after connection failure and preserves the original error', async () => {
+test('surfaces connection and client cleanup failures without discarding either error', async () => {
   let closed = false;
+  const connectionError = new Error('simulated connection failure');
+  const cleanupError = new Error('simulated cleanup failure');
   const factory: NeonPgClientFactory = () => ({
-    connect: () => Promise.reject(new Error('simulated connection failure')),
+    connect: () => Promise.reject(connectionError),
     query: () => {
       throw new Error('query must not run after connection failure');
     },
     end: () => {
       closed = true;
-      return Promise.reject(new Error('simulated cleanup failure'));
+      return Promise.reject(cleanupError);
     },
   });
 
   await assert.rejects(
     () => readNeonOperationalCounts(binding, factory),
-    /simulated connection failure/,
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [connectionError, cleanupError]);
+      return true;
+    },
   );
   assert.equal(closed, true);
 });
