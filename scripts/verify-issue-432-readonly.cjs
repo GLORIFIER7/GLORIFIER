@@ -136,7 +136,15 @@ const main = async () => {
   }
 };
 
-if (require.main === module) void main();
+const handleUnexpectedCliRejection = (error, processRef = process) => {
+  const message = error instanceof Error ? error.message : 'verification failed';
+  processRef.stderr.write(`ERROR: ${message}\n`);
+  processRef.exitCode = 1;
+};
+
+if (require.main === module) {
+  main().catch(handleUnexpectedCliRejection);
+}
 
 module.exports = {
   DEFAULT_VERIFIER_ORIGIN,
@@ -144,4 +152,5 @@ module.exports = {
   isJsonMediaType,
   parseBase,
   run,
+  handleUnexpectedCliRejection,
 };

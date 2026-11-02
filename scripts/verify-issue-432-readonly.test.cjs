@@ -5,6 +5,7 @@ const {
   parseBase,
   PROBE_PATHS,
   run,
+  handleUnexpectedCliRejection,
 } = require('./verify-issue-432-readonly.cjs');
 
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
@@ -152,4 +153,55 @@ test('treats redirects as verification failures', async () => {
 
   assert.equal(result.exitCode, 1);
   assert.ok(result.results.every((item) => item.ok === false && item.status === 302));
+});
+
+test('CLI entrypoint handles promise completion without the void anti-pattern', () => {
+  const source = require('node:fs').readFileSync(
+    require.resolve('./verify-issue-432-readonly.cjs'),
+    'utf8',
+  );
+
+  assert.doesNotMatch(source, /\bvoid\s+main\s*\(/);
+  assert.match(source, /main\(\)\.catch\(/);
+});
+
+test('CLI reports usage and exits with code 2 when no base URL is provided', async () => {
+  const { execFile } = require('node:child_process');
+  const { promisify } = require('node:util');
+  const execute = promisify(execFile);
+
+  await assert.rejects(
+    () => execute(process.execPath, [require.resolve('./verify-issue-432-readonly.cjs')]),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Usage:/);
+      return true;
+    },
+  );
+});
+
+test('unexpected CLI rejection writes a safe error to stderr and sets exit code 1', () => {
+  const writes = [];
+  const processStub = {
+    stderr: { write: (message) => writes.push(message) },
+    exitCode: 0,
+  };
+
+  handleUnexpectedCliRejection(new Error('unexpected failure'), processStub);
+
+  assert.deepEqual(writes, ['ERROR: unexpected failure\n']);
+  assert.equal(processStub.exitCode, 1);
+});
+
+test('unexpected non-Error rejection uses a generic message', () => {
+  const writes = [];
+  const processStub = {
+    stderr: { write: (message) => writes.push(message) },
+    exitCode: 0,
+  };
+
+  handleUnexpectedCliRejection('untrusted rejection value', processStub);
+
+  assert.deepEqual(writes, ['ERROR: verification failed\n']);
+  assert.equal(processStub.exitCode, 1);
 });
