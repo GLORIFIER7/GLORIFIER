@@ -856,6 +856,8 @@ const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
   'www.w3.org',
 ]);
 
+const CURATED_SOURCE_URLS = new Set(SOURCES.map((source) => new URL(source.url).href));
+
 export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
   try {
     const url = new URL(sourceUrl);
@@ -863,7 +865,8 @@ export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
       && CURATED_SOURCE_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
       && !url.username
       && !url.password
-      && (!url.port || url.port === '443');
+      && (!url.port || url.port === '443')
+      && CURATED_SOURCE_URLS.has(url.href);
   } catch {
     return false;
   }
@@ -876,20 +879,18 @@ const validateCuratedSourceUrl = (sourceUrl: string): URL => {
   return new URL(sourceUrl);
 };
 
-const hasExpectedRedirectOrigin = (nextUrl: URL, originalUrl: URL): boolean =>
-  nextUrl.protocol === 'https:' && nextUrl.hostname === originalUrl.hostname;
+const normalizeCuratedPath = (pathname: string): string =>
+  pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 
-const hasNoRedirectCredentials = (nextUrl: URL): boolean =>
-  !nextUrl.username && !nextUrl.password;
-
-const hasAllowedRedirectPort = (nextUrl: URL): boolean =>
-  !nextUrl.port || nextUrl.port === '443';
-
-const isSafeCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
-  if (!hasExpectedRedirectOrigin(nextUrl, originalUrl)) return false;
-  if (!hasNoRedirectCredentials(nextUrl)) return false;
-  return hasAllowedRedirectPort(nextUrl);
-};
+export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
+  nextUrl.protocol === 'https:'
+  && nextUrl.origin === originalUrl.origin
+  && !nextUrl.username
+  && !nextUrl.password
+  && (!nextUrl.port || nextUrl.port === '443')
+  && normalizeCuratedPath(nextUrl.pathname) === normalizeCuratedPath(originalUrl.pathname)
+  && nextUrl.search === originalUrl.search
+  && !nextUrl.hash;
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
@@ -903,7 +904,7 @@ const resolveCuratedRedirectTarget = async (
   if (redirects === 10) throw new Error('source redirect limit exceeded');
 
   const nextUrl = new URL(location, requestUrl);
-  if (!isSafeCuratedRedirectTarget(nextUrl, originalUrl)) {
+  if (!isTrustedCuratedRedirectTarget(nextUrl, originalUrl)) {
     throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
   }
   return nextUrl;
@@ -916,7 +917,7 @@ const fetchCuratedRedirectChain = async (
 ): Promise<{ response: Response; requestUrl: URL }> => {
   let requestUrl = originalUrl;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    if (!isTrustedArchitectureSourceUrl(requestUrl.href) || requestUrl.origin !== originalUrl.origin) {
+    if (!isTrustedCuratedRedirectTarget(requestUrl, originalUrl)) {
       throw new Error('source fetch rejected: target must remain HTTPS on the curated hostname allowlist');
     }
     const response = await fetch(requestUrl.toString(), {
@@ -936,9 +937,9 @@ const fetchCuratedRedirectChain = async (
 
 const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, originalUrl: URL): Promise<URL> => {
   const finalUrl = new URL(response.url || requestUrl.toString());
-  if (finalUrl.protocol !== 'https:' || finalUrl.hostname !== originalUrl.hostname) {
+  if (!isTrustedCuratedRedirectTarget(finalUrl, originalUrl)) {
     await response.body?.cancel().catch(() => undefined);
-    throw new Error('source redirect rejected: final host/protocol differs from curated source');
+    throw new Error('source redirect rejected: final URL must preserve the curated HTTPS origin and path');
   }
   return finalUrl;
 };
