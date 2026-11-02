@@ -1,69 +1,99 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  parseBase,
+  PROBE_PATHS,
+  run,
+} from './verify-issue-432-readonly.mjs';
 
-const scriptPath = new URL('./verify-issue-432-readonly.mjs', import.meta.url);
+const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
+const RECORDED_AT = '2026-11-02T05:00:00.000Z';
 
-test('rejects non-HTTPS base URLs', async () => {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const run = promisify(execFile);
-  await assert.rejects(
-    () => run(process.execPath, [scriptPath, 'http://example.com']),
-    /base URL must use the https: scheme/,
-  );
+function response(status = 200) {
+  return new Response(null, {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+test('accepts only the exact HTTPS production Worker origin', () => {
+  assert.equal(parseBase(APPROVED_ORIGIN).origin, APPROVED_ORIGIN);
+
+  for (const rejected of [
+    'http://glorifier.glorifier.workers.dev',
+    'https://localhost',
+    'https://127.0.0.1',
+    'https://10.0.0.2',
+    'https://169.254.169.254',
+    'https://[::1]',
+    'https://[fc00::1]',
+    'https://[fe80::1]',
+    'https://[::ffff:127.0.0.1]',
+    'https://external.example',
+    'https://glorifier.glorifier.workers.dev.evil.example',
+    'https://user:pass@glorifier.glorifier.workers.dev',
+    'https://glorifier.glorifier.workers.dev:444',
+    'https://glorifier.glorifier.workers.dev/private',
+    'https://glorifier.glorifier.workers.dev/?redirect=https://localhost',
+  ]) {
+    assert.throws(() => parseBase(rejected), /approved HTTPS origin/);
+  }
 });
 
-test('rejects private and metadata targets', async () => {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const run = promisify(execFile);
-  await assert.rejects(
-    () => run(process.execPath, [scriptPath, 'https://169.254.169.254']),
-    /must not target/,
-  );
-});
-
-test('requires 2xx for core endpoints and 5xx failure for gated endpoints', async () => {
-  const originalFetch = globalThis.fetch;
-  const statuses = {
-    '/api/health': 200,
-    '/api/runtime-verification?probeAi=false': 200,
-    '/api/reports/summary': 200,
-    '/api/identity': 503,
-    '/api/neural/health': 503,
-    '/api/neural/ready': 503,
-  };
+test('runs all six probes with injected fetch and requires HTTP 2xx', async () => {
   const calls = [];
-  globalThis.fetch = async (url, init) => {
-    calls.push({ url: String(url), init });
-    const key = new URL(url).pathname + new URL(url).search;
-    return new Response(null, { status: statuses[key] });
-  };
-  try {
-    const { spawnSync } = await import('node:child_process');
-    const result = spawnSync(process.execPath, [scriptPath, 'https://example.com'], { encoding: 'utf8' });
-    assert.equal(result.status, 0);
-    assert.equal(calls.length, 6);
-    assert.ok(calls.every((call) => call.init.method === 'GET'));
-    assert.ok(calls.every((call) => call.init.redirect === 'manual'));
-    const evidence = result.stdout.trim().split('\n').map((line) => JSON.parse(line));
-    assert.ok(evidence.every((item) => item.recordedAt && item.target === 'https://example.com'));
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const result = await run({
+    base: APPROVED_ORIGIN,
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return response(200);
+    },
+    now: () => new Date(RECORDED_AT),
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.results.length, PROBE_PATHS.length);
+  assert.equal(calls.length, PROBE_PATHS.length);
+  assert.ok(calls.every(({ init }) => init.method === 'GET'));
+  assert.ok(calls.every(({ init }) => init.redirect === 'manual'));
+  assert.ok(calls.every(({ init }) => init.signal instanceof AbortSignal));
+  assert.deepEqual(
+    calls.map(({ url }) => new URL(url).pathname + new URL(url).search),
+    PROBE_PATHS,
+  );
+  assert.ok(result.results.every((item) => item.recordedAt === RECORDED_AT));
+  assert.ok(result.results.every((item) => item.target === APPROVED_ORIGIN));
+  assert.ok(result.results.every((item) => item.ok === true));
 });
 
-test('network failures produce nonzero exit and continue probing', async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => {
-    throw new Error('network failure');
-  };
-  try {
-    const { spawnSync } = await import('node:child_process');
-    const result = spawnSync(process.execPath, [scriptPath, 'https://example.com'], { encoding: 'utf8' });
-    assert.equal(result.status, 1);
-    assert.equal(result.stdout.trim().split('\n').length, 6);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+test('treats unexpected 4xx and 5xx responses as verification failures', async () => {
+  const statuses = [200, 200, 200, 404, 429, 503];
+  const result = await run({
+    base: APPROVED_ORIGIN,
+    fetchImpl: async () => response(statuses.shift()),
+    now: () => new Date(RECORDED_AT),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(result.results.map((item) => item.ok), [
+    true, true, true, false, false, false,
+  ]);
+});
+
+test('continues every probe after network failures and returns a nonzero result', async () => {
+  let attempts = 0;
+  const result = await run({
+    base: APPROVED_ORIGIN,
+    fetchImpl: async () => {
+      attempts += 1;
+      throw new Error('simulated network failure');
+    },
+    now: () => new Date(RECORDED_AT),
+  });
+
+  assert.equal(attempts, PROBE_PATHS.length);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.results.length, PROBE_PATHS.length);
+  assert.ok(result.results.every((item) => item.ok === false));
+  assert.ok(result.results.every((item) => item.error === 'Error'));
 });
