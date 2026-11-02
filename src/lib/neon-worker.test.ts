@@ -198,3 +198,21 @@ test('rolls back the read-only transaction when the count query fails', async ()
   assert.equal(statements[2], 'ROLLBACK');
 });
 
+test('surfaces query and client cleanup failures without discarding either error', async () => {
+  const queryError = new Error('simulated query failure');
+  const closeError = new Error('simulated cleanup failure');
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query: () => Promise.reject(queryError),
+    end: () => Promise.reject(closeError),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [queryError, closeError]);
+      return true;
+    },
+  );
+});
