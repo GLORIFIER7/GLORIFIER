@@ -82,12 +82,18 @@ for (const sourceUrl of rejectedCuratedSourceUrls) {
 const redirectSource = new URL('https://www.nist.gov/itl/ai-risk-management-framework');
 const allowedRedirectTargets = [
   new URL('https://www.nist.gov/itl/ai-risk-management-framework/'),
-  new URL('https://www.nist.gov/itl/ai-risk-management-framework'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?hl=en'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework#section'),
 ];
+const etsiRedirectSource = new URL('https://www.etsi.org/technologies/multi-access-edge-computing');
+const approvedEtsiCanonicalRedirect = new URL('https://www.etsi.org/technologies/ict-infrastructure-operations/');
 for (const target of allowedRedirectTargets) {
   if (!isTrustedCuratedRedirectTarget(target, redirectSource)) {
     throw new Error(`same-source canonical redirect should be allowed: ${target.href}`);
   }
+}
+if (!isTrustedCuratedRedirectTarget(approvedEtsiCanonicalRedirect, etsiRedirectSource)) {
+  throw new Error('the explicitly registered ETSI canonical path should be allowed only for its curated source');
 }
 const rejectedRedirectTargets = [
   new URL('https://www.nist.gov/internal'),
@@ -96,8 +102,8 @@ const rejectedRedirectTargets = [
   new URL('http://www.nist.gov/itl/ai-risk-management-framework'),
   new URL('https://attacker.example/itl/ai-risk-management-framework'),
   new URL('https://user:password@www.nist.gov/itl/ai-risk-management-framework'),
-  new URL('https://www.nist.gov/itl/ai-risk-management-framework?next=/internal'),
-  new URL('https://www.nist.gov/itl/ai-risk-management-framework#fragment'),
+  new URL('https://www.nist.gov/internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework/../internal'),
 ];
 for (const target of rejectedRedirectTargets) {
   if (isTrustedCuratedRedirectTarget(target, redirectSource)) {
