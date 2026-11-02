@@ -86,7 +86,13 @@ const missingScannerStatusReview = review(valid, missingScannerStatusRegistry);
 assert.equal(missingScannerStatusReview.admissible, false, 'missing scanner status must fail closed');
 assert.equal(missingScannerStatusReview.evidenceRef, null);
 
-assert.equal(supported.admissible, true);
+assert.equal(supported.admissible, true, 'well-formed submitted review records may pass integrity admission');
+assert.equal(supported.admissionScope, 'record-integrity-only',
+  'record admission must not be represented as semantic claim verification');
+assert.equal(supported.reviewerIdentityStatus, 'not-authenticated',
+  'a reviewer string alone must never authenticate reviewer identity');
+assert.equal(supported.semanticTruthStatus, 'not-verified',
+  'a submitted supported decision must not establish semantic truth');
 
 const futureDatedReview = review({
   ...valid,
