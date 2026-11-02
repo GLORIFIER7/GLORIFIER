@@ -5,6 +5,7 @@ import {
   validateMcpReadOnlyTools,
   validateOperationalSummary,
   validateRuntimeVerification,
+  requestJson,
 } from './cloudflare-production-smoke.mjs';
 
 const reports = {
@@ -97,4 +98,17 @@ test('production MCP tool surface must be the exact read-only allowlist', () => 
       annotations: { readOnlyHint: false, destructiveHint: true },
     }] },
   }), /four approved read-only GitHub tools/);
+});
+
+test('production smoke request fails immediately for deterministic client errors', async () => {
+  let attempts = 0;
+  const fetchNotFound = async () => {
+    attempts += 1;
+    return new Response(JSON.stringify({ code: 'NOT_FOUND' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  await assert.rejects(requestJson(fetchNotFound), /HTTP 404/);
+  assert.equal(attempts, 1, 'a deterministic 4xx must not be retried');
 });
