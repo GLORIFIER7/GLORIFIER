@@ -82,8 +82,7 @@ for (const sourceUrl of rejectedCuratedSourceUrls) {
 const redirectSource = new URL('https://www.nist.gov/itl/ai-risk-management-framework');
 const allowedRedirectTargets = [
   new URL('https://www.nist.gov/itl/ai-risk-management-framework/'),
-  new URL('https://www.nist.gov/itl/ai-risk-management-framework?hl=en'),
-  new URL('https://www.nist.gov/itl/ai-risk-management-framework#section'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework'),
 ];
 const etsiRedirectSource = new URL('https://www.etsi.org/technologies/multi-access-edge-computing');
 const approvedEtsiCanonicalRedirect = new URL('https://www.etsi.org/technologies/ict-infrastructure-operations/');
@@ -104,6 +103,9 @@ const rejectedRedirectTargets = [
   new URL('https://user:password@www.nist.gov/itl/ai-risk-management-framework'),
   new URL('https://www.nist.gov/internal'),
   new URL('https://www.nist.gov/itl/ai-risk-management-framework/../internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?hl=en'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?next=/internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework#section'),
 ];
 for (const target of rejectedRedirectTargets) {
   if (isTrustedCuratedRedirectTarget(target, redirectSource)) {
