@@ -145,9 +145,15 @@ export interface ArchitectureScanResult {
   coverage: Record<
     ArchitectureDomain,
     {
+      /** Configured source observations attempted for this domain. */
       sources: number;
-      observedPatterns: number;
-      status: 'covered' | 'source-unavailable' | 'no-observed-pattern';
+      availableSources: number;
+      unavailableSources: number;
+      discoveredPatterns: number;
+      analysisPatterns: number;
+      claimSupportedPatterns: number;
+      recommendationPatterns: number;
+      status: 'source-unavailable' | 'discovery-covered' | 'no-discovered-pattern';
     }
   >;
   irreversibleChangesExecuted: false;
@@ -1208,18 +1214,37 @@ const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePatte
     : []);
 };
 
-const getDomainCoverage = (
+/**
+ * Report source discovery coverage separately from claim verification.
+ * A source attempt is not a successful observation, and a keyword-derived
+ * analysis pattern is not a claim-supported observed fact.
+ */
+export const getArchitectureDomainCoverage = (
   domain: ArchitectureDomain,
   results: SourceObservation[],
   patterns: ArchitecturePattern[],
 ): ArchitectureScanResult['coverage'][ArchitectureDomain] => {
   const domainSources = results.filter((result) =>
     SOURCES.some((source) => source.id === result.sourceId && source.domain === domain));
-  const observedPatterns = patterns.filter((pattern) => pattern.domain === domain).length;
-  const status = domainSources.length === 0
+  const availableSources = domainSources.filter((result) => result.ok).length;
+  const domainPatterns = patterns.filter((pattern) => pattern.domain === domain);
+  const discoveredPatterns = domainPatterns.length;
+  const analysisPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'analysis').length;
+  const claimSupportedPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'observed-fact').length;
+  const recommendationPatterns = domainPatterns.filter((pattern) => pattern.evidenceClass === 'recommendation').length;
+  const status = availableSources === 0
     ? 'source-unavailable'
-    : observedPatterns > 0 ? 'covered' : 'no-observed-pattern';
-  return { sources: domainSources.length, observedPatterns, status };
+    : discoveredPatterns > 0 ? 'discovery-covered' : 'no-discovered-pattern';
+  return {
+    sources: domainSources.length,
+    availableSources,
+    unavailableSources: domainSources.length - availableSources,
+    discoveredPatterns,
+    analysisPatterns,
+    claimSupportedPatterns,
+    recommendationPatterns,
+    status,
+  };
 };
 
 const coverage = (
@@ -1229,7 +1254,7 @@ const coverage = (
   const output = {} as ArchitectureScanResult['coverage'];
   const domains = [...new Set(SOURCES.map((source) => source.domain))] as ArchitectureDomain[];
   domains.forEach((domain) => {
-    output[domain] = getDomainCoverage(domain, results, patterns);
+    output[domain] = getArchitectureDomainCoverage(domain, results, patterns);
   });
   return output;
 };
