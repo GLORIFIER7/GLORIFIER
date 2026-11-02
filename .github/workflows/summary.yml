@@ -26,6 +26,7 @@ jobs:
       - name: Run AI inference
         id: inference
         uses: actions/ai-inference@v3
+        continue-on-error: true
         with:
           model: gpt-4.1
           system-prompt: |
@@ -42,11 +43,29 @@ jobs:
         env:
           COPILOT_GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Publish summary to workflow run only
+      - name: Publish AI summary to workflow run only
+        if: ${{ steps.inference.outcome == 'success' && steps.inference.outputs.response != '' }}
         env:
           RESPONSE: ${{ steps.inference.outputs.response }}
         run: |
           {
-            printf '%s\n\n' '## AI-generated issue summary (review before reuse)'
-            printf '%s\n' "$RESPONSE"
+            printf '%s\\n\\n' '## AI-generated issue summary (review before reuse)'
+            printf '%s\\n' "$RESPONSE"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish deterministic fallback when AI is unavailable
+        if: ${{ steps.inference.outcome != 'success' || steps.inference.outputs.response == '' }}
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          case "$ISSUE_NUMBER" in
+            ''|*[!0-9]*)
+              echo "Invalid issue number; refusing to construct a fallback link." >&2
+              exit 1
+              ;;
+          esac
+          {
+            printf '%s\\n\\n' '## Issue summary unavailable'
+            printf '%s\\n\\n' 'AI inference did not return a summary for this run. The issue remains authoritative; no issue content was copied or modified by this fallback.'
+            printf 'Review the source issue: [#%s](%s/%s/issues/%s).\\n' "$ISSUE_NUMBER" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$ISSUE_NUMBER"
           } >> "$GITHUB_STEP_SUMMARY"
