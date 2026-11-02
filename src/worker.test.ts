@@ -62,12 +62,13 @@ const env: TestEnv = {
 
 const run = async (): Promise<void> => {
   const isOpenSeaRequest = (url: string): boolean => url.startsWith('https://api.opensea.io/');
-  const nextMockResponse = (request: Request): Response => {
-    const isOpenSea = isOpenSeaRequest(request.url);
-    if (isOpenSea && openSeaFetchError) throw openSeaFetchError;
-    if (isOpenSea && openSeaResponseQueue?.length) return openSeaResponseQueue.shift() as Response;
-    return upstreamResponses.shift() || upstreamResponse;
+  const takeOpenSeaResponse = (request: Request): Response | undefined => {
+    if (!isOpenSeaRequest(request.url)) return undefined;
+    if (openSeaFetchError) throw openSeaFetchError;
+    return openSeaResponseQueue?.shift();
   };
+  const nextMockResponse = (request: Request): Response =>
+    takeOpenSeaResponse(request) || upstreamResponses.shift() || upstreamResponse;
   const mockFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (shouldThrow) return Promise.reject(new Error('simulated upstream outage'));
     capturedRequest = input instanceof Request ? input : new Request(input, init);
