@@ -1,13 +1,9 @@
-#!/usr/bin/env node
 import process from 'node:process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const REQUIRED_PATHS = new Set([
-  '/api/health',
-  '/api/runtime-verification?probeAi=false',
-  '/api/reports/summary',
-]);
-
-const PROBE_PATHS = [
+export const DEFAULT_VERIFIER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
+export const PROBE_PATHS = [
   '/api/health',
   '/api/runtime-verification?probeAi=false',
   '/api/reports/summary',
@@ -16,90 +12,58 @@ const PROBE_PATHS = [
   '/api/neural/ready',
 ];
 
-const BLOCKED_HOSTNAMES = new Set(['localhost', 'metadata.google.internal']);
-
-function isPrivateAddress(hostname) {
-  if (BLOCKED_HOSTNAMES.has(hostname)) return true;
-  if (hostname === '::1' || hostname.endsWith('.local')) return true;
-  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!ipv4) return false;
-  const [a, b] = ipv4.slice(1).map(Number);
-  if (a === 127 || a === 10 || a === 0) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  return false;
-}
-
-function parseBase(value) {
+export function parseBase(value) {
   let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    console.error('ERROR: base URL is invalid.');
-    process.exit(2);
-  }
-  if (parsed.protocol !== 'https:') {
-    console.error('ERROR: base URL must use the https: scheme.');
-    process.exit(2);
-  }
-  if (isPrivateAddress(parsed.hostname)) {
-    console.error('ERROR: base URL must not target localhost, private, link-local, or metadata addresses.');
-    process.exit(2);
+  try { parsed = new URL(value); }
+  catch { throw new TypeError('base URL must be the approved HTTPS origin.'); }
+  if (parsed.protocol !== 'https:' || parsed.origin !== DEFAULT_VERIFIER_ORIGIN ||
+      parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '' ||
+      parsed.username !== '' || parsed.password !== '') {
+    throw new TypeError('base URL must be the approved HTTPS origin.');
   }
   return parsed;
 }
 
-async function probe(target, path) {
-  const recordedAt = new Date().toISOString();
-  try {
-    const response = await fetch(new URL(path, target), {
-      method: 'GET',
-      redirect: 'manual',
-      signal: AbortSignal.timeout(10_000),
-    });
-    const contentType = response.headers.get('content-type') ?? 'unknown';
-    const isJson = contentType.includes('application/json');
-    const ok = REQUIRED_PATHS.has(path) ? response.ok : response.status < 500;
-    console.log(JSON.stringify({
-      recordedAt,
-      target: target.origin,
-      path,
-      method: 'GET',
-      status: response.status,
-      contentType,
-      responseShape: isJson ? 'json' : 'non-json',
-      required: REQUIRED_PATHS.has(path),
-      ok,
-    }));
-    return ok;
-  } catch (error) {
-    console.log(JSON.stringify({
-      recordedAt,
-      target: target.origin,
-      path,
-      method: 'GET',
-      error: error.name,
-      ok: false,
-    }));
-    return false;
-  }
+export async function run({ base, fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
+  const target = parseBase(base);
+  if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function.');
+  const results = await Promise.all(PROBE_PATHS.map(async (path) => {
+    const recordedAt = now().toISOString();
+    try {
+      const response = await fetchImpl(new URL(path, target), {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10_000),
+      });
+      const contentType = response.headers?.get?.('content-type') ?? 'unknown';
+      const ok = Number.isInteger(response.status) && response.status >= 200 && response.status < 300;
+      return { recordedAt, target: target.origin, path, method: 'GET', status: response.status,
+        contentType, responseShape: contentType.includes('application/json') ? 'json' : 'non-json', ok };
+    } catch (error) {
+      return { recordedAt, target: target.origin, path, method: 'GET',
+        error: error instanceof Error ? error.name : 'UnknownError', ok: false };
+    }
+  }));
+  return { exitCode: results.every((item) => item.ok) ? 0 : 1, results };
 }
 
 async function main() {
   const base = process.argv[2];
   if (!base) {
-    console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://example.com');
-    process.exit(2);
+    console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://glorifier.glorifier.workers.dev');
+    process.exitCode = 2;
+    return;
   }
-
-  const target = parseBase(base);
-  const results = await Promise.all(PROBE_PATHS.map((path) => probe(target, path)));
-  const failures = results.filter((ok) => !ok).length;
-  process.exit(failures ? 1 : 0);
+  try {
+    const result = await run({ base });
+    for (const item of result.results) console.log(JSON.stringify(item));
+    process.exitCode = result.exitCode;
+  } catch (error) {
+    console.error('ERROR: ' + (error instanceof Error ? error.message : 'verification failed'));
+    process.exitCode = 2;
+  }
 }
 
-main().catch((error) => {
-  console.error(`ERROR: ${error.message}`);
-  process.exit(1);
-});
+const isDirectExecution = process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (isDirectExecution) void main();
