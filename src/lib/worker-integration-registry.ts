@@ -153,7 +153,7 @@ export const buildWorkerIntegrationDataStatus = (): {
     notObservable: number;
   };
   data: DataStatusRecord[];
-} {
+} => {
   const data: DataStatusRecord[] = integrationInventory.map((item) => ({
     ...item,
     configurationStatus: configurationStatusByIntegrationStatus[item.status],
