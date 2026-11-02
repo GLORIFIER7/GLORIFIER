@@ -80,7 +80,7 @@ export function buildWorkerIntegrationRegistry(
       category: 'protocol',
       status: env.MCP_RATE_LIMITER ? 'configured' : 'needs-config',
       detail: env.MCP_RATE_LIMITER
-        ? 'The fixed-scope read-only MCP endpoint has its rate-limit binding. External-client protocol interoperability remains NOT VERIFIED.'
+        ? 'The Worker implements a credential-free, fixed-scope read-only MCP route for this public repository and has its required rate-limit binding. The binding enables the route; it is not a GitHub credential or proof of external-client interoperability.'
         : 'The MCP endpoint is disabled until its environment has an independent rate-limit binding.',
       publicUrl: 'https://github.com/GLORIFIER7/GLORIFIER',
     },
