@@ -77,13 +77,7 @@
   "previews": {
     "vars": {
       "GLORIFIER_DATABASE_PROVIDER": "neon"
-    },
-    "hyperdrive": [
-      {
-        "binding": "HYPERDRIVE",
-        "id": "eff847b6c3c64488a989f1fa67d966a0"
-      }
-    ]
+    }
   },
   "main": "./src/worker.ts",
   "compatibility_flags": [
