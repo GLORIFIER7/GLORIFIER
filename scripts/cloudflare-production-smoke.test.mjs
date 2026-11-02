@@ -22,6 +22,10 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     'the production deployment workflow must not issue HTTP mutation methods');
   assert.equal(smokeSource.includes('fetchProductionMcp'), false,
     'production smoke must not make MCP POST requests');
+  const deployIndex = workflow.indexOf('run: wrangler deploy');
+  const releaseSmokeIndex = workflow.indexOf('run: node scripts/cloudflare-production-smoke.mjs');
+  assert.ok(deployIndex >= 0 && releaseSmokeIndex > deployIndex,
+    'the read-only production smoke suite must run after the explicit deployment step');
 });
 
 const reports = {
