@@ -3,49 +3,54 @@ const { appendFile } = require('node:fs/promises');
 const ISSUE_SUMMARY_HEADING = '## AI-generated issue summary (review before reuse)';
 const ISSUE_FALLBACK_HEADING = '## Issue summary unavailable';
 
-function buildIssueSummary({
-  inferenceOutcome,
-  response,
-  issueNumber,
-  serverUrl,
-  repository,
-}) {
-  const summary = typeof response === 'string' ? response.trim() : '';
-  if (inferenceOutcome === 'success' && summary) {
-    return `${ISSUE_SUMMARY_HEADING}\n\n${summary}\n`;
-  }
-
+const normalizeIssueNumber = (issueNumber) => {
   let normalizedIssueNumber = '';
   if (typeof issueNumber === 'number') {
     normalizedIssueNumber = String(issueNumber);
   } else if (typeof issueNumber === 'string') {
     normalizedIssueNumber = issueNumber.trim();
   }
-  if (!/^[1-9]\d*$/.test(normalizedIssueNumber) ||
+  if (!/^[1-9]\\d*$/.test(normalizedIssueNumber) ||
       !Number.isSafeInteger(Number(normalizedIssueNumber))) {
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
+  return normalizedIssueNumber;
+};
 
+const parseRepositoryIdentifier = (repository) => {
   const repositoryParts = typeof repository === 'string' ? repository.split('/') : [];
+  const owner = repositoryParts[0];
+  const name = repositoryParts[1];
   if (repositoryParts.length !== 2 ||
-      !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(repositoryParts[0]) ||
-      !/^[A-Za-z0-9_.-]+$/.test(repositoryParts[1]) ||
-      repositoryParts[1] === '.' || repositoryParts[1] === '..') {
+      !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner) ||
+      !/^[A-Za-z0-9_.-]+$/.test(name) ||
+      name === '.' || name === '..') {
     throw new Error('A valid GitHub repository identifier is required for the fallback link.');
   }
+  return `${owner}/${name}`;
+};
 
-  let server;
+const parseGitHubServerUrl = (serverUrl) => {
+  let parsedServer = null;
   try {
-    server = new URL(serverUrl);
+    parsedServer = new URL(serverUrl);
   } catch {
+    // Validation below returns one stable error for malformed and unsafe URLs.
+  }
+  if (!parsedServer || parsedServer.protocol !== 'https:' ||
+      parsedServer.username || parsedServer.password ||
+      parsedServer.search || parsedServer.hash ||
+      (parsedServer.pathname !== '/' && parsedServer.pathname !== '')) {
     throw new Error('A valid HTTPS GitHub server URL is required for the fallback link.');
   }
-  if (server.protocol !== 'https:' || server.username || server.password ||
-      server.search || server.hash || (server.pathname !== '/' && server.pathname !== '')) {
-    throw new Error('A valid HTTPS GitHub server URL is required for the fallback link.');
-  }
+  return parsedServer;
+};
 
-  const issueUrl = new URL(`/${repository}/issues/${normalizedIssueNumber}`, server.origin);
+const buildFallbackIssueSummary = ({ issueNumber, serverUrl, repository }) => {
+  const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
+  const normalizedRepository = parseRepositoryIdentifier(repository);
+  const server = parseGitHubServerUrl(serverUrl);
+  const issueUrl = new URL(`/${normalizedRepository}/issues/${normalizedIssueNumber}`, server.origin);
   return [
     ISSUE_FALLBACK_HEADING,
     '',
@@ -53,10 +58,18 @@ function buildIssueSummary({
     '',
     `Review the source issue: [#${normalizedIssueNumber}](${issueUrl.toString()}).`,
     '',
-  ].join('\n');
-}
+  ].join('\\n');
+};
 
-async function publishIssueSummaryFromEnvironment() {
+const buildIssueSummary = (input) => {
+  const summary = typeof input.response === 'string' ? input.response.trim() : '';
+  if (input.inferenceOutcome === 'success' && summary) {
+    return `${ISSUE_SUMMARY_HEADING}\\n\\n${summary}\\n`;
+  }
+  return buildFallbackIssueSummary(input);
+};
+
+const publishIssueSummaryFromEnvironment = async () => {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!summaryPath) {
     throw new Error('GITHUB_STEP_SUMMARY is required to publish the issue summary.');
@@ -70,7 +83,7 @@ async function publishIssueSummaryFromEnvironment() {
     repository: process.env.GITHUB_REPOSITORY,
   });
   await appendFile(summaryPath, markdown, { encoding: 'utf8' });
-}
+};
 
 if (require.main === module) {
   publishIssueSummaryFromEnvironment().catch((error) => {
