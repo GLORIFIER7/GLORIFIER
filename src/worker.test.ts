@@ -97,6 +97,20 @@ async function run(): Promise<void> {
       'Preview configuration must not point to the production Supabase project');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
       'Preview configuration must never include production database secrets');
+    assert.equal((wranglerConfig as { observability?: { enabled?: boolean; redactQueryString?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability?.enabled, true,
+      'production Worker observability must be enabled');
+    const observability = (wranglerConfig as { observability?: { enabled?: boolean; redactQueryString?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability;
+    assert.equal(observability?.redactQueryString, true,
+      'observability must redact URL query strings to avoid recording sensitive query parameters');
+    assert.equal(observability?.logs?.enabled, true);
+    assert.equal(observability?.logs?.invocation_logs, true);
+    assert.equal(observability?.logs?.head_sampling_rate, 0.1,
+      'Worker invocation logs must use a conservative 10% sampling rate');
+    assert.equal(observability?.traces?.enabled, true);
+    assert.equal(observability?.traces?.head_sampling_rate, 0.01,
+      'Worker traces must use a conservative 1% sampling rate');
+    assert.equal(observability?.issues?.enabled, true,
+      'Cloudflare Workers Issues detection must be enabled');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp'), 'Cloudflare assets must route /mcp through the Worker before SPA fallback');
     assert.ok(wranglerConfig.assets?.run_worker_first?.includes('/mcp/*'), 'Cloudflare assets must route nested /mcp paths through the Worker');
 
