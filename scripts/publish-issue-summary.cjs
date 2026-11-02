@@ -17,30 +17,38 @@ const normalizeIssueNumber = (issueNumber) => {
   return normalizedIssueNumber;
 };
 
+const isValidRepositoryOwner = (owner) => /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(owner);
+const isValidRepositoryName = (name) =>
+  /^[A-Za-z0-9_.-]+$/.test(name) && name !== '.' && name !== '..';
+
 const parseRepositoryIdentifier = (repository) => {
   const repositoryParts = typeof repository === 'string' ? repository.split('/') : [];
   const owner = repositoryParts[0];
   const name = repositoryParts[1];
   if (repositoryParts.length !== 2 ||
-      !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner) ||
-      !/^[A-Za-z0-9_.-]+$/.test(name) ||
-      name === '.' || name === '..') {
+      !isValidRepositoryOwner(owner) ||
+      !isValidRepositoryName(name)) {
     throw new Error('A valid GitHub repository identifier is required for the fallback link.');
   }
   return `${owner}/${name}`;
 };
 
+const isValidGitHubServer = (server) =>
+  server.protocol === 'https:' &&
+  !server.username &&
+  !server.password &&
+  !server.search &&
+  !server.hash &&
+  (server.pathname === '/' || server.pathname === '');
+
 const parseGitHubServerUrl = (serverUrl) => {
-  let parsedServer = null;
+  let parsedServer;
   try {
     parsedServer = new URL(serverUrl);
   } catch {
-    // Validation below returns one stable error for malformed and unsafe URLs.
+    throw new Error('A valid HTTPS GitHub server URL is required for the fallback link.');
   }
-  if (!parsedServer || parsedServer.protocol !== 'https:' ||
-      parsedServer.username || parsedServer.password ||
-      parsedServer.search || parsedServer.hash ||
-      (parsedServer.pathname !== '/' && parsedServer.pathname !== '')) {
+  if (!isValidGitHubServer(parsedServer)) {
     throw new Error('A valid HTTPS GitHub server URL is required for the fallback link.');
   }
   return parsedServer;
