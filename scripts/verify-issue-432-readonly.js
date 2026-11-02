@@ -70,7 +70,7 @@ export async function run({ base, fetchImpl = globalThis.fetch, now = () => new 
 async function main() {
   const base = process.argv[2];
   if (!base) {
-    console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://glorifier.glorifier.workers.dev');
+    console.error('Usage: node scripts/verify-issue-432-readonly.js https://glorifier.glorifier.workers.dev');
     process.exitCode = 2;
     return;
   }

@@ -5,7 +5,7 @@ import {
   parseBase,
   PROBE_PATHS,
   run,
-} from './verify-issue-432-readonly.mjs';
+} from './verify-issue-432-readonly.js';
 
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 const RECORDED_AT = '2026-11-02T05:00:00.000Z';
