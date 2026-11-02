@@ -5,6 +5,26 @@
 **Reviewed:** 2026-11-01  
 **Budget constraint:** zero-cost / Free plan only unless the owner separately approves spending.
 
+## Current production checkpoint — 2026-11-02T10:34:22Z
+
+**Status: PARTIALLY VERIFIED — the production operational-reporting and runtime-verification paths use Neon Hyperdrive; system-wide database parity and application cutover are not complete.** This checkpoint supersedes older statements below wherever they conflict. Earlier dated sections are retained as historical audit records.
+
+- Cloudflare Worker `glorifier` production deployment `3c5abfa9-91b3-4ee8-ade5-01b1305d4431` assigns 100% of traffic to version 880, `5a854d11-1f57-4401-80f9-fb39cf036cbf`. Its deployment annotation identifies build commit `46b6f28fc9044556adb2a92845fa6de8e9442a18`.
+- The live Worker settings select `GLORIFIER_DATABASE_PROVIDER=neon` and bind `HYPERDRIVE` to configuration `eff847b6c3c64488a989f1fa67d966a0`.
+- The production smoke workflow [run 41429845675](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41429845675), executed from current main commit `bd4b62cd15adbae3d5c8bd4ecac6183346745874`, probed the canonical production Worker URL. At 2026-11-02T10:34:22Z:
+  - `GET /api/reports/summary`: HTTP 200; source `neon-hyperdrive`; exact counts: approvals 9, events 251,212, registry 30, analyses 266, evidence 1,099, reports 133 (total 252,749).
+  - `GET /api/runtime-verification`: HTTP 200; Neon Hyperdrive count probe passed; `connectionRegistryRows=30`.
+  - `GET /api/health`: HTTP 200 (Worker/assets liveness only).
+  - Unauthenticated `GET /api/app-state`: HTTP 401 (`AUTHENTICATION_REQUIRED`), as expected.
+  - `GET /api/identity`: HTTP 503 with an explicit `not-ready` contract because canonical domain ownership and organization email are not configured.
+  - Runtime verification reports Neural as not configured; authentication and AI provider calls are not probed.
+- The [production E2E workflow](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41429898333) also completed successfully. These workflow results verify only the named probes and E2E scope; they do not prove all application routes, all database objects, authentication flows, AI inference, or external-chain connectivity.
+- Neon remains the declared operational source of truth. The six shared Supabase operational tables still have zero rows while Neon has the counts above. This is an intentional, documented data divergence, **not data parity**. No data copy, dual-write, overwrite, or migration was performed.
+- The previously audited Worker database role is limited to the security-barrier aggregate reporting view and has no direct base-table SELECT grant. Continue to verify that grant boundary before changing the view or adding reporting columns.
+- Preview configuration reuses the same Hyperdrive configuration ID as production. It is a read-only reporting connection, but it is **not a separate Neon staging database**. Do not describe preview execution as data-isolated staging or run write-capable preview code against it.
+- Cloudflare observability showed active exception groups whose sampled 502 URLs used a generated preview hostname rather than the canonical production hostname. The sampled 503 requests were `/api/identity` on that preview hostname and match the documented not-ready identity contract. Keep the preview 502 issue open until its full traces and exact cause are established; do not disable issue detection or infer a production outage from preview-only samples.
+
+
 ## Why Neon is the better primary database
 
 The current evidence favors retaining Neon rather than migrating the entire database to Supabase:
@@ -104,7 +124,7 @@ The existing Worker uses Supabase REST today. Merely adding a Hyperdrive binding
 - Do not upgrade a plan, accept a charge, create paid infrastructure, or enable a paid add-on without explicit approval.
 - After cutover, retain the previous Worker version and Supabase configuration until the agreed observation window and owner-approved retirement.
 
-## Hyperdrive and Neon role readiness audit — 2026-11-01T15:30Z
+## Historical audit snapshot — Hyperdrive and Neon role readiness (2026-11-01T15:30Z; superseded by the current checkpoint above)
 
 Cloudflare's read-only Hyperdrive configuration list returned `total_count: 0` for the GLORIFIER account. There is currently no Hyperdrive resource to bind to the Worker.
 
@@ -120,7 +140,7 @@ No dedicated `glorifier_worker` login role was present. These existing administr
 
 For the initial reporting-only route, create a separate login role with no role/database creation, no superuser, no `BYPASSRLS`, and read-only `SELECT` access limited to the six approved operational tables. The credential must be generated and stored through a secure, owner-controlled channel; it must never appear in source, chat, issue text, or CI logs. Role creation and Hyperdrive provisioning remain separate owner-approved operational actions and were not performed in this audit.
 
-## Live read-only candidate verification — 2026-11-02T05:29Z
+## Historical candidate verification snapshot — 2026-11-02T05:29Z (superseded by the current checkpoint above)
 
 ### Cloudflare deployment state
 
@@ -143,6 +163,15 @@ The production URL still reports `supabase-postgrest` as the database source, wi
 
 ## Current status
 
-**PARTIALLY VERIFIED — PRODUCTION CUTOVER NOT VERIFIED OR PERFORMED.** Neon is the approved canonical database target. A real query through Cloudflare Hyperdrive has now succeeded from uploaded version 877, and the dedicated Worker role is least-privilege for the aggregate reporting view. However, production traffic remains on Supabase version 874; Neon and Supabase counts differ; the successful preview query used the Neon main branch through a publicly reachable Version URL; and the new transaction guard in PR #604 has not been deployed. Full schema/index/constraint reconciliation, deterministic per-table checksums, route-by-route data-source migration, backup/restore validation, isolated staging and preview access policy, identity configuration, Neural deployment/readiness, and rollback verification remain open.
+**PARTIALLY VERIFIED — PRODUCTION REPORTING CUTOVER VERIFIED; FULL DATABASE AND APPLICATION MIGRATION NOT VERIFIED.**
 
-No production deployment, traffic shift, production data movement, schema migration, or Supabase retirement has been performed. Keep Neon unchanged and preserve the current production version until all cutover gates above pass and the owner separately approves the release.
+The active production Worker uses Neon Hyperdrive for the operational reporting and runtime-verification paths, as demonstrated by the 2026-11-02 production smoke evidence above. This is not proof that every legacy Express route, all 141 Neon public tables, or every data-writing path has migrated to Neon. The six corresponding Supabase operational tables remain empty, and index definitions differ between the databases. Neon remains the operational source of truth; Supabase is not a synchronized replica.
+
+Remaining gates:
+- Configure canonical domain identity and organization email only after the organization controls the domain and the email destination is verified.
+- Deploy GLORIFIER-NEURAL to a reviewed HTTPS staging origin, configure exact host allowlisting and a runtime credential, then verify health/readiness, invalid-token rejection, and a harmless read-only task.
+- Complete route-by-route backend/data-source inventory and authenticated API/RLS denial tests.
+- Decide whether the empty Supabase operational tables remain dormant or are retired; any data movement or retirement needs a reviewed backup, checksum, cutover, and rollback plan.
+- Verify the preview database policy. Current preview configuration reuses the production Hyperdrive ID and therefore is not a separate database-isolated staging environment.
+
+No production configuration, secrets, database schema, data, traffic split, DNS, or deployment was changed by this documentation update. Preserve existing production traffic and data until each required gate passes and the owner separately approves the corresponding operational action.
