@@ -136,7 +136,13 @@ const main = async () => {
   }
 };
 
-if (require.main === module) void main();
+if (require.main === module) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : 'verification failed';
+    process.stderr.write(`ERROR: ${message}\n`);
+    process.exitCode = 1;
+  });
+}
 
 module.exports = {
   DEFAULT_VERIFIER_ORIGIN,
