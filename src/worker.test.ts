@@ -553,7 +553,7 @@ async function run(): Promise<void> {
       new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
     );
-    assert.equal(a2aCardWithoutBackend.status, 502, 'A2A discovery must fail closed without a configured backend route');
+    assert.equal(a2aCardWithoutBackend.status, 503, 'A2A discovery must report an unconfigured backend as service unavailable');
     assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
     assert.equal(capturedRequest, null);
 
@@ -1193,7 +1193,7 @@ async function run(): Promise<void> {
       }),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
     );
-    assert.equal(exactSessionCookieWithoutBackend.status, 502);
+    assert.equal(exactSessionCookieWithoutBackend.status, 503, 'valid session credentials cannot make an unconfigured backend available');
     assert.equal(await exactSessionCookieWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
 
     const credentialedAppStateWithoutBackend = await worker.fetch(
@@ -1202,7 +1202,7 @@ async function run(): Promise<void> {
       }),
       { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
     );
-    assert.equal(credentialedAppStateWithoutBackend.status, 502);
+    assert.equal(credentialedAppStateWithoutBackend.status, 503, 'authenticated app-state must report the unavailable backend as service unavailable');
     assert.equal(await credentialedAppStateWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
 
     upstreamResponse = new Response('{"ok":true}', {
