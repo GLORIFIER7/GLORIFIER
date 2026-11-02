@@ -882,15 +882,30 @@ const validateCuratedSourceUrl = (sourceUrl: string): URL => {
 const normalizeCuratedPath = (pathname: string): string =>
   pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 
-export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
-  nextUrl.protocol === 'https:'
-  && nextUrl.origin === originalUrl.origin
-  && !nextUrl.username
-  && !nextUrl.password
-  && (!nextUrl.port || nextUrl.port === '443')
-  && normalizeCuratedPath(nextUrl.pathname) === normalizeCuratedPath(originalUrl.pathname)
-  && nextUrl.search === originalUrl.search
-  && !nextUrl.hash;
+/**
+ * Only source-specific canonical redirects may leave the originally curated path.
+ * This keeps legitimate vendor URL moves explicit instead of trusting an entire host.
+ */
+const CURATED_SOURCE_REDIRECT_PATHS = new Map<string, string[]>([
+  [
+    'https://www.etsi.org/technologies/multi-access-edge-computing',
+    [
+      '/technologies/multi-access-edge-computing',
+      '/technologies/ict-infrastructure-operations/',
+    ],
+  ],
+]);
+
+export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean => {
+  const permittedPaths = CURATED_SOURCE_REDIRECT_PATHS.get(originalUrl.href) ?? [originalUrl.pathname];
+  const normalizedPath = normalizeCuratedPath(nextUrl.pathname);
+  return nextUrl.protocol === 'https:'
+    && nextUrl.origin === originalUrl.origin
+    && !nextUrl.username
+    && !nextUrl.password
+    && (!nextUrl.port || nextUrl.port === '443')
+    && permittedPaths.some((path) => normalizeCuratedPath(path) === normalizedPath);
+};
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
@@ -905,7 +920,7 @@ const resolveCuratedRedirectTarget = async (
 
   const nextUrl = new URL(location, requestUrl);
   if (!isTrustedCuratedRedirectTarget(nextUrl, originalUrl)) {
-    throw new Error('source redirect rejected: target must remain HTTPS on the curated hostname');
+    throw new Error('source redirect rejected: target is outside the source-specific curated redirect paths');
   }
   return nextUrl;
 };
@@ -918,7 +933,7 @@ const fetchCuratedRedirectChain = async (
   let requestUrl = originalUrl;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
     if (!isTrustedCuratedRedirectTarget(requestUrl, originalUrl)) {
-      throw new Error('source fetch rejected: target must remain HTTPS on the curated hostname allowlist');
+      throw new Error('source fetch rejected: target is outside the source-specific curated redirect paths');
     }
     const response = await fetch(requestUrl.toString(), {
       redirect: 'manual',
@@ -939,7 +954,7 @@ const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, orig
   const finalUrl = new URL(response.url || requestUrl.toString());
   if (!isTrustedCuratedRedirectTarget(finalUrl, originalUrl)) {
     await response.body?.cancel().catch(() => undefined);
-    throw new Error('source redirect rejected: final URL must preserve the curated HTTPS origin and path');
+    throw new Error('source redirect rejected: final URL must remain within the source-specific curated redirect paths');
   }
   return finalUrl;
 };
