@@ -1,7 +1,7 @@
 import { buildGLRAIServiceQuote, divideDecimal } from './glr-commerce';
 
 /** Throws a descriptive error when a GLR commerce regression expectation fails. */
-const expect = (condition: unknown, message: string): void => {
+const assertCondition = (condition: unknown, message: string): void => {
   if (!condition) throw new Error(message);
 };
 
