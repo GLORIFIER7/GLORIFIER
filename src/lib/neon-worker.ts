@@ -172,14 +172,14 @@ const throwIfNeonQueryFailed = (
   query: AsyncResult<NeonOperationalCounts>,
   close: AsyncResult<void>,
 ): void => {
-  const errors = [
-    ...getAsyncResultErrors(query),
-    ...getAsyncResultErrors(close),
-  ];
-  if (errors.length > 1) {
-    throw new AggregateError(errors, 'Neon count query, rollback, or client cleanup failed.');
-  }
-  if (errors.length === 1) throw errors[0];
+  // Only aggregate when cleanup also failed; otherwise rethrow the query
+  // error unchanged so its specific message (e.g. rollback failure) survives.
+  if (close.ok) return;
+  if (query.ok) throw close.error;
+  throw new AggregateError(
+    [...getAsyncResultErrors(query), close.error],
+    'Neon count query, rollback, or client cleanup failed.',
+  );
 };
 
 const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {

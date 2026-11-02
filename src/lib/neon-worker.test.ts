@@ -253,3 +253,49 @@ test('preserves query, rollback, and client cleanup failures together', async ()
   assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
   assert.equal(statements[2], 'ROLLBACK');
 });
+
+test('rolls back without committing when count validation fails', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      return Promise.resolve({
+        rows: sql.includes('FROM public.glorifier_worker_operational_counts') ? expectedRows.slice(1) : [],
+      });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    /exactly six operational table counts/,
+  );
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.equal(statements[2], 'ROLLBACK');
+  assert.ok(!statements.includes('COMMIT'));
+});
+
+test('reports a rollback failure with its specific message when cleanup succeeds', async () => {
+  const queryError = new Error('simulated count query failure');
+  const rollbackError = new Error('simulated rollback failure');
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) return Promise.reject(queryError);
+      if (sql.trim() === 'ROLLBACK') return Promise.reject(rollbackError);
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /could not be rolled back/);
+      assert.deepEqual(error.errors, [queryError, rollbackError]);
+      return true;
+    },
+  );
+});
