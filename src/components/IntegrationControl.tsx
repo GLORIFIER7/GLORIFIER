@@ -148,7 +148,8 @@ export const IntegrationControl: React.FC = () => {
               ['Total', dataStatus.summary.total],
               ['Verified', dataStatus.summary.verified],
               ['Not verified', dataStatus.summary.notVerified],
-              ['Needs configuration', dataStatus.summary.needsConfiguration],\n              ['Not observable', dataStatus.summary.notObservable],
+              ['Needs configuration', dataStatus.summary.needsConfiguration],
+              ['Not observable', dataStatus.summary.notObservable],
             ].map(([label, value]) => (
               <div key={String(label)} className="bg-slate-950 p-4">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
