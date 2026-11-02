@@ -98,31 +98,32 @@ Use Cloudflare Hyperdrive to connect the Worker to Neon through a dedicated leas
 - Migrate one route group at a time. Compare live counts and deterministic per-table checksums before promoting the Neon-backed implementation.
 - Only after all required Worker routes and checks pass should the Supabase service-role secret/URL be removed from Worker configuration. Retain the Supabase project read-only until owner-approved retirement.
 
-The existing Worker uses Supabase REST today. Merely adding a Hyperdrive binding or changing documentation does not change runtime database routing.
+The 2026-11-02 production smoke evidence supersedes that earlier description: the selected operational-reporting and runtime-verification routes now use Neon Hyperdrive. Other legacy routes and all general database write paths remain outside the verified scope.
 
-## Required cutover gates
+## Remaining database migration gates
 
-- [ ] Owner confirms Neon as the canonical production database and the current write paths.
+- [x] Owner selected Neon as the canonical operational database target. Per-route production write paths still require an inventory.
 - [ ] Neon backup/snapshot and tested restore path recorded; no source data is deleted.
-- [ ] Dedicated Neon Worker role created with least privilege; role grants inspected.
-- [ ] Cloudflare Hyperdrive configured and bound to a non-production Worker first.
-- [ ] Worker code uses Hyperdrive for the approved route group; no silent Supabase fallback.
-- [ ] Exact row counts match for every migrated table.
-- [ ] Deterministic, primary-key-ordered per-table checksums match; sensitive row values are not written to logs.
-- [ ] Primary keys, foreign keys, sequences, indexes, constraints, and required extensions reconciled.
-- [ ] Worker unit tests, source CI, Linux CI, security checks, and staging integration pass.
-- [ ] Live Worker runtime verification reports Neon as the database source and exact-count probes pass.
-- [ ] Rollback to the previous Worker version and known-good database path is documented and tested.
-- [ ] Owner separately approves production binding/secret changes and deployment.
+- [x] Dedicated least-privilege Neon Worker role and aggregate-view grant boundary were inspected in the prior read-only audit; re-check before granting additional access.
+- [x] Cloudflare Hyperdrive is bound to the production Worker for the verified reporting route group.
+- [ ] A separate non-production Neon database/Hyperdrive path is provisioned and verified. Current Wrangler previews reuse the production Hyperdrive ID and are not data-isolated staging.
+- [x] Worker code uses Hyperdrive for `GET /api/reports/summary` and `GET /api/runtime-verification`; both passed live production probes.
+- [ ] Exact row counts and deterministic, primary-key-ordered checksums match across every table selected for migration. The six shared Supabase operational tables currently have zero rows, so cross-database data parity is not established.
+- [ ] Primary keys, foreign keys, sequences, indexes, constraints, and required extensions are reconciled across the complete migration scope.
+- [x] Latest source CI, Linux checks, security checks, Cloudflare Worker validation, production smoke, and production E2E checks passed for their declared scopes.
+- [ ] Authenticated API/RLS denial tests and isolated staging integration pass for the complete migrated route set.
+- [x] Live production runtime verification reports Neon as the database source and the six-table exact-count probe passes.
+- [ ] Rollback to the previous Worker version and known-good database path is documented and tested for the next migration scope.
+- [ ] Owner separately approves any additional production binding/secret changes, route expansion, or deployment.
 
 ## Rollback and safety
 
 - Keep Neon unchanged and available throughout the transition.
 - Do not truncate, reset, drop, or overwrite either database during the verification phase.
-- Do not update existing production routes to Neon until the staging integration is green and a rollback build exists.
+- Do not expand the Neon cutover to additional production routes until isolated staging, the relevant data/checksum gates, and a rollback build have passed.
 - Do not use Supabase and Neon as simultaneous authoritative write targets.
 - Do not upgrade a plan, accept a charge, create paid infrastructure, or enable a paid add-on without explicit approval.
-- After cutover, retain the previous Worker version and Supabase configuration until the agreed observation window and owner-approved retirement.
+- Retain the previous Worker version and the Supabase project/configuration until the reporting-route observation window is complete and any broader retirement is separately reviewed and owner-approved.
 
 ## Historical audit snapshot — Hyperdrive and Neon role readiness (2026-11-01T15:30Z; superseded by the current checkpoint above)
 
