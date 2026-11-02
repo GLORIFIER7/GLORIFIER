@@ -26,7 +26,7 @@ export function buildIssueSummary({
   }
 
   if (typeof repository !== 'string' ||
-      !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+      !/^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repository)) {
     throw new Error('A valid GitHub repository identifier is required for the fallback link.');
   }
 
