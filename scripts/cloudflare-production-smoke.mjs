@@ -8,7 +8,7 @@ const EXPECTED_MCP_TOOLS = [
   'github_list_open_pull_requests',
   'github_list_workflow_runs',
   'github_read_file',
-].sort();
+].sort((left, right) => left.localeCompare(right));
 
 const OPERATIONAL_COUNT_KEYS = [
   'connectionApprovals',
@@ -60,7 +60,7 @@ export const validateMcpReadOnlyTools = (body) => {
   assert.equal(body?.id, 2);
   const tools = body?.result?.tools;
   assert.ok(Array.isArray(tools), 'MCP tools/list must return a tools array');
-  assert.deepEqual(tools.map((tool) => tool.name).sort(), EXPECTED_MCP_TOOLS,
+  assert.deepEqual(tools.map((tool) => tool.name).sort((left, right) => left.localeCompare(right)), EXPECTED_MCP_TOOLS,
     'production MCP must expose only the four approved read-only GitHub tools');
   assert.ok(tools.every((tool) =>
     tool.annotations?.readOnlyHint === true &&
@@ -72,41 +72,40 @@ export const validateMcpReadOnlyTools = (body) => {
 
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
-export const requestJson = async (fetchRequest, options = {}, acceptedStatuses = [200]) => {
-  const attempts = 4;
-  let lastError;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const response = await fetchRequest({
-        ...options,
-        signal: AbortSignal.timeout(15_000),
-      });
-      const raw = await response.text();
-      let body;
-      try {
-        body = raw ? JSON.parse(raw) : {};
-      } catch {
-        const error = new Error(`Production endpoint returned non-JSON content (HTTP ${response.status})`);
-        error.retryable = false;
-        throw error;
-      }
-      if (acceptedStatuses.includes(response.status)) {
-        return { status: response.status, body };
-      }
-      const error = new Error(`Production endpoint returned HTTP ${response.status}: ${String(body?.code ?? body?.error ?? 'unexpected response')}`);
-      if (response.status < 500 || attempt === attempts - 1) {
-        error.retryable = false;
-        throw error;
-      }
-      lastError = error;
-    } catch (error) {
-      if (error?.retryable === false) throw error;
-      lastError = error;
-      if (attempt === attempts - 1) break;
-    }
-    await sleep(2_000 * (attempt + 1));
+const readJsonResponse = async (fetchRequest, options) => {
+  const response = await fetchRequest({
+    ...options,
+    signal: AbortSignal.timeout(15_000),
+  });
+  const raw = await response.text();
+  let body;
+  try {
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    const error = new Error(`Production endpoint returned non-JSON content (HTTP ${response.status})`);
+    error.retryable = response.status >= 500;
+    throw error;
   }
-  throw lastError ?? new Error('Unable to verify a production endpoint');
+  return { status: response.status, body };
+};
+
+export const requestJson = async (
+  fetchRequest,
+  options = {},
+  acceptedStatuses = [200],
+  attempt = 0,
+) => {
+  try {
+    const { status, body } = await readJsonResponse(fetchRequest, options);
+    if (acceptedStatuses.includes(status)) return { status, body };
+    const error = new Error(`Production endpoint returned HTTP ${status}: ${String(body?.code ?? body?.error ?? 'unexpected response')}`);
+    error.retryable = status >= 500 && attempt < 3;
+    throw error;
+  } catch (error) {
+    if (error?.retryable === false || attempt >= 3) throw error;
+    await sleep(2_000 * (attempt + 1));
+    return requestJson(fetchRequest, options, acceptedStatuses, attempt + 1);
+  }
 };
 
 const fetchProductionHealth = (options) =>
@@ -204,7 +203,7 @@ export const runProductionSmoke = async () => {
   await verifyUnauthenticatedBoundary();
   const tools = await verifyMcpSurface();
   const identity = await verifyIdentity();
-  console.log(`Neon exact counts verified: ${JSON.stringify(counts)}`);
+  console.log('Neon exact operational counts verified for all six reporting tables.');
   console.log(`MCP verified: ${tools.length} read-only tools exposed`);
   reportReadinessWarnings(identity, runtime);
   console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, auth boundary, MCP protocol and read-only tool policy.');
@@ -213,8 +212,10 @@ export const runProductionSmoke = async () => {
 };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  runProductionSmoke().catch((error) => {
-    console.error('GLORIFIER production smoke failed:', error instanceof Error ? error.message : String(error));
+  try {
+    await runProductionSmoke();
+  } catch {
+    console.error('GLORIFIER production smoke failed; inspect the protected deployment log for details.');
     process.exitCode = 1;
-  });
+  }
 }
