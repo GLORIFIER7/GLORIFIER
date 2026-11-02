@@ -1,14 +1,14 @@
 import { SOLANA_GLR_MINT, SOLANA_TOKEN_2022_PROGRAM, solanaGLRAmountToBaseUnits, verifySolanaGLRTransfer } from './glr-solana-verifier';
 
-function expect(condition: unknown, message: string) {
+function assertCondition(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
 }
 
-expect(solanaGLRAmountToBaseUnits('1') === 1000000000n, 'one GLR must equal 1e9 Solana base units');
-expect(solanaGLRAmountToBaseUnits('0.000000001') === 1n, 'smallest Solana GLR unit must be represented exactly');
+assertCondition(solanaGLRAmountToBaseUnits('1') === 1000000000n, 'one GLR must equal 1e9 Solana base units');
+assertCondition(solanaGLRAmountToBaseUnits('0.000000001') === 1n, 'smallest Solana GLR unit must be represented exactly');
 let excessDecimalsRejected = false;
 try { solanaGLRAmountToBaseUnits('0.0000000001'); } catch { excessDecimalsRejected = true; }
-expect(excessDecimalsRejected, 'more than 9 decimals must be rejected');
+assertCondition(excessDecimalsRejected, 'more than 9 decimals must be rejected');
 
 const signature = '5'.repeat(87);
 const payer = '11111111111111111111111111111111';
@@ -44,8 +44,8 @@ const verified = await verifySolanaGLRTransfer({
   transactionHash: signature, expectedAmount: '1', expectedPayerWallet: payer, fetchImpl: mockFetch,
   env: { GLR_SOLANA_PAYMENT_RECIPIENT: recipient, GLR_SOLANA_RPC_URL: 'https://rpc.example/path?api_key=do-not-persist' }
 });
-expect(verified.verified && verified.slot === 123456 && verified.decimals === 9, 'valid finalized Token-2022 GLR transfer must verify');
-expect(verified.verifier === 'https://rpc.example', 'persisted verifier evidence must omit RPC path and query credentials');
+assertCondition(verified.verified && verified.slot === 123456 && verified.decimals === 9, 'valid finalized Token-2022 GLR transfer must verify');
+assertCondition(verified.verifier === 'https://rpc.example', 'persisted verifier evidence must omit RPC path and query credentials');
 
 for (const rpcUrl of [
   'http://rpc.example',
@@ -58,13 +58,13 @@ for (const rpcUrl of [
       env: { GLR_SOLANA_PAYMENT_RECIPIENT: recipient, GLR_SOLANA_RPC_URL: rpcUrl },
     });
   } catch { rejected = true; }
-  expect(rejected, `unsafe RPC URL must be rejected: ${rpcUrl.split('@').pop()}`);
+  assertCondition(rejected, `unsafe RPC URL must be rejected: ${rpcUrl.split('@').pop()}`);
 }
 
 let disabled = false;
 try {
   await verifySolanaGLRTransfer({ transactionHash: signature, expectedAmount: '1', expectedPayerWallet: payer, fetchImpl: mockFetch, env: {} });
 } catch { disabled = true; }
-expect(disabled, 'verifier must remain disabled until recipient is configured');
+assertCondition(disabled, 'verifier must remain disabled until recipient is configured');
 
 console.log('Solana GLR verifier tests passed.');
