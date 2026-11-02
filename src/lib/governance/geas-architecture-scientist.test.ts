@@ -14,6 +14,7 @@ import {
   reuseNotModifiedSourceObservation,
   stripHtml,
   isTrustedArchitectureSourceUrl,
+  isTrustedCuratedRedirectTarget,
   findEarliestKeywordIndex,
   type ArchitectureDomain,
   type ArchitecturePattern,
@@ -75,6 +76,32 @@ const rejectedCuratedSourceUrls = [
 for (const sourceUrl of rejectedCuratedSourceUrls) {
   if (isTrustedArchitectureSourceUrl(sourceUrl)) {
     throw new Error(`unsafe or unapproved curated source URL was accepted: ${sourceUrl}`);
+  }
+}
+
+const redirectSource = new URL('https://www.nist.gov/itl/ai-risk-management-framework');
+const allowedRedirectTargets = [
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework/'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework'),
+];
+for (const target of allowedRedirectTargets) {
+  if (!isTrustedCuratedRedirectTarget(target, redirectSource)) {
+    throw new Error(`same-source canonical redirect should be allowed: ${target.href}`);
+  }
+}
+const rejectedRedirectTargets = [
+  new URL('https://www.nist.gov/internal'),
+  new URL('https://www.nist.gov/itl/other-standard'),
+  new URL('https://www.nist.gov:8443/itl/ai-risk-management-framework'),
+  new URL('http://www.nist.gov/itl/ai-risk-management-framework'),
+  new URL('https://attacker.example/itl/ai-risk-management-framework'),
+  new URL('https://user:password@www.nist.gov/itl/ai-risk-management-framework'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework?next=/internal'),
+  new URL('https://www.nist.gov/itl/ai-risk-management-framework#fragment'),
+];
+for (const target of rejectedRedirectTargets) {
+  if (isTrustedCuratedRedirectTarget(target, redirectSource)) {
+    throw new Error(`unsafe curated source redirect target was accepted: ${target.href}`);
   }
 }
 
