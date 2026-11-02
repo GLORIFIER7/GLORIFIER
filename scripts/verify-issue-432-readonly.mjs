@@ -12,6 +12,13 @@ export const PROBE_PATHS = [
   '/api/neural/ready',
 ];
 
+export function isJsonMediaType(contentType) {
+  if (typeof contentType !== 'string') return false;
+  const mediaType = contentType.split(';')[0].trim().toLowerCase();
+  return mediaType === 'application/json' ||
+    (/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+\+json$/.test(mediaType));
+}
+
 export function parseBase(value) {
   let parsed;
   try { parsed = new URL(value); }
@@ -36,9 +43,11 @@ export async function run({ base, fetchImpl = globalThis.fetch, now = () => new 
         signal: AbortSignal.timeout(10_000),
       });
       const contentType = response.headers?.get?.('content-type') ?? 'unknown';
-      const declaresJson = contentType.includes('application/json') || contentType.includes('+json');
       let responseShape = 'non-json';
-      if (declaresJson) {
+      if (!isJsonMediaType(contentType)) {
+        // Release the unread body so the connection is not held open.
+        try { await response.body?.cancel?.(); } catch { /* ignore */ }
+      } else {
         try {
           await response.json();
           responseShape = 'json';

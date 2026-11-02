@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  isJsonMediaType,
   parseBase,
   PROBE_PATHS,
   run,
@@ -115,4 +116,38 @@ test('continues every probe after network failures and returns a nonzero result'
   assert.equal(result.results.length, PROBE_PATHS.length);
   assert.ok(result.results.every((item) => item.ok === false));
   assert.ok(result.results.every((item) => item.error === 'Error'));
+});
+
+test('matches JSON media types exactly and case-insensitively', () => {
+  for (const accepted of [
+    'application/json',
+    'application/json; charset=utf-8',
+    'Application/JSON',
+    'application/problem+json',
+  ]) {
+    assert.equal(isJsonMediaType(accepted), true, accepted);
+  }
+  for (const rejected of [
+    'text/html',
+    'text/plain; note=application/json',
+    'text/html; profile=+json',
+    'unknown',
+    undefined,
+  ]) {
+    assert.equal(isJsonMediaType(rejected), false, String(rejected));
+  }
+});
+
+test('treats redirects as verification failures', async () => {
+  const result = await run({
+    base: APPROVED_ORIGIN,
+    fetchImpl: async () => new Response(null, {
+      status: 302,
+      headers: { Location: 'https://external.example/' },
+    }),
+    now: () => new Date(RECORDED_AT),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.ok(result.results.every((item) => item.ok === false && item.status === 302));
 });
