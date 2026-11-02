@@ -55,16 +55,10 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
   assert.equal(capturedConnectionString, binding.connectionString);
   assert.equal(connected, true);
   assert.equal(closed, true);
-  for (const table of [
-    'connection_approvals',
-    'connection_events',
-    'connection_registry',
-    'intelligence_analyses',
-    'intelligence_evidence',
-    'intelligence_reports',
-  ]) {
-    assert.ok(capturedSql.includes(`FROM public.${table}`));
-  }
+  assert.ok(capturedSql.includes('FROM public.glorifier_worker_operational_counts'),
+    'the Worker must read the aggregate-only database view');
+  assert.doesNotMatch(capturedSql, /FROM public\.(?:connection_approvals|connection_events|connection_registry|intelligence_analyses|intelligence_evidence|intelligence_reports)\b/i,
+    'the Worker login must not query base operational tables directly');
   assert.doesNotMatch(capturedSql, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\b/i);
 });
 
