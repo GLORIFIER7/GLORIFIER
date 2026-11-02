@@ -21,10 +21,10 @@ before(async () => {
 
   schemaName = 'agent_state_test_' + randomUUID().replace(/-/g, '');
   adminPool = new Pool({ connectionString, max: 2 });
-  await adminPool.query('CREATE SCHEMA "' + schemaName + '"');
+  await adminPool.query(`CREATE SCHEMA "${schemaName}"`);
   pool = new Pool({ connectionString, max: 4, options: '-c search_path=' + schemaName });
   const query: AgentStateQuery = async (sql, values) => {
-    const result = values ? await pool!.query(sql, values as any[]) : await pool!.query(sql);
+    const result = values ? await pool!.query(sql, values) : await pool!.query(sql);
     return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
   };
   store = new PostgresAgentStateStore(query);
@@ -37,7 +37,7 @@ before(async () => {
 after(async () => {
   await pool?.end();
   if (adminPool && schemaName) {
-    await adminPool.query('DROP SCHEMA IF EXISTS "' + schemaName + '" CASCADE').catch(() => undefined);
+    await adminPool.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).catch(() => undefined);
     await adminPool.end();
   }
 });
