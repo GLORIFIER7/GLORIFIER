@@ -222,3 +222,34 @@ test('surfaces query and client cleanup failures without discarding either error
     },
   );
 });
+
+test('preserves query, rollback, and client cleanup failures together', async () => {
+  const queryError = new Error('simulated count query failure');
+  const rollbackError = new Error('simulated rollback failure');
+  const cleanupError = new Error('simulated client cleanup failure');
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) {
+        return Promise.reject(queryError);
+      }
+      if (sql.trim() === 'ROLLBACK') return Promise.reject(rollbackError);
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.reject(cleanupError),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [queryError, rollbackError, cleanupError]);
+      return true;
+    },
+  );
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
+  assert.equal(statements[2], 'ROLLBACK');
+});
