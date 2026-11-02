@@ -1,3 +1,4 @@
+import { assertCondition } from './test-assertion';
 import {
   buildCurrencyQuote,
   getCurrencyRateStatus,
@@ -6,9 +7,6 @@ import {
   type CurrencyRateEvidence,
 } from './currency-intelligence';
 
-function assertCondition(condition: unknown, message: string) {
-  if (!condition) throw new Error(message);
-}
 
 const usd: CurrencyAsset = {
   id: 'fiat:USD', name: 'US Dollar', symbol: 'USD', assetClass: 'fiat',
