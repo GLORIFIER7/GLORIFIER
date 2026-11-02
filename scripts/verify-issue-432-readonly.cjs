@@ -136,12 +136,14 @@ const main = async () => {
   }
 };
 
+const handleUnexpectedCliRejection = (error, processRef = process) => {
+  const message = error instanceof Error ? error.message : 'verification failed';
+  processRef.stderr.write(`ERROR: ${message}\n`);
+  processRef.exitCode = 1;
+};
+
 if (require.main === module) {
-  main().catch((error) => {
-    const message = error instanceof Error ? error.message : 'verification failed';
-    process.stderr.write(`ERROR: ${message}\n`);
-    process.exitCode = 1;
-  });
+  main().catch(handleUnexpectedCliRejection);
 }
 
 module.exports = {
@@ -150,4 +152,5 @@ module.exports = {
   isJsonMediaType,
   parseBase,
   run,
+  handleUnexpectedCliRejection,
 };
