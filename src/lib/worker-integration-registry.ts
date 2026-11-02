@@ -133,7 +133,7 @@ export function buildWorkerIntegrationRegistry(
       name: 'Netlify',
       category: 'frontend',
       status: 'disabled',
-      detail: 'Not an active production frontend target. The GitHub pull-request preview check is a separate integration and remains connected.',
+      detail: 'Not an active production frontend target. The GitHub PR preview check is a separate integration and remains connected.',
       publicUrl: 'https://www.netlify.com/',
     },
   ];
