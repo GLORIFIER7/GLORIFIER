@@ -36,9 +36,20 @@ export async function run({ base, fetchImpl = globalThis.fetch, now = () => new 
         signal: AbortSignal.timeout(10_000),
       });
       const contentType = response.headers?.get?.('content-type') ?? 'unknown';
-      const ok = Number.isInteger(response.status) && response.status >= 200 && response.status < 300;
+      const declaresJson = contentType.includes('application/json') || contentType.includes('+json');
+      let responseShape = 'non-json';
+      if (declaresJson) {
+        try {
+          await response.json();
+          responseShape = 'json';
+        } catch {
+          responseShape = 'invalid-json';
+        }
+      }
+      const ok = Number.isInteger(response.status) && response.status >= 200 &&
+        response.status < 300 && responseShape === 'json';
       return { recordedAt, target: target.origin, path, method: 'GET', status: response.status,
-        contentType, responseShape: contentType.includes('application/json') ? 'json' : 'non-json', ok };
+        contentType, responseShape, ok };
     } catch (error) {
       return { recordedAt, target: target.origin, path, method: 'GET',
         error: error instanceof Error ? error.name : 'UnknownError', ok: false };
