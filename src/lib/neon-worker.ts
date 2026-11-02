@@ -165,6 +165,12 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
     close = await captureAsyncResult(() => client.end());
   }
 
+  if (!query.ok && !close.ok) {
+    throw new AggregateError(
+      [query.error, close.error],
+      'Neon count query failed and the database client could not be closed.',
+    );
+  }
   if (!query.ok) throw query.error;
   if (!close.ok) throw close.error;
   return query.value;
