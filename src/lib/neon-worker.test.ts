@@ -171,7 +171,7 @@ test('executes operational counts in an explicit read-only transaction', async (
 
   assert.equal(counts.connection_events, 251212);
   assert.equal(statements[0], 'BEGIN READ ONLY');
-  assert.match(statements[1], /FROM public\\.glorifier_worker_operational_counts/);
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
   assert.equal(statements[2], 'COMMIT');
 });
 
