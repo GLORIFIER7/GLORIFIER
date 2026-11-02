@@ -117,6 +117,8 @@ const fetchProductionAppState = (options) =>
   fetch('https://glorifier.glorifier.workers.dev/api/app-state', options);
 const fetchProductionIdentity = (options) =>
   fetch('https://glorifier.glorifier.workers.dev/api/identity', options);
+const fetchProductionMcp = (options) =>
+  fetch('https://glorifier.glorifier.workers.dev/mcp', options);
 
 const verifyWorkerAndDatabase = async () => {
   console.log('GLORIFIER production smoke: checking Worker and static assets');
@@ -143,6 +145,37 @@ const verifyUnauthenticatedBoundary = async () => {
     'unauthenticated /api/app-state must return a structured authentication-required response');
 };
 
+const verifyMcpSurface = async () => {
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+  };
+  console.log('GLORIFIER production smoke: checking MCP initialize');
+  const initialize = await requestJson(fetchProductionMcp, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'GLORIFIER-production-smoke', version: '1' },
+      },
+    }),
+  });
+  validateMcpInitialize(initialize.body);
+
+  console.log('GLORIFIER production smoke: checking MCP read-only tool surface');
+  const toolsResponse = await requestJson(fetchProductionMcp, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+  });
+  return validateMcpReadOnlyTools(toolsResponse.body);
+};
+
 const reportReadinessWarnings = (identity, runtime) => {
   if (identity.body?.status !== 'ready') {
     console.warn('PRODUCTION READINESS WARNING: organizational domain/email identity is not configured or verified.');
@@ -167,13 +200,14 @@ const verifyIdentity = async () => {
 export const runProductionSmoke = async () => {
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
+  const mcpTools = await verifyMcpSurface();
   const identity = await verifyIdentity();
   console.log('Neon exact operational counts verified for all six reporting tables.');
-  console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
+  console.log(`MCP verified: ${mcpTools.length} read-only tools exposed`);
   reportReadinessWarnings(identity, runtime);
-  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, unauthenticated boundary, and identity response contract.');
-  console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, Neural execution, user login, or AI-provider execution.');
-  return { counts, identityStatus: identity.body?.status, runtime };
+  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, unauthenticated boundary, MCP protocol and read-only tool policy.');
+  console.log('This smoke test does not assert organizational identity readiness, Neural execution, user login, or AI-provider execution.');
+  return { counts, mcpTools: mcpTools.length, identityStatus: identity.body?.status, runtime };
 };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
