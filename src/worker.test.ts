@@ -61,6 +61,13 @@ const env: TestEnv = {
 };
 
 const run = async (): Promise<void> => {
+  let htmlResponseFixture: Response | undefined;
+  const takeHtmlResponseFixture = (request: Request): Response | undefined => {
+    if (!request.url.endsWith('/api/misrouted-endpoint') || !htmlResponseFixture) return undefined;
+    const response = htmlResponseFixture;
+    htmlResponseFixture = undefined;
+    return response;
+  };
   const isOpenSeaRequest = (url: string): boolean => url.startsWith('https://api.opensea.io/');
   const takeOpenSeaResponse = (request: Request): Response | undefined => {
     if (!isOpenSeaRequest(request.url)) return undefined;
@@ -68,7 +75,7 @@ const run = async (): Promise<void> => {
     return openSeaResponseQueue?.shift();
   };
   const nextMockResponse = (request: Request): Response =>
-    takeOpenSeaResponse(request) || upstreamResponses.shift() || upstreamResponse;
+    takeHtmlResponseFixture(request) ?? takeOpenSeaResponse(request) ?? upstreamResponses.shift() ?? upstreamResponse;
   const mockFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (shouldThrow) return Promise.reject(new Error('simulated upstream outage'));
     capturedRequest = input instanceof Request ? input : new Request(input, init);
@@ -81,7 +88,7 @@ const run = async (): Promise<void> => {
 
   try {
     const verifyWorkerAssetsAndPreviewIsolation = async (): Promise<void> => {
-        const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
+        const wranglerConfig = JSON.parse(readFileSync('wrangler.jsonc', 'utf8')) as {
           vars?: Record<string, string>;
           hyperdrive?: Array<{ binding: string; id: string }>;
           assets?: { run_worker_first?: string[] };
@@ -132,7 +139,7 @@ const run = async (): Promise<void> => {
           env,
         );
         assert.equal(missingAsset.status, 404, 'SPA HTML must not be served as a missing JavaScript asset');
-        assert.match(missingAsset.headers.get('content-type') || '', /^text\/plain/i);
+        assert.match(missingAsset.headers.get('content-type') ?? '', /^text\/plain/i);
         returnHtmlForAssets = false;
 
         // Preview deployments do not inherit production bindings. Missing rate limiting
@@ -188,7 +195,7 @@ const run = async (): Promise<void> => {
           env,
         );
         assert.equal(mcpInitialize.status, 200, 'MCP initialize must be handled by the Worker');
-        assert.match(mcpInitialize.headers.get('content-type') || '', /^application\/json/i);
+        assert.match(mcpInitialize.headers.get('content-type') ?? '', /^application\/json/i);
         const mcpInitializeBody = await mcpInitialize.json() as {
           jsonrpc: string;
           id: number;
@@ -798,7 +805,7 @@ const run = async (): Promise<void> => {
 
         const workerNativeReadOnlyRoutes: Array<{
           path: string;
-          verify: (body: Record<string, unknown>) => void;
+          verify: (payload: Record<string, unknown>) => void;
         }> = [
           {
             path: '/api/governance/architecture',
@@ -806,7 +813,7 @@ const run = async (): Promise<void> => {
               assert.equal(body.ok, true);
               assert.equal(body.version, 'GLORIFIER-ARCH-3.1');
               const trustLayer = body.trustLayer as { databaseAuthority?: string } | undefined;
-              assert.match(trustLayer?.databaseAuthority || '', /Neon.*target.*cutover.*not verified/i);
+              assert.match(trustLayer?.databaseAuthority ?? '', /Neon.*target.*cutover.*not verified/i);
             },
           },
           {
@@ -834,7 +841,7 @@ const run = async (): Promise<void> => {
               assert.equal(body.ok, true);
               const manifest = body.manifest as { nodes?: Array<{ id?: string; name?: string }> } | undefined;
               const neonNode = manifest?.nodes?.find((node) => node.id === 'neon');
-              assert.match(neonNode?.name || '', /canonical.*target.*cutover.*not verified/i);
+              assert.match(neonNode?.name ?? '', /canonical.*target.*cutover.*not verified/i);
               const validation = body.validation as { valid?: boolean } | undefined;
               assert.equal(validation?.valid, true);
             },
@@ -874,7 +881,7 @@ const run = async (): Promise<void> => {
                 sourceOfTruth?: { revenue?: string };
               } | undefined;
               assert.equal(architecture?.version, 'GBIS-2.0');
-              assert.match(architecture?.sourceOfTruth?.revenue || '', /Neon.*target.*cutover.*pending verification/i);
+              assert.match(architecture?.sourceOfTruth?.revenue ?? '', /Neon.*target.*cutover.*pending verification/i);
             },
           },
         ];
@@ -1298,16 +1305,18 @@ const run = async (): Promise<void> => {
         assert.equal(missingRoute.status, 404, 'unknown API routes must stay backend errors, not SPA success');
         assert.equal(await missingRoute.json().then((body: { ok?: boolean; code?: string }) => body.ok), false);
 
-        upstreamResponse = new Response('<!doctype html><title>SPA</title>', {
+        htmlResponseFixture = new Response('<!doctype html><title>SPA</title>', {
           status: 200,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
-        const htmlApiResponse = await worker.fetch(
+        const misroutedApiResponse = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/misrouted-endpoint'),
           env,
         );
-        assert.equal(htmlApiResponse.status, 502, 'HTML from the backend must not masquerade as a successful API response');
-        assert.equal(await htmlApiResponse.json().then((body: { code?: string }) => body.code), 'API_HTML_RESPONSE');
+        const misroutedApiStatus = misroutedApiResponse.status;
+        assert.equal(misroutedApiStatus, 502, 'An upstream document must be rejected as an API response');
+        assert.equal(await misroutedApiResponse.json().then((body: { code?: string }) => body.code), 'API_HTML_RESPONSE');
+        htmlResponseFixture = undefined;
 
         upstreamResponse = new Response('{"ok":true}', {
           status: 200,
@@ -1605,7 +1614,7 @@ const run = async (): Promise<void> => {
         const neuralReady = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(neuralReady.status, 503, 'Neural readiness status must be preserved');
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
-        assert.match(neuralReady.headers.get('x-correlation-id') || '', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+        assert.match(neuralReady.headers.get('x-correlation-id') ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), neuralReady.headers.get('x-correlation-id'), 'the same correlation ID must cross the Worker and Neural boundary');
         assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
 
@@ -1931,7 +1940,7 @@ const run = async (): Promise<void> => {
         );
         assert.equal(openSeaResolvedAccount.status, 200);
         assert.equal(await openSeaResolvedAccount.json().then((body: { account?: { username?: string } }) => body.account?.username), 'GLORIFIER');
-        assert.equal(requestedUrls[openSeaResolveStart], 'https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER');
+        assert.deepEqual(requestedUrls.slice(openSeaResolveStart, openSeaResolveStart + 1), ['https://api.opensea.io/api/v2/accounts/resolve/GLORIFIER']);
         openSeaResponseQueue = null;
 
         // A username named "resolve" must still reach the owned-collections route.
