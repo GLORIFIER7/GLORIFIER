@@ -72,7 +72,7 @@ export const validateMcpReadOnlyTools = (body) => {
 
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
-const requestJson = async (fetchRequest, options = {}, acceptedStatuses = [200]) => {
+export const requestJson = async (fetchRequest, options = {}, acceptedStatuses = [200]) => {
   const attempts = 4;
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -168,7 +168,7 @@ const verifyMcpSurface = async () => {
   validateMcpInitialize(initialize.body);
 
   console.log('GLORIFIER production smoke: checking MCP read-only tool surface');
-  const toolsResponse = await requestJson('/mcp', {
+  const toolsResponse = await requestJson(fetchProductionMcp, {
     method: 'POST',
     headers: mcpHeaders,
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
