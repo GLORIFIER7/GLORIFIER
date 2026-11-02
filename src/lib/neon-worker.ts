@@ -35,7 +35,7 @@ const OPERATIONAL_COUNTS_SQL = `
 SELECT table_name, row_count
 FROM public.glorifier_worker_operational_counts
 ORDER BY table_name
-;
+`;
 
 const hasWhitespace = (value: string): boolean => /\s/.test(value);
 
