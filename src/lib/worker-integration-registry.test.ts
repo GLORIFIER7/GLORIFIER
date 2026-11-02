@@ -56,8 +56,9 @@ test('GET /api/integrations exposes a Worker-native configuration inventory with
 
   assert.equal(byId.get('railway')?.status, 'disabled');
   assert.equal(byId.get('vercel')?.status, 'disabled');
-  assert.equal(byId.get('netlify')?.status, 'disabled');
-  assert.match(byId.get('netlify')?.detail || '', /PR preview.*separate/i);
+  assert.equal(byId.get('netlify-preview')?.status, 'configured');
+  assert.match(byId.get('netlify-preview')?.detail || '', /preview-only/i);
+  assert.equal(byId.get('netlify-production')?.status, 'disabled');
 
   const serialized = JSON.stringify(body);
   assert.equal(serialized.includes(testSecret), false);
