@@ -92,7 +92,8 @@
     "test:model-council-client": "tsx src/lib/ai/model-council-client.test.ts",
     "test:provider-abort": "tsx src/lib/ai/providers/provider-abort.test.ts",
     "test:postgres-pool": "tsx src/lib/db/postgres.test.ts",
-    "test:neon-worker": "tsx src/lib/neon-worker.test.ts"
+    "test:neon-worker": "tsx src/lib/neon-worker.test.ts",
+    "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
