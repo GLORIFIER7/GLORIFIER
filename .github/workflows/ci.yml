@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Issue summary formatter regression tests
-        run: node --test scripts/publish-issue-summary.test.mjs
+        run: node --test scripts/publish-issue-summary.test.cjs
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
