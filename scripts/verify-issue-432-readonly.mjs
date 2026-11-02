@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import process from 'node:process';
 
-const base = process.argv[2];
-if (!base) {
-  console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://example.com');
-  process.exit(2);
-}
+const REQUIRED_PATHS = new Set([
+  '/api/health',
+  '/api/runtime-verification?probeAi=false',
+  '/api/reports/summary',
+]);
 
-const paths = [
+const PROBE_PATHS = [
   '/api/health',
   '/api/runtime-verification?probeAi=false',
   '/api/reports/summary',
@@ -16,19 +16,83 @@ const paths = [
   '/api/neural/ready',
 ];
 
-let failures = 0;
-for (const path of paths) {
+const BLOCKED_HOSTNAMES = new Set(['localhost', 'metadata.google.internal']);
+
+function isPrivateAddress(hostname) {
+  if (BLOCKED_HOSTNAMES.has(hostname)) return true;
+  if (hostname === '::1' || hostname.endsWith('.local')) return true;
+  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4) return false;
+  const [a, b] = ipv4.slice(1).map(Number);
+  if (a === 127 || a === 10 || a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function parseBase(value) {
+  let parsed;
   try {
-    const response = await fetch(new URL(path, base), {
+    parsed = new URL(value);
+  } catch {
+    console.error('ERROR: base URL is invalid.');
+    process.exit(2);
+  }
+  if (parsed.protocol !== 'https:') {
+    console.error('ERROR: base URL must use the https: scheme.');
+    process.exit(2);
+  }
+  if (isPrivateAddress(parsed.hostname)) {
+    console.error('ERROR: base URL must not target localhost, private, link-local, or metadata addresses.');
+    process.exit(2);
+  }
+  return parsed;
+}
+
+const base = process.argv[2];
+if (!base) {
+  console.error('Usage: node scripts/verify-issue-432-readonly.mjs https://example.com');
+  process.exit(2);
+}
+
+const target = parseBase(base);
+let failures = 0;
+
+for (const path of PROBE_PATHS) {
+  const recordedAt = new Date().toISOString();
+  try {
+    const response = await fetch(new URL(path, target), {
       method: 'GET',
       redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
     });
-    console.log(`${response.status} ${path}`);
-    if (response.status >= 500) failures += 1;
+    const contentType = response.headers.get('content-type') ?? 'unknown';
+    const isJson = contentType.includes('application/json');
+    const ok = REQUIRED_PATHS.has(path) ? response.ok : response.status < 500;
+    const evidence = {
+      recordedAt,
+      target: target.origin,
+      path,
+      method: 'GET',
+      status: response.status,
+      contentType,
+      responseShape: isJson ? 'json' : 'non-json',
+      required: REQUIRED_PATHS.has(path),
+      ok,
+    };
+    console.log(JSON.stringify(evidence));
+    if (!ok) failures += 1;
   } catch (error) {
     failures += 1;
-    console.error(`ERROR ${path}: ${error.message}`);
+    console.log(JSON.stringify({
+      recordedAt,
+      target: target.origin,
+      path,
+      method: 'GET',
+      error: error.name,
+      ok: false,
+    }));
   }
 }
 
