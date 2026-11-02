@@ -27,7 +27,7 @@ jobs:
           node-version: 24
 
       - name: Run issue summary formatter regression tests
-        run: node --test scripts/publish-issue-summary.test.mjs
+        run: node --test scripts/publish-issue-summary.test.cjs
 
       - name: Install pinned GitHub Copilot CLI
         run: npm install --global --ignore-scripts --no-audit --no-fund @github/copilot@1.0.88
@@ -60,4 +60,4 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/publish-issue-summary.mjs
+        run: node scripts/publish-issue-summary.cjs
