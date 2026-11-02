@@ -9,6 +9,7 @@ import { getPermanentGlorifierStack, validatePermanentStack } from './lib/govern
 import { getGeasArchitectureManifest, validateGeasArchitectureManifest, getGeasDegradedModeContracts } from './lib/governance/geas-reconciliation';
 import { getAssetVerificationPolicy } from './lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-asset-verification';
+import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
 
 export type CloudflareEnv = {
   MCP_RATE_LIMITER?: GithubMcpRateLimiter;
@@ -1095,6 +1096,26 @@ export default {
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
     if (incomingUrl.pathname === '/api/health') {
       return healthResponse(request.method, env);
+    }
+
+    // Integration and data-truth read models are Worker-native. They expose
+    // configuration metadata only; credentials are never serialized and
+    // configuration is never promoted to verified status.
+    if (incomingUrl.pathname === '/api/integrations') {
+      return workerNativeReadOnlyJson(request, () => ({
+        ok: true,
+        generatedAt: new Date().toISOString(),
+        policy: {
+          secretsExposed: false,
+          privateCredentialsReturned: false,
+          coreInfrastructureIndependentOfGoogleCloud: true,
+        },
+        integrations: buildWorkerIntegrationRegistry(env),
+      }));
+    }
+
+    if (incomingUrl.pathname === '/api/data-status') {
+      return workerNativeReadOnlyJson(request, () => buildWorkerIntegrationDataStatus(env));
     }
 
     if (incomingUrl.pathname === '/api/reports/summary') {
