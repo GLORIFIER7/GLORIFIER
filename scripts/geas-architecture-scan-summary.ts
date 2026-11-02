@@ -10,9 +10,9 @@ export interface ArchitecturePatternClassSummary {
  * Count architecture pattern evidence classes without promoting discovery
  * into claim verification. Unknown future classes remain explicitly visible.
  */
-export function summarizeArchitecturePatterns(
+export const summarizeArchitecturePatterns = (
   patterns: readonly { evidenceClass: string }[],
-): ArchitecturePatternClassSummary {
+): ArchitecturePatternClassSummary => {
   const summary: ArchitecturePatternClassSummary = {
     discoveredPatterns: patterns.length,
     analysisPatterns: 0,
@@ -39,4 +39,4 @@ export function summarizeArchitecturePatterns(
   }
 
   return summary;
-}
+};
