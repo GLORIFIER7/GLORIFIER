@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
+  validateDataStatus,
+  validateIntegrationRegistry,
   validateMcpInitialize,
   validateMcpReadOnlyTools,
   validateOperationalSummary,
@@ -165,4 +167,112 @@ test('production smoke failure diagnostics retain safe HTTP codes without respon
   assert.equal(formatSmokeFailure(forgedErrorName), 'smoke failed (unexpected error)');
   assert.doesNotMatch(formatSmokeFailure(forgedErrorName), /customer|PRIVATE_PAYLOAD/);
   assert.equal(formatSmokeFailure({ message: 'untrusted response payload' }), 'unknown error');
+});
+
+
+const privateRuntimeIds = [
+  'neon',
+  'opensea',
+  'github-mcp',
+  'identity',
+  'neural',
+  'ai-providers',
+];
+
+const integrationRows = [
+  ...privateRuntimeIds.map((id) => ({
+    id, name: id, category: 'test', status: 'not-observable',
+    detail: 'Private runtime configuration is not exposed.',
+    publicUrl: 'https://example.test/',
+  })),
+  {
+    id: 'cloudflare-worker', name: 'Cloudflare Workers', category: 'compute',
+    status: 'responding', detail: 'This request reached the Worker.',
+    publicUrl: 'https://developers.cloudflare.com/workers/',
+  },
+  {
+    id: 'railway', name: 'Railway', category: 'compute', status: 'disabled',
+    detail: 'Not a production runtime.', publicUrl: 'https://railway.app/',
+  },
+  {
+    id: 'vercel', name: 'Vercel', category: 'frontend', status: 'disabled',
+    detail: 'Not a production frontend.', publicUrl: 'https://vercel.com/',
+  },
+  {
+    id: 'netlify-preview', name: 'Netlify previews', category: 'ci-preview',
+    status: 'configured', detail: 'Configured for preview-only builds.',
+    publicUrl: 'https://www.netlify.com/',
+  },
+  {
+    id: 'netlify-production', name: 'Netlify production', category: 'frontend',
+    status: 'disabled', detail: 'Not a production frontend.',
+    publicUrl: 'https://www.netlify.com/',
+  },
+];
+
+const integrationRegistry = {
+  ok: true,
+  policy: {
+    secretsExposed: false,
+    privateCredentialsReturned: false,
+    privateRuntimeConfigurationIsNotExposed: true,
+  },
+  integrations: integrationRows,
+};
+
+const dataRows = integrationRows.map((item) => ({
+  ...item,
+  configurationStatus: item.status === 'responding' || item.status === 'not-observable'
+    ? 'not-observable'
+    : item.status,
+  verificationStatus: 'not-verified',
+  verificationEvidence: null,
+  truthRule: 'Only qualifying external evidence may change verificationStatus to verified.',
+}));
+
+const dataStatus = {
+  ok: true,
+  policy: {
+    verifiedMeansEvidenceBacked: true,
+    configuredDoesNotMeanVerified: true,
+    estimatedDoesNotMeanVerified: true,
+    humanFinalAuthority: true,
+    privateRuntimeConfigurationIsNotExposed: true,
+  },
+  summary: {
+    total: dataRows.length,
+    verified: 0,
+    notVerified: dataRows.length,
+    configured: 1,
+    needsConfiguration: 0,
+    notObservable: dataRows.filter((item) => item.configurationStatus === 'not-observable').length,
+  },
+  data: dataRows,
+};
+
+test('production integration registry exposes only the reviewed static, non-secret contract', () => {
+  assert.equal(validateIntegrationRegistry(integrationRegistry).length, integrationRows.length);
+  assert.throws(() => validateIntegrationRegistry({
+    ...integrationRegistry,
+    integrations: integrationRows.map((item) =>
+      item.id === 'neon' ? { ...item, status: 'configured' } : item),
+  }), /private runtime integration/);
+  assert.throws(() => validateIntegrationRegistry({
+    ...integrationRegistry,
+    integrations: integrationRows.map((item) =>
+      item.id === 'opensea' ? { ...item, apiKey: 'must-not-be-returned' } : item),
+  }), /private fields/);
+});
+
+test('production data-status keeps every source not-verified and summaries exact', () => {
+  assert.equal(validateDataStatus(dataStatus).length, dataRows.length);
+  assert.throws(() => validateDataStatus({
+    ...dataStatus,
+    data: dataRows.map((item) =>
+      item.id === 'neon' ? { ...item, verificationStatus: 'verified' } : item),
+  }), /must remain not-verified/);
+  assert.throws(() => validateDataStatus({
+    ...dataStatus,
+    summary: { ...dataStatus.summary, notObservable: 0 },
+  }), /notObservable summary/);
 });
