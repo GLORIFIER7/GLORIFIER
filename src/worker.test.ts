@@ -24,10 +24,10 @@ let shouldThrow = false;
 let assetCalls = 0;
 let returnHtmlForAssets = false;
 
-function getCapturedRequest(): Request {
+const getCapturedRequest = (): Request => {
   if (!capturedRequest) throw new Error('Expected the Worker to call the backend.');
   return capturedRequest;
-}
+};
 
 const mcpPost = (message: unknown, connectingIp?: string): Request => {
   const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -60,21 +60,21 @@ const env: TestEnv = {
   },
 };
 
-async function run(): Promise<void> {
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (shouldThrow) throw new Error('simulated upstream outage');
+const run = async (): Promise<void> => {
+  const mockFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (shouldThrow) return Promise.reject(new Error('simulated upstream outage'));
     capturedRequest = input instanceof Request ? input : new Request(input, init);
     requestedUrls.push(capturedRequest.url);
-    if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaFetchError) {
-      throw openSeaFetchError;
-    }
-    if (capturedRequest.url.startsWith('https://api.opensea.io/') && openSeaResponseQueue?.length) {
-      return openSeaResponseQueue.shift() as Response;
-    }
-    return upstreamResponses.shift() || upstreamResponse;
-  }) as typeof fetch;
+    const isOpenSeaRequest = capturedRequest.url.startsWith('https://api.opensea.io/');
+    if (isOpenSeaRequest && openSeaFetchError) return Promise.reject(openSeaFetchError);
+    const queuedOpenSeaResponse = isOpenSeaRequest ? openSeaResponseQueue?.shift() : undefined;
+    return Promise.resolve(queuedOpenSeaResponse || upstreamResponses.shift() || upstreamResponse);
+  };
+  globalThis.fetch = mockFetch;
+  const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
 
   try {
+    const verifyWorkerAssetsAndPreviewIsolation = async (): Promise<void> => {
     const wranglerConfig = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')) as {
       vars?: Record<string, string>;
       hyperdrive?: Array<{ binding: string; id: string }>;
@@ -159,6 +159,9 @@ async function run(): Promise<void> {
     assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
     assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
 
+    };
+
+    const verifyMcpProtocol = async (): Promise<void> => {
     // MCP must be a real read-only Streamable HTTP endpoint, not the SPA asset fallback.
     capturedRequest = null;
     const mcpInitialize = await worker.fetch(
@@ -443,7 +446,7 @@ async function run(): Promise<void> {
       ref: string;
       content: string;
     };
-    assert.equal(validGithubFileBody.result.isError, undefined);
+    assert.equal(Object.prototype.hasOwnProperty.call(validGithubFileBody.result, 'isError'), false);
     assert.equal(validGithubFileResult.path, 'docs/architecture/README.md');
     assert.equal(validGithubFileResult.ref, 'main');
     assert.equal(validGithubFileResult.content, 'ok');
@@ -901,6 +904,9 @@ async function run(): Promise<void> {
     });
     assert.equal(capturedRequest, null, 'native runtime verification must not proxy to a legacy backend');
 
+    };
+
+    const verifyDatabaseAndRuntimeContracts = async (): Promise<void> => {
     // Reject any Supabase destination that is not a canonical HTTPS project origin.
     const invalidSupabaseOrigins = [
       'http://project.supabase.co',
@@ -1149,6 +1155,9 @@ async function run(): Promise<void> {
     assert.equal(neonQueryFailure.status, 502);
     assert.equal(await neonQueryFailure.json().then((body: { code?: string }) => body.code), 'NEON_REPORTS_QUERY_FAILED');
 
+    };
+
+    const verifyBackendAndNeuralRoutes = async (): Promise<void> => {
     // With no backend configured, unauthenticated app-state requests must be rejected
     // by the authentication boundary rather than surfacing as a generic upstream 502.
     const unauthenticatedAppState = await worker.fetch(
@@ -1443,7 +1452,6 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
-    const openSeaEnv = { ...env, OPENSEA_API_KEY: 'test-opensea-key' } as TestEnv & { OPENSEA_API_KEY?: string };
 
     const openSeaServerError = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
@@ -1605,6 +1613,9 @@ async function run(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
     });
     capturedRequest = null;
+    };
+
+    const verifyOpenSeaRoutes = async (): Promise<void> => {
     const openSeaCollection = await worker.fetch(
       new Request('https://glorifier.glorifier.workers.dev/api/opensea/collections/glorifier7'),
       openSeaEnv,
@@ -2073,11 +2084,18 @@ async function run(): Promise<void> {
     assert.equal(await oversizedAccountJson.json().then((body: { code?: string }) => body.code), 'OPENSEA_RESPONSE_TOO_LARGE');
     openSeaResponseQueue = null;
 
+    };
+
+    await verifyWorkerAssetsAndPreviewIsolation();
+    await verifyMcpProtocol();
+    await verifyDatabaseAndRuntimeContracts();
+    await verifyBackendAndNeuralRoutes();
+    await verifyOpenSeaRoutes();
     console.log('Cloudflare Worker proxy tests passed.');
   } finally {
     globalThis.fetch = originalFetch;
   }
-}
+};
 
 try {
   await run();
