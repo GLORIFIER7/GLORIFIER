@@ -1,35 +1,50 @@
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
+import { after, before, test } from 'node:test';
 import { Pool } from 'pg';
 import { PostgresAgentStateStore, type AgentStateQuery } from './agent-state-store.ts';
 
-// Use an explicitly named test connection and isolate all DDL/data in a unique schema.
-// Never fall back to the application's DATABASE_URL or drop its agent-state table.
-const connectionString = process.env.AGENT_STATE_TEST_DATABASE_URL;
-if (!connectionString) {
-  throw new Error('AGENT_STATE_TEST_DATABASE_URL is required; refusing to use DATABASE_URL.');
-}
-if (connectionString === process.env.DATABASE_URL) {
-  throw new Error('AGENT_STATE_TEST_DATABASE_URL must be separate from DATABASE_URL.');
-}
+let adminPool: Pool | undefined;
+let pool: Pool | undefined;
+let store: PostgresAgentStateStore;
+let peerStore: PostgresAgentStateStore;
+let schemaName: string;
 
-const schemaName = 'agent_state_test_' + randomUUID().replace(/-/g, '');
-const adminPool = new Pool({ connectionString, max: 2 });
-await adminPool.query('CREATE SCHEMA "' + schemaName + '"');
-const pool = new Pool({ connectionString, max: 4, options: '-c search_path=' + schemaName });
-const query: AgentStateQuery = async (sql, values) => {
-  const result = values ? await pool.query(sql, values as any[]) : await pool.query(sql);
-  return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
-};
-const store = new PostgresAgentStateStore(query);
-const peerStore = new PostgresAgentStateStore(query);
+before(async () => {
+  const connectionString = process.env.AGENT_STATE_TEST_DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('AGENT_STATE_TEST_DATABASE_URL is required; refusing to use DATABASE_URL.');
+  }
+  if (connectionString === process.env.DATABASE_URL) {
+    throw new Error('AGENT_STATE_TEST_DATABASE_URL must be separate from DATABASE_URL.');
+  }
 
-try {
-  // Concurrent initialization must serialize schema DDL on a fresh database.
+  schemaName = 'agent_state_test_' + randomUUID().replace(/-/g, '');
+  adminPool = new Pool({ connectionString, max: 2 });
+  await adminPool.query(`CREATE SCHEMA "${schemaName}"`);
+  pool = new Pool({ connectionString, max: 4, options: '-c search_path=' + schemaName });
+  const query: AgentStateQuery = async (sql, values) => {
+    const result = values ? await pool!.query(sql, values) : await pool!.query(sql);
+    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount };
+  };
+  store = new PostgresAgentStateStore(query);
+  peerStore = new PostgresAgentStateStore(query);
+
+  // Concurrent initialization exercises schema setup against a fresh isolated schema.
   await Promise.all([store.initialize(), peerStore.initialize()]);
+});
 
-  const session = {
-    id: 'integration-session',
+after(async () => {
+  await pool?.end();
+  if (adminPool && schemaName) {
+    await adminPool.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).catch(() => undefined);
+    await adminPool.end();
+  }
+});
+
+function createSession(id: string) {
+  return {
+    id,
     agentId: 'integration-test',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -39,14 +54,21 @@ try {
     status: 'active',
     compactionRecommended: false,
   };
+}
+
+test('upserts sessions and applies kind, ordering, and limit filters', async () => {
+  const session = createSession('session-' + randomUUID());
   await store.save('session', session);
-  const replacedSession = { ...session, agentId: 'integration-test-upsert' };
-  await store.save('session', replacedSession);
-  assert.equal((await store.get<typeof session>('session', session.id))?.agentId, 'integration-test-upsert', 'save must exercise the SQL upsert path');
+  await store.save('session', { ...session, agentId: 'integration-test-upsert' });
+  assert.equal(
+    (await store.get<typeof session>('session', session.id))?.agentId,
+    'integration-test-upsert',
+    'save must exercise the SQL upsert path',
+  );
 
   const newestSession = {
     ...session,
-    id: 'integration-session-newest',
+    id: 'session-newest-' + randomUUID(),
     updatedAt: new Date(Date.now() + 1_000).toISOString(),
   };
   await store.save('session', newestSession);
@@ -57,7 +79,11 @@ try {
   );
   assert.deepEqual(await store.list('task', 10), [], 'unscoped task listing must fail closed');
   assert.deepEqual(await store.list('task', 10, undefined, true), [], 'explicit all-task access must still respect the task kind');
+});
 
+test('increments concurrent session turns atomically and supports BIGINT counters', async () => {
+  const session = createSession('session-increment-' + randomUUID());
+  await store.save('session', session);
   const increments = await Promise.all([
     store.incrementSessionTurn<typeof session>(session.id, 100),
     peerStore.incrementSessionTurn<typeof session>(session.id, 200),
@@ -75,64 +101,105 @@ try {
     persistedSession?.contextTokens === 100 || persistedSession?.contextTokens === 200,
     'the final context token count must come from one complete atomic update',
   );
+});
 
+test('refreshes running-task leases and refuses late heartbeats after completion', async () => {
+  const olderAt = new Date(Date.now() - 60_000).toISOString();
+  const peerAt = new Date(Date.now() - 30_000).toISOString();
+  const recentTask = {
+    id: 'task-heartbeat-' + randomUUID(),
+    status: 'running',
+    createdAt: olderAt,
+    updatedAt: olderAt,
+  };
+  const peerTask = {
+    ...recentTask,
+    id: 'task-peer-' + randomUUID(),
+    updatedAt: peerAt,
+  };
+  await store.save('task', recentTask);
+  await store.save('task', peerTask);
+  assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
+  assert.deepEqual(
+    (await store.list<typeof recentTask>('task', 1, undefined, true)).map((entry) => entry.id),
+    [recentTask.id],
+    'heartbeat must refresh updated_at so the task becomes the newest row',
+  );
+
+  await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
+  assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
+});
+
+test('isolates task queries by requester before applying the limit', async () => {
+  const baseTask = {
+    id: 'task-requester-' + randomUUID(),
+    status: 'running',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const aliceTask = { ...baseTask, id: 'task-alice-' + randomUUID(), requester: 'alice-uid' };
+  const bobTask = {
+    ...baseTask,
+    id: 'task-bob-' + randomUUID(),
+    requester: 'bob-uid',
+    updatedAt: new Date(Date.now() + 2_000).toISOString(),
+  };
+  await store.save('task', aliceTask);
+  await store.save('task', bobTask);
+  assert.deepEqual(await store.list('task', 10), [], 'unscoped PostgreSQL task listing must return no tenants');
+  assert.deepEqual(await store.list('task', 10, ''), [], 'blank PostgreSQL requester must return no tenants');
+  assert.deepEqual(
+    (await store.list<typeof aliceTask>('task', 1, 'alice-uid')).map((entry) => entry.id),
+    [aliceTask.id],
+    'requester filter must be applied before LIMIT',
+  );
+});
+
+test('recovers stale running tasks without replaying them or interrupting fresh tasks', async () => {
   const staleAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const staleTask = {
-    id: 'integration-stale-task',
+    id: 'task-stale-' + randomUUID(),
     status: 'running',
     createdAt: staleAt,
     updatedAt: staleAt,
   };
   const recentTask = {
-    id: 'integration-recent-task',
+    id: 'task-recent-' + randomUUID(),
     status: 'running',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   const recentlyRunningTask = {
-    id: 'integration-recently-running-task',
+    id: 'task-fresh-' + randomUUID(),
     status: 'running',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  const completedTask = {
+    id: 'task-completed-' + randomUUID(),
+    status: 'completed',
+    createdAt: staleAt,
+    updatedAt: staleAt,
+  };
   await store.save('task', staleTask);
   await store.save('task', recentTask);
   await store.save('task', recentlyRunningTask);
-  assert.equal(await store.heartbeatRunningTask(recentTask.id), true);
-  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
-  assert.deepEqual(
-    (await store.list<typeof recentTask>('task', 1, undefined, true)).map((entry) => entry.id),
-    [recentTask.id],
-    'task listing must return the newest task row and respect the result limit',
-  );
-
-  // Keep requester-isolation fixtures after the global ordering assertion so
-  // the deliberately newer Bob task cannot invalidate that independent check.
-  const aliceTask = { ...recentTask, id: 'integration-alice-task', requester: 'alice-uid' };
-  const bobTask = { ...recentTask, id: 'integration-bob-task', requester: 'bob-uid', updatedAt: new Date(Date.now() + 2_000).toISOString() };
-  await store.save('task', aliceTask);
-  await store.save('task', bobTask);
-  assert.deepEqual(await store.list('task', 10), [], 'unscoped PostgreSQL task listing must return no tenants');
-  assert.deepEqual(await store.list('task', 10, ''), [], 'blank PostgreSQL requester must return no tenants');
-  assert.deepEqual((await store.list<typeof aliceTask>('task', 1, 'alice-uid')).map((entry) => entry.id), [aliceTask.id], 'requester filter must be applied before LIMIT');
-  await store.save('task', { ...recentTask, status: 'completed', updatedAt: new Date().toISOString() });
-  assert.equal(await store.heartbeatRunningTask(recentTask.id), false, 'late heartbeat must not revive a completed task');
+  await store.save('task', completedTask);
 
   assert.equal(await store.recoverInterruptedTasks(30), 1);
   const recovered = await store.get<typeof staleTask & { error?: string }>('task', staleTask.id);
   assert.equal(recovered?.status, 'failed');
   assert.match(recovered?.error || '', /automatic replay is disabled/);
   assert.ok(Date.parse(recovered?.updatedAt || '') > Date.parse(staleAt));
-  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'completed');
+  assert.equal((await store.get<typeof recentTask>('task', recentTask.id))?.status, 'running');
   assert.equal(
     (await store.get<typeof recentlyRunningTask>('task', recentlyRunningTask.id))?.status,
     'running',
     'a fresh running task must remain running when startup recovery uses the 30-minute grace period',
   );
-
-  console.log('PostgreSQL agent state integration tests: PASS');
-} finally {
-  await pool.end();
-  await adminPool.query('DROP SCHEMA IF EXISTS "' + schemaName + '" CASCADE').catch(() => undefined);
-  await adminPool.end();
-}
+  assert.equal(
+    (await store.get<typeof completedTask>('task', completedTask.id))?.status,
+    'completed',
+    'startup recovery must not change an already completed task',
+  );
+});
