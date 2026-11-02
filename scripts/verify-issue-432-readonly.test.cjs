@@ -10,7 +10,7 @@ const {
 const APPROVED_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 const RECORDED_AT = '2026-11-02T05:00:00.000Z';
 
-function response(status = 200, body = JSON.stringify({ ok: true }), contentType = 'application/json') {
+const response = (status = 200, body = JSON.stringify({ ok: true }), contentType = 'application/json') => {
   return new Response(body, {
     status,
     headers: { 'Content-Type': contentType },
@@ -21,6 +21,8 @@ test('accepts only the exact HTTPS production Worker origin', () => {
   assert.equal(parseBase(APPROVED_ORIGIN).origin, APPROVED_ORIGIN);
 
   for (const rejected of [
+    '',
+    ' ',
     'http://glorifier.glorifier.workers.dev',
     'https://localhost',
     'https://127.0.0.1',
@@ -45,7 +47,7 @@ test('runs all six probes with injected fetch and requires HTTP 2xx', async () =
   const calls = [];
   const result = await run({
     base: APPROVED_ORIGIN,
-    fetchImpl: async (url, init) => {
+    fetchImpl: (url, init) => {
       calls.push({ url: String(url), init });
       return response(200);
     },
@@ -72,7 +74,7 @@ test('treats unexpected 4xx and 5xx responses as verification failures', async (
   assert.equal(statuses.length, PROBE_PATHS.length, 'status fixtures must cover every probe');
   const result = await run({
     base: APPROVED_ORIGIN,
-    fetchImpl: async () => response(statuses.shift()),
+    fetchImpl: () => response(statuses.shift()),
     now: () => new Date(RECORDED_AT),
   });
 
@@ -90,7 +92,7 @@ test('rejects successful HTTP responses that do not contain valid JSON', async (
   ];
   const result = await run({
     base: APPROVED_ORIGIN,
-    fetchImpl: async () => responses.shift(),
+    fetchImpl: () => responses.shift(),
     now: () => new Date(RECORDED_AT),
   });
 
@@ -104,7 +106,7 @@ test('continues every probe after network failures and returns a nonzero result'
   let attempts = 0;
   const result = await run({
     base: APPROVED_ORIGIN,
-    fetchImpl: async () => {
+    fetchImpl: () => {
       attempts += 1;
       throw new Error('simulated network failure');
     },
