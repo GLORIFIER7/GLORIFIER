@@ -1,5 +1,6 @@
 ---
-engines:
-  tsqllint:
-    exclude_paths:
-      - "supabase/migrations/**/*.sql"
+# Supabase migrations are PostgreSQL SQL. The Codacy T-SQL engine emits
+# SQL Server-only SET directives for these files. Their syntax, history and
+# privilege behavior are validated by the dedicated PostgreSQL CI job.
+exclude_paths:
+  - "supabase/migrations/**/*.sql"
