@@ -869,17 +869,25 @@ const usesCuratedSourceHost = (url: URL): boolean =>
 
 const isExactCuratedSourceUrl = (url: URL): boolean => CURATED_SOURCE_URLS.has(url.href);
 
-export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+const parseCuratedSourceUrl = (sourceUrl: string): URL | null => {
   try {
-    const url = new URL(sourceUrl);
-    return hasSecureSourceTransport(url)
-      && usesCuratedSourceHost(url)
-      && hasNoSourceCredentials(url)
-      && hasAllowedSourcePort(url)
-      && isExactCuratedSourceUrl(url);
+    return new URL(sourceUrl);
   } catch {
-    return false;
+    return null;
   }
+};
+
+const TRUSTED_SOURCE_URL_CHECKS = [
+  hasSecureSourceTransport,
+  usesCuratedSourceHost,
+  hasNoSourceCredentials,
+  hasAllowedSourcePort,
+  isExactCuratedSourceUrl,
+] as const;
+
+export const isTrustedArchitectureSourceUrl = (sourceUrl: string): boolean => {
+  const url = parseCuratedSourceUrl(sourceUrl);
+  return url !== null && TRUSTED_SOURCE_URL_CHECKS.every((check) => check(url));
 };
 
 const validateCuratedSourceUrl = (sourceUrl: string): URL => {
