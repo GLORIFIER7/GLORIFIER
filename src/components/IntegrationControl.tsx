@@ -41,7 +41,8 @@ type DataStatus = {
     verified: number;
     notVerified: number;
     configured: number;
-    needsConfiguration: number;\n    notObservable: number;
+    needsConfiguration: number;
+    notObservable: number;
   };
   data: Integration[];
 };
@@ -53,6 +54,7 @@ type Registry = {
     secretsExposed: boolean | null;
     privateCredentialsReturned: boolean | null;
     coreInfrastructureIndependentOfGoogleCloud: boolean | null;
+    privateRuntimeConfigurationIsNotExposed: boolean;
   };
   integrations: Integration[];
 };
