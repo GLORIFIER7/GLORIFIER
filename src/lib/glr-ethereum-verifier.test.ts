@@ -1,9 +1,7 @@
+import { assertCondition } from './test-assertion';
 import assert from 'node:assert/strict';
 import { glrAmountToBaseUnits, verifyEthereumGLRTransfer, ETHEREUM_GLR_CONTRACT } from './glr-ethereum-verifier';
 
-function assertCondition(condition: unknown, message: string) {
-  if (!condition) throw new Error(message);
-}
 
 assertCondition(glrAmountToBaseUnits('1') === 1000000000000000000n, 'one GLR must equal 1e18 base units');
 assertCondition(glrAmountToBaseUnits('0.000000000000000001') === 1n, 'smallest GLR unit must be represented exactly');
