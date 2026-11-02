@@ -1,9 +1,6 @@
+import { assertCondition } from './test-assertion';
 import { buildGLRAIServiceQuote, divideDecimal } from './glr-commerce';
 
-/** Throws a descriptive error when a GLR commerce regression expectation fails. */
-const assertCondition = (condition: unknown, message: string): void => {
-  if (!condition) throw new Error(message);
-};
 
 assertCondition(divideDecimal('0.05', '0.01', 9) === '5', 'decimal division should be exact');
 assertCondition(divideDecimal('1', '3', 6) === '0.333333', 'decimal division should round half-up at target precision');
