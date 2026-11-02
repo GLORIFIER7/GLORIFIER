@@ -7,6 +7,7 @@ import {
   validateOperationalSummary,
   validateRuntimeVerification,
   requestJson,
+  formatSmokeFailure,
 } from './cloudflare-production-smoke.mjs';
 
 test('production smoke probes never send HTTP mutation methods to the live Worker', () => {
@@ -137,4 +138,18 @@ test('production smoke request fails immediately for non-JSON error responses', 
   };
   await assert.rejects(requestJson(fetchHtmlError), /non-JSON content/);
   assert.equal(attempts, 1, 'a non-JSON error response must not be retried');
+});
+
+test('production smoke failure diagnostics retain safe HTTP codes without response values', () => {
+  const knownCode = new Error('Production endpoint returned HTTP 503: NEON_HYPERDRIVE_NOT_CONFIGURED');
+  assert.equal(formatSmokeFailure(knownCode), 'HTTP 503: NEON_HYPERDRIVE_NOT_CONFIGURED');
+
+  const untrustedResponseText = new Error('Production endpoint returned HTTP 503: customer-email@example.test');
+  assert.equal(formatSmokeFailure(untrustedResponseText), 'HTTP 503');
+  assert.doesNotMatch(formatSmokeFailure(untrustedResponseText), /customer-email/);
+
+  const assertionFailure = new Error('smoke contract failed');
+  assertionFailure.name = 'AssertionError';
+  assert.equal(formatSmokeFailure(assertionFailure), 'assertion failed');
+  assert.equal(formatSmokeFailure({ message: 'untrusted response payload' }), 'unknown error');
 });
