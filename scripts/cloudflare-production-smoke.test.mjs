@@ -1,4 +1,17 @@
 import assert from 'node:assert/strict';
+
+import { readFileSync } from 'node:fs';
+
+test('production smoke probes never send HTTP mutation methods to the live Worker', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/cloudflare-worker.yml', import.meta.url), 'utf8');
+  const smokeSource = readFileSync(new URL('./cloudflare-production-smoke.mjs', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(smokeSource, /method:\\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,
+    'the production smoke script must not issue HTTP mutation methods');
+  assert.doesNotMatch(workflow, /--request\\s+(?:POST|PUT|PATCH|DELETE)\\b/i,
+    'the production deployment workflow must not issue HTTP mutation methods');
+});
+
 import test from 'node:test';
 import {
   validateMcpInitialize,
