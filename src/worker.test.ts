@@ -109,8 +109,18 @@ async function run(): Promise<void> {
     // must fail closed with a deliberate service response, never an unhandled TypeError.
     const previewWithoutRateLimiter = {
       ...env,
+      GLORIFIER_DATABASE_PROVIDER: 'neon',
+      GLORIFIER_SUPABASE_URL: undefined,
+      GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined,
       MCP_RATE_LIMITER: undefined,
     } as unknown as TestEnv;
+    const previewDatabaseStatus = await reportsSummaryResponse(previewWithoutRateLimiter);
+    assert.equal(previewDatabaseStatus.status, 503,
+      'Preview reporting must remain unavailable until an isolated Neon Hyperdrive binding is supplied');
+    const previewDatabaseBody = await previewDatabaseStatus.json() as { code?: string };
+    assert.equal(previewDatabaseBody.code, 'NEON_HYPERDRIVE_NOT_CONFIGURED',
+      'Preview must not silently fall back to the production database');
+
     const previewMcpWithoutRateLimit = await worker.fetch(
       mcpPost({ jsonrpc: '2.0', id: 'preview', method: 'initialize', params: {
         protocolVersion: '2025-03-26',
