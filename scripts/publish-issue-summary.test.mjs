@@ -47,10 +47,12 @@ test('rejects a zero, empty, or non-numeric issue number before constructing a l
 });
 
 test('rejects malformed repository identifiers and unsafe server URLs', () => {
-  assert.throws(
-    () => buildIssueSummary({ ...validFallbackInput, repository: 'owner/repo/issues/1' }),
-    /valid GitHub repository identifier/,
-  );
+  for (const repository of ['owner/repo/issues/1', 'owner/..', '../repository']) {
+    assert.throws(
+      () => buildIssueSummary({ ...validFallbackInput, repository }),
+      /valid GitHub repository identifier/,
+    );
+  }
   assert.throws(
     () => buildIssueSummary({ ...validFallbackInput, serverUrl: 'javascript:alert(1)' }),
     /HTTPS GitHub server URL/,
