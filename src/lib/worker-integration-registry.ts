@@ -104,7 +104,7 @@ const integrationInventory: IntegrationRecord[] = [
     name: 'Netlify PR previews',
     category: 'ci-preview',
     status: 'configured',
-    detail: 'The GitHub pull-request deploy-preview check is configured for preview builds only. It does not serve production frontend traffic.',
+    detail: 'The GitHub pull-request deploy-preview check is configured for preview-only builds and does not serve production frontend traffic.',
     publicUrl: 'https://www.netlify.com/',
   },
   {
