@@ -143,7 +143,7 @@ test('matches JSON media types exactly and case-insensitively', () => {
 test('treats redirects as verification failures', async () => {
   const result = await run({
     base: APPROVED_ORIGIN,
-    fetchImpl: async () => new Response(null, {
+    fetchImpl: () => new Response(null, {
       status: 302,
       headers: { Location: 'https://external.example/' },
     }),

@@ -36,7 +36,7 @@ const isJsonMediaType = (contentType) => {
   if (typeof contentType !== 'string') return false;
   const mediaType = contentType.split(';')[0].trim().toLowerCase();
   return mediaType === 'application/json' ||
-    /^[a-z0-9!#$&^_.+-]+\\/[a-z0-9!#$&^_.+-]+\\+json$/.test(mediaType);
+    /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+\+json$/.test(mediaType);
 };
 
 const parseBase = (value) => {
