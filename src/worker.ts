@@ -1108,9 +1108,10 @@ export default {
         policy: {
           secretsExposed: false,
           privateCredentialsReturned: false,
-          coreInfrastructureIndependentOfGoogleCloud: true,
+          coreInfrastructureIndependentOfGoogleCloud: null,
+          privateRuntimeConfigurationIsNotExposed: true,
         },
-        integrations: buildWorkerIntegrationRegistry(env),
+        integrations: buildWorkerIntegrationRegistry(),
       }));
     }
 
