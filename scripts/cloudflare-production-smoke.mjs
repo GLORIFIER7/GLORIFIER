@@ -168,7 +168,7 @@ export const formatSmokeFailure = (error) => {
   if (!(error instanceof Error)) return 'unknown error';
   if (error.name === 'AssertionError') return 'assertion failed';
 
-  const httpError = /^Production endpoint returned HTTP (\d{3}): ([^\r\n]*)$/.exec(error.message);
+  const httpError = /^Production endpoint returned HTTP (\d{3}): ([\s\S]*)$/.exec(error.message);
   if (httpError) {
     const code = httpError[2];
     return /^[A-Z][A-Z0-9_]{0,79}$/.test(code)
