@@ -1115,7 +1115,7 @@ export default {
     }
 
     if (incomingUrl.pathname === '/api/data-status') {
-      return workerNativeReadOnlyJson(request, () => buildWorkerIntegrationDataStatus(env));
+      return workerNativeReadOnlyJson(request, () => buildWorkerIntegrationDataStatus());
     }
 
     if (incomingUrl.pathname === '/api/reports/summary') {
