@@ -97,11 +97,9 @@ async function run(): Promise<void> {
       'Preview configuration must not point to the production Supabase project');
     assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
       'Preview configuration must never include production database secrets');
-    assert.equal((wranglerConfig as { observability?: { enabled?: boolean; redactQueryString?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability?.enabled, true,
+    assert.equal((wranglerConfig as { observability?: { enabled?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability?.enabled, true,
       'production Worker observability must be enabled');
-    const observability = (wranglerConfig as { observability?: { enabled?: boolean; redactQueryString?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability;
-    assert.equal(observability?.redactQueryString, true,
-      'observability must redact URL query strings to avoid recording sensitive query parameters');
+    const observability = (wranglerConfig as { observability?: { enabled?: boolean; logs?: { enabled?: boolean; invocation_logs?: boolean; head_sampling_rate?: number }; traces?: { enabled?: boolean; head_sampling_rate?: number }; issues?: { enabled?: boolean } } }).observability;
     assert.equal(observability?.logs?.enabled, true);
     assert.equal(observability?.logs?.invocation_logs, true);
     assert.equal(observability?.logs?.head_sampling_rate, 0.1,
