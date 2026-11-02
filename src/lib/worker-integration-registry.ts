@@ -130,11 +130,11 @@ const configurationStatusByIntegrationStatus: Record<IntegrationStatus, Configur
  * Binding-derived operational checks belong behind a separately verified
  * authenticated control-plane endpoint.
  */
-export function buildWorkerIntegrationRegistry(): IntegrationRecord[] {
+export const buildWorkerIntegrationRegistry = (): IntegrationRecord[] => {
   return integrationInventory.map((item) => ({ ...item }));
-}
+};
 
-export function buildWorkerIntegrationDataStatus(): {
+export const buildWorkerIntegrationDataStatus = (): {
   ok: true;
   generatedAt: string;
   policy: {
@@ -182,4 +182,4 @@ export function buildWorkerIntegrationDataStatus(): {
     },
     data,
   };
-}
+};
