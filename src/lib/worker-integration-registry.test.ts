@@ -40,6 +40,17 @@ test('GET /api/integrations exposes a Worker-native configuration inventory with
   assert.equal(byId.get('neon')?.status, 'configured');
   assert.equal(byId.get('opensea')?.status, 'configured');
   assert.equal(byId.get('github-mcp')?.status, 'configured');
+
+  const noRateLimiter = await worker.fetch(
+    request('/api/integrations'),
+    createEnv({ MCP_RATE_LIMITER: undefined }),
+  );
+  const noRateLimiterBody = await noRateLimiter.json() as {
+    integrations: Array<{ id: string; status: string; detail: string }>;
+  };
+  const mcpWithoutLimiter = noRateLimiterBody.integrations.find((item) => item.id === 'github-mcp');
+  assert.equal(mcpWithoutLimiter?.status, 'needs-config');
+  assert.match(mcpWithoutLimiter?.detail || '', /rate-limit binding/i);
   assert.equal(byId.get('identity')?.status, 'needs-config');
   assert.equal(byId.get('neural')?.status, 'needs-config');
 
