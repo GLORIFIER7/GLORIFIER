@@ -25,17 +25,22 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     'production smoke must not make MCP POST requests');
   const validationJobIndex = workflow.indexOf('\n  validate-and-build:');
   const deployJobIndex = workflow.indexOf('\n  deploy-production:');
-  const deployIndex = workflow.indexOf('\n        run: wrangler deploy\n', deployJobIndex);
+  const deployStepIndex = workflow.indexOf(
+    '\n      - name: Deploy Cloudflare Worker',
+    deployJobIndex,
+  );
+  const deployCommandIndex = workflow.indexOf('wrangler deploy --log-level info', deployStepIndex);
   const releaseSmokeIndex = workflow.indexOf(
-    '\n        run: node scripts/cloudflare-production-smoke.mjs\n',
-    deployIndex,
+    '\n      - name: Verify all deployed production read-only contracts',
+    deployCommandIndex,
   );
   const validationJobSmokeIndex = workflow.indexOf(
     'run: node scripts/cloudflare-production-smoke.mjs',
     validationJobIndex,
   );
   assert.ok(validationJobIndex >= 0 && deployJobIndex > validationJobIndex &&
-    deployIndex > deployJobIndex && releaseSmokeIndex > deployIndex &&
+    deployStepIndex > deployJobIndex && deployCommandIndex > deployStepIndex &&
+    releaseSmokeIndex > deployCommandIndex &&
     (validationJobSmokeIndex === -1 || validationJobSmokeIndex > deployJobIndex),
   'the GET-only production smoke suite must run only after the real deployment step');
 });
