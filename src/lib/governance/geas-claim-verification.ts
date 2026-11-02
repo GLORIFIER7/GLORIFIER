@@ -43,7 +43,8 @@ export interface ClaimSourceRegistry {
 
 export interface ClaimReviewResult {
   /** A structurally valid submitted review record, not a verified claim. */
-  admissible: boolean;
+  /** Record structure and source policy passed; reviewer identity and semantic truth remain unverified. */
+  recordIntegrityAdmitted: boolean;
   /** The validator checks record integrity only; semantic truth is external. */
   admissionScope: 'record-integrity-only';
   /** This validator receives no authenticated identity assertion. */
@@ -421,17 +422,17 @@ const createClaimReviewResult = (
   sourcePolicyDigest: string | null,
   failures: string[],
 ): ClaimReviewResult => {
-  const admissible = failures.length === 0 && record.decision === 'supported';
+  const recordIntegrityAdmitted = failures.length === 0 && record.decision === 'supported';
   const decision = failures.length === 0 && isClaimReviewDecision(record.decision)
     ? record.decision
     : 'unknown';
   return {
-    admissible,
+    recordIntegrityAdmitted,
     admissionScope: 'record-integrity-only',
     reviewerIdentityStatus: 'not-authenticated',
     semanticTruthStatus: 'not-verified',
     decision,
-    evidenceRef: admissible ? createEvidenceReference(record, sourcePolicyDigest) : null,
+    evidenceRef: recordIntegrityAdmitted ? createEvidenceReference(record, sourcePolicyDigest) : null,
     failures,
   };
 };
