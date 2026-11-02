@@ -9,16 +9,23 @@ import {
   requestJson,
 } from './cloudflare-production-smoke.mjs';
 
-test('production smoke probes never send HTTP mutation methods to the live Worker', () => {
+test('production smoke uses POST only for the MCP read-only protocol', () => {
   const workflow = readFileSync(new URL('../.github/workflows/cloudflare-worker.yml', import.meta.url), 'utf8');
   const smokeSource = readFileSync(new URL('./cloudflare-production-smoke.mjs', import.meta.url), 'utf8');
 
-  assert.doesNotMatch(smokeSource, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i,
+  assert.doesNotMatch(smokeSource, /method:\s*['"](?:PUT|PATCH|DELETE)['"]/i,
     'the production smoke script must not issue HTTP mutation methods');
-  assert.doesNotMatch(workflow, /--request\s+(?:POST|PUT|PATCH|DELETE)\b/i,
+  assert.equal((smokeSource.match(/method:\s*['"]POST['"]/gi) ?? []).length, 2,
+    'the smoke script must issue exactly two POST requests for MCP initialize and tools/list');
+  assert.equal((smokeSource.match(/fetchProductionMcp/g) ?? []).length, 3,
+    'both POST calls must use the fixed MCP-only fetcher');
+
+  assert.doesNotMatch(workflow, /--request\s+(?:PUT|PATCH|DELETE)\b/i,
     'the production deployment workflow must not issue HTTP mutation methods');
-  assert.equal(smokeSource.includes('fetchProductionMcp'), false,
-    'production smoke must not make MCP POST requests');
+  const workflowPosts = workflow.match(/--request\s+POST\b/g) ?? [];
+  const mcpTargets = workflow.match(/https:\/\/glorifier\.glorifier\.workers\.dev\/mcp/g) ?? [];
+  assert.equal(workflowPosts.length, mcpTargets.length,
+    'workflow POST requests must target only the read-only MCP endpoint');
 });
 
 const reports = {
