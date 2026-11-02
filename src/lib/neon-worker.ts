@@ -33,21 +33,9 @@ export type NeonPgClientFactory = (connectionString: string) => NeonPgClient;
 
 const OPERATIONAL_COUNTS_SQL = `
 SELECT table_name, row_count
-FROM (
-  SELECT 'connection_approvals'::text AS table_name, COUNT(*)::text AS row_count FROM public.connection_approvals
-  UNION ALL
-  SELECT 'connection_events'::text AS table_name, COUNT(*)::text AS row_count FROM public.connection_events
-  UNION ALL
-  SELECT 'connection_registry'::text AS table_name, COUNT(*)::text AS row_count FROM public.connection_registry
-  UNION ALL
-  SELECT 'intelligence_analyses'::text AS table_name, COUNT(*)::text AS row_count FROM public.intelligence_analyses
-  UNION ALL
-  SELECT 'intelligence_evidence'::text AS table_name, COUNT(*)::text AS row_count FROM public.intelligence_evidence
-  UNION ALL
-  SELECT 'intelligence_reports'::text AS table_name, COUNT(*)::text AS row_count FROM public.intelligence_reports
-) AS operational_counts
+FROM public.glorifier_worker_operational_counts
 ORDER BY table_name
-`;
+;
 
 const hasWhitespace = (value: string): boolean => /\s/.test(value);
 
