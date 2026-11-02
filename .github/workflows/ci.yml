@@ -375,6 +375,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
 
+      - name: Verify restored Supabase migration source fidelity
+        run: npm run test:supabase-migration-source-fidelity
+
       - name: Verify Supabase default privilege migration on PostgreSQL
         run: npm run test:supabase-default-privileges
         env:
