@@ -74,7 +74,7 @@ Use Cloudflare Hyperdrive to connect the Worker to Neon through a dedicated leas
 - Use a dedicated non-superuser database role for the Worker. Begin with `SELECT` only on the reporting tables. Do not grant schema ownership, superuser, `BYPASSRLS`, or broad database privileges.
 - Use the standard `pg` driver through Hyperdrive, following the Cloudflare Worker runtime requirements. Keep connection creation request-safe and let Hyperdrive own pooling.
 - The draft implementation is now present in `src/lib/neon-worker.ts` and `src/worker.ts` on PR #597: a fixed six-table read-only query, bounded count parsing, per-request client cleanup, and explicit `GLORIFIER_DATABASE_PROVIDER` selection. Neon mode fails closed when `HYPERDRIVE` is absent and does not fall back to Supabase. The Cloudflare Worker workflow passed the adapter tests and Wrangler no-deploy dry run on commit `be467814d61bfddd3115f8451e26192005aae4f3`.
-- A live Hyperdrive integration test against a non-production Neon branch is still required; the adapter's CI tests inject a fake PostgreSQL client and do not prove that a real Cloudflare Hyperdrive connection succeeds.
+- A live read-only Hyperdrive integration test was completed on 2026-11-02 against Neon `main` through uploaded Worker version 877; this proves real Hyperdrive connectivity but is not an isolated non-production staging test. The adapter CI tests remain separate fake-client contract tests.
 - Migrate one route group at a time. Compare live counts and deterministic per-table checksums before promoting the Neon-backed implementation.
 - Only after all required Worker routes and checks pass should the Supabase service-role secret/URL be removed from Worker configuration. Retain the Supabase project read-only until owner-approved retirement.
 
@@ -120,8 +120,29 @@ No dedicated `glorifier_worker` login role was present. These existing administr
 
 For the initial reporting-only route, create a separate login role with no role/database creation, no superuser, no `BYPASSRLS`, and read-only `SELECT` access limited to the six approved operational tables. The credential must be generated and stored through a secure, owner-controlled channel; it must never appear in source, chat, issue text, or CI logs. Role creation and Hyperdrive provisioning remain separate owner-approved operational actions and were not performed in this audit.
 
+## Live read-only candidate verification — 2026-11-02T05:29Z
+
+### Cloudflare deployment state
+
+- Production deployment `1a3c785a-2e10-4516-93ee-f72f50aa7b05` still routes **100%** of traffic to Worker version 874 (`0440ce7e-d1ec-4c0d-be05-13f811c1fbb5`). Its active binding metadata selects `supabase` and has no Hyperdrive binding.
+- Uploaded Worker version 877 (`bbcd5da1-9cf1-4e97-897d-e873dfabe343`) is a **preview/upload only**, not a production deployment. Its binding metadata selects `neon` and binds Hyperdrive configuration `eff847b6c3c64488a989f1fa67d966a0` (`glorifier-neon-readonly`).
+- A no-auth GET to version 877's Version URL returned `database.source = neon-hyperdrive`, an exact-count probe success, and `connectionRegistryRows = 30`.
+- Its `/api/reports/summary` response returned exact Neon counts: approvals **9**, events **251,212**, registry **30**, analyses **266**, evidence **1,099**, reports **133**.
+- This test used the Neon **main** branch (`br-raspy-pine-b5vgf50e`), not an isolated staging branch. Cloudflare reports Worker Version URLs enabled; the candidate URL was reachable without authentication. Do not treat this publicly reachable main-database preview as an isolated staging environment.
+- The read-only request woke the Neon compute. It was explicitly suspended after the check and was subsequently observed in `idle` state. No SQL writes or schema changes were performed.
+
+### Neon Worker role and transaction boundary
+
+A read-only connection using `glorifier_worker_ro` confirmed the role is not superuser, cannot create roles or databases, has no public schema CREATE permission, and has no INSERT/UPDATE/DELETE/TRUNCATE permissions on public relations. Its only SELECT grant is on `public.glorifier_worker_operational_counts`, a security-barrier aggregate view; it has no direct base-table SELECT grants.
+
+The direct session initially reported `transaction_read_only = off`. Draft PR #604 therefore wraps the aggregate query in `BEGIN READ ONLY`, commits only after validation, and rolls back after query/validation failures. It also surfaces both the query error and client-close error together as an `AggregateError`. Latest PR head at the time of this note: `ab44f1d1d90ac106eb7e0587d586b9c62e1a9f6d`. Cloudflare Worker validation run #1895 passed, including the Neon adapter tests and Wrangler dry-run; its production deployment job was skipped. PR #604 remains draft and unmerged.
+
+### Production runtime checks
+
+The production URL still reports `supabase-postgrest` as the database source, with all six queried operational counts equal to zero. `/api/identity` returns HTTP 503. `/api/neural/health` and `/api/neural/ready` also return HTTP 503 because the Neural origin is not configured. The production Worker health endpoint proves Worker/assets liveness only; authentication and AI were not probed.
+
 ## Current status
 
-**PARTIALLY VERIFIED.** Neon is the recommended canonical database and its current data is reachable after the quota reset. Supabase's six table schemas match at the observed column/primary-key/foreign-key level but are empty, and index definitions differ. The Worker still reports against Supabase in production. A bounded read-only Neon adapter and explicit fail-closed provider switch are implemented in draft PR #597; its Worker tests and Wrangler no-deploy dry run passed on the recorded PR head. Hyperdrive is not provisioned or bound, no dedicated Worker database role exists yet, no real Neon query has run through the Worker, complete schema/index reconciliation remains open, and production cutover has not been performed.
+**PARTIALLY VERIFIED — PRODUCTION CUTOVER NOT VERIFIED OR PERFORMED.** Neon is the approved canonical database target. A real query through Cloudflare Hyperdrive has now succeeded from uploaded version 877, and the dedicated Worker role is least-privilege for the aggregate reporting view. However, production traffic remains on Supabase version 874; Neon and Supabase counts differ; the successful preview query used the Neon main branch through a publicly reachable Version URL; and the new transaction guard in PR #604 has not been deployed. Full schema/index/constraint reconciliation, deterministic per-table checksums, route-by-route data-source migration, backup/restore validation, isolated staging and preview access policy, identity configuration, Neural deployment/readiness, and rollback verification remain open.
 
-This runbook does not claim that the Worker is already connected to Neon or that the whole GLORIFIER system is fully verified.
+No production deployment, traffic shift, production data movement, schema migration, or Supabase retirement has been performed. Keep Neon unchanged and preserve the current production version until all cutover gates above pass and the owner separately approves the release.

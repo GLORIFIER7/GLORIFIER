@@ -32,7 +32,7 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
         return Promise.resolve();
       },
       query(sql) {
-        capturedSql = sql;
+        if (sql.includes('FROM public.glorifier_worker_operational_counts')) capturedSql = sql;
         return Promise.resolve({ rows: expectedRows });
       },
       end() {
@@ -116,22 +116,28 @@ test('always closes a connected client after a query error', async () => {
   assert.equal(closed, true);
 });
 
-test('closes the client after connection failure and preserves the original error', async () => {
+test('surfaces connection and client cleanup failures without discarding either error', async () => {
   let closed = false;
+  const connectionError = new Error('simulated connection failure');
+  const cleanupError = new Error('simulated cleanup failure');
   const factory: NeonPgClientFactory = () => ({
-    connect: () => Promise.reject(new Error('simulated connection failure')),
+    connect: () => Promise.reject(connectionError),
     query: () => {
       throw new Error('query must not run after connection failure');
     },
     end: () => {
       closed = true;
-      return Promise.reject(new Error('simulated cleanup failure'));
+      return Promise.reject(cleanupError);
     },
   });
 
   await assert.rejects(
     () => readNeonOperationalCounts(binding, factory),
-    /simulated connection failure/,
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [connectionError, cleanupError]);
+      return true;
+    },
   );
   assert.equal(closed, true);
 });
@@ -151,4 +157,145 @@ test('fails closed when the Hyperdrive connection string is absent or invalid', 
   await assert.rejects(() => readNeonOperationalCounts({ connectionString: 'https://not-postgres.invalid' }, factory));
   await assert.rejects(() => readNeonOperationalCounts({ connectionString: 'postgresql://bad host/glorifier' }, factory));
   assert.equal(factoryCalls, 0);
+});
+
+
+test('executes operational counts in an explicit read-only transaction', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      return Promise.resolve({
+        rows: sql.includes('FROM public.glorifier_worker_operational_counts') ? expectedRows : [],
+      });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  const counts = await readNeonOperationalCounts(binding, factory);
+
+  assert.equal(counts.connection_events, 251212);
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
+  assert.equal(statements[2], 'COMMIT');
+});
+
+test('rolls back the read-only transaction when the count query fails', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) {
+        return Promise.reject(new Error('simulated count query failure'));
+      }
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    /simulated count query failure/,
+  );
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
+  assert.equal(statements[2], 'ROLLBACK');
+});
+
+test('surfaces query and client cleanup failures without discarding either error', async () => {
+  const queryError = new Error('simulated query failure');
+  const closeError = new Error('simulated cleanup failure');
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query: () => Promise.reject(queryError),
+    end: () => Promise.reject(closeError),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [queryError, closeError]);
+      return true;
+    },
+  );
+});
+
+test('preserves query, rollback, and client cleanup failures together', async () => {
+  const queryError = new Error('simulated count query failure');
+  const rollbackError = new Error('simulated rollback failure');
+  const cleanupError = new Error('simulated client cleanup failure');
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) {
+        return Promise.reject(queryError);
+      }
+      if (sql.trim() === 'ROLLBACK') return Promise.reject(rollbackError);
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.reject(cleanupError),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.deepEqual(error.errors, [queryError, rollbackError, cleanupError]);
+      return true;
+    },
+  );
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.ok(statements[1].includes('FROM public.glorifier_worker_operational_counts'));
+  assert.equal(statements[2], 'ROLLBACK');
+});
+
+test('rolls back without committing when count validation fails', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      return Promise.resolve({
+        rows: sql.includes('FROM public.glorifier_worker_operational_counts') ? expectedRows.slice(1) : [],
+      });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    /exactly six operational table counts/,
+  );
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.equal(statements[2], 'ROLLBACK');
+  assert.ok(!statements.includes('COMMIT'));
+});
+
+test('reports a rollback failure with its specific message when cleanup succeeds', async () => {
+  const queryError = new Error('simulated count query failure');
+  const rollbackError = new Error('simulated rollback failure');
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) return Promise.reject(queryError);
+      if (sql.trim() === 'ROLLBACK') return Promise.reject(rollbackError);
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /could not be rolled back/);
+      assert.deepEqual(error.errors, [queryError, rollbackError]);
+      return true;
+    },
+  );
 });

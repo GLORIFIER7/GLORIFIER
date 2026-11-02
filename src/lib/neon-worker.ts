@@ -132,6 +132,56 @@ const captureAsyncResult = async <T>(
   }
 };
 
+const runNeonCountTransaction = async (
+  client: NeonPgClient,
+): Promise<NeonOperationalCounts> => {
+  await client.connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN READ ONLY');
+    transactionStarted = true;
+    const result = await client.query(OPERATIONAL_COUNTS_SQL);
+    const counts = parseOperationalCounts(result.rows);
+    await client.query('COMMIT');
+    return counts;
+  } catch (error) {
+    if (!transactionStarted) throw error;
+    const rollback = await captureAsyncResult(async () => {
+      await client.query('ROLLBACK');
+    });
+    if (!rollback.ok) {
+      throw new AggregateError(
+        [error, rollback.error],
+        'Neon count query failed and the read-only transaction could not be rolled back.',
+      );
+    }
+    throw error;
+  }
+};
+
+const flattenAggregateErrors = (error: unknown): unknown[] =>
+  error instanceof AggregateError
+    ? error.errors.flatMap(flattenAggregateErrors)
+    : [error];
+
+const getAsyncResultErrors = <T>(result: AsyncResult<T>): unknown[] =>
+  result.ok ? [] : flattenAggregateErrors(result.error);
+
+const throwIfNeonQueryFailed = (
+  query: AsyncResult<NeonOperationalCounts>,
+  close: AsyncResult<void>,
+): void => {
+  // Only aggregate when cleanup also failed; otherwise rethrow the query
+  // error unchanged so its specific message (e.g. rollback failure) survives.
+  if (close.ok) return;
+  if (query.ok) throw close.error;
+  throw new AggregateError(
+    [...getAsyncResultErrors(query), close.error],
+    'Neon count query, rollback, or client cleanup failed.',
+  );
+};
+
 const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
   let query: AsyncResult<NeonOperationalCounts> = {
     ok: false,
@@ -140,17 +190,13 @@ const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperatio
   let close: AsyncResult<void> = { ok: true, value: undefined };
 
   try {
-    query = await captureAsyncResult(async () => {
-      await client.connect();
-      const result = await client.query(OPERATIONAL_COUNTS_SQL);
-      return parseOperationalCounts(result.rows);
-    });
+    query = await captureAsyncResult(() => runNeonCountTransaction(client));
   } finally {
     close = await captureAsyncResult(() => client.end());
   }
 
+  throwIfNeonQueryFailed(query, close);
   if (!query.ok) throw query.error;
-  if (!close.ok) throw close.error;
   return query.value;
 };
 
