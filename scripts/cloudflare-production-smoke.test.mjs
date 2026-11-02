@@ -148,7 +148,7 @@ test('production smoke failure diagnostics retain safe HTTP codes without respon
   assert.equal(formatSmokeFailure(untrustedResponseText), 'HTTP 503');
   assert.doesNotMatch(formatSmokeFailure(untrustedResponseText), /customer-email/);
 
-  const multilineResponseText = new Error('Production endpoint returned HTTP 503: untrusted response\\nprivate detail');
+  const multilineResponseText = new Error('Production endpoint returned HTTP 503: untrusted response\nprivate detail');
   assert.equal(formatSmokeFailure(multilineResponseText), 'HTTP 503');
   assert.doesNotMatch(formatSmokeFailure(multilineResponseText), /private detail/);
 
