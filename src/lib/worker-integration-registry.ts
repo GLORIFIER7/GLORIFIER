@@ -129,11 +129,19 @@ export function buildWorkerIntegrationRegistry(
       publicUrl: 'https://vercel.com/',
     },
     {
-      id: 'netlify',
-      name: 'Netlify',
+      id: 'netlify-preview',
+      name: 'Netlify PR previews',
+      category: 'ci-preview',
+      status: 'configured',
+      detail: 'The GitHub pull-request deploy-preview integration is configured and active. It is preview-only and does not serve production frontend traffic.',
+      publicUrl: 'https://www.netlify.com/',
+    },
+    {
+      id: 'netlify-production',
+      name: 'Netlify production hosting',
       category: 'frontend',
       status: 'disabled',
-      detail: 'Not an active production frontend target. The GitHub PR preview check is a separate integration and remains connected.',
+      detail: 'Not an active production frontend target. The production frontend is served by Cloudflare Workers.',
       publicUrl: 'https://www.netlify.com/',
     },
   ];
