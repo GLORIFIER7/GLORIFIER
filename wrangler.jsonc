@@ -61,7 +61,6 @@
   },
   "observability": {
     "enabled": true,
-    "redactQueryString": true,
     "logs": {
       "enabled": true,
       "invocation_logs": true,
