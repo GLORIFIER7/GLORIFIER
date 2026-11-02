@@ -32,7 +32,7 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
         return Promise.resolve();
       },
       query(sql) {
-        capturedSql = sql;
+        if (sql.includes('FROM public.glorifier_worker_operational_counts')) capturedSql = sql;
         return Promise.resolve({ rows: expectedRows });
       },
       end() {
