@@ -1,6 +1,8 @@
 ---
-# Supabase migrations are PostgreSQL SQL. The Codacy T-SQL engine emits
-# SQL Server-only SET directives for these files. Their syntax, history and
-# privilege behavior are validated by the dedicated PostgreSQL CI job.
+# The recovered bootstrap migration is PostgreSQL SQL and is byte-for-byte
+# sourced from the already-applied Supabase migration history. Codacy's
+# T-SQL-only rules are invalid for this file; PostgreSQL behavior remains
+# covered by the dedicated integration and migration-source fidelity tests.
 exclude_paths:
+  - "supabase/migrations/20261021051653_bootstrap_basic_operations_schema.sql"
   - "supabase/migrations/**/*.sql"
