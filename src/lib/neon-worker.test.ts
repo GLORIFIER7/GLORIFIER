@@ -152,3 +152,49 @@ test('fails closed when the Hyperdrive connection string is absent or invalid', 
   await assert.rejects(() => readNeonOperationalCounts({ connectionString: 'postgresql://bad host/glorifier' }, factory));
   assert.equal(factoryCalls, 0);
 });
+
+
+test('executes operational counts in an explicit read-only transaction', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      return Promise.resolve({
+        rows: sql.includes('FROM public.glorifier_worker_operational_counts') ? expectedRows : [],
+      });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  const counts = await readNeonOperationalCounts(binding, factory);
+
+  assert.equal(counts.connection_events, 251212);
+  assert.equal(statements[0], 'BEGIN READ ONLY');
+  assert.match(statements[1], /FROM public\\.glorifier_worker_operational_counts/);
+  assert.equal(statements[2], 'COMMIT');
+});
+
+test('rolls back the read-only transaction when the count query fails', async () => {
+  const statements: string[] = [];
+  const factory: NeonPgClientFactory = () => ({
+    connect: () => Promise.resolve(),
+    query(sql) {
+      statements.push(sql.trim());
+      if (sql.includes('FROM public.glorifier_worker_operational_counts')) {
+        return Promise.reject(new Error('simulated count query failure'));
+      }
+      return Promise.resolve({ rows: [] });
+    },
+    end: () => Promise.resolve(),
+  });
+
+  await assert.rejects(
+    () => readNeonOperationalCounts(binding, factory),
+    /simulated count query failure/,
+  );
+  assert.deepEqual(statements, ['BEGIN READ ONLY', expectOperationalCountSelect(), 'ROLLBACK']);
+});
+
+const expectOperationalCountSelect = (): string =>
+  statementsForOperationalCountSelect;
