@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: glorifier-cloudflare-${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production) && 'deploy' || format('{0}-{1}', github.event_name, github.event.pull_request.number || github.ref) }}
+  group: glorifier-cloudflare-${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production) && 'deploy' || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
@@ -116,7 +116,21 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: wrangler deploy
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Deploy attempt ${attempt}/3"
+            if wrangler deploy --log-level info; then
+              echo "Cloudflare deployment succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Cloudflare deployment failed after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::Cloudflare deployment failed; retrying in 30s"
+            sleep 30
+          done
 
       - name: Smoke-test deployed Worker health endpoint
         run: |
@@ -171,7 +185,7 @@ jobs:
             body.code === "AUTHENTICATION_REQUIRED" ||
             (body.code === undefined && body.ok === false);
           if (status !== 401 || body === null || typeof body !== "object" || !validAuthFailure) {
-            console.error("Unauthenticated app-state boundary failed; expected HTTP 401 and an authentication-required JSON contract; status=" + status + "; code=" + (typeof body?.code === "string" ? body.code : "absent"));
+            console.error("Unauthenticated app-state boundary failed; expected HTTP 401 and an authentication-required JSON contract; status=" + status + "; code=" + (typeof body?.code === "string" ? body.code : "missing"));
             process.exit(1);
           }
           console.log("Unauthenticated app-state boundary valid; status=401");
