@@ -2,78 +2,116 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
+const joinParts = (value) => Array.isArray(value) ? value.join("") : "";
 
-export function validateEvidenceBundle(bundle) {
-  const issues = [];
-  const add = (condition, message) => { if (!condition) issues.push(message); };
-  const { registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation } = bundle;
+function validateMetadata(bundle) {
+  const { draftMetadata, secondaryDraft, publishedMetadata } = bundle;
   const expectedName = "GLORIFIER SERVICES — Official Logo #001";
   const expectedImage = "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa";
-  const expectedTokenUri = "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1";
-  const expectedImageSha256 = "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790";
-  const expectedHistoricalSha256 = "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513";
-  const expectedRecipientCandidate = "0x393c19Ff12e1624181fBF1938b80982b9dfC427";
+  const issues = [];
+  if (draftMetadata.name !== expectedName) issues.push("NFT metadata draft name mismatch.");
+  if (secondaryDraft.name !== expectedName) issues.push("Secondary NFT metadata name mismatch.");
+  if (draftMetadata.image !== expectedImage) issues.push("NFT metadata.json image CID mismatch.");
+  if (secondaryDraft.image !== expectedImage) issues.push("Secondary metadata image CID mismatch.");
+  if (publishedMetadata.name !== expectedName) issues.push("Published metadata name mismatch.");
+  if (publishedMetadata.image !== expectedImage) issues.push("Published metadata image CID mismatch.");
+  return issues;
+}
 
-  add(draftMetadata.name === expectedName, "NFT metadata draft name is not the official Logo #001 name.");
-  add(secondaryDraft.name === expectedName, "Secondary NFT metadata draft name is not the official Logo #001 name.");
-  add(draftMetadata.image === expectedImage, "NFT metadata.json image URI does not match the live token image CID.");
-  add(secondaryDraft.image === expectedImage, "Secondary NFT metadata image URI does not match the live token image CID.");
-  add(publishedMetadata.name === expectedName, "Published on-chain metadata name does not identify Official Logo #001.");
-  add(publishedMetadata.image === expectedImage, "Published on-chain metadata image URI differs from the recorded token image URI.");
-
+function validateMintState(bundle) {
+  const { registry, observation } = bundle;
   const obs = registry.existing_contract_candidate?.onchain_observation ?? {};
+  const uri = registry.metadata?.final_corrected_uri;
+  const issues = [];
+  if (joinParts(obs.token_uri_parts) !== uri) issues.push("Registry token URI segments mismatch.");
+  if (joinParts(obs.owner_of_token_1_parts) !== observation.reads.ownerOf_1) issues.push("Registry ownerOf(1) segments mismatch.");
+  if (joinParts(observation.reads.tokenURI_1_parts) !== uri) issues.push("Observation tokenURI(1) segments mismatch.");
+  if (obs.current_owner !== observation.reads.owner) issues.push("Registry current owner mismatch.");
+  if (observation.reads.owner !== observation.reads.ownerOf_1) issues.push("Current owner and ownerOf(1) disagree.");
+  if (observation.reads.totalSupply !== "1") issues.push("Official Logo #001 supply must equal one.");
+  if (registry.official_logo_001?.status !== "VERIFIED_MINTED_ON_ETHEREUM_MAINNET") issues.push("Official Logo #001 is not recorded as minted.");
+  if (registry.official_logo_001?.token_id !== "1") issues.push("Official Logo #001 token ID is not 1.");
+  return issues;
+}
+
+function validateRegistryMetadata(bundle) {
+  const { registry } = bundle;
   const meta = registry.metadata ?? {};
-  add(meta.final_corrected_cid === "Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst", "Registry final_corrected_cid must identify the on-chain metadata root CID.");
-  add(meta.final_corrected_path === "/1", "Registry final_corrected_path must preserve the tokenURI path suffix.");
-  add(meta.final_corrected_uri === expectedTokenUri, "Registry final_corrected_uri must equal the live tokenURI(1).");
-  add(meta.onchain_metadata_root_cid === meta.final_corrected_cid, "Registry metadata root CID and final CID disagree.");
-  add(obs.token_uri === expectedTokenUri, "Registry on-chain tokenURI does not equal the observed tokenURI(1).");
-  add(obs.current_owner === observation.reads.owner, "Registry current owner differs from direct eth_call evidence.");
-  add(obs.owner_of_token_1 === observation.reads.ownerOf_1, "Registry ownerOf(1) differs from direct eth_call evidence.");
-  add(observation.reads.owner === observation.reads.ownerOf_1, "Current owner and ownerOf(1) disagree.");
-  add(observation.reads.totalSupply === "1", "Official Logo #001 supply is not recorded as exactly one.");
-  add(registry.official_logo_001?.status === "VERIFIED_MINTED_ON_ETHEREUM_MAINNET", "Official Logo #001 is not recorded as minted.");
-  add(registry.official_logo_001?.token_id === "1", "Official Logo #001 token ID is not 1.");
+  const uri = "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1";
+  const root = "Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst";
+  const issues = [];
+  if (meta.final_corrected_cid !== root) issues.push("Registry final metadata root CID mismatch.");
+  if (meta.final_corrected_path !== "/1") issues.push("Registry final metadata path mismatch.");
+  if (meta.final_corrected_uri !== uri) issues.push("Registry final metadata URI mismatch.");
+  if (meta.onchain_metadata_root_cid !== meta.final_corrected_cid) issues.push("Registry metadata root and final CID disagree.");
+  const interpretation = String(registry.existing_contract_candidate?.onchain_observation?.interpretation ?? "");
+  if (!interpretation.includes("GLORIFIER SERVICES Official Logo #001 NFT")) issues.push("Registry interpretation must identify the minted Official Logo #001 token.");
+  if (interpretation.includes("does not prove")) issues.push("Registry interpretation retains stale unverified-artwork wording.");
+  return issues;
+}
 
-  const interpretation = String(obs.interpretation ?? "");
-  add(interpretation.includes("GLORIFIER SERVICES Official Logo #001 NFT"), "Registry interpretation does not identify the verified Official Logo #001 token.");
-  add(!interpretation.includes("does not prove"), "Registry interpretation retains the stale unverified-artwork claim.");
-  add(String(obs.token_uri_and_artwork_match ?? "").includes("REPOSITORY_IMAGE_BYTES_MATCH"), "Registry artwork-match status does not record the repository image byte match.");
-
+function validateRepositoryImage(bundle) {
+  const { registry, observation, repositoryFile } = bundle;
   const image = registry.artwork?.onchain_token_image ?? {};
   const repositoryAsset = observation.image_integrity?.repository_asset ?? {};
-  const repositoryFile = bundle.repositoryFile ?? {};
-  add(image.repository_asset_path === "GLORIFIER SERVICES.png", "Registry does not identify the canonical repository image path.");
-  add(image.repository_asset_bytes === 55886, "Registry repository image byte size is inconsistent.");
-  add(image.repository_asset_git_blob_sha === repositoryAsset.git_blob_sha, "Registry Git blob SHA differs from the observation.");
-  add(image.repository_asset_sha256 === expectedImageSha256, "Registry repository image SHA-256 is not the verified image digest.");
-  add(image.repository_asset_sha256_matches_image_cid_digest === true, "Registry does not verify repository asset SHA-256 against the image CID digest.");
-  add(repositoryAsset.sha256 === expectedImageSha256, "Observation repository asset SHA-256 differs from the published image CID digest.");
-  add(repositoryFile.sha256 === expectedImageSha256, "Actual GLORIFIER SERVICES.png SHA-256 no longer matches the live token image CID digest.");
-  add(repositoryFile.bytes === 55886, "Actual GLORIFIER SERVICES.png byte size changed.");
-  add(repositoryFile.gitBlobSha === repositoryAsset.git_blob_sha, "Actual GLORIFIER SERVICES.png Git blob SHA no longer matches the inventory record.");
-  add(observation.image_integrity?.digest_sha256 === expectedImageSha256, "Observation image CID digest is inconsistent.");
-  add(observation.image_integrity?.digest_matches_previous_retrieved_artwork_bytes === true, "CID digest match to the previously retrieved artwork bytes is not recorded.");
-  add(expectedImageSha256 !== expectedHistoricalSha256, "Historical source PNG mismatch was unexpectedly erased.");
-  add(registry.artwork?.historical_source_sha256 === expectedHistoricalSha256, "Historical source PNG hash is not preserved.");
-
-  const pathCount = (items) => items.reduce((n, item) => n + 1 + (item.alias_paths?.length ?? 0), 0);
-  add(inventory.counts?.jpeg_jpg_paths === pathCount(inventory.assets ?? []), "JPEG path count does not match the deduplicated JPEG asset list.");
-  add(inventory.counts?.unique_jpeg_jpg_blobs === (inventory.assets ?? []).length, "Unique JPEG count does not match the JPEG asset list.");
-  add(inventory.counts?.non_jpeg_paths === pathCount(inventory.other_image_assets ?? []), "Non-JPEG path count does not match the non-JPEG asset list.");
-  add(inventory.counts?.unique_non_jpeg_blobs === (inventory.other_image_assets ?? []).length, "Unique non-JPEG count does not match the non-JPEG asset list.");
-  add(inventory.counts?.unique_all_image_blobs === (inventory.assets ?? []).length + (inventory.other_image_assets ?? []).length, "Total unique image blob count is inconsistent.");
-  add((inventory.other_image_assets ?? []).some(x => x.canonical_path === "GLORIFIER SERVICES.png" && x.git_blob_sha === repositoryAsset.git_blob_sha && x.size_bytes === 55886), "Canonical repository logo file is not present in the non-JPEG image inventory.");
-
-  add(registry.recipient_candidate?.address === expectedRecipientCandidate, "Historical malformed recipient candidate was unexpectedly changed.");
-  add(registry.recipient_candidate?.validation?.valid_evm_address === false, "Malformed historical recipient candidate must remain invalid.");
-  add(expectedRecipientCandidate.slice(2).length === 39 && !/^0x[a-fA-F0-9]{40}$/.test(expectedRecipientCandidate), "Recipient validation fixture is not the expected malformed 39-character address.");
-
-  const mismatchNotes = observation.metadata_consistency_notes ?? [];
-  add(mismatchNotes.some(x => x.includes("description") && x.includes("Motto") && x.includes("verbatim")), "Description/Motto wording difference must be explicitly documented while preserving the gateway copy.");
-  add(JSON.stringify(publishedMetadata) === JSON.stringify(observation.published_metadata), "Published metadata copy in the observation is not an exact match.");
-
+  const expected = "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790";
+  const issues = [];
+  if (image.repository_asset_path !== "GLORIFIER SERVICES.png") issues.push("Registry canonical repository image path mismatch.");
+  if (image.repository_asset_bytes !== 55886 || repositoryAsset.bytes !== 55886 || repositoryFile.bytes !== 55886) issues.push("Repository logo byte-size mismatch.");
+  if (image.repository_asset_git_blob_sha !== repositoryAsset.git_blob_sha || repositoryFile.gitBlobSha !== repositoryAsset.git_blob_sha) issues.push("Repository logo Git blob SHA mismatch.");
+  if (image.repository_asset_sha256 !== expected || repositoryAsset.sha256 !== expected || repositoryFile.sha256 !== expected) issues.push("Actual repository image SHA-256 mismatch.");
+  if (image.repository_asset_sha256_matches_image_cid_digest !== true) issues.push("Repository image SHA-256 is not recorded as matching image CID digest.");
+  if (observation.image_integrity?.digest_sha256 !== expected) issues.push("Image CID digest mismatch.");
+  if (observation.image_integrity?.digest_matches_previous_retrieved_artwork_bytes !== true) issues.push("Previous image retrieval digest match missing.");
+  if (registry.artwork?.historical_source_sha256 !== "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513") issues.push("Historical source PNG SHA-256 was not preserved.");
+  if (expected === registry.artwork?.historical_source_sha256) issues.push("Historical source mismatch was incorrectly erased.");
   return issues;
+}
+
+function validateInventory(bundle) {
+  const { inventory, observation } = bundle;
+  const pathCount = (items) => items.reduce((n, item) => n + 1 + (item.alias_paths?.length ?? 0), 0);
+  const assets = inventory.assets ?? [];
+  const other = inventory.other_image_assets ?? [];
+  const blob = observation.image_integrity?.repository_asset?.git_blob_sha;
+  const issues = [];
+  if (inventory.counts?.jpeg_jpg_paths !== pathCount(assets)) issues.push("JPEG path count mismatch.");
+  if (inventory.counts?.unique_jpeg_jpg_blobs !== assets.length) issues.push("Unique JPEG count mismatch.");
+  if (inventory.counts?.non_jpeg_paths !== pathCount(other)) issues.push("Non-JPEG path count mismatch.");
+  if (inventory.counts?.unique_non_jpeg_blobs !== other.length) issues.push("Unique non-JPEG count mismatch.");
+  if (inventory.counts?.unique_all_image_blobs !== assets.length + other.length) issues.push("Total unique image count mismatch.");
+  if (!other.some(x => x.canonical_path === "GLORIFIER SERVICES.png" && x.git_blob_sha === blob && x.size_bytes === 55886)) issues.push("Canonical logo missing from non-JPEG inventory.");
+  return issues;
+}
+
+function validateRecipient(bundle) {
+  const address = bundle.registry.recipient_candidate?.address;
+  const expected = "0x393c19Ff12e1624181fBF1938b80982b9dfC427";
+  if (address !== expected) return ["Historical malformed recipient candidate unexpectedly changed."];
+  if (bundle.registry.recipient_candidate?.validation?.valid_evm_address !== false) return ["Malformed recipient candidate must remain invalid."];
+  if (address.slice(2).length !== 39 || /^0x[a-fA-F0-9]{40}$/.test(address)) return ["Recipient validation fixture is not the expected malformed address."];
+  return [];
+}
+
+function validateMetadataProvenance(bundle) {
+  const { observation, publishedMetadata } = bundle;
+  const notes = observation.metadata_consistency_notes ?? [];
+  const issues = [];
+  if (!notes.some(x => x.includes("description") && x.includes("Motto") && x.includes("verbatim"))) issues.push("Description/Motto wording difference must be documented verbatim.");
+  if (JSON.stringify(publishedMetadata) !== JSON.stringify(observation.published_metadata)) issues.push("Published metadata copy does not exactly match the observation.");
+  return issues;
+}
+
+export function validateEvidenceBundle(bundle) {
+  return [
+    ...validateMetadata(bundle),
+    ...validateMintState(bundle),
+    ...validateRegistryMetadata(bundle),
+    ...validateRepositoryImage(bundle),
+    ...validateInventory(bundle),
+    ...validateRecipient(bundle),
+    ...validateMetadataProvenance(bundle)
+  ];
 }
 
 async function run() {
