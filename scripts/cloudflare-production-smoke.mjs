@@ -244,6 +244,45 @@ const fetchProductionIdentity = (options) =>
 
 const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 
+const fetchProductionBuildInfo = (options) =>
+  fetch(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
+
+export const validateBuildInfo = (body, expectedCommit) => {
+  assert.ok(typeof expectedCommit === 'string' && /^[0-9a-f]{40}$/i.test(expectedCommit),
+    'expected Git commit SHA must be a 40-character hexadecimal value');
+  assert.equal(body?.ok, true, 'build-info must report ok=true');
+  assert.equal(body?.status, 'source-provenance-verified');
+  assert.equal(body?.repository, 'https://github.com/GLORIFIER7/GLORIFIER');
+  assert.ok(/^[0-9a-f]{40}$/i.test(body?.git?.commit || ''),
+    'build-info must expose a 40-character source commit SHA');
+  assert.equal(body.git.commit.toLowerCase(), expectedCommit.toLowerCase(),
+    'deployed Worker source commit does not match the expected commit');
+  assert.equal(body?.git?.ref, 'refs/heads/main',
+    'production Worker must identify the protected main branch');
+  assert.ok(/^\\d{1,20}$/.test(body?.git?.runId || ''),
+    'build-info must expose the GitHub Actions run ID');
+  assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body?.worker?.versionId || ''),
+    'build-info must expose the Cloudflare Worker version ID');
+  assert.ok(typeof body?.worker?.versionTimestamp === 'string' &&
+    Number.isFinite(Date.parse(body.worker.versionTimestamp)),
+  'build-info must expose a valid Cloudflare version timestamp');
+  assert.ok(body.worker.versionTag === null || typeof body.worker.versionTag === 'string',
+    'build-info version tag must be a string or null');
+  return body;
+};
+
+export const verifyBuildProvenance = async (
+  fetchRequest = fetch,
+  expectedCommit = process.env.GITHUB_SHA,
+) => {
+  assert.ok(typeof expectedCommit === 'string' && /^[0-9a-f]{40}$/i.test(expectedCommit),
+    'expected Git commit SHA must be a 40-character hexadecimal value');
+  console.log('GLORIFIER production smoke: verifying exact deployed source commit and Cloudflare version');
+  const response = await requestJson((options) =>
+    fetchRequest(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options));
+  return validateBuildInfo(response.body, expectedCommit);
+};
+
 export const verifyPublicReadModels = async (fetchRequest = fetch) => {
   console.log('GLORIFIER production smoke: checking public integration registry and data-status read models');
   const getEndpoint = (pathname) => (options) =>
@@ -333,17 +372,19 @@ export const formatSmokeFailure = (error) => {
 };
 
 export const runProductionSmoke = async () => {
+  const provenance = await verifyBuildProvenance();
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
   const identity = await verifyIdentity();
   const publicReadModels = await verifyPublicReadModels();
+  console.log('Deployed source commit verified: ' + provenance.git.commit + ' (Worker version ' + provenance.worker.versionId + ').');
   console.log('Neon exact operational counts verified for all six reporting tables.');
   console.log('Production public read models verified: ' + publicReadModels.integrations + ' integrations and ' + publicReadModels.dataRows + ' data records.');
   console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
   reportReadinessWarnings(identity, runtime);
-  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, unauthenticated boundary, and identity response contract.');
+  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: exact source provenance, Worker, Neon database, exact counts, unauthenticated boundary, public read models, and identity response contract.');
   console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, Neural execution, user login, or AI-provider execution.');
-  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels };
+  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels, provenance };
 };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
