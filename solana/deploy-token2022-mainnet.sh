@@ -3,6 +3,12 @@ set -euo pipefail
 if [[ "${GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}" ]]; then
   echo "::error::Direct Token-2022 Mainnet mint creation is disabled."; exit 1
 fi
+TEMP_PARENT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+mkdir -p "$TEMP_PARENT"
+GLORIFIER_TOKEN2022_NODE_MODULES_DIR="$(mktemp -d "$TEMP_PARENT/glorifier-token2022-js.XXXXXX")"
+chmod 700 "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"
+export GLORIFIER_TOKEN2022_NODE_MODULES_DIR
+trap 'rm -rf -- "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"' EXIT
 readonly DECIMALS=9
 readonly SUPPLY=1000000000
 readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/d0d5c16fc4a74099c125c8aac594352d53675177/solana/token.json"
@@ -104,7 +110,7 @@ if printf '%s\n' "$STATE" | grep -Eiq 'Update Authority:[[:space:]]*(None|Disabl
   METADATA_UPDATE_AUTHORITY_INITIALLY_NONE=true
 else
   echo "Revoking Token Metadata update authority with the Token Metadata interface instruction (the spl-token CLI metadata alias can incorrectly dispatch Token-2022 SetAuthority after mint supply is fixed)."
-  npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15 @solana/spl-token-metadata@0.1.6
+  npm install --prefix "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR" --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15 @solana/spl-token-metadata@0.1.6
   METADATA_AUTH_TX="$(node solana/revoke-token2022-metadata-authority.mjs "$MINT")"
   test -n "$METADATA_AUTH_TX"
 fi
@@ -117,7 +123,7 @@ if [[ -z "$POINTER_AUTH" || "$POINTER_AUTH" == "None" || "$POINTER_AUTH" == "Dis
   METADATA_POINTER_AUTHORITY_INITIALLY_NONE=true
 else
   echo "Revoking Metadata Pointer authority with a direct Token-2022 instruction (the spl-token CLI can incorrectly resolve extension authority after mint authority is fixed)."
-  npm install --prefix /tmp/glorifier-token2022-js --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15
+  npm install --prefix "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR" --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15
   METADATA_POINTER_AUTH_TX="$(node solana/revoke-token2022-metadata-pointer.mjs "$MINT")"
   test -n "$METADATA_POINTER_AUTH_TX"
 fi
