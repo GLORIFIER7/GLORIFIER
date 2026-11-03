@@ -3,7 +3,15 @@ import { createHash, randomUUID } from 'node:crypto';
 export const GEAS_ENTERPRISE_CONTROLS_VERSION = 'GEAS-EC-1.0';
 export type GovernanceStatus = 'PROPOSED'|'AUTHORIZED'|'EXECUTED'|'VERIFIED'|'PARTIALLY_VERIFIED'|'DEGRADED'|'NOT_VERIFIED'|'BLOCKED';
 
+/** Caller-supplied deployment metadata; this is not an authenticated attestation or runtime probe. */
 export interface DeploymentProvenance { contextId:string; commitSha:string; frontendDeploymentId?:string; backendDeploymentId?:string; databaseSchemaVersion?:string; environment:'production'|'staging'|'development'; deployedAt:string; verifiedAt?:string; }
+export interface ProductionCommitMatchAssessment {
+  status: 'MATCH' | 'MISMATCH' | 'UNKNOWN';
+  commitMatches: boolean | null;
+  deploymentAuthenticity: 'NOT_VERIFIED';
+  runtimeHealth: 'NOT_VERIFIED';
+  reason: string;
+}
 export interface GovernedAction { actionId:string; contextId:string; capability:string; resource:string; payloadHash:string; authorityEnvelopeId:string; policyVersion:string; risk:'low'|'medium'|'high'|'critical'; irreversible:boolean; humanApprovalRequired:boolean; humanApprovalId?:string; status:GovernanceStatus; createdAt:string; }
 export interface ApprovalBinding { approvalId:string; actionId:string; actionHash:string; approverId:string; approvedAt:string; expiresAt:string; revokedAt?:string; }
 export interface UnitEconomics { contextId:string; workload:string; provider?:string; model?:string; inputUnits?:number; outputUnits?:number; computeCost?:number; infrastructureCost?:number; humanReviewCost?:number; totalCost?:number; currency:string; verifiedOutcomeValue?:number; estimatedOutcomeValue?:number; outcomeCurrency?:string; verifiedOutcome:boolean; costPerVerifiedOutcome?:number; }
@@ -49,10 +57,51 @@ export function assertNoIrreversibleExecutionWithoutApproval(action:GovernedActi
   if(!action.humanApprovalRequired)throw new Error('Irreversible action must require human approval');
   if(!approval||!verifyApprovalBinding(action,approval))throw new Error('Valid human approval bound to exact action is required');
 }
-export function assertProductionProvenanceMatches(expectedCommitSha:string,actual:DeploymentProvenance){
-  if(actual.environment!=='production')return {verified:false,reason:'deployment is not production'};
-  if(actual.commitSha!==expectedCommitSha)return {verified:false,reason:'deployed commit does not match expected commit'};
-  return {verified:true,reason:'deployment commit matches expected commit'};
+const isFullCommitDigest = (value: string): boolean =>
+  /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value);
+
+/**
+ * Compare commit identifiers only. A matching SHA in caller-supplied metadata
+ * does not authenticate the deployment, bind an artifact, or verify runtime health.
+ */
+export function assessProductionCommitMatch(
+  expectedCommitSha: string,
+  actual: DeploymentProvenance,
+): ProductionCommitMatchAssessment {
+  const unverified = {
+    deploymentAuthenticity: 'NOT_VERIFIED' as const,
+    runtimeHealth: 'NOT_VERIFIED' as const,
+  };
+  if (actual.environment !== 'production') {
+    return {
+      ...unverified,
+      status: 'UNKNOWN',
+      commitMatches: null,
+      reason: 'deployment environment is not production',
+    };
+  }
+  if (!isFullCommitDigest(expectedCommitSha) || !isFullCommitDigest(actual.commitSha)) {
+    return {
+      ...unverified,
+      status: 'UNKNOWN',
+      commitMatches: null,
+      reason: 'expected and observed commit identifiers must be full 40- or 64-character hexadecimal digests',
+    };
+  }
+  if (actual.commitSha.toLowerCase() !== expectedCommitSha.toLowerCase()) {
+    return {
+      ...unverified,
+      status: 'MISMATCH',
+      commitMatches: false,
+      reason: 'observed deployment commit does not match expected commit',
+    };
+  }
+  return {
+    ...unverified,
+    status: 'MATCH',
+    commitMatches: true,
+    reason: 'commit identifiers match; deployment authenticity and runtime health remain not verified',
+  };
 }
 export function deriveVerificationStatus(input:{deployment:{verified:boolean};authentication:{verified:boolean};authorization:{verified:boolean};evidence:{authoritative:boolean;fresh:boolean;contradicted:boolean};e2e:{passed:boolean}}):GovernanceStatus{
   if(input.evidence.contradicted)return 'NOT_VERIFIED';
