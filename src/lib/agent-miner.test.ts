@@ -1,6 +1,7 @@
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization } from './agent-miner';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 setAgentMinerRunning(true, 'intelligence');
 const before = getAgentMinerSnapshot();
 if (before.cadence !== 'continuous-24x7') throw new Error('24x7 cadence missing');
@@ -9,5 +10,6 @@ const cycle = await runAgentMinerCycle();
 if (!cycle.id || !cycle.completedAt) throw new Error('cycle did not complete');
 setComputeWorkerAuthorization(false);
 console.log('agent-miner tests passed');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
