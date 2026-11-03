@@ -13,6 +13,8 @@ import {
 import type { PostgresAgentStateStore } from '../agent-state-store';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const originalDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
@@ -244,6 +246,9 @@ if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
 else process.env.DATABASE_URL = originalDatabaseUrl;
 
 console.log('agent-harness approval and persistence-cache tests: PASS');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
