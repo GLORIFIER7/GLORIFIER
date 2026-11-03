@@ -1018,6 +1018,7 @@ const run = async (): Promise<void> => {
           new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
           {
             ...env,
+            GLORIFIER_DATABASE_PROVIDER: 'supabase',
             GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
             GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
             GLORIFIER_NEURAL_ORIGIN: undefined,
@@ -1100,7 +1101,7 @@ const run = async (): Promise<void> => {
 
         const nativeReportsWithoutSupabase = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/reports/summary'),
-          { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
+          { ...env, GLORIFIER_DATABASE_PROVIDER: 'supabase', GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
         );
         assert.equal(nativeReportsWithoutSupabase.status, 503);
         assert.equal(await nativeReportsWithoutSupabase.json().then((body: { code?: string }) => body.code), 'SUPABASE_NOT_CONFIGURED');
