@@ -214,6 +214,9 @@ jobs:
       - name: Interoperability controls
         run: ./node_modules/.bin/tsx src/lib/governance/interoperability-controls.test.ts
 
+      - name: Interoperability registry JSON regression test
+        run: node --test scripts/validate-interoperability-capabilities.test.mjs
+
       - name: Validate interoperability capability registry and OpenAPI contract
         run: node scripts/validate-interoperability-capabilities.mjs
 

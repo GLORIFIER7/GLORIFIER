@@ -637,7 +637,7 @@
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
-          "notes": "A2A 1.0 JSON-RPC adapter contract, A2A runtime prompt formatting and Express endpoint route tests, pinned A2A/MCP protocol-boundary tests, MCP registry validation and Worker/interoperability boundary tests passed on both Ubuntu targets. This is source-level/fixture evidence only. The broader capability remains NOT VERIFIED: standard A2A AgentCard/message-task interoperability, the pinned MCP 2026-07-28 server/discover target, external client/server integration and live staging conformance are not established."
+          "notes": "A2A 1.0 JSON-RPC adapter contract, A2A runtime prompt formatting and Express endpoint route tests, pinned A2A/MCP protocol-boundary tests, MCP registry validation and Worker/interoperability boundary tests passed on both Ubuntu targets. This is source-level/fixture evidence only. The broader capability remains NOT VERIFIED: standard A2A AgentCard/message-task interoperability, the pinned MCP 2026-07-28 server/discover target, external client/server integration and live staging conformance are not established.",
           "kind": "source",
           "reference": "src/lib/github-mcp.ts",
           "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; commit range based on main d00a58b07e950bf2957f70534a68dfda162f4ccc",
