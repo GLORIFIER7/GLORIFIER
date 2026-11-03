@@ -22,6 +22,8 @@ import {
 } from './geas-architecture-scientist';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const model = getGeasArchitectureModel();
 
@@ -537,6 +539,9 @@ try {
 if (!invalidFetchClockRejected) throw new Error('source fetch context must reject a non-finite clock explicitly');
 
 console.log('GEAS architecture scientist refinement tests passed');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
