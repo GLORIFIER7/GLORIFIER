@@ -32,6 +32,7 @@ const input = {
   invoiceId,
   ...billingPeriod,
   billingCurrency,
+  invoiceIssuerSupportsPayableInvoices: false,
   roundingTolerance: '0.01',
   costAndUsage: [
     charge('line-1', 'Usage', '4.00'),
@@ -241,5 +242,119 @@ const wrongInvoice = reconcileFocusInvoice({
 });
 assert.equal(wrongInvoice.status, 'UNKNOWN');
 assert.ok(wrongInvoice.reasons.some((reason) => reason.includes('outside the target invoice')));
+
+
+
+
+const payableBillingPeriod = {
+  invoiceIssuerName,
+  ...billingPeriod,
+  billingPeriodCreated: '2026-02-02T00:00:00Z',
+  billingPeriodLastUpdated: '2026-02-03T00:00:00Z',
+  billingPeriodStatus: 'Closed',
+};
+
+const unknownIssuerCapability = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: undefined as unknown as boolean,
+});
+assert.equal(unknownIssuerCapability.status, 'UNKNOWN');
+assert.ok(unknownIssuerCapability.reasons.some((reason) =>
+  reason.includes('invoice issuer payable-invoice support must be explicitly true or false'),
+));
+
+const explicitUnsupportedIssuer = {
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: false,
+};
+assert.equal(
+  reconcileFocusInvoice(explicitUnsupportedIssuer).status,
+  'RECONCILED',
+  'issuers explicitly not supporting payable invoices may omit the Billing Period dataset',
+);
+
+const payableIssuerMissingBillingPeriod = {
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+};
+const missingRequiredBillingPeriodResult = reconcileFocusInvoice(payableIssuerMissingBillingPeriod);
+assert.equal(missingRequiredBillingPeriodResult.status, 'UNKNOWN');
+assert.ok(missingRequiredBillingPeriodResult.reasons.some((reason) =>
+  reason.includes('BillingPeriod dataset is required when the invoice issuer supports payable invoices'),
+));
+
+const payableIssuerWithBillingPeriod = {
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [payableBillingPeriod],
+};
+assert.equal(
+  reconcileFocusInvoice(payableIssuerWithBillingPeriod).status,
+  'RECONCILED',
+  'a unique Billing Period record joined by issuer and period start should be admitted',
+);
+
+const mismatchedBillingPeriodDataset = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodStart: '2026-02-01T00:00:00Z',
+    billingPeriodEnd: '2026-03-01T00:00:00Z',
+  }],
+});
+assert.equal(mismatchedBillingPeriodDataset.status, 'UNKNOWN');
+assert.ok(mismatchedBillingPeriodDataset.reasons.some((reason) =>
+  reason.includes('BillingPeriod record does not match the target invoice issuer and billing period'),
+));
+
+const malformedBillingPeriodTimestamp = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodCreated: '2026-02-30T00:00:00Z',
+  }],
+});
+assert.equal(malformedBillingPeriodTimestamp.status, 'UNKNOWN');
+assert.ok(malformedBillingPeriodTimestamp.reasons.some((reason) =>
+  reason.includes('BillingPeriod row 0 has invalid FOCUS UTC timestamps or period bounds'),
+));
+
+const duplicateBillingPeriodKey = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [payableBillingPeriod, { ...payableBillingPeriod }],
+});
+assert.equal(duplicateBillingPeriodKey.status, 'UNKNOWN');
+assert.ok(duplicateBillingPeriodKey.reasons.some((reason) =>
+  reason.includes('BillingPeriod must contain unique InvoiceIssuerName and BillingPeriodStart keys'),
+));
+
+const invalidBillingPeriodStatus = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodStatus: 'Pending',
+  }],
+});
+assert.equal(invalidBillingPeriodStatus.status, 'UNKNOWN');
+assert.ok(invalidBillingPeriodStatus.reasons.some((reason) =>
+  reason.includes('BillingPeriod row 0 has a status outside the FOCUS 1.4 allowed values Open or Closed'),
+));
+
+
+
+const payableIssuerOpenBillingPeriod = {
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodStatus: 'Open',
+  }],
+};
+assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).status, 'RECONCILED');
+assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).billingPeriodStatus, 'Open');
 
 process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');

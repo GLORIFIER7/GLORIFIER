@@ -12,6 +12,8 @@ on:
       - 'src/lib/governance/otel-runtime-verification.test.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.ts'
       - 'src/lib/governance/geas-architecture-reconciliation.test.ts'
+      - 'src/lib/governance/geas-enterprise-controls.ts'
+      - 'src/lib/governance/geas-enterprise-controls.test.ts'
       - 'src/lib/governance/geas-focus-invoice-reconciliation.ts'
       - 'src/lib/governance/geas-focus-invoice-reconciliation.test.ts'
       - 'scripts/geas-architecture-*.ts'
@@ -74,6 +76,9 @@ jobs:
 
       - name: Test five-state architecture reconciliation
         run: npm run test:geas-state-reconciliation
+
+      - name: Test GEAS enterprise governance controls
+        run: npm run test:geas-enterprise-controls
 
       - name: Test GEAS GitHub run provenance
         run: npm run test:geas-run-provenance
