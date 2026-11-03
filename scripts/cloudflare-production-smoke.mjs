@@ -244,8 +244,8 @@ const fetchProductionIdentity = (options) =>
 
 const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 
-const fetchProductionBuildInfo = (options) =>
-  fetch(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
+const fetchProductionBuildInfo = (fetchRequest = fetch) => (options) =>
+  fetchRequest(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
 
 const isAsciiHex = (value, expectedLength) => {
   if (typeof value !== 'string' || value.length !== expectedLength) return false;
@@ -309,13 +309,13 @@ export const validateBuildInfo = (body, expectedCommit) => {
 };
 
 export const verifyBuildProvenance = async (
-  fetchRequest = fetchProductionBuildInfo,
+  fetchRequest = fetch,
   expectedCommit = process.env.GITHUB_SHA,
 ) => {
   assert.ok(isAsciiHex(expectedCommit, 40),
     'expected Git commit SHA must be a 40-character hexadecimal value');
   console.log('GLORIFIER production smoke: verifying exact deployed source commit and Cloudflare version');
-  const response = await requestJson(fetchRequest);
+  const response = await requestJson(fetchProductionBuildInfo(fetchRequest));
   return validateBuildInfo(response.body, expectedCommit);
 };
 
