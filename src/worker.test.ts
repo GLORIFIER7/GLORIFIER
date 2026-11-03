@@ -727,6 +727,64 @@ const run = async (): Promise<void> => {
         assert.equal(githubFileRequestUrl.searchParams.get('ref'), 'main');
         upstreamResponse = previousValidGithubFileResponse;
 
+        capturedRequest = null;
+        const rejectedGitReference = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 14,
+            method: 'tools/call',
+            params: { name: 'github_read_file', arguments: { path: 'README.md', ref: '../main' } },
+          }),
+          env,
+        );
+        const rejectedGitReferenceBody = await rejectedGitReference.json() as {
+          result: { isError?: boolean; content: Array<{ text: string }> };
+        };
+        assert.equal(rejectedGitReferenceBody.result.isError, true);
+        assert.match(rejectedGitReferenceBody.result.content[0]?.text || '', /Invalid Git reference/);
+        assert.equal(capturedRequest, null, 'invalid Git references must not reach GitHub');
+
+        const previousWorkflowRunsResponse = upstreamResponse;
+        upstreamResponse = new Response(JSON.stringify({ workflow_runs: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+        capturedRequest = null;
+        const paginatedWorkflowRuns = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 15,
+            method: 'tools/call',
+            params: { name: 'github_list_workflow_runs', arguments: { per_page: 6 } },
+          }),
+          env,
+        );
+        const paginatedWorkflowRunsBody = await paginatedWorkflowRuns.json() as {
+          result: { isError?: boolean; content: Array<{ text: string }> };
+        };
+        assert.equal(paginatedWorkflowRunsBody.result.isError, undefined);
+        assert.equal(new URL(getCapturedRequest().url).searchParams.get('per_page'), '6');
+
+        for (const invalidPerPage of [{}, '6', 0, 21, 1.5]) {
+          capturedRequest = null;
+          const invalidPagination = await worker.fetch(
+            mcpPost({
+              jsonrpc: '2.0',
+              id: 16,
+              method: 'tools/call',
+              params: { name: 'github_list_workflow_runs', arguments: { per_page: invalidPerPage } },
+            }),
+            env,
+          );
+          const invalidPaginationBody = await invalidPagination.json() as {
+            result: { isError?: boolean; content: Array<{ text: string }> };
+          };
+          assert.equal(invalidPaginationBody.result.isError, true);
+          assert.match(invalidPaginationBody.result.content[0]?.text || '', /per_page must be an integer/);
+          assert.equal(capturedRequest, null, 'invalid per_page values must not reach GitHub');
+        }
+        upstreamResponse = previousWorkflowRunsResponse;
+
         const previousMalformedGithubResponse = upstreamResponse;
         upstreamResponse = new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } });
         const malformedGithubJsonCall = await worker.fetch(
