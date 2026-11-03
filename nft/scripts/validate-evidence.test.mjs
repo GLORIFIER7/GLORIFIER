@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { validateEvidenceBundle } from "./validate-evidence.mjs";
 
 const load = async (path) => JSON.parse(await readFile(path, "utf8"));
 const makeBundle = async () => {
   const png = await readFile("GLORIFIER SERVICES.png");
-  const gitBlobHeader = Buffer.concat([Buffer.from("blob " + png.length, "utf8"), Buffer.from([0])]);
   return {
     registry: await load("nft/registry.json"),
     inventory: await load("nft/image-inventory-2026-11-03.json"),
@@ -18,7 +18,11 @@ const makeBundle = async () => {
     repositoryFile: {
       bytes: png.length,
       sha256: createHash("sha256").update(png).digest("hex"),
-      gitBlobSha: createHash("sha1").update(Buffer.concat([gitBlobHeader, png])).digest("hex")
+      gitBlobSha: execFileSync("git", ["hash-object", "--stdin"], {
+        input: png,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024
+      }).trim()
     }
   };
 };
