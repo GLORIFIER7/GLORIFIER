@@ -143,6 +143,7 @@ jobs:
           if [ -z "$BALANCE" ]; then BALANCE=0; fi
           if (( BALANCE < 10000000 )); then
             for attempt in 1 2 3; do
+              echo "Devnet airdrop attempt ${attempt}/3."
               if solana airdrop 2 --url "$SOLANA_RPC_URL"; then break; fi
               sleep 5
             done
