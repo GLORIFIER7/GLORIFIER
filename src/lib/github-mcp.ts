@@ -11,6 +11,14 @@ const OWNER = 'GLORIFIER7';
 const REPOSITORY = 'GLORIFIER';
 const API_ROOT = 'https://api.github.com';
 const PROTOCOL_VERSION = '2025-03-26';
+const LEGACY_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'] as const;
+const MODERN_PROTOCOL_VERSION = '2026-07-28' as const;
+const SUPPORTED_PROTOCOL_VERSIONS = [MODERN_PROTOCOL_VERSION, ...LEGACY_PROTOCOL_VERSIONS] as const;
+const REQUEST_PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
+const SERVER_INFO_META_KEY = 'io.modelcontextprotocol/serverInfo';
+const SERVER_INFO = { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' } as const;
+const SERVER_DISCOVERY_INSTRUCTIONS =
+  'Stateless, read-only access to the public GLORIFIER7/GLORIFIER repository. Four GitHub read tools are exposed. No write, merge, deployment, secret, or credential tools are available.';
 const MAX_REQUEST_BYTES = 65_536;
 const MAX_UPSTREAM_BYTES = 1_000_000;
 const USER_AGENT = 'GLORIFIER-GitHub-MCP-ReadOnly';
@@ -412,47 +420,78 @@ const emptyNotificationResponse = (): Response =>
 const handleInitialize = (id: string | number | null, paramsValue: unknown): Response => {
   const params = isRecord(paramsValue) ? paramsValue : {};
   const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_VERSION;
-  const supported = ['2025-03-26', '2025-06-18', '2025-11-25'];
-  const protocolVersion = supported.includes(requested) ? requested : PROTOCOL_VERSION;
+  const protocolVersion = (LEGACY_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
+    ? requested
+    : PROTOCOL_VERSION;
   return jsonResponse({
     jsonrpc: '2.0',
     id,
     result: {
       protocolVersion,
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'GLORIFIER GitHub Read-Only', version: '1.0.0' },
-      instructions: 'Read-only access to the public GLORIFIER7/GLORIFIER repository. No write, merge, deployment, secret, or credential tools are exposed.',
+      serverInfo: SERVER_INFO,
+      instructions: SERVER_DISCOVERY_INSTRUCTIONS,
     },
   });
 };
 
-const handleToolCall = async (id: string | number | null, paramsValue: unknown): Promise<Response> => {
+const modernServerMetadata = (): JsonRecord => ({
+  [SERVER_INFO_META_KEY]: SERVER_INFO,
+});
+
+const modernCompleteResult = (value: JsonRecord): JsonRecord => ({
+  ...value,
+  resultType: 'complete',
+  _meta: modernServerMetadata(),
+});
+
+const handleServerDiscover = (id: string | number | null): Response => jsonResponse({
+  jsonrpc: '2.0',
+  id,
+  result: {
+    resultType: 'complete',
+    supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+    capabilities: { tools: {} },
+    _meta: modernServerMetadata(),
+    instructions: SERVER_DISCOVERY_INSTRUCTIONS,
+    ttlMs: 3_600_000,
+    cacheScope: 'public',
+  },
+});
+
+const handleToolCall = async (
+  id: string | number | null,
+  paramsValue: unknown,
+  modern = false,
+): Promise<Response> => {
   const params = isRecord(paramsValue) ? paramsValue : {};
+  const respondWithToolResult = (result: JsonRecord): Response => jsonResponse({
+    jsonrpc: '2.0',
+    id,
+    result: modern ? modernCompleteResult(result) : result,
+  });
   if (typeof params.name !== 'string') {
-    return jsonResponse({
-      jsonrpc: '2.0',
-      id,
-      result: { content: [{ type: 'text', text: 'Tool name is required.' }], isError: true },
+    return respondWithToolResult({
+      content: [{ type: 'text', text: 'Tool name is required.' }],
+      isError: true,
     });
   }
   try {
     const result = await callTool(params.name, params.arguments);
-    return jsonResponse({
-      jsonrpc: '2.0',
-      id,
-      result: { content: [{ type: 'text', text: resultText(result) }] },
-    });
+    return respondWithToolResult({ content: [{ type: 'text', text: resultText(result) }] });
   } catch (error) {
     const messageText = error instanceof Error ? error.message : 'GitHub request failed.';
-    return jsonResponse({
-      jsonrpc: '2.0',
-      id,
-      result: { content: [{ type: 'text', text: messageText }], isError: true },
+    return respondWithToolResult({
+      content: [{ type: 'text', text: messageText }],
+      isError: true,
     });
   }
 };
 
-const handleJsonRpcMethod = (message: McpMessage, id: string | number | null): Response | Promise<Response> => {
+const handleLegacyJsonRpcMethod = (
+  message: McpMessage,
+  id: string | number | null,
+): Response | Promise<Response> => {
   switch (message.method) {
     case 'initialize':
       return handleInitialize(id, message.params);
@@ -467,16 +506,100 @@ const handleJsonRpcMethod = (message: McpMessage, id: string | number | null): R
   }
 };
 
-const handleJsonRpc = (message: McpMessage): Response | Promise<Response> => {
+const handleModernJsonRpcMethod = (
+  message: McpMessage,
+  id: string | number | null,
+): Response | Promise<Response> => {
+  switch (message.method) {
+    case 'server/discover':
+      return handleServerDiscover(id);
+    case 'tools/list':
+      return jsonResponse({
+        jsonrpc: '2.0',
+        id,
+        result: modernCompleteResult({ tools }),
+      });
+    case 'tools/call':
+      return handleToolCall(id, message.params, true);
+    default:
+      // The modern stateless protocol has no initialize handshake or ping.
+      return rpcError(id, -32601, 'Method not found.');
+  }
+};
+
+const unsupportedProtocolVersion = (
+  id: string | number | null,
+  requested: string,
+): Response => jsonResponse({
+  jsonrpc: '2.0',
+  id,
+  error: {
+    code: -32022,
+    message: 'Unsupported protocol version',
+    data: {
+      supported: [...SUPPORTED_PROTOCOL_VERSIONS],
+      requested,
+    },
+  },
+});
+
+type McpProtocolMode = 'modern' | 'legacy';
+
+const resolveMcpProtocolMode = (
+  request: Request,
+  message: McpMessage,
+  id: string | number | null,
+): { mode: McpProtocolMode } | { response: Response } => {
+  const params = isRecord(message.params) ? message.params : {};
+  const metadata = isRecord(params._meta) ? params._meta : {};
+  const metadataVersion = typeof metadata[REQUEST_PROTOCOL_VERSION_META_KEY] === 'string'
+    ? (metadata[REQUEST_PROTOCOL_VERSION_META_KEY] as string).trim()
+    : '';
+  const headerVersion = (request.headers.get('MCP-Protocol-Version') || '').trim();
+  const modernRequested = metadataVersion === MODERN_PROTOCOL_VERSION ||
+    headerVersion === MODERN_PROTOCOL_VERSION;
+
+  if (modernRequested) {
+    if (metadataVersion !== MODERN_PROTOCOL_VERSION || headerVersion !== MODERN_PROTOCOL_VERSION) {
+      return {
+        response: unsupportedProtocolVersion(id, metadataVersion || headerVersion),
+      };
+    }
+    return { mode: 'modern' };
+  }
+
+  const metadataSupported = !metadataVersion ||
+    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(metadataVersion);
+  const headerSupported = !headerVersion ||
+    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(headerVersion);
+  const versionsMatch = !metadataVersion || !headerVersion || metadataVersion === headerVersion;
+  if (!metadataSupported || !headerSupported || !versionsMatch) {
+    return {
+      response: unsupportedProtocolVersion(id, metadataVersion || headerVersion),
+    };
+  }
+
+  return { mode: 'legacy' };
+};
+
+const handleJsonRpc = (
+  request: Request,
+  message: McpMessage,
+): Response | Promise<Response> => {
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
     : null;
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
+
+  const protocolMode = resolveMcpProtocolMode(request, message, id);
+  if ('response' in protocolMode) return protocolMode.response;
   if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
   if (!Object.prototype.hasOwnProperty.call(message, 'id')) return emptyNotificationResponse();
-  return handleJsonRpcMethod(message, id);
+  return protocolMode.mode === 'modern'
+    ? handleModernJsonRpcMethod(message, id)
+    : handleLegacyJsonRpcMethod(message, id);
 };
 
 const validateMcpRequestHeaders = async (request: Request): Promise<Response | null> => {
@@ -547,5 +670,5 @@ export const githubMcpRoute = async (
 
   const rateLimitFailure = await enforceMcpToolRateLimit(request, parsed.message, rateLimiter);
   if (rateLimitFailure) return rateLimitFailure;
-  return handleJsonRpc(parsed.message);
+  return handleJsonRpc(request, parsed.message);
 };
