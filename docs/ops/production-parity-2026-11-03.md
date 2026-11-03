@@ -6,6 +6,8 @@ Read-only repository and Cloudflare API inspection performed on 2026-11-03 at ap
 
 ## Repository source
 
+> **SUPERSEDED — historical observation only:** The 13:21 UTC `main` SHA and 39-commit distance below are retained for audit history. Use the later 14:25 UTC observation in this document for the newer source/deployment comparison.
+
 - Repository: `GLORIFIER7/GLORIFIER`
 - Default branch: `main`
 - Exact `main` HEAD observed: `27ed72962c41dbcf53175d94dc9d45e3ce2636a3` (PR #644 merge commit).
@@ -124,6 +126,6 @@ Remaining owner-/account-level actions:
 - After an approved release, run the GET-only production smoke and record the deployed source SHA, Worker version, traffic percentage, and exact HTTP responses.
 - Continue issues #615 (GitHub ruleset enforcement), #616 (SonarCloud issue inventory/coverage), and #471 (interoperability evidence).
 
-### Safety and truthfulness
+### Superseding safety record
 
 This addendum records read-only observations only. No Worker upload/deployment, traffic change, binding or secret mutation, DNS change, database change, paid action, signing, or blockchain operation was performed. Production parity and current HTTP readiness remain **NOT VERIFIED**.
