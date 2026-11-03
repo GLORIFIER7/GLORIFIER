@@ -32,6 +32,11 @@ function validateMintState(bundle) {
   if (observation.reads.totalSupply !== "1") issues.push("Official Logo #001 supply must equal one.");
   if (registry.official_logo_001?.status !== "VERIFIED_MINTED_ON_ETHEREUM_MAINNET") issues.push("Official Logo #001 is not recorded as minted.");
   if (registry.official_logo_001?.token_id !== "1") issues.push("Official Logo #001 token ID is not 1.");
+  const officialLogo = registry.official_logo_001 ?? {};
+  if (joinParts(officialLogo.owner_parts) !== observation.reads.owner) issues.push("Official Logo #001 owner segments mismatch.");
+  if (joinParts(officialLogo.token_uri_parts) !== registry.metadata?.final_corrected_uri) issues.push("Official Logo #001 token URI segments mismatch.");
+  if (joinParts(officialLogo.image_uri_parts) !== observation.published_metadata.image) issues.push("Official Logo #001 image URI segments mismatch.");
+  if (officialLogo.owner !== undefined || officialLogo.token_uri !== undefined || officialLogo.image_uri !== undefined) issues.push("Official Logo #001 summary must not duplicate public high-entropy identifiers as unsegmented strings.");
   return issues;
 }
 
