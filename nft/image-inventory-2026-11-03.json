@@ -1,0 +1,544 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-03T02:59:12.233Z",
+  "source": {
+    "repository": "GLORIFIER7/GLORIFIER",
+    "branch": "main",
+    "commit": "cd72f72680978f41a3bc80a47eb4c4a993b52307"
+  },
+  "scope": "JPG/JPEG image paths only; exact duplicate contents are grouped by Git blob SHA.",
+  "counts": {
+    "all_image_paths": 98,
+    "unique_all_image_blobs": 84,
+    "jpeg_jpg_paths": 96,
+    "unique_jpeg_jpg_blobs": 82
+  },
+  "status": "INVENTORY_ONLY_NOT_VISUALLY_CLASSIFIED_NOT_MINTED",
+  "mint_readiness": {
+    "ready": false,
+    "reason": "Each asset still requires visual/content classification, provenance and rights review, final per-item metadata, verified content storage, network/standard selection, valid recipient verification, and transaction-specific cost review."
+  },
+  "deduplication": "Git blob SHA identifies byte-identical file contents in this commit; it does not establish visual similarity between differently encoded images.",
+  "assets": [
+    {
+      "canonical_path": "1793200485140.jpg",
+      "git_blob_sha": "37e086243ca5b785bbbcb11dd68189cec40f743e",
+      "size_bytes": 912086,
+      "alias_paths": [
+        "assets/artwork/1793200485140.jpg"
+      ]
+    },
+    {
+      "canonical_path": "1793204727690.jpg",
+      "git_blob_sha": "9cd49add6afaf301fdc49c210dcab4f1cc632213",
+      "size_bytes": 904973,
+      "alias_paths": [
+        "assets/artwork/1793204727690.jpg"
+      ]
+    },
+    {
+      "canonical_path": "1793205007923.jpg",
+      "git_blob_sha": "a28785af33e2c7ef47eae9a43c92931ab70c62ef",
+      "size_bytes": 909948,
+      "alias_paths": [
+        "assets/artwork/1793205007923.jpg"
+      ]
+    },
+    {
+      "canonical_path": "1793205226513.jpg",
+      "git_blob_sha": "ae33967a0da67051870dfe58cf94d6f9094bd88c",
+      "size_bytes": 976539,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "1793205841850.jpg",
+      "git_blob_sha": "dce1c3c6aa2c472df5dc7b1576900748bd5f12eb",
+      "size_bytes": 1040634,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "1793208362452.jpg",
+      "git_blob_sha": "247e7ae4a15b0a5f1826a6f1a4ad1d610062e143",
+      "size_bytes": 1086318,
+      "alias_paths": [
+        "1793208607629.jpg"
+      ]
+    },
+    {
+      "canonical_path": "1793253187321.jpg",
+      "git_blob_sha": "12edd1343ed9ba84dca92a72be998c0beebd6e47",
+      "size_bytes": 1207815,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "1793255066096.jpg",
+      "git_blob_sha": "2332b5c5124cb7ba6f1975770db22b6ae9778d27",
+      "size_bytes": 466784,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "1793255512848.jpg",
+      "git_blob_sha": "275aa1a82dd6344947e5e9ccae24b160d5d789d3",
+      "size_bytes": 296510,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/1793119873890.jpg",
+      "git_blob_sha": "ab3dc3b8bbb8d5dbcadb344c7c4d43267b78a2e7",
+      "size_bytes": 741033,
+      "alias_paths": [
+        "assets/artwork/1793119873890.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793120164829.jpg",
+      "git_blob_sha": "613a56a532cfe3b7457d1a8f0872ea2cd0f9e152",
+      "size_bytes": 775293,
+      "alias_paths": [
+        "assets/artwork/1793120164829.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793156412979.jpg",
+      "git_blob_sha": "88512ead7d6f36eb66f5a3f257256f4a01f251c8",
+      "size_bytes": 798983,
+      "alias_paths": [
+        "assets/artwork/1793156412979.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793156561269.jpg",
+      "git_blob_sha": "783fb59adfe80c934d22cd2147c244ab867c7adf",
+      "size_bytes": 828172,
+      "alias_paths": [
+        "assets/artwork/1793156561269.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793160173944.jpg",
+      "git_blob_sha": "ee2ed2f5f0f081f4146aad97ca047e6b30d9d9c2",
+      "size_bytes": 871990,
+      "alias_paths": [
+        "assets/artwork/1793160173944.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793160366893.jpg",
+      "git_blob_sha": "20c6c31fb96adf86d40fac10096633f1db031ed7",
+      "size_bytes": 894244,
+      "alias_paths": [
+        "assets/artwork/1793160366893.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/1793160583671.jpg",
+      "git_blob_sha": "9c3ad6c668da2665cf1e97c6e2dc852e4f465e34",
+      "size_bytes": 899292,
+      "alias_paths": [
+        "assets/artwork/1793160583671.jpg"
+      ]
+    },
+    {
+      "canonical_path": "assets/artwork/1793095149536.jpg",
+      "git_blob_sha": "f01b9819238e5e17dac2f3ed64e35e43c3e4bf38",
+      "size_bytes": 734454,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793095351632.jpg",
+      "git_blob_sha": "7dc4462c5725ca52cbcb68b068c8a9c4af51dae8",
+      "size_bytes": 629164,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793095521421.jpg",
+      "git_blob_sha": "d4e9dfffd84c44f38d90c4a371ffb22dee9166b0",
+      "size_bytes": 794219,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793095720555.jpg",
+      "git_blob_sha": "b910c4122f1168874c053ce17d8d12b524a44508",
+      "size_bytes": 854716,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793095940087.jpg",
+      "git_blob_sha": "44646d2b4cc07122a7c990fb5fd888b945c3ef1e",
+      "size_bytes": 873243,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793096300586.jpg",
+      "git_blob_sha": "91f7f735da3f09ad5eb11203040566f5ccf4d41b",
+      "size_bytes": 896989,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793096375197.jpg",
+      "git_blob_sha": "e53a75754332e27d18f9a380866248dc063fe31a",
+      "size_bytes": 701702,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793096582709.jpg",
+      "git_blob_sha": "a883a94e014136ea1bd6d2e31df6a8442bd3b84b",
+      "size_bytes": 634667,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793096767993.jpg",
+      "git_blob_sha": "caf7163e3650f324c2ebd61979b7cf2c1b0c8176",
+      "size_bytes": 661603,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793097025606.jpg",
+      "git_blob_sha": "0ddccb1c68a22df68e73bb46a2c23eac4f57f4fc",
+      "size_bytes": 764981,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793097338077.jpg",
+      "git_blob_sha": "b4f5e79bf89e2fe080a75d5e8202716c7aff0d1b",
+      "size_bytes": 809006,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793097529102.jpg",
+      "git_blob_sha": "f7cb0d1346351d9057a15c40a809f652cfbf46e1",
+      "size_bytes": 941177,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793097619975.jpg",
+      "git_blob_sha": "c61d3ff535fb7c180332b11730259603385d81c7",
+      "size_bytes": 892536,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793098326020.jpg",
+      "git_blob_sha": "13045c231434b08cd0ea6e5cd6b02e14d094c604",
+      "size_bytes": 916203,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/1793098563171.jpg",
+      "git_blob_sha": "423d5130f0f7407357540ce8546ed4729e0bfca5",
+      "size_bytes": 980868,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_136zal136zal136z.jpeg",
+      "git_blob_sha": "de19cfa99323117ac4b44b345a3ff47dee08d836",
+      "size_bytes": 900325,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_3ge44a3ge44a3ge4.jpeg",
+      "git_blob_sha": "7344d35f184693bcb531cd5c7b89da2122e645ea",
+      "size_bytes": 870287,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_3l6nhl3l6nhl3l6n.jpeg",
+      "git_blob_sha": "74b86313062c176606c2b701ee7a4051597aff2b",
+      "size_bytes": 972657,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_3oq3803oq3803oq3.jpeg",
+      "git_blob_sha": "3e86a59174384f41327f91de3dfe33a67237ce8a",
+      "size_bytes": 1010183,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_497wj9497wj9497w.jpeg",
+      "git_blob_sha": "9cfe239ef5afa996469aae2eb1e669a301202d31",
+      "size_bytes": 932354,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_4j0ws44j0ws44j0w.jpeg",
+      "git_blob_sha": "41af2c872341cf6ac691f44023ff5a31138ec1a0",
+      "size_bytes": 1148004,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_4wem1t4wem1t4wem.jpeg",
+      "git_blob_sha": "da58fde9cf82a76b3de88557d93c11ff80cee3e3",
+      "size_bytes": 933894,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_5gnsb05gnsb05gns.jpeg",
+      "git_blob_sha": "dc890d1e1898c0a25416f6cc2d8ccc2e67359694",
+      "size_bytes": 948300,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_5pmz0m5pmz0m5pmz.jpeg",
+      "git_blob_sha": "17c199523df1302f2780a30e7c482b33e44060e0",
+      "size_bytes": 892972,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_5sqttq5sqttq5sqt.jpeg",
+      "git_blob_sha": "e842430a75ca0b8f73f64c9042ca5f7d2b241a82",
+      "size_bytes": 821196,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_60v8pt60v8pt60v8.jpeg",
+      "git_blob_sha": "dc68a82f72034eaa3294acb38fabdb3496f3c0e9",
+      "size_bytes": 960610,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_6ojk4y6ojk4y6ojk.jpeg",
+      "git_blob_sha": "9b3fdf69a72fedddbcaa5a53432ab02ef634d1ce",
+      "size_bytes": 822689,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_76v8r76v8r76v8r7.jpeg",
+      "git_blob_sha": "57ddc92ded62bb79e2d6af5c53ffae249595d263",
+      "size_bytes": 977960,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_7mjb167mjb167mjb.jpeg",
+      "git_blob_sha": "12e14abc8b2aa9dcce3e8599afbe50a8c89dfcce",
+      "size_bytes": 947590,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_87728h87728h8772.jpeg",
+      "git_blob_sha": "788a4d8178b1d1904652caaac0de3746101a7bab",
+      "size_bytes": 705241,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_8je5li8je5li8je5.jpeg",
+      "git_blob_sha": "226ef2afa253c39029fdf65d8b9e15e30ef0f88d",
+      "size_bytes": 895650,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_8zysy88zysy88zys.jpeg",
+      "git_blob_sha": "3059917e53c60cbbf7508711644b02f3882e0f79",
+      "size_bytes": 1041655,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_90ym0990ym0990ym.jpeg",
+      "git_blob_sha": "788dd8057d1de8a0bfa15fcb22f077ddd5ee79cf",
+      "size_bytes": 955231,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_aqsqs2aqsqs2aqsq.jpeg",
+      "git_blob_sha": "4ae1ea262154ad949e45196b39e8d5c9351b8bd3",
+      "size_bytes": 994562,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_baabijbaabijbaab.jpeg",
+      "git_blob_sha": "4afb836f468613e82eb19e645420e214d171bc4c",
+      "size_bytes": 1077421,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_bd5e26bd5e26bd5e.jpeg",
+      "git_blob_sha": "ece22f69cd49671ad49aca27045497d96b3636e4",
+      "size_bytes": 1193537,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_cri0lcri0lcri0lc.jpeg",
+      "git_blob_sha": "22bd4f413c79615be55a545e59f4ce7c0ce31e03",
+      "size_bytes": 819523,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_cvv1gycvv1gycvv1.jpeg",
+      "git_blob_sha": "50e668d82c61e306180f97cc0d9f848e7e3aeee6",
+      "size_bytes": 1033584,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_dye0ftdye0ftdye0.jpeg",
+      "git_blob_sha": "861c6092b06cb3f5486d33375e55c143948ecdc0",
+      "size_bytes": 1247252,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_g2bs1lg2bs1lg2bs.jpeg",
+      "git_blob_sha": "77183ae5eaf247778bbc79d235499c1e34c3c2fa",
+      "size_bytes": 991223,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_hgndr5hgndr5hgnd.jpeg",
+      "git_blob_sha": "d4d4251f04deeca5b18c3632d5e6ad8fc2fa5129",
+      "size_bytes": 941020,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_imykrbimykrbimyk.jpeg",
+      "git_blob_sha": "e2fc3894c9a11aaa42f4a6cc4d2a0a54cf2f09f6",
+      "size_bytes": 1007007,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_jqhrkujqhrkujqhr.jpeg",
+      "git_blob_sha": "3437ceb7892bbe203d20fc214b8ccc8986494ac7",
+      "size_bytes": 878125,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_jzec8yjzec8yjzec.jpeg",
+      "git_blob_sha": "7af0644c2b2bb763dae63152b79a46d025881dd2",
+      "size_bytes": 856288,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_lfpl75lfpl75lfpl.jpeg",
+      "git_blob_sha": "8d4a7249b6821cdf26f2f18ef32bff195480d24c",
+      "size_bytes": 1252634,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_mg4q4tmg4q4tmg4q.jpeg",
+      "git_blob_sha": "c94f493f9098b05d3c50a74aafa765d698ee2574",
+      "size_bytes": 932886,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_mnrt79mnrt79mnrt.jpeg",
+      "git_blob_sha": "50b03d4c1e1c800aed87ad0664b020b417222285",
+      "size_bytes": 938997,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_n45pb4n45pb4n45p.jpeg",
+      "git_blob_sha": "a9694b8aa9d1464b086a49bbe507cd1875ee4959",
+      "size_bytes": 1007262,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_n86w4bn86w4bn86w.jpeg",
+      "git_blob_sha": "033b41a3cf9635019ce7e41b2c92d635baf786c3",
+      "size_bytes": 1218163,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_om7yepom7yepom7y.jpeg",
+      "git_blob_sha": "83070b011a8bbe67c8f85596098ca610867c5ad2",
+      "size_bytes": 1210474,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_otylmootylmootyl.jpeg",
+      "git_blob_sha": "0385e4a99ad81dd30cce55f44f9673bcc2ac4048",
+      "size_bytes": 918618,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_p0jtd5p0jtd5p0jt.jpeg",
+      "git_blob_sha": "956f01716224329f88c6b2735071fbfd9bd20981",
+      "size_bytes": 1251964,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_q9gx60q9gx60q9gx.jpeg",
+      "git_blob_sha": "a639ab29e9e44025967fb404ba69ca82acf73110",
+      "size_bytes": 975943,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_rgfpirgfpirgfpir.jpeg",
+      "git_blob_sha": "33d81fed33de8a8d83c0495fc373cdbe6e6fe448",
+      "size_bytes": 1163498,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_shgwaishgwaishgw.jpeg",
+      "git_blob_sha": "328156dc526c850bc9975ed74608a27d8afdc10a",
+      "size_bytes": 971491,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_to3m2lto3m2lto3m.jpeg",
+      "git_blob_sha": "40e2e3cf6bbb633f7a2ea4282770a7a23dfa5af3",
+      "size_bytes": 962992,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_um1j1zum1j1zum1j.jpeg",
+      "git_blob_sha": "275f339a33aa2af48277f3880de7506b204e392d",
+      "size_bytes": 890542,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_vz4ibxvz4ibxvz4i.jpeg",
+      "git_blob_sha": "4ca57ac414d1a1325640ea7d84a5cdd175f1d9b1",
+      "size_bytes": 1203824,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_xnc567xnc567xnc5.jpeg",
+      "git_blob_sha": "5da448976fd71d616b417765ad9551b3dff11160",
+      "size_bytes": 971205,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/artwork/Gemini_Generated_Image_xwzoznxwzoznxwzo.jpeg",
+      "git_blob_sha": "ffe6ca128139ff4bfbef6c500a906023f2adcd29",
+      "size_bytes": 942488,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/Gemini_Generated_Image_4b5ba94b5ba94b5b.jpeg",
+      "git_blob_sha": "a6b2853ee09c3e262e4ccd72e17e965f5c9fb3bd",
+      "size_bytes": 1333219,
+      "alias_paths": [
+        "assets/artwork/Gemini_Generated_Image_4b5ba94b5ba94b5b.jpeg"
+      ]
+    },
+    {
+      "canonical_path": "assets/Gemini_Generated_Image_vyym36vyym36vyym.jpeg",
+      "git_blob_sha": "96a72381b4eeecd2f493b252037372bc0d160cc0",
+      "size_bytes": 625285,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/Gemini_Generated_Image_z3ziicz3ziicz3zi.jpeg",
+      "git_blob_sha": "c06a3a9213fedef1d7e3194cba7527784f54817a",
+      "size_bytes": 699806,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "assets/GLORIFIER.jpeg",
+      "git_blob_sha": "86d6fcac499e9ac8fa462dfe13746daa6fd8b9f5",
+      "size_bytes": 1293972,
+      "alias_paths": [
+        "assets/artwork/GLORIFIER.jpeg"
+      ]
+    },
+    {
+      "canonical_path": "GLORIFIER.jpg",
+      "git_blob_sha": "0276e6038292d4d3876ed4a99dee7380986a1b9b",
+      "size_bytes": 786197,
+      "alias_paths": [
+        "assets/artwork/GLORIFIER.jpg"
+      ]
+    },
+    {
+      "canonical_path": "public/glorifier-logo.jpg",
+      "git_blob_sha": "3b3eca996b40ee0914e039a259ac672fbb4f44a9",
+      "size_bytes": 14995,
+      "alias_paths": []
+    }
+  ]
+}
