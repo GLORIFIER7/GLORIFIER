@@ -1,7 +1,8 @@
 import { assertCondition } from './test-assertion';
 import { canMarkGLRSettled, normalizeGLRAmount, glrEconomicPolicy } from './glr-economic-layer';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 assertCondition(normalizeGLRAmount('001.2300') === '1.23', 'amount normalization should canonicalize decimals');
 assertCondition(normalizeGLRAmount(10) === '10', 'numeric compatibility should remain supported');
 let rejected = false;
@@ -57,5 +58,6 @@ assertCondition(policy.positioning === 'GLORIFIER (GLR) — The native economic 
 assertCondition(policy.asset.authority === 'economic-unit-only', 'GLR must not grant agent authority');
 
 console.log('GLR economic layer tests passed');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
