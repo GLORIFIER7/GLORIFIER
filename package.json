@@ -96,7 +96,8 @@
     "test:postgres-pool": "tsx src/lib/db/postgres.test.ts",
     "test:neon-worker": "tsx src/lib/neon-worker.test.ts",
     "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs",
-    "test:safe-external-url": "node --import tsx/esm --test src/lib/safe-external-url.test.ts"
+    "test:safe-external-url": "node --import tsx/esm --test src/lib/safe-external-url.test.ts",
+    "test:integration-external-link": "node --import tsx/esm --test src/components/IntegrationExternalLink.test.tsx"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

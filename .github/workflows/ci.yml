@@ -45,6 +45,8 @@ jobs:
 
       - name: Safe external integration URL regression tests
         run: npm run test:safe-external-url
+      - name: Safe external integration link rendering tests
+        run: npm run test:integration-external-link
 
       - name: Solana workflow expression injection regression test
         run: node --test scripts/solana-workflow-expression-safety.test.mjs

@@ -5,6 +5,11 @@ import { getSafeExternalUrl } from './safe-external-url';
 test('accepts canonical HTTPS links for external integration destinations', () => {
   assert.equal(getSafeExternalUrl('https://example.com/path?q=1'), 'https://example.com/path?q=1');
   assert.equal(getSafeExternalUrl('https://example.com'), 'https://example.com/');
+  assert.equal(
+    getSafeExternalUrl('https://example.com:443/path?q=1'),
+    'https://example.com/path?q=1',
+    'the explicit standard HTTPS port is accepted and normalized',
+  );
 });
 
 test('rejects non-HTTPS, relative, malformed, and credential-bearing destinations', () => {
