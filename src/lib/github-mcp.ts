@@ -325,7 +325,7 @@ const repositoryPathSegments = (path: string): string[] => {
 };
 
 const assertValidGitReference = (ref: string): void => {
-  if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.split('/').includes('..')) {
+  if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes('..')) {
     throw new Error('Invalid Git reference.');
   }
 };
@@ -333,7 +333,7 @@ const assertValidGitReference = (ref: string): void => {
 const decodeBase64 = (value: string): Uint8Array => {
   try {
     const binary = atob(value);
-    return Uint8Array.from(binary, (character) => (character.codePointAt(0) ?? 0));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   } catch {
     throw new Error('GitHub file content was not valid Base64.');
   }
