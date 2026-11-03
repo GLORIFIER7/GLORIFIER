@@ -212,7 +212,7 @@ jobs:
         run: npm run test:permanent-stack
 
       - name: Interoperability controls
-        run: ./node_modules/.bin/tsx src/lib/governance/interoperability-controls.test.ts
+        run: npm run test:interoperability-controls
 
       - name: Interoperability registry JSON regression test
         run: node --test scripts/validate-interoperability-capabilities.test.mjs
