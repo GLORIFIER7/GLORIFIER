@@ -68,3 +68,62 @@ No workflow dispatch operation is exposed by the connected GitHub tools in this 
 ## Safety and truthfulness
 
 No production service, data, credential, domain, DNS record, database, token, wallet, or traffic allocation was modified. This checkpoint reports only observed metadata. Production parity, current HTTP health, full application readiness, and full-system verification remain **NOT VERIFIED**.
+
+## Superseding read-only observation — 2026-11-03 approximately 14:25 UTC
+
+This addendum supersedes the earlier 13:21 UTC source-distance observation above. It does not replace missing HTTP, identity, authentication, database-write, or Neural evidence.
+
+### Exact targets and source/deployment distance
+
+- Repository: `GLORIFIER7/GLORIFIER`, default branch `main`.
+- Main HEAD: `d6629aa11dfc62c7e11a823715d2b90b92c4b088` (PR #647 merge).
+- Cloudflare account: `GLORIFIER`; Worker script: `glorifier`.
+- Active production deployment ID: `3c5abfa9-91b3-4ee8-ade5-01b1305d4431`.
+- Active production Worker version: `5a854d11-1f57-4401-80f9-fb39cf036cbf` (version 880), assigned **100%** of traffic.
+- Deployment creation time: `2026-11-02T08:30:41.939113Z`.
+- Deployment annotation identifies source commit `46b6f28fc9044556adb2a92845fa6de8e9442a18`.
+- GitHub commit comparison from `46b6f28fc9044556adb2a92845fa6de8e9442a18` to `d6629aa11dfc62c7e11a823715d2b90b92c4b088`: **43 commits ahead, 0 behind**.
+
+**Finding:** current production source parity is still not current. Current-main CI/PR validation does not update the Worker that is serving traffic.
+
+### Current Worker configuration metadata
+
+Read-only Cloudflare API inspection confirms:
+
+- workers.dev subdomain is enabled; preview URLs are enabled.
+- Worker script settings report `logpush=false` and `observability=null`.
+- The current binding inventory contains `ASSETS`, `CF_VERSION_METADATA`, `GLORIFIER_DATABASE_PROVIDER`, `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `GLORIFIER_SUPABASE_URL`, `HYPERDRIVE`, `MCP_RATE_LIMITER`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`. Secret values were not read.
+- The inspected binding inventory does not include `GLORIFIER_BACKEND_ORIGIN`, `GLORIFIER_BACKEND_ALLOWED_HOSTS`, `GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS`, `GLORIFIER_CANONICAL_DOMAIN`, `GLORIFIER_ORG_EMAIL`, `GLORIFIER_NEURAL_ORIGIN`, or `GLORIFIER_NEURAL_ALLOWED_HOSTS`.
+
+This is configuration metadata, not proof of route behavior or end-to-end service readiness.
+
+### Current HTTP and CI evidence boundaries
+
+- The public Worker route probe could not be completed through the available HTTP retrieval surface in this session. Current HTTP status for `/api/health`, `/api/integrations`, `/api/data-status`, `/api/identity`, `/api/neural/health`, and `/api/runtime-verification?probeAi=false` is **NOT OBSERVABLE** here. Prior response codes remain historical, not fresh evidence.
+- PR #647 merged as `d6629aa11dfc62c7e11a823715d2b90b92c4b088`. Its 17 listed PR-triggered GitHub Actions workflows completed successfully, including GLORIFIER CI, Build and Test, Frontend Build, CodeQL, Worker validation, workflow syntax, dependency review, npm security, Linux validation, and GEAS checks.
+- PR #648 merged as `389ab5cbe21135341f57380fa7e199346f83a922`. Its 17 listed PR-triggered GitHub Actions workflows also completed successfully across the same core build/security/validation families.
+- These workflow results are evidence for those PR heads only. The returned workflow lists did not include a SonarCloud run; the repository-wide Sonar finding inventory and new-code coverage gap remain open under issue #616.
+- The combined commit-status endpoint for current main returned a successful CircleCI Cloudflare Worker validation context. It is not a complete substitute for inspecting every GitHub Actions check run.
+
+### Release control and required next actions
+
+The checked-in `.github/workflows/cloudflare-worker.yml` keeps production deployment fail-closed. Deployment requires all of the following:
+
+1. A workflow dispatch on `main`.
+2. Explicit `deploy_production=true` input.
+3. Repository variable `CLOUDFLARE_DEPLOY_ENABLED=true`.
+4. Successful production-environment credentials and checks.
+
+The connected GitHub actions in this session expose no workflow-dispatch operation. Do not bypass the checked-in workflow with a direct Worker upload or deployment promotion.
+
+Remaining owner-/account-level actions:
+
+- Owner-review and explicitly authorize a release of a known current-main commit through the gated GitHub workflow.
+- Provide and review the real backend and Neural HTTPS origins, exact allowed-host lists, and required server-side credentials; do not guess these values.
+- Configure and verify Worker observability without exposing secret material.
+- After an approved release, run the GET-only production smoke and record the deployed source SHA, Worker version, traffic percentage, and exact HTTP responses.
+- Continue issues #615 (GitHub ruleset enforcement), #616 (SonarCloud issue inventory/coverage), and #471 (interoperability evidence).
+
+### Safety and truthfulness
+
+This addendum records read-only observations only. No Worker upload/deployment, traffic change, binding or secret mutation, DNS change, database change, paid action, signing, or blockchain operation was performed. Production parity and current HTTP readiness remain **NOT VERIFIED**.
