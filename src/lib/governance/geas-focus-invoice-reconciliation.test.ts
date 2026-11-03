@@ -32,6 +32,7 @@ const input = {
   invoiceId,
   ...billingPeriod,
   billingCurrency,
+  invoiceIssuerSupportsPayableInvoices: false,
   roundingTolerance: '0.01',
   costAndUsage: [
     charge('line-1', 'Usage', '4.00'),
