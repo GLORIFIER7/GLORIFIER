@@ -126,7 +126,7 @@ Draft PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds the follo
 - A supported-version error for unknown or mismatched versions.
 - Backward compatibility for the existing 2025 initialize/tool-call flow.
 - The standard A2A Agent Card at `GET /.well-known/agent-card.json`, served natively by the Worker with GET/HEAD-only semantics.
-- The A2A HTTP binding accepts the A2A 1.0.1 preferred `application/a2a+json` content type and retains `application/json` compatibility.
+- The A2A HTTP binding, Worker proxy, and Express backend parser/route guard accept the A2A 1.0.1 preferred `application/a2a+json` content type and retain `application/json` compatibility. The Worker forwards the validated content type unchanged; the backend parser is configured for both media types and its HTTP integration test exercises `application/a2a+json`.
 
 The GitHub MCP tools remain limited to four read-only operations on one public repository, with the existing origin check, request-size and response-size bounds, timeout, and per-IP tool-call rate limit. The Agent Card does not declare a JWT token format because that exact token format has not been independently established.
 
