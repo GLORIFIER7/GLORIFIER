@@ -156,6 +156,7 @@ jobs:
               ],
               "temperature": 0,
               "max_tokens": 1200,
+              "chat_template_kwargs": {"enable_thinking": False},
               "stream": False
           }
           Path("nvidia-request.json").write_text(json.dumps(payload))
