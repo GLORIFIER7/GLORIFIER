@@ -852,6 +852,26 @@ const run = async (): Promise<void> => {
         assert.equal(a2aUnsupportedMediaType.status, 415);
         assert.equal(capturedRequest, null);
 
+        const a2aPreferredMediaType = await worker.fetch(
+          new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer caller-token',
+              'Content-Type': 'application/a2a+json',
+              'A2A-Version': '1.0',
+            },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 'a2a-media', method: 'GetTask', params: { id: 'missing' } }),
+          }),
+          env,
+        );
+        assert.equal(a2aPreferredMediaType.status, 200,
+          'A2A 1.0.1 preferred application/a2a+json must be accepted');
+        const a2aPreferredRequest = getCapturedRequest();
+        assert.equal(a2aPreferredRequest.headers.get('content-type'), 'application/a2a+json');
+        assert.match(a2aPreferredRequest.headers.get('accept') || '', /application\\/a2a\\+json/);
+        assert.equal(a2aPreferredRequest.headers.get('authorization'), 'Bearer caller-token');
+        capturedRequest = null;
+
         const a2aOversized = await worker.fetch(
           new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
             method: 'POST',
