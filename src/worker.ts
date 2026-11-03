@@ -21,6 +21,8 @@ export type CloudflareEnv = {
   GLORIFIER_RELEASE_REF?: string;
   GLORIFIER_RELEASE_RUN_ID?: string;
   MCP_RATE_LIMITER?: GithubMcpRateLimiter;
+  // Optional least-privilege GitHub PAT for Worker egress environments whose shared IPs are rate-limited.
+  GITHUB_MCP_READ_TOKEN?: string;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
   };
@@ -1075,7 +1077,7 @@ export default {
           },
         });
       }
-      return githubMcpRoute(request, env.MCP_RATE_LIMITER);
+      return githubMcpRoute(request, env.MCP_RATE_LIMITER, env.GITHUB_MCP_READ_TOKEN);
     }
 
     if (incomingUrl.pathname.replace(/\/+$/, '') === A2A_JSONRPC_PATH) {
