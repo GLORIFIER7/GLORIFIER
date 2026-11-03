@@ -17,9 +17,9 @@ The official-logo edition already exists on Ethereum Mainnet and must not be min
 - Published metadata name: `GLORIFIER SERVICES — Official Logo #001`
 - Published image CID: `bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa`
 
-The on-chain metadata JSON was retrieved from Pinata and Filebase on 2026-11-03 and both gateways returned the same name, description and image URI. The Filebase image gateway returned the expected circular logo depiction and EST 2022. The image CID sha2-256 digest matches the previously recorded 55,886-byte image retrieval hash from 2026-10-20.
+The on-chain metadata JSON was retrieved from Pinata and Filebase on 2026-11-03 and both gateways returned the same name, description and image URI. The Filebase image gateway returned the expected circular logo depiction and EST 2022. The committed `GLORIFIER SERVICES.png` is 55,886 bytes and its freshly computed SHA-256 equals the image CID sha2-256 digest; the current repository file is byte-for-byte identical to the published token image. The older historical source PNG remains a distinct file with a different hash.
 
-The recorded historical source PNG SHA-256 `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` differs from the later retrieved bytes hash `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. This provenance discrepancy remains documented; no byte-for-byte identity with the older source file is claimed.
+The recorded historical source PNG SHA-256 `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` differs from the current canonical repository image hash `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. The current repository file matches the on-chain image CID exactly; only the older historical PNG remains a distinct source file.
 
 ## Remaining repository photo candidates
 
