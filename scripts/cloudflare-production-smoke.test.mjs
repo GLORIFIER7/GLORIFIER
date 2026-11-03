@@ -50,7 +50,7 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     '\n      - name: Deploy Cloudflare Worker',
     deployJobIndex,
   );
-  const deployCommandIndex = workflow.indexOf('wrangler deploy --log-level info', deployStepIndex);
+  const deployCommandIndex = workflow.indexOf('if wrangler deploy', deployStepIndex);
   const releaseSmokeStepIndex = workflow.indexOf(
     '\n      - name: Verify all deployed production read-only contracts',
     deployCommandIndex,
