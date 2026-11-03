@@ -18,7 +18,7 @@ const makeBundle = async () => {
     repositoryFile: {
       bytes: png.length,
       sha256: createHash("sha256").update(png).digest("hex"),
-      gitBlobSha: execFileSync("git", ["hash-object", "--stdin"], {
+      gitBlobSha: execFileSync("/usr/bin/git", ["hash-object", "--stdin"], {
         input: png,
         encoding: "utf8",
         maxBuffer: 1024 * 1024
