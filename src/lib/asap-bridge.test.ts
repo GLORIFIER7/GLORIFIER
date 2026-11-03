@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import { after, test } from 'node:test';
 import { prepareAsapHandoff } from './asap-bridge';
 
 const base = {
@@ -9,90 +11,83 @@ const base = {
   objective: 'Summarize public protocol documentation',
   risk: 'low' as const,
 };
-
-const envEnabled = process.env.GLORIFIER_ASAP_ENABLED;
+const allowedOptions = { featureEnabled: true, authenticated: true, geasAuthorized: true };
+const previousEnv = process.env.GLORIFIER_ASAP_ENABLED;
 process.env.GLORIFIER_ASAP_ENABLED = 'true';
+after(() => {
+  if (previousEnv === undefined) delete process.env.GLORIFIER_ASAP_ENABLED;
+  else process.env.GLORIFIER_ASAP_ENABLED = previousEnv;
+});
 
-try {
-  const disabled = prepareAsapHandoff(base, {
-    featureEnabled: false, authenticated: true, geasAuthorized: true,
-  });
-  if (disabled.allowed || disabled.status !== 'DISABLED') throw new Error('feature-off must deny handoff');
+test('ASAP handoff is disabled when the feature flag is off', () => {
+  const result = prepareAsapHandoff(base, { ...allowedOptions, featureEnabled: false });
+  assert.equal(result.allowed, false);
+  assert.equal(result.status, 'DISABLED');
+});
 
-  const unauthenticated = prepareAsapHandoff(base, {
-    featureEnabled: true, authenticated: false, geasAuthorized: true,
-  });
-  if (unauthenticated.allowed || unauthenticated.status !== 'BLOCKED') throw new Error('missing identity must deny handoff');
+test('ASAP handoff requires authenticated identity', () => {
+  const result = prepareAsapHandoff(base, { ...allowedOptions, authenticated: false });
+  assert.equal(result.allowed, false);
+  assert.equal(result.status, 'BLOCKED');
+});
 
-  const unauthorized = prepareAsapHandoff(base, {
-    featureEnabled: true, authenticated: true, geasAuthorized: false,
-  });
-  if (unauthorized.allowed) throw new Error('missing GEAS authorization must deny handoff');
+test('ASAP handoff requires GEAS authorization', () => {
+  const result = prepareAsapHandoff(base, { ...allowedOptions, geasAuthorized: false });
+  assert.equal(result.allowed, false);
+});
 
-  const missingTaskId = prepareAsapHandoff({ ...base, taskId: '  ' }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (missingTaskId.allowed) throw new Error('missing required task fields must deny handoff');
+test('ASAP handoff rejects missing required task identifiers', () => {
+  const result = prepareAsapHandoff({ ...base, taskId: '  ' }, allowedOptions);
+  assert.equal(result.allowed, false);
+});
 
-  const unsafeIdentifier = prepareAsapHandoff({ ...base, targetAgentId: 'agent\nforged' }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true, humanApproved: true,
-  });
-  if (unsafeIdentifier.allowed) throw new Error('control characters in identifiers must deny handoff');
+test('ASAP handoff rejects control characters in identifiers', () => {
+  const result = prepareAsapHandoff({ ...base, targetAgentId: 'agent\nforged' }, { ...allowedOptions, humanApproved: true });
+  assert.equal(result.allowed, false);
+});
 
-  const secretPayload = prepareAsapHandoff({ ...base, payload: { customer: 'example', api_key: 'must-not-forward' } }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (secretPayload.allowed) throw new Error('secret-like payload fields must be denied');
+test('ASAP handoff rejects secret-like payload fields', () => {
+  const result = prepareAsapHandoff({ ...base, payload: { customer: 'example', api_key: 'must-not-forward' } }, allowedOptions);
+  assert.equal(result.allowed, false);
+});
 
-  const oversizedPayload = prepareAsapHandoff({ ...base, payload: { data: 'x'.repeat(16_001) } }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (oversizedPayload.allowed) throw new Error('oversized payloads must be denied');
+test('ASAP handoff rejects oversized payloads and objectives', () => {
+  const oversizedPayload = prepareAsapHandoff({ ...base, payload: { data: 'x'.repeat(16_001) } }, allowedOptions);
+  assert.equal(oversizedPayload.allowed, false);
+  const oversizedObjective = prepareAsapHandoff({ ...base, objective: 'x'.repeat(4_001) }, { ...allowedOptions, humanApproved: true });
+  assert.equal(oversizedObjective.allowed, false);
+});
 
-  const oversizedObjective = prepareAsapHandoff({ ...base, objective: 'x'.repeat(4_001) }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true, humanApproved: true,
-  });
-  if (oversizedObjective.allowed) throw new Error('oversized objectives must deny handoff');
+test('ASAP handoff requires approval for missing risk and unknown capabilities', () => {
+  const missingRisk = prepareAsapHandoff({ ...base, risk: undefined }, allowedOptions);
+  assert.equal(missingRisk.allowed, false);
+  const unknownCapability = prepareAsapHandoff({ ...base, capability: 'custom-admin-action' }, allowedOptions);
+  assert.equal(unknownCapability.allowed, false);
+});
 
-  const missingRisk = prepareAsapHandoff({ ...base, risk: undefined }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (missingRisk.allowed) throw new Error('missing risk must require human approval');
+test('ASAP handoff requires approval for irreversible sensitive actions', () => {
+  const result = prepareAsapHandoff({ ...base, capability: 'asset-transfer', risk: 'irreversible' }, allowedOptions);
+  assert.equal(result.allowed, false);
+});
 
-  const unknownCapability = prepareAsapHandoff({ ...base, capability: 'custom-admin-action' }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
+test('approved sensitive handoff is prepared but never executed', () => {
+  const result = prepareAsapHandoff({ ...base, capability: 'asset-transfer', risk: 'irreversible' }, {
+    ...allowedOptions, humanApproved: true,
   });
-  if (unknownCapability.allowed) throw new Error('unknown capabilities must require human approval');
+  assert.ok(result.allowed && result.intent?.requiresHumanApproval);
+});
 
-  const sensitive = prepareAsapHandoff({ ...base, capability: 'asset-transfer', risk: 'irreversible' }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (sensitive.allowed) throw new Error('sensitive action must require human approval');
-
-  const approvedSensitive = prepareAsapHandoff({ ...base, capability: 'asset-transfer', risk: 'irreversible' }, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true, humanApproved: true,
-  });
-  if (!approvedSensitive.allowed || !approvedSensitive.intent?.requiresHumanApproval) {
-    throw new Error('approved sensitive intent should be prepared but not executed');
+test('ASAP handoff fails closed for non-serializable payloads', () => {
+  for (const payload of [() => 'payload', Symbol('payload')]) {
+    const result = prepareAsapHandoff({ ...base, payload }, allowedOptions);
+    assert.equal(result.allowed, false);
+    assert.equal(result.status, 'BLOCKED');
   }
+});
 
-  for (const unserializablePayload of [() => 'payload', Symbol('payload')]) {
-    const invalidPayload = prepareAsapHandoff({ ...base, payload: unserializablePayload }, {
-      featureEnabled: true, authenticated: true, geasAuthorized: true,
-    });
-    if (invalidPayload.allowed || invalidPayload.status !== 'BLOCKED') {
-      throw new Error('non-serializable payloads must fail closed');
-    }
-  }
-
-  const allowed = prepareAsapHandoff(base, {
-    featureEnabled: true, authenticated: true, geasAuthorized: true,
-  });
-  if (!allowed.allowed || allowed.intent?.conformance !== 'NOT_VERIFIED') throw new Error('safe intent must preserve unverified status');
-  if (allowed.intent?.status !== 'READY_FOR_TRANSPORT') throw new Error('unexpected intent status');
-
-  console.log('ASAP_BRIDGE_TEST_OK', JSON.stringify({ cases: 13, liveTransport: false, conformance: 'NOT_VERIFIED' }));
-} finally {
-  if (envEnabled === undefined) delete process.env.GLORIFIER_ASAP_ENABLED;
-  else process.env.GLORIFIER_ASAP_ENABLED = envEnabled;
-}
+test('safe ASAP intent remains unverified until transport conformance is proven', () => {
+  const result = prepareAsapHandoff(base, allowedOptions);
+  assert.equal(result.allowed, true);
+  assert.equal(result.intent?.conformance, 'NOT_VERIFIED');
+  assert.equal(result.intent?.status, 'READY_FOR_TRANSPORT');
+});
