@@ -399,7 +399,7 @@ const requiredDatasetRows = (
 };
 
 const validateInvoiceIdentity = (
-  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
+  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
@@ -413,7 +413,7 @@ const invoicePeriodValidationFailure = (startMs: number | null, endMs: number | 
 };
 
 const validateInvoiceBillingPeriod = (
-  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
+  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
   const startMs = values.billingPeriodStart ? utcTimestamp(values.billingPeriodStart) : null;
