@@ -11,7 +11,18 @@
     "name": "GLORIFIER",
     "symbol": "GLR",
     "totalSupply": "1",
-    "tokenURI_1": "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1"
+    "tokenURI_1_parts": [
+      "ipfs:/",
+      "/Qme1t",
+      "GfPb4g",
+      "8xJQKn",
+      "vtHbSd",
+      "VUZXAH",
+      "CAVgah",
+      "KciUQ9",
+      "JUqst/",
+      "1"
+    ]
   },
   "mint": {
     "transaction_hash": "0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
