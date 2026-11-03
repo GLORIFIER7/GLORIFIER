@@ -1013,8 +1013,12 @@ export default {
       if (!normalizedAuthorization) {
         return errorResponse(401, -32600, 'Authentication is required.', { 'WWW-Authenticate': 'Bearer' });
       }
-      if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
-        return errorResponse(415, -32600, 'Content-Type must be application/json.');
+      const a2aMediaType = (request.headers.get('content-type') || '')
+        .split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+      if (a2aMediaType !== 'application/json' && a2aMediaType !== 'application/a2a+json') {
+        return errorResponse(415, -32600, 'Content-Type must be application/a2a+json or application/json.');
       }
       let body: ArrayBuffer;
       try {
@@ -1032,8 +1036,8 @@ export default {
       }
       const headers = new Headers({
         Authorization: normalizedAuthorization,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        'Content-Type': a2aMediaType,
+        Accept: 'application/a2a+json, application/json',
         'X-Correlation-ID': crypto.randomUUID(),
       });
       const a2aVersion = request.headers.get('A2A-Version');
