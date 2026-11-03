@@ -2,6 +2,8 @@ import { strict as assert } from 'node:assert';
 import { AnthropicProvider } from './anthropic';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const originalFetch = globalThis.fetch;
 const originalKey = process.env.ANTHROPIC_API_KEY;
@@ -62,6 +64,9 @@ try {
   if (originalModel === undefined) delete process.env.ANTHROPIC_MODEL;
   else process.env.ANTHROPIC_MODEL = originalModel;
 }
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
