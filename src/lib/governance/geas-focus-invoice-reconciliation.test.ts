@@ -254,6 +254,15 @@ const payableBillingPeriod = {
   billingPeriodStatus: 'Closed',
 };
 
+const unknownIssuerCapability = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: undefined as unknown as boolean,
+});
+assert.equal(unknownIssuerCapability.status, 'UNKNOWN');
+assert.ok(unknownIssuerCapability.reasons.some((reason) =>
+  reason.includes('invoice issuer payable-invoice support must be explicitly true or false'),
+));
+
 const explicitUnsupportedIssuer = {
   ...input,
   invoiceIssuerSupportsPayableInvoices: false,
@@ -335,5 +344,17 @@ assert.ok(invalidBillingPeriodStatus.reasons.some((reason) =>
   reason.includes('BillingPeriod row 0 has a status outside the FOCUS 1.4 allowed values Open or Closed'),
 ));
 
+
+
+const payableIssuerOpenBillingPeriod = {
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodStatus: 'Open',
+  }],
+};
+assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).status, 'RECONCILED');
+assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).billingPeriodStatus, 'Open');
 
 process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
