@@ -60,6 +60,18 @@ test('rejects creation and deletion file headers', () => {
   assert.throws(() => validatePatchResponse(newFile), /creating or deleting files/);
 });
 
+test('rejects a second file header smuggled after a validated hunk', () => {
+  const hiddenFile = valid.replace('END_PATCH', [
+    '--- a/.github/workflows/privileged.yml',
+    '+++ b/.github/workflows/privileged.yml',
+    '@@ -1 +1 @@',
+    '-old secret-bearing workflow',
+    '+untrusted replacement',
+    'END_PATCH'
+  ].join('\\n'));
+  assert.throws(() => validatePatchResponse(hiddenFile), /unexpected content|unvalidated file header|hunk/i);
+});
+
 test('rejects mismatched git and unified-diff paths', () => {
   const mismatch = valid.replace('+++ b/scripts/example.cjs', '+++ b/docs/example.cjs');
   assert.throws(() => validatePatchResponse(mismatch), /path mismatch/);
