@@ -87,9 +87,11 @@ jobs:
             jq '{workflowName,headBranch,conclusion,url,event}' <<<"$meta"
             exit 1
           fi
-          echo "url=$(jq -r '.url' <<<"$meta")" >> "$GITHUB_OUTPUT"
-          echo "workflow=$(jq -r '.workflowName' <<<"$meta")" >> "$GITHUB_OUTPUT"
-          echo "head_branch=$(jq -r '.headBranch' <<<"$meta")" >> "$GITHUB_OUTPUT"
+          {
+            echo "url=$(jq -r '.url' <<<"$meta")"
+            echo "workflow=$(jq -r '.workflowName' <<<"$meta")"
+            echo "head_branch=$(jq -r '.headBranch' <<<"$meta")"
+          } >> "$GITHUB_OUTPUT"
           echo "Verified failed run: $(jq -r '.url' <<<"$meta")"
 
       - name: Collect and redact bounded failed-step logs
