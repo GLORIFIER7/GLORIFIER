@@ -54,8 +54,10 @@ function validateRepositoryImage(bundle) {
   const { registry, observation, repositoryFile } = bundle;
   const image = registry.artwork?.onchain_token_image ?? {};
   const repositoryAsset = observation.image_integrity?.repository_asset ?? {};
+  const onchainObservation = registry.existing_contract_candidate?.onchain_observation ?? {};
   const expected = "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790";
   const issues = [];
+  if (joinParts(onchainObservation.token_image_uri_parts) !== observation.published_metadata.image) issues.push("Registry token image URI segments mismatch.");
   if (image.repository_asset_path !== "GLORIFIER SERVICES.png") issues.push("Registry canonical repository image path mismatch.");
   if (image.repository_asset_bytes !== 55886 || repositoryAsset.bytes !== 55886 || repositoryFile.bytes !== 55886) issues.push("Repository logo byte-size mismatch.");
   if (image.repository_asset_git_blob_sha !== repositoryAsset.git_blob_sha || repositoryFile.gitBlobSha !== repositoryAsset.git_blob_sha) issues.push("Repository logo Git blob SHA mismatch.");
