@@ -1,0 +1,85 @@
+{
+  "observed_at": "2026-11-03",
+  "network": "Ethereum Mainnet",
+  "chain_id": 1,
+  "contract": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
+  "token_standard": "ERC-721",
+  "token_id": "1",
+  "reads": {
+    "owner": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
+    "ownerOf_1": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
+    "name": "GLORIFIER",
+    "symbol": "GLR",
+    "totalSupply": "1",
+    "tokenURI_1": "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1"
+  },
+  "mint": {
+    "transaction_hash": "0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
+    "transaction_url": "https://etherscan.io/tx/0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
+    "receipt_status": "SUCCESS",
+    "block_number": 26275697,
+    "timestamp_utc": "2026-10-26T08:34:11Z",
+    "recipient": "0xe0589195995cb373c856953cfaddaeeaf2088a06"
+  },
+  "metadata_uri_retrievals": [
+    {
+      "gateway": "Pinata",
+      "url": "https://gateway.pinata.cloud/ipfs/Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1",
+      "result": "SUCCESS",
+      "name": "GLORIFIER SERVICES — Official Logo #001"
+    },
+    {
+      "gateway": "Filebase",
+      "url": "https://ipfs.filebase.io/ipfs/Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1",
+      "result": "SUCCESS",
+      "name": "GLORIFIER SERVICES — Official Logo #001"
+    }
+  ],
+  "published_metadata": {
+    "image": "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
+    "name": "GLORIFIER SERVICES — Official Logo #001",
+    "description": "The official logo artwork of GLORIFIER SERVICES Advertising Company, representing its identity, vision, and mission.\n\n**Motto:** Committed to glorify, passionate to evangelize.\n\n**Core Values:** Purpose • Stewardship • Service • Integrity.\n\nThis edition preserves the intended identity of the GLORIFIER SERVICES logo. This NFT represents the logo artwork and does not promise financial returns or imply ownership of the GLORIFIER (GLR) cryptocurrency.\n",
+    "external_url": "https://github.com/GLORIFIER7/GLORIFIER",
+    "attributes": [
+      {
+        "trait_type": "Collection",
+        "value": "Official Logo"
+      },
+      {
+        "trait_type": "Edition",
+        "value": "001"
+      },
+      {
+        "trait_type": "Brand",
+        "value": "GLORIFIER SERVICES"
+      },
+      {
+        "trait_type": "Motto",
+        "value": "Committed to Glorify, Passion to Evangelize"
+      }
+    ]
+  },
+  "image_integrity": {
+    "image_cid": "bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
+    "image_uri": "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
+    "cid_codec": "raw",
+    "multihash": "sha2-256",
+    "digest_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+    "digest_matches_previous_retrieved_artwork_bytes": true,
+    "previous_retrieval": {
+      "date": "2026-10-20",
+      "bytes": 55886,
+      "sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+      "gateways": [
+        "Filebase",
+        "Pinata"
+      ]
+    },
+    "current_filebase_image_result": "SUCCESS; logo depiction with GLORIFIER, SERVICES and EST 2022 returned",
+    "historical_source_png_sha256": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
+    "note": "The historical source PNG hash differs; no raw-byte identity with that older file is claimed."
+  },
+  "caveats": [
+    "An Alchemy aggregated metadata response reported a different tokenUri and totalSupply=0. Direct eth_call reads and the two gateway responses are treated as authoritative for live contract state and token metadata URI."
+  ]
+}
