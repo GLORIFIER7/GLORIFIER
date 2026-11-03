@@ -284,51 +284,55 @@ const isCloudflareWorkerVersionId = (value) => {
   return true;
 };
 
+const failBuildInfoContract = (message) => {
+  throw new assert.AssertionError({ message });
+};
+
 export const validateBuildInfo = (body, expectedCommit) => {
   assert.ok(isAsciiHex(expectedCommit, 40),
     'expected Git commit SHA must be a 40-character hexadecimal value');
 
   if (body === null || typeof body !== 'object') {
-    throw new TypeError('build-info must return an object');
+    failBuildInfoContract('build-info must return an object');
   }
-  if (body.ok !== true) throw new Error('build-info must report ok=true');
+  if (body.ok !== true) failBuildInfoContract('build-info must report ok=true');
   if (body.status !== 'source-provenance-verified') {
-    throw new Error('build-info must report source-provenance-verified');
+    failBuildInfoContract('build-info must report source-provenance-verified');
   }
   if (body.repository !== 'https://github.com/GLORIFIER7/GLORIFIER') {
-    throw new Error('build-info repository does not match GLORIFIER7/GLORIFIER');
+    failBuildInfoContract('build-info repository does not match GLORIFIER7/GLORIFIER');
   }
 
   const git = body.git;
   if (git === null || typeof git !== 'object') {
-    throw new TypeError('build-info must include a git object');
+    failBuildInfoContract('build-info must include a git object');
   }
   const worker = body.worker;
   if (worker === null || typeof worker !== 'object') {
-    throw new TypeError('build-info must include a worker object');
+    failBuildInfoContract('build-info must include a worker object');
   }
 
   if (!isAsciiHex(git.commit, 40)) {
-    throw new Error('build-info must expose a 40-character source commit SHA');
+    failBuildInfoContract('build-info must expose a 40-character source commit SHA');
   }
   if (git.commit.toLowerCase() !== expectedCommit.toLowerCase()) {
-    throw new Error('deployed Worker source commit does not match the expected commit');
+    failBuildInfoContract('deployed Worker source commit does not match the expected commit');
   }
   if (git.ref !== 'refs/heads/main') {
-    throw new Error('production Worker ref must be refs/heads/main');
+    failBuildInfoContract('production Worker ref must be refs/heads/main');
   }
   if (!isAsciiDecimal(git.runId)) {
-    throw new Error('build-info must expose the GitHub Actions run ID');
+    failBuildInfoContract('build-info must expose the GitHub Actions run ID');
   }
   if (!isCloudflareWorkerVersionId(worker.versionId)) {
-    throw new Error('build-info must expose the Cloudflare Worker version ID');
+    failBuildInfoContract('build-info must expose the Cloudflare Worker version ID');
   }
   if (typeof worker.versionTimestamp !== 'string' ||
       !Number.isFinite(Date.parse(worker.versionTimestamp))) {
-    throw new Error('build-info must expose a valid Cloudflare version timestamp');
+    failBuildInfoContract('build-info must expose a valid Cloudflare version timestamp');
   }
   if (worker.versionTag !== null && typeof worker.versionTag !== 'string') {
-    throw new Error('build-info version tag must be a string or null');
+    failBuildInfoContract('build-info version tag must be a string or null');
   }
   return body;
 };
