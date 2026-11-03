@@ -410,6 +410,46 @@ const run = async (): Promise<void> => {
           'HTTP version header and per-request metadata must agree');
         assert.equal(mismatchedModernBody.error.data.requested, '2026-07-28');
 
+        const modernHeaderWithoutMetadata = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-header-without-metadata',
+              method: 'tools/list',
+              params: {},
+            }),
+          }),
+          env,
+        );
+        const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
+          error: { code: number; data: { requested: string } };
+        };
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32022);
+        assert.equal(modernHeaderWithoutMetadataBody.error.data.requested, '',
+          'a supported HTTP version with missing per-request metadata must report the missing metadata, not the supported version');
+
+        const modernMetadataWithoutHeader = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-metadata-without-header',
+              method: 'tools/list',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernMetadataWithoutHeaderBody = await modernMetadataWithoutHeader.json() as {
+          error: { code: number; data: { requested: string } };
+        };
+        assert.equal(modernMetadataWithoutHeaderBody.error.code, -32022);
+        assert.equal(modernMetadataWithoutHeaderBody.error.data.requested, '',
+          'modern metadata without the required matching HTTP header must report the missing header version');
+
         const modernInitializeRejected = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
