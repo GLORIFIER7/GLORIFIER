@@ -236,7 +236,7 @@ const run = async (): Promise<void> => {
         );
         assert.ok(mcpToolsBody.result.tools.length >= 3);
         assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
-        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.destructiveHint === false));
+        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations.destructiveHint === false));
         assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
 
         const modernMcpHeaders = {
