@@ -31,50 +31,38 @@ for (const workflow of agaveWorkflows) {
   });
 }
 
-const actionPins = [
-  {
-    name: '.github/workflows/codex-gemini-review.yml',
-    source: readFileSync(new URL('../.github/workflows/codex-gemini-review.yml', import.meta.url), 'utf8'),
-    action: 'openai/codex-action',
-    sha: 'bdf19a4a223ec2549a3e2274a0cf61556bc07675',
-  },
-  {
-    name: '.github/workflows/gemini-collaborator.yml',
-    source: readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8'),
-    action: 'google-github-actions/run-gemini-cli',
-    sha: 'f77273f4c914e4bf38440cf36a0369cb64a37489',
-  },
-  {
-    name: '.github/workflows/glorifier-bnb-testnet-deploy.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-bnb-testnet-deploy.yml', import.meta.url), 'utf8'),
-    action: 'foundry-rs/foundry-toolchain',
-    sha: 'dba66c27052e63476d886f22216e119ba7e615bf',
-  },
-  {
-    name: '.github/workflows/glorifier-sepolia-rpc-check.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-sepolia-rpc-check.yml', import.meta.url), 'utf8'),
-    action: 'foundry-rs/foundry-toolchain',
-    sha: 'dba66c27052e63476d886f22216e119ba7e615bf',
-  },
-  {
-    name: '.github/workflows/glorifier-testnet-deploy.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-testnet-deploy.yml', import.meta.url), 'utf8'),
-    action: 'foundry-rs/foundry-toolchain',
-    sha: 'dba66c27052e63476d886f22216e119ba7e615bf',
-  },
-  {
-    name: '.github/workflows/glorifier-contracts.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-contracts.yml', import.meta.url), 'utf8'),
-    action: 'foundry-rs/foundry-toolchain',
-    sha: 'dba66c27052e63476d886f22216e119ba7e615bf',
-  },
+const codexWorkflow = readFileSync(
+  new URL('../.github/workflows/codex-gemini-review.yml', import.meta.url),
+  'utf8',
+);
+const geminiWorkflow = readFileSync(
+  new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url),
+  'utf8',
+);
+const foundryWorkflows = [
+  readFileSync(new URL('../.github/workflows/glorifier-bnb-testnet-deploy.yml', import.meta.url), 'utf8'),
+  readFileSync(new URL('../.github/workflows/glorifier-sepolia-rpc-check.yml', import.meta.url), 'utf8'),
+  readFileSync(new URL('../.github/workflows/glorifier-testnet-deploy.yml', import.meta.url), 'utf8'),
+  readFileSync(new URL('../.github/workflows/glorifier-contracts.yml', import.meta.url), 'utf8'),
 ];
 
-for (const item of actionPins) {
-  test(item.name + ' pins ' + item.action + ' to the reviewed immutable commit', () => {
-    assert.ok(item.source.includes('uses: ' + item.action + '@' + item.sha));
-  });
+function assertPinnedAction(source, action, sha) {
+  assert.ok(source.includes('uses: ' + action + '@' + sha));
 }
+
+test('Codex action is pinned to its reviewed immutable commit', () => {
+  assertPinnedAction(codexWorkflow, 'openai/codex-action', 'bdf19a4a223ec2549a3e2274a0cf61556bc07675');
+});
+
+test('Gemini action is pinned to its reviewed immutable commit', () => {
+  assertPinnedAction(geminiWorkflow, 'google-github-actions/run-gemini-cli', 'f77273f4c914e4bf38440cf36a0369cb64a37489');
+});
+
+test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
+  for (const source of foundryWorkflows) {
+    assertPinnedAction(source, 'foundry-rs/foundry-toolchain', 'dba66c27052e63476d886f22216e119ba7e615bf');
+  }
+});
 
 const maintenanceScripts = [
   {
