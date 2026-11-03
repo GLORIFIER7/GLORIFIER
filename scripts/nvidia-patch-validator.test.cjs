@@ -46,7 +46,7 @@ test('rejects patches touching more than two files', () => {
 
 test('rejects patches exceeding the changed-line budget', () => {
   const additions = Array.from({ length: 101 }, (_, i) => '+line-' + i).join('\n');
-  const tooManyLines = valid.replace('+newValue();', additions);
+  const tooManyLines = valid.replace('@@ -1 +1 @@', '@@ -1 +101 @@').replace('+newValue();', additions);
   assert.throws(() => validatePatchResponse(tooManyLines), /changed-line limit/);
 });
 
