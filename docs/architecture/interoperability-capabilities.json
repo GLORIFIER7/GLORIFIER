@@ -539,11 +539,11 @@
           "reference": "https://solana.publicnode.com",
           "targetEnvironment": "PublicNode public Solana mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
-          "notes": "Unauthenticated read-only getGenesisHash returned 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (HTTP 200, 622 ms), matching Solana mainnet; getSlot at finalized commitment returned 464841204 (HTTP 200). This verifies public endpoint reachability and mainnet identity only; it does not verify GLR mint/transfer state or signing."
+          "notes": "Unauthenticated read-only getGenesisHash returned 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d (HTTP 200, 622 ms), matching Solana mainnet; getSlot at finalized commitment returned 464841204 (HTTP 200). This verifies public endpoint reachability and mainnet identity only; it does not verify GLR mint/transfer state or signing."
         }
       ],
       "limitations": [
-        "No live Solana RPC probe is recorded in this registry.",
+        "The live read-only RPC probe verifies endpoint reachability and mainnet identity only; live GLR mint/transfer state and signing remain NOT VERIFIED.",
         "EVM and Solana adapters are independently verified and are not interchangeable."
       ]
     },
