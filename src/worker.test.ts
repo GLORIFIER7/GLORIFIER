@@ -923,7 +923,7 @@ const run = async (): Promise<void> => {
 
         const nativeRuntimeWithoutSupabase = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
-          { ...env, GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
+          { ...env, GLORIFIER_DATABASE_PROVIDER: 'supabase', GLORIFIER_BACKEND_ORIGIN: undefined, GLORIFIER_SUPABASE_URL: undefined, GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined },
         );
         assert.equal(nativeRuntimeWithoutSupabase.status, 503);
         const nativeRuntimeWithoutSupabaseBody = await nativeRuntimeWithoutSupabase.json() as {
@@ -959,6 +959,7 @@ const run = async (): Promise<void> => {
             new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
             {
               ...env,
+              GLORIFIER_DATABASE_PROVIDER: 'supabase',
               GLORIFIER_SUPABASE_URL: invalidSupabaseOrigin,
               GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
             },
@@ -983,6 +984,7 @@ const run = async (): Promise<void> => {
           new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
           {
             ...env,
+            GLORIFIER_DATABASE_PROVIDER: 'supabase',
             GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
             GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
             GLORIFIER_NEURAL_ORIGIN: undefined,
@@ -1072,6 +1074,7 @@ const run = async (): Promise<void> => {
             {
               ...env,
               ...neuralCase.env,
+              GLORIFIER_DATABASE_PROVIDER: 'supabase',
               GLORIFIER_SUPABASE_URL: 'https://project.supabase.co',
               GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
             },
@@ -1180,6 +1183,33 @@ const run = async (): Promise<void> => {
         });
         assert.equal(invalidDatabaseProvider.status, 503);
         assert.equal(await invalidDatabaseProvider.json().then((body: { code?: string }) => body.code), 'DATABASE_PROVIDER_INVALID');
+
+        // An omitted database provider must fail closed; it must never select the legacy
+        // Supabase adapter implicitly when Neon is the authoritative operational store.
+        const missingDatabaseProvider = await reportsSummaryResponse({
+          ...env,
+          GLORIFIER_DATABASE_PROVIDER: undefined,
+          GLORIFIER_SUPABASE_URL: undefined,
+          GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined,
+        });
+        assert.equal(missingDatabaseProvider.status, 503);
+        assert.equal(await missingDatabaseProvider.json().then((body: { code?: string }) => body.code), 'DATABASE_PROVIDER_INVALID');
+
+        const missingProviderRuntime = await runtimeVerificationResponse(
+          new Request('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false'),
+          {
+            ...env,
+            GLORIFIER_DATABASE_PROVIDER: undefined,
+            GLORIFIER_SUPABASE_URL: undefined,
+            GLORIFIER_SUPABASE_SERVICE_ROLE_KEY: undefined,
+          },
+          neonCountReader,
+        );
+        assert.equal(missingProviderRuntime.status, 503);
+        assert.equal(
+          await missingProviderRuntime.json().then((body: { checks: { database: { code?: string } } }) => body.checks.database.code),
+          'DATABASE_PROVIDER_INVALID',
+        );
 
         const neonQueryFailure = await reportsSummaryResponse(
           neonEnvironment,
