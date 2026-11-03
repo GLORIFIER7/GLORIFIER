@@ -26,6 +26,12 @@ jobs:
       - name: Validate NFT metadata JSON structure
         run: node nft/scripts/validate-metadata.mjs
 
+      - name: Validate cross-file NFT evidence consistency
+        run: node nft/scripts/validate-evidence.mjs --run
+
+      - name: Test cross-file NFT evidence validator
+        run: node --test nft/scripts/validate-evidence.test.mjs
+
       - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
         with:
           version: v1.3.1
