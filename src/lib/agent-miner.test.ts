@@ -1,6 +1,8 @@
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization } from './agent-miner';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 setAgentMinerRunning(true, 'intelligence');
 const before = getAgentMinerSnapshot();
@@ -10,6 +12,9 @@ const cycle = await runAgentMinerCycle();
 if (!cycle.id || !cycle.completedAt) throw new Error('cycle did not complete');
 setComputeWorkerAuthorization(false);
 console.log('agent-miner tests passed');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
