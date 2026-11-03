@@ -115,6 +115,7 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
   );
   assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
   assert.ok(workflow.includes("github.ref == 'refs/heads/main' &&"));
+  assert.ok(workflow.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
 });
 
 process.stdout.write('NVIDIA triage response parser regression tests passed.\n');
