@@ -259,7 +259,7 @@ export const validateBuildInfo = (body, expectedCommit) => {
     'deployed Worker source commit does not match the expected commit');
   assert.equal(body?.git?.ref, 'refs/heads/main',
     'production Worker must identify the protected main branch');
-  assert.ok(/^\\d{1,20}$/.test(body?.git?.runId || ''),
+  assert.ok(/^\d{1,20}$/.test(body?.git?.runId || ''),
     'build-info must expose the GitHub Actions run ID');
   assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body?.worker?.versionId || ''),
     'build-info must expose the Cloudflare Worker version ID');
