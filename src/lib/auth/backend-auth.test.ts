@@ -93,6 +93,7 @@ test('owner and internal-service middleware protect private payment intent reads
   process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN = 'test-secret-token';
   const internal = await runMiddleware(createRequireOwnerOrInternalService(fakeVerifier), { 'x-glorifier-internal-token': 'test-secret-token' });
   assert.equal(internal.nextCalled, true);
+  delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;
 });
 
 test('Auth0-only authentication initializes without Firebase Admin and validates audience arrays', async () => {
