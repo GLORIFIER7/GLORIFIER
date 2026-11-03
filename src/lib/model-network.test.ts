@@ -1,4 +1,5 @@
 import { getModelNetworkPolicy } from './model-network';
+import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
