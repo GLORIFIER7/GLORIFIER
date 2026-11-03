@@ -25,13 +25,13 @@ const findDuplicateTopLevelJsonKeys = (source) => {
   const duplicates = [];
   const seen = new Set();
   const skipWhitespace = () => {
-    while (offset < source.length && /\\s/.test(source[offset])) offset += 1;
+    while (offset < source.length && /\s/.test(source[offset])) offset += 1;
   };
   const readString = () => {
     const start = offset;
     offset += 1;
     while (offset < source.length) {
-      if (source[offset] === '\\\\') {
+      if (source[offset] === '\\') {
         offset += 2;
         continue;
       }
@@ -68,7 +68,7 @@ const findDuplicateTopLevelJsonKeys = (source) => {
       const character = source[offset];
       if (inString) {
         if (escaped) escaped = false;
-        else if (character === '\\\\') escaped = true;
+        else if (character === '\\') escaped = true;
         else if (character === '"') inString = false;
         offset += 1;
         continue;
