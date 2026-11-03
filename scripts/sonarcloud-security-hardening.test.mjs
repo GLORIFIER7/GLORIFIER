@@ -59,6 +59,8 @@ test('private temp directory helper creates unique mode-0700 directories and cle
     assert.equal(path.dirname(second), os.tmpdir());
     assert.equal(fs.statSync(first).mode & 0o777, 0o700);
     assert.equal(fs.statSync(second).mode & 0o777, 0o700);
+    assert.throws(() => createPrivateTempDir('../unsafe'), /prefix must be/);
+    assert.throws(() => createPrivateTempDir('contains spaces'), /prefix must be/);
   } finally {
     fs.rmSync(first, { recursive: true, force: true });
     fs.rmSync(second, { recursive: true, force: true });
@@ -115,4 +117,41 @@ test('Mainnet Token-2022 runner creates and removes a unique private dependency 
   assert.match(source, /trap .*rm -rf.*GLORIFIER_TOKEN2022_NODE_MODULES_DIR.* EXIT/);
   assert.match(source, /npm install --prefix "\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"/);
   assert.doesNotMatch(source, /npm install --prefix \/tmp\/glorifier-token2022-js/);
+});
+
+test('private patch file helper enforces mode 0600 and removes files after success or failure', async () => {
+  const { withPrivateTempFile } = await import('./private-temp-file.mjs');
+  let successFile;
+  let successDirectory;
+  const value = withPrivateTempFile(
+    { prefix: 'glorifier-patch-test', fileName: 'success.patch', content: 'valid patch' },
+    (filePath) => {
+      successFile = filePath;
+      successDirectory = path.dirname(filePath);
+      assert.equal(fs.statSync(successDirectory).mode & 0o777, 0o700);
+      assert.equal(fs.statSync(filePath).mode & 0o777, 0o600);
+      assert.equal(fs.readFileSync(filePath, 'utf8'), 'valid patch');
+      return 'applied';
+    },
+  );
+  assert.equal(value, 'applied');
+  assert.equal(fs.existsSync(successFile), false);
+  assert.equal(fs.existsSync(successDirectory), false);
+
+  let failureFile;
+  let failureDirectory;
+  assert.throws(() => withPrivateTempFile(
+    { prefix: 'glorifier-patch-test', fileName: 'failure.patch', content: 'invalid patch' },
+    (filePath) => {
+      failureFile = filePath;
+      failureDirectory = path.dirname(filePath);
+      throw new Error('git apply failed');
+    },
+  ), /git apply failed/);
+  assert.equal(fs.existsSync(failureFile), false);
+  assert.equal(fs.existsSync(failureDirectory), false);
+  assert.throws(() => withPrivateTempFile(
+    { prefix: 'glorifier-patch-test', fileName: '../escape.patch', content: 'x' },
+    () => undefined,
+  ), /single path segment/);
 });
