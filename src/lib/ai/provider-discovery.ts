@@ -78,8 +78,46 @@ function providerConfigurationFingerprint(d: ProviderDefinition): string {
  const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\u0000');
  return createHash('sha256').update(material).digest('hex');
 }
-function classify(status:number, body:string):ProviderAvailability { if(status===401||status===403)return 'auth_failure'; if(status===402||status===400&&/spend|billing|credit|quota/i.test(body))return 'quota_exhausted'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'unreachable'; return status>=400?'error':'available'; }
-function reasonFor(status:number, body:string, availability:ProviderAvailability):string|null { if(availability==='available')return null; if(status===401)return 'invalid_or_expired_api_key'; if(status===403)return 'api_key_forbidden_or_access_denied'; if(status===402||/spend|billing|credit|quota/i.test(body))return 'quota_or_billing_limit'; if(status===429)return /quota|credit|exhaust/i.test(body)?'quota_exhausted':'rate_limited'; if(status>=500)return 'provider_service_error'; return redactProviderDiagnostic(body); }
+function classify(status: number, body: string): ProviderAvailability {
+  if (status === 401 || status === 403) {
+    return 'auth_failure';
+  }
+  if (status === 402 || (status === 400 && /spend|billing|credit|quota/i.test(body))) {
+    return 'quota_exhausted';
+  }
+  if (status === 429) {
+    return /quota|credit|exhaust/i.test(body) ? 'quota_exhausted' : 'rate_limited';
+  }
+  if (status >= 500) {
+    return 'unreachable';
+  }
+  return status >= 400 ? 'error' : 'available';
+}
+function reasonFor(
+  status: number,
+  body: string,
+  availability: ProviderAvailability,
+): string | null {
+  if (availability === 'available') {
+    return null;
+  }
+  if (status === 401) {
+    return 'invalid_or_expired_api_key';
+  }
+  if (status === 403) {
+    return 'api_key_forbidden_or_access_denied';
+  }
+  if (status === 402 || /spend|billing|credit|quota/i.test(body)) {
+    return 'quota_or_billing_limit';
+  }
+  if (status === 429) {
+    return /quota|credit|exhaust/i.test(body) ? 'quota_exhausted' : 'rate_limited';
+  }
+  if (status >= 500) {
+    return 'provider_service_error';
+  }
+  return redactProviderDiagnostic(body);
+}
 async function fetchJson(url:string,headers:Record<string,string>,init:RequestInit={}) { const response=await fetch(url,{...init,headers,signal:AbortSignal.timeout(5000)}); const text=await response.text(); let body:any=null; try{body=JSON.parse(text);}catch{} return {response,text,body}; }
 async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const requestEndpoint=endpointFor(d), endpoint=safeEndpointForDiagnostics(requestEndpoint), checked=new Date().toISOString();
