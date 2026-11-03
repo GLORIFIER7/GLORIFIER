@@ -22,12 +22,25 @@ export interface FocusInvoiceCharge {
   billedCost: string;
 }
 
+export interface FocusBillingPeriod {
+  invoiceIssuerName: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  billingPeriodCreated: string;
+  billingPeriodLastUpdated: string;
+  billingPeriodStatus: string;
+}
+
 export interface FocusInvoiceReconciliationInput {
   invoiceIssuerName: string;
   invoiceId: string;
   billingPeriodStart: string;
   billingPeriodEnd: string;
   billingCurrency: string;
+  /** Explicit issuer capability declaration; unknown capability must fail closed. */
+  invoiceIssuerSupportsPayableInvoices: boolean;
+  /** FOCUS 1.4 supporting dataset, joined by InvoiceIssuerName + BillingPeriodStart. */
+  billingPeriod?: readonly FocusBillingPeriod[];
   costAndUsage: readonly FocusInvoiceCharge[];
   invoiceDetail: readonly FocusInvoiceCharge[];
   /** Must be explicitly supplied from the applicable reconciliation policy. */
@@ -55,6 +68,7 @@ export interface FocusInvoiceReconciliationResult {
   billingPeriodStart: string | null;
   billingPeriodEnd: string | null;
   billingCurrency: string | null;
+  billingPeriodStatus: string | null;
   roundingTolerance: string | null;
   costAndUsageNonTaxTotal: string | null;
   costAndUsageTaxTotal: string | null;
@@ -143,6 +157,7 @@ const unknownResult = (
   billingCurrency: string | null,
   roundingTolerance: string | null,
   reasons: string[],
+  billingPeriodStatus: string | null = null,
 ): FocusInvoiceReconciliationResult => {
   return {
     specVersion: 'FOCUS-1.4',
@@ -155,6 +170,7 @@ const unknownResult = (
     billingPeriodStart,
     billingPeriodEnd,
     billingCurrency,
+    billingPeriodStatus,
     roundingTolerance,
     costAndUsageNonTaxTotal: null,
     costAndUsageTaxTotal: null,
@@ -333,6 +349,8 @@ interface InvoiceMetadataDraft {
   currency: string | null;
   tolerance: string | null;
   toleranceScale: number | null;
+  invoiceIssuerSupportsPayableInvoices: boolean | null;
+  billingPeriodValues: unknown;
   usageValues: unknown[];
   detailValues: unknown[];
 }
@@ -345,6 +363,8 @@ interface InvoiceMetadata {
   currency: string;
   tolerance: string;
   toleranceScale: number;
+  invoiceIssuerSupportsPayableInvoices: boolean;
+  billingPeriodValues: unknown;
   usageValues: unknown[];
   detailValues: unknown[];
 }
@@ -424,10 +444,13 @@ const validateRoundingTolerance = (
 };
 
 const validateInvoiceMetadata = (
-  values: Omit<InvoiceMetadataDraft, 'usageValues' | 'detailValues'>,
+  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
   reasons: string[],
 ): void => {
   validateInvoiceIdentity(values, reasons);
+  if (typeof values.invoiceIssuerSupportsPayableInvoices !== 'boolean') {
+    reasons.push('invoice issuer payable-invoice support must be explicitly true or false');
+  }
   validateInvoiceBillingPeriod(values, reasons);
   validateInvoiceCurrency(values.currency, reasons);
   validateRoundingTolerance(values.tolerance, values.toleranceScale, reasons);
@@ -441,7 +464,8 @@ const hasValidToleranceScale = (scale: number | null): scale is number =>
   scale !== null && Number.isInteger(scale) && scale >= 0;
 
 const isCompleteInvoiceMetadata = (draft: InvoiceMetadataDraft): draft is InvoiceMetadata =>
-  hasRequiredInvoiceTextValues(draft) && hasValidToleranceScale(draft.toleranceScale);
+  hasRequiredInvoiceTextValues(draft) && hasValidToleranceScale(draft.toleranceScale)
+  && typeof draft.invoiceIssuerSupportsPayableInvoices === 'boolean';
 
 const parseInvoiceMetadata = (
   input: FocusInvoiceReconciliationInput,
@@ -456,11 +480,90 @@ const parseInvoiceMetadata = (
     currency: textValue(record?.billingCurrency),
     tolerance: textValue(record?.roundingTolerance),
     toleranceScale: decimalScale(textValue(record?.roundingTolerance)),
+    invoiceIssuerSupportsPayableInvoices: typeof record?.invoiceIssuerSupportsPayableInvoices === 'boolean'
+      ? record.invoiceIssuerSupportsPayableInvoices : null,
+    billingPeriodValues: record?.billingPeriod,
   };
   validateInvoiceMetadata(values, reasons);
   const usageValues = requiredDatasetRows(record?.costAndUsage, 'CostAndUsage', reasons);
   const detailValues = requiredDatasetRows(record?.invoiceDetail, 'InvoiceDetail', reasons);
   return { ...values, usageValues, detailValues };
+};
+
+interface NormalizedBillingPeriod {
+  invoiceIssuerName: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  billingPeriodCreated: string;
+  billingPeriodLastUpdated: string;
+  billingPeriodStatus: string;
+}
+
+const validateBillingPeriodDataset = (
+  metadata: InvoiceMetadata,
+  reasons: string[],
+): string | null => {
+  const rawRows = metadata.billingPeriodValues;
+  if (rawRows === undefined || rawRows === null) {
+    if (metadata.invoiceIssuerSupportsPayableInvoices) {
+      reasons.push('BillingPeriod dataset is required when the invoice issuer supports payable invoices');
+    }
+    return null;
+  }
+  if (!Array.isArray(rawRows)) {
+    reasons.push('BillingPeriod dataset must be an array when supplied');
+    return null;
+  }
+  if (rawRows.length === 0) {
+    reasons.push('BillingPeriod dataset is empty');
+    return null;
+  }
+
+  const parsedRows: NormalizedBillingPeriod[] = [];
+  const keys = new Set<string>();
+  rawRows.forEach((value, index) => {
+    const row = asRecord(value);
+    const invoiceIssuer = textValue(row?.invoiceIssuerName);
+    const start = typeof row?.billingPeriodStart === 'string' ? row.billingPeriodStart : null;
+    const end = typeof row?.billingPeriodEnd === 'string' ? row.billingPeriodEnd : null;
+    const created = typeof row?.billingPeriodCreated === 'string' ? row.billingPeriodCreated : null;
+    const updated = typeof row?.billingPeriodLastUpdated === 'string' ? row.billingPeriodLastUpdated : null;
+    const status = textValue(row?.billingPeriodStatus);
+    const startMs = utcTimestamp(start);
+    const endMs = utcTimestamp(end);
+    const createdMs = utcTimestamp(created);
+    const updatedMs = utcTimestamp(updated);
+    if (!invoiceIssuer || !start || !end || !created || !updated || !status
+        || startMs === null || endMs === null || createdMs === null || updatedMs === null
+        || startMs >= endMs || createdMs > updatedMs) {
+      reasons.push('BillingPeriod row ' + index + ' has invalid FOCUS UTC timestamps or period bounds');
+      return;
+    }
+    const key = JSON.stringify([invoiceIssuer, start]);
+    if (keys.has(key)) {
+      reasons.push('BillingPeriod must contain unique InvoiceIssuerName and BillingPeriodStart keys');
+      return;
+    }
+    keys.add(key);
+    parsedRows.push({
+      invoiceIssuerName: invoiceIssuer,
+      billingPeriodStart: start,
+      billingPeriodEnd: end,
+      billingPeriodCreated: created,
+      billingPeriodLastUpdated: updated,
+      billingPeriodStatus: status,
+    });
+  });
+
+  if (reasons.length > 0) return null;
+  const matchingRows = parsedRows.filter((row) =>
+    row.invoiceIssuerName === metadata.issuer && row.billingPeriodStart === metadata.billingPeriodStart,
+  );
+  if (matchingRows.length !== 1 || matchingRows[0].billingPeriodEnd !== metadata.billingPeriodEnd) {
+    reasons.push('BillingPeriod record does not match the target invoice issuer and billing period');
+    return null;
+  }
+  return matchingRows[0].billingPeriodStatus;
 };
 
 const normalizeInvoiceDatasets = (
@@ -680,6 +783,7 @@ const buildInvoiceResult = (
   comparableRows: ComparableInvoiceRows,
   comparison: InvoiceLineComparison,
   reasons: string[],
+  billingPeriodStatus: string | null,
 ): FocusInvoiceReconciliationResult => ({
   specVersion: 'FOCUS-1.4',
   status: comparison.hasMissingMapping ? 'UNKNOWN' : comparison.hasVariance ? 'VARIANCE' : 'RECONCILED',
@@ -691,6 +795,7 @@ const buildInvoiceResult = (
   billingPeriodStart: metadata.billingPeriodStart,
   billingPeriodEnd: metadata.billingPeriodEnd,
   billingCurrency: metadata.currency,
+  billingPeriodStatus,
   roundingTolerance: formatUnits(comparableRows.toleranceUnits, datasets.scale),
   costAndUsageNonTaxTotal: formatUnits(sumBilledCosts(comparableRows.usageNonTaxRows, datasets.scale), datasets.scale),
   costAndUsageTaxTotal: formatUnits(sumBilledCosts(datasets.usageRows.filter(isTax), datasets.scale), datasets.scale),
@@ -729,6 +834,8 @@ export const reconcileFocusInvoice = (
     );
   }
   const metadata: InvoiceMetadata = metadataDraft;
+  const billingPeriodStatus = validateBillingPeriodDataset(metadata, reasons);
+  if (reasons.length > 0) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons, billingPeriodStatus);
   const datasets = normalizeInvoiceDatasets(metadata, reasons);
   if (!datasets) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons);
   const comparableRows = validateInvoiceLineage(
@@ -756,7 +863,7 @@ export const reconcileFocusInvoice = (
     datasets.scale,
     reasons,
   );
-  return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons);
+  return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons, billingPeriodStatus);
 };
 
 
