@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
+import { createPrivateTempDir } from './private-temp-dir.mjs';
 
 const run = (cmd, args) => {
   try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }) }; }
@@ -52,9 +55,19 @@ if (!patch.startsWith('diff --git ')) throw new Error('Guardian did not return a
 const changedPaths = [...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMap(m => [m[1], m[2]]);
 if (changedPaths.some(path => protectedPaths.some(rule => rule.endsWith('/') ? path.startsWith(rule) : path === rule))) throw new Error('Safety policy rejected a protected-file change.');
 if (changedPaths.length > 12) throw new Error('Safety policy rejected an overly broad repair.');
-await writeFile('/tmp/glorifier-guardian.patch', patch);
-const applied=run('git',['apply','--whitespace=fix','--recount','/tmp/glorifier-guardian.patch']);
-if (!applied.ok) throw new Error('Patch rejected: '+applied.output);
-const after=check();
-if (!after.ok) { run('git',['reset','--hard','HEAD']); throw new Error('Repair failed verification. Changes reverted.'); }
+const patchDirectory = createPrivateTempDir('glorifier-guardian');
+try {
+  const patchPath = path.join(patchDirectory, 'guardian.patch');
+  await writeFile(patchPath, patch, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  const applied = run('git', ['apply', '--whitespace=fix', '--recount', patchPath]);
+  if (!applied.ok) throw new Error('Patch rejected: ' + applied.output);
+
+  const after = check();
+  if (!after.ok) {
+    run('git', ['reset', '--hard', 'HEAD']);
+    throw new Error('Repair failed verification. Changes reverted.');
+  }
+} finally {
+  fs.rmSync(patchDirectory, { recursive: true, force: true });
+}
 console.log('GLORIFIER_GUARDIAN_REPAIRED');
