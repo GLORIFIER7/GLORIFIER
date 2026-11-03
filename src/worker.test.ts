@@ -801,6 +801,37 @@ const run = async (): Promise<void> => {
         assert.equal(buildInfoBody.worker.versionTag, 'main');
         assert.equal(buildInfoBody.worker.versionTimestamp, '2026-11-03T06:23:28.838Z');
 
+        const validReleaseEnvironment: Partial<CloudflareEnv> = {
+          GLORIFIER_RELEASE_COMMIT: 'a'.repeat(40),
+          GLORIFIER_RELEASE_REF: 'refs/heads/main',
+          GLORIFIER_RELEASE_RUN_ID: '41429999999',
+          CF_VERSION_METADATA: {
+            id: '1acafc15-ead8-431e-8813-d51ea11da51f',
+            tag: 'main',
+            timestamp: '2026-11-03T06:23:28.838Z',
+          },
+        };
+        const invalidReleaseEnvironments: Partial<CloudflareEnv>[] = [
+          { GLORIFIER_RELEASE_COMMIT: 'a'.repeat(39) + 'Ａ' },
+          { GLORIFIER_RELEASE_RUN_ID: '４１４２９９９９９９９' },
+          { GLORIFIER_RELEASE_RUN_ID: '1'.repeat(21) },
+          {
+            CF_VERSION_METADATA: {
+              id: '１acafc15-ead8-431e-8813-d51ea11da51f',
+              tag: 'main',
+              timestamp: '2026-11-03T06:23:28.838Z',
+            },
+          },
+        ];
+        for (const invalidOverride of invalidReleaseEnvironments) {
+          const invalidBuildInfo = await worker.fetch(
+            new Request('https://glorifier.glorifier.workers.dev/api/build-info'),
+            { ...env, ...validReleaseEnvironment, ...invalidOverride },
+          );
+          assert.equal(invalidBuildInfo.status, 503,
+            'build provenance must reject non-ASCII identifiers and out-of-range run IDs');
+        }
+
         const buildInfoHead = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/build-info', { method: 'HEAD' }),
           {
