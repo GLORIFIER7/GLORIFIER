@@ -26,10 +26,10 @@ test('accepts an explicit NO_PATCH response', () => {
 
 test('accepts CRLF and horizontal whitespace around the patch boundary markers', () => {
   const padded = valid
-    .replace('BEGIN_PATCH', 'BEGIN_PATCH \\t')
-    .replace('END_PATCH', 'END_PATCH \\t')
-    .replaceAll('\\n', '\\r\\n');
-  const expected = valid.split('BEGIN_PATCH\\n')[1].split('\\nEND_PATCH')[0] + '\\n';
+    .replace('BEGIN_PATCH', 'BEGIN_PATCH \t')
+    .replace('END_PATCH', 'END_PATCH \t')
+    .replaceAll('\n', '\r\n');
+  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0] + '\n';
   assert.deepEqual(validatePatchResponse(padded), { kind: 'patch', patch: expected });
 });
 
