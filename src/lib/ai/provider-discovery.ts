@@ -82,7 +82,7 @@ function classify(status: number, body: string): ProviderAvailability {
   if (status === 401 || status === 403) {
     return 'auth_failure';
   }
-  if (status === 402 || (status === 400 && /spend|billing|credit|quota/i.test(body))) {
+  if (status === 402 || (status >= 400 && status < 500 && /spend|billing|credit|quota/i.test(body))) {
     return 'quota_exhausted';
   }
   if (status === 429) {
