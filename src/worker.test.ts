@@ -247,6 +247,64 @@ const run = async (): Promise<void> => {
         const modernMetadata = {
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
         };
+        const modernHeaderWithoutMetadata = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'header-without-metadata',
+              method: 'server/discover',
+              params: {},
+            }),
+          }),
+          env,
+        );
+        const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
+          error: { code: number; message: string };
+        };
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32600,
+          'a modern HTTP request must carry the protocol version in per-request metadata as well as the header');
+        assert.match(modernHeaderWithoutMetadataBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+
+        const modernMetadataWithoutHeader = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'metadata-without-header',
+              method: 'server/discover',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernMetadataWithoutHeaderBody = await modernMetadataWithoutHeader.json() as {
+          error: { code: number; message: string };
+        };
+        assert.equal(modernMetadataWithoutHeaderBody.error.code, -32600);
+        assert.match(modernMetadataWithoutHeaderBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+
+        const mismatchedModernProtocolVersions = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2025-11-25' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-metadata-header',
+              method: 'server/discover',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const mismatchedModernProtocolVersionsBody = await mismatchedModernProtocolVersions.json() as {
+          error: { code: number; message: string; data?: { requested?: string } };
+        };
+        assert.equal(mismatchedModernProtocolVersionsBody.error.code, -32600);
+        assert.match(mismatchedModernProtocolVersionsBody.error.message, /must match/i);
+
         const modernDiscover = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
@@ -320,7 +378,7 @@ const run = async (): Promise<void> => {
           ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
         );
         assert.ok(modernToolsBody.result.tools.every((tool) =>
-          tool.annotations?.readOnlyHint === true && tool.annotations?.destructiveHint === false));
+          tool.annotations?.readOnlyHint === true && tool.annotations.destructiveHint === false));
         assert.deepEqual(
           modernToolsBody.result._meta['io.modelcontextprotocol/serverInfo'],
           { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
@@ -908,8 +966,9 @@ const run = async (): Promise<void> => {
         assert.equal(a2aPreferredMediaType.status, 200,
           'A2A 1.0.1 preferred application/a2a+json must be accepted');
         const a2aPreferredRequest = getCapturedRequest();
-        assert.equal(a2aPreferredRequest.headers.get('content-type'), 'application/a2a+json');
-        assert.match(a2aPreferredRequest.headers.get('accept') || '', /application\/a2a\+json/);
+        assert.equal(a2aPreferredRequest.headers.get('content-type'), 'application/json',
+          'the Worker must normalize A2A media types for the current Express backend parser');
+        assert.match(a2aPreferredRequest.headers.get('accept') ?? '', /application\/a2a\+json/);
         assert.equal(a2aPreferredRequest.headers.get('authorization'), 'Bearer caller-token');
         capturedRequest = null;
 
