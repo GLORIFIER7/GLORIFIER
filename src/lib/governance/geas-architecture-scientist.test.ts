@@ -23,6 +23,11 @@ import {
 
 const model = getGeasArchitectureModel();
 
+const googleArchitectureSource = model.sources.find((source) => source.id === 'google-architecture');
+if (googleArchitectureSource?.url !== 'https://docs.cloud.google.com/architecture/framework') {
+  throw new Error('Google Cloud architecture source must use the verified canonical Well-Architected Framework URL');
+}
+
 for (const source of model.sources) {
   if (!isTrustedArchitectureSourceUrl(source.url)) {
     throw new Error(`model source is not covered by the curated hostname allowlist: ${source.id}`);
