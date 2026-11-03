@@ -1013,7 +1013,7 @@ export default {
       if (!normalizedAuthorization) {
         return errorResponse(401, -32600, 'Authentication is required.', { 'WWW-Authenticate': 'Bearer' });
       }
-      const a2aMediaType = (request.headers.get('content-type') || '')
+      const a2aMediaType = (request.headers.get('content-type') ?? '')
         .split(';', 1)[0]
         .trim()
         .toLowerCase();
@@ -1036,7 +1036,10 @@ export default {
       }
       const headers = new Headers({
         Authorization: normalizedAuthorization,
-        'Content-Type': a2aMediaType,
+        // The current Express backend parser accepts application/json only.
+        // The Worker accepts the preferred A2A media type at the public edge
+        // and normalizes it here without changing the JSON request body.
+        'Content-Type': 'application/json',
         Accept: 'application/a2a+json, application/json',
         'X-Correlation-ID': crypto.randomUUID(),
       });
