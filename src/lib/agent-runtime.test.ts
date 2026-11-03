@@ -189,6 +189,7 @@ test('durable state is database-backed and slow heartbeats do not block task com
   assert.equal((await updateAgentTask(task.id, { status: 'running' }))?.status, 'running');
   assert.equal((await getAgentTask(task.id))?.status, 'running');
   assert.equal((await listAgentTasks(10, undefined, true)).some((entry) => entry.id === task.id), true);
+  assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
   hang = true;
   const operation = withAgentTaskHeartbeat(task.id, async () => {
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -199,6 +200,8 @@ test('durable state is database-backed and slow heartbeats do not block task com
   release?.();
   await operation;
   assert.equal(raced, 'operation-finished-with-hanging-heartbeat');
+  assert.equal((await getAgentTask(task.id))?.status, 'running');
+  assert.equal(getAgentRuntimePersistenceStatus().cachedTasks, 0);
 });
 
 test('durable agent task insertion rejects invalid requesters and does not accept failed writes', async () => {
