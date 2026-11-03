@@ -39,7 +39,7 @@ const inspectShape = (payload) => {
     topLevelType: typeName(payload),
     topLevelKeys: safeKeys(payload),
     errorPresent: Boolean(payload && typeof payload === 'object' && !Array.isArray(payload)
-      && Object.prototype.hasOwnProperty.call(payload, 'error')),
+      && Object.hasOwn(payload, 'error')),
     choicesType: typeName(choices),
     choicesCount: Array.isArray(choices) ? choices.length : null,
     firstChoiceType: typeName(firstChoice),
