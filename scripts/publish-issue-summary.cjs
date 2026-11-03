@@ -72,6 +72,7 @@ const buildFallbackIssueSummary = ({ issueNumber, serverUrl, repository }) => {
 const buildIssueSummary = (input) => {
   const summary = typeof input.response === 'string' ? input.response.trim() : '';
   if (input.inferenceOutcome === 'success' && summary) {
+    return `${ISSUE_SUMMARY_HEADING}\n\n${summary}\n`;
     return ISSUE_SUMMARY_HEADING + '\n\n' + summary + '\n';
   }
   return buildFallbackIssueSummary(input);

@@ -24,7 +24,7 @@ concurrency:
 jobs:
   triage:
     name: Analyze failed CI with NVIDIA NIM
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -87,9 +87,11 @@ jobs:
             jq '{workflowName,headBranch,conclusion,url,event}' <<<"$meta"
             exit 1
           fi
-          echo "url=$(jq -r '.url' <<<"$meta")" >> "$GITHUB_OUTPUT"
-          echo "workflow=$(jq -r '.workflowName' <<<"$meta")" >> "$GITHUB_OUTPUT"
-          echo "head_branch=$(jq -r '.headBranch' <<<"$meta")" >> "$GITHUB_OUTPUT"
+          {
+            echo "url=$(jq -r '.url' <<<"$meta")"
+            echo "workflow=$(jq -r '.workflowName' <<<"$meta")"
+            echo "head_branch=$(jq -r '.headBranch' <<<"$meta")"
+          } >> "$GITHUB_OUTPUT"
           echo "Verified failed run: $(jq -r '.url' <<<"$meta")"
 
       - name: Collect and redact bounded failed-step logs
@@ -118,6 +120,13 @@ jobs:
           Path("failed-logs.raw").unlink(missing_ok=True)
           Path("failed-logs.tail").unlink(missing_ok=True)
           PY
+
+      - name: Checkout trusted main-branch triage parser
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
 
       - name: Ask NVIDIA NIM for a diagnostic (no repository writes)
         shell: bash
@@ -163,41 +172,17 @@ jobs:
             echo "::error::NVIDIA triage request failed with HTTP $status. Response body was not printed."
             exit 1
           fi
-          python3 - <<'PY'
-          import json, os, sys
-          from pathlib import Path
-          try:
-              data = json.loads(Path("nvidia-response.json").read_text())
-              choice = data["choices"][0]
-              content = choice["message"]["content"]
-              if not isinstance(content, str) or not content.strip():
-                  raise ValueError("empty response content")
-              content = content[:12000]
-          except Exception:
-              Path("nvidia-request.json").unlink(missing_ok=True)
-              Path("nvidia-response.json").unlink(missing_ok=True)
-              print("::error::NVIDIA returned an unexpected response shape; response body omitted.")
-              sys.exit(1)
-          summary = Path("nvidia-summary.md")
-          summary.write_text(
-              "# NVIDIA CI failure triage\n\n"
-              + "**Status:** AI-generated diagnosis; not independently verified.\n\n"
-              + "**Run:** " + os.environ.get("RUN_URL", "see workflow log") + "\n\n"
-              + content + "\n\n---\n"
-              + "No source files were changed, no PR was merged, and no deployment was performed by this workflow.\n"
-          )
-          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as step_summary:
-              step_summary.write(summary.read_text())
-          Path("nvidia-request.json").unlink(missing_ok=True)
-          Path("nvidia-response.json").unlink(missing_ok=True)
-          print("NVIDIA analysis received. See the job summary; raw provider response and credentials were not printed.")
-          PY
+          node trusted/scripts/nvidia-triage-response.cjs \
+            nvidia-response.json nvidia-summary.md nvidia-response-shape.json \
+            "$RUN_URL" nvidia-request.json
 
       - name: Upload diagnosis summary
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: nvidia-ci-triage-${{ github.run_id }}-${{ github.run_attempt }}
-          path: nvidia-summary.md
+          path: |
+            nvidia-summary.md
+            nvidia-response-shape.json
           if-no-files-found: ignore
           retention-days: 7
