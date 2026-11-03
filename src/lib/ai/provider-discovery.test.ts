@@ -12,6 +12,7 @@ const originalFetch = globalThis.fetch;
 const requests: Array<{ url: string; method: string }> = [];
 let nvidiaProbeStatus = 200;
 let metaProbeStatus = 400;
+let metaProbeErrorMessage = 'temporary provider failure';
 let metaProbeThrows = false;
 let metaProbeMalformed = false;
 let providers: Awaited<ReturnType<typeof discoverGlobalProviders>> = [];
@@ -45,7 +46,7 @@ before(() => {
             ? { data: [{ id: 'meta/test-model' }] }
             : metaProbeStatus === 400
               ? { error: { message: `invalid api_key: ${process.env.META_API_KEY}` } }
-              : { error: { message: 'temporary provider failure' } }
+              : { error: { message: metaProbeErrorMessage } }
         : hostname === 'ollama.example.test'
           ? { models: [{ name: 'llama3' }] }
           : nvidiaProbeStatus >= 400
@@ -122,6 +123,50 @@ test('malformed and rate-limited model-list responses do not authenticate Meta',
   assert.equal(meta?.availability, 'rate_limited');
   assert.equal(meta?.authenticated, false);
   assert.equal(meta?.reason?.includes('test-meta-api-key-secret'), false);
+});
+
+test('classifies billing responses as quota exhaustion without authenticating Meta', async () => {
+  metaProbeStatus = 402;
+  const billing = await discoverGlobalProviders('provider-discovery-billing-limit-regression', { persistConnections: false });
+  const meta = billing.find((provider) => provider.id === 'meta');
+  assert.equal(meta?.availability, 'quota_exhausted');
+  assert.equal(meta?.authenticated, false);
+  assert.equal(meta?.reason, 'quota_or_billing_limit');
+});
+
+test('preserves legacy classification for non-400 4xx billing wording', async () => {
+  metaProbeStatus = 404;
+  metaProbeErrorMessage = 'upstream quota exceeded';
+  const notFound = await discoverGlobalProviders('provider-discovery-404-quota-wording-regression', { persistConnections: false });
+  const missingMeta = notFound.find((provider) => provider.id === 'meta');
+  assert.equal(missingMeta?.availability, 'error');
+  assert.equal(missingMeta?.reason, 'quota_or_billing_limit');
+
+  metaProbeStatus = 429;
+  metaProbeErrorMessage = 'provider billing maintenance';
+  const billingRateLimit = await discoverGlobalProviders('provider-discovery-429-billing-wording-regression', { persistConnections: false });
+  const rateLimitedMeta = billingRateLimit.find((provider) => provider.id === 'meta');
+  assert.equal(rateLimitedMeta?.availability, 'rate_limited');
+  assert.equal(rateLimitedMeta?.reason, 'quota_or_billing_limit');
+
+  metaProbeStatus = 400;
+  metaProbeErrorMessage = 'temporary provider failure';
+});
+
+test('does not classify provider 5xx quota wording as a billing-limit reason', async () => {
+  metaProbeStatus = 503;
+  metaProbeErrorMessage = 'upstream quota exceeded';
+  const failure = await discoverGlobalProviders('provider-discovery-5xx-quota-wording-regression', { persistConnections: false });
+  const meta = failure.find((provider) => provider.id === 'meta');
+  assert.equal(meta?.availability, 'unreachable');
+  assert.equal(meta?.reason, 'provider_service_error');
+  metaProbeStatus = 429;
+  const quotaLimited = await discoverGlobalProviders('provider-discovery-429-quota-reason-regression', { persistConnections: false });
+  const limitedMeta = quotaLimited.find((provider) => provider.id === 'meta');
+  assert.equal(limitedMeta?.availability, 'quota_exhausted');
+  assert.equal(limitedMeta?.reason, 'quota_or_billing_limit');
+  metaProbeStatus = 400;
+  metaProbeErrorMessage = 'temporary provider failure';
 });
 
 test('server and network errors fail closed and redact endpoint credentials', async () => {
