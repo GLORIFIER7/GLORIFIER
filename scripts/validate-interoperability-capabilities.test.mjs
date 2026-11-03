@@ -17,7 +17,7 @@ test('interoperability registry, schema, and OpenAPI documents are valid JSON', 
 });
 
 const isJsonWhitespace = (character) =>
-  character === ' ' || character === '\\t' || character === '\\n' || character === '\\r';
+  character === ' ' || character === '\t' || character === '\n' || character === '\r';
 
 const isJsonDelimiter = (character) =>
   isJsonWhitespace(character) || character === ',' || character === '}' || character === ']';
