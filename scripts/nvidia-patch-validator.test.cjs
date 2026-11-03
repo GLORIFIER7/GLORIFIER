@@ -64,3 +64,32 @@ test('rejects mismatched git and unified-diff paths', () => {
   const mismatch = valid.replace('+++ b/scripts/example.cjs', '+++ b/docs/example.cjs');
   assert.throws(() => validatePatchResponse(mismatch), /path mismatch/);
 });
+
+test('accepts a valid two-file patch with no index header lines', () => {
+  const twoFiles = [
+    'BEGIN_PATCH',
+    'diff --git a/scripts/one.cjs b/scripts/one.cjs',
+    '--- a/scripts/one.cjs', '+++ b/scripts/one.cjs', '@@ -1 +1 @@', '-a', '+b',
+    'diff --git a/docs/two.md b/docs/two.md',
+    '--- a/docs/two.md', '+++ b/docs/two.md', '@@ -1 +1 @@', '-c', '+d',
+    'END_PATCH'
+  ].join('\n');
+  assert.equal(validatePatchResponse(twoFiles).kind, 'patch');
+});
+
+test('does not mistake deleted source lines that resemble file headers for diff headers', () => {
+  const headerLikeLines = valid.replace('-oldValue();', '--- old comment').replace('+newValue();', '+++ new comment');
+  assert.equal(validatePatchResponse(headerLikeLines).kind, 'patch');
+});
+
+test('normalizes CRLF patch headers and still rejects denied paths', () => {
+  const crlf = valid.replaceAll('\n', '\r\n');
+  assert.equal(validatePatchResponse(crlf).kind, 'patch');
+  const denied = crlf.replaceAll('scripts/example.cjs', 'src/lib/auth/evil.ts');
+  assert.throws(() => validatePatchResponse(denied), /path is not allowed/);
+});
+
+test('rejects denied sensitive paths inside otherwise allowed prefixes', () => {
+  const denied = valid.replaceAll('scripts/example.cjs', 'src/lib/auth/evil.ts');
+  assert.throws(() => validatePatchResponse(denied), /path is not allowed/);
+});
