@@ -39,6 +39,8 @@ jobs:
         run: node --test scripts/nvidia-triage-response.test.cjs
       - name: SonarCloud security remediation regression tests
         run: node --test scripts/sonarcloud-security-hardening.test.mjs
+      - name: Gravatar SHA-256 identifier regression tests
+        run: ./node_modules/.bin/tsx --test src/lib/gravatar.test.ts
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
