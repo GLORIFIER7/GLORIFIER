@@ -1,6 +1,8 @@
 import { getModelNetworkPolicy } from './model-network';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const policy = getModelNetworkPolicy();
 
@@ -16,6 +18,9 @@ if (policy.automaticCredentialRotation) throw new Error('credential rotation mus
 if (policy.universalInternetControlClaim) throw new Error('universal Internet control claim must remain disabled');
 
 console.log('GLORIFIER Model Network policy invariants: PASS');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
