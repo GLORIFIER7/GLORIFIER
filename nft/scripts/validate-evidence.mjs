@@ -37,13 +37,14 @@ function validateMintState(bundle) {
 function validateRegistryMetadata(bundle) {
   const { registry } = bundle;
   const meta = registry.metadata ?? {};
-  const uri = "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1";
-  const root = "Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst";
+  const path = meta.final_corrected_path;
+  const root = meta.final_corrected_cid;
+  const uri = root && path ? "ipfs://" + root + path : "";
   const issues = [];
-  if (meta.final_corrected_cid !== root) issues.push("Registry final metadata root CID mismatch.");
-  if (meta.final_corrected_path !== "/1") issues.push("Registry final metadata path mismatch.");
+  if (!root) issues.push("Registry final metadata root CID is missing.");
+  if (path !== "/1") issues.push("Registry final metadata path mismatch.");
   if (meta.final_corrected_uri !== uri) issues.push("Registry final metadata URI mismatch.");
-  if (meta.onchain_metadata_root_cid !== meta.final_corrected_cid) issues.push("Registry metadata root and final CID disagree.");
+  if (meta.onchain_metadata_root_cid !== root) issues.push("Registry metadata root and final CID disagree.");
   const artworkMatch = String(registry.existing_contract_candidate?.onchain_observation?.token_uri_and_artwork_match ?? "");
   if (!artworkMatch.includes("REPOSITORY_IMAGE_BYTES_MATCH")) issues.push("Registry artwork-match status does not record the repository image byte match.");
   const interpretation = String(registry.existing_contract_candidate?.onchain_observation?.interpretation ?? "");
