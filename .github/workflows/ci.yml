@@ -43,6 +43,14 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
 
+      - name: Safe external integration URL regression tests
+        run: npm run test:safe-external-url
+      - name: Safe external integration link rendering tests
+        run: npm run test:integration-external-link
+
+      - name: Solana workflow expression injection regression test
+        run: node --test scripts/solana-workflow-expression-safety.test.mjs
+
       - name: Gravatar SHA-256 identifier regression tests
         run: ./node_modules/.bin/tsx --test src/lib/gravatar.test.ts
 

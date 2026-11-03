@@ -53,6 +53,7 @@ jobs:
       WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
       WORKFLOW_RUN_EVENT: ${{ github.event.workflow_run.event || '' }}
       WORKFLOW_RUN_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name || '' }}
+      WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
 
     steps:
       - name: Enforce authorization and main branch
@@ -63,7 +64,7 @@ jobs:
             test "${GITHUB_REF}" = "refs/heads/main"
             test "${CONFIRMATION}" = "VERIFY_GLORIFIER_SOLANA_DEVNET"
           elif [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
-            test "${{ github.event.workflow_run.conclusion }}" = "success"
+            test "${WORKFLOW_RUN_CONCLUSION}" = "success"
             test "${WORKFLOW_RUN_EVENT}" = "workflow_dispatch"
             test "${WORKFLOW_RUN_HEAD_BRANCH}" = "main"
             test "${WORKFLOW_RUN_REPOSITORY}" = "${GITHUB_REPOSITORY}"

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, CheckCircle2, CircleAlert, ExternalLink, Globe2, LockKeyhole, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle2, CircleAlert, Globe2, LockKeyhole, RefreshCw } from 'lucide-react';
 import { IntelligenceHub } from './IntelligenceHub';
 import { MediatorDashboard } from './MediatorDashboard';
 import { getTrustedAlpacaAuthorizationUrl } from '../lib/alpaca-oauth-url';
+import { IntegrationExternalLink } from './IntegrationExternalLink';
 
 type CollaborationProvider = { id: string; name: string; category: string; capabilities: string[]; status: string; authorized: boolean; requiresHumanApproval: boolean; connectionId: string | null; scopes: string[]; };
 
@@ -425,9 +426,7 @@ export const IntegrationControl: React.FC = () => {
                     <p className="text-xs text-slate-400 mt-2">{item.detail}</p>
                     <div className="text-[10px] text-slate-600 mt-2 uppercase tracking-wider">{item.category}</div>
                   </div>
-                  <a href={item.publicUrl} target="_blank" rel="noreferrer" className="text-slate-500 hover:text-emerald-400 shrink-0" aria-label={`Open ${item.name}`}>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
+                  <IntegrationExternalLink url={item.publicUrl} name={item.name} />
                 </div>
               );
             })}
