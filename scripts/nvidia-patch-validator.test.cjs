@@ -60,6 +60,23 @@ test('rejects creation and deletion file headers', () => {
   assert.throws(() => validatePatchResponse(newFile), /creating or deleting files/);
 });
 
+test('preserves bare and trailing blank context lines in unified hunks', () => {
+  const blankContext = [
+    'BEGIN_PATCH',
+    'diff --git a/scripts/example.cjs b/scripts/example.cjs',
+    '--- a/scripts/example.cjs',
+    '+++ b/scripts/example.cjs',
+    '@@ -1,4 +1,4 @@',
+    ' before();',
+    '',
+    '-oldValue();',
+    '+newValue();',
+    ' ',
+    'END_PATCH'
+  ].join('\n');
+  assert.equal(validatePatchResponse(blankContext).kind, 'patch');
+});
+
 test('rejects a second file header smuggled after a validated hunk', () => {
   const hiddenFile = valid.replace('END_PATCH', [
     '--- a/.github/workflows/privileged.yml',
