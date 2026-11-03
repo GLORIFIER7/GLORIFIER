@@ -190,7 +190,9 @@ const supabaseUnavailable = (code: string, message: string, status = 503): Respo
   });
 
 const selectedDatabaseProvider = (env: CloudflareEnv): 'supabase' | 'neon' | 'invalid' => {
-  const provider = configured(env.GLORIFIER_DATABASE_PROVIDER || 'supabase').toLowerCase();
+  // Require an explicit provider: silently defaulting to legacy Supabase can split
+  // reads away from the configured authoritative database in a misconfigured Worker.
+  const provider = configured(env.GLORIFIER_DATABASE_PROVIDER).toLowerCase();
   if (provider === 'supabase' || provider === 'neon') return provider;
   return 'invalid';
 };
