@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import { createPrivateToken2022Require } from "./private-token2022-modules.mjs";
+import { createRequire } from "node:module";
 
-const require = createPrivateToken2022Require();
+const require = createRequire(import.meta.url);
 const { Connection, Keypair, PublicKey, Transaction } = require("@solana/web3.js");
 const { TOKEN_2022_PROGRAM_ID, getTokenMetadata } = require("@solana/spl-token");
 const { createUpdateAuthorityInstruction } = require("@solana/spl-token-metadata");
