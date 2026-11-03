@@ -119,3 +119,55 @@ Reproducible upstream snapshot: repository commit `b488c16623e5202a3961e55188604
 ### Explicit non-claims
 
 Neither A2A nor the broader MCP adapter capability is currently marked VERIFIED. PR #595 added the fixed-scope GitHub MCP route and was merged on 2026-11-01; Cloudflare deployment metadata for the Worker was observed separately. Public endpoint reachability and an external MCP client handshake remain NOT OBSERVABLE / NOT VERIFIED from this audit environment. The next code changes must be test-first and separately reviewable.
+
+## Source implementation checkpoint — 2026-11-03
+
+This section updates the 2026-10-30 source-only gap review above. It records draft PR #629 implementation and CI evidence; it does **not** promote the A2A/MCP capability to VERIFIED or claim a production rollout.
+
+### A2A 1.0.1 discovery
+
+Draft [PR #629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds the standard `GET /.well-known/agent-card.json` endpoint to the Cloudflare Worker. The Worker constructs the Agent Card locally, serves GET and HEAD only, rejects other methods, and does not require the legacy backend to be reachable for discovery. The card advertises the existing `/api/a2a/v1` JSON-RPC interface, A2A protocol version 1.0, its current supported capabilities, and the Bearer authentication requirement.
+
+The inaccurate `bearerFormat: JWT` claim was removed because the exact production token format has not been established. The A2A HTTP boundary now accepts the A2A 1.0.1 preferred `application/a2a+json` media type while retaining `application/json` for backwards compatibility.
+
+**Important boundary:** The card is discovery metadata only. The Worker `/api/a2a/v1` endpoint remains a Bearer-authenticated proxy to the configured backend. This change does not create a new native A2A message/task runtime, prove that the backend is configured, or establish authenticated cross-agent task exchange.
+
+### MCP 2026-07-28 discovery and stateless request versioning
+
+The same draft PR adds MCP 2026-07-28 `server/discover` to the existing fixed-scope, stateless GitHub MCP route. Modern requests must include matching `io.modelcontextprotocol/protocolVersion` metadata in the JSON-RPC request and `MCP-Protocol-Version: 2026-07-28` in the HTTP header. The server reports its supported versions, the implemented tools capability, server identity metadata, and a public cache scope. Modern `tools/list` and `tools/call` return the modern completion envelope; unsupported or mismatched versions return the protocol-version error `-32022`.
+
+The older 2025 `initialize`, `ping`, `tools/list`, and `tools/call` path remains available for backward compatibility. The modern stateless path does not require the legacy initialize handshake.
+
+The endpoint continues to expose exactly four read-only GitHub tools, pinned to the single public `GLORIFIER7/GLORIFIER` repository. It does not advertise resources or prompts because those operations are not implemented. It retains the existing HTTPS GitHub API origin restriction, repository/path validation, bounded request and response sizes, timeout, origin policy, per-client tool-call rate limiting, and no credential forwarding.
+
+### Source and CI evidence
+
+- [PR #629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) is open as a draft and unmerged.
+- The PR's dedicated [Cloudflare Worker validate-and-build run #41595118378](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41595118378) passed TypeScript, Worker tests, integration registry/data-truth tests, Neon adapter tests, production smoke contract tests, OpenSea read-only tests, frontend build/static-output checks, and Wrangler dry-run. Its production deployment job was correctly skipped.
+- [Interoperability Linux run #41595118106](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41595118106) passed the Ubuntu 22.04 and Ubuntu 24.04 source checks. Each source job passed evidence-freshness and MCP-registry policy tests, A2A 1.0 JSON-RPC and Express contract tests, A2A runtime formatting, pinned A2A/MCP protocol-boundary tests, capability-registry validation, Worker/interoperability tests, chain-specific read-only verifier fixtures, TypeScript, frontend build, and static output verification. The Ubuntu 24.04 container-build job was still running at the time these records were added.
+- These are draft-branch source/test and CI observations. Test fixtures use controlled upstream responses; they do not prove live public MCP client connectivity, a production A2A task exchange, or live EVM/BNB/Solana RPC reachability.
+
+### Remaining acceptance gates
+
+The overall `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**. It must not be upgraded based solely on local tests or CI. Remaining evidence includes:
+- review and merge of PR #629 after exact-head checks and independent review;
+- external MCP clients successfully discover the deployed server, list tools, and execute a read-only call using the selected 2026-07-28 request contract;
+- an A2A 1.0.1 client discovers the deployed Agent Card and completes an authenticated message/task exchange against an owner-configured, reachable backend;
+- production deployment and endpoint-specific health evidence after the protected release gate is run.
+
+No production route, traffic percentage, secret, domain, Neural origin, database, provider, or blockchain state was changed in this source update.
+
+
+### Exact-head verification refresh — 2026-11-03
+
+The following checks completed successfully on PR #629 head `156674a5442173ac0ea8d5355aa7d3eeacfc7c28`:
+- [Cloudflare Worker validate-and-build run](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260158): type-check, Worker regression tests, integration registry/data-truth, Neon Hyperdrive adapter, production smoke contracts, OpenSea read-only integration, frontend build/static output, and Wrangler dry-run passed. The production deploy job was skipped.
+- [Interoperability Linux run](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260044): Ubuntu 22.04 and 24.04 source checks passed, including protocol-boundary, MCP registry, A2A 1.0 contract/Express, and chain-verifier fixture tests. Distroless and Ubuntu 24.04 images passed build, health and graceful-shutdown checks.
+- [GLORIFIER CI](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260037): build, Supabase default-privilege integration, and agent-state/Postgres integration passed.
+- [GLORIFIER Build and Test](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260022): passed.
+- [SDK conformance](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260117): Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed.
+- [CodeQL](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260054): passed.
+- Snyk, DeepScan, CircleCI Worker validation, and Netlify deploy preview checks: passed for the same exact PR head.
+- The npm workflow validated package metadata, dependencies, lint, frontend build and publish contents; its actual npm publish job was skipped.
+
+The Docker image PR workflow was still running at the time of this checkpoint. No package was published. The overall A2A/MCP capability remains **NOT VERIFIED**: all evidence above is source, test, static-analysis, or CI evidence. It does not demonstrate external MCP client discovery/tool calls, a live authenticated A2A task exchange, or production availability. The protected production deployment remains skipped and the two draft PRs remain unmerged.

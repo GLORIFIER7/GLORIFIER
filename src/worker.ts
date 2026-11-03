@@ -1,5 +1,5 @@
 import { getBusinessModel } from './lib/business-model-contract';
-import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
+import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, buildA2AAgentCard } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
 import { GITHUB_MCP_PATH, githubMcpRoute, type GithubMcpRateLimiter } from './lib/github-mcp';
 import { readNeonOperationalCounts, type NeonHyperdriveBinding, type NeonOperationalCounts } from './lib/neon-worker';
@@ -813,7 +813,7 @@ const neuralRoute = async (request: Request, pathname: string, env: CloudflareEn
 };
 
 const isBackendPath = (pathname: string): boolean =>
-  pathname === A2A_AGENT_CARD_PATH || /^\/(?:api|auth)(?:\/|$)/.test(pathname);
+  /^\/(?:api|auth)(?:\/|$)/.test(pathname);
 
 function normalizeBearerAuthorization(value: string | null): string | null {
   const header = value?.trim() || '';
@@ -965,6 +965,13 @@ export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
+    // Public A2A discovery is served directly by the Worker. The Agent Card
+    // contains only the supported protocol surface and never depends on a legacy
+    // backend route being available.
+    if (incomingUrl.pathname === A2A_AGENT_CARD_PATH) {
+      return workerNativeReadOnlyJson(request, () => buildA2AAgentCard(incomingUrl.origin));
+    }
+
     if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
       if (!env.MCP_RATE_LIMITER) {
         return Response.json({
@@ -1006,8 +1013,12 @@ export default {
       if (!normalizedAuthorization) {
         return errorResponse(401, -32600, 'Authentication is required.', { 'WWW-Authenticate': 'Bearer' });
       }
-      if ((request.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
-        return errorResponse(415, -32600, 'Content-Type must be application/json.');
+      const a2aMediaType = (request.headers.get('content-type') ?? '')
+        .split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+      if (a2aMediaType !== 'application/json' && a2aMediaType !== 'application/a2a+json') {
+        return errorResponse(415, -32600, 'Content-Type must be application/a2a+json or application/json.');
       }
       let body: ArrayBuffer;
       try {
@@ -1025,8 +1036,10 @@ export default {
       }
       const headers = new Headers({
         Authorization: normalizedAuthorization,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        // The Express backend parser accepts both the legacy JSON media type
+        // and the A2A 1.0.1 preferred JSON media type.
+        'Content-Type': a2aMediaType,
+        Accept: 'application/a2a+json, application/json',
         'X-Correlation-ID': crypto.randomUUID(),
       });
       const a2aVersion = request.headers.get('A2A-Version');

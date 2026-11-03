@@ -41,7 +41,11 @@ function jsonRpcHttpError(
  * used by the backend A2A route. Keep this shared with HTTP-level tests.
  */
 export function configureA2AJsonRpcBodyParsing(app: Express): void {
-  app.use('/api/a2a/v1', express.json({ limit: '64kb', strict: false, type: 'application/json' }));
+  app.use('/api/a2a/v1', express.json({
+    limit: '64kb',
+    strict: false,
+    type: ['application/json', 'application/a2a+json'],
+  }));
   app.use('/api/a2a/v1', (error: unknown, _req: Request, res: Response, next: express.NextFunction) => {
     const parserError = error as { type?: string } | null;
     if (parserError?.type === 'entity.too.large') {
@@ -110,8 +114,8 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
       return jsonRpcHttpError(res, 503, -32000, 'A2A persistent task storage is unavailable.', { code: 'A2A_PERSISTENCE_UNAVAILABLE' });
     }
 
-    if (!req.is('application/json')) {
-      return jsonRpcHttpError(res, 415, -32600, 'Content-Type must be application/json.');
+    if (!req.is(['application/json', 'application/a2a+json'])) {
+      return jsonRpcHttpError(res, 415, -32600, 'Content-Type must be application/a2a+json or application/json.');
     }
 
     let bodyBytes: number;

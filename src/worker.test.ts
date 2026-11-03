@@ -227,7 +227,7 @@ const run = async (): Promise<void> => {
         );
         assert.equal(mcpToolsList.status, 200);
         const mcpToolsBody = await mcpToolsList.json() as {
-          result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
+          result: { tools: Array<{ name: string; annotations: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
         };
         assert.deepEqual(
           mcpToolsBody.result.tools.map((tool) => tool.name).sort(),
@@ -235,9 +235,253 @@ const run = async (): Promise<void> => {
           'MCP must expose the complete, fixed read-only GitHub tool surface',
         );
         assert.ok(mcpToolsBody.result.tools.length >= 3);
-        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
-        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.destructiveHint === false));
+        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations.readOnlyHint === true));
+        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations.destructiveHint === false));
         assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
+
+        const modernMcpHeaders = {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'MCP-Protocol-Version': '2026-07-28',
+        };
+        const modernMetadata = {
+          'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        };
+        const modernHeaderWithoutMetadata = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'header-without-metadata',
+              method: 'server/discover',
+              params: {},
+            }),
+          }),
+          env,
+        );
+        const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
+          error: { code: number; message: string };
+        };
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32600,
+          'a modern HTTP request must carry the protocol version in per-request metadata as well as the header');
+        assert.match(modernHeaderWithoutMetadataBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+
+        const modernMetadataWithoutHeader = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'metadata-without-header',
+              method: 'server/discover',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernMetadataWithoutHeaderBody = await modernMetadataWithoutHeader.json() as {
+          error: { code: number; message: string };
+        };
+        assert.equal(modernMetadataWithoutHeaderBody.error.code, -32600);
+        assert.match(modernMetadataWithoutHeaderBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+
+        const mismatchedModernProtocolVersions = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2025-11-25' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-metadata-header',
+              method: 'server/discover',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const mismatchedModernProtocolVersionsBody = await mismatchedModernProtocolVersions.json() as {
+          error: { code: number; message: string; data?: { requested?: string } };
+        };
+        assert.equal(mismatchedModernProtocolVersionsBody.error.code, -32600);
+        assert.match(mismatchedModernProtocolVersionsBody.error.message, /must match/i);
+
+        const modernDiscover = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'discover-1',
+              method: 'server/discover',
+              params: {
+                _meta: {
+                  ...modernMetadata,
+                  'io.modelcontextprotocol/clientInfo': { name: 'GLORIFIER-test-client', version: '1.0.0' },
+                  'io.modelcontextprotocol/clientCapabilities': {},
+                },
+              },
+            }),
+          }),
+          env,
+        );
+        assert.equal(modernDiscover.status, 200,
+          'MCP 2026-07-28 server discovery must be available without a legacy initialize handshake');
+        const modernDiscoverBody = await modernDiscover.json() as {
+          jsonrpc: string;
+          id: string;
+          result: {
+            resultType: string;
+            supportedVersions: string[];
+            capabilities: { tools?: Record<string, unknown>; resources?: unknown; prompts?: unknown };
+            _meta: Record<string, { name: string; version: string }>;
+            ttlMs: number;
+            cacheScope: string;
+          };
+        };
+        assert.equal(modernDiscoverBody.jsonrpc, '2.0');
+        assert.equal(modernDiscoverBody.id, 'discover-1');
+        assert.equal(modernDiscoverBody.result.resultType, 'complete');
+        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+        assert.deepEqual(modernDiscoverBody.result.capabilities, { tools: {} },
+          'modern discovery must advertise only the read-only tool capability actually implemented');
+        assert.deepEqual(
+          modernDiscoverBody.result._meta['io.modelcontextprotocol/serverInfo'],
+          { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
+        );
+        assert.equal(modernDiscoverBody.result.ttlMs, 3_600_000);
+        assert.equal(modernDiscoverBody.result.cacheScope, 'public');
+
+        const modernToolsList = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-list',
+              method: 'tools/list',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernToolsBody = await modernToolsList.json() as {
+          result: {
+            resultType: string;
+            tools: Array<{ name: string; annotations: { readOnlyHint?: boolean; destructiveHint?: boolean } }>;
+            _meta: Record<string, { name: string; version: string }>;
+          };
+        };
+        assert.equal(modernToolsList.status, 200);
+        assert.equal(modernToolsBody.result.resultType, 'complete');
+        assert.deepEqual(
+          modernToolsBody.result.tools.map((tool) => tool.name).sort(),
+          ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
+        );
+        assert.ok(modernToolsBody.result.tools.every((tool) =>
+          tool.annotations.readOnlyHint === true && tool.annotations.destructiveHint === false));
+        assert.deepEqual(
+          modernToolsBody.result._meta['io.modelcontextprotocol/serverInfo'],
+          { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
+        );
+
+        const previousModernMcpUpstreamResponse = upstreamResponse;
+        upstreamResponse = new Response(JSON.stringify({
+          full_name: 'GLORIFIER7/GLORIFIER',
+          visibility: 'public',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        const modernToolCall = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-tool-call',
+              method: 'tools/call',
+              params: {
+                _meta: modernMetadata,
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const modernToolCallBody = await modernToolCall.json() as {
+          result: {
+            resultType: string;
+            content: Array<{ type: string; text: string }>;
+            isError?: boolean;
+            _meta: Record<string, { name: string; version: string }>;
+          };
+        };
+        assert.equal(modernToolCall.status, 200);
+        assert.equal(modernToolCallBody.result.resultType, 'complete');
+        assert.equal(modernToolCallBody.result.isError, undefined);
+        assert.equal(JSON.parse(modernToolCallBody.result.content[0]?.text || '{}').full_name, 'GLORIFIER7/GLORIFIER');
+        assert.deepEqual(
+          modernToolCallBody.result._meta['io.modelcontextprotocol/serverInfo'],
+          { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
+        );
+        assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
+        assert.equal(getCapturedRequest().method, 'GET');
+        assert.equal(getCapturedRequest().headers.get('authorization'), null);
+        upstreamResponse = previousModernMcpUpstreamResponse;
+        mcpRateLimitKeys.length = 0;
+
+        const unsupportedModernVersion = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2026-01-01' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'unsupported-version',
+              method: 'server/discover',
+              params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-01-01' } },
+            }),
+          }),
+          env,
+        );
+        const unsupportedModernBody = await unsupportedModernVersion.json() as {
+          error: { code: number; data: { supported: string[]; requested: string } };
+        };
+        assert.equal(unsupportedModernBody.error.code, -32022);
+        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+        assert.equal(unsupportedModernBody.error.data.requested, '2026-01-01');
+
+        const modernInitializeRejected = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'no-initialize',
+              method: 'initialize',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernInitializeBody = await modernInitializeRejected.json() as {
+          error: { code: number };
+        };
+        assert.equal(modernInitializeBody.error.code, -32601,
+          'modern stateless MCP clients must not be forced through legacy initialize');
+
+        const modernPingRejected = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'no-ping',
+              method: 'ping',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernPingBody = await modernPingRejected.json() as { error: { code: number } };
+        assert.equal(modernPingBody.error.code, -32601, 'modern MCP must not advertise legacy ping');
 
         const unsupportedMcpMethod = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -546,25 +790,19 @@ const run = async (): Promise<void> => {
     };
 
     const verifyA2AProtocol = async (): Promise<void> => {
-        const previousA2ACardResponse = upstreamResponse;
-        upstreamResponse = new Response(JSON.stringify({
-          name: 'GLORIFIER Services',
-          supportedInterfaces: [{
-            url: `https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`,
-            protocolBinding: 'JSONRPC',
-            protocolVersion: '1.0',
-          }],
-          capabilities: { streaming: false, pushNotifications: false },
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        capturedRequest = null;
         const a2aCardResponse = await worker.fetch(
           new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
           env,
         );
         assert.equal(a2aCardResponse.status, 200);
+        assert.equal(a2aCardResponse.headers.get('cache-control'), 'no-store');
+        assert.match(a2aCardResponse.headers.get('content-type') ?? '', /^application\/json/i);
         const a2aCard = await a2aCardResponse.json() as {
           name: string;
           supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
-          capabilities: { streaming: boolean; pushNotifications: boolean };
+          capabilities: { streaming: boolean; pushNotifications: boolean; extendedAgentCard: boolean };
+          securitySchemes: { bearer: { httpAuthSecurityScheme: { scheme: string; bearerFormat?: string } } };
         };
         assert.equal(a2aCard.name, 'GLORIFIER Services');
         assert.deepEqual(a2aCard.supportedInterfaces, [{
@@ -574,17 +812,25 @@ const run = async (): Promise<void> => {
         }]);
         assert.equal(a2aCard.capabilities.streaming, false);
         assert.equal(a2aCard.capabilities.pushNotifications, false);
-        assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.example.test');
-        assert.equal(new URL(getCapturedRequest().url).pathname, A2A_AGENT_CARD_PATH);
-        upstreamResponse = previousA2ACardResponse;
+        assert.equal(a2aCard.capabilities.extendedAgentCard, false);
+        assert.equal(a2aCard.securitySchemes.bearer.httpAuthSecurityScheme.scheme, 'Bearer');
+        assert.equal(a2aCard.securitySchemes.bearer.httpAuthSecurityScheme.bearerFormat, undefined,
+          'Agent Card must not claim an unverified JWT bearer format');
+        assert.equal(capturedRequest, null, 'Agent Card discovery must be served by the Worker without an upstream backend');
 
-        capturedRequest = null;
-        const a2aCardWithoutBackend = await worker.fetch(
-          new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`),
-          { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
+        const a2aCardHead = await worker.fetch(
+          new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`, { method: 'HEAD' }),
+          env,
         );
-        assert.equal(a2aCardWithoutBackend.status, 503, 'A2A discovery must report an unconfigured backend as service unavailable');
-        assert.equal(await a2aCardWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+        assert.equal(a2aCardHead.status, 200);
+        assert.equal(await a2aCardHead.text(), '');
+
+        const a2aCardPost = await worker.fetch(
+          new Request(`https://glorifier.glorifier.workers.dev${A2A_AGENT_CARD_PATH}`, { method: 'POST' }),
+          env,
+        );
+        assert.equal(a2aCardPost.status, 405);
+        assert.equal(a2aCardPost.headers.get('allow'), 'GET, HEAD');
         assert.equal(capturedRequest, null);
 
         const a2aMethodNotAllowed = await worker.fetch(
@@ -644,6 +890,27 @@ const run = async (): Promise<void> => {
         );
         assert.equal(a2aUnsupportedMediaType.status, 415);
         assert.equal(capturedRequest, null);
+
+        const a2aPreferredMediaType = await worker.fetch(
+          new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer caller-token',
+              'Content-Type': 'application/a2a+json',
+              'A2A-Version': '1.0',
+            },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 'a2a-media', method: 'GetTask', params: { id: 'missing' } }),
+          }),
+          env,
+        );
+        assert.equal(a2aPreferredMediaType.status, 200,
+          'A2A 1.0.1 preferred application/a2a+json must be accepted');
+        const a2aPreferredRequest = getCapturedRequest();
+        assert.equal(a2aPreferredRequest.headers.get('content-type'), 'application/a2a+json',
+          'the preferred A2A JSON media type must reach the backend parser unchanged');
+        assert.match(a2aPreferredRequest.headers.get('accept') ?? '', /application\/a2a\+json/);
+        assert.equal(a2aPreferredRequest.headers.get('authorization'), 'Bearer caller-token');
+        capturedRequest = null;
 
         const a2aOversized = await worker.fetch(
           new Request(`https://glorifier.glorifier.workers.dev${A2A_JSONRPC_PATH}`, {
