@@ -415,6 +415,9 @@ test('build-info rejects missing, malformed, wrong-branch, or mismatched provena
     ...buildInfo,
     worker: { ...buildInfo.worker, versionId: '１' + buildInfo.worker.versionId.slice(1) },
   }, 'a'.repeat(40)), /Worker version ID/);
+  assert.throws(() => validateBuildInfo(null, 'a'.repeat(40)), /object/);
+  assert.throws(() => validateBuildInfo({ ...buildInfo, git: null }, 'a'.repeat(40)), /git object/);
+  assert.throws(() => validateBuildInfo({ ...buildInfo, worker: null }, 'a'.repeat(40)), /worker object/);
 });
 
 test('production build provenance uses a GET request and validates the live response', async () => {
