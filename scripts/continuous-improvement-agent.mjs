@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createPrivateTempDir } from './private-temp-dir.mjs';
+import { withPrivateTempFile } from './private-temp-file.mjs';
 
 const run = (cmd, args = []) => {
   try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
@@ -104,15 +103,11 @@ const changedPaths=[...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMa
 if(changedPaths.some((path)=>protectedPaths.some((rule)=>rule.endsWith('/**')?path.startsWith(rule.slice(0,-3)):path===rule))) throw new Error('Safety policy rejected a protected-file change.');
 if(changedPaths.length>12) throw new Error('Safety policy rejected an overly broad patch.');
 
-const patchDirectory = createPrivateTempDir('glorifier-improvement');
-try {
-  const patchPath = path.join(patchDirectory, 'improvement.patch');
-  fs.writeFileSync(patchPath, patch, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-  const applied = run('git', ['apply', '--whitespace=fix', '--recount', patchPath]);
-  if (!applied.ok) throw new Error('Patch rejected: ' + applied.output);
-} finally {
-  fs.rmSync(patchDirectory, { recursive: true, force: true });
-}
+const applied = withPrivateTempFile(
+  { prefix: 'glorifier-improvement', fileName: 'improvement.patch', content: patch },
+  (patchPath) => run('git', ['apply', '--whitespace=fix', '--recount', patchPath]),
+);
+if (!applied.ok) throw new Error('Patch rejected: ' + applied.output);
 
 const lint=run('npm',['run','lint']);
 const build=lint.ok?run('npm',['run','build']):{ok:false,output:'Skipped build because lint failed.'};
