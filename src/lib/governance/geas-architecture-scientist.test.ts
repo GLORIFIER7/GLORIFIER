@@ -20,6 +20,7 @@ import {
   type ArchitecturePattern,
   type SourceObservation,
 } from './geas-architecture-scientist';
+import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
