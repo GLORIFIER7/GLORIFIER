@@ -64,3 +64,28 @@ test('private temp directory helper creates unique mode-0700 directories and cle
     fs.rmSync(second, { recursive: true, force: true });
   }
 });
+
+const mainnetRevocationScripts = [
+  'solana/revoke-token2022-metadata-authority.mjs',
+  'solana/revoke-token2022-metadata-pointer.mjs',
+];
+
+for (const script of mainnetRevocationScripts) {
+  test(script + ' loads dependencies only from an owner-private per-run directory', () => {
+    const source = read(script);
+    assert.match(source, /GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
+    assert.match(source, /fs\.lstatSync/);
+    assert.match(source, /mode\s*&\s*0o077/);
+    assert.doesNotMatch(source, /\/tmp\/glorifier-token2022-js/);
+  });
+}
+
+test('Mainnet Token-2022 runner creates and removes a unique private dependency directory', () => {
+  const source = read('solana/deploy-token2022-mainnet.sh');
+  assert.match(source, /mktemp -d/);
+  assert.match(source, /chmod 700/);
+  assert.match(source, /export GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
+  assert.match(source, /trap .*rm -rf.*GLORIFIER_TOKEN2022_NODE_MODULES_DIR.* EXIT/);
+  assert.match(source, /npm install --prefix "\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"/);
+  assert.doesNotMatch(source, /npm install --prefix \/tmp\/glorifier-token2022-js/);
+});
