@@ -8,21 +8,71 @@ import {
 } from './outcome-evidence-gates';
 import { test } from 'node:test';
 
-test('outcome-evidence-gates regression suite', async () => {
-  const digest = 'a'.repeat(64);
-  const paid = {
-    environment: 'production' as const,
-    customerRef: 'customer:system-of-record:1',
-    paymentIntentRef: 'intent:1',
-    settlementRef: 'chain-rpc:tx:1',
-    settlementIndependentlyVerified: true,
-    deliveryArtifactRef: 'artifact:1',
-    deliveryArtifactSha256: digest,
-    customerAcceptanceRef: 'acceptance:1',
-    reconciled: true,
-    unexplainedVarianceMinorUnits: '0',
-    evidenceBundleSha256: digest,
-  };
+const digest = 'a'.repeat(64);
+
+const paid = {
+  environment: 'production' as const,
+  customerRef: 'customer:system-of-record:1',
+  paymentIntentRef: 'intent:1',
+  settlementRef: 'chain-rpc:tx:1',
+  settlementIndependentlyVerified: true,
+  deliveryArtifactRef: 'artifact:1',
+  deliveryArtifactSha256: digest,
+  customerAcceptanceRef: 'acceptance:1',
+  reconciled: true,
+  unexplainedVarianceMinorUnits: '0',
+  evidenceBundleSha256: digest,
+};
+
+const customer = {
+  environment: 'production' as const,
+  customerRef: 'customer:1',
+  onboardingCompletedRef: 'onboarding:1',
+  independentlyVerifiedSettlementRef: 'settlement:1',
+  settlementIndependentlyVerified: true,
+  deliveryAcceptanceRef: 'acceptance:1',
+  evidenceBundleSha256: digest,
+};
+
+const revenue = {
+  environment: 'production' as const,
+  ledgerSnapshotRef: 'ledger:1',
+  authoritativeSettlementReportRef: 'provider-report:1',
+  reconciliationReportRef: 'reconciliation:1',
+  reconciled: true,
+  unexplainedVarianceMinorUnits: '0',
+  evidenceBundleSha256: digest,
+};
+
+const security = {
+  environment: 'production' as const,
+  runtimeIdentity: 'runtime:immutable-image-digest',
+  defaultDenyEgressReportRef: 'report:egress',
+  deniedEgressTestPassed: true,
+  toolAllowlistReportRef: 'report:tools',
+  unauthorizedToolDenied: true,
+  auditTrailReportRef: 'report:audit',
+  auditTrailComplete: true,
+  operatorStopReportRef: 'report:stop',
+  operatorStopPassed: true,
+  evidenceBundleSha256: digest,
+};
+
+const a2a = {
+  environment: 'production' as const,
+  endpoint: 'https://authorized.example.invalid/a2a',
+  runtimeIdentity: 'runtime:immutable-image-digest',
+  suiteName: 'A2A v1.0 TCK',
+  suiteVersion: 'pinned-suite-version',
+  reportRef: 'artifact:a2a-report',
+  reportSha256: digest,
+  passed: true,
+  failedTests: 0,
+  skippedTests: 0,
+  evidenceBundleSha256: digest,
+};
+
+void test('paid-delivery evidence is verified only when independently settled and reconciled', () => {
   const paidResult = validatePaidDeliveryEvidence(paid);
   assert.equal(paidResult.status, 'VERIFIED', 'complete paid-delivery evidence should pass');
   assert.equal(paidResult.failedChecks.length, 0, 'complete paid-delivery evidence should have no failed checks');
@@ -51,16 +101,9 @@ test('outcome-evidence-gates regression suite', async () => {
     'NOT VERIFIED',
     'blank evidence references must fail closed',
   );
+});
 
-  const customer = {
-    environment: 'production' as const,
-    customerRef: 'customer:1',
-    onboardingCompletedRef: 'onboarding:1',
-    independentlyVerifiedSettlementRef: 'settlement:1',
-    settlementIndependentlyVerified: true,
-    deliveryAcceptanceRef: 'acceptance:1',
-    evidenceBundleSha256: digest,
-  };
+void test('paying-customer evidence excludes staging and unverified settlements', () => {
   assert.equal(
     validatePayingCustomerEvidence(customer).status,
     'VERIFIED',
@@ -75,16 +118,9 @@ test('outcome-evidence-gates regression suite', async () => {
     validatePayingCustomerEvidence({ ...customer, settlementIndependentlyVerified: false }).failedChecks.includes('settlement_independently_verified'),
     'unverified settlement must be explicitly reported as a failed check',
   );
+});
 
-  const revenue = {
-    environment: 'production' as const,
-    ledgerSnapshotRef: 'ledger:1',
-    authoritativeSettlementReportRef: 'provider-report:1',
-    reconciliationReportRef: 'reconciliation:1',
-    reconciled: true,
-    unexplainedVarianceMinorUnits: '0',
-    evidenceBundleSha256: digest,
-  };
+void test('revenue reconciliation rejects unbalanced or non-canonical variance', () => {
   assert.equal(
     validateRevenueReconciliationEvidence(revenue).status,
     'VERIFIED',
@@ -100,20 +136,9 @@ test('outcome-evidence-gates regression suite', async () => {
     'NOT VERIFIED',
     'non-canonical zero variance must fail closed',
   );
+});
 
-  const security = {
-    environment: 'production' as const,
-    runtimeIdentity: 'runtime:immutable-image-digest',
-    defaultDenyEgressReportRef: 'report:egress',
-    deniedEgressTestPassed: true,
-    toolAllowlistReportRef: 'report:tools',
-    unauthorizedToolDenied: true,
-    auditTrailReportRef: 'report:audit',
-    auditTrailComplete: true,
-    operatorStopReportRef: 'report:stop',
-    operatorStopPassed: true,
-    evidenceBundleSha256: digest,
-  };
+void test('runtime security evidence requires every enforced control', () => {
   assert.equal(
     validateRuntimeSecurityEvidence(security).status,
     'VERIFIED',
@@ -123,20 +148,9 @@ test('outcome-evidence-gates regression suite', async () => {
     validateRuntimeSecurityEvidence({ ...security, unauthorizedToolDenied: false }).failedChecks.includes('unauthorized_tool_denied'),
     'unauthorized tool access failure must be explicit',
   );
+});
 
-  const a2a = {
-    environment: 'production' as const,
-    endpoint: 'https://authorized.example.invalid/a2a',
-    runtimeIdentity: 'runtime:immutable-image-digest',
-    suiteName: 'A2A v1.0 TCK',
-    suiteVersion: 'pinned-suite-version',
-    reportRef: 'artifact:a2a-report',
-    reportSha256: digest,
-    passed: true,
-    failedTests: 0,
-    skippedTests: 0,
-    evidenceBundleSha256: digest,
-  };
+void test('A2A conformance evidence fails closed for skipped, failed, or tampered reports', () => {
   assert.equal(
     validateA2AConformanceEvidence(a2a).status,
     'VERIFIED',
@@ -156,7 +170,9 @@ test('outcome-evidence-gates regression suite', async () => {
     'NOT VERIFIED',
     'invalid report integrity must fail closed',
   );
+});
 
+void test('outcome evidence success marker ends with a real newline', () => {
   const successMarker = 'OUTCOME_EVIDENCE_GATES_TEST_OK\n';
   assert.equal(
     successMarker,
