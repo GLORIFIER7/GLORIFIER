@@ -355,7 +355,7 @@ interface InvoiceMetadataDraft {
   detailValues: unknown[];
 }
 
-type InvoiceMetadataValidationInput = InvoiceMetadataValidationInput;
+type InvoiceMetadataValidationInput = Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>;
 
 interface InvoiceMetadata {
   issuer: string;
