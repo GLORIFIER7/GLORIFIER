@@ -8,7 +8,11 @@ import {
   getArchitectureConsolidationSnapshot,
   setVerification,
 } from './architecture-core';
+import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
+before(async () => {
 initializeArchitectureCore();
 assert.ok(listCapabilities().some((c) => c.id === 'model-inference'));
 assert.ok(listCapabilities().some((c) => c.id === 'repository-merge' && c.requiresHumanApproval));
@@ -74,3 +78,9 @@ assert.equal(snapshot.kernel.capabilityRegistry, 'active');
 assert.equal(snapshot.kernel.selfHealingCICD, 'governed CI/CD');
 
 console.log('Architecture consolidation tests: PASS');
+  assertionsCompleted = true;
+});
+
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});

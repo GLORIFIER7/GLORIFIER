@@ -1,6 +1,10 @@
 import { strict as assert } from 'node:assert';
 import { buildEvidenceRecord, canonicalActionHash, evaluateVerificationState, problemDetails } from './geas-architecture-controls';
+import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
+before(async () => {
 const action = {
   contextId: 'ctx-1',
   capability: 'production-deploy',
@@ -36,3 +40,9 @@ assert.equal(evaluateVerificationState([{ name: 'deployment', passed: true }]), 
 assert.equal(problemDetails({ title: 'Provider unavailable', status: 503, detail: 'No eligible provider.', code: 'provider-unavailable' }).status, 503);
 
 console.log('GEAS architecture controls tests passed');
+  assertionsCompleted = true;
+});
+
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});

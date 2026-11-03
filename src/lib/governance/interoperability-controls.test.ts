@@ -5,7 +5,12 @@ import {
   transitionDurableTask,
   verifyTaskEvidence
 } from './interoperability-controls';
+import { strict as assert } from 'node:assert';
+import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
+before(async () => {
 if (GLORIFIER_INTEROPERABILITY_POLICY.skillsNeverGrantAuthority !== true) {
   throw new Error('skills must never grant authority');
 }
@@ -41,3 +46,9 @@ try {
 if (!rejected) throw new Error('unauthorized task execution must fail closed');
 
 console.log('Interoperability controls invariants: PASS');
+  assertionsCompleted = true;
+});
+
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
