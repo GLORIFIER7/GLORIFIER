@@ -103,4 +103,17 @@ test('CLI writes redacted structural evidence, removes raw response, and fails c
   assert.equal(shapeText.includes('request'), false);
 });
 
-process.stdout.write('NVIDIA triage response parser regression tests passed.\\n');
+
+test('keeps the trusted triage parser checkout isolated from collected workspace logs', () => {
+  const workflow = fs.readFileSync(
+    path.join(__dirname, '..', '.github', 'workflows', 'nvidia-ci-triage.yml'),
+    'utf8',
+  );
+  assert.match(
+    workflow,
+    /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@v7[\s\S]*?path: trusted/,
+  );
+  assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
+});
+
+process.stdout.write('NVIDIA triage response parser regression tests passed.\n');
