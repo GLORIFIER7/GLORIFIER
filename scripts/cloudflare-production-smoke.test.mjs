@@ -406,6 +406,15 @@ test('build-info rejects missing, malformed, wrong-branch, or mismatched provena
   assert.throws(() => validateBuildInfo({ ...buildInfo, git: { ...buildInfo.git, commit: 'bad' } }, 'a'.repeat(40)), /40-character/);
   assert.throws(() => validateBuildInfo({ ...buildInfo, git: { ...buildInfo.git, ref: 'refs/heads/feature' } }, 'a'.repeat(40)), /refs\/heads\/main/);
   assert.throws(() => validateBuildInfo(buildInfo, 'b'.repeat(40)), /does not match the expected commit/);
+  assert.throws(
+    () => validateBuildInfo(buildInfo, 'b'.repeat(40)),
+    (error) => {
+      assert.equal(error.name, 'AssertionError');
+      assert.equal(formatSmokeFailure(error), 'assertion failed');
+      return true;
+    },
+    'a production source-commit mismatch must remain distinguishable from an unexpected smoke-test crash',
+  );
   assert.throws(() => validateBuildInfo({ ...buildInfo, worker: { ...buildInfo.worker, versionId: 'not-a-uuid' } }, 'a'.repeat(40)), /Worker version ID/);
   assert.throws(() => validateBuildInfo({
     ...buildInfo,
