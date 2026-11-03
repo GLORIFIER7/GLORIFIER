@@ -93,7 +93,7 @@
   ],
   "metadata_consistency_notes": [
     "The exact gateway-returned metadata is preserved verbatim in published_metadata.",
-    "The description sentence says 'Committed to glorify, passionate to evangelize.' while the separate Motto attribute says 'Committed to Glorify, Passion to Evangelize'. Both phrasings appeared in the gateway-returned object; this record does not silently rewrite published token metadata.",
+    "The description sentence says 'Committed to glorify, passionate to evangelize.' while the separate Motto attribute says 'Committed to Glorify, Passion to Evangelize'. Both exact phrasings appeared in the gateway-returned object and are preserved verbatim in this evidence copy; this record does not silently rewrite published token metadata.",
     "The owner's established company motto for newly authored materials remains 'Committed to Glorify, Passion to Evangelize'."
   ]
 }
