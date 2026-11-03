@@ -1036,10 +1036,9 @@ export default {
       }
       const headers = new Headers({
         Authorization: normalizedAuthorization,
-        // The current Express backend parser accepts application/json only.
-        // The Worker accepts the preferred A2A media type at the public edge
-        // and normalizes it here without changing the JSON request body.
-        'Content-Type': 'application/json',
+        // The Express backend parser accepts both the legacy JSON media type
+        // and the A2A 1.0.1 preferred JSON media type.
+        'Content-Type': a2aMediaType,
         Accept: 'application/a2a+json, application/json',
         'X-Correlation-ID': crypto.randomUUID(),
       });
