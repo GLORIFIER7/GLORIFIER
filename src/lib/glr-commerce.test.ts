@@ -1,19 +1,19 @@
-import { assertCondition } from './test-assertion';
+import assert from 'node:assert/strict';
 import { buildGLRAIServiceQuote, divideDecimal } from './glr-commerce';
 import test from 'node:test';
 
 test("GLR commerce quote regression cases", () => {
-  assertCondition(divideDecimal('0.05', '0.01', 9) === '5', 'decimal division should be exact');
-  assertCondition(divideDecimal('1', '3', 6) === '0.333333', 'decimal division should round half-up at target precision');
+  assert.ok(divideDecimal('0.05', '0.01', 9) === '5', 'decimal division should be exact');
+  assert.ok(divideDecimal('1', '3', 6) === '0.333333', 'decimal division should round half-up at target precision');
   let rejected = false;
   try { divideDecimal('1', '0'); } catch { rejected = true; }
-  assertCondition(rejected, 'division by zero must be rejected');
+  assert.ok(rejected, 'division by zero must be rejected');
   
   const now = new Date('2026-10-13T07:00:00.000Z');
   const usd = buildGLRAIServiceQuote({ currency: 'USD', now });
-  assertCondition(usd.priceGLR === '1' && usd.fiatReferenceAmount === '0.05', 'USD service tariff should be explicit');
-  assertCondition(usd.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'missing GLR market rate must be disclosed');
-  assertCondition(usd.executable === false, 'quotes must never execute a payment');
+  assert.ok(usd.priceGLR === '1' && usd.fiatReferenceAmount === '0.05', 'USD service tariff should be explicit');
+  assert.ok(usd.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'missing GLR market rate must be disclosed');
+  assert.ok(usd.executable === false, 'quotes must never execute a payment');
   
   const lak = buildGLRAIServiceQuote({
     currency: 'LAK',
@@ -24,8 +24,8 @@ test("GLR commerce quote regression cases", () => {
     },
     now,
   });
-  assertCondition(lak.fiatReferenceAmount === '1100', 'fiat quote should multiply the USD service tariff by the supplied FX rate');
-  assertCondition(lak.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'fiat conversion does not invent a GLR market rate');
+  assert.ok(lak.fiatReferenceAmount === '1100', 'fiat quote should multiply the USD service tariff by the supplied FX rate');
+  assert.ok(lak.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'fiat conversion does not invent a GLR market rate');
   
   const eur = buildGLRAIServiceQuote({
     currency: 'EUR',
@@ -36,8 +36,8 @@ test("GLR commerce quote regression cases", () => {
     },
     now,
   });
-  assertCondition(eur.fiatReferenceAmount === '0.04', 'fractional FX rates must convert USD 0.05 before currency precision rounding');
-  assertCondition(eur.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'fractional fiat conversion must not invent a GLR market rate');
+  assert.ok(eur.fiatReferenceAmount === '0.04', 'fractional FX rates must convert USD 0.05 before currency precision rounding');
+  assert.ok(eur.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'fractional fiat conversion must not invent a GLR market rate');
   
   // Preserve the stated realistic EUR-per-USD fixture as well as the edge cases.
   const realisticEur = buildGLRAIServiceQuote({
@@ -49,8 +49,8 @@ test("GLR commerce quote regression cases", () => {
     },
     now,
   });
-  assertCondition(realisticEur.fiatReferenceAmount === '0.05', '0.05 USD × 0.92 EUR per USD should round to EUR 0.05');
-  assertCondition(realisticEur.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'realistic FX conversion must not invent a GLR market rate');
+  assert.ok(realisticEur.fiatReferenceAmount === '0.05', '0.05 USD × 0.92 EUR per USD should round to EUR 0.05');
+  assert.ok(realisticEur.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'realistic FX conversion must not invent a GLR market rate');
   
   // A deliberately discriminating fixture: 0.05 USD × 1.70 = 0.085,
   // which rounds to 0.09 at two decimal places. Inverting the rate would
@@ -64,8 +64,8 @@ test("GLR commerce quote regression cases", () => {
     },
     now,
   });
-  assertCondition(directionCheck.fiatReferenceAmount === '0.09', 'ratePerUsd must be multiplied by the USD tariff, not inverted');
-  assertCondition(directionCheck.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'direction regression fixture must not imply a GLR market rate');
+  assert.ok(directionCheck.fiatReferenceAmount === '0.09', 'ratePerUsd must be multiplied by the USD tariff, not inverted');
+  assert.ok(directionCheck.quoteStatus === 'GLR_RATE_NOT_CONFIGURED', 'direction regression fixture must not imply a GLR market rate');
   
   const stale = buildGLRAIServiceQuote({
     currency: 'EUR',
@@ -76,7 +76,7 @@ test("GLR commerce quote regression cases", () => {
     },
     now,
   });
-  assertCondition(stale.fiatReferenceAmount === null && stale.quoteStatus === 'STALE_FIAT_RATE', 'stale FX evidence must not create a fiat amount');
+  assert.ok(stale.fiatReferenceAmount === null && stale.quoteStatus === 'STALE_FIAT_RATE', 'stale FX evidence must not create a fiat amount');
   
   process.stdout.write('GLR commerce quote tests passed.\n');
 });
