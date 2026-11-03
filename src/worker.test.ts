@@ -733,7 +733,7 @@ const run = async (): Promise<void> => {
           name: string;
           arguments: Record<string, unknown>;
           pathname: string;
-          body: Record<string, unknown>;
+          body: unknown;
         }> = [
           {
             name: 'github_get_repository',
