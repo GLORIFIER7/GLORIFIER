@@ -752,6 +752,76 @@ const run = async (): Promise<void> => {
         assert.equal(invalidHealthMethod.headers.get('allow'), 'GET, HEAD');
         assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to an upstream backend');
 
+        const buildInfoUnavailable = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/build-info'),
+          env,
+        );
+        assert.equal(buildInfoUnavailable.status, 503);
+        const unavailableBuildInfoBody = await buildInfoUnavailable.json() as {
+          ok: boolean;
+          status: string;
+          code: string;
+        };
+        assert.equal(unavailableBuildInfoBody.ok, false);
+        assert.equal(unavailableBuildInfoBody.status, 'source-provenance-unavailable');
+        assert.equal(unavailableBuildInfoBody.code, 'RELEASE_PROVENANCE_NOT_CONFIGURED');
+
+        const buildInfoResponse = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/build-info'),
+          {
+            ...env,
+            GLORIFIER_RELEASE_COMMIT: 'a'.repeat(40),
+            GLORIFIER_RELEASE_REF: 'refs/heads/main',
+            GLORIFIER_RELEASE_RUN_ID: '41429999999',
+            CF_VERSION_METADATA: {
+              id: '1acafc15-ead8-431e-8813-d51ea11da51f',
+              tag: 'main',
+              timestamp: '2026-11-03T06:23:28.838Z',
+            },
+          },
+        );
+        assert.equal(buildInfoResponse.status, 200);
+        const buildInfoBody = await buildInfoResponse.json() as {
+          ok: boolean;
+          status: string;
+          repository: string;
+          git: { commit: string; ref: string; runId: string };
+          worker: { versionId: string; versionTag: string | null; versionTimestamp: string };
+        };
+        assert.equal(buildInfoBody.ok, true);
+        assert.equal(buildInfoBody.status, 'source-provenance-verified');
+        assert.equal(buildInfoBody.repository, 'https://github.com/GLORIFIER7/GLORIFIER');
+        assert.equal(buildInfoBody.git.commit, 'a'.repeat(40));
+        assert.equal(buildInfoBody.git.ref, 'refs/heads/main');
+        assert.equal(buildInfoBody.git.runId, '41429999999');
+        assert.equal(buildInfoBody.worker.versionId, '1acafc15-ead8-431e-8813-d51ea11da51f');
+        assert.equal(buildInfoBody.worker.versionTag, 'main');
+        assert.equal(buildInfoBody.worker.versionTimestamp, '2026-11-03T06:23:28.838Z');
+
+        const buildInfoHead = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/build-info', { method: 'HEAD' }),
+          {
+            ...env,
+            GLORIFIER_RELEASE_COMMIT: 'a'.repeat(40),
+            GLORIFIER_RELEASE_REF: 'refs/heads/main',
+            GLORIFIER_RELEASE_RUN_ID: '41429999999',
+            CF_VERSION_METADATA: {
+              id: '1acafc15-ead8-431e-8813-d51ea11da51f',
+              tag: 'main',
+              timestamp: '2026-11-03T06:23:28.838Z',
+            },
+          },
+        );
+        assert.equal(buildInfoHead.status, 200);
+        assert.equal(await buildInfoHead.text(), '');
+
+        const buildInfoPost = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/build-info', { method: 'POST' }),
+          env,
+        );
+        assert.equal(buildInfoPost.status, 405);
+        assert.equal(buildInfoPost.headers.get('allow'), 'GET, HEAD');
+
         const assetCallsBeforeIdentity = assetCalls;
         const identityResponse = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/identity'),
