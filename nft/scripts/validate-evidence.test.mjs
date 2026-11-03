@@ -7,7 +7,7 @@ import { validateEvidenceBundle } from "./validate-evidence.mjs";
 const load = async (path) => JSON.parse(await readFile(path, "utf8"));
 const makeBundle = async () => {
   const png = await readFile("GLORIFIER SERVICES.png");
-  const gitBlobHeader = Buffer.from("blob " + png.length + "\\0", "utf8");
+  const gitBlobHeader = Buffer.concat([Buffer.from("blob " + png.length, "utf8"), Buffer.from([0])]);
   return {
     registry: await load("nft/registry.json"),
     inventory: await load("nft/image-inventory-2026-11-03.json"),
