@@ -1240,7 +1240,7 @@ const architectureEvidencePatternIds = (
   patternIdsBySource: Map<string, string[]>,
 ): string[] => {
   const patternIds = patternIdsBySource.get(sourceId);
-  return patternIds ? patternIds : [];
+  return patternIds ?? [];
 };
 
 const architectureEvidenceContentHash = (contentHash: string | null): string =>
