@@ -5,8 +5,9 @@ import {
   validatePermanentStack,
   verifyEconomicTruth
 } from './permanent-stack';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const stack = getPermanentGlorifierStack();
 const validation = validatePermanentStack(stack);
 if (!validation.valid) throw new Error(validation.errors.join('; '));
@@ -38,5 +39,6 @@ const truth = verifyEconomicTruth({
 if (!truth.verified) throw new Error(truth.reason);
 
 console.log('Permanent GLORIFIER stack invariants: PASS');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
