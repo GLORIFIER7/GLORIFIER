@@ -74,10 +74,15 @@ async function assertUnsupportedProtocolVersion(origin: string, version?: string
   assert.deepEqual(body.supportedVersions, ['1.0']);
 }
 
-function postAgentMessage(origin: string, requestId: string, version = '1.0'): Promise<Response> {
+function postAgentMessage(
+  origin: string,
+  requestId: string,
+  version = '1.0',
+  contentType = 'application/json',
+): Promise<Response> {
   return fetch(`${origin}/api/a2a/v1`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': version },
+    headers: { 'Content-Type': contentType, 'A2A-Version': version },
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: requestId,
@@ -133,6 +138,16 @@ await withServer({
 await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin, '0.3'));
 
 await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin));
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await postAgentMessage(origin, 'a2a-preferred-media-type', '1.0', 'application/a2a+json');
+  assert.equal(response.status, 200,
+    'the A2A 1.0.1 preferred application/a2a+json media type must be parsed and accepted by the backend');
+  const body = await response.json() as { id?: string; result?: { task?: { id?: string } }; error?: { code: number } };
+  assert.equal(body.id, 'a2a-preferred-media-type');
+  assert.equal(body.result?.task?.id, 'express-a2a-task');
+  assert.equal(body.error, undefined);
+});
 
 await withServer(baseDependencies(), async (origin) => {
   const response = await postAgentMessage(origin, 'patch-version', '1.0.1');

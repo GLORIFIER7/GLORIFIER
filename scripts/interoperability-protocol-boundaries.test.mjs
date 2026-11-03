@@ -4,15 +4,21 @@ import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [registryText, schemaText, gapRegister, mcpPlan] = await Promise.all([
+const [registryText, schemaText, gapRegister, mcpPlan, mcpSource, workerSource, a2aSource, workerTests] = await Promise.all([
   read('docs/architecture/interoperability-capabilities.json'),
   read('docs/architecture/interoperability-capabilities.schema.json'),
   read('docs/architecture/interoperability-gap-register.md'),
   read('docs/architecture/mcp-reference-conformance.md'),
+  read('src/lib/github-mcp.ts'),
+  read('src/worker.ts'),
+  read('src/lib/a2a-v1.ts'),
+  read('src/worker.test.ts'),
 ]);
 
 const registry = JSON.parse(registryText);
 const schema = JSON.parse(schemaText);
+const capabilityStatusText = () => registry.capabilities
+  .find((item) => item.id === 'protocol.a2a-mcp-adapters')?.status || '';
 const statuses = [
   'VERIFIED',
   'PARTIALLY VERIFIED',
@@ -67,6 +73,56 @@ test('cross-document protocol target is consistent and never promotes conformanc
   assert.match(mcpPlan, /NOT VERIFIED/i);
 });
 
+
+test('MCP 2026-07-28 server discovery is implemented without expanding the read-only tool surface', () => {
+  assert.match(mcpSource, /MODERN_PROTOCOL_VERSION = '2026-07-28'/);
+  assert.match(mcpSource, /case 'server\/discover'/);
+  assert.match(mcpSource, /io\.modelcontextprotocol\/protocolVersion/);
+  assert.match(mcpSource, /MCP-Protocol-Version/);
+  assert.match(mcpSource, /resultType: 'complete'/);
+  assert.match(mcpSource, /code: -32022/);
+  assert.match(mcpSource, /case 'tools\/list'/);
+  assert.match(mcpSource, /case 'tools\/call'/);
+  assert.match(mcpSource, /case 'initialize'/);
+  assert.match(mcpSource, /LEGACY_PROTOCOL_VERSIONS/);
+  const toolNames = [...mcpSource.matchAll(/name: '(github_[a-z_]+)'/g)].map((match) => match[1]).sort();
+  assert.deepEqual(toolNames, [
+    'github_get_repository',
+    'github_list_open_pull_requests',
+    'github_list_workflow_runs',
+    'github_read_file',
+  ]);
+  assert.match(mcpSource, /MCP_RATE_LIMITER|rateLimiter/);
+  assert.match(capabilityStatusText(), /NOT VERIFIED/);
+});
+
+test('A2A standard Agent Card is served natively and does not claim unverified JWT format', () => {
+  assert.match(workerSource, /incomingUrl\.pathname === A2A_AGENT_CARD_PATH/);
+  assert.match(workerSource, /workerNativeReadOnlyJson\(request, \(\) => buildA2AAgentCard\(incomingUrl\.origin\)\)/);
+  assert.match(workerSource, /application\/a2a\+json/);
+  assert.match(workerSource, /application\/json/);
+  assert.match(a2aSource, /A2A_AGENT_CARD_PATH = '\/\.well-known\/agent-card\.json'/);
+  assert.match(a2aSource, /protocolVersion: A2A_PROTOCOL_VERSION/);
+  assert.doesNotMatch(a2aSource, /bearerFormat:\s*'JWT'/);
+  assert.match(workerTests, /Agent Card discovery must be served by the Worker without an upstream backend/);
+  assert.match(workerTests, /application\/a2a\+json/);
+  assert.match(workerTests, /application\/json/);
+});
+
+test('protocol registry records the new draft source implementation but does not promote live conformance', () => {
+  const capability = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
+  assert.equal(capability.status, 'NOT VERIFIED');
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'source' && item.reference === 'src/lib/github-mcp.ts' &&
+    item.notes.includes('server/discover')));
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'source' && item.reference.includes('src/worker.ts') &&
+    item.notes.includes('Agent Card')));
+  assert.match(gapRegister, /Source implementation checkpoint — 2026-11-03/);
+  assert.match(gapRegister, /No production route, traffic percentage, secret/);
+  assert.match(capability.limitations.join('\n'), /external MCP client\/server integration/);
+  assert.match(capability.limitations.join('\n'), /do not establish A2A 1\.0/);
+});
 
 test('governance and exact target metadata are preserved', () => {
   const capability = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');

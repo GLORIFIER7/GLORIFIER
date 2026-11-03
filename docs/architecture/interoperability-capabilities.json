@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "updatedAt": "2026-11-03T07:03:07.377Z",
+  "updatedAt": "2026-11-03T07:17:05.461Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -637,18 +638,90 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "A2A 1.0 JSON-RPC adapter contract, A2A runtime prompt formatting and Express endpoint route tests, pinned A2A/MCP protocol-boundary tests, MCP registry validation and Worker/interoperability boundary tests passed on both Ubuntu targets. This is source-level/fixture evidence only. The broader capability remains NOT VERIFIED: standard A2A AgentCard/message-task interoperability, the pinned MCP 2026-07-28 server/discover target, external client/server integration and live staging conformance are not established."
+          "kind": "source",
+          "reference": "src/lib/github-mcp.ts",
+          "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; commit range based on main d00a58b07e950bf2957f70534a68dfda162f4ccc",
+          "observedAt": "2026-11-03T07:17:05.461Z",
+          "notes": "Draft source adds stateless MCP 2026-07-28 server/discover, supported-version reporting, matching per-request io.modelcontextprotocol/protocolVersion metadata and MCP-Protocol-Version header, modern tools/list and tools/call result envelopes, and -32022 version errors. The same /mcp route preserves legacy 2025 initialize/tool-call behavior. The server still exposes exactly four read-only GitHub tools pinned to the single public GLORIFIER7/GLORIFIER repository; it does not implement resources, prompts, arbitrary providers, or a full general-purpose MCP server."
+        },
+        {
+          "kind": "source",
+          "reference": "src/worker.ts; src/lib/a2a-v1.ts",
+          "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; Cloudflare Worker source",
+          "observedAt": "2026-11-03T07:17:05.461Z",
+          "notes": "Draft source adds the A2A 1.0.1 standard Agent Card at GET /.well-known/agent-card.json, served natively by the Worker with GET/HEAD-only semantics and no legacy backend dependency. The Worker A2A JSON-RPC endpoint remains a Bearer-authenticated backend proxy; this does not implement or verify a live A2A message/task service."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "src/worker.test.ts; src/lib/a2a-v1.test.ts",
+          "targetEnvironment": "Mocked Cloudflare Worker and A2A unit-test fixtures on PR #629 branch",
+          "observedAt": "2026-11-03T07:17:05.461Z",
+          "notes": "New regression coverage checks modern server/discover and supported-version reporting, matching HTTP/header protocol versions, resultType/serverInfo metadata for modern tools/list and tools/call, unsupported-version errors, no modern initialize/ping, backward-compatible legacy initialize/tools, native A2A Agent Card GET/HEAD/POST semantics, no JWT bearerFormat claim, A2A 1.0.1 application/a2a+json acceptance, and legacy application/json compatibility. These tests use mocked GitHub upstream responses and local fixtures; they do not establish external MCP/A2A client interoperability or live backend connectivity."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41595118378",
+          "targetEnvironment": "GitHub Actions GLORIFIER Cloudflare Worker run #41595118378 for PR #629 initial source head 07bfc42e848609b8877bb8ad83d50c61f70381c1",
+          "observedAt": "2026-11-03T07:17:05.461Z",
+          "notes": "The validate-and-build job completed successfully: TypeScript, Worker proxy/fallback tests, integration registry/data-truth tests, Neon adapter tests, production smoke contract tests, OpenSea read-only integration tests, frontend build/static output, and Wrangler dry-run all passed. The production deploy job was skipped because this was a draft PR. Subsequent documentation-only edits were added after this run; the current PR head still needs its final exact-head CI verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41595118106",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #41595118106 for PR #629 initial source head 07bfc42e848609b8877bb8ad83d50c61f70381c1; Ubuntu 22.04 and Ubuntu 24.04 x86_64",
+          "observedAt": "2026-11-03T07:17:05.461Z",
+          "notes": "Both Ubuntu source-matrix jobs passed evidence freshness policy, MCP interoperability registry policy, A2A 1.0 JSON-RPC adapter contract tests, A2A runtime prompt formatting, A2A Express endpoint route tests, pinned A2A/MCP protocol boundary tests, capability-registry validation, TypeScript, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build, and static output validation. The Ubuntu 24.04 container-build job was still in progress at the observation; it is not claimed as passed here. These are source/fixture tests, not live RPC or external client conformance."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260044",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28; Ubuntu 22.04/24.04 x86_64 and Ubuntu 24.04 container builds",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "Both Ubuntu source-matrix jobs and both Ubuntu 24.04 container build/health/graceful-shutdown checks completed successfully. Each source job passed evidence-freshness and MCP registry policy tests, A2A 1.0 JSON-RPC contract tests, A2A runtime formatting, A2A Express endpoint routes including application/a2a+json acceptance, pinned A2A/MCP protocol-boundary tests, capability-registry validation, TypeScript, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, frontend build, and static-output verification. These are repository CI fixtures and container checks, not live A2A/MCP client interoperability or blockchain RPC evidence."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260158",
+          "targetEnvironment": "GitHub Actions GLORIFIER Cloudflare Worker run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "The validate-and-build job completed successfully: TypeScript, Worker proxy/fallback tests, integration registry/data-truth tests, Neon adapter tests, production smoke contract tests, OpenSea read-only tests, frontend build/static-output validation, and Wrangler dry-run passed. The production deployment job was skipped; no production deployment was made."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260037",
+          "targetEnvironment": "GitHub Actions GLORIFIER CI run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "Build, Supabase default-privilege integration, and agent-state/Postgres integration completed successfully. This is PR CI evidence only; it does not assert that the production database or protocol endpoints were modified."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260022",
+          "targetEnvironment": "GitHub Actions GLORIFIER Build and Test run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "TypeScript, project test/build workflow completed successfully on the exact PR head, including the backend A2A Express preferred-media-type integration test."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260117",
+          "targetEnvironment": "GitHub Actions GLORIFIER SDK Conformance run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28; Python 3.10/3.11/3.12, Go 1.26.x/1.27.x",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "Python shared contract fixtures passed on 3.10, 3.11, and 3.12; Go shared contract and static-analysis jobs passed on 1.26.x and 1.27.x."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260054",
+          "targetEnvironment": "GitHub Actions CodeQL run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
+          "observedAt": "2026-11-03T07:28:01.025Z",
+          "notes": "CodeQL analysis completed successfully for the PR head. This is source-analysis evidence only and does not establish external protocol or production runtime behavior."
         }
       ],
       "limitations": [
-        "The existing /.well-known/a2a-agent-card.json is a proprietary GLORIFIER discovery document, not the A2A 1.0.1 standard Agent Card endpoint or schema.",
-        "The existing /api/a2a/tasks and federated lifecycle are GLORIFIER-specific; they do not establish A2A 1.0.1 message/task binding, version negotiation, or cross-agent conformance.",
-        "The Cloudflare Worker does not currently serve the standard A2A Agent Card or A2A 1.0.1 service endpoint natively.",
-        "A fixed-scope, read-only GitHub MCP endpoint exists at POST /mcp for four tools against the public GLORIFIER7/GLORIFIER repository; it is not a general-purpose MCP adapter.",
-        "The GitHub MCP endpoint does not implement MCP 2026-07-28 server/discover, resources, prompts, or full target-revision transport behavior.",
-        "The endpoint returns protocol version identifiers for 2025-03-26, 2025-06-18, and 2025-11-25, but only 2025-03-26 initialization is covered by the checked-in Worker test; version identifiers alone do not prove revision conformance.",
-        "No external MCP client or end-to-end client/server interoperability result has been recorded.",
-        "A2A and broad MCP adapters remain NOT VERIFIED until revision-pinned fixtures, implementation tests, local client/server integration, and applicable staging evidence pass.",
-        "No live agent/provider/MCP endpoint, production route, secret, or configuration was probed or changed in the earlier source/specification review.",
+        "The draft standard A2A Agent Card is served by the Worker at GET /.well-known/agent-card.json, but this is source-branch implementation and not a production deployment or live external discovery result.",
+        "These source and CI changes do not establish A2A 1.0.1 authenticated message/task interoperability, a live backend, or a controlled two-agent test.",
+        "The existing /api/a2a/v1 JSON-RPC interface remains an authenticated Bearer-token proxy to the owner-configured backend. A live A2A 1.0.1 message/task service, authenticated task exchange, task lifecycle, and controlled two-agent interoperability test are not yet established.",
+        "The fixed-scope, stateless, read-only GitHub MCP endpoint now has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call result envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
+        "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
+        "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
         "No arbitrary proxy or implied provider fallback is authorized."
       ]
     },
