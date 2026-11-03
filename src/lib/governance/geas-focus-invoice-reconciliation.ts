@@ -539,6 +539,10 @@ const validateBillingPeriodDataset = (
       reasons.push('BillingPeriod row ' + index + ' has invalid FOCUS UTC timestamps or period bounds');
       return;
     }
+    if (status !== 'Open' && status !== 'Closed') {
+      reasons.push('BillingPeriod row ' + index + ' has a status outside the FOCUS 1.4 allowed values Open or Closed');
+      return;
+    }
     const key = JSON.stringify([invoiceIssuer, start]);
     if (keys.has(key)) {
       reasons.push('BillingPeriod must contain unique InvoiceIssuerName and BillingPeriodStart keys');
