@@ -244,6 +244,110 @@ const fetchProductionIdentity = (options) =>
 
 const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 
+const fetchProductionBuildInfo = (fetchRequest = fetch) => (options) =>
+  fetchRequest(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
+
+const isAsciiHex = (value, expectedLength) => {
+  if (typeof value !== 'string' || value.length !== expectedLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.codePointAt(index);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpperHex = code >= 65 && code <= 70;
+    const isLowerHex = code >= 97 && code <= 102;
+    if (!isDigit && !isUpperHex && !isLowerHex) return false;
+  }
+  return true;
+};
+
+const isAsciiDecimal = (value) => {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 20) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.codePointAt(index);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+};
+
+const isCloudflareWorkerVersionId = (value) => {
+  if (typeof value !== 'string' || value.length !== 36) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (index === 8 || index === 13 || index === 18 || index === 23) {
+      if (value[index] !== '-') return false;
+    } else {
+      const code = value.codePointAt(index);
+      const isDigit = code >= 48 && code <= 57;
+      const isUpperHex = code >= 65 && code <= 70;
+      const isLowerHex = code >= 97 && code <= 102;
+      if (!isDigit && !isUpperHex && !isLowerHex) return false;
+    }
+  }
+  return true;
+};
+
+const failBuildInfoContract = (message) => {
+  throw new assert.AssertionError({ message });
+};
+
+export const validateBuildInfo = (body, expectedCommit) => {
+  assert.ok(isAsciiHex(expectedCommit, 40),
+    'expected Git commit SHA must be a 40-character hexadecimal value');
+
+  if (body === null || typeof body !== 'object') {
+    failBuildInfoContract('build-info must return an object');
+  }
+  if (body.ok !== true) failBuildInfoContract('build-info must report ok=true');
+  if (body.status !== 'source-provenance-verified') {
+    failBuildInfoContract('build-info must report source-provenance-verified');
+  }
+  if (body.repository !== 'https://github.com/GLORIFIER7/GLORIFIER') {
+    failBuildInfoContract('build-info repository does not match GLORIFIER7/GLORIFIER');
+  }
+
+  const git = body.git;
+  if (git === null || typeof git !== 'object') {
+    failBuildInfoContract('build-info must include a git object');
+  }
+  const worker = body.worker;
+  if (worker === null || typeof worker !== 'object') {
+    failBuildInfoContract('build-info must include a worker object');
+  }
+
+  if (!isAsciiHex(git.commit, 40)) {
+    failBuildInfoContract('build-info must expose a 40-character source commit SHA');
+  }
+  if (git.commit.toLowerCase() !== expectedCommit.toLowerCase()) {
+    failBuildInfoContract('deployed Worker source commit does not match the expected commit');
+  }
+  if (git.ref !== 'refs/heads/main') {
+    failBuildInfoContract('production Worker ref must be refs/heads/main');
+  }
+  if (!isAsciiDecimal(git.runId)) {
+    failBuildInfoContract('build-info must expose the GitHub Actions run ID');
+  }
+  if (!isCloudflareWorkerVersionId(worker.versionId)) {
+    failBuildInfoContract('build-info must expose the Cloudflare Worker version ID');
+  }
+  if (typeof worker.versionTimestamp !== 'string' ||
+      !Number.isFinite(Date.parse(worker.versionTimestamp))) {
+    failBuildInfoContract('build-info must expose a valid Cloudflare version timestamp');
+  }
+  if (worker.versionTag !== null && typeof worker.versionTag !== 'string') {
+    failBuildInfoContract('build-info version tag must be a string or null');
+  }
+  return body;
+};
+
+export const verifyBuildProvenance = async (
+  fetchRequest = fetch,
+  expectedCommit = process.env.GITHUB_SHA,
+) => {
+  assert.ok(isAsciiHex(expectedCommit, 40),
+    'expected Git commit SHA must be a 40-character hexadecimal value');
+  console.log('GLORIFIER production smoke: verifying exact deployed source commit and Cloudflare version');
+  const response = await requestJson(fetchProductionBuildInfo(fetchRequest));
+  return validateBuildInfo(response.body, expectedCommit);
+};
+
 export const verifyPublicReadModels = async (fetchRequest = fetch) => {
   console.log('GLORIFIER production smoke: checking public integration registry and data-status read models');
   const getEndpoint = (pathname) => (options) =>
@@ -333,17 +437,19 @@ export const formatSmokeFailure = (error) => {
 };
 
 export const runProductionSmoke = async () => {
+  const provenance = await verifyBuildProvenance();
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
   const identity = await verifyIdentity();
   const publicReadModels = await verifyPublicReadModels();
+  console.log('Deployed source commit verified: ' + provenance.git.commit + ' (Worker version ' + provenance.worker.versionId + ').');
   console.log('Neon exact operational counts verified for all six reporting tables.');
   console.log('Production public read models verified: ' + publicReadModels.integrations + ' integrations and ' + publicReadModels.dataRows + ' data records.');
   console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
   reportReadinessWarnings(identity, runtime);
-  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: Worker, Neon database, exact counts, unauthenticated boundary, and identity response contract.');
+  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: exact source provenance, Worker, Neon database, exact counts, unauthenticated boundary, public read models, and identity response contract.');
   console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, Neural execution, user login, or AI-provider execution.');
-  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels };
+  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels, provenance };
 };
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

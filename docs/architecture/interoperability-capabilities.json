@@ -1,5 +1,6 @@
 {
   "schemaVersion": "1.0.0",
+  "updatedAt": "2026-11-03T07:03:07.377Z",
   "updatedAt": "2026-11-03T07:17:05.461Z",
   "statusVocabulary": [
     "VERIFIED",
@@ -62,6 +63,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Worker/interoperability boundary tests passed on both Ubuntu source-matrix targets. These tests use mocked upstreams; no live Neural HTTPS origin or authenticated Neural runtime was probed."
         }
       ],
       "limitations": [
@@ -121,6 +129,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343911",
+          "targetEnvironment": "GitHub Actions GLORIFIER Cloudflare Worker run #2159; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Cloudflare Worker validate-and-build completed successfully, including TypeScript, Worker proxy/fallback tests, integration registry/data-truth tests, Neon adapter tests, production smoke contract tests, OpenSea read-only integration tests, frontend build and Wrangler dry-run. The production deployment job was skipped; no live Neural configuration is implied."
         }
       ],
       "limitations": [
@@ -158,6 +173,13 @@
           "observedAt": "2026-10-29T03:45:21Z",
           "targetEnvironment": "Production Cloudflare Worker to GLORIFIER-NEURAL",
           "notes": "HTTP 503 with NEURAL_ORIGIN_NOT_CONFIGURED. A real approved origin and exact-host allowlist are required before live readiness can pass."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/health",
+          "targetEnvironment": "Production Cloudflare Worker to GLORIFIER-NEURAL; read-only GET",
+          "observedAt": "2026-11-03T07:01:19.186Z",
+          "notes": "Fresh production GET returned HTTP 503; /api/runtime-verification reports neural status not-configured with NEURAL_ORIGIN_NOT_CONFIGURED. This is a fail-closed configuration result, not evidence that a Neural process is reachable or healthy. No origin, allowlist or secret was configured."
         }
       ],
       "limitations": [
@@ -219,6 +241,13 @@
           "targetEnvironment": "GitHub-hosted ubuntu-22.04 x86_64",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the exact Ubuntu source-matrix job, including evidence freshness policy, MCP interoperability registry policy, capability registry validation, TypeScript, Worker boundary tests, chain-specific read-only test vectors, frontend build, and static output verification."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; exact PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04 and 24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Both source-matrix jobs completed successfully. Capability-registry and evidence-freshness validation, MCP interoperability registry policy, A2A 1.0 JSON-RPC adapter contract, A2A runtime formatting and Express routes, pinned A2A/MCP protocol-boundary tests, Worker/interoperability boundary tests, chain-specific read-only verifier fixtures, TypeScript, frontend build and static-output verification passed. This is repository CI evidence only; it does not establish live RPC reachability or external A2A/MCP conformance."
         }
       ],
       "limitations": [
@@ -294,6 +323,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64 Docker builder",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 built both distroless and Ubuntu 24.04 images and passed both container health and graceful-shutdown smoke tests."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; Ubuntu 24.04 x86_64 Docker builder",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Distroless and Ubuntu 24.04 production images both built successfully and passed /api/health and graceful-shutdown smoke tests. The tests do not establish live provider, database, Neural or blockchain RPC readiness."
         }
       ],
       "limitations": [
@@ -342,6 +378,13 @@
           "observedAt": "2026-10-25T16:48:40Z",
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Python 3.10/3.11/3.12; main commit 1d08832507a4a272d440a20cc041e885ca2e791f",
           "notes": "Post-merge Python shared-fixture and Neural HTTP-client contract jobs passed on all three listed Python versions."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343870",
+          "targetEnvironment": "GitHub Actions GLORIFIER SDK Conformance run associated with PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Python shared contract fixtures passed on Python 3.10, 3.11 and 3.12; Go shared contract tests passed on Go 1.26.x and 1.27.x. This verifies the named CI matrices only and does not imply live Neural or provider connectivity."
         }
       ],
       "limitations": [
@@ -380,6 +423,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
         }
       ],
       "limitations": [
@@ -418,6 +468,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
         }
       ],
       "limitations": [
@@ -456,6 +513,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
         }
       ],
       "limitations": [
@@ -569,6 +633,11 @@
           "notes": "Tests cover 2025-03-26 initialize, notifications, tools/list, mocked tools/call, exact read-only tool set, malformed/oversized requests, origin rejection, and rate limiting. They do not establish external MCP client interoperability, live public endpoint reachability, or 2026-07-28 conformance."
         },
         {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
+          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "A2A 1.0 JSON-RPC adapter contract, A2A runtime prompt formatting and Express endpoint route tests, pinned A2A/MCP protocol-boundary tests, MCP registry validation and Worker/interoperability boundary tests passed on both Ubuntu targets. This is source-level/fixture evidence only. The broader capability remains NOT VERIFIED: standard A2A AgentCard/message-task interoperability, the pinned MCP 2026-07-28 server/discover target, external client/server integration and live staging conformance are not established."
           "kind": "source",
           "reference": "src/lib/github-mcp.ts",
           "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; commit range based on main d00a58b07e950bf2957f70534a68dfda162f4ccc",
@@ -708,6 +777,13 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
           "observedAt": "2026-10-30T03:38:03Z",
           "notes": "Interoperability Linux validation run #40998469483 passed the Ubuntu 22.04 and 24.04 source job. The job ran the Worker/interoperability boundary tests and chain-specific read-only verifier test vectors. This is CI evidence only; it does not establish live upstream/provider/RPC readiness or deployed allowlist values."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343911",
+          "targetEnvironment": "GitHub Actions GLORIFIER Cloudflare Worker run #2159; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "The Worker regression suite passed on the exact PR head. This is source/mock contract evidence for origin and redirect boundaries only; production allowlist values and upstream reachability were not changed or probed by this CI run."
         }
       ],
       "limitations": [
@@ -773,6 +849,13 @@
           "observedAt": "2026-10-29T03:45:21Z",
           "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
           "notes": "HTTP 200; status verified-for-probed-dependencies. Worker/assets and Supabase exact-count query passed. Authentication and AI were explicitly not probed; this is not full application or provider readiness."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false",
+          "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; AI probing disabled",
+          "observedAt": "2026-11-03T07:01:19.186Z",
+          "notes": "HTTP 200 with status verified-for-probed-dependencies. Worker/assets and Neon Hyperdrive fixed operational exact-count query passed; database latency 293 ms and registered connection rows 30. Neural is not-configured; authentication not-probed; AI execution was excluded. This verifies only the dependencies explicitly probed."
         }
       ],
       "limitations": [
@@ -806,6 +889,13 @@
           "observedAt": "2026-10-29T03:45:21Z",
           "targetEnvironment": "Production Cloudflare Worker and configured Supabase PostgREST",
           "notes": "HTTP 200; status operational-data-observed; exact counts returned for all six operational tables, each currently zero rows. Revenue remains not observable and legacy economic summary remains not ported."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/reports/summary",
+          "targetEnvironment": "Production Cloudflare Worker to Neon Hyperdrive; unauthenticated read-only GET",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "HTTP 200 with exact counts: connectionApprovals 9, connectionEvents 251212, registeredConnections 30, intelligenceAnalyses 266, intelligenceEvidence 1099 and intelligenceReports 133. Response identifies Neon Hyperdrive as source. Revenue is explicitly not observable from these operational tables and the legacy economic summary is not ported."
         }
       ],
       "limitations": [
@@ -837,6 +927,13 @@
           "observedAt": "2026-10-29T03:45:21Z",
           "targetEnvironment": "Production Cloudflare Worker",
           "notes": "HTTP 503; response is explicitly not-ready because canonical domain, primary organization email, and verified domain status are not configured. No identity readiness is claimed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/identity",
+          "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "Fresh read-only GET returned HTTP 503. Identity is not production-ready. The latest recorded detailed response attributes this to missing canonical domain, primary organization email and verified domain status; no owner-controlled identity configuration was changed in this audit."
         }
       ],
       "limitations": [
@@ -883,6 +980,44 @@
         "No Mintlify API handshake, protocol conformance test, or automated scheduled synchronization was run.",
         "The inspected Introduction and Quickstart pages contain starter-template placeholders; do not treat them as authoritative GLORIFIER setup documentation.",
         "No documentation changes were published and no deployment was modified."
+      ]
+    },
+    {
+      "id": "worker.production-read-model-release",
+      "title": "Production deployment of Worker-native integration and data-status read models",
+      "boundary": "Production Cloudflare Worker GET /api/integrations, /api/data-status and /api/build-info",
+      "scope": "live-production-probe",
+      "status": "DEGRADED",
+      "targetEnvironments": [
+        "Production Cloudflare Worker glorifier.glorifier.workers.dev"
+      ],
+      "evidence": [
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/integrations",
+          "targetEnvironment": "Production Cloudflare Worker; read-only GET",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "HTTP 502. The current production deployment does not expose the Worker-native endpoint implementation on main/PR #628."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/data-status",
+          "targetEnvironment": "Production Cloudflare Worker; read-only GET",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "HTTP 502. The current production deployment does not expose the Worker-native endpoint implementation on main/PR #628."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/build-info",
+          "targetEnvironment": "Production Cloudflare Worker; read-only GET",
+          "observedAt": "2026-11-03T07:03:07.377Z",
+          "notes": "HTTP 502. The release-provenance endpoint exists on the PR branch but has not been merged or deployed to production."
+        }
+      ],
+      "limitations": [
+        "Cloudflare deployment metadata still assigns 100% of production traffic to deployment 3c5abfa9-91b3-4ee8-ade5-01b1305d4431, Worker version 880 (5a854d11-1f57-4401-80f9-fb39cf036cbf), built from older main commit 46b6f28.",
+        "PR #628 is open and unmerged. The production endpoint responses cannot become verified until the approved protected main-branch release is reviewed, merged, deployed and smoke-tested.",
+        "Do not upload/promote a preview directly or bypass the guarded workflow_dispatch and deploy_production=true release gate."
       ]
     }
   ]

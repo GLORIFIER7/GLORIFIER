@@ -70,7 +70,12 @@ jobs:
         run: npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.151.1
 
       - name: Validate Worker bundle and Wrangler configuration (no deploy)
-        run: wrangler deploy --dry-run
+        run: |
+          set -euo pipefail
+          wrangler deploy --dry-run \
+            --var "GLORIFIER_RELEASE_COMMIT:${GITHUB_SHA}" \
+            --var "GLORIFIER_RELEASE_REF:${GITHUB_REF}" \
+            --var "GLORIFIER_RELEASE_RUN_ID:${GITHUB_RUN_ID}"
 
 
   deploy-production:
@@ -120,7 +125,10 @@ jobs:
           set -euo pipefail
           for attempt in 1 2 3; do
             echo "Deploy attempt ${attempt}/3"
-            if wrangler deploy --log-level info; then
+            if wrangler deploy --log-level info \
+              --var "GLORIFIER_RELEASE_COMMIT:${GITHUB_SHA}" \
+              --var "GLORIFIER_RELEASE_REF:${GITHUB_REF}" \
+              --var "GLORIFIER_RELEASE_RUN_ID:${GITHUB_RUN_ID}"; then
               echo "Cloudflare deployment succeeded on attempt ${attempt}"
               exit 0
             fi

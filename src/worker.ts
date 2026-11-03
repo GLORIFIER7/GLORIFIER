@@ -12,6 +12,14 @@ import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-ass
 import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
 
 export type CloudflareEnv = {
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag: string;
+    timestamp: string;
+  };
+  GLORIFIER_RELEASE_COMMIT?: string;
+  GLORIFIER_RELEASE_REF?: string;
+  GLORIFIER_RELEASE_RUN_ID?: string;
   MCP_RATE_LIMITER?: GithubMcpRateLimiter;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
@@ -825,7 +833,7 @@ function normalizeBearerAuthorization(value: string | null): string | null {
   const token = header.slice(separator + 1).trim();
   if (!token) return null;
   for (const character of token) {
-    const code = character.charCodeAt(0);
+    const code = character.codePointAt(0) ?? -1;
     if (code <= 0x20 || code === 0x7f) return null;
   }
   return `Bearer ${token}`;
@@ -959,6 +967,86 @@ const workerNativeReadOnlyJson = (
   return request.method === 'HEAD'
     ? new Response(null, { status: 200, headers })
     : Response.json(buildBody(), { headers });
+};
+
+const isAsciiHex = (value: string, expectedLength: number): boolean => {
+  if (value.length !== expectedLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.codePointAt(index) ?? -1;
+    const isDigit = code >= 48 && code <= 57;
+    const isUpperHex = code >= 65 && code <= 70;
+    const isLowerHex = code >= 97 && code <= 102;
+    if (!isDigit && !isUpperHex && !isLowerHex) return false;
+  }
+  return true;
+};
+
+const isAsciiDecimal = (value: string, maxLength: number): boolean => {
+  if (value.length < 1 || value.length > maxLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.codePointAt(index) ?? -1;
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+};
+
+const isCloudflareWorkerVersionId = (value: string): boolean => {
+  if (value.length !== 36) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (index === 8 || index === 13 || index === 18 || index === 23) {
+      if (value.charAt(index) !== '-') return false;
+    } else {
+      const code = value.codePointAt(index) ?? -1;
+      const isDigit = code >= 48 && code <= 57;
+      const isUpperHex = code >= 65 && code <= 70;
+      const isLowerHex = code >= 97 && code <= 102;
+      if (!isDigit && !isUpperHex && !isLowerHex) return false;
+    }
+  }
+  return true;
+};
+
+const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Response => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, error: 'Method not allowed' }, {
+      status: 405,
+      headers: { ...headers, Allow: 'GET, HEAD' },
+    });
+  }
+
+  const commit = configured(env.GLORIFIER_RELEASE_COMMIT);
+  const ref = configured(env.GLORIFIER_RELEASE_REF);
+  const runId = configured(env.GLORIFIER_RELEASE_RUN_ID);
+  const metadata = env.CF_VERSION_METADATA;
+  const versionId = configured(metadata?.id);
+  const versionTimestamp = configured(metadata?.timestamp);
+  const validTimestamp = versionTimestamp !== '' && Number.isFinite(Date.parse(versionTimestamp));
+
+  if (!isAsciiHex(commit, 40) ||
+      ref !== 'refs/heads/main' ||
+      !isAsciiDecimal(runId, 20) ||
+      !isCloudflareWorkerVersionId(versionId) ||
+      !validTimestamp) {
+    return Response.json({
+      ok: false,
+      status: 'source-provenance-unavailable',
+      code: 'RELEASE_PROVENANCE_NOT_CONFIGURED',
+    }, { status: 503, headers });
+  }
+
+  if (request.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return Response.json({
+    ok: true,
+    status: 'source-provenance-verified',
+    repository: 'https://github.com/GLORIFIER7/GLORIFIER',
+    git: { commit: commit.toLowerCase(), ref, runId },
+    worker: {
+      versionId,
+      versionTag: metadata?.tag ?? null,
+      versionTimestamp,
+    },
+  }, { headers });
 };
 
 export default {
@@ -1106,6 +1194,13 @@ export default {
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
       return neuralRoute(request, incomingUrl.pathname, env);
+    }
+
+    // Public build provenance is safe to expose for this public repository. It is
+    // deliberately unavailable unless the protected production workflow injects the
+    // exact main-branch SHA and Cloudflare supplies the deployed version metadata.
+    if (incomingUrl.pathname === '/api/build-info') {
+      return releaseProvenanceResponse(request, env);
     }
 
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
