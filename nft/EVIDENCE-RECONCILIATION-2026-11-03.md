@@ -2,56 +2,77 @@
 
 **Observed:** 2026-11-03  
 **Repository:** GLORIFIER7/GLORIFIER  
-**Main commit inspected:** `cd72f72680978f41a3bc80a47eb4c4a993b52307`  
-**Working branch:** `nft/evidence-inventory-reconciliation-20261103`
+**Main commit inspected:** `cac4d64ac8c367eabf50a1c3717a1b823af45a45`  
+**Working branch:** `nft/official-logo-mint-reconciliation-20261103`
 
-## Asset inventory
+## Image inventory
 
-The recursive Git tree contains **98 image paths** representing **84 unique image blobs** across common image formats.
+The current recursive Git tree contains **99 image paths** representing **84 unique Git blob contents** across common image formats.
 
-The earlier intended scope was unique JPG/JPEG files. The current tree contains **96 JPG/JPEG paths** and **82 unique JPG/JPEG Git blobs**. The attached inventory JSON records one canonical path per unique blob and additional duplicate paths.
+Within the previously approved JPG/JPEG candidate scope there are **96 paths** and **82 unique byte-identical Git blobs**. Other formats are separately inventoried in the JSON file. Git blob deduplication only groups byte-identical files; visual near-duplicates with different encodings remain separate candidates.
 
-Deduplication is based on Git blob SHA, which identifies byte-identical file content in this commit. It does not collapse visually similar images saved with different encoding or compression. The files have not all been visually classified; therefore the inventory is a candidate set, not a final NFT collection manifest.
+The 82 JPG/JPEG candidates have not all been visually classified, provenance/rights reviewed, or prepared with individual NFT metadata.
 
-## Ethereum contract reconciliation
+## Existing Official Logo #001 — live chain verification
 
-The previously recorded contract candidate is `0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7`.
+**Conclusion: the official-logo NFT is already minted.** No second Logo #001 mint is needed.
 
-Read-only Etherscan observations:
-- Verified source identifies the implementation as `ERC721SeaDropCloneable` (Solidity `v0.8.17+commit.8df45f5f`); the explorer reports proxy type `2` and implementation `0x09a26fc8fcef18192e267d7a6da9dfb4be81dd6a`.
-- Creation transaction: [`0x8a41d16bc9c0a26f0f286e1b36ced6d78506c81ae2ad706446444be942550f79`](https://etherscan.io/tx/0x8a41d16bc9c0a26f0f286e1b36ced6d78506c81ae2ad706446444be942550f79), block 26235674, 2026-10-20T18:45:47Z. Initial `OwnershipTransferred` event sets owner to `0xe0589195995cb373c856953cfaddaeeaf2088a06`.
-- One successful ERC-721 mint transfer event was observed: [`0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9`](https://etherscan.io/tx/0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9), block 26275697, 2026-10-26T08:34:11Z. It transfers token ID `1` from the zero address to `0xe0589195995cb373c856953cfaddaeeaf2088a06`. Etherscan labels the token `GLORIFIER` / `GLR`.
-- The transaction receipt returned success. The creation and mint observations establish that this address is not an unused deployment target.
+Ethereum Mainnet contract: `0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7`.
 
-**Unresolved:** The current `owner()` value and `tokenURI(1)` were not read. The token's metadata/image has not been matched against the official-logo metadata CID or the image inventory. Do not attribute this existing mint to any specific GitHub photo or to `GLORIFIER SERVICES — Official Logo #001` until that reconciliation is complete.
+Read-only direct `eth_call` results:
+- `owner()`: `0xe0589195995cb373c856953cfaddaeeaf2088a06`
+- `ownerOf(1)`: `0xe0589195995cb373c856953cfaddaeeaf2088a06`
+- `name()`: `GLORIFIER`
+- `symbol()`: `GLR`
+- `totalSupply()`: `1`
+- `tokenURI(1)`: `ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1`
 
-The previously recorded transaction `0x2f03900afbcd03b5639e7213f907de612adf9f4bd70c6d2743c29c09c2be5cd4` succeeded but did not produce a mint `Transfer` event in its receipt; it is not mint proof.
+The verified Etherscan implementation is `ERC721SeaDropCloneable` (Solidity `v0.8.17+commit.8df45f5f`), with proxy type `2` and implementation `0x09a26fc8fcef18192e267d7a6da9dfb4be81dd6a`.
+
+Mint transaction: [`0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9`](https://etherscan.io/tx/0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9). Its successful ERC-721 Transfer event minted token ID 1 to the owner above at block 26275697 on 2026-10-26T08:34:11Z.
+
+### Token metadata and image reconciliation
+
+The live token URI was retrieved from two independent gateways:
+- Pinata: `https://gateway.pinata.cloud/ipfs/Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1`
+- Filebase: `https://ipfs.filebase.io/ipfs/Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1`
+
+Both returned the same metadata identifying **GLORIFIER SERVICES — Official Logo #001**, with image URI:
+`ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa`.
+
+Filebase independently retrieved the image CID and returned an image description matching the circular GLORIFIER SERVICES emblem, EST 2022 details, and central atom symbol.
+
+The image CID decodes to raw codec + sha2-256 multihash. Its digest is `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`, matching the previously recorded 55,886-byte artwork retrieval from 2026-10-20.
+
+The older historical source PNG hash is `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`, which differs. The later retrieved image content is matched to the token image CID, but raw-byte identity with that older source PNG is not claimed.
+
+An Alchemy aggregated metadata response contained a conflicting cached token URI and totalSupply=0. Direct on-chain reads and both gateway responses are treated as authoritative for the current contract URI and supply.
 
 ## Destination address validation
 
-The currently stored recipient candidate `0x393c19Ff12e1624181fBF1938b80982b9dfC427` has **39 hex characters** after `0x`; an EVM address requires 40. The value is preserved in the registry but marked invalid. No character is guessed or inserted. A complete public address must be supplied and independently re-validated before it can be included in any transaction.
+The old candidate `0x393c19Ff12e1624181fBF1938b80982b9dfC427` has **39 hexadecimal characters** after `0x`; a valid EVM address requires 40. It was not used for Logo #001. The observed current owner is `0xe0589195995cb373c856953cfaddaeeaf2088a06`, but ownership does not establish that this is the intended recipient for additional tokens.
 
 ## Contract and network fit
 
-- `nft/contracts/src/GLORIFIERServicesLogo721.sol` is a single-edition contract: fixed token ID 1 and a one-time mint. It is not a batch contract for the 82 unique JPG/JPEG assets.
-- `nft/metadata.json` and the secondary JSON are drafts. The final corrected metadata CID remains unset. The known artwork CID has a recorded byte-hash mismatch against the historical source PNG.
-- The repository's `solana/devnet-partial-mint-recovery.json` records a Token-2022 devnet recovery mint. It does not establish a per-photo Solana NFT collection or a Solana artwork-NFT mint workflow.
-- No Ethereum or Solana artwork transactions were initiated during this reconciliation.
+- Existing Official Logo #001: minted as ERC-721 token ID 1 on Ethereum Mainnet.
+- Separate custom `GLORIFIERServicesLogo721.sol`: review-only, not deployed, fixed token ID 1, and unsuitable for an 82-image batch.
+- Existing Solana devnet Token-2022 recovery record is not an artwork NFT mint.
+- No additional Ethereum or Solana artwork transaction was initiated during this reconciliation.
 
-## Required remaining gates
+## Remaining work for other images
 
-1. Visually inspect and classify each candidate image; resolve source, provenance, and rights for every item.
-2. Reconcile the existing Ethereum token ID 1 by reading its live owner and token URI, then verifying the referenced metadata/image bytes.
-3. Decide whether to mint on Ethereum, Solana, or both; use a contract/program that actually supports the requested number of items and metadata model.
-4. Publish and independently retrieve final per-item image and metadata CIDs; record pinning evidence separately from gateway availability.
-5. Obtain and validate a complete destination address directly from the owner.
-6. Simulate the exact transactions and itemize current fees. Present asset list, standard/program, metadata URIs, recipient, and costs for transaction-specific approval before any signing or spending.
+1. Visually inspect and classify the 82 unique JPG/JPEG blobs; identify unrelated media and visual near-duplicates.
+2. Confirm provenance and rights for every selected asset.
+3. Prepare per-item metadata JSON and verify image/metadata CIDs and pin receipts.
+4. Obtain a valid full destination address and select the network and token standard/program.
+5. Use a suitable multi-item collection design, not the single-token review contract.
+6. Simulate exact transactions and fees; present assets, metadata URIs, quantity, recipient, network and costs for transaction-specific approval.
 
 ## Execution status
 
-- Repository changes in this branch: evidence documentation and a read-only image inventory only.
-- Main branch modified: no.
-- Wallet connected or signing requested: no.
-- Transaction signed or submitted: no.
-- New NFTs minted or funds spent: no.
-- Completion: **PARTIALLY VERIFIED**. Inventory and observed Ethereum mint are recorded; asset-to-token identity, final metadata, recipient, multi-item contract/program, and per-item readiness remain unresolved.
+- Official Logo #001: **VERIFIED MINTED** on Ethereum Mainnet; owner and tokenURI read; metadata retrieved through two gateways; image CID digest matches prior retrieved artwork bytes.
+- Repository inventory: **VERIFIED** at main commit `cac4d64ac8c367eabf50a1c3717a1b823af45a45`; 82 unique JPG/JPEG candidates, 2 unique non-JPEG blobs.
+- Remaining photo NFTs: **NOT MINTED / NOT READY** pending classification, rights, metadata, valid recipient and batch design.
+- Repository changes in this branch: evidence, metadata copy, and inventory only.
+- No new deployment, wallet signature, mint or expenditure occurred.
+- Overall completion: **PARTIALLY VERIFIED**; the first official logo NFT is verified, remaining candidate photos are not yet transaction-ready.
