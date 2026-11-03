@@ -64,9 +64,10 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main:refs/remotes/origin/main
-          git show origin/main:scripts/nvidia-patch-validator.cjs > scripts/nvidia-patch-validator.cjs
-          git show origin/main:scripts/nvidia-patch-validator.test.cjs > scripts/nvidia-patch-validator.test.cjs
-          node --test scripts/nvidia-patch-validator.test.cjs
+          mkdir -p "$RUNNER_TEMP/validator"
+          git show origin/main:scripts/nvidia-patch-validator.cjs > "$RUNNER_TEMP/validator/nvidia-patch-validator.cjs"
+          git show origin/main:scripts/nvidia-patch-validator.test.cjs > "$RUNNER_TEMP/validator/nvidia-patch-validator.test.cjs"
+          node --test "$RUNNER_TEMP/validator/nvidia-patch-validator.test.cjs"
       - name: Gather bounded failure logs and changed source
         if: steps.target.outputs.skip != 'true'
         env:
@@ -86,7 +87,7 @@ jobs:
           try: names=subprocess.check_output(["git","diff","--name-only",sha+"^1",sha],text=True,stderr=subprocess.DEVNULL).splitlines()
           except Exception: names=[]
           allowed=("src/","docs/","scripts/","tests/")
-          denied=("src/lib/auth/","src/lib/ai/","src/lib/governance/","src/lib/glr-","src/lib/blockchain/","src/lib/crypto/","solana/","ethereum/","contracts/","deploy","payment","wallet","secret",".env","package.json","package-lock.json",".github/","server.ts","wrangler","railway","dockerfile")
+          denied=("src/lib/auth/","src/lib/ai/","src/lib/governance/","src/lib/glr-","src/lib/blockchain/","src/lib/crypto/","solana/","ethereum/","contracts/","deploy","payment","wallet","secret",".env","package.json","package-lock.json",".github/","server.ts","wrangler","railway","dockerfile","scripts/nvidia-patch-validator")
           ctx=[]
           for n in names:
             if not n.startswith(allowed) or any(x in n.lower() for x in denied) or ".." in n.split("/"): continue
@@ -124,7 +125,7 @@ jobs:
           PY
           status="$(curl --silent --show-error --connect-timeout 10 --max-time 100 -o response.json -w '%{http_code}' "$base/chat/completions" -H "Authorization: Bearer $NVIDIA_API_KEY" -H 'Content-Type: application/json' -H 'Accept: application/json' --data-binary @request.json)"
           if [[ "$status" != "200" ]]; then rm -f request.json response.json; echo "::error::NVIDIA request failed with HTTP $status; response body withheld."; exit 1; fi
-          node scripts/nvidia-patch-validator.cjs response.json patch.diff
+          node "$RUNNER_TEMP/validator/nvidia-patch-validator.cjs" response.json patch.diff
           rm -f request.json response.json
       - name: Apply patch and run tests
         if: steps.target.outputs.skip != 'true' && hashFiles('patch.diff') != ''
