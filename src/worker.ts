@@ -969,6 +969,43 @@ const workerNativeReadOnlyJson = (
     : Response.json(buildBody(), { headers });
 };
 
+const isAsciiHex = (value: string, expectedLength: number): boolean => {
+  if (value.length !== expectedLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpperHex = code >= 65 && code <= 70;
+    const isLowerHex = code >= 97 && code <= 102;
+    if (!isDigit && !isUpperHex && !isLowerHex) return false;
+  }
+  return true;
+};
+
+const isAsciiDecimal = (value: string, maxLength: number): boolean => {
+  if (value.length < 1 || value.length > maxLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+};
+
+const isCloudflareWorkerVersionId = (value: string): boolean => {
+  if (value.length !== 36) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (index === 8 || index === 13 || index === 18 || index === 23) {
+      if (value[index] !== '-') return false;
+    } else {
+      const code = value.charCodeAt(index);
+      const isDigit = code >= 48 && code <= 57;
+      const isUpperHex = code >= 65 && code <= 70;
+      const isLowerHex = code >= 97 && code <= 102;
+      if (!isDigit && !isUpperHex && !isLowerHex) return false;
+    }
+  }
+  return true;
+};
+
 const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Response => {
   const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -984,13 +1021,12 @@ const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Respon
   const metadata = env.CF_VERSION_METADATA;
   const versionId = configured(metadata?.id);
   const versionTimestamp = configured(metadata?.timestamp);
-  const validVersionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(versionId);
   const validTimestamp = versionTimestamp !== '' && Number.isFinite(Date.parse(versionTimestamp));
 
-  if (!/^[0-9a-f]{40}$/i.test(commit) ||
+  if (!isAsciiHex(commit, 40) ||
       ref !== 'refs/heads/main' ||
-      !/^\d{1,20}$/.test(runId) ||
-      !validVersionId ||
+      !isAsciiDecimal(runId, 20) ||
+      !isCloudflareWorkerVersionId(versionId) ||
       !validTimestamp) {
     return Response.json({
       ok: false,
@@ -1007,7 +1043,7 @@ const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Respon
     git: { commit: commit.toLowerCase(), ref, runId },
     worker: {
       versionId,
-      versionTag: metadata?.tag || null,
+      versionTag: metadata?.tag ?? null,
       versionTimestamp,
     },
   }, { headers });
