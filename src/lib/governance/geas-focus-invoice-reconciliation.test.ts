@@ -243,7 +243,7 @@ const wrongInvoice = reconcileFocusInvoice({
 assert.equal(wrongInvoice.status, 'UNKNOWN');
 assert.ok(wrongInvoice.reasons.some((reason) => reason.includes('outside the target invoice')));
 
-process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
+
 
 
 const payableBillingPeriod = {
@@ -251,7 +251,7 @@ const payableBillingPeriod = {
   ...billingPeriod,
   billingPeriodCreated: '2026-02-02T00:00:00Z',
   billingPeriodLastUpdated: '2026-02-03T00:00:00Z',
-  billingPeriodStatus: 'closed',
+  billingPeriodStatus: 'Closed',
 };
 
 const explicitUnsupportedIssuer = {
@@ -322,3 +322,18 @@ assert.ok(duplicateBillingPeriodKey.reasons.some((reason) =>
   reason.includes('BillingPeriod must contain unique InvoiceIssuerName and BillingPeriodStart keys'),
 ));
 
+const invalidBillingPeriodStatus = reconcileFocusInvoice({
+  ...input,
+  invoiceIssuerSupportsPayableInvoices: true,
+  billingPeriod: [{
+    ...payableBillingPeriod,
+    billingPeriodStatus: 'Pending',
+  }],
+});
+assert.equal(invalidBillingPeriodStatus.status, 'UNKNOWN');
+assert.ok(invalidBillingPeriodStatus.reasons.some((reason) =>
+  reason.includes('BillingPeriod row 0 has a status outside the FOCUS 1.4 allowed values Open or Closed'),
+));
+
+
+process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
