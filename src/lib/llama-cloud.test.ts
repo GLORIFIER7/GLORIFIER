@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
+import { after, afterEach, before, test } from 'node:test';
 import {
   getLlamaCloudStatus,
   listLlamaCloudIndexes,
@@ -15,6 +15,12 @@ const originalEnvironment = {
 };
 
 before(() => {
+  process.env.LLAMA_CLOUD_PROJECT_ID = projectId;
+  process.env.LLAMA_CLOUD_API_KEY = 'test-key';
+  delete process.env.LLAMA_CLOUD_BASE_URL;
+});
+
+afterEach(() => {
   process.env.LLAMA_CLOUD_PROJECT_ID = projectId;
   process.env.LLAMA_CLOUD_API_KEY = 'test-key';
   delete process.env.LLAMA_CLOUD_BASE_URL;
