@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,19 +22,10 @@ const generatedPaths = [
   'solana/reconciliation-evidence.json',
 ];
 
-for (const path of generatedPaths) {
-  const result = spawnSync('git', ['check-ignore', '--no-index', '--quiet', '--', path], {
-    cwd: repositoryRoot,
-    encoding: 'utf8',
-  });
-  if (result.error) {
-    throw new Error(`Failed to spawn 'git check-ignore' for path "${path}": ${result.error.message}`);
+test('Git ignores generated Python and blockchain artifacts', () => {
+  for (const path of generatedPaths) {
+    const result = spawnSync('git', ['check-ignore', '--no-index', '--quiet', '--', path], { cwd: repositoryRoot, encoding: 'utf8' });
+    if (result.error) throw new Error("Failed to spawn 'git check-ignore' for path " + JSON.stringify(path) + ': ' + result.error.message);
+    assert.equal(result.status, 0, 'Expected generated artifact to be ignored: ' + path + '. ' + (result.stderr ?? ''));
   }
-  assert.equal(
-    result.status,
-    0,
-    `Expected generated artifact to be ignored: ${path}. ${result.stderr ?? ''}`,
-  );
-}
-
-console.log(`Git ignore regression test passed for ${generatedPaths.length} generated paths.`);
+});
