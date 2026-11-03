@@ -283,7 +283,7 @@ const run = async (): Promise<void> => {
         assert.equal(modernDiscoverBody.jsonrpc, '2.0');
         assert.equal(modernDiscoverBody.id, 'discover-1');
         assert.equal(modernDiscoverBody.result.resultType, 'complete');
-        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28']);
+        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
         assert.deepEqual(modernDiscoverBody.result.capabilities, { tools: {} },
           'modern discovery must advertise only the read-only tool capability actually implemented');
         assert.deepEqual(
@@ -325,6 +325,49 @@ const run = async (): Promise<void> => {
           modernToolsBody.result._meta['io.modelcontextprotocol/serverInfo'],
           { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
         );
+
+        const previousModernMcpUpstreamResponse = upstreamResponse;
+        upstreamResponse = new Response(JSON.stringify({
+          full_name: 'GLORIFIER7/GLORIFIER',
+          visibility: 'public',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        const modernToolCall = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: modernMcpHeaders,
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-tool-call',
+              method: 'tools/call',
+              params: {
+                _meta: modernMetadata,
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const modernToolCallBody = await modernToolCall.json() as {
+          result: {
+            resultType: string;
+            content: Array<{ type: string; text: string }>;
+            isError?: boolean;
+            _meta: Record<string, { name: string; version: string }>;
+          };
+        };
+        assert.equal(modernToolCall.status, 200);
+        assert.equal(modernToolCallBody.result.resultType, 'complete');
+        assert.equal(modernToolCallBody.result.isError, undefined);
+        assert.equal(JSON.parse(modernToolCallBody.result.content[0]?.text || '{}').full_name, 'GLORIFIER7/GLORIFIER');
+        assert.deepEqual(
+          modernToolCallBody.result._meta['io.modelcontextprotocol/serverInfo'],
+          { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
+        );
+        assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
+        assert.equal(getCapturedRequest().method, 'GET');
+        assert.equal(getCapturedRequest().headers.get('authorization'), null);
+        upstreamResponse = previousModernMcpUpstreamResponse;
 
         const unsupportedModernVersion = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
