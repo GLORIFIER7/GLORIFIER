@@ -29,6 +29,16 @@ Status: **recommendation / analysis only**. The W3C PROV-O source is registered 
 6. Add deterministic tests for broken, missing, duplicated, or mismatched provenance links before treating the crosswalk as implemented.
 7. Bind each scan artifact to its workflow run, tested checkout SHA, source PR head SHA, and base SHA; for pull-request runs, distinguish the synthetic merge commit from the source head and leave missing event data null.
 
+## Commit comparison is not deployment verification
+
+The `assessProductionCommitMatch` helper compares full commit identifiers supplied in deployment metadata. Its `MATCH` result means only that the two identifiers are equal and the supplied environment label is `production`. It deliberately keeps deployment authenticity and runtime health at **NOT_VERIFIED**. `MISMATCH` identifies unequal identifiers; `UNKNOWN` covers non-production metadata or malformed/incomplete commit identifiers.
+
+A commit match does not prove that an artifact was built from that revision, that the artifact was deployed by an authorized builder, or that the running service is healthy. Before promoting deployment provenance, bind the deployed artifact digest to a signed SLSA provenance statement with a trusted builder identity and source revision, then separately collect authenticated deployment and runtime observations. Use PROV-O to represent the entity/activity/agent lineage; do not treat a provenance graph or digest as proof of semantic correctness.
+
+References:
+- [SLSA v1.2 provenance](https://slsa.dev/spec/v1.2/provenance)
+- [W3C PROV-O Recommendation](https://www.w3.org/TR/prov-o/)
+
 ## Current verification status
 
 - Registry membership: proposed entry is discovery-only; CI must validate registry structure.
