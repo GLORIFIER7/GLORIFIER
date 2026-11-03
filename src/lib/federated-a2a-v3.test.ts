@@ -1,4 +1,5 @@
 import { FEDERATED_A2A_V3_LIFECYCLE, FEDERATED_A2A_V3_VERSION, getFederatedA2AV3Policy, createFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, type FederatedA2AQuery } from './federated-a2a-v3';
+import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
