@@ -105,6 +105,8 @@ test('memory fallback initializes explicitly and maintains task lifecycle heartb
 });
 
 test('memory fallback supports terminal status updates and fails closed on unscoped reads', async () => {
+  delete process.env.DATABASE_URL;
+  assert.equal(await initializeAgentRuntimePersistence(), false);
   const task = await createAgentTask({ capability: 'research', objective: 'Verify terminal statuses.', requester: 'agent-runtime-test' });
   await updateAgentTask(task.id, { status: 'running' });
   const failed = await updateAgentTask(task.id, { status: 'failed', error: 'test failure' });
@@ -121,6 +123,8 @@ test('memory fallback supports terminal status updates and fails closed on unsco
 });
 
 test('memory task ordering uses last update and filters requesters before the limit', async () => {
+  delete process.env.DATABASE_URL;
+  assert.equal(await initializeAgentRuntimePersistence(), false);
   const older = await createAgentTask({ capability: 'research', objective: 'Older task.', requester: 'agent-runtime-test' });
   await new Promise((resolve) => setTimeout(resolve, 10));
   const newer = await createAgentTask({ capability: 'research', objective: 'Newer task.', requester: 'agent-runtime-test' });
@@ -198,6 +202,8 @@ test('durable state is database-backed and slow heartbeats do not block task com
 });
 
 test('durable agent task insertion rejects invalid requesters and does not accept failed writes', async () => {
+  delete process.env.DATABASE_URL;
+  assert.equal(await initializeAgentRuntimePersistence(), false);
   const failingSaveStore = {
     initialize: async () => undefined,
     recoverInterruptedTasks: async () => 1,
