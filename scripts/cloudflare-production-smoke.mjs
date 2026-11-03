@@ -247,21 +247,58 @@ const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
 const fetchProductionBuildInfo = (options) =>
   fetch(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
 
+const isAsciiHex = (value, expectedLength) => {
+  if (typeof value !== 'string' || value.length !== expectedLength) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpperHex = code >= 65 && code <= 70;
+    const isLowerHex = code >= 97 && code <= 102;
+    if (!isDigit && !isUpperHex && !isLowerHex) return false;
+  }
+  return true;
+};
+
+const isAsciiDecimal = (value) => {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 20) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+};
+
+const isCloudflareWorkerVersionId = (value) => {
+  if (typeof value !== 'string' || value.length !== 36) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (index === 8 || index === 13 || index === 18 || index === 23) {
+      if (value[index] !== '-') return false;
+    } else {
+      const code = value.charCodeAt(index);
+      const isDigit = code >= 48 && code <= 57;
+      const isUpperHex = code >= 65 && code <= 70;
+      const isLowerHex = code >= 97 && code <= 102;
+      if (!isDigit && !isUpperHex && !isLowerHex) return false;
+    }
+  }
+  return true;
+};
+
 export const validateBuildInfo = (body, expectedCommit) => {
-  assert.ok(typeof expectedCommit === 'string' && /^[0-9a-f]{40}$/i.test(expectedCommit),
+  assert.ok(isAsciiHex(expectedCommit, 40),
     'expected Git commit SHA must be a 40-character hexadecimal value');
   assert.equal(body?.ok, true, 'build-info must report ok=true');
   assert.equal(body?.status, 'source-provenance-verified');
   assert.equal(body?.repository, 'https://github.com/GLORIFIER7/GLORIFIER');
-  assert.ok(/^[0-9a-f]{40}$/i.test(body?.git?.commit || ''),
+  assert.ok(isAsciiHex(body?.git?.commit, 40),
     'build-info must expose a 40-character source commit SHA');
   assert.equal(body.git.commit.toLowerCase(), expectedCommit.toLowerCase(),
     'deployed Worker source commit does not match the expected commit');
   assert.equal(body?.git?.ref, 'refs/heads/main',
     'production Worker must identify the protected main branch');
-  assert.ok(/^\d{1,20}$/.test(body?.git?.runId || ''),
+  assert.ok(isAsciiDecimal(body?.git?.runId),
     'build-info must expose the GitHub Actions run ID');
-  assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body?.worker?.versionId || ''),
+  assert.ok(isCloudflareWorkerVersionId(body?.worker?.versionId),
     'build-info must expose the Cloudflare Worker version ID');
   assert.ok(typeof body?.worker?.versionTimestamp === 'string' &&
     Number.isFinite(Date.parse(body.worker.versionTimestamp)),
@@ -275,7 +312,7 @@ export const verifyBuildProvenance = async (
   fetchRequest = fetchProductionBuildInfo,
   expectedCommit = process.env.GITHUB_SHA,
 ) => {
-  assert.ok(typeof expectedCommit === 'string' && /^[0-9a-f]{40}$/i.test(expectedCommit),
+  assert.ok(isAsciiHex(expectedCommit, 40),
     'expected Git commit SHA must be a 40-character hexadecimal value');
   console.log('GLORIFIER production smoke: verifying exact deployed source commit and Cloudflare version');
   const response = await requestJson(fetchRequest);
