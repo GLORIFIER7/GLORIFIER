@@ -128,7 +128,7 @@ async function probe(d:ProviderDefinition):Promise<DiscoveredProvider> {
  const started=Date.now();
  try {
   let result:{response:Response;text:string;body:any};
-  if(d.id==='gemini') result=await fetchJson(providerRequestUrl(requestEndpoint, '/models', { key: env(d.keyEnv) }),{accept:'application/json'});
+  if(d.id==='gemini') result=await fetchJson(providerRequestUrl(requestEndpoint, '/models'),{accept:'application/json','x-goog-api-key':env(d.keyEnv)});
   else if(d.id==='anthropic') result=await fetchJson(providerRequestUrl(requestEndpoint, '/models'),{accept:'application/json','x-api-key':env(d.keyEnv),'anthropic-version':'2023-06-01',...(env(d.workspaceIdEnv)?{'anthropic-workspace-id':env(d.workspaceIdEnv)}:{})});
   else if(d.id==='ollama') result=await fetchJson(providerRequestUrl(requestEndpoint, '/api/tags'),{accept:'application/json',...(env(d.keyEnv)?{authorization:'Bearer '+env(d.keyEnv)}:{})});
   else result=await fetchJson(modelListUrl(requestEndpoint),{accept:'application/json',authorization:'Bearer '+env(d.keyEnv)});
