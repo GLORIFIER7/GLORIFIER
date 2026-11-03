@@ -1885,10 +1885,6 @@ const run = async (): Promise<void> => {
         assert.equal(new URL(getCapturedRequest().url).pathname, '/api/test-routing');
         assert.equal(new URL(getCapturedRequest().url).searchParams.get('target'), 'https://evil.example/path');
 
-        upstreamResponse = new Response('{"ok":true}', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
         upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
 
         const openSeaServerError = await worker.fetch(
