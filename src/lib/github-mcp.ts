@@ -592,11 +592,11 @@ const handleJsonRpc = (
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
+  if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
+  if (!Object.prototype.hasOwnProperty.call(message, 'id')) return emptyNotificationResponse();
 
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
-  if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
-  if (!Object.prototype.hasOwnProperty.call(message, 'id')) return emptyNotificationResponse();
   return protocolMode.mode === 'modern'
     ? handleModernJsonRpcMethod(message, id)
     : handleLegacyJsonRpcMethod(message, id);
