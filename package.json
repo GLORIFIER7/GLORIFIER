@@ -31,7 +31,7 @@
     "test:geas-scientist": "tsx src/lib/governance/geas-architecture-scientist.test.ts",
     "test:geas-focus-invoice-reconciliation": "node --import tsx/esm --test src/lib/governance/geas-focus-invoice-reconciliation.test.ts",
     "test:geas-claim-verification": "node --import tsx/esm --test src/lib/governance/geas-claim-verification.test.ts",
-    "test:intelligence-pipeline-workflow": "node scripts/intelligence-pipeline-workflow.test.mjs",
+    "test:intelligence-pipeline-workflow": "node --test scripts/intelligence-pipeline-workflow.test.mjs",
     "test:otel-runtime-verification": "node --import tsx/esm --test src/lib/governance/otel-runtime-verification.test.ts",
     "test:geas-state-reconciliation": "node --import tsx/esm --test src/lib/governance/geas-architecture-reconciliation.test.ts",
     "daemon:run": "tsx src/lib/glorifier-daemon.ts",
@@ -83,7 +83,7 @@
     "test:provider-routing": "node --import tsx/esm --test src/lib/ai/registry-routing.test.ts",
     "test:provider-model-catalog": "node --import tsx/esm --test src/lib/ai/provider-model-catalog.test.ts",
     "test:a2a-v1": "tsx src/lib/a2a-v1.test.ts",
-    "test:a2a-runtime": "tsx src/lib/a2a-runtime.test.ts",
+    "test:a2a-runtime": "node --import tsx/esm --test src/lib/a2a-runtime.test.ts",
     "test:agent-persistence-bootstrap": "tsx src/lib/agent-persistence-bootstrap.test.ts",
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
     "test:governance-loop": "node --import tsx/esm --test src/lib/governance-loop.test.ts",
@@ -95,7 +95,8 @@
     "test:provider-abort": "tsx src/lib/ai/providers/provider-abort.test.ts",
     "test:postgres-pool": "tsx src/lib/db/postgres.test.ts",
     "test:neon-worker": "tsx src/lib/neon-worker.test.ts",
-    "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs"
+    "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs",
+    "test:gitignore-generated-artifacts": "node --test scripts/gitignore-generated-artifacts.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
