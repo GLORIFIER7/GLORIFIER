@@ -1,4 +1,4 @@
-// Gravatar uses the MD5 digest of a normalized email address.
+// Gravatar uses a SHA-256 digest of a normalized email address.
 // This helper is intentionally kept server-side when possible so email addresses
 // are not exposed in browser code or URLs.
 import { createHash } from "node:crypto";
