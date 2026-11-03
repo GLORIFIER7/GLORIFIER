@@ -87,9 +87,8 @@ void test('A2A v1 Agent Card advertises a valid protocol and requires owner appr
   assert.throws(() => buildA2AAgentCard('https://example.com/path'), /origin/);
 });
 
-void test('A2A JSON-RPC creates tasks for the authenticated requester and hides cross-user tasks', async () => {
-  const { created, existing, handler } = createTestHandler();
-
+void test('A2A SendMessage creates a task for the authenticated requester', async () => {
+  const { created, handler } = createTestHandler();
   const submit = await handler({
     jsonrpc: '2.0',
     id: 'request-1',
@@ -102,9 +101,10 @@ void test('A2A JSON-RPC creates tasks for the authenticated requester and hides 
       },
     },
   });
+
   assert.equal(submit.id, 'request-1');
   assert.equal(submit.error, undefined);
-  const submitResult = submit.result as {
+  const submittedTask = (submit.result as {
     task: {
       id: string;
       status: {
@@ -112,8 +112,7 @@ void test('A2A JSON-RPC creates tasks for the authenticated requester and hides 
         message: { role: string; contextId: string; taskId: string; parts: Array<{ text: string }> };
       };
     };
-  };
-  const submittedTask = submitResult.task;
+  }).task;
   assert.equal(submittedTask.id, 'a2a-task-1');
   assert.equal(submittedTask.status.state, 'TASK_STATE_SUBMITTED');
   assert.match(submittedTask.status.message.parts[0].text, /human approval/i);
@@ -124,7 +123,10 @@ void test('A2A JSON-RPC creates tasks for the authenticated requester and hides 
   assert.equal(created[0].requesterAgentId, 'verified-user-42');
   assert.equal(created[0].capability, 'a2a-message-intake');
   assert.equal(created[0].objective, 'Review this proposal');
+});
 
+void test('A2A GetTask returns only tasks owned by the authenticated requester', async () => {
+  const { existing, handler } = createTestHandler();
   const getTask = await handler({
     jsonrpc: '2.0',
     id: 2,
