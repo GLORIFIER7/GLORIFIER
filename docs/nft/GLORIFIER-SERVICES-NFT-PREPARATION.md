@@ -1,64 +1,42 @@
 # GLORIFIER SERVICES NFT Preparation Record
 
-**Status:** PREPARED — OWNER-SUPPLIED CIDS RECORDED; INDEPENDENT CONTENT MATCH PENDING; NO DEPLOYMENT OR MINT  
-**Last updated:** 2026-10-20  
+**Status:** EXISTING OFFICIAL LOGO #001 MINTED AND VERIFIED; REMAINING PHOTO CANDIDATES IN PREPARATION  
+**Last updated:** 2026-11-03  
 **Repository:** GLORIFIER7/GLORIFIER
 
-## Purpose and safety boundary
+## Existing Official Logo #001
 
-This record preserves the current NFT preparation details for the original GLORIFIER SERVICES artwork. It is a planning and evidence record, not proof that an NFT has been minted.
+The official-logo edition already exists on Ethereum Mainnet and must not be minted again.
 
-- Preserve the existing artwork and metadata CIDs; do not replace or regenerate the artwork.
-- Current review target: **Ethereum mainnet ERC-721**, as explicitly requested for this review on 2026-10-20. An earlier preparation record mentioned Base mainnet; that historical target does not override the current request. No deployment is authorized.
-- User-selected implementation: **custom ERC-721 contract**.
-- No contract has been deployed by this workflow.
-- No wallet has been asked to sign a transaction.
-- No payment has been made and no mint transaction has been submitted.
-- Do not deploy, sign, pay, or mint without separate explicit user authorization after reviewing the exact transaction and costs.
-- Budget stated by the user: zero; mainnet gas cannot be assumed to be free.
+- Contract: `0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7`
+- Token standard: ERC-721 SeaDrop proxy
+- Token ID: `1`
+- Current owner and `ownerOf(1)`: `0xe0589195995cb373c856953cfaddaeeaf2088a06`
+- On-chain `tokenURI(1)`: `ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1`
+- Mint transaction: `0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9` (successful receipt)
+- Published metadata name: `GLORIFIER SERVICES — Official Logo #001`
+- Published image CID: `bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa`
 
-## Content-addressed assets
+The on-chain metadata JSON was retrieved from Pinata and Filebase on 2026-11-03 and both gateways returned the same name, description and image URI. The Filebase image gateway returned the expected circular logo depiction and EST 2022. The committed `GLORIFIER SERVICES.png` is 55,886 bytes and its freshly computed SHA-256 equals the image CID sha2-256 digest; the current repository file is byte-for-byte identical to the published token image. The older historical source PNG remains a distinct file with a different hash.
 
-- **Owner-designated artwork CID:** `QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- **Expected artwork URI in metadata:** `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- **Historical owner-supplied metadata CID (not final):** `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX`
-- **Final corrected metadata URI:** NOT SET; publish the reviewed repository draft to IPFS and verify the resulting CID before any deployment.
-- **Original artwork reference:** `https://gravatar.com/glorifier7`
-- **Artwork source URL previously used:** `https://1.gravatar.com/avatar/2debdba15d0c08ab78691048092e465dc74c530e3447e3f584a23e7165272c33?size=512&d=initials`
-- **Previously recorded artwork SHA-256:** `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`
+The recorded historical source PNG SHA-256 `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` differs from the current canonical repository image hash `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. The current repository file matches the on-chain image CID exactly; only the older historical PNG remains a distinct source file.
 
-The SHA-256 above is a previously recorded value, not a fresh calculation. The owner reports the new links load. The earlier Filebase pinning report referred to the previous CIDs; it does not establish pinning for the newly designated CIDs. The exact metadata-to-artwork reference and provider pin receipts for the new CIDs have not been independently verified in this session.
+## Remaining repository photo candidates
 
-## Metadata verification attempt — 2026-10-14
+At main commit `cac4d64ac8c367eabf50a1c3717a1b823af45a45`, the repository contains 99 image paths and 84 unique Git blob contents overall. The JPG/JPEG scope contains 96 paths and 82 unique file blobs. Other formats are listed separately in `nft/image-inventory-2026-11-03.json`.
 
-Attempted to retrieve the metadata CID and artwork CID through public IPFS gateways, including `ipfs.io` and `dweb.link`. The available fetch tools timed out or failed to retrieve the content. This is **inconclusive**: it does not prove that the CIDs are invalid or that the content is absent. It does mean the JSON contents and actual image rendering could not be verified in this session.
+The 82 JPEGs are inventory candidates only. They still need visual classification, provenance/rights review, per-item metadata, image and metadata CID verification, and a decision on which items should be minted.
 
-**Do not proceed to deployment until the owner-supplied metadata JSON is retrieved and its `image` field is confirmed to match the artwork URI above.**
+## Existing custom contract source
 
-## Required checks before deployment
+`nft/contracts/src/GLORIFIERServicesLogo721.sol` remains a review/test-only single-edition contract. It is not deployed. The already minted Official Logo #001 is on the existing SeaDrop proxy above. Do not deploy or mint a duplicate Logo #001 with the review-only contract.
 
-1. Publish the approved corrected JSON from `nft/metadata.json` to IPFS and record the newly returned CID; do not treat the historical metadata CID as final.
-2. Retrieve that new CID through two independent gateways and confirm the JSON `image` field exactly matches `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`.
-3. Open the owner-designated artwork CID through a working IPFS gateway and confirm it renders the intended original logo.
-4. Recalculate the source artwork SHA-256 from the exact original file and compare it with the recorded value.
-5. Prepare and review the custom ERC-721 source, including token URI handling and ownership/mint controls.
-6. For any future deployment proposal, obtain a live Ethereum mainnet deployment and mint gas estimate separately; do not broadcast either transaction without separate explicit authorization.
-7. Show the exact contract code, deployment parameters, mint recipient, token URI, and total estimated costs for user review.
-8. Stop and obtain separate explicit authorization before any deployment, wallet signing, payment, or minting.
+## Remaining transaction controls
 
-## Current evidence status
+- The previous destination candidate `0x393c19Ff12e1624181fBF1938b80982b9dfC427` is invalid: 39 hex characters after `0x`. Do not guess the missing character.
+- The observed current owner of token ID 1 is not automatically the intended recipient for future items.
+- The remaining candidate collection requires a suitable multi-item contract/program; the one-token review contract is insufficient.
+- Prepare exact per-item metadata and content verification records before a transaction plan.
+- Present the exact network, standard/program, items, token URIs, recipient, simulation and current costs for transaction-specific approval before any further signing, deployment, minting or spending.
 
-| Item | Status |
-|---|---|
-| Owner-designated artwork and metadata CIDs recorded | RECORDED |
-| Filebase pinning for designated new CIDs | NOT ESTABLISHED; prior report referred to older CIDs |
-| Metadata JSON contents and image field | FINAL CORRECTED CID NOT YET SET; INDEPENDENT VERIFICATION PENDING |
-| Live artwork rendering from IPFS | OWNER REPORTS LINK LOADS; INDEPENDENT VERIFICATION PENDING |
-| Fresh SHA-256 recalculation | NOT PERFORMED |
-| Target network and implementation | ETHEREUM MAINNET / CUSTOM ERC-721 review only; no deployment authorized |
-| Contract source reviewed by user | NOT YET |
-| Contract deployed | NO |
-| Wallet transaction signed | NO |
-| NFT minted | NO |
-
-**Do not describe this NFT as minted, deployed, or fully verified.** This record documents preparation only.
+No new transaction was submitted during this update.

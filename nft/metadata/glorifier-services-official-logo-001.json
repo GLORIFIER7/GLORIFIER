@@ -1,7 +1,7 @@
 {
   "name": "GLORIFIER SERVICES — Official Logo #001",
-  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork. The retrieved IPFS image bytes have SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790; they differ from the previously recorded source PNG hash 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513, so byte-for-byte identity with that historical file is not claimed.",
-  "image": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
+  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The current committed repository asset GLORIFIER SERVICES.png is 55,886 bytes and has SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790, matching the image CID referenced by the live Ethereum Mainnet token ID 1. The older historical source PNG has SHA-256 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513 and is a different file; byte-for-byte identity with that historical file is not claimed.",
+  "image": "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
   "attributes": [
     {
       "trait_type": "Brand",
@@ -9,7 +9,7 @@
     },
     {
       "trait_type": "Artwork identity",
-      "value": "Owner-confirmed intended artwork; byte-for-byte match to historical source PNG not established"
+      "value": "Current repository asset GLORIFIER SERVICES.png is byte-for-byte verified against the live token image CID digest; an older historical source PNG has a different hash."
     },
     {
       "trait_type": "Edition",

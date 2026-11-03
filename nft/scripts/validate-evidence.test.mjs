@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import test from "node:test";
+import { validateEvidenceBundle } from "./validate-evidence.mjs";
+
+const load = async (path) => JSON.parse(await readFile(path, "utf8"));
+const makeBundle = async () => {
+  const png = await readFile("GLORIFIER SERVICES.png");
+  return {
+    registry: await load("nft/registry.json"),
+    inventory: await load("nft/image-inventory-2026-11-03.json"),
+    draftMetadata: await load("nft/metadata.json"),
+    secondaryDraft: await load("nft/metadata/glorifier-services-official-logo-001.json"),
+    publishedMetadata: await load("nft/metadata/observed-ethereum-mainnet-official-logo-001.json"),
+    observation: await load("nft/metadata/ethereum-mainnet-token-001-observation.json"),
+    repositoryFile: {
+      bytes: png.length,
+      sha256: createHash("sha256").update(png).digest("hex"),
+      gitBlobSha: execFileSync("/usr/bin/git", ["hash-object", "--stdin"], {
+        input: png,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024
+      }).trim()
+    }
+  };
+};
+
+test("accepts the reconciled Official Logo #001 evidence bundle", async () => {
+  const bundle = await makeBundle();
+  assert.deepEqual(validateEvidenceBundle(bundle), []);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.token_uri_parts.join(""), bundle.registry.metadata.final_corrected_uri);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.owner_of_token_1_parts.join(""), bundle.observation.reads.ownerOf_1);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.token_image_uri_parts.join(""), bundle.publishedMetadata.image);
+  assert.equal(bundle.observation.reads.tokenURI_1_parts.join(""), bundle.registry.metadata.final_corrected_uri);
+});
+
+test("rejects repository draft metadata pointing to an obsolete image CID", async () => {
+  const bundle = await makeBundle();
+  bundle.draftMetadata.image = "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv";
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("NFT metadata.json image CID")));
+});
+
+test("rejects an unresolved final metadata CID after on-chain verification", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.metadata.final_corrected_cid = null;
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Registry final metadata root CID")));
+});
+
+test("rejects contradictory mint interpretation", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.existing_contract_candidate.onchain_observation.interpretation = "This does not prove the token is Official Logo #001.";
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("stale unverified-artwork")));
+});
+
+test("rejects inventory count drift", async () => {
+  const bundle = await makeBundle();
+  bundle.inventory.counts.unique_jpeg_jpg_blobs += 1;
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Unique JPEG count")));
+});
+
+test("rejects source image digest drift", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.artwork.onchain_token_image.repository_asset_sha256 = "0".repeat(64);
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual repository image SHA-256")));
+});
+
+test("rejects a missing note for the exact on-chain motto wording difference", async () => {
+  const bundle = await makeBundle();
+  bundle.observation.metadata_consistency_notes = [];
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Description/Motto wording")));
+});
+
+test("rejects a malformed recipient being marked valid", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.recipient_candidate.validation.valid_evm_address = true;
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Malformed recipient")));
+});
+
+test("rejects a changed repository PNG byte digest", async () => {
+  const bundle = await makeBundle();
+  bundle.repositoryFile.sha256 = "0".repeat(64);
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual repository image SHA-256")));
+});
+
+test("rejects a changed repository PNG Git blob identity", async () => {
+  const bundle = await makeBundle();
+  bundle.repositoryFile.gitBlobSha = "0".repeat(40);
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Git blob SHA")));
+});
+
+test("rejects a stale or unverified registry artwork-match status", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.existing_contract_candidate.onchain_observation.token_uri_and_artwork_match = "NOT_VERIFIED";
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("artwork-match status")));
+});
+
+
+test("rejects inconsistent segmented identifiers in the official logo summary", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.official_logo_001.image_uri_parts = ["ipfs://", "wrong"];
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Official Logo #001 image URI segments")));
+});
+
+test("rejects reintroduced unsegmented public owner and token URIs in the summary", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.official_logo_001.owner = bundle.observation.reads.owner;
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("must not duplicate public high-entropy")));
+});

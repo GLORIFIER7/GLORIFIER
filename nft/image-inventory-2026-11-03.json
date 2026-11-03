@@ -1,24 +1,35 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-11-03T02:59:12.233Z",
+  "generated_at": "2026-11-03",
   "source": {
     "repository": "GLORIFIER7/GLORIFIER",
     "branch": "main",
-    "commit": "cd72f72680978f41a3bc80a47eb4c4a993b52307"
+    "commit": "cac4d64ac8c367eabf50a1c3717a1b823af45a45"
   },
-  "scope": "JPG/JPEG image paths only; exact duplicate contents are grouped by Git blob SHA.",
+  "scope": "JPG/JPEG NFT candidate scope, with all other repository image formats inventoried separately. Exact duplicate contents are grouped by Git blob SHA.",
   "counts": {
-    "all_image_paths": 98,
+    "all_image_paths": 99,
     "unique_all_image_blobs": 84,
     "jpeg_jpg_paths": 96,
-    "unique_jpeg_jpg_blobs": 82
+    "unique_jpeg_jpg_blobs": 82,
+    "non_jpeg_paths": 3,
+    "unique_non_jpeg_blobs": 2
   },
-  "status": "INVENTORY_ONLY_NOT_VISUALLY_CLASSIFIED_NOT_MINTED",
+  "status": "INVENTORY_ONLY_NOT_VISUALLY_CLASSIFIED; OFFICIAL_LOGO_001_ALREADY_MINTED",
+  "known_existing_minted_artwork": {
+    "name": "GLORIFIER SERVICES — Official Logo #001",
+    "network": "Ethereum Mainnet",
+    "contract": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
+    "token_id": "1",
+    "status": "MINTED_AND_METADATA_VERIFIED",
+    "image_cid": "bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
+    "note": "Do not mint this existing edition again."
+  },
   "mint_readiness": {
     "ready": false,
-    "reason": "Each asset still requires visual/content classification, provenance and rights review, final per-item metadata, verified content storage, network/standard selection, valid recipient verification, and transaction-specific cost review."
+    "reason": "Each remaining selected item requires visual classification, provenance/rights review, per-item metadata and content verification, destination validation, a suitable multi-item contract/program, transaction simulation and transaction-specific approval."
   },
-  "deduplication": "Git blob SHA identifies byte-identical file contents in this commit; it does not establish visual similarity between differently encoded images.",
+  "deduplication": "Git blob SHA groups byte-identical repository files; it does not collapse visual near-duplicates with different encodings.",
   "assets": [
     {
       "canonical_path": "1793200485140.jpg",
@@ -539,6 +550,22 @@
       "git_blob_sha": "3b3eca996b40ee0914e039a259ac672fbb4f44a9",
       "size_bytes": 14995,
       "alias_paths": []
+    }
+  ],
+  "other_image_assets": [
+    {
+      "canonical_path": "assets/artwork/file_000000002a8c8207a856c21fae33a9c5.png",
+      "git_blob_sha": "cd4b7b1669ac801a0d622669c302bb375c15a9aa",
+      "size_bytes": 161124,
+      "alias_paths": []
+    },
+    {
+      "canonical_path": "GLORIFIER SERVICES.png",
+      "git_blob_sha": "c01f73f2551db4fb98573e87b8bd80c38a5dc0cc",
+      "size_bytes": 55886,
+      "alias_paths": [
+        "assets/bafybeidhd7qobc7ralefgnkvuom4vs5etkvo3wq4grtaxigfw2ztqfsvb4 (3).png"
+      ]
     }
   ]
 }
