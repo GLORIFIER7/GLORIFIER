@@ -1,7 +1,8 @@
 /**
  * Stateless, read-only MCP Streamable HTTP endpoint for the public GLORIFIER repository.
  *
- * This server intentionally exposes no GitHub write operations and carries no GitHub credential.
+ * This server exposes no GitHub write operations. It uses anonymous public API access by default and
+ * supports an optional, least-privilege read token supplied only by the Worker secret binding.
  * Every upstream request is pinned to api.github.com and the single public repository below.
  */
 
@@ -262,7 +263,7 @@ const isTrustedGithubApiUrl = (url: URL): boolean =>
   && !url.username
   && !url.password;
 
-const fetchGithubApi = (url: URL): Promise<Response> => {
+const fetchGithubApi = (url: URL, readToken?: string): Promise<Response> => {
   if (!isTrustedGithubApiUrl(url)) {
     throw new Error('Blocked GitHub API request outside the trusted HTTPS origin.');
   }
@@ -274,13 +275,16 @@ const fetchGithubApi = (url: URL): Promise<Response> => {
   if (!isTrustedGithubApiUrl(requestUrl)) {
     throw new Error('Blocked GitHub API request outside the trusted HTTPS origin.');
   }
+  const requestHeaders = new Headers({
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': USER_AGENT,
+  });
+  const normalizedToken = readToken?.trim();
+  if (normalizedToken) requestHeaders.set('Authorization', `Bearer ${normalizedToken}`);
   return fetch(requestUrl.href, {
     method: 'GET',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': USER_AGENT,
-    },
+    headers: requestHeaders,
     redirect: 'manual',
     signal: AbortSignal.timeout(8_000),
   });
@@ -300,9 +304,9 @@ const parseGithubJson = (text: string): unknown => {
   }
 };
 
-const readGithubJson = async (pathname: string, query?: URLSearchParams): Promise<unknown> => {
+const readGithubJson = async (pathname: string, query?: URLSearchParams, readToken?: string): Promise<unknown> => {
   const url = createGithubApiUrl(pathname, query);
-  const response = await fetchGithubApi(url);
+  const response = await fetchGithubApi(url, readToken);
   const successfulResponse = await assertGithubApiSuccess(response);
   const body = await readBoundedResponseText(successfulResponse);
   return parseGithubJson(body);
@@ -351,24 +355,24 @@ const decodeGithubTextFile = (data: JsonRecord): string => {
   return decodeUtf8(bytes, 'GitHub file content was not valid UTF-8.');
 };
 
-const readGithubFile = async (path: string, ref: string): Promise<{ path: string; ref: string; content: string }> => {
+const readGithubFile = async (path: string, ref: string, readToken?: string): Promise<{ path: string; ref: string; content: string }> => {
   repositoryPathSegments(path);
   assertValidGitReference(ref);
   const encodedPath = encodeURIComponent(path).replaceAll('%2F', '/');
-  const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }));
+  const data = await readGithubJson(`/repos/${OWNER}/${REPOSITORY}/contents/${encodedPath}`, new URLSearchParams({ ref }), readToken);
   if (!isRecord(data)) throw new Error('The requested path is not a supported text file.');
   return { path, ref, content: decodeGithubTextFile(data) };
 };
 
 const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
 
-const getRepositoryTool = (): Promise<unknown> =>
-  readGithubJson(`/repos/${OWNER}/${REPOSITORY}`);
+const getRepositoryTool = (readToken?: string): Promise<unknown> =>
+  readGithubJson(`/repos/${OWNER}/${REPOSITORY}`, undefined, readToken);
 
 const isValidPerPage = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20;
 
-const listPullRequestsTool = (args: unknown): Promise<unknown> => {
+const listPullRequestsTool = (args: unknown, readToken?: string): Promise<unknown> => {
   const input = toolArguments(args);
   const state = input.state === undefined ? 'open' : input.state;
   if (state !== 'open' && state !== 'closed' && state !== 'all') {
@@ -381,36 +385,36 @@ const listPullRequestsTool = (args: unknown): Promise<unknown> => {
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/pulls`, new URLSearchParams({
     state,
     per_page: String(perPage),
-  }));
+  }), readToken);
 };
 
-const listWorkflowRunsTool = (args: unknown): Promise<unknown> => {
+const listWorkflowRunsTool = (args: unknown, readToken?: string): Promise<unknown> => {
   const input = toolArguments(args);
   const perPage = input.per_page === undefined ? 10 : input.per_page;
   if (!isValidPerPage(perPage)) {
     throw new Error('per_page must be an integer between 1 and 20.');
   }
-  return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }));
+  return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }), readToken);
 };
 
-const readFileTool = (args: unknown): Promise<unknown> => {
+const readFileTool = (args: unknown, readToken?: string): Promise<unknown> => {
   const input = toolArguments(args);
   if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
   const ref = input.ref === undefined ? 'main' : input.ref;
   if (typeof ref !== 'string') throw new Error('ref must be a string.');
-  return readGithubFile(input.path, ref);
+  return readGithubFile(input.path, ref, readToken);
 };
 
-const callTool = (name: string, args: unknown): Promise<unknown> => {
+const callTool = (name: string, args: unknown, readToken?: string): Promise<unknown> => {
   switch (name) {
     case 'github_get_repository':
-      return getRepositoryTool();
+      return getRepositoryTool(readToken);
     case 'github_list_open_pull_requests':
-      return listPullRequestsTool(args);
+      return listPullRequestsTool(args, readToken);
     case 'github_list_workflow_runs':
-      return listWorkflowRunsTool(args);
+      return listWorkflowRunsTool(args, readToken);
     case 'github_read_file':
-      return readFileTool(args);
+      return readFileTool(args, readToken);
     default:
       throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
   }
@@ -467,6 +471,7 @@ const handleToolCall = async (
   id: JsonRpcId,
   paramsValue: unknown,
   modern = false,
+  readToken?: string,
 ): Promise<Response> => {
   const params = isRecord(paramsValue) ? paramsValue : {};
   const respondWithToolResult = (result: JsonRecord): Response => jsonResponse({
@@ -481,7 +486,7 @@ const handleToolCall = async (
     });
   }
   try {
-    const result = await callTool(params.name, params.arguments);
+    const result = await callTool(params.name, params.arguments, readToken);
     return respondWithToolResult({ content: [{ type: 'text', text: resultText(result) }] });
   } catch (error) {
     const messageText = error instanceof Error ? error.message : 'GitHub request failed.';
@@ -495,6 +500,7 @@ const handleToolCall = async (
 const handleLegacyJsonRpcMethod = (
   message: McpMessage,
   id: JsonRpcId,
+  readToken?: string,
 ): Response | Promise<Response> => {
   switch (message.method) {
     case 'initialize':
@@ -504,7 +510,7 @@ const handleLegacyJsonRpcMethod = (
     case 'tools/list':
       return jsonResponse({ jsonrpc: '2.0', id, result: { tools } });
     case 'tools/call':
-      return handleToolCall(id, message.params);
+      return handleToolCall(id, message.params, false, readToken);
     default:
       return rpcError(id, -32601, 'Method not found.');
   }
@@ -513,6 +519,7 @@ const handleLegacyJsonRpcMethod = (
 const handleModernJsonRpcMethod = (
   message: McpMessage,
   id: JsonRpcId,
+  readToken?: string,
 ): Response | Promise<Response> => {
   switch (message.method) {
     case 'server/discover':
@@ -524,7 +531,7 @@ const handleModernJsonRpcMethod = (
         result: modernCompleteResult({ tools }),
       });
     case 'tools/call':
-      return handleToolCall(id, message.params, true);
+      return handleToolCall(id, message.params, true, readToken);
     default:
       // The modern stateless protocol has no initialize handshake or ping.
       return rpcError(id, -32601, 'Method not found.');
@@ -613,6 +620,7 @@ const resolveMcpProtocolMode = (
 const handleJsonRpc = (
   request: Request,
   message: McpMessage,
+  readToken?: string,
 ): Response | Promise<Response> => {
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
@@ -626,8 +634,8 @@ const handleJsonRpc = (
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
   return protocolMode.mode === 'modern'
-    ? handleModernJsonRpcMethod(message, id)
-    : handleLegacyJsonRpcMethod(message, id);
+    ? handleModernJsonRpcMethod(message, id, readToken)
+    : handleLegacyJsonRpcMethod(message, id, readToken);
 };
 
 const validateMcpRequestHeaders = async (request: Request): Promise<Response | null> => {
@@ -689,6 +697,7 @@ const enforceMcpToolRateLimit = async (
 export const githubMcpRoute = async (
   request: Request,
   rateLimiter: GithubMcpRateLimiter,
+  readToken?: string,
 ): Promise<Response> => {
   const headerFailure = await validateMcpRequestHeaders(request);
   if (headerFailure) return headerFailure;
@@ -698,5 +707,5 @@ export const githubMcpRoute = async (
 
   const rateLimitFailure = await enforceMcpToolRateLimit(request, parsed.message, rateLimiter);
   if (rateLimitFailure) return rateLimitFailure;
-  return handleJsonRpc(request, parsed.message);
+  return handleJsonRpc(request, parsed.message, readToken);
 };
