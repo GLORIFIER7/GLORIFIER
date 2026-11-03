@@ -27,6 +27,9 @@ test("accepts the reconciled Official Logo #001 evidence bundle", async () => {
   const bundle = await makeBundle();
   assert.deepEqual(validateEvidenceBundle(bundle), []);
   assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.token_uri_parts.join(""), bundle.registry.metadata.final_corrected_uri);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.owner_of_token_1_parts.join(""), bundle.observation.reads.ownerOf_1);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.token_image_uri_parts.join(""), bundle.publishedMetadata.image);
+  assert.equal(bundle.observation.reads.tokenURI_1_parts.join(""), bundle.registry.metadata.final_corrected_uri);
 });
 
 test("rejects repository draft metadata pointing to an obsolete image CID", async () => {
