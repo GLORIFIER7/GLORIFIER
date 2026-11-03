@@ -107,7 +107,7 @@ function reasonFor(
   if (status === 403) {
     return 'api_key_forbidden_or_access_denied';
   }
-  if (status === 402 || /spend|billing|credit|quota/i.test(body)) {
+  if (status === 402 || (status === 400 && /spend|billing|credit|quota/i.test(body))) {
     return 'quota_or_billing_limit';
   }
   if (status === 429) {
