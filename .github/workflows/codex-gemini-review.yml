@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Codex review/fix
         if: ${{ env.OPENAI_API_KEY != '' }}
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675
         with:
           openai-api-key: ${{ env.OPENAI_API_KEY }}
           permission-profile: ":workspace"
