@@ -21,7 +21,7 @@ export type CloudflareEnv = {
   GLORIFIER_RELEASE_REF?: string;
   GLORIFIER_RELEASE_RUN_ID?: string;
   MCP_RATE_LIMITER?: GithubMcpRateLimiter;
-  // Optional least-privilege GitHub PAT for Worker egress environments whose shared IPs are rate-limited.
+  // Optional least-privilege GitHub token for authenticated read-only API calls when anonymous egress is restricted.
   GITHUB_MCP_READ_TOKEN?: string;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
