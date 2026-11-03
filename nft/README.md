@@ -19,9 +19,9 @@ The official-logo NFT already exists on Ethereum Mainnet. Do not deploy a duplic
 | Mint transaction | [`0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9`](https://etherscan.io/tx/0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9) |
 | Receipt | SUCCESS |
 
-The live contract reads returned owner, ownerOf(1), name, symbol, totalSupply, and tokenURI. The exact tokenURI metadata JSON was retrieved from both Pinata and Filebase on 2026-11-03; both named Official Logo #001 and referenced the same image CID.
+The live contract reads returned owner, ownerOf(1), name, symbol, totalSupply, and tokenURI. The exact tokenURI metadata JSON was retrieved from both Pinata and Filebase on 2026-11-03; both named Official Logo #001 and referenced the same image CID. The returned description and separate Motto attribute use slightly different phrasings; both exact values are preserved verbatim in the evidence record rather than silently altering immutable published metadata.
 
-The image CID SHA-256 multihash is `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`, matching the previously recorded 55,886-byte retrieval from 2026-10-20. Filebase also returned the expected circular GLORIFIER SERVICES logo with EST 2022. The older historical source PNG hash `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` is different; raw-byte identity with that historical file is not claimed.
+The image CID SHA-256 multihash is `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. The committed `GLORIFIER SERVICES.png` was fetched from main commit `cac4d64ac8c367eabf50a1c3717a1b823af45a45` and measured 55,886 bytes, Git blob `c01f73f2551db4fb98573e87b8bd80c38a5dc0cc`, SHA-256 `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. Its SHA-256 exactly matches the live token image CID digest. Filebase also returned the expected circular GLORIFIER SERVICES logo with EST 2022. The older historical source PNG hash `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513` is different; that older file is not the current canonical repository asset.
 
 See `metadata/observed-ethereum-mainnet-official-logo-001.json` and `metadata/ethereum-mainnet-token-001-observation.json` for the gateway metadata and read-only chain observation.
 
