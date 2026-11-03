@@ -1,5 +1,14 @@
 import { strict as assert } from 'node:assert';
-import { assertNoIrreversibleExecutionWithoutApproval,bindApproval,verifyApprovalBinding,calculateCostPerVerifiedOutcome,createGovernedAction,createProblemDetails,deriveVerificationStatus,assertProductionProvenanceMatches } from './geas-enterprise-controls';
+import {
+  assertNoIrreversibleExecutionWithoutApproval,
+  assessProductionCommitMatch,
+  bindApproval,
+  verifyApprovalBinding,
+  calculateCostPerVerifiedOutcome,
+  createGovernedAction,
+  createProblemDetails,
+  deriveVerificationStatus,
+} from './geas-enterprise-controls';
 
 const action=createGovernedAction({contextId:'ctx-test',capability:'deployment:write',resource:'production',payload:{commit:'abc123'},authorityEnvelopeId:'env-1',policyVersion:'GEAS-POLICY-1',risk:'high',irreversible:true,humanApprovalRequired:true,status:'AUTHORIZED'});
 assert.throws(()=>assertNoIrreversibleExecutionWithoutApproval(action));
@@ -13,7 +22,50 @@ assert.throws(()=>bindApproval(action,'human-owner',24*60*60_000+1),/no greater 
 assert.equal(verifyApprovalBinding(action,{...approval,expiresAt:new Date(Date.now()-1_000).toISOString()}),false);
 assert.equal(verifyApprovalBinding(action,{...approval,revokedAt:new Date().toISOString()}),false);
 assert.equal(verifyApprovalBinding(action,{...approval,actionHash:'0'.repeat(64)}),false);
-assert.deepEqual(assertProductionProvenanceMatches('abc123',{contextId:'ctx-test',commitSha:'abc123',environment:'production',deployedAt:new Date().toISOString()}),{verified:true,reason:'deployment commit matches expected commit'});
+const expectedCommitSha = 'a'.repeat(40);
+const matchingCommit = assessProductionCommitMatch(expectedCommitSha, {
+  contextId: 'ctx-test',
+  commitSha: expectedCommitSha,
+  environment: 'production',
+  deployedAt: new Date().toISOString(),
+});
+assert.deepEqual(matchingCommit, {
+  status: 'MATCH',
+  commitMatches: true,
+  deploymentAuthenticity: 'NOT_VERIFIED',
+  runtimeHealth: 'NOT_VERIFIED',
+  reason: 'commit identifiers match; deployment authenticity and runtime health remain not verified',
+});
+assert.equal('verified' in matchingCommit, false,
+  'a matching commit identifier must never be exposed as deployment verification');
+
+const mismatchedCommit = assessProductionCommitMatch(expectedCommitSha, {
+  contextId: 'ctx-test',
+  commitSha: 'b'.repeat(40),
+  environment: 'production',
+  deployedAt: new Date().toISOString(),
+});
+assert.equal(mismatchedCommit.status, 'MISMATCH');
+assert.equal(mismatchedCommit.commitMatches, false);
+assert.equal(mismatchedCommit.deploymentAuthenticity, 'NOT_VERIFIED');
+
+const nonProductionCommit = assessProductionCommitMatch(expectedCommitSha, {
+  contextId: 'ctx-test',
+  commitSha: expectedCommitSha,
+  environment: 'staging',
+  deployedAt: new Date().toISOString(),
+});
+assert.equal(nonProductionCommit.status, 'UNKNOWN');
+assert.equal(nonProductionCommit.commitMatches, null);
+
+const incompleteCommitDigest = assessProductionCommitMatch('abc123', {
+  contextId: 'ctx-test',
+  commitSha: 'abc123',
+  environment: 'production',
+  deployedAt: new Date().toISOString(),
+});
+assert.equal(incompleteCommitDigest.status, 'UNKNOWN');
+assert.equal(incompleteCommitDigest.commitMatches, null);
 assert.equal(deriveVerificationStatus({deployment:{verified:true},authentication:{verified:true},authorization:{verified:true},evidence:{authoritative:true,fresh:true,contradicted:false},e2e:{passed:false}}),'PARTIALLY_VERIFIED');
 const economics=calculateCostPerVerifiedOutcome({contextId:'ctx-test',workload:'test',computeCost:2,infrastructureCost:1,humanReviewCost:1,currency:'USD',verifiedOutcomeValue:20,verifiedOutcome:true});
 assert.equal(economics.totalCost,4); assert.equal(economics.costPerVerifiedOutcome,0.2);
