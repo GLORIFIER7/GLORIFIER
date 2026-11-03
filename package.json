@@ -64,7 +64,7 @@
     "test:protected-api-paths": "node --import tsx/esm --test src/lib/auth/protected-api-paths.test.ts",
     "test:asap-bridge": "node --import tsx/esm --test src/lib/asap-bridge.test.ts",
     "test:solana-provenance": "tsx scripts/validate-solana-provenance.ts",
-    "test:llama-cloud": "tsx src/lib/llama-cloud.test.ts",
+    "test:llama-cloud": "node --import tsx/esm --test src/lib/llama-cloud.test.ts",
     "test:nvidia-provider": "node --import tsx/esm --test src/lib/ai/providers/nvidia-provider.test.ts",
     "test:new-id": "node --import tsx/esm --test src/lib/new-id.test.ts",
     "test:glr-common": "node --import tsx/esm --test src/lib/glr-rpc-verifier-common.test.ts",
@@ -96,7 +96,8 @@
     "test:postgres-pool": "tsx src/lib/db/postgres.test.ts",
     "test:neon-worker": "tsx src/lib/neon-worker.test.ts",
     "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs",
-    "test:gitignore-generated-artifacts": "node --test scripts/gitignore-generated-artifacts.test.mjs"
+    "test:gitignore-generated-artifacts": "node --test scripts/gitignore-generated-artifacts.test.mjs",
+    "test:langsmith": "node --import tsx/esm --test src/lib/observability/langsmith.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
