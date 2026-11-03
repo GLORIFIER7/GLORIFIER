@@ -16,7 +16,7 @@ const valid = [
 ].join('\n');
 
 test('accepts a small existing-file unified diff within the allowlist', () => {
-  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0].replaceAll('\n', '\r\n') + '\n';
+  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0] + '\n';
   assert.deepEqual(validatePatchResponse(valid), { kind: 'patch', patch: expected });
 });
 
@@ -29,7 +29,7 @@ test('accepts CRLF and horizontal whitespace around the patch boundary markers',
     .replace('BEGIN_PATCH', 'BEGIN_PATCH \t')
     .replace('END_PATCH', 'END_PATCH \t')
     .replaceAll('\n', '\r\n');
-  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0] + '\n';
+  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0].replaceAll('\n', '\r\n') + '\n';
   assert.deepEqual(validatePatchResponse(padded), { kind: 'patch', patch: expected });
 });
 
