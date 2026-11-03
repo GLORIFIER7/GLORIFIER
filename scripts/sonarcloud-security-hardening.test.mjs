@@ -16,12 +16,12 @@ for (const [index, source] of agaveSources.entries()) {
     assert.ok(source.includes(agaveSha256));
     assert.match(source, /curl --fail --show-error --silent --location --proto '=https' --tlsv1\.2/);
     assert.ok(source.includes('"$ARCHIVE_URL" --output "$ARCHIVE"'));
-    assert.ok(source.includes('printf \\'%s  %s\\n\\' "$ARCHIVE_SHA256" "$ARCHIVE" | sha256sum --check --strict'));
+    assert.ok(source.includes("printf '%s  %s\\n' \"$ARCHIVE_SHA256\" \"$ARCHIVE\" | sha256sum --check --strict"));
     assert.ok(source.includes('tar -xjf "$ARCHIVE"'));
     const checksumIndex = source.indexOf('sha256sum --check --strict');
     const extractionIndex = source.indexOf('tar -xjf "$ARCHIVE"');
     assert.ok(checksumIndex >= 0 && extractionIndex > checksumIndex, 'the exact verified archive must be extracted after checksum validation');
-    assert.doesNotMatch(source, /sh -c "\$\ (?:curl)[^"]*release\.anza\.xyz/);
+    assert.doesNotMatch(source, /sh -c "\$\(curl[^"]*release\.anza\.xyz/);
   });
 }
 
