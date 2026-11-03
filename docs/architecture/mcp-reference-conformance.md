@@ -2,7 +2,7 @@
 
 **Status:** a fixed-scope, read-only GitHub MCP Worker endpoint is implemented and covered by local contract tests. Broader MCP adapter conformance and external-client interoperability remain **NOT VERIFIED**.  
 **Repository:** `GLORIFIER7/GLORIFIER`  
-**Reviewed:** 2026-11-01  
+**Reviewed:** 2026-11-03  
 **Production route:** `POST /mcp` on the `glorifier` Cloudflare Worker  
 **Implementation:** `src/lib/github-mcp.ts`, mounted in `src/worker.ts`  
 **Worker tests:** `src/worker.test.ts`; command: `npm run test:cloudflare-worker`  
@@ -36,22 +36,26 @@ The server does not expose GitHub write, merge, deployment, secret, or credentia
 
 ### Protocol-version qualification
 
-The implementation's baseline constant is `2025-03-26`. Its initialization handler currently returns the requested version when it is one of `2025-03-26`, `2025-06-18`, or `2025-11-25`, and otherwise falls back to `2025-03-26`.
+The main-branch baseline remains the legacy `2025-03-26` initialization path. Draft PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds a separate modern, stateless `2026-07-28` request path:
+- `server/discover` returns supported protocol versions, the implemented tools capability, server identity metadata, public cache scope, and a one-hour TTL.
+- Modern `tools/list` and `tools/call` require the `io.modelcontextprotocol/protocolVersion` request metadata and a matching `MCP-Protocol-Version` HTTP header.
+- Modern method results include `resultType: complete` and `io.modelcontextprotocol/serverInfo` metadata.
+- Unsupported or mismatched versions return the `-32022` protocol-version error with the supported version list.
+- Legacy `initialize`, `ping`, `tools/list`, and `tools/call` remain available for the 2025 protocol versions. The modern stateless path does not require the legacy initialize handshake.
 
-The checked-in Worker test explicitly verifies initialization with `2025-03-26`. The later version strings are present in the handler, but that alone does not prove full conformance to those revisions. The current route does not implement the selected `2026-07-28` target's `server/discover` operation. Do not advertise full conformance to any later revision until revision-specific transport, header, capability, and error behavior has been tested against the corresponding normative specification.
+The modern endpoint remains intentionally limited to the fixed four read-only GitHub tools for the public `GLORIFIER7/GLORIFIER` repository. It does not advertise resources or prompts, because those operations are not implemented. The source tests and CI checks exercise the modern and legacy request paths; they do not replace independent tests with external MCP clients or a production client/server handshake. Do not mark the broader MCP capability VERIFIED from local fixtures or CI alone.
 
 ## Relationship to the broader A2A/MCP capability
 
 The repository capability `protocol.a2a-mcp-adapters` covers general standards-backed A2A and MCP adapters, not only this repository-specific GitHub bridge. It therefore remains **NOT VERIFIED**.
 
-The fixed-scope GitHub MCP route does not establish:
+The fixed-scope GitHub MCP route and new A2A discovery surface do not establish:
 
 - a general-purpose MCP adapter for arbitrary configured providers or repositories;
-- the `2026-07-28` `server/discover` operation or its supported capabilities;
-- resources or prompts;
-- A2A 1.0.1 Agent Card discovery or message/task binding;
-- authenticated private-repository access;
-- external-client interoperability with Claude, ChatGPT, or another MCP client.
+- MCP resources or prompts; only the four read-only GitHub tools are advertised;
+- a live, authenticated A2A 1.0.1 message/task backend; `/api/a2a/v1` remains an authenticated proxy to the owner-configured backend;
+- external-client interoperability with Claude, ChatGPT, or another MCP client;
+- authenticated private-repository access.
 
 ## Evidence currently available
 
@@ -85,7 +89,7 @@ A deployment record proves that Cloudflare has a deployment assigned 100% of tra
 
 The selected normative target is revision `2026-07-28`. In that revision, the `server/discover` operation reports supported protocol versions, its supported capabilities, and server identity. This target definition is separate from the older fixed-scope GitHub MCP route above.
 
-The target reference is pinned; it is not a claim that GLORIFIER implements `server/discover`, resource/prompt operations, or all required transport semantics for that revision.
+The target reference is pinned. PR #629 implements the selected `server/discover` operation and the modern per-request version contract in the fixed-scope Worker endpoint. Resource/prompt operations are not implemented, and full transport/client conformance remains NOT VERIFIED until independent external client/server tests pass.
 
 **Immutable normative source:** [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx). Upstream commit: `b488c16623e5202a3961e551886044577ae0f096`; document Git blob SHA-1: `f6fc1acf974819d99338d2be25ad953fcb9e57a6`.
 
@@ -111,3 +115,19 @@ The target reference is pinned; it is not a claim that GLORIFIER implements `ser
 Treat repository content and GitHub API responses as untrusted data. Keep the repository allowlist, HTTPS origin restriction, request/response limits, timeout, origin validation, rate limiting, and read-only tool surface in place. Do not add filesystem access, arbitrary URL fetches, Git mutations, private-repository access, credential handling, or write tools to this endpoint without a separately reviewed security design and explicit owner approval.
 
 Do not mark the overall GLORIFIER system fully verified based on this endpoint's unit tests or deployment metadata. Record each boundary separately and retain **NOT OBSERVABLE** where a live probe could not be completed.
+
+
+## Implementation update — 2026-11-03
+
+Draft PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds the following source-level protocol behavior on branch `fix/issue-471-a2a-mcp-discovery`:
+- MCP 2026-07-28 stateless discovery at `POST /mcp` using `server/discover`.
+- Matching per-request protocol-version metadata and HTTP `MCP-Protocol-Version` header validation.
+- Modern `tools/list` and `tools/call` result envelopes with `resultType: complete` and server identity metadata.
+- A supported-version error for unknown or mismatched versions.
+- Backward compatibility for the existing 2025 initialize/tool-call flow.
+- The standard A2A Agent Card at `GET /.well-known/agent-card.json`, served natively by the Worker with GET/HEAD-only semantics.
+- The A2A HTTP binding accepts the A2A 1.0.1 preferred `application/a2a+json` content type and retains `application/json` compatibility.
+
+The GitHub MCP tools remain limited to four read-only operations on one public repository, with the existing origin check, request-size and response-size bounds, timeout, and per-IP tool-call rate limit. The Agent Card does not declare a JWT token format because that exact token format has not been independently established.
+
+The A2A JSON-RPC `/api/a2a/v1` endpoint still uses the existing Bearer-authenticated proxy to the configured backend. No external A2A client/server integration, authenticated production A2A task exchange, modern MCP external-client handshake, or full MCP target-revision conformance result is claimed. The overall `protocol.a2a-mcp-adapters` capability therefore remains **NOT VERIFIED**.
