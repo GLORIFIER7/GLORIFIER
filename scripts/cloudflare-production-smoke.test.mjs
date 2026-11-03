@@ -398,6 +398,23 @@ test('build-info rejects missing, malformed, wrong-branch, or mismatched provena
   assert.throws(() => validateBuildInfo({ ...buildInfo, git: { ...buildInfo.git, ref: 'refs/heads/feature' } }, 'a'.repeat(40)), /refs\/heads\/main/);
   assert.throws(() => validateBuildInfo(buildInfo, 'b'.repeat(40)), /does not match the expected commit/);
   assert.throws(() => validateBuildInfo({ ...buildInfo, worker: { ...buildInfo.worker, versionId: 'not-a-uuid' } }, 'a'.repeat(40)), /Worker version ID/);
+  assert.throws(() => validateBuildInfo({
+    ...buildInfo,
+    git: { ...buildInfo.git, commit: 'a'.repeat(39) + 'Ａ' },
+  }, 'a'.repeat(40)), /40-character/);
+  assert.throws(() => validateBuildInfo(buildInfo, 'a'.repeat(39) + 'Ａ'), /40-character/);
+  assert.throws(() => validateBuildInfo({
+    ...buildInfo,
+    git: { ...buildInfo.git, runId: '４１４２９９９９９９９' },
+  }, 'a'.repeat(40)), /GitHub Actions run ID/);
+  assert.throws(() => validateBuildInfo({
+    ...buildInfo,
+    git: { ...buildInfo.git, runId: '1'.repeat(21) },
+  }, 'a'.repeat(40)), /GitHub Actions run ID/);
+  assert.throws(() => validateBuildInfo({
+    ...buildInfo,
+    worker: { ...buildInfo.worker, versionId: '１' + buildInfo.worker.versionId.slice(1) },
+  }, 'a'.repeat(40)), /Worker version ID/);
 });
 
 test('production build provenance uses a GET request and validates the live response', async () => {
