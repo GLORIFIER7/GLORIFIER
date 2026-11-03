@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
@@ -151,4 +152,14 @@ test('applyUnifiedDiff returns a failed git-apply result unchanged', () => {
 test('applyUnifiedDiff rejects missing patches and invalid executors', () => {
   assert.throws(() => applyUnifiedDiff('', () => ({ ok: true })), /non-empty unified diff/);
   assert.throws(() => applyUnifiedDiff('diff --git a/a b/a\n', null), /executor function/);
+});
+
+test('Node loads the isolated module directory from NODE_PATH at process startup', () => {
+  const probePath = '/private-runner-temp/node_modules';
+  const result = execFileSync(
+    process.execPath,
+    ['-e', 'const Module = require("node:module"); process.stdout.write(Module.globalPaths.includes(process.env.NODE_PATH) ? "ok" : "missing");'],
+    { encoding: 'utf8', env: { ...process.env, NODE_PATH: probePath } },
+  );
+  assert.equal(result, 'ok');
 });
