@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { before, test } from 'node:test';
+import { afterEach, before, test } from 'node:test';
 import { PostgresAgentStateStore, type AgentStateQuery } from './agent-state-store.ts';
 
 type StoredRow = {
@@ -77,6 +77,12 @@ const query: AgentStateQuery = async (sql, values = []) => {
 
 const store = new PostgresAgentStateStore(query);
 before(async () => { await store.initialize(); });
+
+afterEach(() => {
+  rows.clear();
+  statements.length = 0;
+  queryValues.length = 0;
+});
 
 const task = {
   id: 'task-1', capability: 'research', objective: 'Persist this task', requester: 'human-owner',
