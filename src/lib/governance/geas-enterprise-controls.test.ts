@@ -11,6 +11,8 @@ import {
 } from './geas-enterprise-controls';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const action=createGovernedAction({contextId:'ctx-test',capability:'deployment:write',resource:'production',payload:{commit:'abc123'},authorityEnvelopeId:'env-1',policyVersion:'GEAS-POLICY-1',risk:'high',irreversible:true,humanApprovalRequired:true,status:'AUTHORIZED'});
 assert.throws(()=>assertNoIrreversibleExecutionWithoutApproval(action));
@@ -74,6 +76,9 @@ assert.equal(economics.totalCost,4); assert.equal(economics.costPerVerifiedOutco
 const problem=createProblemDetails({title:'Provider unavailable',status:503,detail:'No authorized provider is currently available.',code:'PROVIDER_UNAVAILABLE',retryable:true,evidenceState:'observed'});
 assert.equal(problem.type,'https://glorifier.local/problems/provider_unavailable');
 console.log('GEAS enterprise control tests passed');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
