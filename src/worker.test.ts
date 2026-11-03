@@ -91,6 +91,7 @@ const run = async (): Promise<void> => {
         const wranglerConfig = JSON.parse(readFileSync('wrangler.jsonc', 'utf8')) as {
           vars?: Record<string, string>;
           hyperdrive?: Array<{ binding: string; id: string }>;
+          version_metadata?: { binding: string };
           assets?: { run_worker_first?: string[] };
           previews?: {
             vars?: Record<string, string>;
@@ -101,6 +102,8 @@ const run = async (): Promise<void> => {
           'production must select the approved authoritative Neon database');
         const productionHyperdrive = wranglerConfig.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
         assert.ok(productionHyperdrive?.id, 'production must bind the approved Neon Hyperdrive resource');
+        assert.equal(wranglerConfig.version_metadata?.binding, 'CF_VERSION_METADATA',
+          'production must expose the deployed Cloudflare Worker version metadata for source-provenance verification');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
           'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
         const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
