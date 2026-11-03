@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { withPrivateTempFile } from './private-temp-file.mjs';
+import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 
-const run = (cmd, args) => {
-  try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }) }; }
+const run = (cmd, args, options = {}) => {
+  try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', ...options }) }; }
   catch (e) { return { ok: false, output: `${e.stdout || ''}\n${e.stderr || ''}`.trim() }; }
 };
 const check = () => {
@@ -52,10 +52,7 @@ if (!patch.startsWith('diff --git ')) throw new Error('Guardian did not return a
 const changedPaths = [...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMap(m => [m[1], m[2]]);
 if (changedPaths.some(path => protectedPaths.some(rule => rule.endsWith('/') ? path.startsWith(rule) : path === rule))) throw new Error('Safety policy rejected a protected-file change.');
 if (changedPaths.length > 12) throw new Error('Safety policy rejected an overly broad repair.');
-const applied = withPrivateTempFile(
-  { prefix: 'glorifier-guardian', fileName: 'guardian.patch', content: patch },
-  (patchPath) => run('git', ['apply', '--whitespace=fix', '--recount', patchPath]),
-);
+const applied = applyUnifiedDiff(patch, run);
 if (!applied.ok) throw new Error('Patch rejected: ' + applied.output);
 
 const after = check();
