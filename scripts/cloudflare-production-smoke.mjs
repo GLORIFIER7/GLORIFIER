@@ -250,7 +250,7 @@ const fetchProductionBuildInfo = (fetchRequest = fetch) => (options) =>
 const isAsciiHex = (value, expectedLength) => {
   if (typeof value !== 'string' || value.length !== expectedLength) return false;
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = value.codePointAt(index);
     const isDigit = code >= 48 && code <= 57;
     const isUpperHex = code >= 65 && code <= 70;
     const isLowerHex = code >= 97 && code <= 102;
@@ -262,7 +262,7 @@ const isAsciiHex = (value, expectedLength) => {
 const isAsciiDecimal = (value) => {
   if (typeof value !== 'string' || value.length < 1 || value.length > 20) return false;
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = value.codePointAt(index);
     if (code < 48 || code > 57) return false;
   }
   return true;
@@ -274,7 +274,7 @@ const isCloudflareWorkerVersionId = (value) => {
     if (index === 8 || index === 13 || index === 18 || index === 23) {
       if (value[index] !== '-') return false;
     } else {
-      const code = value.charCodeAt(index);
+      const code = value.codePointAt(index);
       const isDigit = code >= 48 && code <= 57;
       const isUpperHex = code >= 65 && code <= 70;
       const isLowerHex = code >= 97 && code <= 102;
