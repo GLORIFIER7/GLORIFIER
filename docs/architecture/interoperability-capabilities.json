@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-03T07:17:05.461Z",
+  "updatedAt": "2026-11-03T09:02:31.399Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -429,6 +429,13 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://ethereum.publicnode.com",
+          "targetEnvironment": "PublicNode public Ethereum mainnet JSON-RPC",
+          "observedAt": "2026-11-03T09:02:31.399Z",
+          "notes": "Unauthenticated read-only eth_chainId returned 0x1 (HTTP 200, 412 ms) and eth_blockNumber returned 0x191d03e (HTTP 200). This verifies public endpoint reachability and Ethereum mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
         }
       ],
       "limitations": [
@@ -474,6 +481,13 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://bsc.publicnode.com",
+          "targetEnvironment": "PublicNode public BNB Smart Chain mainnet JSON-RPC",
+          "observedAt": "2026-11-03T09:02:31.399Z",
+          "notes": "Unauthenticated read-only eth_chainId returned 0x38 (HTTP 200, 494 ms) and eth_blockNumber returned 0x7d51691 (HTTP 200). This verifies public endpoint reachability and BNB Smart Chain mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
         }
       ],
       "limitations": [
@@ -519,6 +533,13 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "The separate Ethereum, BNB and Solana read-only transfer-verifier test-vector step passed on both Ubuntu source-matrix targets. Tests use controlled fixtures/mocked RPC responses; no live RPC was contacted and no signing or transaction was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://solana.publicnode.com",
+          "targetEnvironment": "PublicNode public Solana mainnet JSON-RPC",
+          "observedAt": "2026-11-03T09:02:31.399Z",
+          "notes": "Unauthenticated read-only getGenesisHash returned 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (HTTP 200, 622 ms), matching Solana mainnet; getSlot at finalized commitment returned 464841204 (HTTP 200). This verifies public endpoint reachability and mainnet identity only; it does not verify GLR mint/transfer state or signing."
         }
       ],
       "limitations": [
@@ -632,11 +653,6 @@
           "notes": "Tests cover 2025-03-26 initialize, notifications, tools/list, mocked tools/call, exact read-only tool set, malformed/oversized requests, origin rejection, and rate limiting. They do not establish external MCP client interoperability, live public endpoint reachability, or 2026-07-28 conformance."
         },
         {
-          "kind": "ci-run",
-          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41593343912",
-          "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
-          "observedAt": "2026-11-03T07:03:07.377Z",
-          "notes": "A2A 1.0 JSON-RPC adapter contract, A2A runtime prompt formatting and Express endpoint route tests, pinned A2A/MCP protocol-boundary tests, MCP registry validation and Worker/interoperability boundary tests passed on both Ubuntu targets. This is source-level/fixture evidence only. The broader capability remains NOT VERIFIED: standard A2A AgentCard/message-task interoperability, the pinned MCP 2026-07-28 server/discover target, external client/server integration and live staging conformance are not established.",
           "kind": "source",
           "reference": "src/lib/github-mcp.ts",
           "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; commit range based on main d00a58b07e950bf2957f70534a68dfda162f4ccc",
