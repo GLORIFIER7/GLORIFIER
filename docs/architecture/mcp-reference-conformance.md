@@ -21,7 +21,7 @@ The endpoint exposes exactly four tools, all pinned to the public `GLORIFIER7/GL
 | `github_list_workflow_runs` | Read recent Actions workflow runs with a bounded page size |
 | `github_read_file` | Read a bounded text file from a validated repository-relative path and Git ref |
 
-The server does not expose GitHub write, merge, deployment, secret, or credential operations. Upstream requests use HTTPS `api.github.com` only, with the owner and repository fixed in code. The endpoint does not carry a GitHub credential.
+The server does not expose GitHub write, merge, deployment, secret, or credential operations. Upstream requests use HTTPS `api.github.com` only, with the owner and repository fixed in code. The endpoint uses anonymous public API access by default. It also supports an optional `GITHUB_MCP_READ_TOKEN` Cloudflare Worker secret for authenticated read-only GitHub API requests; the token is never sent to MCP clients or included in responses.
 
 ### Transport and request controls
 
@@ -110,6 +110,17 @@ The target reference is pinned. PR #629 implements the selected `server/discover
 | Authenticated access to private repositories | **NOT IMPLEMENTED** | Separate reviewed authorization design; do not infer private-repository access from this public read-only server |
 | Neural, AI-provider, and A2A runtime readiness | **OUT OF SCOPE / NOT VERIFIED HERE** | Separate configured origins, credentials, and live integration probes |
 
+## Optional GitHub API egress credential
+
+The Worker can use `GITHUB_MCP_READ_TOKEN` as an optional server-side secret when anonymous GitHub API requests from the Worker egress are rejected. This setting is **not configured by this source change** and remains disabled when the secret is absent. The credential is sent only to the fixed HTTPS `api.github.com` origin for the four existing public-repository read tools; it is not forwarded to callers, returned in tool output, or used for write operations.
+
+When configured, use a fine-grained GitHub token restricted to the single `GLORIFIER7/GLORIFIER` repository and grant only:
+- Metadata: read-only
+- Contents: read-only
+- Pull requests: read-only
+- Actions: read-only
+
+Do not use a classic broad-scope token or a token with write permissions. Store it only as the Cloudflare Worker secret named `GITHUB_MCP_READ_TOKEN`; never commit the value or place it in frontend configuration. Rotate it through the owner's normal credential process. A configured token must still be validated by a live production read-only tool call; adding the secret binding is not itself proof that the 403 is resolved.
 ## Security and change policy
 
 Treat repository content and GitHub API responses as untrusted data. Keep the repository allowlist, HTTPS origin restriction, request/response limits, timeout, origin validation, rate limiting, and read-only tool surface in place. Do not add filesystem access, arbitrary URL fetches, Git mutations, private-repository access, credential handling, or write tools to this endpoint without a separately reviewed security design and explicit owner approval.
