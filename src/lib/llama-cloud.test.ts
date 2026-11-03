@@ -106,7 +106,7 @@ void test('LlamaCloud lists only project indexes and retrieves scoped context', 
 });
 
 void test('LlamaCloud follows pagination and rejects malformed index responses', async () => {
-  await withLlamaCloudEnvironment('test-key', async () => {
+  await withLlamaCloudEnvironment(true, async () => {
     const paginatedFetch = (async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       if (url.searchParams.get('page_token') === 'page-2') {
@@ -136,7 +136,7 @@ void test('LlamaCloud follows pagination and rejects malformed index responses',
 });
 
 void test('LlamaCloud rejects invalid retrieval inputs and malformed content', async () => {
-  await withLlamaCloudEnvironment('test-key', async () => {
+  await withLlamaCloudEnvironment(true, async () => {
     const mockFetch = (async (input: RequestInfo | URL) => {
       if (String(input).includes('/api/v1/indexes')) {
         return jsonResponse({ items: [{ id: 'index-a', project_id: PROJECT_ID }] });
@@ -181,7 +181,7 @@ void test('LlamaCloud rejects invalid retrieval inputs and malformed content', a
 });
 
 void test('LlamaCloud rejects unsafe configured base URLs', async () => {
-  await withLlamaCloudEnvironment('test-key', async () => {
+  await withLlamaCloudEnvironment(true, async () => {
     const mockFetch = (async () => jsonResponse({ items: [] })) as typeof fetch;
     for (const unsafeBase of [
       'https://user:password@api.cloud.llamaindex.ai',
@@ -196,7 +196,7 @@ void test('LlamaCloud rejects unsafe configured base URLs', async () => {
 });
 
 void test('LlamaCloud surfaces upstream authentication failures', async () => {
-  await withLlamaCloudEnvironment('test-key', async () => {
+  await withLlamaCloudEnvironment(true, async () => {
     const unauthorizedFetch = (async () => new Response('unauthorized', { status: 401 })) as typeof fetch;
     await assertLlamaCloudError(() => getLlamaCloudStatus(unauthorizedFetch), 'upstream_auth_failure');
     console.log('LlamaCloud integration tests: PASS');
