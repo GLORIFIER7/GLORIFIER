@@ -130,7 +130,7 @@
       "id": "google-architecture",
       "authority": "Google Cloud",
       "domain": "cloud",
-      "url": "https://docs.cloud.google.com/architecture/",
+      "url": "https://docs.cloud.google.com/architecture/framework",
       "claimsAllowed": [
         "federated-data-access"
       ],
