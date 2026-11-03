@@ -65,8 +65,10 @@ function validatePatchResponse(output) {
   }
   if (output.trim() === 'NO_PATCH') return { kind: 'no_patch' };
 
-  const envelope = output.match(/BEGIN_PATCH\s*\n([\s\S]*?)\nEND_PATCH/);
-  if (!envelope) throw new Error('Patch response must contain BEGIN_PATCH and END_PATCH markers.');
+  const envelope = output.match(/^\s*BEGIN_PATCH[ \t]*\r?\n([\s\S]*?)\r?\nEND_PATCH[ \t]*\s*$/);
+  if (!envelope) {
+    throw new Error('Patch response must contain only a complete BEGIN_PATCH and END_PATCH envelope; surrounding content is not allowed.');
+  }
   const patch = envelope[1].trim() + '\n';
   const byteLength = Buffer.byteLength(patch, 'utf8');
   if (byteLength > MAX_PATCH_BYTES) {
@@ -79,6 +81,7 @@ function validatePatchResponse(output) {
     if (lines[i].startsWith('diff --git ')) starts.push(i);
   }
   if (starts.length === 0) throw new Error('Patch contains no unified-diff file headers.');
+  if (starts[0] !== 0) throw new Error('Patch contains unexpected content before the first file header.');
   if (starts.length > MAX_FILES) {
     throw new Error('Patch exceeds file limit (' + starts.length + ' > ' + MAX_FILES + '). Request fewer files.');
   }
