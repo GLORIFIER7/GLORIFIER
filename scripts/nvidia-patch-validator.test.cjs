@@ -16,7 +16,7 @@ const valid = [
 ].join('\n');
 
 test('accepts a small existing-file unified diff within the allowlist', () => {
-  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0] + '\n';
+  const expected = valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0].replaceAll('\n', '\r\n') + '\n';
   assert.deepEqual(validatePatchResponse(valid), { kind: 'patch', patch: expected });
 });
 
