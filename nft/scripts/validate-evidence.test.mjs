@@ -24,25 +24,27 @@ const makeBundle = async () => {
 };
 
 test("accepts the reconciled Official Logo #001 evidence bundle", async () => {
-  assert.deepEqual(validateEvidenceBundle(await makeBundle()), []);
+  const bundle = await makeBundle();
+  assert.deepEqual(validateEvidenceBundle(bundle), []);
+  assert.equal(bundle.registry.existing_contract_candidate.onchain_observation.token_uri_parts.join(""), bundle.registry.metadata.final_corrected_uri);
 });
 
 test("rejects repository draft metadata pointing to an obsolete image CID", async () => {
   const bundle = await makeBundle();
   bundle.draftMetadata.image = "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv";
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("metadata.json image URI")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("NFT metadata.json image CID")));
 });
 
 test("rejects an unresolved final metadata CID after on-chain verification", async () => {
   const bundle = await makeBundle();
   bundle.registry.metadata.final_corrected_cid = null;
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("final_corrected_cid")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Registry final metadata root CID")));
 });
 
 test("rejects contradictory mint interpretation", async () => {
   const bundle = await makeBundle();
   bundle.registry.existing_contract_candidate.onchain_observation.interpretation = "This does not prove the token is Official Logo #001.";
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("stale unverified-artwork claim")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("stale unverified-artwork")));
 });
 
 test("rejects inventory count drift", async () => {
@@ -54,30 +56,29 @@ test("rejects inventory count drift", async () => {
 test("rejects source image digest drift", async () => {
   const bundle = await makeBundle();
   bundle.registry.artwork.onchain_token_image.repository_asset_sha256 = "0".repeat(64);
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("repository image SHA-256")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual repository image SHA-256")));
 });
 
 test("rejects a missing note for the exact on-chain motto wording difference", async () => {
   const bundle = await makeBundle();
   bundle.observation.metadata_consistency_notes = [];
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("wording difference")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Description/Motto wording")));
 });
 
 test("rejects a malformed recipient being marked valid", async () => {
   const bundle = await makeBundle();
   bundle.registry.recipient_candidate.validation.valid_evm_address = true;
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("must remain invalid")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Malformed recipient")));
 });
-
 
 test("rejects a changed repository PNG byte digest", async () => {
   const bundle = await makeBundle();
   bundle.repositoryFile.sha256 = "0".repeat(64);
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual GLORIFIER SERVICES.png SHA-256")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual repository image SHA-256")));
 });
 
 test("rejects a changed repository PNG Git blob identity", async () => {
   const bundle = await makeBundle();
   bundle.repositoryFile.gitBlobSha = "0".repeat(40);
-  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual GLORIFIER SERVICES.png Git blob SHA")));
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Git blob SHA")));
 });
