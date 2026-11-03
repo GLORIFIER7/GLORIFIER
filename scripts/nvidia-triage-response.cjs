@@ -17,7 +17,7 @@ const safeKeys = (value) => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return [];
   return Object.keys(value)
     .filter((key) => SAFE_KEY_PATTERN.test(key))
-    .sort()
+    .sort((left, right) => left.localeCompare(right, 'en'))
     .slice(0, 32);
 };
 
