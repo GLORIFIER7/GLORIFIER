@@ -10,7 +10,8 @@ const DENIED_PATH_PARTS = [
   'src/lib/auth/', 'src/lib/ai/', 'src/lib/governance/', 'src/lib/glr-',
   'src/lib/blockchain/', 'src/lib/crypto/', 'solana/', 'ethereum/', 'contracts/',
   'deploy', 'payment', 'wallet', 'secret', '.env', 'package.json',
-  'package-lock.json', '.github/', 'server.ts', 'wrangler', 'railway', 'dockerfile'
+  'package-lock.json', '.github/', 'server.ts', 'wrangler', 'railway', 'dockerfile',
+  'scripts/nvidia-patch-validator'
 ];
 
 function isAllowedPath(path) {
