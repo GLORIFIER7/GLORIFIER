@@ -63,6 +63,7 @@ jobs:
         if: steps.target.outputs.skip != 'true'
         run: |
           set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main
           git show origin/main:scripts/nvidia-patch-validator.cjs > scripts/nvidia-patch-validator.cjs
           git show origin/main:scripts/nvidia-patch-validator.test.cjs > scripts/nvidia-patch-validator.test.cjs
           node --test scripts/nvidia-patch-validator.test.cjs
