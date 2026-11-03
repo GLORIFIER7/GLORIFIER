@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
 import { reportsSummaryResponse, runtimeVerificationResponse } from './worker.ts';
@@ -2540,9 +2541,4 @@ const run = async (): Promise<void> => {
   }
 };
 
-try {
-  await run();
-} catch (error) {
-  console.error(error);
-  process.exitCode = 1;
-}
+test('Cloudflare Worker proxy and API contract regressions', run);
