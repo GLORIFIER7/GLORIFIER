@@ -1,17 +1,27 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { validateEvidenceBundle } from "./validate-evidence.mjs";
 
 const load = async (path) => JSON.parse(await readFile(path, "utf8"));
-const makeBundle = async () => ({
-  registry: await load("nft/registry.json"),
-  inventory: await load("nft/image-inventory-2026-11-03.json"),
-  draftMetadata: await load("nft/metadata.json"),
-  secondaryDraft: await load("nft/metadata/glorifier-services-official-logo-001.json"),
-  publishedMetadata: await load("nft/metadata/observed-ethereum-mainnet-official-logo-001.json"),
-  observation: await load("nft/metadata/ethereum-mainnet-token-001-observation.json")
-});
+const makeBundle = async () => {
+  const png = await readFile("GLORIFIER SERVICES.png");
+  const gitBlobHeader = Buffer.from("blob " + png.length + "\\0", "utf8");
+  return {
+    registry: await load("nft/registry.json"),
+    inventory: await load("nft/image-inventory-2026-11-03.json"),
+    draftMetadata: await load("nft/metadata.json"),
+    secondaryDraft: await load("nft/metadata/glorifier-services-official-logo-001.json"),
+    publishedMetadata: await load("nft/metadata/observed-ethereum-mainnet-official-logo-001.json"),
+    observation: await load("nft/metadata/ethereum-mainnet-token-001-observation.json"),
+    repositoryFile: {
+      bytes: png.length,
+      sha256: createHash("sha256").update(png).digest("hex"),
+      gitBlobSha: createHash("sha1").update(Buffer.concat([gitBlobHeader, png])).digest("hex")
+    }
+  };
+};
 
 test("accepts the reconciled Official Logo #001 evidence bundle", async () => {
   assert.deepEqual(validateEvidenceBundle(await makeBundle()), []);
@@ -57,4 +67,17 @@ test("rejects a malformed recipient being marked valid", async () => {
   const bundle = await makeBundle();
   bundle.registry.recipient_candidate.validation.valid_evm_address = true;
   assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("must remain invalid")));
+});
+
+
+test("rejects a changed repository PNG byte digest", async () => {
+  const bundle = await makeBundle();
+  bundle.repositoryFile.sha256 = "0".repeat(64);
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual GLORIFIER SERVICES.png SHA-256")));
+});
+
+test("rejects a changed repository PNG Git blob identity", async () => {
+  const bundle = await makeBundle();
+  bundle.repositoryFile.gitBlobSha = "0".repeat(40);
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Actual GLORIFIER SERVICES.png Git blob SHA")));
 });
