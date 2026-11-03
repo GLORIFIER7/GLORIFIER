@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
+import { after, afterEach, test } from 'node:test';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import type { Request } from 'express';
 import {
@@ -47,6 +47,10 @@ const authEnvKeys = [
 ] as const;
 const originalAuthEnvironment = new Map(authEnvKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;
+});
 
 after(() => {
   if (originalServiceToken === undefined) delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;
