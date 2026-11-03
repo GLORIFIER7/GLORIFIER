@@ -177,7 +177,7 @@ function hasOnlyMarkerWhitespace(line, marker) {
 
 function extractPatchEnvelope(output) {
   if (typeof output !== 'string') {
-    throw new Error('NVIDIA response content is empty or not text.');
+    throw new TypeError('NVIDIA response content must be text.');
   }
 
   const responseByteLength = Buffer.byteLength(output, 'utf8');
