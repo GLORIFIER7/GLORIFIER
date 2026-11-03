@@ -8,6 +8,8 @@ import {
 } from './currency-intelligence';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const usd: CurrencyAsset = {
   id: 'fiat:USD', name: 'US Dollar', symbol: 'USD', assetClass: 'fiat',
@@ -77,6 +79,9 @@ const malformedSourceStatus = getCurrencyRateStatus({
 assertCondition(malformedSourceStatus === 'NO_RELIABLE_QUOTE', 'malformed source metadata must fail closed instead of throwing');
 
 console.log('Currency Intelligence Engine tests passed.');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
