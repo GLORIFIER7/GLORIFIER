@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 
@@ -41,12 +42,16 @@ export function validateEvidenceBundle(bundle) {
 
   const image = registry.artwork?.onchain_token_image ?? {};
   const repositoryAsset = observation.image_integrity?.repository_asset ?? {};
+  const repositoryFile = bundle.repositoryFile ?? {};
   add(image.repository_asset_path === "GLORIFIER SERVICES.png", "Registry does not identify the canonical repository image path.");
   add(image.repository_asset_bytes === 55886, "Registry repository image byte size is inconsistent.");
   add(image.repository_asset_git_blob_sha === repositoryAsset.git_blob_sha, "Registry Git blob SHA differs from the observation.");
   add(image.repository_asset_sha256 === expectedImageSha256, "Registry repository image SHA-256 is not the verified image digest.");
   add(image.repository_asset_sha256_matches_image_cid_digest === true, "Registry does not verify repository asset SHA-256 against the image CID digest.");
   add(repositoryAsset.sha256 === expectedImageSha256, "Observation repository asset SHA-256 differs from the published image CID digest.");
+  add(repositoryFile.sha256 === expectedImageSha256, "Actual GLORIFIER SERVICES.png SHA-256 no longer matches the live token image CID digest.");
+  add(repositoryFile.bytes === 55886, "Actual GLORIFIER SERVICES.png byte size changed.");
+  add(repositoryFile.gitBlobSha === repositoryAsset.git_blob_sha, "Actual GLORIFIER SERVICES.png Git blob SHA no longer matches the inventory record.");
   add(observation.image_integrity?.digest_sha256 === expectedImageSha256, "Observation image CID digest is inconsistent.");
   add(observation.image_integrity?.digest_matches_previous_retrieved_artwork_bytes === true, "CID digest match to the previously retrieved artwork bytes is not recorded.");
   add(expectedImageSha256 !== expectedHistoricalSha256, "Historical source PNG mismatch was unexpectedly erased.");
@@ -72,15 +77,22 @@ export function validateEvidenceBundle(bundle) {
 }
 
 async function run() {
-  const [registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation] = await Promise.all([
+  const [registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation, png] = await Promise.all([
     readJson("nft/registry.json"),
     readJson("nft/image-inventory-2026-11-03.json"),
     readJson("nft/metadata.json"),
     readJson("nft/metadata/glorifier-services-official-logo-001.json"),
     readJson("nft/metadata/observed-ethereum-mainnet-official-logo-001.json"),
-    readJson("nft/metadata/ethereum-mainnet-token-001-observation.json")
+    readJson("nft/metadata/ethereum-mainnet-token-001-observation.json"),
+    readFile("GLORIFIER SERVICES.png")
   ]);
-  const issues = validateEvidenceBundle({registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation});
+  const gitBlobHeader = Buffer.from("blob " + png.length + "\\0", "utf8");
+  const repositoryFile = {
+    bytes: png.length,
+    sha256: createHash("sha256").update(png).digest("hex"),
+    gitBlobSha: createHash("sha1").update(Buffer.concat([gitBlobHeader, png])).digest("hex")
+  };
+  const issues = validateEvidenceBundle({registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation, repositoryFile});
   if (issues.length) {
     for (const issue of issues) console.error("FAIL " + issue);
     process.exitCode = 1;
