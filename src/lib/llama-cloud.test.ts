@@ -122,6 +122,20 @@ test('LlamaCloud rejects malformed index and retrieval responses', async () => {
   };
   await assert.rejects(() => retrieveLlamaCloudContext({ indexId: 'index-a', query: 'test' }, malformedRetrieval),
     (error: unknown) => error instanceof LlamaCloudIntegrationError && error.code === 'invalid_upstream_response');
+  const malformedContentFetch: typeof fetch = async (input) => {
+    if (String(input).includes('/api/v1/indexes')) {
+      return new Response(JSON.stringify({ items: [{ id: 'index-a', project_id: projectId }] }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ results: [{ score: 0.91 }] }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  };
+  await assert.rejects(
+    () => retrieveLlamaCloudContext({ indexId: 'index-a', query: 'test' }, malformedContentFetch),
+    (error: unknown) => error instanceof LlamaCloudIntegrationError && error.code === 'invalid_upstream_response',
+  );
   const missingProject: typeof fetch = async () => new Response(JSON.stringify({
     items: [{ id: 'unscoped-index', name: 'Unscoped index' }],
   }), { status: 200, headers: { 'content-type': 'application/json' } });
