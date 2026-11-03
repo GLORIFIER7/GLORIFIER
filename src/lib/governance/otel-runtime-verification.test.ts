@@ -5,39 +5,35 @@ import {
 } from './otel-runtime-verification';
 import test from 'node:test';
 
-test("OpenTelemetry runtime evidence contract regression cases", () => {
-  const nowMs = Date.parse('2026-10-26T13:00:00.000Z');
-  const fresh = new Date(nowMs - 60_000).toISOString();
-  
-  const fullSnapshot: OpenTelemetryRuntimeSnapshot = {
-    observedAt: fresh,
-    resource: {
-      'service.name': 'glorifier-worker',
-      'deployment.environment.name': 'production',
-      'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '1.0.0',
-    },
-    exporter: {
-      endpointConfigured: true,
-      lastExportStatus: 'success',
-      lastExportAt: fresh,
-      evidenceRef: 'export:run-100',
-    },
-    signals: {
-      traces: { count: 12, lastObservedAt: fresh, evidenceRef: 'trace:batch-100' },
-      metrics: { count: 8, lastObservedAt: fresh, evidenceRef: 'metric:batch-100' },
-      logs: { count: 21, lastObservedAt: fresh, evidenceRef: 'log:batch-100' },
-    },
-  };
-  
-  const complete = assessOpenTelemetryRuntimeEvidence(fullSnapshot, nowMs);
-  assert.equal(complete.status, 'complete');
-  assert.equal(complete.evidenceClass, 'analysis', 'structural admission must not authenticate telemetry or promote it to verified fact');
-  assert.deepEqual(complete.observedSignals, ['traces', 'metrics', 'logs']);
-  assert.deepEqual(complete.failures, []);
-  assert.deepEqual(complete.evidenceRefs.sort(), ['export:run-100', 'log:batch-100', 'metric:batch-100', 'trace:batch-100'].sort());
-  
-  const keywordOnly = assessOpenTelemetryRuntimeEvidence({
+const nowMs = Date.parse('2026-10-26T13:00:00.000Z');
+const fresh = new Date(nowMs - 60_000).toISOString();
+const fullSnapshot: OpenTelemetryRuntimeSnapshot = {
+  observedAt: fresh,
+  resource: {
+    'service.name': 'glorifier-worker',
+    'deployment.environment.name': 'production',
+    'telemetry.sdk.name': 'opentelemetry',
+    'telemetry.sdk.version': '1.0.0',
+  },
+  exporter: { endpointConfigured: true, lastExportStatus: 'success', lastExportAt: fresh, evidenceRef: 'export:run-100' },
+  signals: {
+    traces: { count: 12, lastObservedAt: fresh, evidenceRef: 'trace:batch-100' },
+    metrics: { count: 8, lastObservedAt: fresh, evidenceRef: 'metric:batch-100' },
+    logs: { count: 21, lastObservedAt: fresh, evidenceRef: 'log:batch-100' },
+  },
+};
+
+test('complete telemetry snapshot remains analysis evidence, not verified fact', () => {
+  const result = assessOpenTelemetryRuntimeEvidence(fullSnapshot, nowMs);
+  assert.equal(result.status, 'complete');
+  assert.equal(result.evidenceClass, 'analysis');
+  assert.deepEqual(result.observedSignals, ['traces', 'metrics', 'logs']);
+  assert.deepEqual(result.failures, []);
+  assert.deepEqual(result.evidenceRefs.sort(), ['export:run-100', 'log:batch-100', 'metric:batch-100', 'trace:batch-100'].sort());
+});
+
+test('export configuration alone does not imply observed telemetry signals', () => {
+  const result = assessOpenTelemetryRuntimeEvidence({
     observedAt: fresh,
     resource: fullSnapshot.resource,
     exporter: { endpointConfigured: true, lastExportStatus: 'success', lastExportAt: fresh, evidenceRef: 'export:run-101' },
@@ -48,110 +44,91 @@ test("OpenTelemetry runtime evidence contract regression cases", () => {
       note: 'OpenTelemetry enabled',
     },
   }, nowMs);
-  assert.equal(keywordOnly.status, 'partial', 'export configuration alone must not imply observed signals');
-  assert.deepEqual(keywordOnly.observedSignals, []);
-  assert.ok(keywordOnly.failures.some((failure) => failure.includes('traces must include a positive observed count')));
-  
+  assert.equal(result.status, 'partial');
+  assert.deepEqual(result.observedSignals, []);
+  assert.ok(result.failures.some((failure) => failure.includes('traces must include a positive observed count')));
+});
+
+test('partial signals and failed exporters are distinguished', () => {
   const partial = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
-    signals: {
-      ...fullSnapshot.signals,
-      logs: { count: 0, lastObservedAt: null, evidenceRef: null },
-    },
+    signals: { ...fullSnapshot.signals, logs: { count: 0, lastObservedAt: null, evidenceRef: null } },
   }, nowMs);
   assert.equal(partial.status, 'partial');
   assert.deepEqual(partial.observedSignals, ['traces', 'metrics']);
-  
-  const failedExporter = assessOpenTelemetryRuntimeEvidence({
+  const failed = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
     exporter: { ...fullSnapshot.exporter, lastExportStatus: 'failure' },
   }, nowMs);
-  assert.equal(failedExporter.status, 'degraded');
-  assert.ok(failedExporter.failures.some((failure) => failure.includes('reports failure')));
-  
-  const futureSignal = assessOpenTelemetryRuntimeEvidence({
+  assert.equal(failed.status, 'degraded');
+  assert.ok(failed.failures.some((failure) => failure.includes('reports failure')));
+});
+
+test('future signal timestamps cannot be admitted as observed telemetry', () => {
+  const result = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
     signals: {
       ...fullSnapshot.signals,
       traces: { count: 1, lastObservedAt: new Date(nowMs + 1).toISOString(), evidenceRef: 'trace:future' },
     },
   }, nowMs);
-  assert.equal(futureSignal.status, 'partial');
-  assert.ok(!futureSignal.observedSignals.includes('traces'));
-  assert.ok(futureSignal.failures.some((failure) => failure.includes('traces lastObservedAt')));
-  
-  // Sub-observations must not be newer than the parent snapshot, even when they are
-  // individually fresh relative to the validation clock.
+  assert.equal(result.status, 'partial');
+  assert.ok(!result.observedSignals.includes('traces'));
+  assert.ok(result.failures.some((failure) => failure.includes('traces lastObservedAt')));
+});
+
+test('sub-observations cannot be newer than the parent snapshot', () => {
   const laterThanSnapshot = new Date(nowMs - 30_000).toISOString();
-  const laterExporter = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    exporter: { ...fullSnapshot.exporter, lastExportAt: laterThanSnapshot },
+  const exporter = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot, exporter: { ...fullSnapshot.exporter, lastExportAt: laterThanSnapshot },
   }, nowMs);
-  assert.equal(laterExporter.status, 'partial');
-  assert.ok(laterExporter.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
-  assert.ok(!laterExporter.evidenceRefs.includes('export:run-100'));
-  
-  const laterSignal = assessOpenTelemetryRuntimeEvidence({
+  assert.equal(exporter.status, 'partial');
+  assert.ok(exporter.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
+  assert.ok(!exporter.evidenceRefs.includes('export:run-100'));
+  const signal = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
-    signals: {
-      ...fullSnapshot.signals,
-      traces: { count: 12, lastObservedAt: laterThanSnapshot, evidenceRef: 'trace:after-snapshot' },
-    },
+    signals: { ...fullSnapshot.signals, traces: { count: 12, lastObservedAt: laterThanSnapshot, evidenceRef: 'trace:after-snapshot' } },
   }, nowMs);
-  assert.equal(laterSignal.status, 'partial');
-  assert.ok(!laterSignal.observedSignals.includes('traces'));
-  assert.ok(laterSignal.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
-  assert.ok(!laterSignal.evidenceRefs.includes('trace:after-snapshot'));
-  
-  const staleSnapshot = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    observedAt: new Date(nowMs - 300_001).toISOString(),
+  assert.equal(signal.status, 'partial');
+  assert.ok(!signal.observedSignals.includes('traces'));
+  assert.ok(signal.failures.some((failure) => failure.includes('no later than snapshot observedAt')));
+  assert.ok(!signal.evidenceRefs.includes('trace:after-snapshot'));
+});
+
+test('stale snapshots, unknown services and invalid clocks fail closed', () => {
+  const stale = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot, observedAt: new Date(nowMs - 300_001).toISOString(),
   }, nowMs);
-  assert.equal(staleSnapshot.status, 'not-observed');
-  assert.deepEqual(staleSnapshot.observedSignals, []);
-  assert.ok(staleSnapshot.failures.some((failure) => failure.includes('snapshot observedAt')));
-  
-  const unknownService = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    resource: { ...fullSnapshot.resource, 'service.name': 'unknown_service:node' },
+  assert.equal(stale.status, 'not-observed');
+  assert.deepEqual(stale.observedSignals, []);
+  assert.ok(stale.failures.some((failure) => failure.includes('snapshot observedAt')));
+  const unknown = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot, resource: { ...fullSnapshot.resource, 'service.name': 'unknown_service:node' },
   }, nowMs);
-  assert.equal(unknownService.status, 'partial');
-  assert.ok(unknownService.failures.some((failure) => failure.includes('not unknown_service')));
-  
+  assert.equal(unknown.status, 'partial');
+  assert.ok(unknown.failures.some((failure) => failure.includes('not unknown_service')));
   const invalidClock = assessOpenTelemetryRuntimeEvidence(fullSnapshot, Number.NaN);
   assert.equal(invalidClock.status, 'not-observed');
   assert.ok(invalidClock.failures.some((failure) => failure.includes('validation clock')));
-  
-  
-  const ambiguousTimestamp = assessOpenTelemetryRuntimeEvidence({
+});
+
+test('ambiguous timestamps, missing timezone and impossible dates are rejected', () => {
+  const ambiguous = assessOpenTelemetryRuntimeEvidence({ ...fullSnapshot, observedAt: '10/26/2026 12:59:00' }, nowMs);
+  assert.equal(ambiguous.status, 'not-observed');
+  assert.ok(ambiguous.failures.some((failure) => failure.includes('snapshot observedAt')));
+  const missingTimezone = assessOpenTelemetryRuntimeEvidence({ ...fullSnapshot, observedAt: '2026-10-26T12:59:00' }, nowMs);
+  assert.equal(missingTimezone.status, 'not-observed');
+  const impossible = assessOpenTelemetryRuntimeEvidence({ ...fullSnapshot, observedAt: '2026-02-30T12:59:00Z' }, nowMs);
+  assert.equal(impossible.status, 'not-observed');
+  assert.ok(impossible.failures.some((failure) => failure.includes('snapshot observedAt')));
+});
+
+test('ambiguous signal timestamps cannot be counted as observed traces', () => {
+  const result = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
-    observedAt: '10/26/2026 12:59:00',
+    signals: { ...fullSnapshot.signals, traces: { count: 1, lastObservedAt: '10/26/2026 12:59:00', evidenceRef: 'trace:ambiguous-time' } },
   }, nowMs);
-  assert.equal(ambiguousTimestamp.status, 'not-observed', 'locale-dependent timestamps must not establish runtime observation');
-  assert.ok(ambiguousTimestamp.failures.some((failure) => failure.includes('snapshot observedAt')));
-  
-  const missingTimezone = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    observedAt: '2026-10-26T12:59:00',
-  }, nowMs);
-  assert.equal(missingTimezone.status, 'not-observed', 'timestamps without an explicit UTC offset must fail closed');
-  
-  const impossibleCalendarDate = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    observedAt: '2026-02-30T12:59:00Z',
-  }, nowMs);
-  assert.equal(impossibleCalendarDate.status, 'not-observed', 'impossible dates must not be normalized into runtime evidence');
-  
-  const ambiguousSignalTimestamp = assessOpenTelemetryRuntimeEvidence({
-    ...fullSnapshot,
-    signals: {
-      ...fullSnapshot.signals,
-      traces: { count: 1, lastObservedAt: '10/26/2026 12:59:00', evidenceRef: 'trace:ambiguous-time' },
-    },
-  }, nowMs);
-  assert.equal(ambiguousSignalTimestamp.status, 'partial');
-  assert.ok(!ambiguousSignalTimestamp.observedSignals.includes('traces'));
-  assert.ok(ambiguousSignalTimestamp.failures.some((failure) => failure.includes('traces lastObservedAt')));
-  
-  process.stdout.write('OpenTelemetry runtime evidence contract tests passed; live exporter authentication remains external.\n');
+  assert.equal(result.status, 'partial');
+  assert.ok(!result.observedSignals.includes('traces'));
+  assert.ok(result.failures.some((failure) => failure.includes('traces lastObservedAt')));
 });
