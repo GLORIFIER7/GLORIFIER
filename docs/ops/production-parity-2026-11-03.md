@@ -129,3 +129,55 @@ Remaining owner-/account-level actions:
 ### Superseding safety record
 
 This addendum records read-only observations only. No Worker upload/deployment, traffic change, binding or secret mutation, DNS change, database change, paid action, signing, or blockchain operation was performed. Production parity and current HTTP readiness remain **NOT VERIFIED**.
+
+
+## Fresh Cloudflare control-plane observation — 2026-11-03 (read-only)
+
+### Exact targets
+
+- Repository: `GLORIFIER7/GLORIFIER`, branch `main`, inspected HEAD: `e667f2aa3eeed43207f75ae2529d3710d27b72a1`.
+- Separate Neural repository: `GLORIFIER7/GLORIFIER-NEURAL`, branch `main`, inspected HEAD: `76facdbd5e7dd5f576a555003d2f956830e4545a`.
+- Cloudflare Worker: account `GLORIFIER`, script `glorifier`.
+
+### Production deployment and source parity
+
+- Active production deployment: `3c5abfa9-91b3-4ee8-ade5-01b1305d4431`.
+- Active Worker version: `880` (`5a854d11-1f57-4401-80f9-fb39cf036cbf`), serving **100%** of traffic.
+- Active deployment created: `2026-11-02T08:30:41.939113Z`.
+- Its deployment annotation identifies source commit `46b6f28fc9044556adb2a92845fa6de8e9442a18`.
+- GitHub comparison of that source commit to inspected current `main` (`e667f2aa3eeed43207f75ae2529d3710d27b72a1`) reports **44 commits ahead, 0 behind**.
+- Latest uploaded Worker version observed: `909` (`437f9514-aa27-4dc6-8e07-3ebedd7931ac`), created `2026-11-03T14:52:20.748302Z`, source `wrangler`, with `has_preview=true`. It is not part of the active deployment; version 880 remains at 100%.
+
+**Conclusion:** a newer preview exists, but production source parity is still not current. Uploading a Worker version is not the same as promoting it to production.
+
+### Version-specific binding metadata
+
+Secret values were not requested or read.
+
+- Version 880 exposes the bindings `ASSETS`, `GLORIFIER_DATABASE_PROVIDER`, `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `GLORIFIER_SUPABASE_URL`, `HYPERDRIVE`, `MCP_RATE_LIMITER`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`.
+- Version 909 exposes those bindings and `CF_VERSION_METADATA`.
+- Neither inspected version contains `GLORIFIER_NEURAL_ORIGIN` or `GLORIFIER_NEURAL_ALLOWED_HOSTS`.
+- The Worker secrets metadata lists `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`; secret values remain undisclosed.
+- The Worker settings endpoint reports `logpush=false`. The older script-settings response reports `observability=null`.
+
+**Conclusion:** neither the active release nor the newer preview is configured for the Neural adapter. The checked-in `wrangler.jsonc` does define `CF_VERSION_METADATA` and observability settings, but the active version 880 does not contain the version-metadata binding and the inspected account settings do not confirm an enabled observability pipeline. Treat this as source/configuration-to-deployment drift, not as verified telemetry.
+
+### Neural service and adapter
+
+- The Worker adapter is implemented on `main` and limits access to `/health`, `/ready`, and `/v1/tasks` through fixed route mappings.
+- The adapter requires an explicit HTTPS `GLORIFIER_NEURAL_ORIGIN` and exact-match `GLORIFIER_NEURAL_ALLOWED_HOSTS`; it fails closed when either is missing or invalid.
+- The separate Neural service's latest inspected main-branch CI, CodeQL, and disposable PostgreSQL migration workflows completed successfully at `76facdbd5e7dd5f576a555003d2f956830e4545a`.
+- Neural documentation describes the repository as an implementation starter. Provider inference and live database integrations remain unverified; `/ready` intentionally returns HTTP 503 until readiness is evidenced. No production deployment workflow was found in the Neural repository.
+
+A Worker origin and allowlist are not proof of reachability. A successful `/health` response would prove process liveness only. Readiness, caller-token rejection, and an explicitly harmless read-only task must be tested against a reviewed staging deployment before the production adapter can be considered verified.
+
+### Current verification boundaries and owner actions
+
+- Public Worker HTTP probes could not be completed through the available retrieval surface in this audit. Current HTTP statuses for the Worker and Neural routes are **NOT OBSERVABLE** here; historical status codes are not presented as fresh evidence.
+- No Worker upload, production deployment/promotion, traffic change, binding update, secret change, DNS/domain change, database migration/write, provider inference, or financial/blockchain action was performed.
+- The checked-in Cloudflare workflow remains the required release path: dispatch on `main`, explicit `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and successful production credentials/smoke checks. Do not bypass it by directly promoting version 909.
+- Before staging verification, the owner must choose and control the Neural HTTPS hosting origin, configure the exact hostname allowlist in the Worker, and set `GLORIFIER_API_TOKEN` in the Neural host's secret manager. No origin, token, or external-data-egress permission should be guessed.
+- Keep NVIDIA inference and external data egress disabled until separately approved and tested with data approved for external processing.
+- Main-branch protection remains incomplete under issue #615 (zero required status checks and broad bypass actors); current SonarCloud finding inventory remains unresolved under issue #616. The main CI pass does not close either control.
+
+**Status:** repository CI evidence is positive for the inspected commits; production parity, public HTTP health, Neural upstream reachability/readiness, provider inference, and end-to-end production verification remain **NOT VERIFIED**.
