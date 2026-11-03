@@ -15,6 +15,9 @@ import {
   formatSmokeFailure,
 } from './cloudflare-production-smoke.mjs';
 
+const findProductionDeployCommand = (stepText) =>
+  /^[ \\t]*if wrangler deploy[ \\t]*\\\\[ \\t]*$/m.exec(stepText);
+
 test('production smoke probes never send HTTP mutation methods to the live Worker', () => {
   const workflow = readFileSync(new URL('../.github/workflows/cloudflare-worker.yml', import.meta.url), 'utf8');
   const smokeSource = readFileSync(new URL('./cloudflare-production-smoke.mjs', import.meta.url), 'utf8');
@@ -50,7 +53,21 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     '\n      - name: Deploy Cloudflare Worker',
     deployJobIndex,
   );
-  const deployCommandIndex = workflow.indexOf('if wrangler deploy', deployStepIndex);
+  const nextWorkflowStepIndex = workflow.indexOf('\\n      - name:', deployStepIndex + 1);
+  const deploymentStepText = workflow.slice(
+    deployStepIndex,
+    nextWorkflowStepIndex === -1 ? undefined : nextWorkflowStepIndex,
+  );
+  const deploymentCommandMatch = findProductionDeployCommand(deploymentStepText);
+  const deployCommandIndex = deploymentCommandMatch
+    ? deployStepIndex + deploymentCommandMatch.index
+    : -1;
+  assert.ok(deploymentCommandMatch,
+    'the production deployment step must contain the exact Wrangler deploy command line');
+  assert.ok(findProductionDeployCommand('            if wrangler deploy ' + '\\\\'),
+    'the exact Wrangler deploy command line must be recognized');
+  assert.equal(findProductionDeployCommand('            if wrangler deployment ' + '\\\\'), null,
+    'a similarly prefixed command must not satisfy the production deployment contract');
   const releaseSmokeStepIndex = workflow.indexOf(
     '\n      - name: Verify all deployed production read-only contracts',
     deployCommandIndex,
