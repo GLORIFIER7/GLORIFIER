@@ -10,6 +10,8 @@ import {
 } from './geas-reconciliation';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const manifest = getGeasArchitectureManifest();
 const validation = validateGeasArchitectureManifest(manifest);
@@ -71,6 +73,9 @@ assert.ok(result.findings.some(f => f.state === 'unknown'));
 assert.ok(getGeasDegradedModeContracts().length >= 3);
 
 console.log('GEAS reconciliation tests passed');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
