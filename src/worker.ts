@@ -994,7 +994,7 @@ const isCloudflareWorkerVersionId = (value: string): boolean => {
   if (value.length !== 36) return false;
   for (let index = 0; index < value.length; index += 1) {
     if (index === 8 || index === 13 || index === 18 || index === 23) {
-      if (value[index] !== '-') return false;
+      if (value.charAt(index) !== '-') return false;
     } else {
       const code = value.charCodeAt(index);
       const isDigit = code >= 48 && code <= 57;
