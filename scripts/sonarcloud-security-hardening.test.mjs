@@ -4,30 +4,20 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 
-const agaveWorkflows = [
-  {
-    name: '.github/workflows/glorifier-solana-devnet-reconcile.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
-  },
-  {
-    name: '.github/workflows/glorifier-solana-devnet-resume.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-resume.yml', import.meta.url), 'utf8'),
-  },
-  {
-    name: '.github/workflows/glorifier-solana-devnet.yml',
-    source: readFileSync(new URL('../.github/workflows/glorifier-solana-devnet.yml', import.meta.url), 'utf8'),
-  },
+const agaveSources = [
+  readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
+  readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-resume.yml', import.meta.url), 'utf8'),
+  readFileSync(new URL('../.github/workflows/glorifier-solana-devnet.yml', import.meta.url), 'utf8'),
 ];
-
 const agaveSha256 = '5fc8684f7430038105fde953d4308ed56addf627f658daa61709f345448247ee';
 
-for (const workflow of agaveWorkflows) {
-  test(workflow.name + ' verifies the pinned Agave archive before extraction', () => {
-    assert.ok(workflow.source.includes(agaveSha256));
-    assert.match(workflow.source, /sha256sum --check --strict/);
-    assert.match(workflow.source, /curl --fail --show-error --silent --location --proto '=https' --tlsv1\.2/);
-    assert.ok(workflow.source.indexOf('sha256sum --check --strict') < workflow.source.indexOf('tar -xjf'));
-    assert.doesNotMatch(workflow.source, /sh -c "\$\(curl[^"]*release\.anza\.xyz/);
+for (const [index, source] of agaveSources.entries()) {
+  test('Agave Devnet workflow ' + (index + 1) + ' verifies its pinned archive before extraction', () => {
+    assert.ok(source.includes(agaveSha256));
+    assert.match(source, /sha256sum --check --strict/);
+    assert.match(source, /curl --fail --show-error --silent --location --proto '=https' --tlsv1\.2/);
+    assert.ok(source.indexOf('sha256sum --check --strict') < source.indexOf('tar -xjf'));
+    assert.doesNotMatch(source, /sh -c "\$\(curl[^"]*release\.anza\.xyz/);
   });
 }
 
@@ -64,41 +54,29 @@ test('all four Foundry workflow actions are pinned to the reviewed immutable com
   }
 });
 
-const maintenanceScripts = [
-  {
-    name: 'scripts/continuous-improvement-agent.mjs',
-    source: readFileSync(new URL('../scripts/continuous-improvement-agent.mjs', import.meta.url), 'utf8'),
-  },
-  {
-    name: 'scripts/code-guardian.mjs',
-    source: readFileSync(new URL('../scripts/code-guardian.mjs', import.meta.url), 'utf8'),
-  },
+const maintenanceSources = [
+  readFileSync(new URL('../scripts/continuous-improvement-agent.mjs', import.meta.url), 'utf8'),
+  readFileSync(new URL('../scripts/code-guardian.mjs', import.meta.url), 'utf8'),
 ];
 
-for (const item of maintenanceScripts) {
-  test(item.name + ' sends generated diffs directly to git apply stdin', () => {
-    assert.match(item.source, /applyUnifiedDiff/);
-    assert.doesNotMatch(item.source, /\/tmp\/glorifier-/);
-    assert.doesNotMatch(item.source, /writeFileSync|writeFile\(/);
+for (const source of maintenanceSources) {
+  test('AI maintenance agent applies diffs through stdin without writing a patch file', () => {
+    assert.match(source, /applyUnifiedDiff/);
+    assert.doesNotMatch(source, /\/tmp\/glorifier-/);
+    assert.doesNotMatch(source, /writeFileSync|writeFile\(/);
   });
 }
 
-const tokenScripts = [
-  {
-    name: 'solana/revoke-token2022-metadata-authority.mjs',
-    source: readFileSync(new URL('../solana/revoke-token2022-metadata-authority.mjs', import.meta.url), 'utf8'),
-  },
-  {
-    name: 'solana/revoke-token2022-metadata-pointer.mjs',
-    source: readFileSync(new URL('../solana/revoke-token2022-metadata-pointer.mjs', import.meta.url), 'utf8'),
-  },
+const tokenSources = [
+  readFileSync(new URL('../solana/revoke-token2022-metadata-authority.mjs', import.meta.url), 'utf8'),
+  readFileSync(new URL('../solana/revoke-token2022-metadata-pointer.mjs', import.meta.url), 'utf8'),
 ];
 
-for (const item of tokenScripts) {
-  test(item.name + ' resolves dependencies through the workflow-provided Node module path', () => {
-    assert.match(item.source, /createRequire\(import\.meta\.url\)/);
-    assert.doesNotMatch(item.source, /GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
-    assert.doesNotMatch(item.source, /\/tmp\/glorifier-token2022-js/);
+for (const source of tokenSources) {
+  test('Token-2022 revocation script resolves modules through the workflow-provided NODE_PATH', () => {
+    assert.match(source, /createRequire\(import\.meta\.url\)/);
+    assert.doesNotMatch(source, /GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
+    assert.doesNotMatch(source, /\/tmp\/glorifier-token2022-js/);
   });
 }
 
