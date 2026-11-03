@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 const joinParts = (value) => Array.isArray(value) ? value.join("") : "";
@@ -129,13 +130,15 @@ async function run() {
     readJson("nft/metadata/ethereum-mainnet-token-001-observation.json"),
     readFile("GLORIFIER SERVICES.png")
   ]);
-  const gitBlobHeader = Buffer.concat([Buffer.from("blob " + png.length, "utf8"), Buffer.from([0])]);
   const repositoryFile = {
     bytes: png.length,
     sha256: createHash("sha256").update(png).digest("hex"),
-    gitBlobSha: createHash("sha1") //NOSONAR -- Git-compatible blob ID only; image integrity uses SHA-256.
-      .update(Buffer.concat([gitBlobHeader, png]))
-      .digest("hex")
+    // Use Git's object implementation for its repository blob identifier; this is not a security digest.
+    gitBlobSha: execFileSync("git", ["hash-object", "--stdin"], {
+      input: png,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024
+    }).trim()
   };
   const issues = validateEvidenceBundle({registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation, repositoryFile});
   if (issues.length) {
