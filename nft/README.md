@@ -44,3 +44,8 @@ The review contract accepts the final metadata URI as a constructor argument and
 5. Present each transaction for explicit review and approval before any signature, payment, deployment, or mint.
 
 Never request or share a private key, seed phrase, or recovery code. This workflow does not deploy, mint, sign, or spend funds.
+
+
+## Additional on-chain reconciliation — 2026-11-03
+
+A read-only Ethereum explorer check found that the previously listed contract candidate is an existing verified `ERC721SeaDropCloneable` (GLORIFIER / GLR) proxy and that token ID `1` has an observed successful mint to `0xe0589195995cb373c856953cfaddaeeaf2088a06`. This is not yet reconciled to the `GLORIFIER SERVICES — Official Logo #001` metadata or any item in the GitHub image inventory. Do not describe it as the official-logo mint or reuse it as a new deployment target. See `EVIDENCE-RECONCILIATION-2026-11-03.md` and `image-inventory-2026-11-03.json` for the evidence and asset register.

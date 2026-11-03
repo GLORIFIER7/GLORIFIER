@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "title": "GLORIFIER SERVICES — Official Logo #001",
-  "updated_at": "2026-10-21",
+  "updated_at": "2026-11-03",
   "network": {
     "name": "Ethereum Mainnet",
     "chain_id": 1
@@ -22,11 +22,38 @@
   "existing_contract_candidate": {
     "address": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
     "explorer_url": "https://etherscan.io/address/0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
-    "status": "EXISTING_CANDIDATE_NOT_VERIFIED",
-    "contract_code_verified": false,
-    "erc721_compatibility": "NOT_VERIFIED",
-    "owner_and_mint_permissions": "NOT_VERIFIED",
-    "note": "Previously recorded address. Do not represent as the newly deployed contract or assume it is compatible until chain code, source, and permissions are inspected."
+    "status": "ONCHAIN_EXISTING_SEADROP_ERC721_CLONE; TOKEN_ID_1_MINT_OBSERVED; ARTWORK_METADATA_NOT_RECONCILED",
+    "contract_code_verified": true,
+    "erc721_compatibility": "VERIFIED_SEADROP_ERC721_IMPLEMENTATION_AND_TRANSFER_EVENT",
+    "owner_and_mint_permissions": "PARTIALLY_VERIFIED; INITIAL_OWNERSHIP_EVENT_AND_MINT_CALL_OBSERVED; CURRENT_OWNER_VIEW_NOT_READ",
+    "note": "Existing on-chain contract is a verified SeaDrop ERC-721 clone, not the proposed GLORIFIERServicesLogo721.sol implementation. Do not deploy to it or mint against it as the official logo until tokenURI and artwork identity are independently reconciled.",
+    "onchain_observation": {
+      "chain": "Ethereum Mainnet",
+      "chain_id": 1,
+      "verified_contract_name": "ERC721SeaDropCloneable",
+      "compiler_version": "v0.8.17+commit.8df45f5f",
+      "proxy_type": "2",
+      "implementation": "0x09a26fc8fcef18192e267d7a6da9dfb4be81dd6a",
+      "creator": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
+      "creation_transaction": "0x8a41d16bc9c0a26f0f286e1b36ced6d78506c81ae2ad706446444be942550f79",
+      "creation_block": 26235674,
+      "created_at_utc": "2026-10-20T18:45:47Z",
+      "initial_ownership_event_recipient": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
+      "observed_mint": {
+        "transaction": "0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
+        "receipt_status": "SUCCESS",
+        "block": 26275697,
+        "timestamp_utc": "2026-10-26T08:34:11Z",
+        "method": "mintPublic(address nftContract, address feeRecipient, address minter, uint256 quantity)",
+        "token_id": "1",
+        "token_name": "GLORIFIER",
+        "token_symbol": "GLR",
+        "from": "0x0000000000000000000000000000000000000000",
+        "to": "0xe0589195995cb373c856953cfaddaeeaf2088a06"
+      },
+      "token_uri_and_artwork_match": "NOT_OBSERVED",
+      "interpretation": "This proves an existing GLORIFIER/GLR ERC-721 token ID 1 mint on this contract. It does not prove that the token metadata is the repository's GLORIFIER SERVICES Official Logo #001 artwork."
+    }
   },
   "related_transaction_evidence": [
     {
@@ -51,7 +78,14 @@
   },
   "recipient_candidate": {
     "address": "0x393c19Ff12e1624181fBF1938b80982b9dfC427",
-    "status": "USER_CONFIRMED_ADDRESS; LIVE_CONNECTION_AND_CONTROL_NOT_INDEPENDENTLY_VERIFIED"
+    "status": "INVALID_EVM_ADDRESS_FORMAT; 39_HEX_CHARACTERS_AFTER_0X; DO_NOT_USE",
+    "validation": {
+      "supplied_value_preserved": "0x393c19Ff12e1624181fBF1938b80982b9dfC427",
+      "required_hex_characters": 40,
+      "observed_hex_characters": 39,
+      "valid_evm_address": false,
+      "instruction": "Do not guess or auto-correct the missing character. Obtain the complete public address directly from the owner and re-validate it."
+    }
   },
   "safety_gates": {
     "signing_authorized": false,
@@ -59,11 +93,25 @@
     "mint_authorized": false,
     "spending_authorized": false,
     "next_steps": [
-      "Inspect the existing contract address on Ethereum Mainnet and confirm bytecode, verified source, standard interface, owner, and mint permissions.",
-      "Inspect the related transaction receipt and decoded method; do not infer minting from a method label.",
-      "Publish the reviewed corrected metadata JSON to IPFS and verify the new CID through independent gateways.",
-      "Reconcile the artwork byte-hash mismatch and confirm the intended recipient wallet.",
-      "Do not sign, deploy, mint, or spend until the exact transaction is reviewed and explicitly authorized."
-    ]
+      "Reconcile the observed existing GLORIFIER/GLR token ID 1 with its live tokenURI and artwork before associating it with any repository image.",
+      "Complete visual and provenance review of the 82 unique JPG/JPEG blobs listed in nft/image-inventory-2026-11-03.json.",
+      "Create final per-image metadata and verify each image/metadata CID through independent retrieval paths.",
+      "Obtain a complete, syntactically valid destination address directly from the owner; do not correct the malformed stored value by inference.",
+      "Select a suitable multi-item NFT contract/program design; the current proposed GLORIFIERServicesLogo721 contract only allows one mint and is not an 82-item batch solution.",
+      "For Ethereum and any separately selected Solana artwork NFT implementation, present exact assets, token standard/program, metadata, recipient, simulations, and costs for transaction-specific approval."
+    ],
+    "authorization_note": "General authorization to proceed was given in chat. No exact transaction has yet been presented with verified final asset, metadata URI, valid recipient, network, parameters, and itemized current costs. Therefore no transaction-specific approval is recorded; do not sign, deploy, mint, or spend yet."
+  },
+  "observed_mint_evidence": {
+    "status": "VERIFIED_ON_ETHEREUM_MAINNET",
+    "transaction_hash": "0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
+    "explorer_url": "https://etherscan.io/tx/0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
+    "contract": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
+    "token_id": "1",
+    "to": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
+    "token_name": "GLORIFIER",
+    "token_symbol": "GLR",
+    "receipt_status": "SUCCESS",
+    "meaning": "Existing token mint observed. The metadata URI and image identity have not been read, so this event must not be reported as proof that any one of the 82 JPEG assets or Official Logo #001 is minted."
   }
 }

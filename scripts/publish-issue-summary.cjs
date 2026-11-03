@@ -10,7 +10,7 @@ const normalizeIssueNumber = (issueNumber) => {
   } else if (typeof issueNumber === 'string') {
     normalizedIssueNumber = issueNumber.trim();
   }
-  if (!/^[1-9]\\d*$/.test(normalizedIssueNumber) ||
+  if (!/^[1-9]\d*$/.test(normalizedIssueNumber) ||
       !Number.isSafeInteger(Number(normalizedIssueNumber))) {
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
@@ -30,7 +30,7 @@ const parseRepositoryIdentifier = (repository) => {
       !isValidRepositoryName(name)) {
     throw new Error('A valid GitHub repository identifier is required for the fallback link.');
   }
-  return `${owner}/${name}`;
+  return owner + '/' + name;
 };
 
 const isValidGitHubServer = (server) =>
@@ -58,21 +58,21 @@ const buildFallbackIssueSummary = ({ issueNumber, serverUrl, repository }) => {
   const normalizedIssueNumber = normalizeIssueNumber(issueNumber);
   const normalizedRepository = parseRepositoryIdentifier(repository);
   const server = parseGitHubServerUrl(serverUrl);
-  const issueUrl = new URL(`/${normalizedRepository}/issues/${normalizedIssueNumber}`, server.origin);
+  const issueUrl = new URL('/' + normalizedRepository + '/issues/' + normalizedIssueNumber, server.origin);
   return [
     ISSUE_FALLBACK_HEADING,
     '',
     'AI inference did not return a summary for this run. The issue remains authoritative; no issue content was copied or modified by this fallback.',
     '',
-    `Review the source issue: [#${normalizedIssueNumber}](${issueUrl.toString()}).`,
+    'Review the source issue: [#' + normalizedIssueNumber + '](' + issueUrl.toString() + ').',
     '',
-  ].join('\\n');
+  ].join('\n');
 };
 
 const buildIssueSummary = (input) => {
   const summary = typeof input.response === 'string' ? input.response.trim() : '';
   if (input.inferenceOutcome === 'success' && summary) {
-    return `${ISSUE_SUMMARY_HEADING}\\n\\n${summary}\\n`;
+    return ISSUE_SUMMARY_HEADING + '\n\n' + summary + '\n';
   }
   return buildFallbackIssueSummary(input);
 };
