@@ -11,7 +11,7 @@
     "uri": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
     "historical_source_sha256": "0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513",
     "latest_retrieved_bytes_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
-    "integrity_status": "TOKEN_IMAGE_CID_MATCHES_PREVIOUS_RETRIEVED_ARTWORK_BYTES; HISTORICAL_SOURCE_PNG_BYTES_DIFFER",
+    "integrity_status": "VERIFIED_REPOSITORY_ASSET_BYTES_MATCH_LIVE_TOKEN_IMAGE_CID; HISTORICAL_SOURCE_PNG_BYTES_DIFFER",
     "onchain_token_image": {
       "cid": "bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
       "uri": "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
@@ -30,16 +30,24 @@
         "date": "2026-11-03",
         "gateway": "Filebase",
         "result": "IMAGE CONTENT RETRIEVED; depiction matches circular GLORIFIER SERVICES logo and EST 2022"
-      }
-    }
+      },
+      "repository_asset_path": "GLORIFIER SERVICES.png",
+      "repository_asset_source_commit": "cac4d64ac8c367eabf50a1c3717a1b823af45a45",
+      "repository_asset_bytes": 55886,
+      "repository_asset_git_blob_sha": "c01f73f2551db4fb98573e87b8bd80c38a5dc0cc",
+      "repository_asset_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+      "repository_asset_sha256_matches_image_cid_digest": true
+    },
+    "role": "Historical owner-designated source CID; the live tokenURI(1) uses artwork.onchain_token_image.uri."
   },
   "metadata": {
-    "final_corrected_cid": null,
+    "final_corrected_cid": "Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst",
     "final_corrected_uri": "ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1",
     "onchain_metadata_root_cid": "Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst",
-    "status": "VERIFIED_ONCHAIN_TOKEN_URI_AND_METADATA_RETRIEVED_FROM_PINATA_AND_FILEBASE",
+    "status": "VERIFIED_ONCHAIN_TOKEN_URI_AND_METADATA_RETRIEVED_FROM_PINATA_AND_FILEBASE; REPOSITORY_IMAGE_BYTES_MATCH_IMAGE_CID",
     "historical_candidate_cid": "QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX",
-    "note": "The authoritative metadata URI is read directly from tokenURI(1) and resolves to the same Official Logo #001 JSON through Pinata and Filebase. nft/metadata.json is a repository preparation draft, not the published token metadata."
+    "note": "The final metadata object is identified by root CID plus path /1 in the on-chain tokenURI. It resolves through Pinata and Filebase. The repository draft image URI matches the on-chain image CID.",
+    "final_corrected_path": "/1"
   },
   "existing_contract_candidate": {
     "address": "0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7",
@@ -73,8 +81,8 @@
         "from": "0x0000000000000000000000000000000000000000",
         "to": "0xe0589195995cb373c856953cfaddaeeaf2088a06"
       },
-      "token_uri_and_artwork_match": "VERIFIED_METADATA_NAME_AND_IMAGE_REFERENCE_MATCH_THE_OWNER_DESIGNATED_LOGO; IMAGE_CID_DIGEST_MATCHES_PREVIOUS_RETRIEVED_ARTWORK_BYTES",
-      "interpretation": "This proves an existing GLORIFIER/GLR ERC-721 token ID 1 mint on this contract. It does not prove that the token metadata is the repository's GLORIFIER SERVICES Official Logo #001 artwork.",
+      "token_uri_and_artwork_match": "VERIFIED_ONCHAIN_METADATA_AND_REPOSITORY_IMAGE_BYTES_MATCH; HISTORICAL_SOURCE_PNG_IS_DIFFERENT",
+      "interpretation": "Token ID 1 on this contract is the GLORIFIER SERVICES Official Logo #001 NFT; its tokenURI metadata name and image CID were verified via Pinata and Filebase, and the committed GLORIFIER SERVICES.png file SHA-256 matches the image CID digest. Raw-byte identity with the older historical source PNG is not claimed.",
       "current_owner": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
       "owner_of_token_1": "0xe0589195995cb373c856953cfaddaeeaf2088a06",
       "total_supply": 1,
@@ -87,7 +95,11 @@
         "Pinata",
         "Filebase"
       ],
-      "direct_read_evidence": "Read-only eth_call results for owner(), ownerOf(1), tokenURI(1), name(), symbol() and totalSupply() confirmed current state."
+      "direct_read_evidence": "Read-only eth_call results for owner(), ownerOf(1), tokenURI(1), name(), symbol() and totalSupply() confirmed current state.",
+      "repository_image_path": "GLORIFIER SERVICES.png",
+      "repository_image_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+      "repository_image_bytes": 55886,
+      "repository_image_git_blob_sha": "c01f73f2551db4fb98573e87b8bd80c38a5dc0cc"
     }
   },
   "related_transaction_evidence": [
@@ -163,6 +175,10 @@
     "image_uri": "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa",
     "mint_transaction": "0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9",
     "receipt_status": "SUCCESS",
-    "note": "Existing minted edition verified. No additional Logo #001 mint is required. Historical source PNG hash differs from the later retrieved bytes hash."
+    "note": "Existing minted edition verified. No additional Logo #001 mint is required. Historical source PNG hash differs from the later retrieved bytes hash.",
+    "repository_image_path": "GLORIFIER SERVICES.png",
+    "repository_image_sha256": "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790",
+    "repository_image_git_blob_sha": "c01f73f2551db4fb98573e87b8bd80c38a5dc0cc",
+    "image_identity_status": "VERIFIED_REPOSITORY_FILE_SHA256_MATCHES_ONCHAIN_IMAGE_CID_DIGEST"
   }
 }
