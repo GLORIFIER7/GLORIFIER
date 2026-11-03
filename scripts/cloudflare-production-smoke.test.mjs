@@ -10,6 +10,8 @@ import {
   validateRuntimeVerification,
   requestJson,
   verifyPublicReadModels,
+  validateBuildInfo,
+  verifyBuildProvenance,
   formatSmokeFailure,
 } from './cloudflare-production-smoke.mjs';
 
@@ -23,6 +25,12 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     'the production deployment workflow must not issue HTTP mutation methods');
   assert.equal(smokeSource.includes('fetchProductionMcp'), false,
     'production smoke must not make MCP POST requests');
+  assert.match(workflow, /--var "GLORIFIER_RELEASE_COMMIT:\$\{GITHUB_SHA\}"/,
+    'production deployment must inject the exact GitHub commit SHA into Worker metadata');
+  assert.match(workflow, /--var "GLORIFIER_RELEASE_REF:\$\{GITHUB_REF\}"/,
+    'production deployment must inject its exact Git ref');
+  assert.match(smokeSource, /verifyBuildProvenance/,
+    'production smoke must verify the deployed source commit against the expected GitHub SHA');
   const validationJobIndex = workflow.indexOf('\n  validate-and-build:');
   const deployJobIndex = workflow.indexOf('\n  deploy-production:');
   const deployStepIndex = workflow.indexOf(
@@ -357,4 +365,47 @@ test('production read-model smoke fails closed when either deployed endpoint is 
 
   await assert.rejects(verifyPublicReadModels(fetchRequest), /HTTP 404/);
   assert.equal(dataStatusAttempts, 1, 'a deterministic 404 must not be retried');
+});
+
+
+const buildInfo = {
+  ok: true,
+  status: 'source-provenance-verified',
+  repository: 'https://github.com/GLORIFIER7/GLORIFIER',
+  git: {
+    commit: 'a'.repeat(40),
+    ref: 'refs/heads/main',
+    runId: '41429999999',
+  },
+  worker: {
+    versionId: '1acafc15-ead8-431e-8813-d51ea11da51f',
+    versionTag: 'main',
+    versionTimestamp: '2026-11-03T06:23:28.838Z',
+  },
+};
+
+test('build-info accepts exact main-branch source and Worker version provenance', () => {
+  assert.equal(validateBuildInfo(buildInfo, 'a'.repeat(40)).worker.versionId, buildInfo.worker.versionId);
+});
+
+test('build-info rejects missing, malformed, wrong-branch, or mismatched provenance', () => {
+  assert.throws(() => validateBuildInfo(buildInfo, undefined), /expected Git commit SHA/);
+  assert.throws(() => validateBuildInfo({ ...buildInfo, git: { ...buildInfo.git, commit: 'bad' } }, 'a'.repeat(40)), /40-character/);
+  assert.throws(() => validateBuildInfo({ ...buildInfo, git: { ...buildInfo.git, ref: 'refs/heads/feature' } }, 'a'.repeat(40)), /refs\/heads\/main/);
+  assert.throws(() => validateBuildInfo(buildInfo, 'b'.repeat(40)), /does not match the expected commit/);
+  assert.throws(() => validateBuildInfo({ ...buildInfo, worker: { ...buildInfo.worker, versionId: 'not-a-uuid' } }, 'a'.repeat(40)), /Worker version ID/);
+});
+
+test('production build provenance uses a GET request and validates the live response', async () => {
+  const requests = [];
+  const result = await verifyBuildProvenance(async (url, options) => {
+    requests.push({ pathname: new URL(url).pathname, method: options?.method || 'GET' });
+    return new Response(JSON.stringify(buildInfo), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }, 'a'.repeat(40));
+
+  assert.deepEqual(requests, [{ pathname: '/api/build-info', method: 'GET' }]);
+  assert.equal(result.git.commit, 'a'.repeat(40));
 });
