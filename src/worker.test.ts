@@ -2537,4 +2537,4 @@ const run = async (): Promise<void> => {
   }
 };
 
-test('Cloudflare Worker proxy and API contract regressions', run);
+void test('Cloudflare Worker proxy and API contract regressions', run);
