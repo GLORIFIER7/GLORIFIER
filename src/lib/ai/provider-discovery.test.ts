@@ -141,6 +141,12 @@ test('does not classify provider 5xx quota wording as a billing-limit reason', a
   const meta = failure.find((provider) => provider.id === 'meta');
   assert.equal(meta?.availability, 'unreachable');
   assert.equal(meta?.reason, 'provider_service_error');
+  metaProbeStatus = 429;
+  const quotaLimited = await discoverGlobalProviders('provider-discovery-429-quota-reason-regression', { persistConnections: false });
+  const limitedMeta = quotaLimited.find((provider) => provider.id === 'meta');
+  assert.equal(limitedMeta?.availability, 'quota_exhausted');
+  assert.equal(limitedMeta?.reason, 'quota_or_billing_limit');
+  metaProbeStatus = 400;
   metaProbeErrorMessage = 'temporary provider failure';
 });
 
