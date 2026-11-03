@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { AIProvider } from './types.ts';
 import { isProviderModelEligible, normalizeRequestedModel } from './registry.ts';
-import { normalizeSavedModelPreference, resolveExecutableModelPreference, isIndependentComputeFallbackAllowed } from './model-selection.ts';
+import { normalizeSavedModelPreference, resolveExecutableModelPreference, isIndependentComputeFallbackAllowed, reconcileDiscoveredModelPreference, modelPreferenceLabel } from './model-selection.ts';
 import test from 'node:test';
 
 test("Provider saved-model selection regression cases", () => {
@@ -68,7 +68,6 @@ test("Provider saved-model selection regression cases", () => {
   assert.equal(resolveExecutableModelPreference('stale-model', ['gpt-4o']), 'auto', 'undiscovered saved IDs must never remain executable');
   assert.equal(resolveExecutableModelPreference('AUTO', ['gpt-4o']), 'auto');
   
-  import { reconcileDiscoveredModelPreference, modelPreferenceLabel } from './model-selection.ts';
   assert.deepEqual(
     reconcileDiscoveredModelPreference('gpt-4o', 'auto', false, ['gpt-4o']),
     { model: 'gpt-4o', persistModel: false, savedPreferenceUnavailable: false },
