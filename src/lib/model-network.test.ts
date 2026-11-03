@@ -1,6 +1,7 @@
 import { getModelNetworkPolicy } from './model-network';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const policy = getModelNetworkPolicy();
 
 if (policy.architecture !== 'GLORIFIER_MODEL_NETWORK') throw new Error('wrong model network architecture');
@@ -15,5 +16,6 @@ if (policy.automaticCredentialRotation) throw new Error('credential rotation mus
 if (policy.universalInternetControlClaim) throw new Error('universal Internet control claim must remain disabled');
 
 console.log('GLORIFIER Model Network policy invariants: PASS');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
