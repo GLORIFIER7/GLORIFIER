@@ -37,8 +37,8 @@ jobs:
         run: node --test scripts/nvidia-patch-validator.test.cjs
       - name: NVIDIA triage response parser regression tests
         run: node --test scripts/nvidia-triage-response.test.cjs
-      - name: SonarCloud security remediation regression tests
-        run: node --test scripts/sonarcloud-security-hardening.test.mjs
+      - name: Supply-chain and maintenance hardening regression tests
+        run: node --test scripts/supply-chain-and-maintenance-hardening.test.mjs
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
