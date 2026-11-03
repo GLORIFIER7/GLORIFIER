@@ -744,6 +744,25 @@ const run = async (): Promise<void> => {
         assert.match(rejectedGitReferenceBody.result.content[0]?.text || '', /Invalid Git reference/);
         assert.equal(capturedRequest, null, 'invalid Git references must not reach GitHub');
 
+        for (const invalidGitReference of ['main..evil', 'refs/heads/....']) {
+          capturedRequest = null;
+          const invalidGitReferenceResponse = await worker.fetch(
+            mcpPost({
+              jsonrpc: '2.0',
+              id: 17,
+              method: 'tools/call',
+              params: { name: 'github_read_file', arguments: { path: 'README.md', ref: invalidGitReference } },
+            }),
+            env,
+          );
+          const invalidGitReferenceBody = await invalidGitReferenceResponse.json() as {
+            result: { isError?: boolean; content: Array<{ text: string }> };
+          };
+          assert.equal(invalidGitReferenceBody.result.isError, true);
+          assert.match(invalidGitReferenceBody.result.content[0]?.text || '', /Invalid Git reference/);
+          assert.equal(capturedRequest, null, 'invalid Git references must not reach GitHub');
+        }
+
         const previousWorkflowRunsResponse = upstreamResponse;
         upstreamResponse = new Response(JSON.stringify({ workflow_runs: [] }), {
           status: 200,
