@@ -157,5 +157,11 @@ test('outcome-evidence-gates regression suite', async () => {
     'invalid report integrity must fail closed',
   );
 
-  process.stdout.write('OUTCOME_EVIDENCE_GATES_TEST_OK\\n');
+  const successMarker = 'OUTCOME_EVIDENCE_GATES_TEST_OK\n';
+  assert.equal(
+    successMarker,
+    `OUTCOME_EVIDENCE_GATES_TEST_OK${String.fromCharCode(10)}`,
+    'success marker must end with a real newline for CI log parsing',
+  );
+  process.stdout.write(successMarker);
 });
