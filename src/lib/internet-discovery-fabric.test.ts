@@ -1,6 +1,7 @@
 import { getInternetDiscoveryFabricPolicy } from './internet-discovery-fabric';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const policy = getInternetDiscoveryFabricPolicy();
 
 if (policy.architecture !== 'INTERNET_DISCOVERY_FABRIC_WORLD_GRAPH') throw new Error('wrong architecture');
@@ -16,5 +17,6 @@ if (policy.automaticFinancialTransfers) throw new Error('financial transfer auto
 if (policy.automaticCredentialRotation) throw new Error('credential rotation automation must be disabled');
 if (!policy.noUniversalInternetCoverageClaim) throw new Error('universal coverage claim guard missing');
 console.log('Internet Discovery Fabric policy invariants: PASS');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
