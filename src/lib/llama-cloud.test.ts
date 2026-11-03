@@ -5,7 +5,7 @@ import { test } from 'node:test';
 const PROJECT_ID = 'f7d2b46c-8e2b-4b9a-9b65-9a4d9c2f1e70';
 
 const withLlamaCloudEnvironment = async (
-  apiKey: string | null,
+  hasApiKey: boolean,
   run: () => Promise<void>,
 ): Promise<void> => {
   const oldKey = process.env.LLAMA_CLOUD_API_KEY;
@@ -13,8 +13,8 @@ const withLlamaCloudEnvironment = async (
   const oldBase = process.env.LLAMA_CLOUD_BASE_URL;
 
   process.env.LLAMA_CLOUD_PROJECT_ID = PROJECT_ID;
-  if (apiKey === null) delete process.env.LLAMA_CLOUD_API_KEY;
-  else process.env.LLAMA_CLOUD_API_KEY = apiKey;
+  if (hasApiKey) process.env.LLAMA_CLOUD_API_KEY = 'test-key';
+  else delete process.env.LLAMA_CLOUD_API_KEY;
   delete process.env.LLAMA_CLOUD_BASE_URL;
 
   try {
@@ -46,7 +46,7 @@ const assertLlamaCloudError = async (
 };
 
 void test('LlamaCloud remains explicitly not configured without an API key', async () => {
-  await withLlamaCloudEnvironment(null, async () => {
+  await withLlamaCloudEnvironment(false, async () => {
     let calls = 0;
     const noFetch = (async () => {
       calls++;
@@ -60,7 +60,7 @@ void test('LlamaCloud remains explicitly not configured without an API key', asy
 });
 
 void test('LlamaCloud lists only project indexes and retrieves scoped context', async () => {
-  await withLlamaCloudEnvironment('test-key', async () => {
+  await withLlamaCloudEnvironment(true, async () => {
     const captured: Array<{ url: string; init?: RequestInit }> = [];
     const mockFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
