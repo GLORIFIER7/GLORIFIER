@@ -287,24 +287,49 @@ const isCloudflareWorkerVersionId = (value) => {
 export const validateBuildInfo = (body, expectedCommit) => {
   assert.ok(isAsciiHex(expectedCommit, 40),
     'expected Git commit SHA must be a 40-character hexadecimal value');
-  assert.equal(body?.ok, true, 'build-info must report ok=true');
-  assert.equal(body?.status, 'source-provenance-verified');
-  assert.equal(body?.repository, 'https://github.com/GLORIFIER7/GLORIFIER');
-  assert.ok(isAsciiHex(body?.git?.commit, 40),
-    'build-info must expose a 40-character source commit SHA');
-  assert.equal(body.git.commit.toLowerCase(), expectedCommit.toLowerCase(),
-    'deployed Worker source commit does not match the expected commit');
-  assert.equal(body?.git?.ref, 'refs/heads/main',
-    'production Worker must identify the protected main branch');
-  assert.ok(isAsciiDecimal(body?.git?.runId),
-    'build-info must expose the GitHub Actions run ID');
-  assert.ok(isCloudflareWorkerVersionId(body?.worker?.versionId),
-    'build-info must expose the Cloudflare Worker version ID');
-  assert.ok(typeof body?.worker?.versionTimestamp === 'string' &&
-    Number.isFinite(Date.parse(body.worker.versionTimestamp)),
-  'build-info must expose a valid Cloudflare version timestamp');
-  assert.ok(body.worker.versionTag === null || typeof body.worker.versionTag === 'string',
-    'build-info version tag must be a string or null');
+
+  if (body === null || typeof body !== 'object') {
+    throw new TypeError('build-info must return an object');
+  }
+  if (body.ok !== true) throw new Error('build-info must report ok=true');
+  if (body.status !== 'source-provenance-verified') {
+    throw new Error('build-info must report source-provenance-verified');
+  }
+  if (body.repository !== 'https://github.com/GLORIFIER7/GLORIFIER') {
+    throw new Error('build-info repository does not match GLORIFIER7/GLORIFIER');
+  }
+
+  const git = body.git;
+  if (git === null || typeof git !== 'object') {
+    throw new TypeError('build-info must include a git object');
+  }
+  const worker = body.worker;
+  if (worker === null || typeof worker !== 'object') {
+    throw new TypeError('build-info must include a worker object');
+  }
+
+  if (!isAsciiHex(git.commit, 40)) {
+    throw new Error('build-info must expose a 40-character source commit SHA');
+  }
+  if (git.commit.toLowerCase() !== expectedCommit.toLowerCase()) {
+    throw new Error('deployed Worker source commit does not match the expected commit');
+  }
+  if (git.ref !== 'refs/heads/main') {
+    throw new Error('production Worker must identify the protected main branch');
+  }
+  if (!isAsciiDecimal(git.runId)) {
+    throw new Error('build-info must expose the GitHub Actions run ID');
+  }
+  if (!isCloudflareWorkerVersionId(worker.versionId)) {
+    throw new Error('build-info must expose the Cloudflare Worker version ID');
+  }
+  if (typeof worker.versionTimestamp !== 'string' ||
+      !Number.isFinite(Date.parse(worker.versionTimestamp))) {
+    throw new Error('build-info must expose a valid Cloudflare version timestamp');
+  }
+  if (worker.versionTag !== null && typeof worker.versionTag !== 'string') {
+    throw new Error('build-info version tag must be a string or null');
+  }
   return body;
 };
 
