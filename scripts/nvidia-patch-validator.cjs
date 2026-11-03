@@ -22,6 +22,84 @@ function isAllowedPath(path) {
     !DENIED_PATH_PARTS.some((part) => normalized.toLowerCase().includes(part));
 }
 
+function countValidatedHunkChanges(lines, hunkStart, fileIndex) {
+  let oldRemaining = 0;
+  let newRemaining = 0;
+  let hasHunk = false;
+  let lastWasBodyLine = false;
+  let changedLines = 0;
+
+  for (let index = hunkStart; index < lines.length; index += 1) {
+    const line = lines[index];
+
+    // The normalized diff always ends with one newline. Do not permit other
+    // empty lines outside a declared hunk.
+    if (line === '' && index === lines.length - 1) break;
+
+    if (line.startsWith('@@')) {
+      if (hasHunk && (oldRemaining !== 0 || newRemaining !== 0)) {
+        throw new Error('Patch file ' + fileIndex + ' has a hunk that ended before its declared line counts.');
+      }
+      const header = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/);
+      if (!header) throw new Error('Patch file ' + fileIndex + ' has an invalid unified-diff hunk header.');
+      oldRemaining = Number(header[2] === undefined ? 1 : header[2]);
+      newRemaining = Number(header[4] === undefined ? 1 : header[4]);
+      if (!Number.isSafeInteger(oldRemaining) || !Number.isSafeInteger(newRemaining) ||
+          oldRemaining < 0 || newRemaining < 0 || (oldRemaining === 0 && newRemaining === 0)) {
+        throw new Error('Patch file ' + fileIndex + ' has invalid unified-diff hunk line counts.');
+      }
+      hasHunk = true;
+      lastWasBodyLine = false;
+      continue;
+    }
+
+    if (!hasHunk) {
+      throw new Error('Patch file ' + fileIndex + ' contains content outside a unified-diff hunk.');
+    }
+
+    if (line === '\\ No newline at end of file') {
+      if (!lastWasBodyLine) {
+        throw new Error('Patch file ' + fileIndex + ' has a misplaced no-newline marker.');
+      }
+      lastWasBodyLine = false;
+      continue;
+    }
+
+    if (oldRemaining === 0 && newRemaining === 0) {
+      throw new Error('Patch file ' + fileIndex + ' contains unexpected content after a completed hunk.');
+    }
+
+    if (line.startsWith(' ')) {
+      if (oldRemaining === 0 || newRemaining === 0) {
+        throw new Error('Patch file ' + fileIndex + ' exceeds its declared unified-diff context count.');
+      }
+      oldRemaining -= 1;
+      newRemaining -= 1;
+    } else if (line.startsWith('-')) {
+      if (oldRemaining === 0) {
+        throw new Error('Patch file ' + fileIndex + ' exceeds its declared unified-diff removal count.');
+      }
+      oldRemaining -= 1;
+      changedLines += 1;
+    } else if (line.startsWith('+')) {
+      if (newRemaining === 0) {
+        throw new Error('Patch file ' + fileIndex + ' exceeds its declared unified-diff addition count.');
+      }
+      newRemaining -= 1;
+      changedLines += 1;
+    } else {
+      throw new Error('Patch file ' + fileIndex + ' contains an invalid line outside a unified-diff hunk.');
+    }
+    lastWasBodyLine = true;
+  }
+
+  if (!hasHunk) throw new Error('Patch file ' + fileIndex + ' has no unified-diff hunk.');
+  if (oldRemaining !== 0 || newRemaining !== 0) {
+    throw new Error('Patch file ' + fileIndex + ' ended before its declared unified-diff hunk line counts.');
+  }
+  return changedLines;
+}
+
 function parseExistingFilePathPair(block, fileIndex) {
   const lines = block.split(/\r?\n/);
   const gitHeader = lines[0].match(/^diff --git a\/(.+?) b\/(.+)$/);
@@ -53,9 +131,7 @@ function parseExistingFilePathPair(block, fileIndex) {
     throw new Error('Patch path mismatch between git and unified-diff headers.');
   }
   if (!isAllowedPath(oldPath)) throw new Error('Patch path is not allowed: ' + oldPath);
-  const changedLines = lines.slice(hunkStart + 1).filter((line) =>
-    line.startsWith('+') || line.startsWith('-')
-  ).length;
+  const changedLines = countValidatedHunkChanges(lines, hunkStart, fileIndex);
   return { path: oldPath, changedLines };
 }
 
