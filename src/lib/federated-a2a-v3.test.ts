@@ -1,6 +1,7 @@
 import { FEDERATED_A2A_V3_LIFECYCLE, FEDERATED_A2A_V3_VERSION, getFederatedA2AV3Policy, createFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, type FederatedA2AQuery } from './federated-a2a-v3';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const p=getFederatedA2AV3Policy();
 if(FEDERATED_A2A_V3_VERSION!=='G-A2A-TASK-3.0') throw new Error('version');
 if(JSON.stringify(p.lifecycle)!==JSON.stringify(FEDERATED_A2A_V3_LIFECYCLE)) throw new Error('lifecycle');
@@ -87,5 +88,6 @@ releaseDurableCreate();
 const durablyCreated = await delayedCreate;
 if (!durablyCreated.id || !createFinished) throw new Error('federated task creation must resolve after persistence completes');
 console.log('FEDERATED_A2A_V3_DURABLE_CREATE_TEST_OK');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
