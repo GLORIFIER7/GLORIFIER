@@ -355,6 +355,8 @@ interface InvoiceMetadataDraft {
   detailValues: unknown[];
 }
 
+type InvoiceMetadataValidationInput = Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>;
+
 interface InvoiceMetadata {
   issuer: string;
   invoiceId: string;
@@ -399,7 +401,7 @@ const requiredDatasetRows = (
 };
 
 const validateInvoiceIdentity = (
-  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
+  values: InvoiceMetadataValidationInput,
   reasons: string[],
 ): void => {
   if (!values.issuer || !values.invoiceId) reasons.push('invoice issuer and invoice ID are required');
@@ -413,7 +415,7 @@ const invoicePeriodValidationFailure = (startMs: number | null, endMs: number | 
 };
 
 const validateInvoiceBillingPeriod = (
-  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
+  values: InvoiceMetadataValidationInput,
   reasons: string[],
 ): void => {
   const startMs = values.billingPeriodStart ? utcTimestamp(values.billingPeriodStart) : null;
@@ -444,7 +446,7 @@ const validateRoundingTolerance = (
 };
 
 const validateInvoiceMetadata = (
-  values: Omit<InvoiceMetadataDraft, 'billingPeriodValues' | 'usageValues' | 'detailValues'>,
+  values: InvoiceMetadataValidationInput,
   reasons: string[],
 ): void => {
   validateInvoiceIdentity(values, reasons);
