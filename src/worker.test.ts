@@ -227,7 +227,7 @@ const run = async (): Promise<void> => {
         );
         assert.equal(mcpToolsList.status, 200);
         const mcpToolsBody = await mcpToolsList.json() as {
-          result: { tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
+          result: { tools: Array<{ name: string; annotations: { readOnlyHint?: boolean; destructiveHint?: boolean } }> };
         };
         assert.deepEqual(
           mcpToolsBody.result.tools.map((tool) => tool.name).sort(),
@@ -235,7 +235,7 @@ const run = async (): Promise<void> => {
           'MCP must expose the complete, fixed read-only GitHub tool surface',
         );
         assert.ok(mcpToolsBody.result.tools.length >= 3);
-        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations?.readOnlyHint === true));
+        assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations.readOnlyHint === true));
         assert.ok(mcpToolsBody.result.tools.every((tool) => tool.annotations.destructiveHint === false));
         assert.ok(mcpToolsBody.result.tools.every((tool) => !/(write|create|update|delete|merge|push)/i.test(tool.name)));
 
@@ -367,7 +367,7 @@ const run = async (): Promise<void> => {
         const modernToolsBody = await modernToolsList.json() as {
           result: {
             resultType: string;
-            tools: Array<{ name: string; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }>;
+            tools: Array<{ name: string; annotations: { readOnlyHint?: boolean; destructiveHint?: boolean } }>;
             _meta: Record<string, { name: string; version: string }>;
           };
         };
@@ -378,7 +378,7 @@ const run = async (): Promise<void> => {
           ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
         );
         assert.ok(modernToolsBody.result.tools.every((tool) =>
-          tool.annotations?.readOnlyHint === true && tool.annotations.destructiveHint === false));
+          tool.annotations.readOnlyHint === true && tool.annotations.destructiveHint === false));
         assert.deepEqual(
           modernToolsBody.result._meta['io.modelcontextprotocol/serverInfo'],
           { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' },
