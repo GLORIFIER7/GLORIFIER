@@ -44,7 +44,7 @@ for (const [workflow, action, sha] of actionPins) {
 for (const script of ['scripts/continuous-improvement-agent.mjs', 'scripts/code-guardian.mjs']) {
   test(script + ' uses an owner-only temporary directory for patch files', () => {
     const source = read(script);
-    assert.match(source, /createPrivateTempDir/);
+    assert.match(source, /withPrivateTempFile/);
     assert.doesNotMatch(source, /['"]\/tmp\/glorifier-[^'"]+['"]/);
   });
 }
