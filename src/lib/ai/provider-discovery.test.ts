@@ -134,6 +134,25 @@ test('classifies billing responses as quota exhaustion without authenticating Me
   assert.equal(meta?.reason, 'quota_or_billing_limit');
 });
 
+test('preserves legacy classification for non-400 4xx billing wording', async () => {
+  metaProbeStatus = 404;
+  metaProbeErrorMessage = 'upstream quota exceeded';
+  const notFound = await discoverGlobalProviders('provider-discovery-404-quota-wording-regression', { persistConnections: false });
+  const missingMeta = notFound.find((provider) => provider.id === 'meta');
+  assert.equal(missingMeta?.availability, 'error');
+  assert.equal(missingMeta?.reason, 'quota_or_billing_limit');
+
+  metaProbeStatus = 429;
+  metaProbeErrorMessage = 'provider billing maintenance';
+  const billingRateLimit = await discoverGlobalProviders('provider-discovery-429-billing-wording-regression', { persistConnections: false });
+  const rateLimitedMeta = billingRateLimit.find((provider) => provider.id === 'meta');
+  assert.equal(rateLimitedMeta?.availability, 'rate_limited');
+  assert.equal(rateLimitedMeta?.reason, 'quota_or_billing_limit');
+
+  metaProbeStatus = 400;
+  metaProbeErrorMessage = 'temporary provider failure';
+});
+
 test('does not classify provider 5xx quota wording as a billing-limit reason', async () => {
   metaProbeStatus = 503;
   metaProbeErrorMessage = 'upstream quota exceeded';
