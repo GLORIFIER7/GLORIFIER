@@ -15,8 +15,30 @@ import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
 
+async function withRestoredDatabaseUrl<T>(operation: () => Promise<T>): Promise<T> {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  try {
+    return await operation();
+  } finally {
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+}
+
+test('agent harness restores DATABASE_URL when setup rejects', async () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  await assert.rejects(
+    withRestoredDatabaseUrl(async () => {
+      process.env.DATABASE_URL = 'postgresql://unit-test.invalid/forced-failure';
+      throw new Error('simulated agent harness setup failure');
+    }),
+    /simulated agent harness setup failure/,
+  );
+  assert.equal(process.env.DATABASE_URL, originalDatabaseUrl);
+});
+
 before(async () => {
-const originalDatabaseUrl = process.env.DATABASE_URL;
+await withRestoredDatabaseUrl(async () => {
 delete process.env.DATABASE_URL;
 assert.equal(getAgentHarnessPersistenceStatus().mode, 'uninitialized');
 await assert.rejects(() => createAgentSession('must-fail-before-harness-init'), /still initializing/);
@@ -242,10 +264,8 @@ assert.equal(
 );
 assert.match((persistenceFailure as Error)?.message || '', /completed.*persist/i);
 
-if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-else process.env.DATABASE_URL = originalDatabaseUrl;
-
 console.log('agent-harness approval and persistence-cache tests: PASS');
+});
   assertionsCompleted = true;
 });
 
