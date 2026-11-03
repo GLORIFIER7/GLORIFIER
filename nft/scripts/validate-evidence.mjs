@@ -44,6 +44,8 @@ function validateRegistryMetadata(bundle) {
   if (meta.final_corrected_path !== "/1") issues.push("Registry final metadata path mismatch.");
   if (meta.final_corrected_uri !== uri) issues.push("Registry final metadata URI mismatch.");
   if (meta.onchain_metadata_root_cid !== meta.final_corrected_cid) issues.push("Registry metadata root and final CID disagree.");
+  const artworkMatch = String(registry.existing_contract_candidate?.onchain_observation?.token_uri_and_artwork_match ?? "");
+  if (!artworkMatch.includes("REPOSITORY_IMAGE_BYTES_MATCH")) issues.push("Registry artwork-match status does not record the repository image byte match.");
   const interpretation = String(registry.existing_contract_candidate?.onchain_observation?.interpretation ?? "");
   if (!interpretation.includes("GLORIFIER SERVICES Official Logo #001 NFT")) issues.push("Registry interpretation must identify the minted Official Logo #001 token.");
   if (interpretation.includes("does not prove")) issues.push("Registry interpretation retains stale unverified-artwork wording.");
@@ -130,7 +132,9 @@ async function run() {
   const repositoryFile = {
     bytes: png.length,
     sha256: createHash("sha256").update(png).digest("hex"),
-    gitBlobSha: createHash("sha1").update(Buffer.concat([gitBlobHeader, png])).digest("hex")
+    gitBlobSha: createHash("sha1") //NOSONAR -- Git-compatible blob ID only; image integrity uses SHA-256.
+      .update(Buffer.concat([gitBlobHeader, png]))
+      .digest("hex")
   };
   const issues = validateEvidenceBundle({registry, inventory, draftMetadata, secondaryDraft, publishedMetadata, observation, repositoryFile});
   if (issues.length) {
