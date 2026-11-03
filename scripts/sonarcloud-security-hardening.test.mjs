@@ -12,12 +12,16 @@ const agaveSources = [
 const agaveSha256 = '5fc8684f7430038105fde953d4308ed56addf627f658daa61709f345448247ee';
 
 for (const [index, source] of agaveSources.entries()) {
-  test('Agave Devnet workflow ' + (index + 1) + ' verifies its pinned archive before extraction', () => {
+  test('Agave Devnet workflow ' + (index + 1) + ' verifies the exact downloaded archive before extraction', () => {
     assert.ok(source.includes(agaveSha256));
-    assert.match(source, /sha256sum --check --strict/);
-    assert.match(source, /curl --fail --show-error --silent --location --proto '=https' --tlsv1\.2/);
-    assert.ok(source.indexOf('sha256sum --check --strict') < source.indexOf('tar -xjf'));
-    assert.doesNotMatch(source, /sh -c "\$\(curl[^"]*release\.anza\.xyz/);
+    assert.match(source, /curl --fail --show-error --silent --location --proto '=https' --tlsv1\\.2/);
+    assert.match(source, /curl[^\\n]*"\\$ARCHIVE_URL" --output "\\$ARCHIVE"/);
+    assert.match(source, /printf '%s  %s\\\\n' "\\$ARCHIVE_SHA256" "\\$ARCHIVE" \\| sha256sum --check --strict/);
+    assert.match(source, /tar -xjf "\\$ARCHIVE"/);
+    const checksumIndex = source.indexOf('sha256sum --check --strict');
+    const extractionIndex = source.indexOf('tar -xjf "$ARCHIVE"');
+    assert.ok(checksumIndex >= 0 && extractionIndex > checksumIndex, 'the exact verified archive must be extracted after checksum validation');
+    assert.doesNotMatch(source, /sh -c "\\$\\(curl[^"]*release\\.anza\\.xyz/);
   });
 }
 
@@ -36,8 +40,18 @@ const foundryWorkflows = [
   readFileSync(new URL('../.github/workflows/glorifier-contracts.yml', import.meta.url), 'utf8'),
 ];
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&');
+}
+
 function assertPinnedAction(source, action, sha) {
-  assert.ok(source.includes('uses: ' + action + '@' + sha));
+  const prefix = new RegExp('^\\\\s*uses:\\\\s*' + escapeRegExp(action) + '@', 'm');
+  const activeReferences = source.split(/\\r?\\n/).filter((line) => prefix.test(line));
+  assert.ok(activeReferences.length > 0, 'expected an active uses: entry for ' + action);
+  const expected = new RegExp('^\\\\s*uses:\\\\s*' + escapeRegExp(action) + '@' + sha + '(?:\\\\s+#.*)?$');
+  for (const line of activeReferences) {
+    assert.match(line, expected, 'unexpected or mutable action reference: ' + line.trim());
+  }
 }
 
 test('Codex action is pinned to its reviewed immutable commit', () => {
@@ -62,8 +76,8 @@ const maintenanceSources = [
 for (const source of maintenanceSources) {
   test('AI maintenance agent applies diffs through stdin without writing a patch file', () => {
     assert.match(source, /applyUnifiedDiff/);
-    assert.doesNotMatch(source, /\/tmp\/glorifier-/);
-    assert.doesNotMatch(source, /writeFileSync|writeFile\(/);
+    assert.doesNotMatch(source, /\\/tmp\\/glorifier-/);
+    assert.doesNotMatch(source, /writeFileSync|writeFile\\(/);
   });
 }
 
@@ -74,9 +88,9 @@ const tokenSources = [
 
 for (const source of tokenSources) {
   test('Token-2022 revocation script resolves modules through the workflow-provided NODE_PATH', () => {
-    assert.match(source, /createRequire\(import\.meta\.url\)/);
+    assert.match(source, /createRequire\\(import\\.meta\\.url\\)/);
     assert.doesNotMatch(source, /GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
-    assert.doesNotMatch(source, /\/tmp\/glorifier-token2022-js/);
+    assert.doesNotMatch(source, /\\/tmp\\/glorifier-token2022-js/);
   });
 }
 
@@ -85,14 +99,14 @@ test('Mainnet Token-2022 runner provides NODE_PATH from its private dependency d
   assert.match(source, /mktemp -d/);
   assert.match(source, /chmod 700/);
   assert.match(source, /export GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
-  assert.match(source, /export NODE_PATH="\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR\/node_modules"/);
+  assert.match(source, /export NODE_PATH="\\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR\\/node_modules"/);
   assert.match(source, /trap .*rm -rf.*GLORIFIER_TOKEN2022_NODE_MODULES_DIR.* EXIT/);
-  assert.match(source, /npm install --prefix "\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"/);
-  assert.doesNotMatch(source, /npm install --prefix \/tmp\/glorifier-token2022-js/);
+  assert.match(source, /npm install --prefix "\\$GLORIFIER_TOKEN2022_NODE_MODULES_DIR"/);
+  assert.doesNotMatch(source, /npm install --prefix \\/tmp\\/glorifier-token2022-js/);
 });
 
 test('applyUnifiedDiff forwards a validated diff over stdin without creating files', () => {
-  const patch = 'diff --git a/src/example.ts b/src/example.ts\n';
+  const patch = 'diff --git a/src/example.ts b/src/example.ts\\n';
   let invocation;
   const expected = { ok: true, output: '' };
   const result = applyUnifiedDiff(patch, (command, args, options) => {
@@ -109,7 +123,7 @@ test('applyUnifiedDiff forwards a validated diff over stdin without creating fil
 test('applyUnifiedDiff returns a failed git-apply result unchanged', () => {
   const failed = { ok: false, output: 'patch rejected' };
   const result = applyUnifiedDiff(
-    'diff --git a/src/example.ts b/src/example.ts\n',
+    'diff --git a/src/example.ts b/src/example.ts\\n',
     () => failed,
   );
   assert.equal(result, failed);
@@ -117,7 +131,7 @@ test('applyUnifiedDiff returns a failed git-apply result unchanged', () => {
 
 test('applyUnifiedDiff rejects missing patches and invalid executors', () => {
   assert.throws(() => applyUnifiedDiff('', () => ({ ok: true })), /non-empty unified diff/);
-  assert.throws(() => applyUnifiedDiff('diff --git a/a b/a\n', null), /executor function/);
+  assert.throws(() => applyUnifiedDiff('diff --git a/a b/a\\n', null), /executor function/);
 });
 
 test('Node loads the isolated module directory from NODE_PATH at process startup', () => {
