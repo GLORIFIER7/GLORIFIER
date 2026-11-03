@@ -73,7 +73,7 @@ const normalizeCountValue = (value: unknown): string | null => {
 };
 
 const parseNonNegativeCountText = (value: string): number | null => {
-  if (!/^(0|[1-9][0-9]*)$/.test(value)) return null;
+  if (!/^(0|[1-9]\d*)$/.test(value)) return null;
   const count = Number(value);
   return Number.isSafeInteger(count) ? count : null;
 };
@@ -183,10 +183,7 @@ const throwIfNeonQueryFailed = (
 };
 
 const executeNeonCountQuery = async (client: NeonPgClient): Promise<NeonOperationalCounts> => {
-  let query: AsyncResult<NeonOperationalCounts> = {
-    ok: false,
-    error: new Error('Neon count query did not execute.'),
-  };
+  let query: AsyncResult<NeonOperationalCounts>;
   let close: AsyncResult<void> = { ok: true, value: undefined };
 
   try {
