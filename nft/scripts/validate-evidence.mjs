@@ -86,7 +86,7 @@ async function run() {
     readJson("nft/metadata/ethereum-mainnet-token-001-observation.json"),
     readFile("GLORIFIER SERVICES.png")
   ]);
-  const gitBlobHeader = Buffer.from("blob " + png.length + "\\0", "utf8");
+  const gitBlobHeader = Buffer.concat([Buffer.from("blob " + png.length, "utf8"), Buffer.from([0])]);
   const repositoryFile = {
     bytes: png.length,
     sha256: createHash("sha256").update(png).digest("hex"),
