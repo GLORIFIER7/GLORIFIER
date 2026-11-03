@@ -77,6 +77,7 @@
     "validate:interoperability-registry": "node scripts/validate-interoperability-registry.mjs",
     "test:token-branding-bridge": "node --test --import tsx/esm src/lib/token-branding-bridge.test.ts",
     "test:interoperability-protocol-boundaries": "node --test scripts/interoperability-protocol-boundaries.test.mjs",
+    "test:interoperability-controls": "tsx src/lib/governance/interoperability-controls.test.ts",
     "test:agent-state-store": "tsx src/lib/agent-state-store.test.ts",
     "test:agent-state-store-integration": "tsx src/lib/agent-state-store.integration.test.ts",
     "test:agent-runtime": "tsx src/lib/agent-runtime.test.ts",
