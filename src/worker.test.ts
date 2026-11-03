@@ -728,30 +728,66 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().headers.get('authorization'), null,
           'public MCP requests must remain anonymous when no explicit read token is configured');
 
-        const tokenFixture = upstreamResponse;
-        upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-        capturedRequest = null;
         const tokenEnabledEnv = { ...env, GITHUB_MCP_READ_TOKEN: 'unit-test-token' } as TestEnv;
-        const tokenBackedGithubRead = await worker.fetch(
-          mcpPost({
-            jsonrpc: '2.0',
-            id: 'github-read-with-token',
-            method: 'tools/call',
-            params: { name: 'github_get_repository', arguments: {} },
-          }),
-          tokenEnabledEnv,
-        );
-        const tokenBackedGithubReadText = await tokenBackedGithubRead.text();
-        assert.equal(tokenBackedGithubRead.status, 200);
-        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer unit-test-token',
-          'an explicitly configured Worker secret must be sent only as a bearer credential to the fixed GitHub API origin');
-        assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
-        assert.ok(!tokenBackedGithubReadText.includes('unit-test-token'),
-          'the configured GitHub read token must never be included in an MCP response');
-        upstreamResponse = tokenFixture;
+        const tokenBackedToolCases: Array<{
+          name: string;
+          arguments: Record<string, unknown>;
+          pathname: string;
+          body: Record<string, unknown>;
+        }> = [
+          {
+            name: 'github_get_repository',
+            arguments: { host: 'attacker.example', url: 'https://attacker.example/api' },
+            pathname: '/repos/GLORIFIER7/GLORIFIER',
+            body: { full_name: 'GLORIFIER7/GLORIFIER' },
+          },
+          {
+            name: 'github_list_open_pull_requests',
+            arguments: { state: 'open', per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            pathname: '/repos/GLORIFIER7/GLORIFIER/pulls',
+            body: [],
+          },
+          {
+            name: 'github_list_workflow_runs',
+            arguments: { per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            pathname: '/repos/GLORIFIER7/GLORIFIER/actions/runs',
+            body: { workflow_runs: [] },
+          },
+          {
+            name: 'github_read_file',
+            arguments: { path: 'README.md', ref: 'main', host: 'attacker.example', url: 'https://attacker.example/api' },
+            pathname: '/repos/GLORIFIER7/GLORIFIER/contents/README.md',
+            body: { content: 'b2s=', encoding: 'base64' },
+          },
+        ];
+
+        for (const [index, toolCase] of tokenBackedToolCases.entries()) {
+          upstreamResponse = new Response(JSON.stringify(toolCase.body), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+          capturedRequest = null;
+          const tokenBackedToolCall = await worker.fetch(
+            mcpPost({
+              jsonrpc: '2.0',
+              id: `github-read-with-token-${index}`,
+              method: 'tools/call',
+              params: { name: toolCase.name, arguments: toolCase.arguments },
+            }),
+            tokenEnabledEnv,
+          );
+          const tokenBackedToolCallText = await tokenBackedToolCall.text();
+          assert.equal(tokenBackedToolCall.status, 200, `${toolCase.name} must accept the configured read-only token`);
+          const tokenRequestUrl = new URL(getCapturedRequest().url);
+          assert.equal(tokenRequestUrl.origin, 'https://api.github.com',
+            `${toolCase.name} must not allow tool arguments to redirect the upstream host`);
+          assert.equal(tokenRequestUrl.pathname, toolCase.pathname);
+          assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer unit-test-token',
+            `${toolCase.name} must forward the token to the fixed GitHub API origin`);
+          assert.equal(getCapturedRequest().method, 'GET');
+          assert.ok(!tokenBackedToolCallText.includes('unit-test-token'),
+            'the configured GitHub read token must never be included in an MCP response');
+        }
 
         upstreamResponse = previousValidGithubFileResponse;
 
