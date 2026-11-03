@@ -126,8 +126,10 @@ jobs:
           echo "Selected RPC provider: $RPC_PROVIDER"
           echo "BNB Testnet chain ID: $chain_id"
           echo "Latest BNB Testnet block: $block_number"
-          echo "RPC_URL=$RPC_URL" >> "$GITHUB_ENV"
-          echo "RPC_PROVIDER=$RPC_PROVIDER" >> "$GITHUB_ENV"
+          {
+            echo "RPC_URL=$RPC_URL"
+            echo "RPC_PROVIDER=$RPC_PROVIDER"
+          } >> "$GITHUB_ENV"
 
           DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
           BALANCE_WEI="$(cast balance "$DEPLOYER" --rpc-url "$RPC_URL")"
@@ -141,9 +143,11 @@ jobs:
 
           if [[ "$BALANCE_WEI" == "0" ]]; then
             printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nBALANCE_STATUS=INSUFFICIENT\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" > deployment-preflight.env
-            echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING" >> "$GITHUB_ENV"
-            echo "BALANCE_STATUS=INSUFFICIENT" >> "$GITHUB_ENV"
-            echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
+            {
+              echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING"
+              echo "BALANCE_STATUS=INSUFFICIENT"
+              echo "DEPLOYER_ADDRESS=$DEPLOYER"
+            } >> "$GITHUB_ENV"
             echo "WARNING: deployer has zero BNB Testnet tBNB."
             echo "Fund this exact BNB Testnet address before broadcasting: $DEPLOYER"
             echo "Deployment is BLOCKED_FUNDING; no transaction was broadcast."
@@ -168,9 +172,11 @@ jobs:
 
           if (( BALANCE_WEI < REQUIRED_WEI )); then
             printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nREQUIRED_WEI=%s\nBALANCE_STATUS=INSUFFICIENT\nDEPLOYMENT_STATUS=BLOCKED_FUNDING\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" "$REQUIRED_WEI" > deployment-preflight.env
-            echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING" >> "$GITHUB_ENV"
-            echo "BALANCE_STATUS=INSUFFICIENT" >> "$GITHUB_ENV"
-            echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
+            {
+              echo "DEPLOYMENT_STATUS=BLOCKED_FUNDING"
+              echo "BALANCE_STATUS=INSUFFICIENT"
+              echo "DEPLOYER_ADDRESS=$DEPLOYER"
+            } >> "$GITHUB_ENV"
             echo "WARNING: insufficient BNB Testnet tBNB."
             echo "Current balance: $BALANCE_WEI wei"
             echo "Required with safety buffer: $REQUIRED_WEI wei"
@@ -180,10 +186,12 @@ jobs:
           fi
 
           printf 'RPC_PROVIDER=%s\nRPC_SELECTED=true\nDEPLOYER_ADDRESS=%s\nBALANCE_WEI=%s\nREQUIRED_WEI=%s\nBALANCE_STATUS=SUFFICIENT\nDEPLOYMENT_STATUS=READY_TO_BROADCAST\n' "$RPC_PROVIDER" "$DEPLOYER" "$BALANCE_WEI" "$REQUIRED_WEI" > deployment-preflight.env
-          echo "DEPLOYER_ADDRESS=$DEPLOYER" >> "$GITHUB_ENV"
-          echo "BALANCE_STATUS=SUFFICIENT" >> "$GITHUB_ENV"
-          echo "DEPLOYMENT_STATUS=READY_TO_BROADCAST" >> "$GITHUB_ENV"
-          echo "GLORIFIER_GAS_PRICE_WEI=$GAS_PRICE_WEI" >> "$GITHUB_ENV"
+          {
+            echo "DEPLOYER_ADDRESS=$DEPLOYER"
+            echo "BALANCE_STATUS=SUFFICIENT"
+            echo "DEPLOYMENT_STATUS=READY_TO_BROADCAST"
+            echo "GLORIFIER_GAS_PRICE_WEI=$GAS_PRICE_WEI"
+          } >> "$GITHUB_ENV"
 
       - name: Deploy GLR
         if: ${{ env.DEPLOYMENT_STATUS == 'READY_TO_BROADCAST' }}
@@ -239,9 +247,11 @@ jobs:
           STATUS="$(echo "$RECEIPT" | jq -r '.status')"
           STATUS_NORMALIZED="$(printf "%s" "$STATUS" | tr "[:upper:]" "[:lower:]")"
           test "$STATUS_NORMALIZED" = "1" || test "$STATUS_NORMALIZED" = "0x1"
-          echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> "$GITHUB_ENV"
-          echo "DEPLOYMENT_TX_HASH=$TX_HASH" >> "$GITHUB_ENV"
-          echo "DEPLOYMENT_STATUS=DEPLOYED_AND_ONCHAIN_VERIFIED" >> "$GITHUB_ENV"
+          {
+            echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS"
+            echo "DEPLOYMENT_TX_HASH=$TX_HASH"
+            echo "DEPLOYMENT_STATUS=DEPLOYED_AND_ONCHAIN_VERIFIED"
+          } >> "$GITHUB_ENV"
           jq -n --arg network "BNB Smart Chain Testnet" --arg contract "$CONTRACT_ADDRESS" --arg tx "$TX_HASH" --arg holder "$GLORIFIER_INITIAL_HOLDER" --arg block "$BLOCK_NUMBER" --arg deployer "$DEPLOYER_ADDRESS" '{evidence_type:"GLORIFIER ERC-20 deployment",network:$network,chain_id:97,contract_address:$contract,transaction_hash:$tx,block_number:($block|tonumber),transaction_status:1,deployer_address:$deployer,initial_holder:$holder,on_chain_assertions:{name:"GLORIFIER",symbol:"GLR",decimals:18,total_supply_wei:"1000000000000000000000000000",initial_holder_balance_wei:"1000000000000000000000000000"}}' > deployment-evidence.json
           echo "Contract address: $CONTRACT_ADDRESS"
           echo "Transaction hash: $TX_HASH"
