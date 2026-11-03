@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { AnthropicProvider } from './anthropic';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const originalFetch = globalThis.fetch;
 const originalKey = process.env.ANTHROPIC_API_KEY;
 const originalModel = process.env.ANTHROPIC_MODEL;
@@ -61,5 +62,6 @@ try {
   if (originalModel === undefined) delete process.env.ANTHROPIC_MODEL;
   else process.env.ANTHROPIC_MODEL = originalModel;
 }
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
