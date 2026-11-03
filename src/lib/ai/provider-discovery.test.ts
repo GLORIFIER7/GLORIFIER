@@ -9,7 +9,7 @@ const environmentKeys = [
 ] as const;
 const originalEnvironment = new Map(environmentKeys.map((key) => [key, process.env[key]] as const));
 const originalFetch = globalThis.fetch;
-const requests: Array<{ url: string; method: string }> = [];
+const requests: Array<{ url: string; method: string; headers: Headers }> = [];
 let nvidiaProbeStatus = 200;
 let metaProbeStatus = 400;
 let metaProbeErrorMessage = 'temporary provider failure';
@@ -34,7 +34,7 @@ before(() => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input);
     const method = (init?.method || 'GET').toUpperCase();
-    requests.push({ url, method });
+    requests.push({ url, method, headers: new Headers(init?.headers) });
     const hostname = new URL(url).hostname;
     if (hostname === 'meta.example.test' && metaProbeThrows) throw new Error(`request failed for ${url}`);
     const payload = hostname === 'generativelanguage.googleapis.com'
@@ -91,6 +91,16 @@ test('provider discovery sanitizes credentials and distinguishes endpoint errors
   assert.equal(meta.reason?.includes('test-meta-api-key-secret'), false);
   assert.equal(meta.reason?.includes('meta-url-secret'), false);
   assert.equal(meta.reason?.includes('[REDACTED]'), true);
+});
+
+test('Gemini discovery sends its API key in a header, never in the request URL', () => {
+  const request = requests.find((item) => new URL(item.url).hostname === 'generativelanguage.googleapis.com');
+  assert.ok(request);
+  const url = new URL(request.url);
+  assert.equal(url.pathname, '/v1beta/models');
+  assert.equal(url.search, '');
+  assert.equal(request.headers.get('x-goog-api-key'), process.env.GEMINI_API_KEY);
+  assert.equal(request.headers.get('authorization'), null);
 });
 
 test('Ollama and Meta discovery requests never forward credentials in URLs', () => {
