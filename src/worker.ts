@@ -12,6 +12,14 @@ import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-ass
 import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
 
 export type CloudflareEnv = {
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag: string;
+    timestamp: string;
+  };
+  GLORIFIER_RELEASE_COMMIT?: string;
+  GLORIFIER_RELEASE_REF?: string;
+  GLORIFIER_RELEASE_RUN_ID?: string;
   MCP_RATE_LIMITER?: GithubMcpRateLimiter;
   ASSETS: {
     fetch(request: Request): Promise<Response>;
@@ -961,6 +969,50 @@ const workerNativeReadOnlyJson = (
     : Response.json(buildBody(), { headers });
 };
 
+const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Response => {
+  const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return Response.json({ ok: false, error: 'Method not allowed' }, {
+      status: 405,
+      headers: { ...headers, Allow: 'GET, HEAD' },
+    });
+  }
+
+  const commit = configured(env.GLORIFIER_RELEASE_COMMIT);
+  const ref = configured(env.GLORIFIER_RELEASE_REF);
+  const runId = configured(env.GLORIFIER_RELEASE_RUN_ID);
+  const metadata = env.CF_VERSION_METADATA;
+  const versionId = configured(metadata?.id);
+  const versionTimestamp = configured(metadata?.timestamp);
+  const validVersionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(versionId);
+  const validTimestamp = versionTimestamp !== '' && Number.isFinite(Date.parse(versionTimestamp));
+
+  if (!/^[0-9a-f]{40}$/i.test(commit) ||
+      ref !== 'refs/heads/main' ||
+      !/^\d{1,20}$/.test(runId) ||
+      !validVersionId ||
+      !validTimestamp) {
+    return Response.json({
+      ok: false,
+      status: 'source-provenance-unavailable',
+      code: 'RELEASE_PROVENANCE_NOT_CONFIGURED',
+    }, { status: 503, headers });
+  }
+
+  if (request.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return Response.json({
+    ok: true,
+    status: 'source-provenance-verified',
+    repository: 'https://github.com/GLORIFIER7/GLORIFIER',
+    git: { commit: commit.toLowerCase(), ref, runId },
+    worker: {
+      versionId,
+      versionTag: metadata?.tag || null,
+      versionTimestamp,
+    },
+  }, { headers });
+};
+
 export default {
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
@@ -1093,6 +1145,13 @@ export default {
 
     if (incomingUrl.pathname.startsWith('/api/neural/')) {
       return neuralRoute(request, incomingUrl.pathname, env);
+    }
+
+    // Public build provenance is safe to expose for this public repository. It is
+    // deliberately unavailable unless the protected production workflow injects the
+    // exact main-branch SHA and Cloudflare supplies the deployed version metadata.
+    if (incomingUrl.pathname === '/api/build-info') {
+      return releaseProvenanceResponse(request, env);
     }
 
     // Runtime-only health check: intentionally does not imply backend, auth, or DB health.
