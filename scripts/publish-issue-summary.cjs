@@ -10,7 +10,7 @@ const normalizeIssueNumber = (issueNumber) => {
   } else if (typeof issueNumber === 'string') {
     normalizedIssueNumber = issueNumber.trim();
   }
-  if (!/^[1-9]\\d*$/.test(normalizedIssueNumber) ||
+  if (!/^[1-9]\d*$/.test(normalizedIssueNumber) ||
       !Number.isSafeInteger(Number(normalizedIssueNumber))) {
     throw new Error('A valid positive integer issue number is required for the fallback link.');
   }
@@ -66,13 +66,13 @@ const buildFallbackIssueSummary = ({ issueNumber, serverUrl, repository }) => {
     '',
     `Review the source issue: [#${normalizedIssueNumber}](${issueUrl.toString()}).`,
     '',
-  ].join('\\n');
+  ].join('\n');
 };
 
 const buildIssueSummary = (input) => {
   const summary = typeof input.response === 'string' ? input.response.trim() : '';
   if (input.inferenceOutcome === 'success' && summary) {
-    return `${ISSUE_SUMMARY_HEADING}\\n\\n${summary}\\n`;
+    return `${ISSUE_SUMMARY_HEADING}\n\n${summary}\n`;
   }
   return buildFallbackIssueSummary(input);
 };
