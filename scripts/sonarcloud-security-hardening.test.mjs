@@ -41,10 +41,10 @@ const foundryWorkflows = [
 ];
 
 function assertPinnedAction(source, action, sha) {
-  const activeReferences = source.split(/\r?\n/).filter((line) => line.trimStart().startsWith('uses: ' + action + '@'));
+  const activeReferences = source.split(/\r?\n/).map((line) => ({ line, normalized: line.trim().replace(/^ -\s+/, '').replace(/^-\s+/, '') })).filter(({ normalized }) => normalized.startsWith('uses: ' + action + '@'));
   assert.ok(activeReferences.length > 0, 'expected an active uses: entry for ' + action);
-  for (const line of activeReferences) {
-    const actual = line.trim().split(/\s+#/, 1)[0].trim();
+  for (const { line, normalized } of activeReferences) {
+    const actual = normalized.split(/\s+#/, 1)[0].trim();
     assert.equal(actual, 'uses: ' + action + '@' + sha, 'unexpected or mutable action reference: ' + line.trim());
   }
 }
@@ -101,7 +101,7 @@ test('Mainnet Token-2022 runner provides NODE_PATH from its private dependency d
 });
 
 test('applyUnifiedDiff forwards a validated diff over stdin without creating files', () => {
-  const patch = 'diff --git a/src/example.ts b/src/example.ts\\n';
+  const patch = 'diff --git a/src/example.ts b/src/example.ts\n';
   let invocation;
   const expected = { ok: true, output: '' };
   const result = applyUnifiedDiff(patch, (command, args, options) => {
@@ -118,7 +118,7 @@ test('applyUnifiedDiff forwards a validated diff over stdin without creating fil
 test('applyUnifiedDiff returns a failed git-apply result unchanged', () => {
   const failed = { ok: false, output: 'patch rejected' };
   const result = applyUnifiedDiff(
-    'diff --git a/src/example.ts b/src/example.ts\\n',
+    'diff --git a/src/example.ts b/src/example.ts\n',
     () => failed,
   );
   assert.equal(result, failed);
@@ -126,7 +126,7 @@ test('applyUnifiedDiff returns a failed git-apply result unchanged', () => {
 
 test('applyUnifiedDiff rejects missing patches and invalid executors', () => {
   assert.throws(() => applyUnifiedDiff('', () => ({ ok: true })), /non-empty unified diff/);
-  assert.throws(() => applyUnifiedDiff('diff --git a/a b/a\\n', null), /executor function/);
+  assert.throws(() => applyUnifiedDiff('diff --git a/a b/a\n', null), /executor function/);
 });
 
 test('Node loads the isolated module directory from NODE_PATH at process startup', () => {
