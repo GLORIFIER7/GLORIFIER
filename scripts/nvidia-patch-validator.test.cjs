@@ -106,8 +106,8 @@ test('rejects model patches that target the validator tests', () => {
 
 
 test('rejects arbitrary text before or after the patch envelope', () => {
-  const withPrefix = 'Here is the requested patch:\\n' + valid;
-  const withSuffix = valid + '\\nPatch applied successfully.';
+  const withPrefix = 'Here is the requested patch:\n' + valid;
+  const withSuffix = valid + '\nPatch applied successfully.';
   assert.throws(() => validatePatchResponse(withPrefix), /complete.*envelope|surrounding content/i);
   assert.throws(() => validatePatchResponse(withSuffix), /complete.*envelope|surrounding content/i);
 });
@@ -143,7 +143,7 @@ test('CLI writes a validated patch and creates an empty output for NO_PATCH', (t
   };
   const accepted = run(valid);
   assert.equal(accepted.status, 0, accepted.stderr);
-  assert.equal(fs.readFileSync(outputPath, 'utf8'), valid.split('BEGIN_PATCH\\n')[1].split('\\nEND_PATCH')[0] + '\\n');
+  assert.equal(fs.readFileSync(outputPath, 'utf8'), valid.split('BEGIN_PATCH\n')[1].split('\nEND_PATCH')[0] + '\n');
   const noPatch = run('NO_PATCH');
   assert.equal(noPatch.status, 0, noPatch.stderr);
   assert.equal(fs.readFileSync(outputPath, 'utf8'), '');
