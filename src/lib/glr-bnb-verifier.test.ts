@@ -1,13 +1,13 @@
-import { assertCondition } from './test-assertion';
+import assert from 'node:assert/strict';
 import { glrAmountToBaseUnits, verifyBnbGLRTransfer, BNB_GLR_CONTRACT } from './glr-bnb-verifier';
 import test from 'node:test';
 
 test("BNB GLR transfer verifier regression cases", async () => {
-  assertCondition(glrAmountToBaseUnits('1') === 1000000000000000000n, 'one GLR must equal 1e18 base units');
-  assertCondition(glrAmountToBaseUnits('0.000000000000000001') === 1n, 'smallest GLR unit must be represented exactly');
+  assert.ok(glrAmountToBaseUnits('1') === 1000000000000000000n, 'one GLR must equal 1e18 base units');
+  assert.ok(glrAmountToBaseUnits('0.000000000000000001') === 1n, 'smallest GLR unit must be represented exactly');
   let rejected = false;
   try { glrAmountToBaseUnits('0.0000000000000000001'); } catch { rejected = true; }
-  assertCondition(rejected, 'more than 18 decimals must be rejected');
+  assert.ok(rejected, 'more than 18 decimals must be rejected');
   
   const txHash = '0x' + 'a'.repeat(64);
   const recipient = '0x1111111111111111111111111111111111111111';
@@ -40,7 +40,7 @@ test("BNB GLR transfer verifier regression cases", async () => {
     fetchImpl: mockFetch,
     env: { GLR_BNB_PAYMENT_RECIPIENT: recipient, GLR_BNB_MIN_CONFIRMATIONS: '12' }
   });
-  assertCondition(verified.verified && verified.confirmations === 13, 'valid mainnet receipt with exact GLR transfer and finality must verify');
+  assert.ok(verified.verified && verified.confirmations === 13, 'valid mainnet receipt with exact GLR transfer and finality must verify');
   let wrongPayerRejected = false;
   try {
     await verifyBnbGLRTransfer({
@@ -50,13 +50,13 @@ test("BNB GLR transfer verifier regression cases", async () => {
       env: { GLR_BNB_PAYMENT_RECIPIENT: recipient, GLR_BNB_MIN_CONFIRMATIONS: '12' }
     });
   } catch { wrongPayerRejected = true; }
-  assertCondition(wrongPayerRejected, 'transfer from a different payer wallet must be rejected');
+  assert.ok(wrongPayerRejected, 'transfer from a different payer wallet must be rejected');
   
   let disabled = false;
   try {
     await verifyBnbGLRTransfer({ transactionHash: txHash, expectedAmount: '1', expectedPayerWallet: payer, fetchImpl: mockFetch, env: {} });
   } catch { disabled = true; }
-  assertCondition(disabled, 'verifier must remain disabled until recipient is configured');
+  assert.ok(disabled, 'verifier must remain disabled until recipient is configured');
   
   const wrongChainFetch: typeof fetch = async (_input, init) => {
     const body = JSON.parse(String(init?.body || '{}'));
@@ -70,7 +70,7 @@ test("BNB GLR transfer verifier regression cases", async () => {
       env: { GLR_BNB_PAYMENT_RECIPIENT: recipient }
     });
   } catch { wrongChainRejected = true; }
-  assertCondition(wrongChainRejected, 'wrong chain must be rejected');
+  assert.ok(wrongChainRejected, 'wrong chain must be rejected');
   
   console.log('BNB GLR verifier tests passed.');
 });
