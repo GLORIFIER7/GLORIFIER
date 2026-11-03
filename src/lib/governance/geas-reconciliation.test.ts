@@ -8,8 +8,9 @@ import {
   reconcileGeasArchitecture,
   validateGeasArchitectureManifest
 } from './geas-reconciliation';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const manifest = getGeasArchitectureManifest();
 const validation = validateGeasArchitectureManifest(manifest);
 assert.equal(validation.valid, true);
@@ -70,5 +71,6 @@ assert.ok(result.findings.some(f => f.state === 'unknown'));
 assert.ok(getGeasDegradedModeContracts().length >= 3);
 
 console.log('GEAS reconciliation tests passed');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
