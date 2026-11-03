@@ -24,12 +24,13 @@ const MAX_UPSTREAM_BYTES = 1_000_000;
 const USER_AGENT = 'GLORIFIER-GitHub-MCP-ReadOnly';
 
 type JsonRecord = Record<string, unknown>;
+type JsonRpcId = string | number | null;
 export type GithubMcpRateLimiter = {
   limit(input: { key: string }): Promise<{ success: boolean }>;
 };
 type McpMessage = {
   jsonrpc?: unknown;
-  id?: string | number | null;
+  id?: JsonRpcId;
   method?: unknown;
   params?: unknown;
 };
@@ -109,7 +110,7 @@ const jsonResponse = (body: unknown, status = 200, extraHeaders: Record<string, 
     },
   });
 
-const rpcError = (id: string | number | null, code: number, message: string, status = 200): Response =>
+const rpcError = (id: JsonRpcId, code: number, message: string, status = 200): Response =>
   jsonResponse({ jsonrpc: '2.0', id, error: { code, message } }, status);
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -126,7 +127,7 @@ const isValidOrigin = (request: Request): boolean => {
 };
 
 const parseContentLength = (value: string): number | null => {
-  if (value.length === 0 || value.length > 16 || !/^[0-9]{1,16}$/.test(value)) return null;
+  if (value.length === 0 || value.length > 16 || !/^\d{1,16}$/.test(value)) return null;
   const length = Number(value);
   return Number.isSafeInteger(length) ? length : null;
 };
@@ -324,7 +325,7 @@ const repositoryPathSegments = (path: string): string[] => {
 };
 
 const assertValidGitReference = (ref: string): void => {
-  if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.split('/').some((segment) => segment === '..')) {
+  if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes('..')) {
     throw new Error('Invalid Git reference.');
   }
 };
@@ -364,6 +365,9 @@ const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
 const getRepositoryTool = (): Promise<unknown> =>
   readGithubJson(`/repos/${OWNER}/${REPOSITORY}`);
 
+const isValidPerPage = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20;
+
 const listPullRequestsTool = (args: unknown): Promise<unknown> => {
   const input = toolArguments(args);
   const state = input.state === undefined ? 'open' : input.state;
@@ -371,7 +375,7 @@ const listPullRequestsTool = (args: unknown): Promise<unknown> => {
     throw new Error('state must be open, closed, or all.');
   }
   const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
+  if (!isValidPerPage(perPage)) {
     throw new Error('per_page must be an integer between 1 and 20.');
   }
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/pulls`, new URLSearchParams({
@@ -383,7 +387,7 @@ const listPullRequestsTool = (args: unknown): Promise<unknown> => {
 const listWorkflowRunsTool = (args: unknown): Promise<unknown> => {
   const input = toolArguments(args);
   const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!Number.isInteger(perPage) || Number(perPage) < 1 || Number(perPage) > 20) {
+  if (!isValidPerPage(perPage)) {
     throw new Error('per_page must be an integer between 1 and 20.');
   }
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }));
@@ -417,7 +421,7 @@ const resultText = (value: unknown): string => typeof value === 'string' ? value
 const emptyNotificationResponse = (): Response =>
   new Response(null, { status: 202, headers: { 'Cache-Control': 'no-store' } });
 
-const handleInitialize = (id: string | number | null, paramsValue: unknown): Response => {
+const handleInitialize = (id: JsonRpcId, paramsValue: unknown): Response => {
   const params = isRecord(paramsValue) ? paramsValue : {};
   const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_VERSION;
   const protocolVersion = (LEGACY_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
@@ -445,7 +449,7 @@ const modernCompleteResult = (value: JsonRecord): JsonRecord => ({
   _meta: modernServerMetadata(),
 });
 
-const handleServerDiscover = (id: string | number | null): Response => jsonResponse({
+const handleServerDiscover = (id: JsonRpcId): Response => jsonResponse({
   jsonrpc: '2.0',
   id,
   result: {
@@ -460,7 +464,7 @@ const handleServerDiscover = (id: string | number | null): Response => jsonRespo
 });
 
 const handleToolCall = async (
-  id: string | number | null,
+  id: JsonRpcId,
   paramsValue: unknown,
   modern = false,
 ): Promise<Response> => {
@@ -490,7 +494,7 @@ const handleToolCall = async (
 
 const handleLegacyJsonRpcMethod = (
   message: McpMessage,
-  id: string | number | null,
+  id: JsonRpcId,
 ): Response | Promise<Response> => {
   switch (message.method) {
     case 'initialize':
@@ -508,7 +512,7 @@ const handleLegacyJsonRpcMethod = (
 
 const handleModernJsonRpcMethod = (
   message: McpMessage,
-  id: string | number | null,
+  id: JsonRpcId,
 ): Response | Promise<Response> => {
   switch (message.method) {
     case 'server/discover':
@@ -528,7 +532,7 @@ const handleModernJsonRpcMethod = (
 };
 
 const unsupportedProtocolVersion = (
-  id: string | number | null,
+  id: JsonRpcId,
   requested: string,
 ): Response => jsonResponse({
   jsonrpc: '2.0',
@@ -548,7 +552,7 @@ type McpProtocolMode = 'modern' | 'legacy';
 const resolveMcpProtocolMode = (
   request: Request,
   message: McpMessage,
-  id: string | number | null,
+  id: JsonRpcId,
 ): { mode: McpProtocolMode } | { response: Response } => {
   const params = isRecord(message.params) ? message.params : {};
   const metadata = isRecord(params._meta) ? params._meta : {};
@@ -617,7 +621,7 @@ const handleJsonRpc = (
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
   if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
-  if (!Object.prototype.hasOwnProperty.call(message, 'id')) return emptyNotificationResponse();
+  if (!Object.hasOwn(message, 'id')) return emptyNotificationResponse();
 
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
