@@ -725,6 +725,34 @@ const run = async (): Promise<void> => {
         assert.equal(githubFileRequestUrl.origin, 'https://api.github.com');
         assert.equal(githubFileRequestUrl.pathname, '/repos/GLORIFIER7/GLORIFIER/contents/docs/architecture/README.md');
         assert.equal(githubFileRequestUrl.searchParams.get('ref'), 'main');
+        assert.equal(getCapturedRequest().headers.get('authorization'), null,
+          'public MCP requests must remain anonymous when no explicit read token is configured');
+
+        const tokenFixture = upstreamResponse;
+        upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+        capturedRequest = null;
+        const tokenEnabledEnv = { ...env, GITHUB_MCP_READ_TOKEN: 'unit-test-token' } as TestEnv;
+        const tokenBackedGithubRead = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 'github-read-with-token',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }),
+          tokenEnabledEnv,
+        );
+        const tokenBackedGithubReadText = await tokenBackedGithubRead.text();
+        assert.equal(tokenBackedGithubRead.status, 200);
+        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer unit-test-token',
+          'an explicitly configured Worker secret must be sent only as a bearer credential to the fixed GitHub API origin');
+        assert.equal(new URL(getCapturedRequest().url).origin, 'https://api.github.com');
+        assert.ok(!tokenBackedGithubReadText.includes('unit-test-token'),
+          'the configured GitHub read token must never be included in an MCP response');
+        upstreamResponse = tokenFixture;
+
         upstreamResponse = previousValidGithubFileResponse;
 
         capturedRequest = null;
