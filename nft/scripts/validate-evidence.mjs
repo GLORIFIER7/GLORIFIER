@@ -139,7 +139,7 @@ async function run() {
     bytes: png.length,
     sha256: createHash("sha256").update(png).digest("hex"),
     // Use Git's object implementation for its repository blob identifier; this is not a security digest.
-    gitBlobSha: execFileSync("git", ["hash-object", "--stdin"], {
+    gitBlobSha: execFileSync("/usr/bin/git", ["hash-object", "--stdin"], {
       input: png,
       encoding: "utf8",
       maxBuffer: 1024 * 1024
