@@ -85,3 +85,9 @@ test("rejects a changed repository PNG Git blob identity", async () => {
   bundle.repositoryFile.gitBlobSha = "0".repeat(40);
   assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Git blob SHA")));
 });
+
+test("rejects a stale or unverified registry artwork-match status", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.existing_contract_candidate.onchain_observation.token_uri_and_artwork_match = "NOT_VERIFIED";
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("artwork-match status")));
+});
