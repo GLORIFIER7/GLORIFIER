@@ -156,3 +156,18 @@ The overall `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**. It 
 - production deployment and endpoint-specific health evidence after the protected release gate is run.
 
 No production route, traffic percentage, secret, domain, Neural origin, database, provider, or blockchain state was changed in this source update.
+
+
+### Exact-head verification refresh — 2026-11-03
+
+The following checks completed successfully on PR #629 head `156674a5442173ac0ea8d5355aa7d3eeacfc7c28`:
+- [Cloudflare Worker validate-and-build run](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260158): type-check, Worker regression tests, integration registry/data-truth, Neon Hyperdrive adapter, production smoke contracts, OpenSea read-only integration, frontend build/static output, and Wrangler dry-run passed. The production deploy job was skipped.
+- [Interoperability Linux run](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260044): Ubuntu 22.04 and 24.04 source checks passed, including protocol-boundary, MCP registry, A2A 1.0 contract/Express, and chain-verifier fixture tests. Distroless and Ubuntu 24.04 images passed build, health and graceful-shutdown checks.
+- [GLORIFIER CI](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260037): build, Supabase default-privilege integration, and agent-state/Postgres integration passed.
+- [GLORIFIER Build and Test](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260022): passed.
+- [SDK conformance](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260117): Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed.
+- [CodeQL](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41596260054): passed.
+- Snyk, DeepScan, CircleCI Worker validation, and Netlify deploy preview checks: passed for the same exact PR head.
+- The npm workflow validated package metadata, dependencies, lint, frontend build and publish contents; its actual npm publish job was skipped.
+
+The Docker image PR workflow was still running at the time of this checkpoint. No package was published. The overall A2A/MCP capability remains **NOT VERIFIED**: all evidence above is source, test, static-analysis, or CI evidence. It does not demonstrate external MCP client discovery/tool calls, a live authenticated A2A task exchange, or production availability. The protected production deployment remains skipped and the two draft PRs remain unmerged.
