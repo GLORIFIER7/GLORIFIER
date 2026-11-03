@@ -103,3 +103,48 @@ test('rejects model patches that target the validator tests', () => {
   const testEdit = valid.replaceAll('scripts/example.cjs', 'scripts/nvidia-patch-validator.test.cjs');
   assert.throws(() => validatePatchResponse(testEdit), /path is not allowed/);
 });
+
+
+test('rejects arbitrary text before or after the patch envelope', () => {
+  const withPrefix = 'Here is the requested patch:\\n' + valid;
+  const withSuffix = valid + '\\nPatch applied successfully.';
+  assert.throws(() => validatePatchResponse(withPrefix), /complete.*envelope|surrounding content/i);
+  assert.throws(() => validatePatchResponse(withSuffix), /complete.*envelope|surrounding content/i);
+});
+
+test('CLI rejects malformed response JSON without writing a patch file', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nvidia-validator-cli-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const inputPath = path.join(directory, 'response.json');
+  const outputPath = path.join(directory, 'patch.diff');
+  fs.writeFileSync(inputPath, '{ invalid json', 'utf8');
+  const result = spawnSync(process.execPath, [require.resolve('./nvidia-patch-validator.cjs'), inputPath, outputPath], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /response JSON is malformed/i);
+  assert.equal(fs.existsSync(outputPath), false);
+});
+
+test('CLI writes a validated patch and creates an empty output for NO_PATCH', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nvidia-validator-cli-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const inputPath = path.join(directory, 'response.json');
+  const outputPath = path.join(directory, 'patch.diff');
+  const run = (response) => {
+    fs.writeFileSync(inputPath, JSON.stringify({ choices: [{ message: { content: response } }] }), 'utf8');
+    return spawnSync(process.execPath, [require.resolve('./nvidia-patch-validator.cjs'), inputPath, outputPath], { encoding: 'utf8' });
+  };
+  const accepted = run(valid);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.equal(fs.readFileSync(outputPath, 'utf8'), valid.split('BEGIN_PATCH\\n')[1].split('\\nEND_PATCH')[0] + '\\n');
+  const noPatch = run('NO_PATCH');
+  assert.equal(noPatch.status, 0, noPatch.stderr);
+  assert.equal(fs.readFileSync(outputPath, 'utf8'), '');
+});
