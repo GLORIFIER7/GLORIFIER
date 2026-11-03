@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { getAIWebNetworkPolicy } from './ai-web-network';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const policy = getAIWebNetworkPolicy();
 assert.equal(policy.architecture, 'GLORIFIER_AI_WEB_NETWORK');
 assert.equal(policy.version, 'G-AI-WEB-2.0');
@@ -13,5 +14,6 @@ assert.equal(policy.universalInternetControlClaim, false);
 assert.ok(policy.lifecycle.includes('EXECUTABLE'));
 assert.ok(policy.lifecycle.includes('SETTLED'));
 console.log('AI Web Network v2 governance invariants: PASS');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
