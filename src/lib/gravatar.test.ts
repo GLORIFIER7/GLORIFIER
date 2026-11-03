@@ -17,5 +17,6 @@ test("Gravatar identifiers differ for different normalized emails", () => {
   const second = new URL(gravatarUrl("two@example.org")).pathname;
   assert.equal(first, normalized);
   assert.notEqual(first, second);
-  assert.match(first.split("/").at(-1), /^[a-f0-9]{64}$/);
+  const firstHash = first.split("/").at(-1) ?? "";
+  assert.match(firstHash, /^[a-f0-9]{64}$/);
 });
