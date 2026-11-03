@@ -833,7 +833,7 @@ function normalizeBearerAuthorization(value: string | null): string | null {
   const token = header.slice(separator + 1).trim();
   if (!token) return null;
   for (const character of token) {
-    const code = character.charCodeAt(0);
+    const code = character.codePointAt(0);
     if (code <= 0x20 || code === 0x7f) return null;
   }
   return `Bearer ${token}`;
@@ -972,7 +972,7 @@ const workerNativeReadOnlyJson = (
 const isAsciiHex = (value: string, expectedLength: number): boolean => {
   if (value.length !== expectedLength) return false;
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = value.codePointAt(index);
     const isDigit = code >= 48 && code <= 57;
     const isUpperHex = code >= 65 && code <= 70;
     const isLowerHex = code >= 97 && code <= 102;
@@ -984,7 +984,7 @@ const isAsciiHex = (value: string, expectedLength: number): boolean => {
 const isAsciiDecimal = (value: string, maxLength: number): boolean => {
   if (value.length < 1 || value.length > maxLength) return false;
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = value.codePointAt(index);
     if (code < 48 || code > 57) return false;
   }
   return true;
@@ -996,7 +996,7 @@ const isCloudflareWorkerVersionId = (value: string): boolean => {
     if (index === 8 || index === 13 || index === 18 || index === 23) {
       if (value.charAt(index) !== '-') return false;
     } else {
-      const code = value.charCodeAt(index);
+      const code = value.codePointAt(index);
       const isDigit = code >= 48 && code <= 57;
       const isUpperHex = code >= 65 && code <= 70;
       const isLowerHex = code >= 97 && code <= 102;
