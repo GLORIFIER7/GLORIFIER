@@ -16,8 +16,14 @@ test('interoperability registry, schema, and OpenAPI documents are valid JSON', 
   }
 });
 
+const isJsonWhitespace = (character) =>
+  character === ' ' || character === '\\t' || character === '\\n' || character === '\\r';
+
+const isJsonDelimiter = (character) =>
+  isJsonWhitespace(character) || character === ',' || character === '}' || character === ']';
+
 const skipWhitespace = (source, cursor) => {
-  while (cursor.offset < source.length && /\s/.test(source[cursor.offset])) cursor.offset += 1;
+  while (cursor.offset < source.length && isJsonWhitespace(source[cursor.offset])) cursor.offset += 1;
 };
 
 const readJsonString = (source, cursor) => {
@@ -93,7 +99,7 @@ const parseJsonValue = (source, cursor, path, duplicates) => {
     return;
   }
   const start = cursor.offset;
-  while (cursor.offset < source.length && !/[\s,}\]]/.test(source[cursor.offset])) cursor.offset += 1;
+  while (cursor.offset < source.length && !isJsonDelimiter(source[cursor.offset])) cursor.offset += 1;
   if (cursor.offset === start) throw new Error(`Unexpected JSON token at ${cursor.offset}.`);
 };
 
