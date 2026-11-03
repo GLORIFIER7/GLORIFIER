@@ -315,7 +315,7 @@ export const validateBuildInfo = (body, expectedCommit) => {
     throw new Error('deployed Worker source commit does not match the expected commit');
   }
   if (git.ref !== 'refs/heads/main') {
-    throw new Error('production Worker must identify the protected main branch');
+    throw new Error('production Worker ref must be refs/heads/main');
   }
   if (!isAsciiDecimal(git.runId)) {
     throw new Error('build-info must expose the GitHub Actions run ID');
