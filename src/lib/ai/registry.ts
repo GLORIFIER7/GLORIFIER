@@ -477,6 +477,31 @@ export const withProviderRegistryTrace = (
   summarizeProviderRegistryTrace,
 );
 
+const requiredProviderUnavailableReason = (
+  requiredId: string,
+  allConnected: AIProvider[],
+  discovery: Map<string, DiscoveredProvider>,
+  capability?: string,
+): string | undefined => {
+  const adapter = providers.find((provider) => provider.id === requiredId);
+  const connectedAdapter = allConnected.find((provider) => provider.id === requiredId);
+  const entry = discovery.get(requiredId);
+  if (!adapter) return 'unknown provider';
+  if (!connectedAdapter) return 'not connected (credentials or adapter unavailable)';
+  if (entry && capability && !entry.capabilities.includes(capability)) {
+    return `does not advertise requested capability "${capability}"`;
+  }
+  if (entry && entry.availability !== 'available') {
+    return `provider discovery is ${entry.availability}`;
+  }
+  if (!isProviderEligible(connectedAdapter, discovery, capability)) {
+    return entry?.authorization === 'not-configured' || !entry
+      ? 'not configured or not authorized'
+      : 'not authorized or not yet verified for execution';
+  }
+  return undefined;
+};
+
 /** Execute providers in governed order with bounded retries and one discovery refresh. */
 export const executeThroughProviderRegistry = async (
   request: ProviderExecutionRequest,
@@ -495,28 +520,17 @@ export const executeThroughProviderRegistry = async (
   const discovery = new Map(getGlobalProviderDiscoverySnapshot().map((entry) => [entry.id, entry]));
   const state = createProviderExecutionState();
 
-  if (executionRequest.requiredProvider) {
-    const requiredId = executionRequest.requiredProvider;
-    const adapter = providers.find((provider) => provider.id === requiredId);
-    const connectedAdapter = allConnected.find((provider) => provider.id === requiredId);
-    const entry = discovery.get(requiredId);
-    let reason: string | undefined;
-    if (!adapter) reason = 'unknown provider';
-    else if (!connectedAdapter) reason = 'not connected (credentials or adapter unavailable)';
-    else if (entry && executionRequest.capability && !entry.capabilities.includes(executionRequest.capability)) {
-      reason = `does not advertise requested capability "${executionRequest.capability}"`;
-    }
-    else if (entry && entry.availability !== 'available') {
-      reason = `provider discovery is ${entry.availability}`;
-    }
-    else if (!isProviderEligible(connectedAdapter, discovery, executionRequest.capability)) {
-      reason = entry?.authorization === 'not-configured' || !entry
-        ? 'not configured or not authorized'
-        : 'not authorized or not yet verified for execution';
-    }
+  const requiredProvider = executionRequest.requiredProvider;
+  if (requiredProvider) {
+    const reason = requiredProviderUnavailableReason(
+      requiredProvider,
+      allConnected,
+      discovery,
+      executionRequest.capability,
+    );
     if (reason) {
-      state.providerStatuses[requiredId] = 'unavailable';
-      state.errors.push(`${requiredId}: required provider is ${reason}; alternate providers and independent compute are disabled for this request.`);
+      state.providerStatuses[requiredProvider] = 'unavailable';
+      state.errors.push(`${requiredProvider}: required provider is ${reason}; alternate providers and independent compute are disabled for this request.`);
       return buildExecutionResult('provider-registry-exhausted', undefined, state);
     }
   }
