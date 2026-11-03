@@ -11,8 +11,9 @@ import {
   type HumanToolApproval,
 } from './agent-harness.ts';
 import type { PostgresAgentStateStore } from '../agent-state-store';
-import test from 'node:test';
+import { before, test } from 'node:test';
 
+before(async () => {
 const originalDatabaseUrl = process.env.DATABASE_URL;
 delete process.env.DATABASE_URL;
 assert.equal(getAgentHarnessPersistenceStatus().mode, 'uninitialized');
@@ -243,5 +244,6 @@ if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
 else process.env.DATABASE_URL = originalDatabaseUrl;
 
 console.log('agent-harness approval and persistence-cache tests: PASS');
+});
 
-test('existing top-level assertions completed successfully', () => {});
+test('existing assertions completed in setup hook', () => {});
