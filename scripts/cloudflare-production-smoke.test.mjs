@@ -25,18 +25,27 @@ test('production smoke probes never send HTTP mutation methods to the live Worke
     'the production deployment workflow must not issue HTTP mutation methods');
   assert.equal(smokeSource.includes('fetchProductionMcp'), false,
     'production smoke must not make MCP POST requests');
-  assert.match(workflow, /--var "GLORIFIER_RELEASE_COMMIT:\$\{GITHUB_SHA\}"/,
-    'production deployment must inject the exact GitHub commit SHA into Worker metadata');
-  assert.match(workflow, /--var "GLORIFIER_RELEASE_REF:\$\{GITHUB_REF\}"/,
-    'production deployment must inject its exact Git ref with a Wrangler --var flag');
-  assert.match(workflow, /--var "GLORIFIER_RELEASE_RUN_ID:\$\{GITHUB_RUN_ID\}"/,
-    'production deployment must inject its exact GitHub Actions run ID with a Wrangler --var flag');
-  assert.match(workflow, /wrangler deploy --dry-run[\s\\\\]+--var "GLORIFIER_RELEASE_COMMIT:\$\{GITHUB_SHA\}"[\s\\\\]+--var "GLORIFIER_RELEASE_REF:\$\{GITHUB_REF\}"[\s\\\\]+--var "GLORIFIER_RELEASE_RUN_ID:\$\{GITHUB_RUN_ID\}"/,
-    'no-deploy Wrangler validation must parse all three provenance variables using explicit --var flags');
-  assert.match(smokeSource, /verifyBuildProvenance/,
-    'production smoke must verify the deployed source commit against the expected GitHub SHA');
   const validationJobIndex = workflow.indexOf('\n  validate-and-build:');
   const deployJobIndex = workflow.indexOf('\n  deploy-production:');
+  assert.ok(validationJobIndex >= 0 && deployJobIndex > validationJobIndex,
+    'the workflow must keep validation/build separate from production deployment');
+  const validationJobText = workflow.slice(validationJobIndex, deployJobIndex);
+  const productionJobText = workflow.slice(deployJobIndex);
+  const requiredReleaseVariables = [
+    '--var "GLORIFIER_RELEASE_COMMIT:${GITHUB_SHA}"',
+    '--var "GLORIFIER_RELEASE_REF:${GITHUB_REF}"',
+    '--var "GLORIFIER_RELEASE_RUN_ID:${GITHUB_RUN_ID}"',
+  ];
+  assert.ok(validationJobText.includes('wrangler deploy --dry-run'),
+    'the validation job must dry-run the Wrangler deploy command');
+  for (const argument of requiredReleaseVariables) {
+    assert.ok(validationJobText.includes(argument),
+      'the no-deploy Wrangler validation must pass ' + argument);
+    assert.ok(productionJobText.includes(argument),
+      'the production deploy must pass ' + argument);
+  }
+  assert.ok(smokeSource.includes('verifyBuildProvenance'),
+    'production smoke must verify the deployed source commit against the expected GitHub SHA');
   const deployStepIndex = workflow.indexOf(
     '\n      - name: Deploy Cloudflare Worker',
     deployJobIndex,
