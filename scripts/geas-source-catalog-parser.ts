@@ -1,7 +1,7 @@
 type TokenKind = 'identifier' | 'string' | 'number' | 'punctuation';
 type Token = { kind: TokenKind; text: string; value: string | null };
 type Range = { start: number; end: number };
-type LiteralValue = LiteralValue;
+type LiteralValue = string | number | null;
 type DelimiterState = { expected: string[] };
 
 export type ScannerSourceEntry = { id: string; url: string; cadenceHours: number };
