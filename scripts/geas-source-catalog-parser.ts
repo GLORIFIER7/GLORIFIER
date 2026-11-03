@@ -1,6 +1,7 @@
 type TokenKind = 'identifier' | 'string' | 'number' | 'punctuation';
 type Token = { kind: TokenKind; text: string; value: string | null };
 type Range = { start: number; end: number };
+type LiteralValue = string | number | null;
 type DelimiterState = { expected: string[] };
 
 export type ScannerSourceEntry = { id: string; url: string; cadenceHours: number };
@@ -162,7 +163,7 @@ const scanUntilArrayClosed = (
 };
 
 const isCompleteScannerArray = (tokens: Token[]): boolean =>
-  tokens[0]?.text === '[' && tokens[tokens.length - 1]?.text === ']';
+  tokens[0]?.text === '[' && tokens.at(-1)?.text === ']';
 
 const tokenizeScannerArray = (source: string, start: number): Token[] => {
   const tokens: Token[] = [];
@@ -222,8 +223,8 @@ const readSinglePropertyValueToken = (tokens: Token[], range: Range | null): Tok
   return tokens[range.start + 2] ?? null;
 };
 
-const readLiteralTokenValue = (token: Token | null, kind: 'string' | 'number'): string | number | null => {
-  if (!token || token.kind !== kind || token.value === null) return null;
+const readLiteralTokenValue = (token: Token | null, kind: 'string' | 'number'): LiteralValue => {
+  if (token?.kind !== kind || token.value === null) return null;
   return kind === 'number' ? Number(token.value) : token.value;
 };
 
