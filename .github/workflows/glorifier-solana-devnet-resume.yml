@@ -59,8 +59,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh -c "$(curl -sSfL "https://release.anza.xyz/$AGAVE_VERSION/install")"
-          SOLANA_BIN="$HOME/.local/share/solana/install/active_release/bin"
+          ARCHIVE="$RUNNER_TEMP/solana-release-${AGAVE_VERSION}-x86_64-unknown-linux-gnu.tar.bz2"
+          ARCHIVE_SHA256="5fc8684f7430038105fde953d4308ed56addf627f658daa61709f345448247ee"
+          ARCHIVE_URL="https://github.com/anza-xyz/agave/releases/download/${AGAVE_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 "$ARCHIVE_URL" --output "$ARCHIVE"
+          printf '%s  %s\n' "$ARCHIVE_SHA256" "$ARCHIVE" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/agave-release"
+          tar -xjf "$ARCHIVE" -C "$RUNNER_TEMP/agave-release"
+          SOLANA_BIN="$RUNNER_TEMP/agave-release/solana-release/bin"
           test -x "$SOLANA_BIN/solana"
           test -x "$SOLANA_BIN/solana-keygen"
           echo "$SOLANA_BIN" >> "$GITHUB_PATH"
