@@ -95,3 +95,16 @@ test("rejects a stale or unverified registry artwork-match status", async () => 
   bundle.registry.existing_contract_candidate.onchain_observation.token_uri_and_artwork_match = "NOT_VERIFIED";
   assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("artwork-match status")));
 });
+
+
+test("rejects inconsistent segmented identifiers in the official logo summary", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.official_logo_001.image_uri_parts = ["ipfs://", "wrong"];
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("Official Logo #001 image URI segments")));
+});
+
+test("rejects reintroduced unsegmented public owner and token URIs in the summary", async () => {
+  const bundle = await makeBundle();
+  bundle.registry.official_logo_001.owner = bundle.observation.reads.owner;
+  assert.ok(validateEvidenceBundle(bundle).some(x => x.includes("must not duplicate public high-entropy")));
+});
