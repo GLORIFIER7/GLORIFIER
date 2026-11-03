@@ -40,11 +40,13 @@ The live token URI was retrieved from two independent gateways:
 Both returned the same metadata identifying **GLORIFIER SERVICES — Official Logo #001**, with image URI:
 `ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa`.
 
-Filebase independently retrieved the image CID and returned an image description matching the circular GLORIFIER SERVICES emblem, EST 2022 details, and central atom symbol.
+Filebase independently retrieved the image CID and returned an image description matching the circular GLORIFIER SERVICES emblem, EST 2022 details, and central atom symbol. The committed `GLORIFIER SERVICES.png` file was fetched from main commit `cac4d64ac8c367eabf50a1c3717a1b823af45a45`: 55,886 bytes, Git blob `c01f73f2551db4fb98573e87b8bd80c38a5dc0cc`, SHA-256 `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`. This computed digest exactly matches the live token image CID multihash.
+
+The live tokenURI description says “Committed to glorify, passionate to evangelize.”, while its separate `Motto` attribute says “Committed to Glorify, Passion to Evangelize”. Both phrasings were returned by both gateways and are preserved verbatim in the observation copy. Newly authored materials should continue using the owner's established company motto, “Committed to Glorify, Passion to Evangelize”.
 
 The image CID decodes to raw codec + sha2-256 multihash. Its digest is `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`, matching the previously recorded 55,886-byte artwork retrieval from 2026-10-20.
 
-The older historical source PNG hash is `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`, which differs. The later retrieved image content is matched to the token image CID, but raw-byte identity with that older source PNG is not claimed.
+The older historical source PNG hash is `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`, which differs. The current committed repository file `GLORIFIER SERVICES.png` is byte-for-byte identical to the content identified by the live token image CID digest. Raw-byte identity with the older historical source PNG is not claimed; that older source file has a different SHA-256.
 
 An Alchemy aggregated metadata response contained a conflicting cached token URI and totalSupply=0. Direct on-chain reads and both gateway responses are treated as authoritative for the current contract URI and supply.
 
