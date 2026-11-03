@@ -606,6 +606,7 @@
       ],
       "limitations": [
         "The draft standard A2A Agent Card is served by the Worker at GET /.well-known/agent-card.json, but this is source-branch implementation and not a production deployment or live external discovery result.",
+        "These source and CI changes do not establish A2A 1.0.1 authenticated message/task interoperability, a live backend, or a controlled two-agent test.",
         "The existing /api/a2a/v1 JSON-RPC interface remains an authenticated Bearer-token proxy to the owner-configured backend. A live A2A 1.0.1 message/task service, authenticated task exchange, task lifecycle, and controlled two-agent interoperability test are not yet established.",
         "The fixed-scope, stateless, read-only GitHub MCP endpoint now has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call result envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
