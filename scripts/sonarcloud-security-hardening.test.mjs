@@ -71,14 +71,41 @@ const mainnetRevocationScripts = [
 ];
 
 for (const script of mainnetRevocationScripts) {
-  test(script + ' loads dependencies only from an owner-private per-run directory', () => {
+  test(script + ' delegates dependency-directory validation to the shared private loader', () => {
     const source = read(script);
-    assert.match(source, /GLORIFIER_TOKEN2022_NODE_MODULES_DIR/);
-    assert.match(source, /fs\.lstatSync/);
-    assert.match(source, /mode\s*&\s*0o077/);
+    assert.match(source, /createPrivateToken2022Require/);
+    assert.doesNotMatch(source, /fs\.lstatSync/);
     assert.doesNotMatch(source, /\/tmp\/glorifier-token2022-js/);
   });
 }
+
+test('shared Token-2022 loader rejects missing, public, and symlinked dependency directories', async () => {
+  const { createPrivateToken2022Require } = await import('../solana/private-token2022-modules.mjs');
+  const previous = process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR;
+  const valid = fs.mkdtempSync(path.join(os.tmpdir(), 'glorifier-token-modules-test-'));
+  const link = path.join(os.tmpdir(), 'glorifier-token-modules-link-' + process.pid);
+  try {
+    delete process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR;
+    assert.throws(() => createPrivateToken2022Require(), /is required/);
+
+    fs.chmodSync(valid, 0o700);
+    process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR = valid;
+    assert.equal(typeof createPrivateToken2022Require(), 'function');
+
+    fs.chmodSync(valid, 0o755);
+    assert.throws(() => createPrivateToken2022Require(), /mode 0700/);
+
+    fs.chmodSync(valid, 0o700);
+    fs.symlinkSync(valid, link, 'dir');
+    process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR = link;
+    assert.throws(() => createPrivateToken2022Require(), /non-symlink/);
+  } finally {
+    if (previous === undefined) delete process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR;
+    else process.env.GLORIFIER_TOKEN2022_NODE_MODULES_DIR = previous;
+    fs.rmSync(link, { force: true });
+    fs.rmSync(valid, { recursive: true, force: true });
+  }
+});
 
 test('Mainnet Token-2022 runner creates and removes a unique private dependency directory', () => {
   const source = read('solana/deploy-token2022-mainnet.sh');
