@@ -368,6 +368,7 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().method, 'GET');
         assert.equal(getCapturedRequest().headers.get('authorization'), null);
         upstreamResponse = previousModernMcpUpstreamResponse;
+        mcpRateLimitKeys.length = 0;
 
         const unsupportedModernVersion = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -758,7 +759,7 @@ const run = async (): Promise<void> => {
         );
         assert.equal(a2aCardResponse.status, 200);
         assert.equal(a2aCardResponse.headers.get('cache-control'), 'no-store');
-        assert.match(a2aCardResponse.headers.get('content-type') ?? '', /^application\\/json/i);
+        assert.match(a2aCardResponse.headers.get('content-type') ?? '', /^application\/json/i);
         const a2aCard = await a2aCardResponse.json() as {
           name: string;
           supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
@@ -868,7 +869,7 @@ const run = async (): Promise<void> => {
           'A2A 1.0.1 preferred application/a2a+json must be accepted');
         const a2aPreferredRequest = getCapturedRequest();
         assert.equal(a2aPreferredRequest.headers.get('content-type'), 'application/a2a+json');
-        assert.match(a2aPreferredRequest.headers.get('accept') || '', /application\\/a2a\\+json/);
+        assert.match(a2aPreferredRequest.headers.get('accept') || '', /application\/a2a\+json/);
         assert.equal(a2aPreferredRequest.headers.get('authorization'), 'Bearer caller-token');
         capturedRequest = null;
 
