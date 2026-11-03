@@ -1,6 +1,6 @@
 {
   "name": "GLORIFIER SERVICES — Official Logo #001",
-  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork and that the metadata image reference is correct. On 2026-10-20, Filebase and Pinata gateways independently returned identical PNG bytes for the designated artwork CID: 55,886 bytes, SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790. These bytes differ from the previously recorded source PNG (151,445 bytes; SHA-256 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513), so byte-for-byte identity with that historical file is not claimed. Both designated CIDs are reported pinned by the owner; provider pin receipts were not independently inspected. NFT minting has not occurred. Copyright, licensing, and trademark clearance remain pending and are not asserted by this metadata.",
+  "description": "Owner-designated GLORIFIER SERVICES official logo artwork, including the circular design, atom symbol, colors, lettering, and EST 2022 details. The owner confirms this is the intended artwork and that the metadata image reference is correct. On 2026-10-20, Filebase and Pinata gateways independently returned identical PNG bytes for the designated artwork CID: 55,886 bytes, SHA-256 6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790. These bytes differ from the previously recorded source PNG (151,445 bytes; SHA-256 0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513), so byte-for-byte identity with that historical file is not claimed. Both designated CIDs are reported pinned by the owner; provider pin receipts were not independently inspected. The Official Logo #001 NFT is already minted as Ethereum Mainnet ERC-721 token ID 1. The authoritative published token URI is ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1; this repository JSON remains a preparation draft and is not the token's referenced metadata. Copyright, licensing, and trademark clearance remain pending and are not asserted by this metadata.",
   "image": "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv",
   "attributes": [
     {
@@ -25,7 +25,7 @@
     },
     {
       "trait_type": "Mint status",
-      "value": "NOT MINTED"
+      "value": "VERIFIED MINTED — ETHEREUM MAINNET ERC-721 TOKEN ID 1; THIS FILE IS A DRAFT, NOT THE PUBLISHED TOKEN URI"
     },
     {
       "trait_type": "Artwork gateway retrieval",
@@ -37,7 +37,7 @@
     },
     {
       "trait_type": "Metadata publication",
-      "value": "SOURCE REVISION REQUIRES IPFS REPUBLICATION; GATEWAY AND PINNING VERIFICATION PENDING"
+      "value": "ON-CHAIN TOKEN URI VERIFIED; THIS REPOSITORY FILE REMAINS A SEPARATE DRAFT"
     },
     {
       "trait_type": "Legal review",
