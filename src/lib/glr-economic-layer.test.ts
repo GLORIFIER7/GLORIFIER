@@ -1,5 +1,6 @@
 import { assertCondition } from './test-assertion';
 import { canMarkGLRSettled, normalizeGLRAmount, glrEconomicPolicy } from './glr-economic-layer';
+import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
