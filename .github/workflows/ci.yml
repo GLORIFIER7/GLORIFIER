@@ -37,9 +37,14 @@ jobs:
         run: node --test scripts/nvidia-patch-validator.test.cjs
       - name: NVIDIA triage response parser regression tests
         run: node --test scripts/nvidia-triage-response.test.cjs
+      - name: SonarCloud security remediation regression tests
+        run: node --test scripts/sonarcloud-security-hardening.test.mjs
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Gravatar SHA-256 identifier regression tests
+        run: ./node_modules/.bin/tsx --test src/lib/gravatar.test.ts
 
       - name: Generated artifact ignore regression tests
         run: node --test scripts/gitignore-generated-artifacts.test.mjs

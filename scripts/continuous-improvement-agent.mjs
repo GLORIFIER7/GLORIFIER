@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 
-const run = (cmd, args = []) => {
-  try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
+const run = (cmd, args = [], options = {}) => {
+  try { return { ok: true, output: execFileSync(cmd, args, { encoding: 'utf8', stdio: 'pipe', ...options }) }; }
   catch (error) { return { ok: false, output: `${error.stdout || ''}\n${error.stderr || error.message}`.trim() }; }
 };
 const result = (cmd, args = []) => run(cmd, args).output;
@@ -102,9 +103,8 @@ const changedPaths=[...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMa
 if(changedPaths.some((path)=>protectedPaths.some((rule)=>rule.endsWith('/**')?path.startsWith(rule.slice(0,-3)):path===rule))) throw new Error('Safety policy rejected a protected-file change.');
 if(changedPaths.length>12) throw new Error('Safety policy rejected an overly broad patch.');
 
-fs.writeFileSync('/tmp/glorifier-improvement.patch',patch);
-const applied=run('git',['apply','--whitespace=fix','--recount','/tmp/glorifier-improvement.patch']);
-if(!applied.ok) throw new Error('Patch rejected: '+applied.output);
+const applied = applyUnifiedDiff(patch, run);
+if (!applied.ok) throw new Error('Patch rejected: ' + applied.output);
 
 const lint=run('npm',['run','lint']);
 const build=lint.ok?run('npm',['run','build']):{ok:false,output:'Skipped build because lint failed.'};

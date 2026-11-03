@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire("/tmp/glorifier-token2022-js/package.json");
+const require = createRequire(import.meta.url);
 const { Connection, Keypair, PublicKey, Transaction } = require("@solana/web3.js");
 const { TOKEN_2022_PROGRAM_ID, getTokenMetadata } = require("@solana/spl-token");
 const { createUpdateAuthorityInstruction } = require("@solana/spl-token-metadata");
