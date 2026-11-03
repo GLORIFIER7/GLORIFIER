@@ -555,14 +555,30 @@ const resolveMcpProtocolMode = (
   const metadataVersion = typeof metadata[REQUEST_PROTOCOL_VERSION_META_KEY] === 'string'
     ? (metadata[REQUEST_PROTOCOL_VERSION_META_KEY] as string).trim()
     : '';
-  const headerVersion = (request.headers.get('MCP-Protocol-Version') || '').trim();
+  const headerVersion = (request.headers.get('MCP-Protocol-Version') ?? '').trim();
   const modernRequested = metadataVersion === MODERN_PROTOCOL_VERSION ||
     headerVersion === MODERN_PROTOCOL_VERSION;
 
+  // On Streamable HTTP, the modern per-request metadata is mandatory and the
+  // HTTP version header must repeat the same value. A missing or mismatched
+  // declaration is an invalid request, not an unsupported protocol version.
   if (modernRequested) {
-    if (metadataVersion !== MODERN_PROTOCOL_VERSION || headerVersion !== MODERN_PROTOCOL_VERSION) {
+    if (!metadataVersion || !headerVersion) {
       return {
-        response: unsupportedProtocolVersion(id, metadataVersion || headerVersion),
+        response: rpcError(
+          id,
+          -32600,
+          'Modern HTTP requests must declare the protocol version in both params._meta and the MCP-Protocol-Version header.',
+        ),
+      };
+    }
+    if (metadataVersion !== headerVersion) {
+      return {
+        response: rpcError(
+          id,
+          -32600,
+          'The per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+        ),
       };
     }
     return { mode: 'modern' };
@@ -572,10 +588,18 @@ const resolveMcpProtocolMode = (
     (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(metadataVersion);
   const headerSupported = !headerVersion ||
     (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(headerVersion);
-  const versionsMatch = !metadataVersion || !headerVersion || metadataVersion === headerVersion;
-  if (!metadataSupported || !headerSupported || !versionsMatch) {
+  if (!metadataSupported || !headerSupported) {
     return {
       response: unsupportedProtocolVersion(id, metadataVersion || headerVersion),
+    };
+  }
+  if (metadataVersion && headerVersion && metadataVersion !== headerVersion) {
+    return {
+      response: rpcError(
+        id,
+        -32600,
+        'The per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+      ),
     };
   }
 
