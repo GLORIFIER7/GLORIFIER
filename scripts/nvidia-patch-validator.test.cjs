@@ -68,7 +68,7 @@ test('rejects a second file header smuggled after a validated hunk', () => {
     '-old secret-bearing workflow',
     '+untrusted replacement',
     'END_PATCH'
-  ].join('\\n'));
+  ].join('\n'));
   assert.throws(() => validatePatchResponse(hiddenFile), /unexpected content|unvalidated file header|hunk/i);
 });
 
