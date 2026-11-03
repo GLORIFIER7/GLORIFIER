@@ -24,7 +24,7 @@ concurrency:
 jobs:
   triage:
     name: Analyze failed CI with NVIDIA NIM
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -125,6 +125,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: main
+          path: trusted
           persist-credentials: false
 
       - name: Ask NVIDIA NIM for a diagnostic (no repository writes)
@@ -171,7 +172,7 @@ jobs:
             echo "::error::NVIDIA triage request failed with HTTP $status. Response body was not printed."
             exit 1
           fi
-          node scripts/nvidia-triage-response.cjs \
+          node trusted/scripts/nvidia-triage-response.cjs \
             nvidia-response.json nvidia-summary.md nvidia-response-shape.json \
             "$RUN_URL" nvidia-request.json
 
