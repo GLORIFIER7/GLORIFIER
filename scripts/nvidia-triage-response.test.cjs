@@ -22,6 +22,18 @@ test('accepts documented NVIDIA chat-completion content and ignores additional t
   assert.deepEqual(result.shape.topLevelKeys, ['choices', 'id', 'model', 'object', 'provider_extension', 'usage']);
 });
 
+test('sorts safe payload keys using locale-aware alphabetical ordering', () => {
+  const result = inspectNvidiaCompletionResponse(JSON.stringify({
+    Beta: true,
+    alpha: true,
+    Alpha: true,
+    beta: true,
+  }));
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.shape.topLevelKeys, ['alpha', 'Alpha', 'beta', 'Beta']);
+});
+
 test('rejects an HTTP-200 provider error envelope without retaining its message', () => {
   const secretLikeBody = 'provider internal detail: do-not-retain';
   const result = inspectNvidiaCompletionResponse(JSON.stringify({ error: { message: secretLikeBody, code: 'backend_error' } }));
