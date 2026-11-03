@@ -69,7 +69,7 @@ function countValidatedHunkChanges(lines, hunkStart, fileIndex) {
       throw new Error('Patch file ' + fileIndex + ' contains unexpected content after a completed hunk.');
     }
 
-    if (line.startsWith(' ')) {
+    if (line.startsWith(' ') || (line === '' && oldRemaining > 0 && newRemaining > 0)) {
       if (oldRemaining === 0 || newRemaining === 0) {
         throw new Error('Patch file ' + fileIndex + ' exceeds its declared unified-diff context count.');
       }
@@ -145,7 +145,7 @@ function validatePatchResponse(output) {
   if (!envelope) {
     throw new Error('Patch response must contain only a complete BEGIN_PATCH and END_PATCH envelope; surrounding content is not allowed.');
   }
-  const patch = envelope[1].trim() + '\n';
+  const patch = envelope[1] + '\n';
   const byteLength = Buffer.byteLength(patch, 'utf8');
   if (byteLength > MAX_PATCH_BYTES) {
     throw new Error('Patch exceeds byte limit (' + byteLength + ' > ' + MAX_PATCH_BYTES + '). Request a smaller patch.');
