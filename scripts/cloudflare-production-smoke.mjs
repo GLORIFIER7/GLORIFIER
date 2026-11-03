@@ -272,14 +272,13 @@ export const validateBuildInfo = (body, expectedCommit) => {
 };
 
 export const verifyBuildProvenance = async (
-  fetchRequest = fetch,
+  fetchRequest = fetchProductionBuildInfo,
   expectedCommit = process.env.GITHUB_SHA,
 ) => {
   assert.ok(typeof expectedCommit === 'string' && /^[0-9a-f]{40}$/i.test(expectedCommit),
     'expected Git commit SHA must be a 40-character hexadecimal value');
   console.log('GLORIFIER production smoke: verifying exact deployed source commit and Cloudflare version');
-  const response = await requestJson((options) =>
-    fetchRequest(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options));
+  const response = await requestJson(fetchRequest);
   return validateBuildInfo(response.body, expectedCommit);
 };
 
