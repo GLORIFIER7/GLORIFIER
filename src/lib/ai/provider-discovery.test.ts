@@ -124,6 +124,15 @@ test('malformed and rate-limited model-list responses do not authenticate Meta',
   assert.equal(meta?.reason?.includes('test-meta-api-key-secret'), false);
 });
 
+test('classifies billing responses as quota exhaustion without authenticating Meta', async () => {
+  metaProbeStatus = 402;
+  const billing = await discoverGlobalProviders('provider-discovery-billing-limit-regression', { persistConnections: false });
+  const meta = billing.find((provider) => provider.id === 'meta');
+  assert.equal(meta?.availability, 'quota_exhausted');
+  assert.equal(meta?.authenticated, false);
+  assert.equal(meta?.reason, 'quota_or_billing_limit');
+});
+
 test('server and network errors fail closed and redact endpoint credentials', async () => {
   metaProbeStatus = 503;
   const serverError = await discoverGlobalProviders('provider-discovery-server-error-auth-regression', { persistConnections: false });
