@@ -339,7 +339,7 @@ void test('A2A JSON-RPC waits for durable creation and reports persistence failu
   }));
   const asyncCreated = await pendingAcknowledgement;
   const asyncSubmittedTask = (asyncCreated.result as {
-    task: { status: { state: string; message: { parts: Array<{ text: string }> } };
+    task: { status: { state: string; message: { parts: Array<{ text: string }> } } };
   }).task;
   assert.equal(asyncSubmittedTask.status.state, 'TASK_STATE_SUBMITTED');
   assert.match(asyncSubmittedTask.status.message.parts[0].text, /human approval/i);
