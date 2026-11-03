@@ -5,7 +5,9 @@ import {
   validateRevenueReconciliationEvidence,
   validateRuntimeSecurityEvidence,
 } from './outcome-evidence-gates';
+import { test } from 'node:test';
 
+test('outcome-evidence-gates regression suite', async () => {
 const digest = 'a'.repeat(64);
 const paid = {
   environment: 'production' as const,
@@ -126,3 +128,4 @@ if (validateA2AConformanceEvidence({ ...a2a, reportSha256: 'not-a-digest' }).sta
 }
 
 process.stdout.write('OUTCOME_EVIDENCE_GATES_TEST_OK\n');
+});

@@ -5,7 +5,9 @@ import { reportsSummaryResponse, runtimeVerificationResponse } from './worker.ts
 import type { NeonOperationalCounts } from './lib/neon-worker';
 import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
+import { test } from 'node:test';
 
+test('worker regression suite', async () => {
 type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
@@ -2539,10 +2541,6 @@ const run = async (): Promise<void> => {
     globalThis.fetch = originalFetch;
   }
 };
+await run();
 
-try {
-  await run();
-} catch (error) {
-  console.error(error);
-  process.exitCode = 1;
-}
+});

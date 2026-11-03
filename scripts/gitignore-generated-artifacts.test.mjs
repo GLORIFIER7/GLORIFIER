@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { test } from 'node:test';
 
+test('gitignore-generated-artifacts regression suite', async () => {
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const generatedPaths = [
   '__pycache__/example.cpython-312.pyc',
@@ -37,3 +39,4 @@ for (const path of generatedPaths) {
 }
 
 console.log(`Git ignore regression test passed for ${generatedPaths.length} generated paths.`);
+});

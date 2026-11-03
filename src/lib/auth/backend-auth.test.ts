@@ -10,7 +10,9 @@ import {
   verifyBearerToken,
   type TokenVerifier,
 } from './backend-auth';
+import { test } from 'node:test';
 
+test('backend-auth regression suite', async () => {
 const request = (headers: Record<string, string>): Request => ({
   get(name: string) { return headers[name.toLowerCase()]; },
 } as unknown as Request);
@@ -147,3 +149,4 @@ try {
   if (previous === undefined) delete process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN;
   else process.env.GLORIFIER_INTERNAL_SERVICE_TOKEN = previous;
 }
+});

@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { PostgresAgentStateStore, type AgentStateQuery } from './agent-state-store.ts';
+import { test } from 'node:test';
 
+test('agent-state-store regression suite', async () => {
 type StoredRow = {
   kind: string;
   id: string;
@@ -205,3 +207,4 @@ assert.equal(largeTokenUpdate?.contextTokens, 2_147_483_648, 'safe counters abov
 
 
 console.log('durable agent state store tests: PASS');
+});

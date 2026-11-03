@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
 
+test('intelligence-pipeline-workflow regression suite', async () => {
 let workflow;
 try {
   workflow = readFileSync(new URL('../.github/workflows/intelligence-pipeline.yml', import.meta.url), 'utf8');
@@ -49,3 +51,4 @@ assert.match(
 );
 
 console.log('Intelligence pipeline PR concurrency regression tests passed');
+});

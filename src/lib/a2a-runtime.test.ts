@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { createA2ATask, executeA2ATask, listA2ATasks } from './a2a-runtime.ts';
+import { test } from 'node:test';
 
+test('a2a-runtime regression suite', async () => {
 const previousDatabaseUrl = process.env.DATABASE_URL;
 const previousSecret = process.env.GLORIFIER_A2A_SIGNING_SECRET;
 delete process.env.DATABASE_URL;
@@ -64,3 +66,4 @@ try {
   if (previousSecret === undefined) delete process.env.GLORIFIER_A2A_SIGNING_SECRET;
   else process.env.GLORIFIER_A2A_SIGNING_SECRET = previousSecret;
 }
+});

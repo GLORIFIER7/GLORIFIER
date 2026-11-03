@@ -9,7 +9,9 @@ import {
   type A2ATaskLike,
   type A2ACreateTaskInput,
 } from './a2a-v1';
+import { test } from 'node:test';
 
+test('a2a-v1 regression suite', async () => {
 const baseTask = (overrides: Partial<A2ATaskLike> = {}): A2ATaskLike => ({
   id: 'a2a-task-1',
   parentTaskId: null,
@@ -293,3 +295,4 @@ const persistenceFailure = await persistenceFailureHandler({
 });
 assert.equal((persistenceFailure.error as { code: number }).code, -32603);
 assert.equal(persistenceFailure.result, undefined, 'failed durable writes must not return a successful task acknowledgement');
+});

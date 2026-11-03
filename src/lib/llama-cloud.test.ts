@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, LlamaCloudIntegrationError, retrieveLlamaCloudContext } from './llama-cloud.ts';
+import { test } from 'node:test';
 
+test('llama-cloud regression suite', async () => {
 const oldKey = process.env.LLAMA_CLOUD_API_KEY;
 const oldProject = process.env.LLAMA_CLOUD_PROJECT_ID;
 const oldBase = process.env.LLAMA_CLOUD_BASE_URL;
@@ -139,3 +141,4 @@ try {
   if (oldProject === undefined) delete process.env.LLAMA_CLOUD_PROJECT_ID; else process.env.LLAMA_CLOUD_PROJECT_ID = oldProject;
   if (oldBase === undefined) delete process.env.LLAMA_CLOUD_BASE_URL; else process.env.LLAMA_CLOUD_BASE_URL = oldBase;
 }
+});

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createAuthenticatedPayerIntent, resolveAuthenticatedPayer } from './payer-identity';
+import { test } from 'node:test';
 
+test('payer-identity regression suite', async () => {
 assert.deepEqual(
   resolveAuthenticatedPayer(undefined, 'payer-a'),
   { ok: false, status: 401, error: 'Authenticated payer identity required' },
@@ -33,7 +35,7 @@ assert.deepEqual(
 
 console.log('GLR payer identity binding regression tests passed');
 
-void (async () => {
+await (async () => {
   const capturedInputs: Record<string, unknown>[] = [];
   const created = await createAuthenticatedPayerIntent(
     'firebase-uid-a',
@@ -63,7 +65,6 @@ void (async () => {
     'persisted payer must be derived from authenticated identity');
   assert.equal(capturedInputs[0]?.amount, '5', 'other validated intent fields must be preserved');
   console.log('GLR authenticated intent creation boundary tests passed');
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+})();
+
 });

@@ -1,6 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { getProvider } from '../registry';
+import { test } from 'node:test';
 
+test('nvidia-provider regression suite', async () => {
 const MODEL = 'nvidia/nemotron-3.5-super-vl-120b-a12b';
 const originalKey = process.env.NVIDIA_API_KEY;
 const originalBaseUrl = process.env.NVIDIA_BASE_URL;
@@ -47,3 +49,4 @@ try {
   if (originalBaseUrl === undefined) delete process.env.NVIDIA_BASE_URL; else process.env.NVIDIA_BASE_URL = originalBaseUrl;
   if (originalModel === undefined) delete process.env.NVIDIA_MODEL; else process.env.NVIDIA_MODEL = originalModel;
 }
+});

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { seedCanonicalNFTRegistry } from './asset-registry';
+import { test } from 'node:test';
 
+test('asset-registry-seed regression suite', async () => {
 type QueryCall = { sql: string; values?: any[] };
 
 async function run() {
@@ -57,8 +59,6 @@ async function run() {
 
   console.log('Canonical NFT registry seed and evidence-guard tests passed.');
 }
+await run();
 
-run().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
 });

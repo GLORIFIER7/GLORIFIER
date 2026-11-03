@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { isProtectedApiReadPath, shouldBypassApiAuthentication } from './protected-api-paths';
+import { test } from 'node:test';
 
+test('protected-api-paths regression suite', async () => {
 const protectedPaths = [
   '/api/economy/glr/intents',
   '/API/ECONOMY/GLR/INTENTS',
@@ -123,3 +125,4 @@ assert.match(
   /app\.post\('\/api\/a2a\/tasks', async[\s\S]*?resolveAgentTaskRequester\(requesterUid, requestedRequester, mayOverrideRequester\)/,
   'legacy A2A requester identity must be derived from authenticated context',
 );
+});
