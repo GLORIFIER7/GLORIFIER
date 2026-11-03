@@ -7,7 +7,7 @@ import type { CloudflareEnv } from './worker.ts';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH } from './lib/a2a-v1';
 import { test } from 'node:test';
 
-test('worker regression suite', async () => {
+void test('worker regression suite', async () => {
 type TestEnv = CloudflareEnv;
 
 const originalFetch = globalThis.fetch;
