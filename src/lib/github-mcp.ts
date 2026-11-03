@@ -1,7 +1,8 @@
 /**
  * Stateless, read-only MCP Streamable HTTP endpoint for the public GLORIFIER repository.
  *
- * This server intentionally exposes no GitHub write operations and carries no GitHub credential.
+ * This server exposes no GitHub write operations. It uses anonymous public API access by default and
+ * supports an optional, least-privilege read token supplied only by the Worker secret binding.
  * Every upstream request is pinned to api.github.com and the single public repository below.
  */
 
