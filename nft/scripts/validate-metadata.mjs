@@ -7,7 +7,7 @@ const files = [
 
 const normalize = (uri) => uri.replace(/^ipfs:\/\//, "");
 const expectedName = "GLORIFIER SERVICES — Official Logo #001";
-const expectedImageUri = "ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv";
+const expectedImageUri = "ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa";
 
 const results = await Promise.all(files.map(async (file) => {
   try {
