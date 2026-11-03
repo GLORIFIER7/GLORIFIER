@@ -1,4 +1,5 @@
 import { getInternetDiscoveryFabricPolicy } from './internet-discovery-fabric';
+import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
