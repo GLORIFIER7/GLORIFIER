@@ -38,7 +38,7 @@ test('rejects patches touching more than two files', () => {
     'diff --git a/scripts/second.cjs b/scripts/second.cjs',
     '--- a/scripts/second.cjs', '+++ b/scripts/second.cjs', '@@ -1 +1 @@', '-a', '+b',
     'diff --git a/docs/third.md b/docs/third.md',
-    '--- a/docs/third.md', '+++ b/docs/third.md', '@@ -1 +1 @@', '-a', '+b',
+    '--- a/docs/third.md', '+++ b/docs/third.md', '@@ -1 +1 @@', '-c', '+d',
     'END_PATCH'
   ].join('\n'));
   assert.throws(() => validatePatchResponse(threeFiles), /file limit/);
@@ -92,4 +92,14 @@ test('normalizes CRLF patch headers and still rejects denied paths', () => {
 test('rejects denied sensitive paths inside otherwise allowed prefixes', () => {
   const denied = valid.replaceAll('scripts/example.cjs', 'src/lib/auth/evil.ts');
   assert.throws(() => validatePatchResponse(denied), /path is not allowed/);
+});
+
+test('rejects model patches that target the validator implementation', () => {
+  const validatorEdit = valid.replaceAll('scripts/example.cjs', 'scripts/nvidia-patch-validator.cjs');
+  assert.throws(() => validatePatchResponse(validatorEdit), /path is not allowed/);
+});
+
+test('rejects model patches that target the validator tests', () => {
+  const testEdit = valid.replaceAll('scripts/example.cjs', 'scripts/nvidia-patch-validator.test.cjs');
+  assert.throws(() => validatePatchResponse(testEdit), /path is not allowed/);
 });
