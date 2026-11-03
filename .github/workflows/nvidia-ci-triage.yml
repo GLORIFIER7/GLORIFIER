@@ -24,7 +24,7 @@ concurrency:
 jobs:
   triage:
     name: Analyze failed CI with NVIDIA NIM
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')) }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
