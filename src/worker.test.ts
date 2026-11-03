@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import worker from './worker.ts';
 import { reportsSummaryResponse, runtimeVerificationResponse } from './worker.ts';
@@ -1884,10 +1885,6 @@ const run = async (): Promise<void> => {
         assert.equal(new URL(getCapturedRequest().url).pathname, '/api/test-routing');
         assert.equal(new URL(getCapturedRequest().url).searchParams.get('target'), 'https://evil.example/path');
 
-        upstreamResponse = new Response('{"ok":true}', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
         upstreamResponse = new Response('upstream failure', { status: 500, headers: { 'Content-Type': 'text/plain' } });
 
         const openSeaServerError = await worker.fetch(
@@ -2540,9 +2537,4 @@ const run = async (): Promise<void> => {
   }
 };
 
-try {
-  await run();
-} catch (error) {
-  console.error(error);
-  process.exitCode = 1;
-}
+void test('Cloudflare Worker proxy and API contract regressions', run);

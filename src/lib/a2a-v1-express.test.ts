@@ -7,6 +7,7 @@ import {
   type A2AExpressDependencies,
 } from './a2a-v1-express';
 import type { A2ATaskLike } from './a2a-v1';
+import test from 'node:test';
 
 const task = (overrides: Partial<A2ATaskLike> = {}): A2ATaskLike => ({
   id: 'express-a2a-task',
@@ -92,183 +93,209 @@ function postAgentMessage(
   });
 }
 
-
-await withServer(baseDependencies(), async (origin) => {
-  const cardResponse = await fetch(`${origin}/.well-known/agent-card.json`);
-  assert.equal(cardResponse.status, 200);
-  const card = await cardResponse.json() as {
-    name: string;
-    supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
-  };
-  assert.equal(card.name, 'GLORIFIER Services');
-  assert.deepEqual(card.supportedInterfaces, [{
-    url: 'https://glorifier.glorifier.workers.dev/api/a2a/v1',
-    protocolBinding: 'JSONRPC',
-    protocolVersion: '1.0',
-  }]);
-
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 'express-send-1',
-      method: 'SendMessage',
-      params: { message: { messageId: 'express-message-1', role: 'ROLE_USER', parts: [{ text: 'Review this request' }] } },
-    }),
+test("A2A Express publishes the Agent Card and accepts A2A 1.0 messages", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const cardResponse = await fetch(`${origin}/.well-known/agent-card.json`);
+    assert.equal(cardResponse.status, 200);
+    const card = await cardResponse.json() as {
+      name: string;
+      supportedInterfaces: Array<{ url: string; protocolBinding: string; protocolVersion: string }>;
+    };
+    assert.equal(card.name, 'GLORIFIER Services');
+    assert.deepEqual(card.supportedInterfaces, [{
+      url: 'https://glorifier.glorifier.workers.dev/api/a2a/v1',
+      protocolBinding: 'JSONRPC',
+      protocolVersion: '1.0',
+    }]);
+  
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'express-send-1',
+        method: 'SendMessage',
+        params: { message: { messageId: 'express-message-1', role: 'ROLE_USER', parts: [{ text: 'Review this request' }] } },
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { id: string; result?: { task: { id: string; status: { state: string } } } };
+    assert.equal(body.id, 'express-send-1');
+    assert.equal(body.result?.task.id, 'express-a2a-task');
+    assert.equal(body.result?.task.status.state, 'TASK_STATE_SUBMITTED');
   });
-  assert.equal(response.status, 200);
-  const body = await response.json() as { id: string; result?: { task: { id: string; status: { state: string } } } };
-  assert.equal(body.id, 'express-send-1');
-  assert.equal(body.result?.task.id, 'express-a2a-task');
-  assert.equal(body.result?.task.status.state, 'TASK_STATE_SUBMITTED');
 });
 
-await withServer({
-  ...baseDependencies(),
-  isPersistenceConfigured: () => false,
-  initializePersistence: async () => { throw new Error('Agent Card must not initialize database'); },
-}, async (origin) => {
-  const response = await fetch(`${origin}/.well-known/agent-card.json`);
-  assert.equal(response.status, 200, 'public discovery metadata must remain available when the database is unavailable');
-  const card = await response.json() as { name: string };
-  assert.equal(card.name, 'GLORIFIER Services');
-});
-
-await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin, '0.3'));
-
-await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin));
-
-await withServer(baseDependencies(), async (origin) => {
-  const response = await postAgentMessage(origin, 'a2a-preferred-media-type', '1.0', 'application/a2a+json');
-  assert.equal(response.status, 200,
-    'the A2A 1.0.1 preferred application/a2a+json media type must be parsed and accepted by the backend');
-  const body = await response.json() as { id?: string; result?: { task?: { id?: string } }; error?: { code: number } };
-  assert.equal(body.id, 'a2a-preferred-media-type');
-  assert.equal(body.result?.task?.id, 'express-a2a-task');
-  assert.equal(body.error, undefined);
-});
-
-await withServer(baseDependencies(), async (origin) => {
-  const response = await postAgentMessage(origin, 'patch-version', '1.0.1');
-  assert.equal(response.status, 200, 'a compatible 1.0 patch version must pass protocol negotiation');
-  const body = await response.json() as { id?: string; error?: { code: number } };
-  assert.equal(body.id, 'patch-version');
-  assert.equal(body.error, undefined);
-});
-
-await withServer(baseDependencies(), async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: 'true',
+test("A2A Express keeps public discovery available without persistence", async () => {
+  await withServer({
+    ...baseDependencies(),
+    isPersistenceConfigured: () => false,
+    initializePersistence: async () => { throw new Error('Agent Card must not initialize database'); },
+  }, async (origin) => {
+    const response = await fetch(`${origin}/.well-known/agent-card.json`);
+    assert.equal(response.status, 200, 'public discovery metadata must remain available when the database is unavailable');
+    const card = await response.json() as { name: string };
+    assert.equal(card.name, 'GLORIFIER Services');
   });
-  assert.equal(response.status, 200, 'JSON primitives must reach JSON-RPC packet validation');
-  const body = await response.json() as { error?: { code: number; message: string } };
-  assert.equal(body.error?.code, -32600, 'a valid JSON primitive is a JSON-RPC Invalid Request, not an Express parser error');
 });
 
+test("A2A Express rejects unsupported A2A 0.3 protocol negotiation", async () => {
+  await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin, '0.3'));
+});
 
-await withServer(baseDependencies(), async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: '{"jsonrpc":"2.0","id":',
+test("A2A Express rejects requests that omit the required A2A version", async () => {
+  await withServer(baseDependencies(), (origin) => assertUnsupportedProtocolVersion(origin));
+});
+
+test("A2A Express accepts the preferred A2A JSON media type", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const response = await postAgentMessage(origin, 'a2a-preferred-media-type', '1.0', 'application/a2a+json');
+    assert.equal(response.status, 200,
+      'the A2A 1.0.1 preferred application/a2a+json media type must be parsed and accepted by the backend');
+    const body = await response.json() as { id?: string; result?: { task?: { id?: string } }; error?: { code: number } };
+    assert.equal(body.id, 'a2a-preferred-media-type');
+    assert.equal(body.result?.task?.id, 'express-a2a-task');
+    assert.equal(body.error, undefined);
   });
-  assert.equal(response.status, 400);
-  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
-  const body = await response.json() as { error?: { code: number } };
-  assert.equal(body.error?.code, -32700, 'malformed JSON must use the JSON-RPC parse-error envelope');
 });
 
-await withServer(baseDependencies(), async (origin) => {
-  const oversized = JSON.stringify({ jsonrpc: '2.0', id: 'large', method: 'SendMessage', params: { message: { messageId: 'large', role: 'ROLE_USER', parts: [{ text: 'x'.repeat(66_000) }] } } });
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: oversized,
+test("A2A Express accepts compatible A2A patch versions", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const response = await postAgentMessage(origin, 'patch-version', '1.0.1');
+    assert.equal(response.status, 200, 'a compatible 1.0 patch version must pass protocol negotiation');
+    const body = await response.json() as { id?: string; error?: { code: number } };
+    assert.equal(body.id, 'patch-version');
+    assert.equal(body.error, undefined);
   });
-  assert.equal(response.status, 413);
-  assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
-  const body = await response.json() as { error?: { code: number } };
-  assert.equal(body.error?.code, -32602, 'oversized JSON-RPC bodies must not leak an HTML parser error');
 });
 
-await withServer(baseDependencies(), async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain', 'A2A-Version': '1.0' },
-    body: '{}',
+test("A2A Express routes JSON primitives through JSON-RPC packet validation", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: 'true',
+    });
+    assert.equal(response.status, 200, 'JSON primitives must reach JSON-RPC packet validation');
+    const body = await response.json() as { error?: { code: number; message: string } };
+    assert.equal(body.error?.code, -32600, 'a valid JSON primitive is a JSON-RPC Invalid Request, not an Express parser error');
   });
-  assert.equal(response.status, 415);
-  const body = await response.json() as { error?: { code: number } };
-  assert.equal(body.error?.code, -32600);
 });
 
-await withServer({
-  ...baseDependencies(),
-  createTask: async () => { throw new Error('createTask must not run without authenticated requester identity'); },
-}, async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'missing-uid', method: 'SendMessage', params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'No identity' }] } } }),
+test("A2A Express returns a JSON-RPC parse error for malformed JSON", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: '{"jsonrpc":"2.0","id":',
+    });
+    assert.equal(response.status, 400);
+    assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
+    const body = await response.json() as { error?: { code: number } };
+    assert.equal(body.error?.code, -32700, 'malformed JSON must use the JSON-RPC parse-error envelope');
   });
-  assert.equal(response.status, 200);
-  const body = await response.json() as { error?: { code: number } };
-  assert.equal(body.error?.code, -32603, 'missing auth uid must fail closed as a JSON-RPC error');
-}, '');
+});
 
-await withServer({
-  ...baseDependencies(),
-  getTask: async () => task({ requesterAgentId: 'someone-else' }),
-}, async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'foreign-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+test("A2A Express returns a JSON-RPC error for oversized request bodies", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const oversized = JSON.stringify({ jsonrpc: '2.0', id: 'large', method: 'SendMessage', params: { message: { messageId: 'large', role: 'ROLE_USER', parts: [{ text: 'x'.repeat(66_000) }] } } });
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: oversized,
+    });
+    assert.equal(response.status, 413);
+    assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/json');
+    const body = await response.json() as { error?: { code: number } };
+    assert.equal(body.error?.code, -32602, 'oversized JSON-RPC bodies must not leak an HTML parser error');
   });
-  assert.equal(response.status, 200);
-  const body = await response.json() as { error?: { code: number } };
-  assert.equal(body.error?.code, -32001, 'GetTask must hide a task owned by another requester');
 });
 
-await withServer({
-  ...baseDependencies(),
-  getTask: async () => task({ requesterAgentId: 'express-test-user' }),
-}, async (origin) => {
-  const response = await fetch(`${origin}/api/a2a/v1`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'own-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+test("A2A Express rejects unsupported request media types", async () => {
+  await withServer(baseDependencies(), async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain', 'A2A-Version': '1.0' },
+      body: '{}',
+    });
+    assert.equal(response.status, 415);
+    const body = await response.json() as { error?: { code: number } };
+    assert.equal(body.error?.code, -32600);
   });
-  assert.equal(response.status, 200);
-  const body = await response.json() as { error?: { code: number }; result?: { id: string } };
-  assert.equal(body.error, undefined);
-  assert.equal(body.result?.id, 'express-a2a-task');
 });
 
-await withServer({
-  ...baseDependencies(),
-  initializePersistence: async () => { throw new Error('database initialization failed'); },
-  createTask: async () => { throw new Error('createTask must not run after init failure'); },
-}, async (origin) => {
-  const response = await postAgentMessage(origin, 'init-failure');
-  assert.equal(response.status, 503);
-  const body = await response.json() as { error?: { code: number; data?: { code?: string } } };
-  assert.equal(body.error?.code, -32000);
-  assert.equal(body.error?.data?.code, 'A2A_PERSISTENCE_UNAVAILABLE');
+test("A2A Express rejects message creation without requester identity", async () => {
+  await withServer({
+    ...baseDependencies(),
+    createTask: async () => { throw new Error('createTask must not run without authenticated requester identity'); },
+  }, async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'missing-uid', method: 'SendMessage', params: { message: { messageId: 'm', role: 'ROLE_USER', parts: [{ text: 'No identity' }] } } }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { error?: { code: number } };
+    assert.equal(body.error?.code, -32603, 'missing auth uid must fail closed as a JSON-RPC error');
+  }, '');
 });
 
-await withServer({
-  ...baseDependencies(),
-  createTask: async () => { throw new Error('durable database write failed'); },
-}, async (origin) => {
-  const response = await postAgentMessage(origin, 'write-failure');
-  assert.equal(response.status, 200);
-  const body = await response.json() as { error?: { code: number }; result?: unknown };
-  assert.equal(body.error?.code, -32603);
-  assert.equal(body.result, undefined);
+test("A2A Express hides tasks owned by another requester", async () => {
+  await withServer({
+    ...baseDependencies(),
+    getTask: async () => task({ requesterAgentId: 'someone-else' }),
+  }, async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'foreign-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { error?: { code: number } };
+    assert.equal(body.error?.code, -32001, 'GetTask must hide a task owned by another requester');
+  });
 });
 
-console.log('A2A Express endpoint regression tests passed.');
+test("A2A Express allows a requester to retrieve their own task", async () => {
+  await withServer({
+    ...baseDependencies(),
+    getTask: async () => task({ requesterAgentId: 'express-test-user' }),
+  }, async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'own-task', method: 'GetTask', params: { id: 'express-a2a-task' } }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as { error?: { code: number }; result?: { id: string } };
+    assert.equal(body.error, undefined);
+    assert.equal(body.result?.id, 'express-a2a-task');
+  });
+});
+
+test("A2A Express fails readiness when persistence initialization fails", async () => {
+  await withServer({
+    ...baseDependencies(),
+    initializePersistence: async () => { throw new Error('database initialization failed'); },
+    createTask: async () => { throw new Error('createTask must not run after init failure'); },
+  }, async (origin) => {
+    const response = await postAgentMessage(origin, 'init-failure');
+    assert.equal(response.status, 503);
+    const body = await response.json() as { error?: { code: number; data?: { code?: string } } };
+    assert.equal(body.error?.code, -32000);
+    assert.equal(body.error?.data?.code, 'A2A_PERSISTENCE_UNAVAILABLE');
+  });
+});
+
+test("A2A Express does not acknowledge a task after durable persistence fails", async () => {
+  await withServer({
+    ...baseDependencies(),
+    createTask: async () => { throw new Error('durable database write failed'); },
+  }, async (origin) => {
+    const response = await postAgentMessage(origin, 'write-failure');
+    assert.equal(response.status, 200);
+    const body = await response.json() as { error?: { code: number }; result?: unknown };
+    assert.equal(body.error?.code, -32603);
+    assert.equal(body.result, undefined);
+  });
+});

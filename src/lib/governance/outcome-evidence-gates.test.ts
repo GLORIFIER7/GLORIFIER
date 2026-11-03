@@ -1,3 +1,5 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   validateA2AConformanceEvidence,
   validatePaidDeliveryEvidence,
@@ -20,26 +22,20 @@ const paid = {
   unexplainedVarianceMinorUnits: '0',
   evidenceBundleSha256: digest,
 };
-const paidResult = validatePaidDeliveryEvidence(paid);
-if (paidResult.status !== 'VERIFIED' || paidResult.failedChecks.length !== 0 || paidResult.evidenceBundleSha256 !== digest) {
-  throw new Error('complete paid-delivery evidence should pass with provenance');
-}
-const testPayment = validatePaidDeliveryEvidence({ ...paid, environment: 'test' });
-if (testPayment.status !== 'NOT VERIFIED' || !testPayment.failedChecks.includes('production_environment')) {
-  throw new Error('test-mode payment must fail closed with an explicit reason');
-}
-if (validatePaidDeliveryEvidence({ ...paid, settlementIndependentlyVerified: false }).status !== 'NOT VERIFIED') {
-  throw new Error('unverified payment must fail closed');
-}
-if (validatePaidDeliveryEvidence({ ...paid, unexplainedVarianceMinorUnits: '1' }).status !== 'NOT VERIFIED') {
-  throw new Error('unreconciled variance must fail closed');
-}
-if (validatePaidDeliveryEvidence({ ...paid, evidenceBundleSha256: 'bad' }).failedChecks.includes('references_and_digests_valid') === false) {
-  throw new Error('invalid evidence-bundle digest must be reported');
-}
-if (validatePaidDeliveryEvidence({ ...paid, customerRef: '   ' }).status !== 'NOT VERIFIED') {
-  throw new Error('blank evidence references must fail closed');
-}
+
+test('paid delivery requires production settlement, delivery and zero-variance reconciliation', () => {
+  const result = validatePaidDeliveryEvidence(paid);
+  assert.equal(result.status, 'VERIFIED');
+  assert.equal(result.failedChecks.length, 0);
+  assert.equal(result.evidenceBundleSha256, digest);
+  const testPayment = validatePaidDeliveryEvidence({ ...paid, environment: 'test' });
+  assert.equal(testPayment.status, 'NOT VERIFIED');
+  assert.ok(testPayment.failedChecks.includes('production_environment'));
+  assert.equal(validatePaidDeliveryEvidence({ ...paid, settlementIndependentlyVerified: false }).status, 'NOT VERIFIED');
+  assert.equal(validatePaidDeliveryEvidence({ ...paid, unexplainedVarianceMinorUnits: '1' }).status, 'NOT VERIFIED');
+  assert.equal(validatePaidDeliveryEvidence({ ...paid, evidenceBundleSha256: 'bad' }).failedChecks.includes('references_and_digests_valid'), true);
+  assert.equal(validatePaidDeliveryEvidence({ ...paid, customerRef: '   ' }).status, 'NOT VERIFIED');
+});
 
 const customer = {
   environment: 'production' as const,
@@ -50,15 +46,12 @@ const customer = {
   deliveryAcceptanceRef: 'acceptance:1',
   evidenceBundleSha256: digest,
 };
-if (validatePayingCustomerEvidence(customer).status !== 'VERIFIED') {
-  throw new Error('complete production paying-customer evidence should pass');
-}
-if (validatePayingCustomerEvidence({ ...customer, environment: 'staging' }).status !== 'NOT VERIFIED') {
-  throw new Error('staging customer must not count as production customer');
-}
-if (!validatePayingCustomerEvidence({ ...customer, settlementIndependentlyVerified: false }).failedChecks.includes('settlement_independently_verified')) {
-  throw new Error('unverified settlement must be explicitly reported as a failed check');
-}
+
+test('paying customer evidence requires production settlement and delivery acceptance', () => {
+  assert.equal(validatePayingCustomerEvidence(customer).status, 'VERIFIED');
+  assert.equal(validatePayingCustomerEvidence({ ...customer, environment: 'staging' }).status, 'NOT VERIFIED');
+  assert.ok(validatePayingCustomerEvidence({ ...customer, settlementIndependentlyVerified: false }).failedChecks.includes('settlement_independently_verified'));
+});
 
 const revenue = {
   environment: 'production' as const,
@@ -69,15 +62,12 @@ const revenue = {
   unexplainedVarianceMinorUnits: '0',
   evidenceBundleSha256: digest,
 };
-if (validateRevenueReconciliationEvidence(revenue).status !== 'VERIFIED') {
-  throw new Error('zero-variance authoritative reconciliation should pass');
-}
-if (validateRevenueReconciliationEvidence({ ...revenue, reconciled: false }).status !== 'NOT VERIFIED') {
-  throw new Error('unreconciled ledger must fail closed');
-}
-if (validateRevenueReconciliationEvidence({ ...revenue, unexplainedVarianceMinorUnits: '00' }).status !== 'NOT VERIFIED') {
-  throw new Error('non-canonical zero variance must fail closed');
-}
+
+test('revenue reconciliation requires an authoritative zero-variance production ledger', () => {
+  assert.equal(validateRevenueReconciliationEvidence(revenue).status, 'VERIFIED');
+  assert.equal(validateRevenueReconciliationEvidence({ ...revenue, reconciled: false }).status, 'NOT VERIFIED');
+  assert.equal(validateRevenueReconciliationEvidence({ ...revenue, unexplainedVarianceMinorUnits: '00' }).status, 'NOT VERIFIED');
+});
 
 const security = {
   environment: 'production' as const,
@@ -92,12 +82,11 @@ const security = {
   operatorStopPassed: true,
   evidenceBundleSha256: digest,
 };
-if (validateRuntimeSecurityEvidence(security).status !== 'VERIFIED') {
-  throw new Error('complete runtime security evidence should pass');
-}
-if (validateRuntimeSecurityEvidence({ ...security, unauthorizedToolDenied: false }).failedChecks.includes('unauthorized_tool_denied') === false) {
-  throw new Error('unauthorized tool access failure must be explicit');
-}
+
+test('runtime security evidence requires deny-egress, tool isolation, audit and stop controls', () => {
+  assert.equal(validateRuntimeSecurityEvidence(security).status, 'VERIFIED');
+  assert.ok(validateRuntimeSecurityEvidence({ ...security, unauthorizedToolDenied: false }).failedChecks.includes('unauthorized_tool_denied'));
+});
 
 const a2a = {
   environment: 'production' as const,
@@ -112,17 +101,10 @@ const a2a = {
   skippedTests: 0,
   evidenceBundleSha256: digest,
 };
-if (validateA2AConformanceEvidence(a2a).status !== 'VERIFIED') {
-  throw new Error('complete A2A conformance evidence should pass');
-}
-if (validateA2AConformanceEvidence({ ...a2a, skippedTests: 1 }).status !== 'NOT VERIFIED') {
-  throw new Error('skipped conformance tests must not pass');
-}
-if (validateA2AConformanceEvidence({ ...a2a, failedTests: 1 }).failedChecks.includes('zero_failed_tests') === false) {
-  throw new Error('failed conformance tests must be explicit');
-}
-if (validateA2AConformanceEvidence({ ...a2a, reportSha256: 'not-a-digest' }).status !== 'NOT VERIFIED') {
-  throw new Error('missing report integrity must fail closed');
-}
 
-process.stdout.write('OUTCOME_EVIDENCE_GATES_TEST_OK\n');
+test('A2A conformance requires zero failed and skipped tests with report integrity', () => {
+  assert.equal(validateA2AConformanceEvidence(a2a).status, 'VERIFIED');
+  assert.equal(validateA2AConformanceEvidence({ ...a2a, skippedTests: 1 }).status, 'NOT VERIFIED');
+  assert.ok(validateA2AConformanceEvidence({ ...a2a, failedTests: 1 }).failedChecks.includes('zero_failed_tests'));
+  assert.equal(validateA2AConformanceEvidence({ ...a2a, reportSha256: 'not-a-digest' }).status, 'NOT VERIFIED');
+});
