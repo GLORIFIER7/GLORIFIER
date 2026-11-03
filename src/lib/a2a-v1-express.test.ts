@@ -7,7 +7,9 @@ import {
   type A2AExpressDependencies,
 } from './a2a-v1-express';
 import type { A2ATaskLike } from './a2a-v1';
+import { test } from 'node:test';
 
+test('a2a-v1-express regression suite', async () => {
 const task = (overrides: Partial<A2ATaskLike> = {}): A2ATaskLike => ({
   id: 'express-a2a-task',
   parentTaskId: null,
@@ -272,3 +274,4 @@ await withServer({
 });
 
 console.log('A2A Express endpoint regression tests passed.');
+});

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
 
+test('glr-intent-route-contract regression suite', async () => {
 const server = readFileSync('server.ts', 'utf8');
 assert.match(
   server,
@@ -35,3 +37,4 @@ assert.match(
 );
 
 console.log('GLR payment-intent route authorization contract tests passed');
+});

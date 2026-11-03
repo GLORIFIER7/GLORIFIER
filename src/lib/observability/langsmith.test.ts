@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { withLangSmithTrace } from './langsmith';
 import { buildProviderRegistryTraceInputs, executeThroughProviderRegistry, summarizeProviderRegistryTrace } from '../ai/registry';
 import { discoverGlobalProviders } from '../ai/provider-discovery';
+import { test } from 'node:test';
 
+test('langsmith regression suite', async () => {
 async function main() {
   const originalEnv = {
     tracing: process.env.LANGSMITH_TRACING,
@@ -196,8 +198,6 @@ async function main() {
   }
   console.log('LangSmith metadata-only tracing tests passed.');
 }
+await main();
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
 });

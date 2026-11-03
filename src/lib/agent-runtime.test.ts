@@ -16,7 +16,9 @@ import {
   resolveAgentTaskRequester,
 } from './agent-runtime.ts';
 import type { PostgresAgentStateStore } from './agent-state-store.ts';
+import { test } from 'node:test';
 
+test('agent-runtime regression suite', async () => {
 // Task ownership is enforced independently of authentication. Request-body identity
 // must never let an ordinary authenticated caller impersonate another requester.
 const accessFixtures = [
@@ -304,3 +306,4 @@ try {
 }
 
 console.log('agent runtime persistence fallback tests: PASS');
+});
