@@ -38,6 +38,10 @@ test('rejects an oversized response before trimming or parsing its envelope', ()
   assert.throws(() => validatePatchResponse(oversized), /response byte limit/);
 });
 
+test('rejects non-string provider content with a TypeError', () => {
+  assert.throws(() => validatePatchResponse(null), TypeError);
+});
+
 test('rejects missing patch envelopes', () => {
   assert.throws(() => validatePatchResponse('diff --git a/scripts/a b/scripts/a'), /BEGIN_PATCH.*END_PATCH/);
 });
