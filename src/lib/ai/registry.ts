@@ -483,10 +483,10 @@ const requiredProviderUnavailableReason = (
   discovery: Map<string, DiscoveredProvider>,
   capability?: string,
 ): string | undefined => {
-  const adapter = providers.find((provider) => provider.id === requiredId);
+  const isKnownProvider = providers.some((provider) => provider.id === requiredId);
   const connectedAdapter = allConnected.find((provider) => provider.id === requiredId);
   const entry = discovery.get(requiredId);
-  if (!adapter) return 'unknown provider';
+  if (!isKnownProvider) return 'unknown provider';
   if (!connectedAdapter) return 'not connected (credentials or adapter unavailable)';
   if (entry && capability && !entry.capabilities.includes(capability)) {
     return `does not advertise requested capability "${capability}"`;
