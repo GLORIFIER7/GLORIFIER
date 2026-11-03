@@ -1,6 +1,8 @@
 import { getInternetDiscoveryFabricPolicy } from './internet-discovery-fabric';
 import { before, test } from 'node:test';
 
+let assertionsCompleted = false;
+
 before(async () => {
 const policy = getInternetDiscoveryFabricPolicy();
 
@@ -17,6 +19,9 @@ if (policy.automaticFinancialTransfers) throw new Error('financial transfer auto
 if (policy.automaticCredentialRotation) throw new Error('credential rotation automation must be disabled');
 if (!policy.noUniversalInternetCoverageClaim) throw new Error('universal coverage claim guard missing');
 console.log('Internet Discovery Fabric policy invariants: PASS');
+  assertionsCompleted = true;
 });
 
-test('existing assertions completed in setup hook', () => {});
+test('existing assertions completed in setup hook', () => {
+  assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
