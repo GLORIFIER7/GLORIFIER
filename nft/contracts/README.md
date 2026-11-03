@@ -1,41 +1,42 @@
 # GLORIFIER SERVICES Official Logo #001 — Contract Review
 
-**Status: review/preparation only; not deployed; not minted.**
+**Status: existing Official Logo #001 is already minted on a separate verified SeaDrop ERC-721 proxy; this repository contract remains review-only and undeployed.**
 
-## Canonical contract
+## Existing deployed token
 
-Use `src/GLORIFIERServicesLogo721.sol` as the sole proposed deployment target. It uses ERC-721 name `GLORIFIER SERVICES — Official Logo #001`, symbol `GLORIFIER-LOGO-001`, and token ID `1`.
-
-The contract has these controls:
-
-- No token is minted during construction.
-- Only the owner can call `mint(address recipient)`; only one mint can succeed.
-- The metadata URI is supplied at construction and has no public mutation method.
-- Empty metadata URI and zero recipient are rejected. OpenZeppelin's `Ownable` constructor rejects a zero owner.
-- No public mint, upgrade, withdrawal, or administrative metadata setter is included.
-
-`src/GlorifierServicesLogo001.sol` and its matching test are a **legacy duplicate**, not the proposed deployment target. Do not deploy both implementations. Remove or archive the legacy pair in a separately reviewed cleanup after confirming no external workflow depends on them.
-
-## Proposed mainnet parameters
-
-- **Final metadata URI: NOT SET.** The historical candidates `QmY5TyncxWWHjKUqm3B8y59WHQ2QDfFpvogR71j95a1tAs` and `QmZ1Na7Bdn23fKJdWK5JSvLTThTZ8j1r8W5SujHbVhX3wX` are not approved as the final corrected publication in this repository state. Do not use either for mainnet deployment until the corrected metadata is republished and independently verified.
-- Image URI: `ipfs://QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv`
-- Initial owner **and** proposed recipient (user-confirmed): `0x393c19Ff12e1624181fBF1938b80982b9dfC427`
 - Network: Ethereum Mainnet (chain ID 1)
+- Existing contract: `0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7`
+- Verified implementation: `ERC721SeaDropCloneable`, proxy type 2
+- Token ID: `1`
+- Metadata name: `GLORIFIER SERVICES — Official Logo #001`
+- Current owner: `0xe0589195995cb373c856953cfaddaeeaf2088a06`
+- Token URI: `ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1`
+- Mint transaction: `0x47b2136666b4dbd00e17b39e181fadb1fad14abb124aca4c43a6ed480250a1a9` (successful receipt)
 
-The corrected metadata draft at `nft/metadata.json` is repository content only; it is not a published IPFS object. Publish that exact reviewed JSON to IPFS, record the resulting CID as the final metadata URI, retrieve the JSON through at least two gateways, verify its `image` field, and inspect pin/retention receipts. Do not infer a final CID from historical notes or test fixtures.
+The on-chain URI returned the official-logo metadata through both Pinata and Filebase. Do not deploy or mint another Logo #001 token.
 
-The retrieved image bytes previously measured SHA-256 `6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790`, differing from the historical source PNG hash `0a0d5b0e485dbd4a5ed7383a7bfd288c893b22d8834680b641475c33dd9c8513`. Byte-for-byte identity with that historical file is therefore **not established**.
+## Separate review-only custom contract
 
-## Required gates before mainnet transactions
+`src/GLORIFIERServicesLogo721.sol` is a test-only custom implementation. It uses ERC-721 name `GLORIFIER SERVICES — Official Logo #001`, symbol `GLORIFIER-LOGO-001`, and fixed token ID `1`.
 
-1. Independently retrieve the exact metadata JSON from multiple gateways; verify the name, description, attributes, and image URI.
-2. Confirm the wallet controls the selected owner/recipient address.
-3. Verify pinning/retention without incurring a charge unless separately approved.
-4. Run the pinned Foundry compile/test workflow on the exact proposed commit and inspect its results.
-5. Simulate deployment and mint with the exact constructor arguments and transaction parameters; record estimated gas and current fee conditions.
-6. Review the contract address (after deployment), owner, recipient, metadata URI, network, and costs before minting.
+- Constructor does not mint.
+- Only owner can call `mint(address recipient)`, once.
+- Metadata URI is fixed at construction.
+- Empty metadata URI and zero recipient are rejected.
+- No public mint, upgrade, withdrawal, or URI mutation method.
 
-The workflow `.github/workflows/nft-contract-review.yml` is intended to run `forge test`; it must not be treated as a wallet, deployment, or mint workflow. Passing tests are not an independent security audit, proof of IPFS persistence, or legal clearance.
+This contract is **not deployed** and must not be used to create a duplicate of the already minted Official Logo #001. It is also not suitable for minting the remaining 82 JPEG candidate files because it only supports one token.
 
-**No deployment, mint, wallet signature, or expenditure is performed by this documentation change.**
+`src/GlorifierServicesLogo001.sol` and its matching test are legacy duplicates; do not deploy both implementations.
+
+## Remaining batch collection design
+
+The remaining candidate image set needs a separate reviewed multi-item NFT design. Before any deployment or mint:
+1. Classify the candidate assets and resolve provenance/rights.
+2. Verify each original image and final metadata URI through independent retrieval paths.
+3. Confirm a complete valid destination address and intended network.
+4. Select a standard/program that supports the intended item quantity and metadata model.
+5. Run compile, tests, and exact transaction simulations.
+6. Present assets, recipient, network, metadata URIs, quantities, and itemized current fees for transaction-specific approval.
+
+Passing review tests are not an independent security audit, proof of provider pin permanence, or legal clearance. No new deployment, mint, wallet signature, or expenditure is performed by this documentation change.
