@@ -123,12 +123,12 @@ test('ambiguous timestamps, missing timezone and impossible dates are rejected',
   assert.ok(impossible.failures.some((failure) => failure.includes('snapshot observedAt')));
 });
 
-test('unknown UTC offsets and sub-millisecond future snapshots fail closed', () => {
-  const unknownOffset = assessOpenTelemetryRuntimeEvidence({
+test('legacy -00:00 timestamps and sub-millisecond future snapshots fail closed', () => {
+  const legacyOffset = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot, observedAt: '2026-10-26T12:59:00-00:00',
   }, nowMs);
-  assert.equal(unknownOffset.status, 'not-observed');
-  assert.ok(unknownOffset.failures.some((failure) => failure.includes('snapshot observedAt')));
+  assert.equal(legacyOffset.status, 'not-observed');
+  assert.ok(legacyOffset.failures.some((failure) => failure.includes('snapshot observedAt')));
 
   const futureSubMillisecond = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot, observedAt: '2026-10-26T13:00:00.0000001Z',
