@@ -123,6 +123,35 @@ test('ambiguous timestamps, missing timezone and impossible dates are rejected',
   assert.ok(impossible.failures.some((failure) => failure.includes('snapshot observedAt')));
 });
 
+test('unknown UTC offsets and sub-millisecond future snapshots fail closed', () => {
+  const unknownOffset = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot, observedAt: '2026-10-26T12:59:00-00:00',
+  }, nowMs);
+  assert.equal(unknownOffset.status, 'not-observed');
+  assert.ok(unknownOffset.failures.some((failure) => failure.includes('snapshot observedAt')));
+
+  const futureSubMillisecond = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot, observedAt: '2026-10-26T13:00:00.0000001Z',
+  }, nowMs);
+  assert.equal(futureSubMillisecond.status, 'not-observed');
+  assert.ok(futureSubMillisecond.failures.some((failure) => failure.includes('snapshot observedAt')));
+});
+
+test('sub-millisecond child observations cannot be newer than their parent snapshot', () => {
+  const result = assessOpenTelemetryRuntimeEvidence({
+    ...fullSnapshot,
+    observedAt: '2026-10-26T13:00:00.0000000Z',
+    signals: {
+      ...fullSnapshot.signals,
+      traces: { count: 1, lastObservedAt: '2026-10-26T13:00:00.0000001Z', evidenceRef: 'trace:after-parent' },
+    },
+  }, nowMs + 1);
+  assert.equal(result.status, 'partial');
+  assert.ok(!result.observedSignals.includes('traces'));
+  assert.ok(!result.evidenceRefs.includes('trace:after-parent'));
+  assert.ok(result.failures.some((failure) => failure.includes('traces lastObservedAt')));
+});
+
 test('ambiguous signal timestamps cannot be counted as observed traces', () => {
   const result = assessOpenTelemetryRuntimeEvidence({
     ...fullSnapshot,
