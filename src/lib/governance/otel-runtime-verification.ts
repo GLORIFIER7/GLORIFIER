@@ -93,7 +93,8 @@ function parseRfc3339Timestamp(value: unknown): ParsedRfc3339Timestamp | null {
 
   const normalizedOffset = offset.toUpperCase() === 'Z' ? 'Z' : offset;
   const epochSecondMs = Date.parse(
-    \`\${match[1]}-\${match[2]}-\${match[3]}T\${match[4]}:\${match[5]}:\${match[6]}\${normalizedOffset}\`,
+    match[1] + '-' + match[2] + '-' + match[3] + 'T'
+      + match[4] + ':' + match[5] + ':' + match[6] + normalizedOffset,
   );
   if (!Number.isFinite(epochSecondMs)) return null;
   return {
