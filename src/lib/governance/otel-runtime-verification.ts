@@ -59,7 +59,17 @@ function textValue(value: unknown): string | null {
  * Loose Date.parse formats and impossible calendar dates are not admissible;
  * leap-second notation is rejected because JavaScript Date cannot represent it.
  */
-function parseRfc3339Timestamp(value: unknown): number | null {
+interface ParsedRfc3339Timestamp {
+  epochSecond: bigint;
+  fraction: string;
+}
+
+/**
+ * Parse explicit-offset RFC 3339 timestamps without losing fractional precision.
+ * The legacy -00:00 spelling is rejected in favor of Z under this canonical
+ * evidence policy; RFC 9557 updates RFC 3339 to use Z for this UTC-known case.
+ */
+function parseRfc3339Timestamp(value: unknown): ParsedRfc3339Timestamp | null {
   if (typeof value !== 'string') return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
   if (!match) return null;
@@ -75,20 +85,53 @@ function parseRfc3339Timestamp(value: unknown): number | null {
       || hour > 23 || minute > 59 || second > 59) return null;
 
   const offset = match[8];
+  if (offset === '-00:00') return null;
   if (offset.toUpperCase() !== 'Z') {
     const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
     if (offsetHour > 23 || offsetMinute > 59) return null;
   }
 
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : null;
+  const normalizedOffset = offset.toUpperCase() === 'Z' ? 'Z' : offset;
+  const epochSecondMs = Date.parse(
+    match[1] + '-' + match[2] + '-' + match[3] + 'T'
+      + match[4] + ':' + match[5] + ':' + match[6] + normalizedOffset,
+  );
+  if (!Number.isFinite(epochSecondMs)) return null;
+  return {
+    epochSecond: BigInt(epochSecondMs / 1000),
+    fraction: (match[7] ?? '').replace(/0+$/, ''),
+  };
+}
+
+function compareRfc3339Timestamps(
+  left: ParsedRfc3339Timestamp,
+  right: ParsedRfc3339Timestamp,
+): number {
+  if (left.epochSecond !== right.epochSecond) return left.epochSecond < right.epochSecond ? -1 : 1;
+  const width = Math.max(left.fraction.length, right.fraction.length);
+  const leftFraction = left.fraction.padEnd(width, '0');
+  const rightFraction = right.fraction.padEnd(width, '0');
+  return leftFraction === rightFraction ? 0 : leftFraction < rightFraction ? -1 : 1;
+}
+
+function timestampFromMilliseconds(value: number): ParsedRfc3339Timestamp | null {
+  if (!Number.isSafeInteger(value)) return null;
+  const epochSecond = Math.floor(value / 1000);
+  const millisecond = value - epochSecond * 1000;
+  return {
+    epochSecond: BigInt(epochSecond),
+    fraction: String(millisecond).padStart(3, '0').replace(/0+$/, ''),
+  };
 }
 
 function freshTimestamp(value: unknown, nowMs: number, maxAgeMs: number): boolean {
   const timestamp = parseRfc3339Timestamp(value);
-  return timestamp !== null && timestamp <= nowMs && nowMs - timestamp <= maxAgeMs;
+  const now = timestampFromMilliseconds(nowMs);
+  const cutoff = timestampFromMilliseconds(nowMs - maxAgeMs);
+  return timestamp !== null && now !== null && cutoff !== null
+    && compareRfc3339Timestamps(timestamp, now) <= 0
+    && compareRfc3339Timestamps(timestamp, cutoff) >= 0;
 }
-
 function result(
   status: OTelRuntimeAssessmentStatus,
   observedSignals: OTelSignalName[],
@@ -115,15 +158,15 @@ export function assessOpenTelemetryRuntimeEvidence(
   maxAgeMs: number = DEFAULT_OTEL_EVIDENCE_MAX_AGE_MS,
 ): OpenTelemetryRuntimeAssessment {
   const failures: string[] = [];
-  if (!Number.isFinite(nowMs)) failures.push('validation clock must be finite');
-  if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) failures.push('maximum evidence age must be a positive finite duration');
+  if (!Number.isSafeInteger(nowMs)) failures.push('validation clock must be a safe integer millisecond timestamp');
+  if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) failures.push('maximum evidence age must be a positive safe integer duration in milliseconds');
 
   const snapshot = asRecord(input);
   if (!snapshot) failures.push('runtime telemetry snapshot must be an object');
   if (failures.length > 0 || !snapshot) return result('not-observed', [], [], failures);
 
-  const snapshotObservedAtMs = parseRfc3339Timestamp(snapshot.observedAt);
-  if (snapshotObservedAtMs === null || !freshTimestamp(snapshot.observedAt, nowMs, maxAgeMs)) {
+  const snapshotObservedAt = parseRfc3339Timestamp(snapshot.observedAt);
+  if (snapshotObservedAt === null || !freshTimestamp(snapshot.observedAt, nowMs, maxAgeMs)) {
     failures.push('snapshot observedAt must be valid, non-future, and fresh');
     return result('not-observed', [], [], failures);
   }
@@ -151,9 +194,9 @@ export function assessOpenTelemetryRuntimeEvidence(
   const exporter = asRecord(snapshot.exporter);
   const endpointConfigured = exporter?.endpointConfigured === true;
   const exportStatus = exporter?.lastExportStatus;
-  const exportAtMs = parseRfc3339Timestamp(exporter?.lastExportAt);
-  const exportAtFresh = exportAtMs !== null
-    && exportAtMs <= snapshotObservedAtMs
+  const exportAt = parseRfc3339Timestamp(exporter?.lastExportAt);
+  const exportAtFresh = exportAt !== null
+    && compareRfc3339Timestamps(exportAt, snapshotObservedAt) <= 0
     && freshTimestamp(exporter?.lastExportAt, nowMs, maxAgeMs);
   const exportEvidenceRef = textValue(exporter?.evidenceRef);
   const exporterHealthy = endpointConfigured && exportStatus === 'success' && exportAtFresh && !!exportEvidenceRef;
@@ -174,9 +217,9 @@ export function assessOpenTelemetryRuntimeEvidence(
       const signal = asRecord(signals[signalName]);
       const count = signal?.count;
       const evidenceRef = textValue(signal?.evidenceRef);
-      const signalObservedAtMs = parseRfc3339Timestamp(signal?.lastObservedAt);
-      const observedAtFresh = signalObservedAtMs !== null
-        && signalObservedAtMs <= snapshotObservedAtMs
+      const signalObservedAt = parseRfc3339Timestamp(signal?.lastObservedAt);
+      const observedAtFresh = signalObservedAt !== null
+        && compareRfc3339Timestamps(signalObservedAt, snapshotObservedAt) <= 0
         && freshTimestamp(signal?.lastObservedAt, nowMs, maxAgeMs);
       if (!Number.isSafeInteger(count) || (count as number) <= 0) {
         failures.push(signalName + ' must include a positive observed count');
