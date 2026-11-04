@@ -66,8 +66,8 @@ interface ParsedRfc3339Timestamp {
 
 /**
  * Parse explicit-offset RFC 3339 timestamps without losing fractional precision.
- * The unknown-local-offset form (-00:00) is rejected because it cannot establish
- * an unambiguous UTC instant for freshness or parent/child ordering.
+ * The legacy -00:00 spelling is rejected in favor of Z under this canonical
+ * evidence policy; RFC 9557 updates RFC 3339 to use Z for this UTC-known case.
  */
 function parseRfc3339Timestamp(value: unknown): ParsedRfc3339Timestamp | null {
   if (typeof value !== 'string') return null;
