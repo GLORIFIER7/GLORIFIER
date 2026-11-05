@@ -246,16 +246,17 @@ const run = async (): Promise<void> => {
 
         const modernMcpHeaders = {
           'Content-Type': 'application/json',
-          Accept: 'application/json',
+          Accept: 'application/json, text/event-stream',
           'MCP-Protocol-Version': '2026-07-28',
         };
         const modernMetadata = {
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+          'io.modelcontextprotocol/clientCapabilities': {},
         };
         const modernHeaderWithoutMetadata = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'server/discover' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'header-without-metadata',
@@ -275,7 +276,7 @@ const run = async (): Promise<void> => {
         const modernMetadataWithoutHeader = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'Mcp-Method': 'server/discover' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'metadata-without-header',
@@ -294,7 +295,7 @@ const run = async (): Promise<void> => {
         const mismatchedModernProtocolVersions = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2025-11-25' },
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2025-11-25', 'Mcp-Method': 'server/discover' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'mismatched-metadata-header',
@@ -307,13 +308,14 @@ const run = async (): Promise<void> => {
         const mismatchedModernProtocolVersionsBody = await mismatchedModernProtocolVersions.json() as {
           error: { code: number; message: string; data?: { requested?: string } };
         };
-        assert.equal(mismatchedModernProtocolVersionsBody.error.code, -32600);
+        assert.equal(mismatchedModernProtocolVersions.status, 400);
+        assert.equal(mismatchedModernProtocolVersionsBody.error.code, -32020);
         assert.match(mismatchedModernProtocolVersionsBody.error.message, /must match/i);
 
         const modernDiscover = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'server/discover' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'discover-1',
@@ -359,7 +361,7 @@ const run = async (): Promise<void> => {
         const modernToolsList = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'tools/list' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'modern-list',
@@ -397,7 +399,7 @@ const run = async (): Promise<void> => {
         const modernToolCall = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'github_get_repository' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'modern-tool-call',
@@ -436,7 +438,7 @@ const run = async (): Promise<void> => {
         const unsupportedModernVersion = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2026-01-01' },
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2026-01-01', 'Mcp-Method': 'server/discover' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'unsupported-version',
@@ -449,14 +451,15 @@ const run = async (): Promise<void> => {
         const unsupportedModernBody = await unsupportedModernVersion.json() as {
           error: { code: number; data: { supported: string[]; requested: string } };
         };
+        assert.equal(unsupportedModernVersion.status, 400);
         assert.equal(unsupportedModernBody.error.code, -32022);
-        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28']);
         assert.equal(unsupportedModernBody.error.data.requested, '2026-01-01');
 
         const modernInitializeRejected = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'initialize' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'no-initialize',
@@ -469,13 +472,14 @@ const run = async (): Promise<void> => {
         const modernInitializeBody = await modernInitializeRejected.json() as {
           error: { code: number };
         };
+        assert.equal(modernInitializeRejected.status, 404);
         assert.equal(modernInitializeBody.error.code, -32601,
           'modern stateless MCP clients must not be forced through legacy initialize');
 
         const modernPingRejected = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
-            headers: modernMcpHeaders,
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'ping' },
             body: JSON.stringify({
               jsonrpc: '2.0',
               id: 'no-ping',
@@ -486,6 +490,7 @@ const run = async (): Promise<void> => {
           env,
         );
         const modernPingBody = await modernPingRejected.json() as { error: { code: number } };
+        assert.equal(modernPingRejected.status, 404);
         assert.equal(modernPingBody.error.code, -32601, 'modern MCP must not advertise legacy ping');
 
         const unsupportedMcpMethod = await worker.fetch(
