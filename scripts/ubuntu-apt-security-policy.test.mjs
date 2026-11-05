@@ -37,3 +37,47 @@ for (const [label, relativePath] of runtimeDockerfiles) {
 
   });
 }
+
+test('Trivy VEX acknowledges only Canonical-fixed Ubuntu APT package versions', () => {
+  const vex = JSON.parse(
+    readFileSync(
+      new URL('../security/vex/CVE-2026-109518.openvex.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  const expectedProducts = [
+    'pkg:deb/ubuntu/apt@2.8.4ubuntu0.1',
+    'pkg:deb/ubuntu/libapt-pkg6.0t64@2.8.4ubuntu0.1',
+  ];
+  const statements = vex.statements;
+
+  assert.equal(vex.version, 1, 'the VEX document must use OpenVEX version 1');
+  assert.equal(statements.length, 2, 'the VEX scope must remain limited to the two reported APT packages');
+  assert.deepEqual(
+    statements.map((statement) => statement.products?.[0]?.['@id']).sort(),
+    expectedProducts.sort(),
+    'VEX must match only the exact Canonical-fixed Ubuntu 24.04 package versions',
+  );
+  assert.ok(
+    statements.every(
+      (statement) =>
+        statement.vulnerability?.name === 'CVE-2026-109518' &&
+        statement.status === 'fixed',
+    ),
+    'only CVE-2026-109518 may be marked fixed for these exact package versions',
+  );
+  assert.ok(
+    statements.every(
+      (statement) =>
+        statement.status_notes?.includes('https://ubuntu.com/security/CVE-2026-109518') &&
+        statement.status_notes.includes('https://ubuntu.com/security/notices/USN-8996-1'),
+    ),
+    'each VEX statement must cite Canonical primary evidence',
+  );
+
+  const trivyConfig = readFileSync(new URL('../.trivy.yaml', import.meta.url), 'utf8');
+  assert.ok(
+    trivyConfig.includes('security/vex/CVE-2026-109518.openvex.json'),
+    'Trivy must load the package-scoped VEX document',
+  );
+});
