@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T07:59:56.316Z",
+  "updatedAt": "2026-11-05T08:09:17.801Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1040,7 +1040,7 @@
       "title": "Java Neural HTTP SDK",
       "boundary": "Native Java SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "JDK 17+; Java HttpClient; JSON mapping with Jackson",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; Eclipse Temurin JDK 17"
       ],
@@ -1058,12 +1058,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Eclipse Temurin JDK 17",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Java SDK (JDK 17) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1071,7 +1079,7 @@
       "title": "Kotlin Neural HTTP SDK",
       "boundary": "Native Kotlin SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Kotlin/JVM 2.0.21 on JDK 17+; JVM HttpClient",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; JDK 17; Kotlin 2.0.21"
       ],
@@ -1089,12 +1097,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; JDK 17; Kotlin 2.0.21",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Kotlin SDK (JVM 17 / Kotlin 2.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1102,7 +1118,7 @@
       "title": ".NET Neural HTTP SDK",
       "boundary": "Native .NET SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": ".NET 8; System.Net.Http and System.Text.Json",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0"
       ],
@@ -1120,12 +1136,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": ".NET 8 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": ".NET SDK (8.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to .NET 8 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1133,7 +1157,7 @@
       "title": "Rust Neural HTTP SDK",
       "boundary": "Native Rust SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Rust stable; edition 2021; reqwest blocking and serde_json",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; Rust stable"
       ],
@@ -1151,12 +1175,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Rust stable",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "Rust stable / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Rust SDK (stable) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to Rust stable / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1164,7 +1196,7 @@
       "title": "PHP Neural HTTP SDK",
       "boundary": "Native PHP SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "PHP 8.2+; cURL and mbstring",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; PHP 8.2"
       ],
@@ -1182,12 +1214,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; PHP 8.2",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "PHP SDK (8.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1195,7 +1235,7 @@
       "title": "Ruby Neural HTTP SDK",
       "boundary": "Native Ruby SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Ruby 3.2+; Net::HTTP and JSON",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; Ruby 3.2"
       ],
@@ -1213,12 +1253,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Ruby 3.2",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "Ruby 3.2 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Ruby SDK (3.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to Ruby 3.2 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1226,7 +1274,7 @@
       "title": "Swift Neural HTTP SDK",
       "boundary": "Native Swift SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Swift 5.9+; Foundation URLSession",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted macOS 14; Swift toolchain"
       ],
@@ -1244,12 +1292,20 @@
           "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "Swift toolchain / macOS 14; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Swift SDK (5.9+) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     },
     {
@@ -1257,7 +1313,7 @@
       "title": "Dart Neural HTTP SDK",
       "boundary": "Native Dart SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Dart 3.4+; dart:io and dart:convert",
-      "status": "NOT VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64; Dart 3.4.4"
       ],
@@ -1275,12 +1331,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Dart 3.4.4",
           "observedAt": null,
           "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41991917664",
+          "targetEnvironment": "Dart 3.4.4 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
+          "observedAt": "2026-11-05T08:09:17.801Z",
+          "notes": "Dart SDK (3.4) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Verification is limited to Dart 3.4.4 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
-        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+        "No A2A or MCP protocol certification is implied by this HTTP SDK.",
+        "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
       ]
     }
   ]
