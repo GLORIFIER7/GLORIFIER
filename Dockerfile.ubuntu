@@ -28,11 +28,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install the shared libraries required by the official Node binary copied from Debian.
 RUN apt-get -o Acquire::Retries=0 update \
  && apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt libapt-pkg6.0t64 \
- && apt-get -o Acquire::Retries=0 install -y --no-install-recommends ca-certificates libstdc++6 libgcc-s1 libatomic1 libssl3t64 zlib1g passwd \
  && apt_version="$(dpkg-query -W -f='${Version}' apt)" \
  && dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1 \
  && libapt_version="$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" \
  && dpkg --compare-versions "$libapt_version" ge 2.8.4ubuntu0.1 \
+ && apt-get -o Acquire::Retries=0 install -y --no-install-recommends ca-certificates libstdc++6 libgcc-s1 libatomic1 libssl3t64 zlib1g passwd \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 10001 app \
