@@ -36,8 +36,6 @@ jobs:
 
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -45,7 +43,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Check OpenAI credential availability
+        id: provider
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        shell: bash
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node.js
+        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -53,12 +64,14 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install trusted validation dependencies
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex
         id: codex
-        if: ${{ inputs.authorize_pull_request == true && env.OPENAI_API_KEY != '' }}
+        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 tag target observed 2026-10-26
         with:
           openai-api-key: ${{ env.OPENAI_API_KEY }}
@@ -72,7 +85,7 @@ jobs:
 
       - name: Stage AI-generated changes for review
         id: stage
-        if: ${{ inputs.authorize_pull_request == true && env.OPENAI_API_KEY != '' && steps.codex.outcome == 'success' }}
+        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
         run: |
           if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -80,6 +93,26 @@ jobs:
           fi
           git add -A
           echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify trusted validator and package files were not modified
+        if: ${{ steps.stage.outputs.changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc)
+                echo "Protected validation dependency changed: $path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --cached --no-renames --name-only -z)
+
+      - name: Reinstall trusted dependencies after AI execution
+        if: ${{ steps.stage.outputs.changed == 'true' }}
+        run: |
+          rm -rf node_modules
+          npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Validate generated changes before publication
         id: validation
@@ -134,6 +167,6 @@ jobs:
         run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
 
       - name: Missing API key notice
-        if: ${{ env.OPENAI_API_KEY == '' }}
+        if: ${{ steps.provider.outputs.configured != 'true' }}
         run: |
           echo "::warning::OPENAI_API_KEY is not configured. The AI coding fleet is installed but dormant until the GitHub Actions secret is added."
