@@ -45,13 +45,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
       - name: Install trusted validation dependencies
         if: ${{ env.OPENAI_API_KEY != '' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex
         id: codex
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ inputs.authorize_pull_request == true && env.OPENAI_API_KEY != '' }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 tag target observed 2026-10-26
         with:
           openai-api-key: ${{ env.OPENAI_API_KEY }}
@@ -74,9 +81,20 @@ jobs:
           git add -A
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
+      - name: Validate generated changes before publication
+        id: validation
+        if: ${{ steps.stage.outputs.changed == 'true' }}
+        run: |
+          npm run lint
+          npm run test:ai-fleet-diff-policy
+          npm run test:provider-discovery
+          npm run test:provider-model-selection
+          npm run test:provider-routing
+          npm run build
+
       - name: Validate dedicated PR capability and reviewable diff
         id: policy
-        if: ${{ steps.stage.outputs.changed == 'true' }}
+        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
         env:
           GLORIFIER_PR_CREATION_AUTHORIZED: ${{ inputs.authorize_pull_request }}
         run: node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
@@ -108,7 +126,7 @@ jobs:
           gh pr create --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. Review CI and the diff before merge."
 
       - name: Report that PR creation was not authorized
-        if: ${{ inputs.authorize_pull_request != true && steps.codex.outcome == 'success' }}
+        if: ${{ inputs.authorize_pull_request != true }}
         run: echo "::notice::AI work was not published. Re-run with the explicit authorize_pull_request input only after reviewing the intended automation scope."
 
       - name: Report Codex capacity limitation
