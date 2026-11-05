@@ -1,10 +1,13 @@
-name: GLORIFIER 24x7 AI Coding Fleet
+name: GLORIFIER Governed AI Coding Fleet
 
 on:
+  schedule:
+    # Weekly, cost-gated autonomous maintenance. Enable with AI_MAINTENANCE_AUTORUN=true.
+    - cron: "17 2 * * 0"
   workflow_dispatch:
     inputs:
       authorize_pull_request:
-        description: "Authorize this run to open a PR after the dedicated capability and diff checks pass."
+        description: "Authorize this run to open draft PRs after validation."
         required: true
         type: boolean
         default: false
@@ -14,13 +17,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: glorifier-ai-fleet-${{ github.ref }}
+  group: glorifier-ai-fleet-\${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   coding-fleet:
-    if: ${{ github.ref == 'refs/heads/main' }}
+    if: \${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     strategy:
@@ -44,20 +48,38 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve AI maintenance authorization
+        id: authorization
+        shell: bash
+        env:
+          EVENT_NAME: \${{ github.event_name }}
+          DISPATCH_AUTHORIZATION: \${{ inputs.authorize_pull_request }}
+          SCHEDULE_AUTHORIZATION: \${{ vars.AI_MAINTENANCE_AUTORUN }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$DISPATCH_AUTHORIZATION" == "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "schedule" && "$SCHEDULE_AUTHORIZATION" == "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check OpenAI credential availability
         id: provider
+        if: \${{ steps.authorization.outputs.enabled == 'true' }}
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
         shell: bash
         run: |
-          if [ -n "${OPENAI_API_KEY:-}" ]; then
+          if [ -n "\${OPENAI_API_KEY:-}" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Node.js
-        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
+        if: \${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -65,28 +87,31 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install trusted validation dependencies
-        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
+        if: \${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex
         id: codex
-        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' }}
+        if: \${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 tag target observed 2026-10-26
+          OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # pinned action revision
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          openai-api-key: \${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
           safety-strategy: "drop-sudo"
           effort: high
           prompt: |
-            ${{ matrix.prompt }}
+            \${{ matrix.prompt }}
 
-            Follow AGENTS.md. Keep the change small and reviewable. Never expose or modify secrets. Run npm run lint and npm run build when applicable. If there is no safe worthwhile change, make no code change.
+            Follow AGENTS.md. Keep the change small and reviewable. Never expose or modify secrets.
+            Do not alter the trusted AI-fleet validator, its tests, capability authorization, package
+            manifests, lockfiles, or workflow files. Run npm run lint and npm run build when applicable.
+            If there is no safe worthwhile change, make no code change.
 
       - name: Stage AI-generated changes for review
         id: stage
-        if: ${{ inputs.authorize_pull_request == true && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
+        if: \${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
         run: |
           if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -96,13 +121,13 @@ jobs:
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify trusted validator and package files were not modified
-        if: ${{ steps.stage.outputs.changed == 'true' }}
+        if: \${{ steps.stage.outputs.changed == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           while IFS= read -r -d '' path; do
             case "$path" in
-              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|scripts/validate-ai-fleet-diff.test.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc)
+              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|scripts/validate-ai-fleet-diff.test.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc|.github/workflows/*)
                 echo "Protected validation dependency changed: $path"
                 exit 1
                 ;;
@@ -110,14 +135,14 @@ jobs:
           done < <(git diff --cached --no-renames --name-only -z)
 
       - name: Reinstall trusted dependencies after AI execution
-        if: ${{ steps.stage.outputs.changed == 'true' }}
+        if: \${{ steps.stage.outputs.changed == 'true' }}
         run: |
           rm -rf node_modules
           npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Validate generated changes before publication
         id: validation
-        if: ${{ steps.stage.outputs.changed == 'true' }}
+        if: \${{ steps.stage.outputs.changed == 'true' }}
         run: |
           npm run lint
           npm run test:ai-fleet-diff-policy
@@ -127,61 +152,70 @@ jobs:
           npm run build
 
       - name: Remove any agent-created trusted-policy directory
-        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
+        if: \${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
         run: rm -rf trusted-policy
 
       - name: Check out trusted PR-gate source
-        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
+        if: \${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
         uses: actions/checkout@v7
         with:
-          repository: ${{ github.repository }}
-          ref: ${{ github.sha }}
+          repository: \${{ github.repository }}
+          ref: \${{ github.sha }}
           path: trusted-policy
           persist-credentials: false
           fetch-depth: 1
 
       - name: Validate dedicated PR capability and reviewable diff
         id: policy
-        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
+        if: \${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
         env:
-          GLORIFIER_PR_CREATION_AUTHORIZED: ${{ inputs.authorize_pull_request }}
+          GLORIFIER_PR_CREATION_AUTHORIZED: \${{ steps.authorization.outputs.enabled }}
         run: node --import tsx/esm trusted-policy/scripts/validate-ai-fleet-diff.mjs
 
       - name: Create PR branch
-        if: ${{ steps.stage.outputs.changed == 'true' && steps.policy.outcome == 'success' }}
+        if: \${{ steps.stage.outputs.changed == 'true' && steps.policy.outcome == 'success' }}
         id: branch
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: \${{ github.token }}
         run: |
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git config user.name "GLORIFIER AI Fleet (${{ matrix.role }})"
+          git config user.name "GLORIFIER AI Fleet ($\{{ matrix.role }})"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
+          BRANCH="ai/$\{{ matrix.role }}/\${{ github.run_id }}"
           git checkout -b "$BRANCH"
-          git -c core.hooksPath=/dev/null commit -m "ai(${{ matrix.role }}): governed maintenance"
-          git -c core.hooksPath=/dev/null push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
+          git -c core.hooksPath=/dev/null commit -m "ai($\{{ matrix.role }}): governed maintenance"
+          git -c core.hooksPath=/dev/null push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/\${{ github.repository }}.git" "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Open pull request
-        if: ${{ steps.branch.outputs.changed == 'true' }}
+      - name: Open draft pull request
+        if: \${{ steps.branch.outputs.changed == 'true' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: \${{ github.token }}
         run: |
-          gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. This is a draft PR. Review CI and the diff before merge."
+          gh pr create --draft --base main --head "\${{ steps.branch.outputs.branch }}" \
+            --title "AI Fleet: \${{ matrix.role }} maintenance" \
+            --body "Autonomous GLORIFIER maintenance proposal. Validation ran before publication; a separate CI workflow_dispatch is queued for this branch. This PR remains a draft and is not auto-merged."
 
-      - name: Report that PR creation was not authorized
-        if: ${{ inputs.authorize_pull_request != true }}
-        run: echo "::notice::AI work was not published. Re-run with the explicit authorize_pull_request input only after reviewing the intended automation scope."
+      - name: Run CI against the generated PR branch
+        if: \${{ steps.branch.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: gh workflow run ci.yml --ref "\${{ steps.branch.outputs.branch }}"
+
+      - name: Report that AI maintenance is not enabled
+        if: \${{ steps.authorization.outputs.enabled != 'true' }}
+        run: |
+          echo "::notice::No AI model was invoked. Enable the weekly schedule by setting the repository Actions variable AI_MAINTENANCE_AUTORUN=true, or manually dispatch with authorize_pull_request=true."
+
+      - name: Report missing API key
+        if: \${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured != 'true' }}
+        run: |
+          echo "::warning::OPENAI_API_KEY is not configured. AI maintenance did not run."
 
       - name: Report Codex capacity limitation
-        if: ${{ failure() && steps.codex.outcome == 'failure' }}
+        if: \${{ failure() && steps.codex.outcome == 'failure' }}
         run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
-
-      - name: Missing API key notice
-        if: ${{ steps.provider.outputs.configured != 'true' }}
-        run: |
-          echo "::warning::OPENAI_API_KEY is not configured. The AI coding fleet is installed but dormant until the GitHub Actions secret is added."
