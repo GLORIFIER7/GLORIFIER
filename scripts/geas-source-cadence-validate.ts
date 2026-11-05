@@ -11,6 +11,27 @@ type Registry = { sources: RegistrySource[] };
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 
+const isValidReviewCadenceDays = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isSafeInteger(value)
+  && value >= 1
+  && Number.isSafeInteger(value * 24);
+const isValidScannerCadenceHours = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+
+const verifyCadenceBounds = (): void => {
+  if (!isValidReviewCadenceDays(14)) throw new Error('ordinary review cadence must remain valid');
+  if (isValidReviewCadenceDays(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('review cadence whose hour conversion is unsafe must be rejected');
+  }
+  if (isValidReviewCadenceDays(Math.floor(Number.MAX_SAFE_INTEGER / 24) + 1)) {
+    throw new Error('review cadence must reject unsafe day-to-hour conversion');
+  }
+  if (isValidScannerCadenceHours(9007199254740992)) {
+    throw new Error('scanner cadence must reject integers outside the safe range');
+  }
+};
+
 const expectParserFailure = (fixture: string, description: string): void => {
   let rejected = false;
   try {
@@ -64,6 +85,16 @@ const verifyParserHandlesBraceCharacters = (): void => {
   const expected = [{ id: 'fixture', url: 'https://example.org/{architecture}', cadenceHours: 24 }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
     throw new Error('scanner parser failed its brace-containing string regression fixture');
+  }
+};
+
+const verifyParserRejectsUnsafeCadenceValues = (): void => {
+  const fixtures = [
+    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('unsafe', 'Test', 'cloud', 'https://example.org', [], 9007199254740992)];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'unsafe', url: 'https://example.org', cadenceHours: 9007199254740992 }];",
+  ];
+  for (const fixture of fixtures) {
+    expectParserFailure(fixture, 'scanner parser accepted a cadence outside JavaScript safe-integer range');
   }
 };
 
@@ -129,8 +160,10 @@ const verifyParserRejectsUnterminatedLineComment = (): void => {
   expectParserFailure(fixture, 'scanner parser accepted a SOURCES array truncated inside a line comment');
 };
 
+verifyCadenceBounds();
 verifyParserHandlesFactoryCalls();
 verifyParserIgnoresCommentedFactoryCalls();
+verifyParserRejectsUnsafeCadenceValues();
 verifyParserHandlesBraceCharacters();
 verifyParserRejectsComputedValues();
 verifyParserRejectsEmptySourceSlots();
@@ -152,8 +185,8 @@ const scannerById = new Map(entries.map(entry => [entry.id, entry]));
 if (scannerById.size !== entries.length) failures.push('scanner source catalog contains duplicate IDs');
 
 for (const source of activeRegistry) {
-  if (!Number.isInteger(source.reviewCadenceDays) || source.reviewCadenceDays < 1) {
-    failures.push(`registry source ${source.id} has an invalid reviewCadenceDays value`);
+  if (!isValidReviewCadenceDays(source.reviewCadenceDays)) {
+    failures.push(`registry source ${source.id} has an invalid or unsafe reviewCadenceDays value`);
     continue;
   }
   const entry = scannerById.get(source.id);
@@ -161,8 +194,8 @@ for (const source of activeRegistry) {
     failures.push(`active registry source ${source.id} is missing from scanner catalog`);
     continue;
   }
-  if (!Number.isInteger(entry.cadenceHours) || entry.cadenceHours < 1) {
-    failures.push(`scanner source ${source.id} has an invalid cadenceHours value`);
+  if (!isValidScannerCadenceHours(entry.cadenceHours)) {
+    failures.push(`scanner source ${source.id} has an invalid or unsafe cadenceHours value`);
     continue;
   }
   const expectedHours = source.reviewCadenceDays * 24;

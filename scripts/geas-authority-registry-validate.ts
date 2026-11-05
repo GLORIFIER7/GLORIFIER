@@ -29,6 +29,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
+const isValidReviewCadenceDays = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isSafeInteger(value)
+  && value >= 1
+  && Number.isSafeInteger(value * 24);
+
+if (!isValidReviewCadenceDays(14)
+    || isValidReviewCadenceDays(Number.MAX_SAFE_INTEGER)
+    || isValidReviewCadenceDays(Math.floor(Number.MAX_SAFE_INTEGER / 24) + 1)) {
+  throw new Error('review cadence validation must reject unsafe integer and hour-conversion values');
+}
 const isSafeHttpsUrl = (url: URL): boolean =>
   url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
 
@@ -142,8 +153,8 @@ if (!isRecord(parsed)) {
       || !source.claimsAllowed.every(isNonEmptyString)) {
       failures.push(`source ${source.id ?? index}: claimsAllowed must be a non-empty string array`);
     }
-    if (!Number.isInteger(source.reviewCadenceDays) || (source.reviewCadenceDays ?? 0) < 1) {
-      failures.push(`source ${source.id ?? index}: invalid review cadence`);
+    if (!isValidReviewCadenceDays(source.reviewCadenceDays)) {
+      failures.push(`source ${source.id ?? index}: invalid or unsafe review cadence`);
     }
     if (source.implementationStatus !== 'not-assessed') {
       failures.push(`source ${source.id ?? index}: sources must default to not-assessed`);

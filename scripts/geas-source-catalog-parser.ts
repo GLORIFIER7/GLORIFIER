@@ -235,7 +235,7 @@ const isNonEmptyStringValue = (value: LiteralValue): value is string =>
   typeof value === 'string' && value.length > 0;
 
 const isPositiveIntegerValue = (value: LiteralValue): value is number =>
-  typeof value === 'number' && Number.isInteger(value) && value > 0;
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
 type ValidSourceEntryValues = { id: string; url: string; cadenceHours: number };
 
