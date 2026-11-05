@@ -350,7 +350,7 @@ const run = async (): Promise<void> => {
         assert.equal(modernDiscoverBody.jsonrpc, '2.0');
         assert.equal(modernDiscoverBody.id, 'discover-1');
         assert.equal(modernDiscoverBody.result.resultType, 'complete');
-        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28']);
         assert.deepEqual(modernDiscoverBody.result.capabilities, { tools: {} },
           'modern discovery must advertise only the read-only tool capability actually implemented');
         assert.deepEqual(
