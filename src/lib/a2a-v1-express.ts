@@ -5,6 +5,8 @@ import {
   A2A_PROTOCOL_VERSION,
   isCompatibleA2AProtocolVersion,
   type A2ACreateTaskInput,
+  type A2AListTasksInput,
+  type A2ATaskListPage,
   type A2ATaskLike,
 } from './a2a-v1';
 
@@ -19,6 +21,7 @@ export interface A2AExpressDependencies {
   initializePersistence(): Promise<void>;
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  listTasks(requesterAgentId: string, input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
 }
 
 function jsonRpcHttpError(
@@ -133,6 +136,7 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
       requesterAgentId,
       createTask: dependencies.createTask,
       getTask: dependencies.getTask,
+      listTasks: (input) => dependencies.listTasks(requesterAgentId, input),
     });
     try {
       const response = await handle(req.body);
