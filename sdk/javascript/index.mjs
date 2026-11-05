@@ -151,12 +151,13 @@ export class GlorifierNeuralClient {
       throw new RangeError('timeoutMs must be greater than 0 and at most 60,000');
     }
     if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a Fetch-compatible function');
-    if (token !== undefined && token !== null && (typeof token !== 'string' || /[\s\u0000-\u001f\u007f]/u.test(token))) {
-      throw new TypeError('token must be a raw bearer token without whitespace or control characters');
+    if (token !== undefined && token !== null &&
+        (typeof token !== 'string' || token.length === 0 || /[\s\u0000-\u001f\u007f]/u.test(token))) {
+      throw new TypeError('token must be a non-empty raw bearer token without whitespace or control characters');
     }
 
     this.origin = normalizeOrigin(baseUrl, { allowLoopbackHttp });
-    this.token = token || undefined;
+    this.token = token ?? undefined;
     this.timeoutMs = timeoutMs;
     this.fetchImpl = fetchImpl;
 
@@ -205,8 +206,9 @@ export class GlorifierNeuralClient {
       headers.set('Authorization', 'Bearer ' + this.token);
     }
     if (options.correlationId !== undefined) {
-      if (typeof options.correlationId !== 'string' || options.correlationId.length > 128 || /[\r\n]/u.test(options.correlationId)) {
-        throw new TypeError('correlationId must be a string of at most 128 characters without line breaks');
+      if (typeof options.correlationId !== 'string' || options.correlationId.length > 128 ||
+          /[\s\u0000-\u001f\u007f]/u.test(options.correlationId)) {
+        throw new TypeError('correlationId must be a string of at most 128 characters without whitespace or control characters');
       }
       headers.set('X-Correlation-ID', options.correlationId);
     }
