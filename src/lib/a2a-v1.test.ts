@@ -213,6 +213,43 @@ void test('A2A JSON-RPC rejects invalid message roles, parts, and disabled push 
     'the current A2A 1.0 push configuration field must be rejected when push is disabled');
 });
 
+void test('A2A SendMessage accepts every JSON value supported by Part.data', async () => {
+  const { created, handler } = createTestHandler();
+  const values: unknown[] = [
+    { nested: { enabled: true }, tags: ['a', 'b'] },
+    ['first', 2, false, null],
+    'structured scalar',
+    42,
+    0,
+    true,
+    false,
+    null,
+  ];
+
+  for (const [index, value] of values.entries()) {
+    const response = await handler({
+      jsonrpc: '2.0',
+      id: 'data-' + index,
+      method: 'SendMessage',
+      params: {
+        message: {
+          messageId: 'data-message-' + index,
+          role: 'ROLE_USER',
+          parts: [{ data: value, mediaType: 'application/json' }],
+        },
+      },
+    });
+
+    assert.equal(response.error, undefined, 'valid JSON data value at index ' + index + ' must be accepted');
+    const stored = created[index].input as { parts: Array<{ data: unknown; mediaType: string }> };
+    assert.deepEqual(stored.parts[0].data, value, 'the original JSON value must be preserved');
+    assert.equal(stored.parts[0].mediaType, 'application/json');
+    assert.equal(created[index].objective, JSON.stringify(value),
+      'the governed task objective must preserve the full JSON value without lossy coercion');
+  }
+  assert.equal(created.length, values.length);
+});
+
 void test('A2A SendMessage continues a requester-owned task inside its stable context', async () => {
   const { existing, created, handler } = createTestHandler();
   const continued = await handler({
