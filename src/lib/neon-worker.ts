@@ -70,7 +70,7 @@ const isValidPostgresConnectionString = (value: string): boolean => {
 // auto-suspend policy or allowing unbounded Worker requests.
 const NEON_PG_CLIENT_OPTIONS: NeonPgClientOptions = Object.freeze({
   connectionTimeoutMillis: 15_000,
-  query_timeout: 10_000,
+  query_timeout: 5_000,
 });
 
 const defaultNeonPgClientFactory: NeonPgClientFactory = (connectionString, options) =>
