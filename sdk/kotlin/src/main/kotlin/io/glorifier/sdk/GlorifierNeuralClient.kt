@@ -15,8 +15,8 @@ data class NeuralApiResponse(val statusCode: Int, val body: JsonNode, val correl
 data class NeuralTaskRequest(
     val task: String,
     val purpose: String? = null,
-    val require_approval: Boolean? = null,
-    val action_class: String? = null
+    val requireApproval: Boolean? = null,
+    val actionClass: String? = null
 )
 
 class GlorifierNeuralClient(
@@ -67,14 +67,14 @@ class GlorifierNeuralClient(
     private fun validateTask(task: NeuralTaskRequest) {
         require(task.task.isNotBlank() && task.task.length <= 20_000) { "task must contain 1-20,000 characters" }
         task.purpose?.let { require(it.isNotEmpty() && it.length <= 100) { "purpose must contain 1-100 characters" } }
-        task.action_class?.let { require(it.isNotEmpty() && it.length <= 64) { "action_class must contain 1-64 characters" } }
+        task.actionClass?.let { require(it.isNotEmpty() && it.length <= 64) { "action_class must contain 1-64 characters" } }
     }
 
     private fun NeuralTaskRequest.toWireMap(): Map<String, Any> = buildMap {
         put("task", task)
         purpose?.let { put("purpose", it) }
-        require_approval?.let { put("require_approval", it) }
-        action_class?.let { put("action_class", it) }
+        requireApproval?.let { put("require_approval", it) }
+        actionClass?.let { put("action_class", it) }
     }
 
     companion object {
