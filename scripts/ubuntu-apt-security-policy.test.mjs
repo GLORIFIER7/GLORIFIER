@@ -66,13 +66,12 @@ test('Trivy VEX acknowledges only Canonical-fixed Ubuntu APT package versions', 
     ),
     'only CVE-2026-109518 may be marked fixed for these exact package versions',
   );
+  const canonicalStatusNotes =
+    "Canonical's Ubuntu CVE tracker identifies Ubuntu 24.04 Noble apt as fixed in 2.8.4ubuntu0.1. Canonical USN-8996-1 documents the security update. The runtime Dockerfiles also set Acquire::Retries to 0 persistently. Primary evidence: https://ubuntu.com/security/CVE-2026-109518 and https://ubuntu.com/security/notices/USN-8996-1.";
+
   assert.ok(
-    statements.every(
-      (statement) =>
-        statement.status_notes?.includes('https://ubuntu.com/security/CVE-2026-109518') &&
-        statement.status_notes.includes('https://ubuntu.com/security/notices/USN-8996-1'),
-    ),
-    'each VEX statement must cite Canonical primary evidence',
+    statements.every((statement) => statement.status_notes === canonicalStatusNotes),
+    'each VEX statement must cite the exact Canonical primary-evidence statement',
   );
 
   const trivyConfig = readFileSync(new URL('../.trivy.yaml', import.meta.url), 'utf8');
