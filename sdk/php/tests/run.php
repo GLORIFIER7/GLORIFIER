@@ -18,7 +18,7 @@ function check(bool $condition, string $message): void {
 }
 
 foreach (['http://example.com', 'https://evil.example/path', 'https://user:pass@example.com'] as $url) {
-    try { GlorifierNeuralClient::createForTests($url); throw new RuntimeException('expected origin rejection'); }
+    try { new GlorifierNeuralClient($url); throw new RuntimeException('expected origin rejection'); }
     catch (InvalidArgumentException) {}
 }
 
