@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol } from './a2a-runtime.ts';
+import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -130,5 +130,23 @@ void test('A2A protocol task pages are requester-scoped, filtered, and cursor-st
       /invalid or does not match/,
       'a cursor must not be reusable by a different requester',
     );
+  });
+});
+
+
+void test('A2A protocol task lookup applies requester scope before returning a task', async () => {
+  await withA2ATestEnvironment(async () => {
+    const owner = `a2a-read-owner-${crypto.randomUUID()}`;
+    const stranger = `a2a-read-stranger-${crypto.randomUUID()}`;
+    const task = createA2ATask({
+      requesterAgentId: owner,
+      capability: 'research',
+      objective: 'Check requester-scoped task reads',
+    });
+
+    assert.equal((await getA2ATaskForRequesterProtocol(task.id, owner))?.id, task.id);
+    assert.equal(await getA2ATaskForRequesterProtocol(task.id, stranger), null);
+    assert.equal(await getA2ATaskForRequesterProtocol(task.id, ''), null);
+    assert.equal(await getA2ATaskForRequesterProtocol('missing-task', owner), null);
   });
 });
