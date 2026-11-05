@@ -180,6 +180,15 @@ test('production MCP tool surface must be the exact read-only allowlist', () => 
   }), /four approved read-only GitHub tools/);
 });
 
+test('full-stack smoke extends only the Neon reports deadline', () => {
+  const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
+  assert.match(smokeSource,
+    /const requestTimeoutMs = check\.name === 'cloudflare-operational-reports' \? 30_000 : 10_000;/);
+  assert.match(smokeSource, /signal: AbortSignal\.timeout\(requestTimeoutMs\)/);
+  assert.doesNotMatch(smokeSource, /signal: AbortSignal\.timeout\(30_000\)/,
+    'other smoke probes must retain their original 10-second deadline');
+});
+
 test('production smoke request fails immediately for deterministic client errors', async () => {
   let attempts = 0;
   const fetchNotFound = async () => {
