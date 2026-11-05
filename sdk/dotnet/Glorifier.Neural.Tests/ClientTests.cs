@@ -6,12 +6,12 @@ using Xunit;
 
 public sealed class ClientTests
 {
-    [Fact] public void RejectsUntrustedOriginsAndInvalidTask()
+    [Fact] public async Task RejectsUntrustedOriginsAndInvalidTask()
     {
         Assert.Throws<ArgumentException>(() => new GlorifierNeuralClient("http://example.com"));
         Assert.Throws<ArgumentException>(() => new GlorifierNeuralClient("https://evil.example"));
         using var client = new GlorifierNeuralClient("https://glorifier.glorifier.workers.dev");
-        Assert.ThrowsAsync<ArgumentException>(async () => await client.SubmitTaskAsync(new NeuralTaskRequest(""))).GetAwaiter().GetResult();
+        await Assert.ThrowsAsync<ArgumentException>(() => client.SubmitTaskAsync(new NeuralTaskRequest("")));
     }
 
     [Fact] public async Task HealthDoesNotForwardTokenAndReadiness503IsPreserved()
