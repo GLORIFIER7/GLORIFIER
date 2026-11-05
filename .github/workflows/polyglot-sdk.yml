@@ -11,6 +11,8 @@ on:
       - "sdk/ruby/**"
       - "sdk/swift/**"
       - "sdk/dart/**"
+      - "sdk/javascript/**"
+      - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
       - "docs/architecture/interoperability-contract-fixtures.json"
       - "docs/architecture/interoperability-capabilities.json"
@@ -26,6 +28,8 @@ on:
       - "sdk/ruby/**"
       - "sdk/swift/**"
       - "sdk/dart/**"
+      - "sdk/javascript/**"
+      - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
       - "docs/architecture/interoperability-contract-fixtures.json"
       - "docs/architecture/interoperability-capabilities.json"
@@ -129,3 +133,14 @@ jobs:
         run: |
           dart pub get
           dart test
+
+  javascript:
+    name: JavaScript / TypeScript SDK (Node.js 24)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Test server-side JavaScript/TypeScript SDK and shared fixtures
+        run: npm --prefix sdk/javascript test

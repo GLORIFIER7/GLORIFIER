@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T09:20:36Z",
+  "updatedAt": "2026-11-05T11:04:34.939Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1415,6 +1415,45 @@
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
+      ]
+    },
+    {
+      "id": "sdk.javascript-typescript-node",
+      "title": "JavaScript / TypeScript Neural HTTP SDK",
+      "boundary": "Server-side Node.js SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Node.js 24.12.0+; ECMAScript module with TypeScript declarations; built-in Fetch; shared wire-fixture and mocked HTTP contract tests",
+      "status": "PARTIALLY VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0 (exact CI result pending)"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/javascript/index.mjs",
+          "targetEnvironment": "Node.js 24.12.0+; server-side ECMAScript module",
+          "observedAt": null,
+          "notes": "Dependency-free client uses the canonical HTTPS/JSON contract, exact HTTPS origin allowlists, task-route-only bearer credentials, manual redirects, bounded request/response bodies, finite timeouts, and preserved HTTP readiness status."
+        },
+        {
+          "kind": "documentation",
+          "reference": "sdk/javascript/README.md",
+          "targetEnvironment": "Node.js 24.12.0+; server-side JavaScript and TypeScript consumers",
+          "observedAt": null,
+          "notes": "Usage, support floor, browser-token boundary, wire limits, and unsupported live/protocol claims are documented."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/javascript/test/client.test.mjs",
+          "targetEnvironment": "Local authoring runtime Node.js 22.16.0; declared package floor and CI target Node.js 24.12.0",
+          "observedAt": null,
+          "notes": "Eleven tests passed locally under Node.js 22.16.0, which is below the package's declared Node.js 24.12.0 support floor. Exact target-runtime CI execution remains pending."
+        }
+      ],
+      "limitations": [
+        "Exact Node.js 24.12.0 CI execution is pending; local authoring tests used Node.js 22.16.0, below the package support floor.",
+        "Tests use injected Fetch and local Response objects; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "Server-side Node.js only; browser usage is intentionally unsupported to keep caller bearer tokens out of browser bundles.",
+        "No A2A/MCP certification, cross-provider semantic equivalence, or production deployment is implied."
       ]
     }
   ]

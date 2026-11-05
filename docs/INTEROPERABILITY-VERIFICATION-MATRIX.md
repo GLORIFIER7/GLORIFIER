@@ -5,6 +5,7 @@ This matrix separates implementation/configuration from externally verified inte
 | Capability | Required evidence | Current status | Safe next verification |
 |---|---|---|---|
 | First-party language SDK contract (Python, Go, Java, Kotlin, C#/.NET, Rust, PHP, Ruby, Swift, Dart) | Language-specific client tests plus shared wire fixtures; exact versions, OS and architecture recorded in capability registry | VERIFIED for the named runtime/runner matrix only | Extend runtime and OS/architecture matrices; separately verify live Neural, A2A/MCP, providers and chains |
+| JavaScript / TypeScript Node SDK | Node.js 24.12.0 CI job plus shared wire fixtures and origin/auth/body-limit tests | PARTIALLY VERIFIED; exact Node.js 24.12.0 CI pending | Pass the exact Node.js 24.12.0 job; then add other Node LTS versions and separately verify live Neural connectivity |
 | A2A v1.0 conformance | Live authorized endpoint test plus A2A conformance/TCK evidence and retained result | NOT_VERIFIED | Run conformance suite against the deployed endpoint |
 | A2A cryptographic identity | Signed Agent Card, trusted key material, signature validation, expiry/revocation checks | NOT_VERIFIED | Verify a real signed Agent Card without weakening trust policy |
 | MCP 2025-11-25 | Live authorized client/server interoperability test | NOT_VERIFIED | Exercise handshake/session compatibility and record protocol evidence |

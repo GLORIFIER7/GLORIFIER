@@ -4,7 +4,7 @@
 
 GLORIFIER must not make TypeScript the required language for every integration. TypeScript is one implementation in the control plane, not the interoperability boundary. Any language or runtime that can implement the published protocol and security requirements may participate.
 
-This document defines the stable wire contract and evidence rules. First-party SDK implementations now exist for ten languages; their verified runtime/runner scope is listed below and in the machine-readable capability registry. SDK contract verification must not be confused with live service, provider, A2A/MCP, Linux-distribution, or blockchain interoperability.
+This document defines the stable wire contract and evidence rules. First-party SDK implementations now exist for eleven language ecosystems; their verified runtime/runner scope is listed below and in the machine-readable capability registry. SDK contract verification must not be confused with live service, provider, A2A/MCP, Linux-distribution, or blockchain interoperability.
 
 ## Stable boundary: protocols, not shared language objects
 
@@ -22,7 +22,7 @@ Do not expose TypeScript interfaces as the only specification. Do not assume tha
 
 ## Supported integration shapes
 
-GLORIFIER currently maintains first-party HTTP/JSON clients for ten languages:
+GLORIFIER currently maintains first-party HTTP/JSON clients for eleven languages:
 
 | Language | Package | Verified CI target |
 |---|---|---|
@@ -36,10 +36,11 @@ GLORIFIER currently maintains first-party HTTP/JSON clients for ten languages:
 | Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64 |
 | Swift | `sdk/swift` | Swift toolchain on macOS 14 |
 | Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64 |
+| JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0+ on Ubuntu 24.04 x86_64 (CI target pending) |
 
 The eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, Dart) passed the dedicated native SDK workflow on PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python and Go retain separate multi-version conformance matrices; their latest recorded successful run is [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782) on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82`. See [the SDK package index](../../sdk/README.md) and the capability registry for exact per-language evidence.
 
-A third-party client may use any language or runtime capable of HTTPS, UTF-8 JSON, the published schemas, and the security contract. This is protocol-level extensibility—not a claim that GLORIFIER ships or has certified a native SDK for every programming language. JavaScript/TypeScript does not yet have a separately indexed first-party client package.
+A third-party client may use any language or runtime capable of HTTPS, UTF-8 JSON, the published schemas, and the security contract. This is protocol-level extensibility—not a claim that GLORIFIER ships or has certified a native SDK for every programming language. The JavaScript/TypeScript package is server-side Node.js only; it is not a browser SDK because caller bearer tokens must remain outside browser bundles. Its package and local contract tests are present, while the exact Node.js 24.12.0 CI result is pending.
 
 For systems that do not use a native SDK, the versioned HTTPS API, OpenAPI document, JSON Schema contracts, and shared fixtures are the compatibility baseline. A language/runtime is supported only for the exact versions, operating systems, architectures, and protocol surfaces for which test evidence exists.
 
