@@ -203,13 +203,26 @@ test('getAgent and listControlledAgents never expose mutable registry entries', 
   );
 });
 
-test('quarantineAgent returns a defensive copy without undoing quarantine', () => {
-  registerTestAgent('agent-quarantine-result-isolation');
+test('quarantineAgent returns a deep defensive copy without changing stored policy', () => {
+  registerTestAgent('agent-quarantine-result-isolation', { humanApprovalRequired: true });
   const quarantined = quarantineAgent('agent-quarantine-result-isolation');
   assert.ok(quarantined);
-  Object.assign(quarantined, { lifecycle: 'active', humanApprovalRequired: false });
-  quarantined.capabilities.push('tool.invoke');
 
+  quarantined.lifecycle = 'active';
+  quarantined.humanApprovalRequired = false;
+  quarantined.capabilities.push('capability.injected');
+  quarantined.allowedTools.push('shell');
+  quarantined.allowedDataScopes.push('secrets');
+
+  const stored = getAgent('agent-quarantine-result-isolation');
+  assert.ok(stored);
+  assert.equal(stored.lifecycle, 'quarantined');
+  assert.equal(stored.humanApprovalRequired, true);
+  assert.deepEqual(stored.capabilities, [
+    'read.repository', 'tool.invoke', 'deploy.production', 'move.funds', 'custom.unregistered',
+  ]);
+  assert.deepEqual(stored.allowedTools, ['browser']);
+  assert.deepEqual(stored.allowedDataScopes, ['public']);
   assert.equal(
     authorizeAgentAction('agent-quarantine-result-isolation', { capability: 'read.repository' }).reason,
     'agent_quarantined',
