@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 import { listAgentCards, routeAgentCapability } from './agent-runtime';
 
-export type A2ATaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'blocked' | 'degraded';
+export type A2ATaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'blocked' | 'degraded' | 'canceled';
 export type A2AProtocol = 'A2A' | 'MCP' | 'GLORIFIER-A2A-v1';
 
 export interface A2ATask {
@@ -217,7 +217,7 @@ export function getA2ATask(id: string) {
 }
 
 function mapPersistedA2ATask(row: Record<string, unknown>): A2ATask {
-  const validStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded'];
+  const validStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded', 'canceled'];
   const status = String(row.status);
   if (!validStatuses.includes(status as A2ATaskStatus)) {
     throw new Error('Persisted A2A task has an unknown status.');
@@ -495,6 +495,49 @@ export async function getA2ATaskForRequesterProtocol(
   return task;
 }
 
+/**
+ * Atomically cancel only queued work owned by the authenticated requester.
+ * A running task is deliberately left untouched because the current executor
+ * has no provider cancellation signal; reporting it as canceled would be false.
+ */
+export async function cancelA2ATaskForRequesterProtocol(
+  id: string,
+  requesterAgentId: string,
+): Promise<A2ATask | null> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  if (!id || !requester) return null;
+
+  if (!process.env.DATABASE_URL) {
+    const task = memoryTasks.get(id);
+    if (!task || task.requesterAgentId !== requester) return null;
+    if (task.status === 'canceled' || task.status !== 'queued') return task;
+    task.status = 'canceled';
+    task.updatedAt = new Date().toISOString();
+    persistTask(task);
+    return task;
+  }
+
+  await initializeA2ARuntime();
+  const result = await getPostgresPool().query(
+    `UPDATE a2a_tasks
+       SET status = 'canceled', updated_at = NOW()
+     WHERE id = $1 AND requester_agent_id = $2 AND status = 'queued'
+     RETURNING id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+               attempts,max_attempts,result,error,evidence_id,created_at,updated_at`,
+    [id, requester],
+  );
+  const row = result.rows[0];
+  if (row) {
+    const task = mapPersistedA2ATask(row);
+    memoryTasks.set(task.id, task);
+    return task;
+  }
+
+  // Preserve privacy: this lookup is requester-scoped. Returning an active or
+  // terminal task lets the protocol adapter report TaskNotCancelableError.
+  return getA2ATaskForRequesterProtocol(id, requester);
+}
+
 export function createSignedHandoff(task: A2ATask, toAgentId: string, payload: unknown, ttlSeconds = 300) {
   if (!signingSecret()) throw new Error('A2A signing is not configured');
   const issuedAt = new Date();
@@ -537,15 +580,62 @@ export async function executeA2ATask(
   task: A2ATask,
   executor: (prompt: string, options?: Record<string, unknown>) => Promise<{ text: string; model: string } | null>,
 ) {
+  if (task.status !== 'queued') return task;
+
+  if (process.env.DATABASE_URL) {
+    await initializeA2ARuntime();
+    let claim = await getPostgresPool().query(
+      `UPDATE a2a_tasks
+          SET status = 'running', attempts = 1, updated_at = NOW()
+        WHERE id = $1 AND requester_agent_id = $2 AND status = 'queued'
+        RETURNING updated_at`,
+      [task.id, task.requesterAgentId],
+    );
+    if (!claim.rows.length) {
+      const current = await getA2ATaskForProtocol(task.id);
+      if (current) return current;
+      // Legacy in-process callers may have inserted the task asynchronously.
+      // Persist it before retrying the same atomic claim; do not overwrite an
+      // existing canceled/running row.
+      const cached = memoryTasks.get(task.id);
+      if (!cached || cached.status !== 'queued') return cached || task;
+      await persistTaskDurably(cached);
+      claim = await getPostgresPool().query(
+        `UPDATE a2a_tasks
+            SET status = 'running', attempts = 1, updated_at = NOW()
+          WHERE id = $1 AND requester_agent_id = $2 AND status = 'queued'
+          RETURNING updated_at`,
+        [task.id, task.requesterAgentId],
+      );
+      if (!claim.rows.length) return (await getA2ATaskForProtocol(task.id)) || task;
+    }
+    task.status = 'running';
+    task.attempts = 1;
+    task.updatedAt = claim.rows[0].updated_at instanceof Date
+      ? claim.rows[0].updated_at.toISOString()
+      : new Date(String(claim.rows[0].updated_at)).toISOString();
+    memoryTasks.set(task.id, task);
+  } else {
+    const current = memoryTasks.get(task.id);
+    if (current && current.status !== 'queued') return current;
+    task.status = 'running';
+    task.attempts = 1;
+    task.updatedAt = new Date().toISOString();
+    memoryTasks.set(task.id, task);
+  }
+
   const route = routeAgentCapability(task.capability);
   const candidates = task.targetAgentId ? [task.targetAgentId] : route.specialists.length ? route.specialists : ['ai-ceo'];
   let lastError = 'No eligible agent/provider available';
 
   for (let attempt = 1; attempt <= task.maxAttempts; attempt += 1) {
-    task.attempts = attempt;
-    task.status = 'running';
-    task.updatedAt = new Date().toISOString();
-    persistTask(task);
+    if (attempt > 1) {
+      task.attempts = attempt;
+      task.status = 'running';
+      task.updatedAt = new Date().toISOString();
+      if (process.env.DATABASE_URL) await persistTaskDurably(task);
+      else persistTask(task);
+    }
 
     const target = candidates[(attempt - 1) % candidates.length];
     try {
@@ -572,14 +662,16 @@ export async function executeA2ATask(
       task.evidenceId = evidenceId;
       task.error = undefined;
       task.updatedAt = new Date().toISOString();
-      persistTask(task);
+      if (process.env.DATABASE_URL) await persistTaskDurably(task);
+      else persistTask(task);
       return task;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
       task.error = lastError;
       task.status = attempt === task.maxAttempts ? 'failed' : 'degraded';
       task.updatedAt = new Date().toISOString();
-      persistTask(task);
+      if (process.env.DATABASE_URL) await persistTaskDurably(task);
+      else persistTask(task);
     }
   }
   return task;
