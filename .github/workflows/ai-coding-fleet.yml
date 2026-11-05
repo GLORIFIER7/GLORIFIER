@@ -2,8 +2,8 @@ name: GLORIFIER Governed AI Coding Fleet
 
 on:
   schedule:
-    # Every 4 hours at :17; cost-gated with AI_MAINTENANCE_AUTORUN=true.
-    - cron: "17 */4 * * *"
+    # Weekly on Sunday at 09:17 Laos time; cost-gated with AI_MAINTENANCE_AUTORUN=true.
+    - cron: "17 2 * * 0"
   workflow_dispatch:
 
 permissions:
@@ -265,12 +265,3 @@ jobs:
           set -euo pipefail
           gh workflow run ci.yml --ref "$BRANCH"
 
-      - name: Enable auto-merge on generated PR
-        if: ${{ steps.dispatch.outcome == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ needs.coding-fleet.outputs.branch }}
-        run: |
-          set -euo pipefail
-          PR_NUMBER="$(gh pr view "$BRANCH" --json number --jq '.number')"
-          gh pr merge "$PR_NUMBER" --auto --squash
