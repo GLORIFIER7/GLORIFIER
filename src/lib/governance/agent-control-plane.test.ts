@@ -185,8 +185,7 @@ test('quarantineAgent returns a defensive copy without undoing quarantine', () =
   registerTestAgent('agent-quarantine-result-isolation');
   const quarantined = quarantineAgent('agent-quarantine-result-isolation');
   assert.ok(quarantined);
-  quarantined.lifecycle = 'active';
-  quarantined.humanApprovalRequired = false;
+  Object.assign(quarantined, { lifecycle: 'active', humanApprovalRequired: false });
   quarantined.capabilities.push('tool.invoke');
 
   assert.equal(
