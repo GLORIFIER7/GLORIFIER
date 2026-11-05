@@ -118,12 +118,14 @@ test('rejects invalid task fields and enforces Unicode character and UTF-8 byte 
 test('requires a raw caller token before submitting tasks', () => {
   const noToken = new GlorifierNeuralClient({ fetchImpl: async () => response({ ok: true }) });
   assert.throws(() => noToken.submitTask({ task: 'read' }), /token is required/);
+  assert.throws(() => new GlorifierNeuralClient({ token: '' }), /raw bearer token/);
   assert.throws(() => new GlorifierNeuralClient({ token: 'contains spaces' }), /without whitespace/);
 });
 
 test('bounds response bodies and rejects invalid response shapes', async () => {
-  const large = new Response(new Uint8Array(MAX_RESPONSE_BODY_BYTES + 1), { status: 200 });
-  const sdk = new GlorifierNeuralClient({ fetchImpl: async () => large });
+  const sdk = new GlorifierNeuralClient({
+    fetchImpl: async () => new Response(new Uint8Array(MAX_RESPONSE_BODY_BYTES + 1), { status: 200 }),
+  });
   await assert.rejects(sdk.health(), GlorifierApiError);
 
   const arrayResponse = new GlorifierNeuralClient({
@@ -153,4 +155,12 @@ test('propagates a correlation ID as a request header', async () => {
   });
   await sdk.health({ correlationId: 'request-correlation-1' });
   assert.equal(actual, 'request-correlation-1');
+});
+
+
+test('rejects control characters in correlation IDs before setting HTTP headers', async () => {
+  const sdk = new GlorifierNeuralClient({ fetchImpl: async () => response({ ok: true }) });
+  for (const correlationId of ['bad\\u0000id', 'bad\\tid', 'bad\\u007fid']) {
+    await assert.rejects(sdk.health({ correlationId }), /correlationId must be/);
+  }
 });
