@@ -92,7 +92,7 @@ test('AI fleet rejects private keys and known API-token formats in proposed diff
 test('AI fleet permits removing secret-like material without reintroducing it', () => {
   const result = validateAiFleetDiff({
     files: [safeChange],
-    diffText: "-const leaked = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\\n+const removed = true;\\n",
+    diffText: "-const leaked = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\n+const removed = true;\n",
   });
   assert.equal(result.allowed, true);
 });
