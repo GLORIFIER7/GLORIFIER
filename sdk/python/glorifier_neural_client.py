@@ -59,11 +59,13 @@ class GlorifierNeuralClient:
     def _validate_task(task: dict[str, Any]) -> None:
         if not isinstance(task, dict):
             raise TypeError("task must be a JSON object")
-        unknown_fields = set(task) - _ALLOWED_TASK_FIELDS
+        unknown_fields = [
+            field for field in task
+            if not isinstance(field, str) or field not in _ALLOWED_TASK_FIELDS
+        ]
         if unknown_fields:
-            raise ValueError(
-                "task contains unsupported field(s): " + ", ".join(sorted(unknown_fields))
-            )
+            formatted_fields = ", ".join(sorted((repr(field) for field in unknown_fields)))
+            raise ValueError("task contains unsupported field(s): " + formatted_fields)
 
         prompt = task.get("task")
         if not isinstance(prompt, str) or not prompt.strip():
@@ -71,21 +73,18 @@ class GlorifierNeuralClient:
         if len(prompt) > MAX_TASK_CHARACTERS:
             raise ValueError(f"task must not exceed {MAX_TASK_CHARACTERS} characters")
 
-        purpose = task.get("purpose")
-        if purpose is not None and (
-            not isinstance(purpose, str) or not 1 <= len(purpose) <= 100
-        ):
-            raise ValueError("purpose must contain between 1 and 100 characters")
+        if "purpose" in task:
+            purpose = task["purpose"]
+            if not isinstance(purpose, str) or not 1 <= len(purpose) <= 100:
+                raise ValueError("purpose must contain between 1 and 100 characters")
 
-        require_approval = task.get("require_approval")
-        if require_approval is not None and type(require_approval) is not bool:
+        if "require_approval" in task and type(task["require_approval"]) is not bool:
             raise ValueError("require_approval must be a boolean")
 
-        action_class = task.get("action_class")
-        if action_class is not None and (
-            not isinstance(action_class, str) or not 1 <= len(action_class) <= 64
-        ):
-            raise ValueError("action_class must contain between 1 and 64 characters")
+        if "action_class" in task:
+            action_class = task["action_class"]
+            if not isinstance(action_class, str) or not 1 <= len(action_class) <= 64:
+                raise ValueError("action_class must contain between 1 and 64 characters")
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         headers = {"Accept": "application/json"}
