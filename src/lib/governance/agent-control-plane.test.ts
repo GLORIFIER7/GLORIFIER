@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   authorizeAgentAction,
+  getAgent,
+  listControlledAgents,
   quarantineAgent,
   registerAgent,
   type AgentActionRisk,
@@ -75,4 +77,154 @@ test('critical lifecycle, tool and data-scope restrictions cannot be bypassed', 
   quarantineAgent('agent-policy-low');
   assert.equal(authorizeAgentAction('agent-policy-low', { capability: 'read.repository' }).reason, 'agent_quarantined');
   assert.equal(authorizeAgentAction('missing-agent', { capability: 'read.repository' }).reason, 'agent_not_registered');
+});
+
+
+test('agent registration copies caller-owned policy arrays', () => {
+  const input = {
+    agentId: 'agent-input-array-isolation',
+    role: 'test-agent',
+    capabilities: ['read.repository'],
+    allowedTools: ['browser'],
+    allowedDataScopes: ['public'],
+    riskLevel: 'low' as AgentActionRisk,
+    lifecycle: 'active' as AgentLifecycle,
+    humanApprovalRequired: true,
+  };
+  registerAgent(input);
+
+  input.capabilities.push('tool.invoke');
+  input.allowedTools.push('shell');
+  input.allowedDataScopes.push('secrets');
+
+  assert.equal(
+    authorizeAgentAction(input.agentId, {
+      capability: 'tool.invoke',
+      tool: 'shell',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'capability_denied',
+  );
+  assert.equal(
+    authorizeAgentAction(input.agentId, {
+      capability: 'read.repository',
+      tool: 'shell',
+      humanAuthorized: true,
+    }).reason,
+    'tool_denied',
+  );
+  assert.equal(
+    authorizeAgentAction(input.agentId, {
+      capability: 'read.repository',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'data_scope_denied',
+  );
+});
+
+test('registerAgent returns a defensive copy of authorization policy', () => {
+  const registered = registerTestAgent('agent-register-result-isolation', { humanApprovalRequired: true });
+  registered.humanApprovalRequired = false;
+  registered.lifecycle = 'revoked';
+  registered.capabilities.push('capability.injected');
+  registered.allowedTools.push('shell');
+  registered.allowedDataScopes.push('secrets');
+
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', { capability: 'read.repository' }).reason,
+    'human_authorization_required',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', {
+      capability: 'capability.injected',
+      tool: 'shell',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'capability_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', {
+      capability: 'tool.invoke',
+      tool: 'shell',
+      dataScope: 'public',
+      humanAuthorized: true,
+    }).reason,
+    'tool_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', {
+      capability: 'tool.invoke',
+      tool: 'browser',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'data_scope_denied',
+  );
+});
+
+test('getAgent and listControlledAgents never expose mutable registry entries', () => {
+  registerTestAgent('agent-read-result-isolation', { humanApprovalRequired: true });
+
+  const fetched = getAgent('agent-read-result-isolation');
+  assert.ok(fetched);
+  fetched.humanApprovalRequired = false;
+  fetched.lifecycle = 'revoked';
+  fetched.capabilities.push('capability.injected');
+  fetched.allowedTools.push('shell');
+  fetched.allowedDataScopes.push('secrets');
+
+  const listed = listControlledAgents().find((agent) => agent.agentId === 'agent-read-result-isolation');
+  assert.ok(listed);
+  listed.humanApprovalRequired = false;
+  listed.lifecycle = 'paused';
+  listed.capabilities.push('capability.injected');
+  listed.allowedTools.push('shell');
+  listed.allowedDataScopes.push('secrets');
+
+  assert.equal(
+    authorizeAgentAction('agent-read-result-isolation', { capability: 'read.repository' }).reason,
+    'human_authorization_required',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-read-result-isolation', {
+      capability: 'capability.injected',
+      tool: 'shell',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'capability_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-read-result-isolation', { capability: 'read.repository' }).reason,
+    'human_authorization_required',
+  );
+});
+
+test('quarantineAgent returns a deep defensive copy without changing stored policy', () => {
+  registerTestAgent('agent-quarantine-result-isolation', { humanApprovalRequired: true });
+  const quarantined = quarantineAgent('agent-quarantine-result-isolation');
+  assert.ok(quarantined);
+
+  quarantined.lifecycle = 'active';
+  quarantined.humanApprovalRequired = false;
+  quarantined.capabilities.push('capability.injected');
+  quarantined.allowedTools.push('shell');
+  quarantined.allowedDataScopes.push('secrets');
+
+  const stored = getAgent('agent-quarantine-result-isolation');
+  assert.ok(stored);
+  assert.equal(stored.lifecycle, 'quarantined');
+  assert.equal(stored.humanApprovalRequired, true);
+  assert.deepEqual(stored.capabilities, [
+    'read.repository', 'tool.invoke', 'deploy.production', 'move.funds', 'custom.unregistered',
+  ]);
+  assert.deepEqual(stored.allowedTools, ['browser']);
+  assert.deepEqual(stored.allowedDataScopes, ['public']);
+  assert.equal(
+    authorizeAgentAction('agent-quarantine-result-isolation', { capability: 'read.repository' }).reason,
+    'agent_quarantined',
+  );
 });
