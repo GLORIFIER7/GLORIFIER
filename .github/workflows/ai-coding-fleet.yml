@@ -221,12 +221,13 @@ jobs:
           BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
           git checkout -b "$BRANCH"
           git -c core.hooksPath=/dev/null commit -m "ai(${{ matrix.role }}): governed maintenance"
-          git -c core.hooksPath=/dev/null push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
+          gh auth setup-git
+          git -c core.hooksPath=/dev/null push --set-upstream origin "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Open draft pull request
-        if: ${{ steps.branch.outputs.changed == 'true' }}
+        if: ${{ steps.branch.outputs.changed == 'true' && steps.validation.outcome == 'success' && steps.policy.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
