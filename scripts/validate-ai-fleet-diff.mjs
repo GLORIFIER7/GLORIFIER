@@ -15,7 +15,7 @@ function git(args) {
 }
 
 function fail(message) {
-  console.error(\`AI fleet PR gate denied: \${message}\`);
+  console.error('AI fleet PR gate denied: ' + message);
   process.exitCode = 1;
 }
 
@@ -89,11 +89,13 @@ if (process.env.GLORIFIER_PR_CREATION_AUTHORIZED !== 'true') {
         ]),
       });
       if (!result.allowed) {
-        fail(\`\${result.reason}\${result.path ? \` (\${result.path})\` : ''}\`);
+        const location = result.path ? ' (' + result.path + ')' : '';
+        fail(result.reason + location);
       } else {
         git(['diff', '--cached', '--no-renames', '--check']);
         console.log(
-          \`AI fleet PR gate passed: \${result.fileCount} files, +\${result.additions}/-\${result.deletions} lines, capability=\${policy.id}.\`,
+          'AI fleet PR gate passed: ' + result.fileCount + ' files, +' +
+          result.additions + '/-' + result.deletions + ' lines, capability=' + policy.id + '.',
         );
       }
     } catch (error) {
