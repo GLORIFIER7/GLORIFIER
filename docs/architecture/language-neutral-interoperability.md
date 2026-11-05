@@ -120,7 +120,7 @@ The repository contains a TypeScript Worker adapter and a small Python client wi
 
 The canonical starter fixtures are [interoperability-contract-fixtures.json](./interoperability-contract-fixtures.json). They cover UTF-8/Unicode preservation, arbitrary-precision quantities represented as decimal strings, absent-versus-null semantics, nested JSON types, and stable machine-readable error envelopes. The Python SDK workflow runs equivalent assertions on Python 3.10, 3.11, and 3.12.
 
-These are baseline fixtures, not a claim of multi-language certification. Each additional SDK/runtime must consume the same fixture file and pass equivalent encode/decode assertions in its own CI before it can be marked verified. Next targets should be Go and Java/Kotlin, followed by Rust, C#, JavaScript/TypeScript, PHP, Ruby, Swift, and other requested runtimes according to actual use cases. For runtimes without a native SDK, the versioned HTTPS/JSON contract remains the compatibility baseline.
+These are baseline fixtures, not a claim of multi-language certification. Python and Go consume the shared fixture set. The interoperability fixture-parity branch adds equivalent encode/decode assertions for Java, Kotlin, C#, Rust, PHP, Ruby, Swift, and Dart; the exact branch-head workflow must pass before this extension is treated as verified. For runtimes without a native SDK, the versioned HTTPS/JSON contract remains the compatibility baseline. JavaScript/TypeScript SDK packaging and additional runtime/platform matrices remain separate coverage gaps.
 
 ## AI provider interoperability boundary
 
