@@ -529,7 +529,11 @@ const handleModernJsonRpcMethod = (
       return jsonResponse({
         jsonrpc: '2.0',
         id,
-        result: modernCompleteResult({ tools }),
+        result: {
+          ...modernCompleteResult({ tools }),
+          ttlMs: 3_600_000,
+          cacheScope: 'public',
+        },
       });
     case 'tools/call':
       return handleToolCall(id, message.params, true, readToken);
@@ -600,15 +604,10 @@ const resolveMcpProtocolMode = (
     return { mode: 'modern' };
   }
 
-  const metadataSupported = !metadataVersion ||
-    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(metadataVersion);
-  const headerSupported = !headerVersion ||
-    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(headerVersion);
-  if (!metadataSupported || !headerSupported) {
-    return {
-      response: unsupportedProtocolVersion(id, metadataVersion || headerVersion),
-    };
-  }
+  // The body and mirrored transport header must agree before the server
+  // negotiates support for the requested revision. Otherwise an unsupported
+  // header can be misreported as a version-negotiation failure even though
+  // the request is malformed at the transport boundary.
   if (metadataVersion && headerVersion && metadataVersion !== headerVersion) {
     return {
       response: rpcError(
@@ -617,6 +616,15 @@ const resolveMcpProtocolMode = (
         'Header mismatch: the per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
         400,
       ),
+    };
+  }
+  const metadataSupported = !metadataVersion ||
+    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(metadataVersion);
+  const headerSupported = !headerVersion ||
+    (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(headerVersion);
+  if (!metadataSupported || !headerSupported) {
+    return {
+      response: unsupportedProtocolVersion(id, !metadataSupported ? metadataVersion : headerVersion),
     };
   }
 
