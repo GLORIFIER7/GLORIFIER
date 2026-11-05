@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' path; do
             case "$path" in
-              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc)
+              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|scripts/validate-ai-fleet-diff.test.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc)
                 echo "Protected validation dependency changed: $path"
                 exit 1
                 ;;
