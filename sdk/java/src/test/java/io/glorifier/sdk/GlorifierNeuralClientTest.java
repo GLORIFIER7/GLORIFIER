@@ -33,6 +33,7 @@ class GlorifierNeuralClientTest {
             exchange.sendResponseHeaders(503, body.length); exchange.getResponseBody().write(body); exchange.close();
         });
         server.createContext("/api/neural/v1/tasks", exchange -> {
+            exchange.getRequestBody().readAllBytes();
             taskAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
             byte[] body = "{\"status\":\"accepted\"}".getBytes();
             exchange.getResponseHeaders().add("Content-Type", "application/json");
