@@ -239,6 +239,7 @@ export async function discoverGlobalProviders(
   options: { persistConnections?: boolean } = {},
 ) {
   const results = await Promise.all(definitions.map(probe));
+  const reconciledResults: DiscoveredProvider[] = [];
   for (const discoveredProvider of results) {
     const definition = definitions.find((candidate) => candidate.id === discoveredProvider.id);
     const previous = snapshot.get(discoveredProvider.id);
@@ -258,6 +259,7 @@ export async function discoverGlobalProviders(
         }
       : discoveredProvider;
     snapshot.set(provider.id, provider);
+    reconciledResults.push(provider);
     if (options.persistConnections === false) continue;
     const connectionId = 'provider-' + provider.id;
     await registerConnection({
@@ -278,6 +280,6 @@ export async function discoverGlobalProviders(
       availability: provider.availability, authenticated: provider.authenticated, latencyMs: provider.latencyMs, models: provider.models,
     });
   }
-  return results;
+  return reconciledResults;
 }
 export function getGlobalProviderDiscoveryPolicy(){ return {architecture:'GLOBAL_PROVIDER_DISCOVERY_FAILOVER_FABRIC',authenticatedRegistrationRequired:true,authorizationSeparateFromAuthentication:true,nvidiaInferenceVerificationRequired:true,noSyntheticSuccess:true,quotaExhaustionIsNotHidden:true,internetDiscoveryBoundary:'documented/configured provider endpoints only; no quota, authentication, paywall, regional or access-control bypass',fallbackOrder:['configured-provider','router-provider','self-hosted-compute'],truthStates:['available','unconfigured','quota_exhausted','rate_limited','auth_failure','capability_mismatch','unreachable','error']} as const; }
