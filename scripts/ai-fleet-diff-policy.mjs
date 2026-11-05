@@ -100,11 +100,44 @@ export function validateAiFleetDiff({ files, diffText = '', limits = {} } = {}) 
   if (typeof diffText !== 'string') {
     return reject('invalid_diff_content');
   }
-  const addedLines = diffText
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('+') && !/^\+\+\+ (?:[ab]\/|\/dev\/null)/.test(line))
-    .map((line) => line.slice(1))
-    .join('\n');
+  const diffLines = diffText.split(/\r?\n/);
+  const hasUnifiedDiffHunks = diffLines.some((line) =>
+    /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.test(line));
+
+  const addedLines = hasUnifiedDiffHunks
+    ? (() => {
+      const addedLineList = [];
+      let oldLinesRemaining = 0;
+      let newLinesRemaining = 0;
+
+      for (const line of diffLines) {
+        if (oldLinesRemaining <= 0 && newLinesRemaining <= 0) {
+          const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+          if (!hunk) continue;
+          oldLinesRemaining = hunk[1] === undefined ? 1 : Number(hunk[1]);
+          newLinesRemaining = hunk[2] === undefined ? 1 : Number(hunk[2]);
+          continue;
+        }
+
+        if (line.startsWith('+')) {
+          newLinesRemaining -= 1;
+          addedLineList.push(line.slice(1));
+        } else if (line.startsWith('-')) {
+          oldLinesRemaining -= 1;
+        } else if (line.startsWith('\\')) {
+          // Unified-diff marker; it is not source content.
+        } else {
+          oldLinesRemaining -= 1;
+          newLinesRemaining -= 1;
+        }
+      }
+
+      return addedLineList.join('\n');
+    })()
+    : diffLines
+      .filter((line) => line.startsWith('+'))
+      .map((line) => line.slice(1))
+      .join('\n');
   if (SECRET_PATTERNS.some((pattern) => pattern.test(addedLines))) {
     return reject('secret_like_material_detected', { additions, deletions, fileCount: files.length });
   }
