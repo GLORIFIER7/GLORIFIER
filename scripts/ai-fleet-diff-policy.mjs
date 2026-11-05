@@ -17,7 +17,7 @@ const PROTECTED_PATHS = [
   /^src\/lib\/(?:auth|governance|db)\//i,
   /^src\/(?:worker|worker\.test)\.ts$/i,
   /^server\.ts$/i,
-  /^scripts\/(?:ai-fleet-diff-policy(?:\.test)?|validate-ai-fleet-diff)\.mjs$/i,
+  /^scripts\/(?:ai-fleet-diff-policy|validate-ai-fleet-diff)(?:\.test)?\.mjs$/i,
   /(^|\/)(?:Dockerfile|docker-compose\.ya?ml|\.npmrc|\.nvmrc|tsconfig(?:\.[^/]+)?\.json|vite\.config\.[^/]+)$/i,
 ];
 
