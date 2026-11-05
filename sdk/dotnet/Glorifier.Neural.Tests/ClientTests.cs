@@ -11,7 +11,7 @@ public sealed class ClientTests
         Assert.Throws<ArgumentException>(() => new GlorifierNeuralClient("http://example.com"));
         Assert.Throws<ArgumentException>(() => new GlorifierNeuralClient("https://evil.example"));
         using var client = new GlorifierNeuralClient("https://glorifier.glorifier.workers.dev");
-        Assert.Throws<ArgumentException>(() => client.SubmitTaskAsync(new NeuralTaskRequest("")));
+        Assert.ThrowsAsync<ArgumentException>(async () => await client.SubmitTaskAsync(new NeuralTaskRequest(""))).GetAwaiter().GetResult();
     }
 
     [Fact] public async Task HealthDoesNotForwardTokenAndReadiness503IsPreserved()
