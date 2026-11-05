@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T11:11:27.041Z",
+  "updatedAt": "2026-11-05T15:36:28.048Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -856,13 +856,13 @@
     },
     {
       "id": "worker.live-runtime-verification",
-      "title": "Live Worker, assets, and Supabase operational dependency probe",
-      "boundary": "Public Cloudflare Worker runtime-verification endpoint to the configured Supabase PostgREST exact-count query",
+      "title": "Live Worker, assets, and Neon operational dependency probe",
+      "boundary": "Public Cloudflare Worker runtime-verification endpoint to the currently configured Neon Hyperdrive exact-count query",
       "scope": "live-production-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "PARTIALLY VERIFIED",
       "targetEnvironments": [
         "Production Cloudflare Worker",
-        "Supabase project ymbhbxrobfpqlxhyulbt through PostgREST"
+        "Neon Hyperdrive read-only operational-count view"
       ],
       "evidence": [
         {
@@ -885,24 +885,31 @@
           "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; AI probing disabled",
           "observedAt": "2026-11-03T07:01:19.186Z",
           "notes": "HTTP 200 with status verified-for-probed-dependencies. Worker/assets and Neon Hyperdrive fixed operational exact-count query passed; database latency 293 ms and registered connection rows 30. Neural is not-configured; authentication not-probed; AI execution was excluded. This verifies only the dependencies explicitly probed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/runtime-verification",
+          "observedAt": "2026-11-05T15:00:25.894Z",
+          "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; Neon Hyperdrive",
+          "notes": "HTTP 200; status verified-for-probed-dependencies. Worker/assets passed; Neon Hyperdrive exact-count query passed in 701 ms and connectionRegistryRows was 30. Neural origin returned not-configured; authentication and AI were not probed. This request succeeded immediately after the preceding /api/reports/summary request failed at the 5-second Hyperdrive connection boundary, so it does not prove reliable cold-start behavior."
         }
       ],
       "limitations": [
-        "Evidence covers only the named endpoint and the dependencies it actually probes at the recorded time.",
-        "Authentication and AI/provider calls were not probed; live GLORIFIER-NEURAL readiness, external A2A/MCP conformance, blockchain RPC reachability, and continuous 24/7 availability are not established.",
-        "Zero rows are observed operational state, not proof of revenue, users, or complete cross-database parity.",
-        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
+        "Evidence is one successful point probe of the exact endpoint and dependencies it explicitly probes; it does not prove continuous availability or reliable first-request behavior after Neon auto-suspend.",
+        "The same smoke sequence observed a preceding HTTP 502 from /api/reports/summary while Neon was waking. PR #669 contains a bounded timeout remediation; it has not been deployed or re-verified in production.",
+        "Neural origin is not configured; authentication and AI/provider calls were not probed. External A2A/MCP conformance, blockchain RPC reachability, and 24/7 availability remain unverified.",
+        "Operational row counts are not proof of revenue, users, business outcomes, or Supabase-to-Neon data parity."
       ]
     },
     {
       "id": "worker.live-operational-report",
       "title": "Live operational summary endpoint contract",
-      "boundary": "Public Cloudflare Worker reports summary endpoint to six Supabase operational tables",
+      "boundary": "Public Cloudflare Worker reports summary endpoint to six Neon Hyperdrive operational-count view rows",
       "scope": "live-production-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "DEGRADED",
       "targetEnvironments": [
         "Production Cloudflare Worker",
-        "Supabase project ymbhbxrobfpqlxhyulbt"
+        "Neon Hyperdrive read-only operational-count view"
       ],
       "evidence": [
         {
@@ -925,12 +932,27 @@
           "targetEnvironment": "Production Cloudflare Worker to Neon Hyperdrive; unauthenticated read-only GET",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "HTTP 200 with exact counts: connectionApprovals 9, connectionEvents 251212, registeredConnections 30, intelligenceAnalyses 266, intelligenceEvidence 1099 and intelligenceReports 133. Response identifies Neon Hyperdrive as source. Revenue is explicitly not observable from these operational tables and the legacy economic summary is not ported."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/reports/summary",
+          "observedAt": "2026-11-05T15:00:25.921Z",
+          "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; Neon Hyperdrive",
+          "notes": "HTTP 502 after 5068 ms; response code NEON_REPORTS_QUERY_FAILED. Cloudflare recorded a hyperdrive_connect span of approximately 5008 ms. The Neon main compute is configured to suspend immediately when idle; its compute wake-up timestamp coincided with this failure. The immediately following runtime-verification request succeeded against Neon in 701 ms. This is direct degradation evidence, not a successful report response."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42055663144",
+          "observedAt": "2026-11-05T15:30:59Z",
+          "targetEnvironment": "PR #669; GitHub Actions Cloudflare Worker validate-and-build job",
+          "notes": "TypeScript, Worker regression tests, integration registry/data-truth tests, Neon Hyperdrive adapter tests, production smoke contract tests, frontend build/static output and Wrangler dry-run passed. Production deployment was skipped; this CI result is not production remediation evidence."
         }
       ],
       "limitations": [
-        "This verifies the endpoint response contract and current exact counts only; it does not prove business revenue or populated production data.",
-        "Supabase-to-Neon schema/data parity and synchronization remain unverified because Neon database inspection is quota-blocked.",
-        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
+        "The public report endpoint is degraded: the latest recorded GET returned HTTP 502 after approximately 5.068 seconds at the Neon Hyperdrive connection boundary.",
+        "The Neon aggregate view and existing read-only role returned all six exact counts when queried after compute was awake; direct database readability does not establish public endpoint reliability.",
+        "PR #669 adds a bounded 15-second connection timeout, 10-second query timeout and 30-second smoke deadline. It remains unmerged/undeployed and cannot be marked as a production fix until an approved release passes a fresh live smoke.",
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified. Operational counts do not prove revenue or independently verified economic outcomes."
       ]
     },
     {
