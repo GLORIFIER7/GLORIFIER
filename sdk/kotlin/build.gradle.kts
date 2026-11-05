@@ -8,7 +8,7 @@ version = "0.1.0"
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.12")
     testImplementation(kotlin("test"))
 }
 
