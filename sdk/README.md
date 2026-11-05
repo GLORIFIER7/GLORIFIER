@@ -1,6 +1,6 @@
 # GLORIFIER native SDKs
 
-All ten first-party clients use the same language-neutral HTTPS/JSON contract documented in [the architecture guide](../docs/architecture/language-neutral-interoperability.md) and the canonical [Neural adapter OpenAPI 3.1 document](../docs/architecture/openapi/glorifier-neural-adapter.openapi.json).
+All eleven first-party clients use the same language-neutral HTTPS/JSON contract documented in [the architecture guide](../docs/architecture/language-neutral-interoperability.md) and the canonical [Neural adapter OpenAPI 3.1 document](../docs/architecture/openapi/glorifier-neural-adapter.openapi.json).
 
 ## Current packages and verified targets
 
@@ -16,14 +16,15 @@ All ten first-party clients use the same language-neutral HTTPS/JSON contract do
 | Ruby | `sdk/ruby` | Ruby 3.2+ | `ruby sdk/ruby/test/test_client.rb && ruby sdk/ruby/test/test_interoperability_fixtures.rb` |
 | Swift | `sdk/swift` | Swift 5.9+, macOS 13+ | `swift test --package-path sdk/swift` |
 | Dart | `sdk/dart` | Dart 3.4+ | `cd sdk/dart && dart pub get && dart test` |
+| JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64 | `cd sdk/javascript && npm test` |
 
-The Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart conformance jobs all passed on final PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980). PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed their separate SDK conformance jobs on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82` in [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782). The capability registry records only these named runtime and runner targets as VERIFIED.
+The Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart conformance jobs all passed on final PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980). PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed their separate SDK conformance jobs on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82` in [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782). The capability registry now records all eleven SDKs as VERIFIED for their exact, named CI targets only. The JavaScript/TypeScript package passed 9/9 tests on Node.js 24.12.0 / Ubuntu 24.04 x86_64 in [run #42016850741](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42016850741).
 
 These are bounded CI contract results. They do not establish live Neural connectivity, production credentials, provider availability, external A2A/MCP protocol certification, compatibility on untested OS/architecture/runtime versions, or a production deployment.
 
 ## Shared wire-fixture parity
 
-The canonical fixture file at `docs/architecture/interoperability-contract-fixtures.json` defines common UTF-8, Unicode, arbitrary-precision decimal-string, null-versus-absent, nested-type, and stable-error cases. All ten SDKs have language-specific fixture tests. Python and Go execute them through [the Python/Go workflow](../.github/workflows/python-sdk.yml); Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart execute them through [the native SDK workflow](../.github/workflows/polyglot-sdk.yml).
+The canonical fixture file at `docs/architecture/interoperability-contract-fixtures.json` defines common UTF-8, Unicode, arbitrary-precision decimal-string, null-versus-absent, nested-type, and stable-error cases. All eleven SDK packages include language-specific fixture tests. Python and Go execute them through [the Python/Go workflow](../.github/workflows/python-sdk.yml); Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart execute them through [the native SDK workflow](../.github/workflows/polyglot-sdk.yml); JavaScript/TypeScript executes them through the Node.js job in that workflow.
 
 This is cross-language wire-contract evidence for the listed test targets, not proof of live API connectivity or external protocol certification.
 
