@@ -14,11 +14,11 @@ const PROTECTED_PATHS = [
   /(^|\/)(?:wrangler\.toml|firebase\.json|SECURITY\.md|CODEOWNERS)$/i,
   /(^|\/)(?:contracts|migrations|infra|terraform)(?:\/|$)/i,
   /^src\/lib\/capability-authorization\.ts$/i,
-  /^src\\/lib\\/(?:auth|governance|db)\\//i,
-  /^src\\/(?:worker|worker\\.test)\\.ts$/i,
-  /^server\\.ts$/i,
-  /^scripts\\/(?:ai-fleet-diff-policy(?:\\.test)?|validate-ai-fleet-diff)\\.mjs$/i,
-  /(^|\\/)(?:Dockerfile|docker-compose\\.ya?ml|\\.npmrc|\\.nvmrc|tsconfig(?:\\.[^/]+)?\\.json|vite\\.config\\.[^/]+)$/i,
+  /^src\/lib\/(?:auth|governance|db)\//i,
+  /^src\/(?:worker|worker\.test)\.ts$/i,
+  /^server\.ts$/i,
+  /^scripts\/(?:ai-fleet-diff-policy(?:\.test)?|validate-ai-fleet-diff)\.mjs$/i,
+  /(^|\/)(?:Dockerfile|docker-compose\.ya?ml|\.npmrc|\.nvmrc|tsconfig(?:\.[^/]+)?\.json|vite\.config\.[^/]+)$/i,
 ];
 
 const SECRET_PATTERNS = [
@@ -66,17 +66,15 @@ export function validateAiFleetDiff({ files, diffText = '', limits = {} } = {}) 
 
     const path = file.path.replace(/\\/g, '/');
     const segments = path.split('/');
-    if (path.startsWith('/') || /^[A-Za-z]:\//.test(path) || segments.includes('..') || segments.includes('')) {
+    if (path.startsWith('/') || /^[A-Za-z]:\//.test(path) || segments.includes('..') || segments.includes('')
+      || /[\0-\x1f\x7f]/.test(file.path)) {
       return reject('unsafe_file_path', { path });
     }
     if (PROTECTED_PATHS.some((pattern) => pattern.test(path))) {
-    if (/[\\0-\\x1f\\x7f]/.test(file.path)) {
-      return reject('unsafe_file_path', { path });
+      return reject('protected_path_requires_human_change', { path });
     }
     if (file.binary === true || file.symlink === true) {
-    }
       return reject('binary_or_symlink_change_not_reviewable', { path });
-      return reject('binary_change_not_reviewable', { path });
     }
 
     const fileAdditions = file.additions;
