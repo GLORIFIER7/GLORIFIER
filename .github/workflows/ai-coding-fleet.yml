@@ -213,7 +213,7 @@ jobs:
         if: ${{ steps.branch.outputs.changed == 'true' && steps.validation.outcome == 'success' && steps.policy.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          ROLE: ${{ matrix.role }}
+          ROLE: maintainer
         run: |
           gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" \
             --title "AI Fleet: $ROLE maintenance" \
