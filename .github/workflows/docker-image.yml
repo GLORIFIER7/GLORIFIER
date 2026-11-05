@@ -71,7 +71,7 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: HIGH,CRITICAL
 
       - name: Smoke test Ubuntu runtime health endpoint
@@ -154,7 +154,7 @@ jobs:
           format: table
           exit-code: "0"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block image with high or critical vulnerabilities
@@ -164,7 +164,7 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -175,7 +175,7 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -227,7 +227,7 @@ jobs:
           format: table
           exit-code: "0"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block candidate image with high or critical vulnerabilities
@@ -238,7 +238,7 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
