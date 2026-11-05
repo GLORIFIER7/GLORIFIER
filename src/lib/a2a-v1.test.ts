@@ -357,18 +357,23 @@ void test('A2A JSON-RPC rejects unsupported methods and invalid protocol version
   assert.equal((invalidVersion.error as { code: number }).code, -32600);
 });
 
-void test('A2A CancelTask cancels only requester-owned queued tasks', async () => {
+void test('A2A CancelTask scopes atomic cancellation to the authenticated requester', async () => {
   const requester = 'verified-user-42';
   const queued = baseTask({ id: 'queued-cancel', requesterAgentId: requester, status: 'queued' });
   const running = baseTask({ id: 'running-cancel', requesterAgentId: requester, status: 'running' });
+  const foreignQueued = baseTask({ id: 'foreign-cancel', requesterAgentId: 'other-user', status: 'queued' });
+  const cancellationRequests: Array<{ id: string; requesterAgentId: string }> = [];
   const handler = createA2AJsonRpcHandler({
     requesterAgentId: requester,
     createTask: () => { throw new Error('not used'); },
-    getTask: (id) => id === queued.id ? queued : id === running.id ? running : null,
+    getTask: (id) => [queued, running, foreignQueued].find((task) => task.id === id) || null,
     listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
-    cancelTask: async (id) => id === queued.id
-      ? { ...queued, status: 'canceled' }
-      : id === running.id ? running : null,
+    cancelTask: async (id, requesterAgentId) => {
+      cancellationRequests.push({ id, requesterAgentId });
+      const task = [queued, running, foreignQueued].find((candidate) => candidate.id === id);
+      if (!task || task.requesterAgentId !== requesterAgentId) return null;
+      return task.id === queued.id ? { ...task, status: 'canceled' } : task;
+    },
   });
 
   const canceled = await handler({
@@ -383,15 +388,25 @@ void test('A2A CancelTask cancels only requester-owned queued tasks', async () =
   assert.equal((active.error as { code: number }).code, -32002,
     'running tasks must not be reported canceled when the provider cannot be interrupted');
 
-  const foreignOrMissing = await handler({
-    jsonrpc: '2.0', id: 'cancel-3', method: 'CancelTask', params: { id: 'not-owned' },
+  const foreign = await handler({
+    jsonrpc: '2.0', id: 'cancel-3', method: 'CancelTask', params: { id: foreignQueued.id },
   });
-  assert.equal((foreignOrMissing.error as { code: number }).code, -32001);
+  assert.equal((foreign.error as { code: number }).code, -32001,
+    'foreign task IDs must not reach an unscoped cancellation implementation');
+
+  const missing = await handler({
+    jsonrpc: '2.0', id: 'cancel-4', method: 'CancelTask', params: { id: 'not-owned' },
+  });
+  assert.equal((missing.error as { code: number }).code, -32001);
 
   const malformed = await handler({
-    jsonrpc: '2.0', id: 'cancel-4', method: 'CancelTask', params: { id: ' ' },
+    jsonrpc: '2.0', id: 'cancel-5', method: 'CancelTask', params: { id: ' ' },
   });
   assert.equal((malformed.error as { code: number }).code, -32602);
+
+  assert.equal(cancellationRequests.length, 4, 'malformed task IDs must not reach cancellation');
+  assert.ok(cancellationRequests.every((request) => request.requesterAgentId === requester),
+    'every cancellation request must carry the authenticated requester identity');
 });
 
 void test('A2A JSON-RPC enforces the inclusive text limit and rejects unsupported file parts', async () => {

@@ -91,8 +91,8 @@ export interface A2AJsonRpcDependencies {
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
-  /** Requester-scoped, atomic cancellation. Running tasks must be returned unchanged. */
-  cancelTask?(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  /** Atomic cancellation scoped to the authenticated requester. Running tasks must be returned unchanged. */
+  cancelTask?(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
 }
 
 export interface A2AJsonRpcResponse {
@@ -443,7 +443,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         return rpcError(id, -32601, 'CancelTask is not supported by this agent.');
       }
       try {
-        const task = await dependencies.cancelTask(taskId);
+        const task = await dependencies.cancelTask(taskId, dependencies.requesterAgentId);
         if (!task || task.requesterAgentId !== dependencies.requesterAgentId) {
           return rpcError(id, -32001, 'Task not found.');
         }
