@@ -17,6 +17,8 @@ on:
       - "index.html"
       - "vite.config.ts"
       - "scripts/ubuntu-apt-security-policy.test.mjs"
+      - ".trivy.yaml"
+      - "security/vex/**"
       - ".github/workflows/docker-image.yml"
   workflow_run:
     workflows: ["GLORIFIER CI"]
@@ -72,6 +74,7 @@ jobs:
           exit-code: "1"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
 
       - name: Smoke test Ubuntu runtime health endpoint
@@ -155,6 +158,7 @@ jobs:
           exit-code: "0"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block image with high or critical vulnerabilities
@@ -165,6 +169,7 @@ jobs:
           exit-code: "1"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -176,6 +181,7 @@ jobs:
           exit-code: "1"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -228,6 +234,7 @@ jobs:
           exit-code: "0"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block candidate image with high or critical vulnerabilities
@@ -239,6 +246,7 @@ jobs:
           exit-code: "1"
           vuln-type: os,library
           version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
