@@ -402,6 +402,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         TASK_STATE_COMPLETED: ['completed'],
         TASK_STATE_FAILED: ['failed'],
         TASK_STATE_REJECTED: ['blocked'],
+        TASK_STATE_CANCELED: ['canceled'],
       };
       let statuses: A2ATaskLike['status'][] | undefined;
       if (params.status !== undefined) {
