@@ -1,8 +1,8 @@
 # GLORIFIER native SDKs
 
-All SDKs use the same language-neutral HTTPS/JSON contract documented in [the architecture guide](../docs/architecture/language-neutral-interoperability.md) and the canonical [Neural adapter OpenAPI 3.1 document](../docs/architecture/openapi/glorifier-neural-adapter.openapi.json).
+All ten first-party clients use the same language-neutral HTTPS/JSON contract documented in [the architecture guide](../docs/architecture/language-neutral-interoperability.md) and the canonical [Neural adapter OpenAPI 3.1 document](../docs/architecture/openapi/glorifier-neural-adapter.openapi.json).
 
-## Current packages
+## Current packages and verified targets
 
 | Language | Package | Runtime target | Test command |
 |---|---|---|---|
@@ -17,13 +17,15 @@ All SDKs use the same language-neutral HTTPS/JSON contract documented in [the ar
 | Swift | `sdk/swift` | Swift 5.9+, macOS 13+ | `swift test --package-path sdk/swift` |
 | Dart | `sdk/dart` | Dart 3.4+ | `cd sdk/dart && dart pub get && dart test` |
 
-The eight native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift and Dart) all passed the dedicated [native SDK conformance workflow](../.github/workflows/polyglot-sdk.yml) on PR #658 head `3077a9a21d9d1caea8899c73828b4eaa6091fd20` (run [41992438998](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998)). The capability registry records these exact language/runtime targets as **VERIFIED**. Python and Go retain their separately recorded version matrices. These are bounded CI contract results, not claims of live Neural availability or universal support across all versions, platforms, or architectures.
+The Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart conformance jobs all passed on final PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980). PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed their separate SDK conformance jobs on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82` in [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782). The capability registry records only these named runtime and runner targets as VERIFIED.
+
+These are bounded CI contract results. They do not establish live Neural connectivity, production credentials, provider availability, external A2A/MCP protocol certification, compatibility on untested OS/architecture/runtime versions, or a production deployment.
 
 ## Shared wire-fixture parity
 
-The canonical fixture file at `docs/architecture/interoperability-contract-fixtures.json` defines the same UTF-8, Unicode, arbitrary-precision decimal-string, null-versus-absent, nested-type, and stable-error cases for every SDK. Python and Go already consume these fixtures. This branch adds fixture-driven encode/decode assertions to Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart, and wires the new PHP/Ruby suites into the native SDK workflow.
+The canonical fixture file at `docs/architecture/interoperability-contract-fixtures.json` defines common UTF-8, Unicode, arbitrary-precision decimal-string, null-versus-absent, nested-type, and stable-error cases. All ten SDKs have language-specific fixture tests. Python and Go execute them through [the Python/Go workflow](../.github/workflows/python-sdk.yml); Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart execute them through [the native SDK workflow](../.github/workflows/polyglot-sdk.yml).
 
-This is a cross-language consistency gate, not proof of live API connectivity or external protocol certification. The new eight-language fixture-parity claim remains pending until the exact branch head passes the native SDK workflow.
+This is cross-language wire-contract evidence for the listed test targets, not proof of live API connectivity or external protocol certification.
 
 ## Shared API shape
 
@@ -56,6 +58,8 @@ Only `task` is required. The remaining fields are optional and validated against
 - Readiness HTTP 503 is preserved as a readiness observation, not rewritten as success.
 - No SDK executes financial, wallet, blockchain-write, or other consequential actions outside GLORIFIER's server-side governance and human-approval policy.
 
-## Evidence rules
+## Scope and evidence rules
 
-Consult [the capability registry](../docs/architecture/interoperability-capabilities.json) for the current recorded status. A language/runtime may be marked VERIFIED only after its exact runtime, OS, architecture and commit-specific conformance checks pass. Mocked tests do not prove live Neural connectivity, provider availability, A2A/MCP client interoperability or production deployment health.
+A capability marked VERIFIED applies only to its listed runtime, operating system, architecture, and CI result in [the capability registry](../docs/architecture/interoperability-capabilities.json). Additional versions/platforms require separate tests. A mocked contract suite does not prove a live Neural origin, provider availability, A2A/MCP interoperability, or production deployment health.
+
+A client in another language may use the published HTTPS/JSON contract without a first-party SDK. That is protocol-level compatibility, not certification of an untested language binding.

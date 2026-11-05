@@ -4,7 +4,7 @@
 
 GLORIFIER must not make TypeScript the required language for every integration. TypeScript is one implementation in the control plane, not the interoperability boundary. Any language or runtime that can implement the published protocol and security requirements may participate.
 
-This is a target contract and implementation plan. It does not claim that SDKs, bindings, runtimes, Linux distributions, or blockchain adapters already exist or have passed conformance tests.
+This document defines the stable wire contract and evidence rules. First-party SDK implementations now exist for ten languages; their verified runtime/runner scope is listed below and in the machine-readable capability registry. SDK contract verification must not be confused with live service, provider, A2A/MCP, Linux-distribution, or blockchain interoperability.
 
 ## Stable boundary: protocols, not shared language objects
 
@@ -19,11 +19,29 @@ Use versioned, language-neutral wire contracts:
 
 Do not expose TypeScript interfaces as the only specification. Do not assume that two languages share memory, object layouts, exceptions, integer widths, or serialization behavior.
 
+
 ## Supported integration shapes
 
-A client may be implemented in any language that can perform HTTPS, encode/decode UTF-8 JSON, validate required fields, and enforce the documented authentication behavior. Initial SDK candidates may include Python, JavaScript/TypeScript, Go, Java/Kotlin, C#, Rust, PHP, Ruby, and Swift. These are candidate targets, not a claim that maintained SDKs currently exist.
+GLORIFIER currently maintains first-party HTTP/JSON clients for ten languages:
 
-For systems that cannot use a native SDK, provide a documented HTTP API, OpenAPI document, examples using curl, and a minimal protocol conformance suite. Linux support is a runtime/platform matrix, not a promise that every distribution and CPU architecture has already been tested.
+| Language | Package | Verified CI target |
+|---|---|---|
+| Python | `sdk/python` | Python 3.10, 3.11, 3.12 on Ubuntu 24.04 x86_64 |
+| Go | `sdk/go` | Go 1.26.x and 1.27.x on Ubuntu 24.04 x86_64 |
+| Java | `sdk/java` | JDK 17 on Ubuntu 24.04 x86_64 |
+| Kotlin | `sdk/kotlin` | Kotlin/JVM 2.0.21 on JDK 17 / Ubuntu 24.04 x86_64 |
+| C# / .NET | `sdk/dotnet` | .NET 8 on Ubuntu 24.04 x86_64 |
+| Rust | `sdk/rust` | stable Rust, edition 2021, on Ubuntu 24.04 x86_64 |
+| PHP | `sdk/php` | PHP 8.2 with cURL and mbstring on Ubuntu 24.04 x86_64 |
+| Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64 |
+| Swift | `sdk/swift` | Swift toolchain on macOS 14 |
+| Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64 |
+
+The eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, Dart) passed the dedicated native SDK workflow on PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python and Go retain separate multi-version conformance matrices; their latest recorded successful run is [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782) on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82`. See [the SDK package index](../../sdk/README.md) and the capability registry for exact per-language evidence.
+
+A third-party client may use any language or runtime capable of HTTPS, UTF-8 JSON, the published schemas, and the security contract. This is protocol-level extensibility—not a claim that GLORIFIER ships or has certified a native SDK for every programming language. JavaScript/TypeScript does not yet have a separately indexed first-party client package.
+
+For systems that do not use a native SDK, the versioned HTTPS API, OpenAPI document, JSON Schema contracts, and shared fixtures are the compatibility baseline. A language/runtime is supported only for the exact versions, operating systems, architectures, and protocol surfaces for which test evidence exists.
 
 ## Contract requirements
 
@@ -82,26 +100,20 @@ For each SDK or adapter:
 
 A language/runtime should be labelled `VERIFIED` only for the specific version/platform/test matrix that passed. Use `PARTIALLY VERIFIED` for incomplete matrices and `NOT VERIFIED` where evidence is absent. Do not label the ecosystem “all languages supported” based solely on the protocol design.
 
-## Incremental delivery
 
-1. Publish and review the canonical OpenAPI/JSON Schema contracts for currently implemented endpoints.
-2. Add a shared fixture-driven contract test suite to CI.
-3. Generate and test one non-TypeScript SDK first (Python is a practical initial candidate given the separate GLORIFIER-NEURAL FastAPI service).
-4. Add Go and Java/Kotlin SDKs after the first SDK establishes code-generation, versioning, packaging and release conventions.
-5. Add further SDKs based on actual use cases, maintaining the same conformance gates.
-6. Publish a tested Linux/runtime matrix and separately verify each blockchain-family adapter (EVM-compatible networks and Solana are not interchangeable).
+## Current implementation status
 
-## Go SDK initial implementation
+The initial SDK delivery is complete for the ten languages listed above. Shared wire fixtures cover UTF-8/Unicode, arbitrary-precision decimal strings, absent-versus-null behavior, nested JSON values, and stable machine-readable errors. The eight newer SDK packages have fixture-driven tests; Python and Go consume the same canonical fixture file through their own conformance workflow.
 
-The stacked branch for the initial Go implementation adds `sdk/go/neuralclient`, a dependency-free client for the existing versioned Worker OpenAPI routes:
+This status does not extend automatically to additional runtime versions, CPU architectures, operating systems, or other GLORIFIER interfaces. The current Linux source/container workflow covers only the exact Ubuntu runner and container targets it names. It does not establish support for every Linux distribution, ARM64, Windows, or every macOS version.
 
-- `POST /api/neural/v1/tasks` with the caller-scoped bearer token.
-- `GET /api/neural/health` without forwarding the configured token.
-- `GET /api/neural/ready`, preserving HTTP 503 as a not-ready observation.
+The common Neural SDK surface is intentionally small:
 
-The client rejects non-HTTPS destinations except explicitly enabled loopback HTTP, refuses redirects, bounds task and response sizes, uses a finite timeout, validates optional correlation IDs, normalizes API errors, and does not retry task submissions where the wire contract lacks an idempotency key. Tests use mocked HTTP servers and the same shared JSON fixtures consumed by Python.
+- `health()`: GET `/api/neural/health`.
+- `ready()`: GET `/api/neural/ready`.
+- `submitTask(...)`: POST `/api/neural/v1/tasks` using a caller-issued bearer token.
 
-The Go 1.26.x and 1.27.x CI jobs passed on code commit `13b67952cf19ceacf4ceaa71ada70e654755423b`; the SDK remains unmerged. The passing matrix verifies only those tested Go runtimes and mocked HTTP/JSON contract behavior. It does not prove a live Neural origin, provider readiness, all languages, every AI provider, or a production deployment.
+All clients must preserve the documented response/error semantics and keep credentials scoped to the task route.
 
 ## Capability registry and Linux test scope
 
@@ -111,47 +123,35 @@ The [Interoperability Linux validation workflow](../../.github/workflows/interop
 
 The Neural task adapter accepts `application/json` and `application/*+json` and enforces a 65,536-byte (64 KiB) request-body cap before forwarding. Declared lengths and actual streamed bytes are checked; oversized task requests return `413 REQUEST_BODY_TOO_LARGE`, and unsupported media types return `415 UNSUPPORTED_MEDIA_TYPE`. The branch's regression tests must pass before this boundary is marked verified.
 
+
 ## Current evidence boundary
 
-The repository contains a TypeScript Worker adapter and a small Python client with standard-library tests, but the presence of code is not proof of live interoperability. The registry separates mock contract tests, CI execution, container builds, and live runtime probes. No deployed Neural origin or production readiness is asserted. The OpenAPI document exists, but its presence does not prove generated-client compatibility or passing external A2A/MCP interoperability suites. Upgrade statuses only when linked evidence supports the exact claim and target environment.
+The ten SDK packages and their named CI jobs provide bounded language-client contract evidence. They do not prove that a live GLORIFIER-NEURAL HTTPS origin is configured or ready, that any AI provider can currently execute a task, or that multiple providers produce semantically equivalent results. The last recorded production Neural health/readiness observations returned HTTP 503 with `NEURAL_ORIGIN_NOT_CONFIGURED` on 2026-11-03; this is a historical fail-closed configuration observation, not a current live probe.
 
+The broader capability registry continues to mark A2A/MCP adapter conformance, external client/server interoperability, provider semantic equivalence, provider billing reconciliation, and independently verified economic outcomes as NOT VERIFIED. Blockchain read-only adapter test vectors are not proof of live RPC reachability, contract state, or transaction capability. Upgrade each capability only with its own exact target, timestamp, verifier, and retained evidence.
 
 ## Shared cross-language conformance fixtures
 
-The canonical starter fixtures are [interoperability-contract-fixtures.json](./interoperability-contract-fixtures.json). They cover UTF-8/Unicode preservation, arbitrary-precision quantities represented as decimal strings, absent-versus-null semantics, nested JSON types, and stable machine-readable error envelopes. The Python SDK workflow runs equivalent assertions on Python 3.10, 3.11, and 3.12.
+The canonical fixture set is [interoperability-contract-fixtures.json](./interoperability-contract-fixtures.json). It covers UTF-8/Unicode preservation, arbitrary-precision quantities represented as decimal strings, absent-versus-null semantics, nested JSON types, and stable machine-readable error envelopes. Python and Go consume the shared fixtures through the Python/Go SDK conformance workflow. Java, Kotlin, C#/.NET, Rust, PHP, Ruby, Swift, and Dart run their corresponding fixture-driven suites through the native SDK workflow.
 
-These are baseline fixtures, not a claim of multi-language certification. Python and Go consume the shared fixture set. The interoperability fixture-parity branch adds equivalent encode/decode assertions for Java, Kotlin, C#, Rust, PHP, Ruby, Swift, and Dart; the exact branch-head workflow must pass before this extension is treated as verified. For runtimes without a native SDK, the versioned HTTPS/JSON contract remains the compatibility baseline. JavaScript/TypeScript SDK packaging and additional runtime/platform matrices remain separate coverage gaps.
+The SDK tests establish wire-format consistency for the named test targets. They do not constitute external API certification, live Neural tests, A2A/MCP conformance, provider equivalence tests, or a guarantee that all SDKs behave identically outside the shared contract cases.
 
 ## AI provider interoperability boundary
 
 Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
 
-## Native SDK implementations — 2026-11-05
+## First-party native SDKs — evidence as of 2026-11-05
 
-The repository now contains native HTTP/JSON client packages for the following additional languages. These are implementation targets, not certified compatibility claims:
+The ten maintained first-party HTTP/JSON clients and their named runtime/runner evidence are listed in [the SDK package index](../../sdk/README.md) and [the capability registry](./interoperability-capabilities.json). Eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart) passed the final PR #658 head in [Native SDK Conformance run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed in [SDK Conformance run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782).
 
-| SDK | Runtime target | Package path | CI job |
-|---|---|---|---|
-| Java | JDK 17+ | `sdk/java` | Java SDK |
-| Kotlin | Kotlin/JVM 2.0.21, JDK 17+ | `sdk/kotlin` | Kotlin SDK |
-| C# / .NET | .NET 8 | `sdk/dotnet` | .NET SDK |
-| Rust | stable Rust, edition 2021 | `sdk/rust` | Rust SDK |
-| PHP | PHP 8.2+, cURL, mbstring | `sdk/php` | PHP SDK |
-| Ruby | Ruby 3.2+ | `sdk/ruby` | Ruby SDK |
-| Swift | Swift 5.9+, macOS 13+ | `sdk/swift` | Swift SDK |
-| Dart | Dart 3.4+ | `sdk/dart` | Dart SDK |
+Each VERIFIED SDK capability is limited to its exact runtime, operating system, architecture, test suite and recorded run. It is not a promise of support for every runtime version, platform, distribution, architecture or protocol. The packages are independently implemented clients, not generated from one code generator; the shared OpenAPI/JSON contract and fixture tests are the compatibility boundary.
 
-The implementation contract for each package is:
+The available task API is intentionally narrow:
 
-- Exact-origin HTTPS validation; loopback HTTP is available only through an explicit test/development opt-in.
-- Health and readiness calls do not carry the caller's bearer token.
-- The bearer token is attached only to `POST /api/neural/v1/tasks`.
-- Authenticated redirects are not followed.
-- Task payloads use only the canonical OpenAPI fields: `task`, `purpose`, `require_approval`, and `action_class`.
-- Task request bodies are limited to 65,536 UTF-8 bytes; response reads are limited to 1 MiB where the runtime transport provides bounded streaming.
-- HTTP 503 readiness observations are returned with their status and JSON body; task submission is not automatically retried because the API does not define an idempotency key.
-- Unknown task fields and invalid field types/lengths are rejected before network access.
+- `health()`: GET `/api/neural/health`.
+- `ready()`: GET `/api/neural/ready`.
+- `submitTask(...)`: POST `/api/neural/v1/tasks` with a caller-issued bearer token.
 
-Run each language's test command as listed in [the SDK package index](../../sdk/README.md). The dedicated [native SDK conformance workflow](../../.github/workflows/polyglot-sdk.yml) runs the language-specific contract suites. A capability remains `NOT VERIFIED` until the exact current commit's corresponding CI job succeeds. A successful mocked/local test run does not establish a live Neural origin, production credentials, external A2A/MCP conformance, or provider readiness.
+Security invariants remain mandatory: exact-origin HTTPS in production, explicit loopback opt-in for development/tests, credentials scoped only to task submission, authenticated redirects disabled, bounded request and response bodies, and preservation of readiness/error status. Task submissions are not retried without a server-supported idempotency contract.
 
-These packages are initial, independently implemented clients. They are not generated from a single OpenAPI code generator, and their language runtimes, dependency trees, and exception/error models remain language-specific. The shared wire contract and conformance tests—not shared in-memory objects—are the compatibility boundary.
+SDK CI does not prove a live Neural origin, deployed credentials, production readiness, external A2A/MCP conformance, provider semantic equivalence, billing reconciliation, independently verified outcomes, or live blockchain reachability. Each of those remains an independent capability with its own evidence gate.
