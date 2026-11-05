@@ -40,6 +40,25 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(request.full_url, "https://api.example.com/api/neural/health")
         self.assertEqual(request.get_method(), "GET")
 
+    def test_health_and_readiness_never_forward_caller_bearer_token(self):
+        with patch(
+            "glorifier_neural_client.urlopen",
+            side_effect=[
+                Response(b'{"status":"ok"}'),
+                Response(b'{"status":"ready"}'),
+            ],
+        ) as open_url:
+            client = GlorifierNeuralClient("https://api.example.com", token="sample-token")
+            client.health()
+            client.ready()
+
+        for call in open_url.call_args_list:
+            request = call.args[0]
+            self.assertIsNone(
+                request.get_header("Authorization"),
+                "caller bearer tokens must never be sent to public health/readiness routes",
+            )
+
     def test_task_requires_token_and_forwards_bearer(self):
         with self.assertRaises(ValueError):
             GlorifierNeuralClient("https://api.example.com").submit_task({"action": "read"})
