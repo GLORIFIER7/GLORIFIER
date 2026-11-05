@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T11:04:34.939Z",
+  "updatedAt": "2026-11-05T11:11:27.041Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1422,9 +1422,9 @@
       "title": "JavaScript / TypeScript Neural HTTP SDK",
       "boundary": "Server-side Node.js SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
       "scope": "Node.js 24.12.0+; ECMAScript module with TypeScript declarations; built-in Fetch; shared wire-fixture and mocked HTTP contract tests",
-      "status": "PARTIALLY VERIFIED",
+      "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0 (exact CI result pending)"
+        "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0"
       ],
       "evidence": [
         {
@@ -1447,10 +1447,17 @@
           "targetEnvironment": "Local authoring runtime Node.js 22.16.0; declared package floor and CI target Node.js 24.12.0",
           "observedAt": null,
           "notes": "Eleven tests passed locally under Node.js 22.16.0, which is below the package's declared Node.js 24.12.0 support floor. Exact target-runtime CI execution remains pending."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42016850741",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0; exact PR #663 head 23d43cd19e0333e57d813759f2efb9a199610c69",
+          "observedAt": "2026-11-05T11:11:27.041Z",
+          "notes": "The JavaScript / TypeScript SDK job in GLORIFIER Native SDK Conformance completed successfully on the exact PR #663 head. Node.js 24.12.0 ran all 9 contract tests successfully, including shared JSON fixtures, exact origin validation, task-route-only bearer credentials, redirect blocking, timeout enforcement, bounded request/response sizes, and truthful HTTP 503 readiness behavior. This is limited to the named Node.js and Ubuntu 24.04 x86_64 target; it does not establish live Neural connectivity, real provider inference, external A2A/MCP conformance, browser support, other runtimes, or production deployment."
         }
       ],
       "limitations": [
-        "Exact Node.js 24.12.0 CI execution is pending; local authoring tests used Node.js 22.16.0, below the package support floor.",
+        "Verification applies only to Node.js 24.12.0 on GitHub-hosted Ubuntu 24.04 x86_64 and the exact PR #663 CI run; other Node versions, operating systems, and architectures are not implied.",
         "Tests use injected Fetch and local Response objects; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "Server-side Node.js only; browser usage is intentionally unsupported to keep caller bearer tokens out of browser bundles.",
         "No A2A/MCP certification, cross-provider semantic equivalence, or production deployment is implied."

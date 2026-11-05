@@ -112,7 +112,7 @@ test('rejects invalid task fields and enforces Unicode character and UTF-8 byte 
   assert.throws(() => sdk.submitTask({ task: 'valid', require_approval: 'yes' }), /boolean/);
   assert.throws(() => sdk.submitTask({ task: '😀'.repeat(20_001) }), /20,?000/);
   assert.throws(() => sdk.submitTask({ task: 'valid', purpose: '' }), /purpose/);
-  assert.throws(() => sdk.submitTask({ task: '🌐'.repeat(18_000) }), /65,?536-byte/);
+  assert.throws(() => sdk.submitTask({ task: '🌐'.repeat(18_000) }), /65,536-byte/);
 });
 
 test('requires a raw caller token before submitting tasks', () => {

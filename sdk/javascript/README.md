@@ -10,7 +10,7 @@ A server-side Node.js client for the versioned GLORIFIER Neural HTTPS/JSON API. 
 ## Install and use
 
 ```sh
-npm install @glorifier7/neural-sdk
+npm install ./sdk/javascript
 ```
 
 ```js
