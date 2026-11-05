@@ -140,32 +140,18 @@ The SDK tests establish wire-format consistency for the named test targets. They
 
 Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
 
-## Native SDK implementations — 2026-11-05
+## First-party native SDKs — evidence as of 2026-11-05
 
-The repository now contains native HTTP/JSON client packages for the following additional languages. These are implementation targets, not certified compatibility claims:
+The ten maintained first-party HTTP/JSON clients and their named runtime/runner evidence are listed in [the SDK package index](../../sdk/README.md) and [the capability registry](./interoperability-capabilities.json). Eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart) passed the final PR #658 head in [Native SDK Conformance run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed in [SDK Conformance run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782).
 
-| SDK | Runtime target | Package path | CI job |
-|---|---|---|---|
-| Java | JDK 17+ | `sdk/java` | Java SDK |
-| Kotlin | Kotlin/JVM 2.0.21, JDK 17+ | `sdk/kotlin` | Kotlin SDK |
-| C# / .NET | .NET 8 | `sdk/dotnet` | .NET SDK |
-| Rust | stable Rust, edition 2021 | `sdk/rust` | Rust SDK |
-| PHP | PHP 8.2+, cURL, mbstring | `sdk/php` | PHP SDK |
-| Ruby | Ruby 3.2+ | `sdk/ruby` | Ruby SDK |
-| Swift | Swift 5.9+, macOS 13+ | `sdk/swift` | Swift SDK |
-| Dart | Dart 3.4+ | `sdk/dart` | Dart SDK |
+Each VERIFIED SDK capability is limited to its exact runtime, operating system, architecture, test suite and recorded run. It is not a promise of support for every runtime version, platform, distribution, architecture or protocol. The packages are independently implemented clients, not generated from one code generator; the shared OpenAPI/JSON contract and fixture tests are the compatibility boundary.
 
-The implementation contract for each package is:
+The available task API is intentionally narrow:
 
-- Exact-origin HTTPS validation; loopback HTTP is available only through an explicit test/development opt-in.
-- Health and readiness calls do not carry the caller's bearer token.
-- The bearer token is attached only to `POST /api/neural/v1/tasks`.
-- Authenticated redirects are not followed.
-- Task payloads use only the canonical OpenAPI fields: `task`, `purpose`, `require_approval`, and `action_class`.
-- Task request bodies are limited to 65,536 UTF-8 bytes; response reads are limited to 1 MiB where the runtime transport provides bounded streaming.
-- HTTP 503 readiness observations are returned with their status and JSON body; task submission is not automatically retried because the API does not define an idempotency key.
-- Unknown task fields and invalid field types/lengths are rejected before network access.
+- `health()`: GET `/api/neural/health`.
+- `ready()`: GET `/api/neural/ready`.
+- `submitTask(...)`: POST `/api/neural/v1/tasks` with a caller-issued bearer token.
 
-Run each language's test command as listed in [the SDK package index](../../sdk/README.md). The dedicated [native SDK conformance workflow](../../.github/workflows/polyglot-sdk.yml) runs the language-specific contract suites. A capability remains `NOT VERIFIED` until the exact current commit's corresponding CI job succeeds. A successful mocked/local test run does not establish a live Neural origin, production credentials, external A2A/MCP conformance, or provider readiness.
+Security invariants remain mandatory: exact-origin HTTPS in production, explicit loopback opt-in for development/tests, credentials scoped only to task submission, authenticated redirects disabled, bounded request and response bodies, and preservation of readiness/error status. Task submissions are not retried without a server-supported idempotency contract.
 
-These packages are initial, independently implemented clients. They are not generated from a single OpenAPI code generator, and their language runtimes, dependency trees, and exception/error models remain language-specific. The shared wire contract and conformance tests—not shared in-memory objects—are the compatibility boundary.
+SDK CI does not prove a live Neural origin, deployed credentials, production readiness, external A2A/MCP conformance, provider semantic equivalence, billing reconciliation, independently verified outcomes, or live blockchain reachability. Each of those remains an independent capability with its own evidence gate.
