@@ -14,7 +14,8 @@ const API_ROOT = 'https://api.github.com';
 const PROTOCOL_VERSION = '2025-03-26';
 const LEGACY_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'] as const;
 const MODERN_PROTOCOL_VERSION = '2026-07-28' as const;
-const SUPPORTED_PROTOCOL_VERSIONS = [MODERN_PROTOCOL_VERSION, ...LEGACY_PROTOCOL_VERSIONS] as const;
+const MODERN_PROTOCOL_VERSIONS = [MODERN_PROTOCOL_VERSION] as const;
+const SUPPORTED_PROTOCOL_VERSIONS = [...MODERN_PROTOCOL_VERSIONS, ...LEGACY_PROTOCOL_VERSIONS] as const;
 const REQUEST_PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 const SERVER_INFO_META_KEY = 'io.modelcontextprotocol/serverInfo';
 const SERVER_INFO = { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' } as const;
@@ -458,7 +459,7 @@ const handleServerDiscover = (id: JsonRpcId): Response => jsonResponse({
   id,
   result: {
     resultType: 'complete',
-    supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+    supportedVersions: [...MODERN_PROTOCOL_VERSIONS],
     capabilities: { tools: {} },
     _meta: modernServerMetadata(),
     instructions: SERVER_DISCOVERY_INSTRUCTIONS,
@@ -534,7 +535,7 @@ const handleModernJsonRpcMethod = (
       return handleToolCall(id, message.params, true, readToken);
     default:
       // The modern stateless protocol has no initialize handshake or ping.
-      return rpcError(id, -32601, 'Method not found.');
+      return rpcError(id, -32601, 'Method not found.', 404);
   }
 };
 
@@ -552,7 +553,7 @@ const unsupportedProtocolVersion = (
       requested,
     },
   },
-});
+}, 400);
 
 type McpProtocolMode = 'modern' | 'legacy';
 
@@ -578,8 +579,9 @@ const resolveMcpProtocolMode = (
       return {
         response: rpcError(
           id,
-          -32600,
-          'Modern HTTP requests must declare the protocol version in both params._meta and the MCP-Protocol-Version header.',
+          -32020,
+          'Header mismatch: modern HTTP requests must declare the same protocol version in params._meta and the MCP-Protocol-Version header.',
+          400,
         ),
       };
     }
@@ -587,8 +589,9 @@ const resolveMcpProtocolMode = (
       return {
         response: rpcError(
           id,
-          -32600,
-          'The per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+          -32020,
+          'Header mismatch: the per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+          400,
         ),
       };
     }
@@ -608,13 +611,82 @@ const resolveMcpProtocolMode = (
     return {
       response: rpcError(
         id,
-        -32600,
-        'The per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+        -32020,
+        'Header mismatch: the per-request protocol version in params._meta must match the MCP-Protocol-Version header.',
+        400,
       ),
     };
   }
 
   return { mode: 'legacy' };
+};
+
+const validateModernRequestEnvelope = (
+  message: McpMessage,
+  id: JsonRpcId,
+): Response | null => {
+  const params = isRecord(message.params) ? message.params : {};
+  const metadata = isRecord(params._meta) ? params._meta : {};
+  const capabilities = metadata['io.modelcontextprotocol/clientCapabilities'];
+  if (!isRecord(capabilities)) {
+    return rpcError(
+      id,
+      -32602,
+      'Invalid params: modern MCP requests must include an object-valued io.modelcontextprotocol/clientCapabilities field in params._meta.',
+      400,
+    );
+  }
+  const clientInfo = metadata['io.modelcontextprotocol/clientInfo'];
+  if (clientInfo !== undefined &&
+      (!isRecord(clientInfo) ||
+       typeof clientInfo.name !== 'string' || !clientInfo.name.trim() ||
+       typeof clientInfo.version !== 'string' || !clientInfo.version.trim())) {
+    return rpcError(id, -32602, 'Invalid params: clientInfo must contain non-empty string name and version fields.', 400);
+  }
+  return null;
+};
+
+const decodeMcpNameHeader = (value: string): string | null => {
+  if (value.startsWith('=?base64?') && value.endsWith('?=')) {
+    const encoded = value.slice('=?base64?'.length, -2);
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) return null;
+    try {
+      const binary = atob(encoded);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      return null;
+    }
+  }
+  if (!/^[\\x20-\\x7E\\t]*$/.test(value) || value.trim() !== value) return null;
+  return value;
+};
+
+const validateModernRoutingHeaders = (
+  request: Request,
+  message: McpMessage,
+  id: JsonRpcId,
+): Response | null => {
+  const methodHeader = request.headers.get('Mcp-Method');
+  if (!methodHeader || methodHeader !== message.method) {
+    return rpcError(id, -32020, 'Header mismatch: Mcp-Method must be present and match the JSON-RPC method.', 400);
+  }
+
+  const params = isRecord(message.params) ? message.params : {};
+  const nameField = message.method === 'tools/call' ? 'name'
+    : message.method === 'resources/read' ? 'uri'
+    : message.method === 'prompts/get' ? 'name'
+    : null;
+  if (nameField) {
+    const bodyName = params[nameField];
+    const headerName = request.headers.get('Mcp-Name');
+    const decodedHeaderName = headerName === null ? null : decodeMcpNameHeader(headerName);
+    if (typeof bodyName !== 'string' || bodyName.length === 0 ||
+        decodedHeaderName === null || decodedHeaderName !== bodyName) {
+      return rpcError(id, -32020, 'Header mismatch: Mcp-Name must be present and match the request body name or URI.', 400);
+    }
+  }
+  return null;
 };
 
 const handleJsonRpc = (
@@ -633,9 +705,14 @@ const handleJsonRpc = (
 
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
-  return protocolMode.mode === 'modern'
-    ? handleModernJsonRpcMethod(message, id, readToken)
-    : handleLegacyJsonRpcMethod(message, id, readToken);
+  if (protocolMode.mode === 'modern') {
+    const envelopeFailure = validateModernRequestEnvelope(message, id);
+    if (envelopeFailure) return envelopeFailure;
+    const headerFailure = validateModernRoutingHeaders(request, message, id);
+    if (headerFailure) return headerFailure;
+    return handleModernJsonRpcMethod(message, id, readToken);
+  }
+  return handleLegacyJsonRpcMethod(message, id, readToken);
 };
 
 const validateMcpRequestHeaders = async (request: Request): Promise<Response | null> => {
