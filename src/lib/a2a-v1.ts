@@ -109,6 +109,14 @@ type JsonRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is JsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const isJsonValue = (value: unknown): boolean => {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
@@ -265,13 +273,14 @@ function messageText(message: JsonRecord): {
       continue;
     }
     if (contentFields[0] === 'data') {
-      if (!isRecord(part.data)) return null;
-      let serialized: string;
+      if (!isJsonValue(part.data)) return null;
+      let serialized: string | undefined;
       try {
         serialized = JSON.stringify(part.data);
       } catch {
         return null;
       }
+      if (typeof serialized !== 'string') return null;
       normalizedParts.push({ data: part.data, ...optionalPartFields });
       textParts.push(serialized);
       continue;
