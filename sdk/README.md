@@ -17,7 +17,7 @@ All SDKs use the same language-neutral HTTPS/JSON contract documented in [the ar
 | Swift | `sdk/swift` | Swift 5.9+, macOS 13+ | `swift test --package-path sdk/swift` |
 | Dart | `sdk/dart` | Dart 3.4+ | `cd sdk/dart && dart pub get && dart test` |
 
-The Python and Go SDKs have prior successful CI evidence for their explicitly recorded matrices. Java, Kotlin, .NET, Rust, PHP, Ruby, Swift and Dart are new source packages; their conformance status remains **NOT VERIFIED** until their exact-head jobs pass in [polyglot-sdk.yml](../.github/workflows/polyglot-sdk.yml). The existence of a source package is not evidence that the runtime is supported or production-ready.
+The eight native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift and Dart) all passed the dedicated [native SDK conformance workflow](../.github/workflows/polyglot-sdk.yml) on PR #658 head `3077a9a21d9d1caea8899c73828b4eaa6091fd20` (run [41992438998](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998)). The capability registry records these exact language/runtime targets as **VERIFIED**. Python and Go retain their separately recorded version matrices. These are bounded CI contract results, not claims of live Neural availability or universal support across all versions, platforms, or architectures.
 
 ## Shared API shape
 
