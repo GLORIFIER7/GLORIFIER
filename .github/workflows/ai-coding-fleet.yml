@@ -2,6 +2,12 @@ name: GLORIFIER 24x7 AI Coding Fleet
 
 on:
   workflow_dispatch:
+    inputs:
+      authorize_pull_request:
+        description: "Authorize this run to open a PR after the dedicated capability and diff checks pass."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,13 +59,33 @@ jobs:
 
             Follow AGENTS.md. Keep the change small and reviewable. Never expose or modify secrets. Run npm run lint and npm run build when applicable. If there is no safe worthwhile change, make no code change.
 
+      - name: Stage AI-generated changes for review
+        id: stage
+        if: ${{ inputs.authorize_pull_request == true && env.OPENAI_API_KEY != '' && steps.codex.outcome == 'success' }}
+        run: |
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git add -A
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate dedicated PR capability and reviewable diff
+        id: policy
+        if: ${{ steps.stage.outputs.changed == 'true' }}
+        env:
+          GLORIFIER_PR_CREATION_AUTHORIZED: ${{ inputs.authorize_pull_request }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
+
       - name: Create PR branch
-        if: ${{ env.OPENAI_API_KEY != '' && steps.codex.outcome == 'success' }}
+        if: ${{ steps.stage.outputs.changed == 'true' && steps.policy.outcome == 'success' }}
         id: branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+          if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -67,8 +93,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
           git checkout -b "$BRANCH"
-          git add -A
-          git commit -m "ai(${{ matrix.role }}): autonomous maintenance"
+          git commit -m "ai(${{ matrix.role }}): governed maintenance"
           git push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
@@ -79,6 +104,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr create --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. Review CI and the diff before merge."
+
+      - name: Report that PR creation was not authorized
+        if: ${{ inputs.authorize_pull_request != true && steps.codex.outcome == 'success' }}
+        run: echo "::notice::AI work was not published. Re-run with the explicit authorize_pull_request input only after reviewing the intended automation scope."
 
       - name: Report Codex capacity limitation
         if: ${{ failure() && steps.codex.outcome == 'failure' }}
