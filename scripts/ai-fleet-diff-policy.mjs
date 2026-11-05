@@ -102,7 +102,7 @@ export function validateAiFleetDiff({ files, diffText = '', limits = {} } = {}) 
   }
   const addedLines = diffText
     .split(/\r?\n/)
-    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .filter((line) => line.startsWith('+') && !/^\\+\\+\\+ (?:[ab]\\/|\\/dev\\/null)/.test(line))
     .map((line) => line.slice(1))
     .join('\n');
   if (SECRET_PATTERNS.some((pattern) => pattern.test(addedLines))) {
