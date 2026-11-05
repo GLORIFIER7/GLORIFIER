@@ -5,6 +5,12 @@ on:
     # Hourly checks; model execution remains cost-gated and blocked before 08:31 Asia/Vientiane.
     - cron: "0 * * * *"
   workflow_dispatch:
+    inputs:
+      authorize_pull_request:
+        description: "Authorize this manual run to invoke AI maintenance and publish an eligible draft PR."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,15 +37,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Test AI maintenance authorization policy
+        shell: bash
+        run: bash scripts/ai-fleet-authorization.test.sh
+
       - name: Resolve AI maintenance authorization
         id: authorization
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
+          INPUT_AUTH: ${{ inputs.authorize_pull_request }}
           SCHEDULE_AUTHORIZATION: ${{ vars.AI_MAINTENANCE_AUTORUN }}
         run: |
           set -euo pipefail
-          if [[ "$SCHEDULE_AUTHORIZATION" == "true" ]]; then
+          source scripts/ai-fleet-authorization.sh
+          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$INPUT_AUTH" "$SCHEDULE_AUTHORIZATION"; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
