@@ -31,6 +31,7 @@ class GlorifierNeuralClientTest {
             exchange.sendResponseHeaders(503, bytes.size); exchange.responseBody.use { it.write(bytes) }
         }
         server.createContext("/api/neural/v1/tasks") { exchange ->
+            exchange.requestBody.use { it.readBytes() }
             taskAuth.set(exchange.requestHeaders.getFirst("Authorization"))
             val bytes = """{"status":"accepted"}""".toByteArray()
             exchange.sendResponseHeaders(202, bytes.size); exchange.responseBody.use { it.write(bytes) }
