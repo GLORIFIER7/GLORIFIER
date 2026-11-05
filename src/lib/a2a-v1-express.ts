@@ -20,7 +20,7 @@ export interface A2AExpressDependencies {
   isPersistenceConfigured(): boolean;
   initializePersistence(): Promise<void>;
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
-  getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  getTask(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(requesterAgentId: string, input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
 }
 
@@ -135,7 +135,7 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
     const handle = createA2AJsonRpcHandler({
       requesterAgentId,
       createTask: dependencies.createTask,
-      getTask: dependencies.getTask,
+      getTask: (id) => dependencies.getTask(id, requesterAgentId),
       listTasks: (input) => dependencies.listTasks(requesterAgentId, input),
     });
     try {
