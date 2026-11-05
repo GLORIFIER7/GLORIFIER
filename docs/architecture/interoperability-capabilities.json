@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T15:36:28.048Z",
+  "updatedAt": "2026-11-05T15:42:50.764Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -939,19 +939,12 @@
           "observedAt": "2026-11-05T15:00:25.921Z",
           "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; Neon Hyperdrive",
           "notes": "HTTP 502 after 5068 ms; response code NEON_REPORTS_QUERY_FAILED. Cloudflare recorded a hyperdrive_connect span of approximately 5008 ms. The Neon main compute is configured to suspend immediately when idle; its compute wake-up timestamp coincided with this failure. The immediately following runtime-verification request succeeded against Neon in 701 ms. This is direct degradation evidence, not a successful report response."
-        },
-        {
-          "kind": "ci-run",
-          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42055663144",
-          "observedAt": "2026-11-05T15:30:59Z",
-          "targetEnvironment": "PR #669; GitHub Actions Cloudflare Worker validate-and-build job",
-          "notes": "TypeScript, Worker regression tests, integration registry/data-truth tests, Neon Hyperdrive adapter tests, production smoke contract tests, frontend build/static output and Wrangler dry-run passed. Production deployment was skipped; this CI result is not production remediation evidence."
         }
       ],
       "limitations": [
         "The public report endpoint is degraded: the latest recorded GET returned HTTP 502 after approximately 5.068 seconds at the Neon Hyperdrive connection boundary.",
         "The Neon aggregate view and existing read-only role returned all six exact counts when queried after compute was awake; direct database readability does not establish public endpoint reliability.",
-        "PR #669 adds a bounded 15-second connection timeout, 10-second query timeout and 30-second smoke deadline. It remains unmerged/undeployed and cannot be marked as a production fix until an approved release passes a fresh live smoke.",
+        "PR #669 proposes a bounded 15-second connection timeout, preserves the 5-second per-statement SQL timeout, and gives only the reports smoke probe a 35-second deadline for the connect + read-only transaction sequence and transport margin. The current branch is under final-head CI review and has not been deployed.",
         "Supabase-to-Neon schema/data parity and synchronization remain unverified. Operational counts do not prove revenue or independently verified economic outcomes."
       ]
     },
