@@ -549,7 +549,9 @@ const unsupportedProtocolVersion = (
     code: -32022,
     message: 'Unsupported protocol version',
     data: {
-      supported: [...SUPPORTED_PROTOCOL_VERSIONS],
+      supported: /^2026(?:-|$)/.test(requested)
+        ? [...MODERN_PROTOCOL_VERSIONS]
+        : [...LEGACY_PROTOCOL_VERSIONS],
       requested,
     },
   },
@@ -658,7 +660,7 @@ const decodeMcpNameHeader = (value: string): string | null => {
       return null;
     }
   }
-  if (!/^[\\x20-\\x7E\\t]*$/.test(value) || value.trim() !== value) return null;
+  if (!/^[\x20-\x7E\t]*$/.test(value) || value.trim() !== value) return null;
   return value;
 };
 
