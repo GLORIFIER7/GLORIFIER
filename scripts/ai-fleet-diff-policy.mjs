@@ -70,9 +70,12 @@ export function validateAiFleetDiff({ files, diffText = '', limits = {} } = {}) 
       return reject('unsafe_file_path', { path });
     }
     if (PROTECTED_PATHS.some((pattern) => pattern.test(path))) {
-      return reject('protected_path_requires_human_change', { path });
+    if (/[\\0-\\x1f\\x7f]/.test(file.path)) {
+      return reject('unsafe_file_path', { path });
     }
-    if (file.binary === true) {
+    if (file.binary === true || file.symlink === true) {
+    }
+      return reject('binary_or_symlink_change_not_reviewable', { path });
       return reject('binary_change_not_reviewable', { path });
     }
 
