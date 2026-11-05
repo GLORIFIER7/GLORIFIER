@@ -71,7 +71,7 @@ import { getCryptographicAssetVerificationPolicy, initializeCryptographicAssetVe
 import { initializeMobileDeviceRegistry, registerMobileDevice, getMobileDevice, revokeMobileDevice, recordMobileTelemetry } from './src/lib/mobile/deviceRegistry';
 import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setComputeWorkerAuthorization, startAgentMinerDaemon, restoreAgentMinerState } from './src/lib/agent-miner';
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
-import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, createA2ATaskForProtocol, listA2ATasks, listA2ATaskPageForProtocol, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
+import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, getA2ATaskForRequesterProtocol, createA2ATaskForProtocol, listA2ATasks, listA2ATaskPageForProtocol, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
 import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
@@ -2575,7 +2575,7 @@ app.use(createA2AExpressRouter({
   isPersistenceConfigured: () => Boolean(process.env.DATABASE_URL),
   initializePersistence: initializeA2ARuntime,
   createTask: createA2ATaskForProtocol,
-  getTask: getA2ATaskForProtocol,
+  getTask: (id, requesterAgentId) => getA2ATaskForRequesterProtocol(id, requesterAgentId),
   listTasks: (requesterAgentId, input) => listA2ATaskPageForProtocol({ ...input, requesterAgentId }),
 }));
 
