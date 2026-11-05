@@ -214,7 +214,12 @@ test('read-only NVIDIA model discovery does not imply inference authorization', 
   assert.equal(afterInference?.authenticated, true);
   assert.equal(afterInference?.authorization, 'configured');
   assert.ok(afterInference?.models.includes('nvidia/inference-confirmed-only'));
-  await discoverGlobalProviders('provider-discovery-refresh-regression-test', { persistConnections: false });
+  const refreshedProviders = await discoverGlobalProviders('provider-discovery-refresh-regression-test', { persistConnections: false });
+  const returnedAfterRefresh = refreshedProviders.find((provider) => provider.id === 'nvidia');
+  assert.equal(returnedAfterRefresh?.authenticated, true,
+    'the refresh result must expose the preserved inference proof, not the raw unauthenticated model-list probe');
+  assert.equal(returnedAfterRefresh?.authorization, 'configured');
+  assert.ok(returnedAfterRefresh?.models.includes('nvidia/inference-confirmed-only'));
   const afterRefresh = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
   assert.equal(afterRefresh?.authenticated, true);
   assert.equal(afterRefresh?.authorization, 'configured');
