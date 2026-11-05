@@ -160,7 +160,7 @@ test('propagates a correlation ID as a request header', async () => {
 
 test('rejects control characters in correlation IDs before setting HTTP headers', async () => {
   const sdk = new GlorifierNeuralClient({ fetchImpl: async () => response({ ok: true }) });
-  for (const correlationId of ['bad\\u0000id', 'bad\\tid', 'bad\\u007fid']) {
+  for (const correlationId of ['bad' + String.fromCharCode(0) + 'id', 'bad' + String.fromCharCode(9) + 'id', 'bad' + String.fromCharCode(127) + 'id']) {
     await assert.rejects(sdk.health({ correlationId }), /correlationId must be/);
   }
 });
