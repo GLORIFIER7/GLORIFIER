@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/run.php';
-
 function findRepositoryRootForInteropFixtures(): string {
     $directory = dirname(__DIR__, 3);
     $candidate = $directory . '/docs/architecture/interoperability-contract-fixtures.json';
