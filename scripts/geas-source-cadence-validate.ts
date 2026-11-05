@@ -27,7 +27,7 @@ const verifyCadenceBounds = (): void => {
   if (isValidReviewCadenceDays(Math.floor(Number.MAX_SAFE_INTEGER / 24) + 1)) {
     throw new Error('review cadence must reject unsafe day-to-hour conversion');
   }
-  if (isValidScannerCadenceHours(Number.MAX_SAFE_INTEGER + 1)) {
+  if (isValidScannerCadenceHours(9007199254740992)) {
     throw new Error('scanner cadence must reject integers outside the safe range');
   }
 };
