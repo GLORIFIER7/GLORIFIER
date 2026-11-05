@@ -2,7 +2,7 @@ name: GLORIFIER Governed AI Coding Fleet
 
 on:
   schedule:
-    # Weekly, cost-gated autonomous maintenance. Enable with AI_MAINTENANCE_AUTORUN=true.
+    # Weekly at 09:17 Laos time; cost-gated with AI_MAINTENANCE_AUTORUN=true.
     - cron: "17 2 * * 0"
   workflow_dispatch:
     inputs:
@@ -65,9 +65,21 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Enforce PR publication window (Laos)
+        id: time_window
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"
+          if [[ "$current_hhmm" -lt 0831 ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AI maintenance publication is held until after 08:30 Asia/Vientiane."
+          else
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Check OpenAI credential availability
         id: provider
-        if: ${{ steps.authorization.outputs.enabled == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' }} && steps.time_window.outputs.allowed == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         shell: bash
@@ -79,7 +91,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }} && steps.time_window.outputs.allowed == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -111,7 +123,7 @@ jobs:
 
       - name: Stage AI-generated changes for review
         id: stage
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }} && steps.time_window.outputs.allowed == 'true'
         run: |
           if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -205,6 +217,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run ci.yml --ref "${{ steps.branch.outputs.branch }}"
+
+      - name: Report that the Laos publication window is closed
+        if: ${{ steps.time_window.outputs.allowed != 'true' }}
+        run: echo "::notice::No model was invoked and no PR was created because it is before 08:31 Asia/Vientiane."
 
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
