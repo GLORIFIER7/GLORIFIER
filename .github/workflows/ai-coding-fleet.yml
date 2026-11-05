@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   coding-fleet:
+    if: ${{ github.ref == 'refs/heads/main' }}
     permissions:
       contents: write
       pull-requests: write
@@ -125,12 +126,26 @@ jobs:
           npm run test:provider-routing
           npm run build
 
+      - name: Remove any agent-created trusted-policy directory
+        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
+        run: rm -rf trusted-policy
+
+      - name: Check out trusted PR-gate source
+        if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: trusted-policy
+          persist-credentials: false
+          fetch-depth: 1
+
       - name: Validate dedicated PR capability and reviewable diff
         id: policy
         if: ${{ steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success' }}
         env:
           GLORIFIER_PR_CREATION_AUTHORIZED: ${{ inputs.authorize_pull_request }}
-        run: node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
+        run: node --import tsx/esm trusted-policy/scripts/validate-ai-fleet-diff.mjs
 
       - name: Create PR branch
         if: ${{ steps.stage.outputs.changed == 'true' && steps.policy.outcome == 'success' }}
