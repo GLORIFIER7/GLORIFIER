@@ -32,6 +32,7 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     );
     assert.ok(runtimePackageInstallIndex > upgradeIndex, 'runtime packages must be installed with APT retries disabled after the security upgrade');
     assert.ok(runtimePackageInstallIndex > libaptVersionCheckIndex, 'runtime packages must only be installed after both patched package versions are verified');
+    assert.ok(runtimePackageInstallIndex > retryPolicyIndex, 'runtime packages must only be installed after the persistent no-retry policy is configured');
     assert.ok(!source.includes('apt-get -o Acquire::Retries=0 purge -y apt libapt-pkg6.0t64'), 'the runtime must retain Ubuntu Essential APT packages rather than attempt an unsafe purge');
 
   });
