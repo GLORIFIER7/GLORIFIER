@@ -314,6 +314,29 @@ const run = async (): Promise<void> => {
         assert.equal(mismatchedModernProtocolVersionsBody.error.code, -32020);
         assert.match(mismatchedModernProtocolVersionsBody.error.message, /must match/i);
 
+        const unsupportedHeaderWithLegacyMetadata = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'MCP-Protocol-Version': '2026-01-01', 'Mcp-Method': 'server/discover' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-unsupported-header',
+              method: 'server/discover',
+              params: { _meta: {
+                'io.modelcontextprotocol/protocolVersion': '2025-11-25',
+                'io.modelcontextprotocol/clientCapabilities': {},
+              } },
+            }),
+          }),
+          env,
+        );
+        const unsupportedHeaderWithLegacyMetadataBody = await unsupportedHeaderWithLegacyMetadata.json() as {
+          error: { code: number; message: string };
+        };
+        assert.equal(unsupportedHeaderWithLegacyMetadata.status, 400);
+        assert.equal(unsupportedHeaderWithLegacyMetadataBody.error.code, -32020,
+          'mismatched body/header versions must be rejected before unsupported-version negotiation');
+
         const modernDiscover = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
             method: 'POST',
@@ -452,10 +475,14 @@ const run = async (): Promise<void> => {
             resultType: string;
             tools: Array<{ name: string; annotations: { readOnlyHint?: boolean; destructiveHint?: boolean } }>;
             _meta: Record<string, { name: string; version: string }>;
+            ttlMs: number;
+            cacheScope: string;
           };
         };
         assert.equal(modernToolsList.status, 200);
         assert.equal(modernToolsBody.result.resultType, 'complete');
+        assert.equal(modernToolsBody.result.ttlMs, 3_600_000);
+        assert.equal(modernToolsBody.result.cacheScope, 'public');
         assert.deepEqual(
           modernToolsBody.result.tools.map((tool) => tool.name).sort(),
           ['github_get_repository', 'github_list_open_pull_requests', 'github_list_workflow_runs', 'github_read_file'].sort(),
