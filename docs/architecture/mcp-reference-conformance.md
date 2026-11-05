@@ -1,12 +1,12 @@
 # MCP endpoint implementation and conformance status
 
-**Status:** a fixed-scope, read-only GitHub MCP Worker endpoint is implemented and covered by local contract tests. Broader MCP adapter conformance and external-client interoperability remain **NOT VERIFIED**.  
+**Status:** a fixed-scope, read-only GitHub MCP Worker endpoint implements a modern stateless `2026-07-28` request path plus legacy `2025` compatibility. Local Worker contract tests cover the declared surface. Full MCP conformance and external-client interoperability remain **NOT VERIFIED**.  
 **Repository:** `GLORIFIER7/GLORIFIER`  
-**Reviewed:** 2026-11-03  
+**Reviewed:** 2026-11-05  
 **Production route:** `POST /mcp` on the `glorifier` Cloudflare Worker  
 **Implementation:** `src/lib/github-mcp.ts`, mounted in `src/worker.ts`  
 **Worker tests:** `src/worker.test.ts`; command: `npm run test:cloudflare-worker`  
-**Target protocol revision:** `2026-07-28` (broader interoperability target; not an implementation or conformance claim for the current GitHub MCP endpoint).
+**Modern target revision:** `2026-07-28`; **legacy compatibility:** `2025-11-25`, `2025-06-18`, and `2025-03-26`. Implemented behavior is not equivalent to full conformance.
 
 ## Implemented endpoint: fixed-scope GitHub MCP
 
@@ -31,19 +31,20 @@ The server does not expose GitHub write, merge, deployment, secret, or credentia
 - Upstream GitHub responses are bounded at 1,000,000 bytes; requests use an eight-second timeout and manual redirect handling.
 - A supplied `Origin` must match the request origin. Requests without an `Origin` header are accepted.
 - Tool calls pass through the Cloudflare `MCP_RATE_LIMITER` binding. The checked-in Wrangler configuration specifies 10 calls per 60 seconds. A rate-limiter service error fails closed with `503`.
-- JSON-RPC methods implemented include `initialize`, `ping`, `tools/list`, and `tools/call`. Notifications return `202`; unsupported methods return a JSON-RPC method-not-found error.
+- Legacy JSON-RPC methods include `initialize`, `ping`, `tools/list`, and `tools/call`. Modern methods include `server/discover`, `tools/list`, and `tools/call`. Modern unknown methods return HTTP `404` with JSON-RPC `-32601`; version/header failures return HTTP `400` with protocol-specific errors. Notifications return `202`.
 - The endpoint returns JSON responses. It does not implement a server-sent-events GET stream or session state; GET is intentionally rejected.
 
 ### Protocol-version qualification
 
-The main-branch baseline remains the legacy `2025-03-26` initialization path. Draft PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds a separate modern, stateless `2026-07-28` request path:
+The main-branch endpoint includes the modern, stateless `2026-07-28` request path introduced by merged PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629). This PR (#661) hardens it against requirements missed by the initial local tests:
 - `server/discover` returns supported protocol versions, the implemented tools capability, server identity metadata, public cache scope, and a one-hour TTL.
-- Modern `tools/list` and `tools/call` require the `io.modelcontextprotocol/protocolVersion` request metadata and a matching `MCP-Protocol-Version` HTTP header.
+- Every modern request requires `io.modelcontextprotocol/protocolVersion` and an object-valued `io.modelcontextprotocol/clientCapabilities` in `_meta`, plus a matching `MCP-Protocol-Version` HTTP header.
+- Modern requests require the `Mcp-Method` header to match the JSON-RPC method; `tools/call`, `resources/read`, and `prompts/get` also require matching `Mcp-Name` values. Base64 sentinel names are decoded before comparison.
 - Modern method results include `resultType: complete` and `io.modelcontextprotocol/serverInfo` metadata.
-- Unsupported or mismatched versions return the `-32022` protocol-version error with the supported version list.
+- Unsupported versions return HTTP `400` with `-32022` and the supported versions for that protocol era; protocol/header mismatches return HTTP `400` with `-32020`; missing required client capabilities return HTTP `400` with `-32602`.
 - Legacy `initialize`, `ping`, `tools/list`, and `tools/call` remain available for the 2025 protocol versions. The modern stateless path does not require the legacy initialize handshake.
 
-The modern endpoint remains intentionally limited to the fixed four read-only GitHub tools for the public `GLORIFIER7/GLORIFIER` repository. It does not advertise resources or prompts, because those operations are not implemented. The source tests and CI checks exercise the modern and legacy request paths; they do not replace independent tests with external MCP clients or a production client/server handshake. Do not mark the broader MCP capability VERIFIED from local fixtures or CI alone.
+The modern endpoint remains intentionally limited to the fixed four read-only GitHub tools for the public `GLORIFIER7/GLORIFIER` repository. It does not advertise resources or prompts, because those operations are not implemented. It returns JSON responses but does not implement per-request SSE streams, subscriptions/listen, or stream cancellation. Local source tests and CI do not replace independent external MCP client/server tests or the official conformance suite. Do not mark the broader MCP capability VERIFIED from local fixtures or CI alone.
 
 ## Relationship to the broader A2A/MCP capability
 
@@ -87,9 +88,9 @@ A deployment record proves that Cloudflare has a deployment assigned 100% of tra
 
 ## Broader protocol conformance target: MCP 2026-07-28
 
-The selected normative target is revision `2026-07-28`. In that revision, the `server/discover` operation reports supported protocol versions, its supported capabilities, and server identity. This target definition is separate from the older fixed-scope GitHub MCP route above.
+The selected normative target is revision `2026-07-28`. In that revision, `server/discover` reports modern supported protocol versions, capabilities, and server identity; every modern request carries protocol version and client capabilities; and Streamable HTTP requires request-routing headers. The fixed-scope GitHub MCP route implements only a subset of this surface.
 
-The target reference is pinned. PR #629 implements the selected `server/discover` operation and the modern per-request version contract in the fixed-scope Worker endpoint. Resource/prompt operations are not implemented, and full transport/client conformance remains NOT VERIFIED until independent external client/server tests pass.
+The target reference is pinned. Merged PR #629 added modern discovery and the initial version contract; PR #661 adds mandatory client-capability and routing-header validation plus correct HTTP error statuses. Resource/prompt operations, SSE, subscriptions, and full transport/client conformance remain NOT VERIFIED until independent external client/server tests pass.
 
 **Immutable normative source:** [MCP 2026-07-28 server/discover](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b488c16623e5202a3961e551886044577ae0f096/docs/specification/2026-07-28/server/discover.mdx). Upstream commit: `b488c16623e5202a3961e551886044577ae0f096`; document Git blob SHA-1: `f6fc1acf974819d99338d2be25ad953fcb9e57a6`.
 
@@ -104,7 +105,7 @@ The target reference is pinned. PR #629 implements the selected `server/discover
 | Cloudflare production deployment metadata | **VERIFIED** | Deployment/version record and 100% traffic assignment |
 | Public `/mcp` live HTTP response | **NOT OBSERVABLE** | External GET/POST probe from a network able to resolve and reach the Workers.dev host |
 | Claude/ChatGPT/other external MCP client connection | **NOT VERIFIED** | Real client handshake, discovery, tool-list, and tool-call evidence per client |
-| Full conformance for MCP `2026-07-28` | **NOT VERIFIED** | Implement `server/discover`, version-specific normative tests, transport/capability validation, and independent client interoperability |
+| Full conformance for MCP `2026-07-28` | **NOT VERIFIED** | Official conformance-suite report plus independent external-client discovery, list, and call; complete all required transport behavior for claimed features |
 | Full conformance for the handler's later advertised version strings | **NOT VERIFIED** | Revision-specific tests; an initialization response alone is insufficient |
 | A2A 1.0.1 interoperability | **NOT VERIFIED** | Standard Agent Card, message/task binding, authorization, and controlled two-agent test |
 | Authenticated access to private repositories | **NOT IMPLEMENTED** | Separate reviewed authorization design; do not infer private-repository access from this public read-only server |
@@ -128,17 +129,17 @@ Treat repository content and GitHub API responses as untrusted data. Keep the re
 Do not mark the overall GLORIFIER system fully verified based on this endpoint's unit tests or deployment metadata. Record each boundary separately and retain **NOT OBSERVABLE** where a live probe could not be completed.
 
 
-## Implementation update — 2026-11-03
+## Implementation update — 2026-11-05
 
-Draft PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) adds the following source-level protocol behavior on branch `fix/issue-471-a2a-mcp-discovery`:
+Merged PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) added the initial modern path. PR [#661](https://github.com/GLORIFIER7/GLORIFIER/pull/661) adds source-level conformance corrections for:
 - MCP 2026-07-28 stateless discovery at `POST /mcp` using `server/discover`.
-- Matching per-request protocol-version metadata and HTTP `MCP-Protocol-Version` header validation.
+- Required per-request protocol-version and client-capability metadata, matching HTTP `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` header/body validation.
 - Modern `tools/list` and `tools/call` result envelopes with `resultType: complete` and server identity metadata.
-- A supported-version error for unknown or mismatched versions.
+- HTTP `400` with `-32022` for unsupported versions, HTTP `400` with `-32020` for header mismatches, HTTP `400` with `-32602` for missing required client capabilities, and HTTP `404` with `-32601` for unknown modern methods.
 - Backward compatibility for the existing 2025 initialize/tool-call flow.
 - The standard A2A Agent Card at `GET /.well-known/agent-card.json`, served natively by the Worker with GET/HEAD-only semantics.
 - The A2A HTTP binding, Worker proxy, and Express backend parser/route guard accept the A2A 1.0.1 preferred `application/a2a+json` content type and retain `application/json` compatibility. The Worker forwards the validated content type unchanged; the backend parser is configured for both media types and its HTTP integration test exercises `application/a2a+json`.
 
-The GitHub MCP tools remain limited to four read-only operations on one public repository, with the existing origin check, request-size and response-size bounds, timeout, and per-IP tool-call rate limit. The Agent Card does not declare a JWT token format because that exact token format has not been independently established.
+The GitHub MCP tools remain limited to four read-only operations on one public repository, with origin validation, request-size and response-size bounds, timeout, and per-IP tool-call rate limit. PR #661's evidence remains branch CI until merged; no production rollout is implied. The Agent Card does not declare a JWT token format because that exact token format has not been independently established.
 
 The A2A JSON-RPC `/api/a2a/v1` endpoint still uses the existing Bearer-authenticated proxy to the configured backend. No external A2A client/server integration, authenticated production A2A task exchange, modern MCP external-client handshake, or full MCP target-revision conformance result is claimed. The overall `protocol.a2a-mcp-adapters` capability therefore remains **NOT VERIFIED**.
