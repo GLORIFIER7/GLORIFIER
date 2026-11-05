@@ -8,14 +8,36 @@ export interface AgentIdentity {
   humanApprovalRequired: boolean; registeredAt: string; updatedAt: string;
 }
 const agents = new Map<string, AgentIdentity>();
+
+function cloneAgent(agent: AgentIdentity): AgentIdentity {
+  return {
+    ...agent,
+    capabilities: [...agent.capabilities],
+    allowedTools: [...agent.allowedTools],
+    allowedDataScopes: [...agent.allowedDataScopes],
+  };
+}
 export function registerAgent(input: Omit<AgentIdentity, 'registeredAt' | 'updatedAt'>): AgentIdentity {
   const now = new Date().toISOString();
   const existing = agents.get(input.agentId);
-  const value = { ...input, registeredAt: existing?.registeredAt || now, updatedAt: now };
-  agents.set(input.agentId, value); return value;
+  const value: AgentIdentity = {
+    ...input,
+    capabilities: [...input.capabilities],
+    allowedTools: [...input.allowedTools],
+    allowedDataScopes: [...input.allowedDataScopes],
+    registeredAt: existing?.registeredAt || now,
+    updatedAt: now,
+  };
+  agents.set(input.agentId, value);
+  return cloneAgent(value);
 }
-export function getAgent(agentId: string) { return agents.get(agentId) || null; }
-export function listControlledAgents() { return Array.from(agents.values()); }
+export function getAgent(agentId: string): AgentIdentity | null {
+  const agent = agents.get(agentId);
+  return agent ? cloneAgent(agent) : null;
+}
+export function listControlledAgents(): AgentIdentity[] {
+  return Array.from(agents.values(), cloneAgent);
+}
 export function authorizeAgentAction(agentId: string, action: {
   capability: string; tool?: string; dataScope?: string; risk?: AgentActionRisk;
   externallyIrreversible?: boolean; humanAuthorized?: boolean;
@@ -53,5 +75,6 @@ export function authorizeAgentAction(agentId: string, action: {
 export function quarantineAgent(agentId: string) {
   const agent = agents.get(agentId); if (!agent) return null;
   const next = { ...agent, lifecycle: 'quarantined' as const, updatedAt: new Date().toISOString() };
-  agents.set(agentId, next); return next;
+  agents.set(agentId, next);
+  return cloneAgent(next);
 }
