@@ -262,10 +262,15 @@ export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
    const verifiedAt = inferenceVerifiedAt.get(d.id);
    return {
     ...stored,
+    endpoint,
+    configured,
     authenticated:false,
-    authorization:'pending',
+    availability:configured ? stored.availability : 'unconfigured',
+    authorization:configured ? 'pending' : 'not-configured',
     inferenceVerifiedAt: typeof verifiedAt === 'number' ? new Date(verifiedAt).toISOString() : null,
-    reason:'NVIDIA inference verification expired or no longer matches the current provider configuration; a fresh authorized inference is required.',
+    reason:configured
+      ? 'NVIDIA inference verification expired or no longer matches the current provider configuration; a fresh authorized inference is required.'
+      : 'NVIDIA provider credential or endpoint is not configured.',
    };
   }
   return stored;
