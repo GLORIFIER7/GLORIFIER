@@ -14,6 +14,11 @@ const PROTECTED_PATHS = [
   /(^|\/)(?:wrangler\.toml|firebase\.json|SECURITY\.md|CODEOWNERS)$/i,
   /(^|\/)(?:contracts|migrations|infra|terraform)(?:\/|$)/i,
   /^src\/lib\/capability-authorization\.ts$/i,
+  /^src\\/lib\\/(?:auth|governance|db)\\//i,
+  /^src\\/(?:worker|worker\\.test)\\.ts$/i,
+  /^server\\.ts$/i,
+  /^scripts\\/(?:ai-fleet-diff-policy(?:\\.test)?|validate-ai-fleet-diff)\\.mjs$/i,
+  /(^|\\/)(?:Dockerfile|docker-compose\\.ya?ml|\\.npmrc|\\.nvmrc|tsconfig(?:\\.[^/]+)?\\.json|vite\\.config\\.[^/]+)$/i,
 ];
 
 const SECRET_PATTERNS = [
