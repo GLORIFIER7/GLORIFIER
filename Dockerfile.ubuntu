@@ -35,6 +35,9 @@ RUN apt-get -o Acquire::Retries=0 update \
  && dpkg --compare-versions "$libapt_version" ge 2.8.4ubuntu0.1 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
+ && apt-get -o Acquire::Retries=0 purge -y apt libapt-pkg6.0t64 \
+ && ! dpkg-query -W -f='${db:Status-Status}' apt 2>/dev/null | grep -qx installed \
+ && ! dpkg-query -W -f='${db:Status-Status}' libapt-pkg6.0t64 2>/dev/null | grep -qx installed \
  && groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
 
