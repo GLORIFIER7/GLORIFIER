@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
+import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -148,5 +148,30 @@ void test('A2A protocol task lookup applies requester scope before returning a t
     assert.equal(await getA2ATaskForRequesterProtocol(task.id, stranger), null);
     assert.equal(await getA2ATaskForRequesterProtocol(task.id, ''), null);
     assert.equal(await getA2ATaskForRequesterProtocol('missing-task', owner), null);
+  });
+});
+
+
+void test('A2A cancellation is requester-scoped, queued-only, and prevents later execution', async () => {
+  await withA2ATestEnvironment(async () => {
+    const queued = createA2ATask({ requesterAgentId: 'alice', capability: 'research', objective: 'Cancelable queued task' });
+    const cancelled = await cancelA2ATaskForRequesterProtocol(queued.id, 'alice');
+    assert.equal(cancelled?.status, 'canceled');
+
+    let executed = false;
+    const afterCancel = await executeA2ATask(cancelled!, async () => {
+      executed = true;
+      return { text: 'must not execute', model: 'test-model' };
+    });
+    assert.equal(executed, false, 'a canceled task must never be handed to a provider');
+    assert.equal(afterCancel.status, 'canceled');
+
+    const foreign = await cancelA2ATaskForRequesterProtocol(queued.id, 'bob');
+    assert.equal(foreign, null, 'cancellation must not disclose another requester's task');
+
+    const running = createA2ATask({ requesterAgentId: 'alice', capability: 'research', objective: 'Already running task' });
+    running.status = 'running';
+    const notCancelable = await cancelA2ATaskForRequesterProtocol(running.id, 'alice');
+    assert.equal(notCancelable?.status, 'running', 'running provider work must not be falsely marked canceled');
   });
 });
