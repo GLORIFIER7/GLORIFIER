@@ -1,0 +1,1 @@
+rootProject.name = "glorifier-neural-sdk-kotlin"
