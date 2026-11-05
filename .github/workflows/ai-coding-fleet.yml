@@ -45,6 +45,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Install trusted validation dependencies
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Run Codex
         id: codex
         if: ${{ env.OPENAI_API_KEY != '' }}
@@ -75,9 +79,7 @@ jobs:
         if: ${{ steps.stage.outputs.changed == 'true' }}
         env:
           GLORIFIER_PR_CREATION_AUTHORIZED: ${{ inputs.authorize_pull_request }}
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
+        run: node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
 
       - name: Create PR branch
         if: ${{ steps.stage.outputs.changed == 'true' && steps.policy.outcome == 'success' }}
