@@ -167,7 +167,7 @@ void test('A2A cancellation is requester-scoped, queued-only, and prevents later
     assert.equal(afterCancel.status, 'canceled');
 
     const foreign = await cancelA2ATaskForRequesterProtocol(queued.id, 'bob');
-    assert.equal(foreign, null, 'cancellation must not disclose another requester's task');
+    assert.equal(foreign, null, "cancellation must not disclose another requester's task");
 
     const running = createA2ATask({ requesterAgentId: 'alice', capability: 'research', objective: 'Already running task' });
     running.status = 'running';
