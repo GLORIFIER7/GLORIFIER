@@ -47,8 +47,8 @@ test('AI fleet rejects automatic changes to security and release-control paths',
   }
 });
 
-test('AI fleet rejects path traversal and absolute paths', () => {
-  for (const path of ['../outside.txt', '/tmp/secret.txt', 'src/../../outside.txt']) {
+test('AI fleet rejects path traversal, absolute paths and control characters', () => {
+  for (const path of ['../outside.txt', '/tmp/secret.txt', 'src/../../outside.txt', 'src/\\\\..\\\\outside.txt', 'src/unsafe\\nname.ts']) {
     const result = validateAiFleetDiff({
       files: [{ ...safeChange, path }],
       diffText: '',
@@ -86,6 +86,13 @@ test('AI fleet rejects private keys and known API-token formats in proposed diff
     });
     assert.equal(result.allowed, false);
   }
+});
+
+test('AI fleet rejects symbolic links as non-reviewable changes', () => {
+  assert.equal(validateAiFleetDiff({
+    files: [{ ...safeChange, symlink: true }],
+    diffText: '',
+  }).allowed, false);
 });
 
 test('AI fleet rejects empty diff descriptions instead of treating them as approved', () => {
