@@ -24,17 +24,17 @@ class GlorifierNeuralClientTest {
         server.createContext("/api/neural/health") { exchange ->
             healthAuth.set(exchange.requestHeaders.getFirst("Authorization"))
             val bytes = """{"status":"ok"}""".toByteArray()
-            exchange.sendResponseHeaders(200, bytes.size); exchange.responseBody.use { it.write(bytes) }
+            exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
         }
         server.createContext("/api/neural/ready") { exchange ->
             val bytes = """{"status":"NOT READY"}""".toByteArray()
-            exchange.sendResponseHeaders(503, bytes.size); exchange.responseBody.use { it.write(bytes) }
+            exchange.sendResponseHeaders(503, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
         }
         server.createContext("/api/neural/v1/tasks") { exchange ->
             exchange.requestBody.use { it.readBytes() }
             taskAuth.set(exchange.requestHeaders.getFirst("Authorization"))
             val bytes = """{"status":"accepted"}""".toByteArray()
-            exchange.sendResponseHeaders(202, bytes.size); exchange.responseBody.use { it.write(bytes) }
+            exchange.sendResponseHeaders(202, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
         }
         server.start()
         try {
