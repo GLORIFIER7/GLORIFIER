@@ -357,6 +357,44 @@ void test('A2A JSON-RPC rejects unsupported methods and invalid protocol version
   assert.equal((invalidVersion.error as { code: number }).code, -32600);
 });
 
+void test('A2A CancelTask cancels only requester-owned queued tasks', async () => {
+  const requester = 'verified-user-42';
+  const queued = baseTask({ id: 'queued-cancel', requesterAgentId: requester, status: 'queued' });
+  const running = baseTask({ id: 'running-cancel', requesterAgentId: requester, status: 'running' });
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: requester,
+    createTask: () => { throw new Error('not used'); },
+    getTask: (id) => id === queued.id ? queued : id === running.id ? running : null,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+    cancelTask: async (id) => id === queued.id
+      ? { ...queued, status: 'canceled' }
+      : id === running.id ? running : null,
+  });
+
+  const canceled = await handler({
+    jsonrpc: '2.0', id: 'cancel-1', method: 'CancelTask', params: { id: queued.id },
+  });
+  assert.equal(canceled.error, undefined);
+  assert.equal((canceled.result as A2ATaskLike).status, 'canceled');
+  assert.equal(toA2ATask(canceled.result as A2ATaskLike).status.state, 'TASK_STATE_CANCELED');
+
+  const active = await handler({
+    jsonrpc: '2.0', id: 'cancel-2', method: 'CancelTask', params: { id: running.id },
+  });
+  assert.equal((active.error as { code: number }).code, -32002,
+    'running tasks must not be reported canceled when the provider cannot be interrupted');
+
+  const foreignOrMissing = await handler({
+    jsonrpc: '2.0', id: 'cancel-3', method: 'CancelTask', params: { id: 'not-owned' },
+  });
+  assert.equal((foreignOrMissing.error as { code: number }).code, -32001);
+
+  const malformed = await handler({
+    jsonrpc: '2.0', id: 'cancel-4', method: 'CancelTask', params: { id: ' ' },
+  });
+  assert.equal((malformed.error as { code: number }).code, -32602);
+});
+
 void test('A2A JSON-RPC enforces the inclusive text limit and rejects unsupported file parts', async () => {
   const { handler } = createTestHandler();
 
