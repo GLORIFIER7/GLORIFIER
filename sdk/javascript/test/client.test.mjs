@@ -110,7 +110,7 @@ test('rejects invalid task fields and enforces Unicode character and UTF-8 byte 
   assert.throws(() => sdk.submitTask({ task: '' }), /non-empty/);
   assert.throws(() => sdk.submitTask({ task: 'valid', unexpected: true }), /unsupported field/);
   assert.throws(() => sdk.submitTask({ task: 'valid', require_approval: 'yes' }), /boolean/);
-  assert.throws(() => sdk.submitTask({ task: '😀'.repeat(20_001) }), /20,000/);
+  assert.throws(() => sdk.submitTask({ task: '😀'.repeat(20_001) }), /20,?000/);
   assert.throws(() => sdk.submitTask({ task: 'valid', purpose: '' }), /purpose/);
   assert.throws(() => sdk.submitTask({ task: '🌐'.repeat(18_000) }), /65,536-byte/);
 });

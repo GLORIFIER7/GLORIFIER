@@ -180,4 +180,4 @@ A server-side Node.js package now exists on branch `feat/javascript-typescript-s
 
 Local authoring tests: 11/11 passed on Node.js 22.16.0. This runtime is below the SDK's declared support floor, so the capability registry remains PARTIALLY VERIFIED until the exact Node.js 24.12.0 CI job passes.
 
-This does not change the status of live Neural origin configuration, provider inference, MCP/A2A external conformance, operating-system/architecture breadth, blockchain RPC reachability, or production deployment. No credentials, external endpoints, production secrets, workflows, or deployments were changed.
+This does not change the status of live Neural origin configuration, provider inference, MCP/A2A external conformance, operating-system/architecture breadth, blockchain RPC reachability, or production deployment. No external credentials, production secrets, or deployments were changed; the CI workflow source was extended on this branch only.
