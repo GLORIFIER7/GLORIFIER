@@ -16,6 +16,7 @@ on:
       - "public/**"
       - "index.html"
       - "vite.config.ts"
+      - "scripts/ubuntu-apt-security-policy.test.mjs"
       - ".github/workflows/docker-image.yml"
   workflow_run:
     workflows: ["GLORIFIER CI"]
@@ -40,6 +41,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Verify Ubuntu runtime APT security policy
+        run: node --test scripts/ubuntu-apt-security-policy.test.mjs
 
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
