@@ -3,7 +3,8 @@ import json
 import unittest
 from unittest.mock import patch
 
-from glorifier_neural_client import GlorifierAPIError, GlorifierNeuralClient
+from glorifier_neural_client import GlorifierAPIError, GlorifierNeuralClient, _NoRedirectHandler
+from urllib.request import Request
 
 
 class Response:
@@ -58,6 +59,18 @@ class ClientTests(unittest.TestCase):
                 request.get_header("Authorization"),
                 "caller bearer tokens must never be sent to public health/readiness routes",
             )
+
+    def test_transport_rejects_redirects_before_credentials_can_be_forwarded(self):
+        handler = _NoRedirectHandler()
+        redirected = handler.redirect_request(
+            Request("https://api.example.com/api/neural/v1/tasks"),
+            io.BytesIO(),
+            307,
+            "Temporary Redirect",
+            {},
+            "https://attacker.example/collect",
+        )
+        self.assertIsNone(redirected)
 
     def test_task_requires_token_and_forwards_bearer(self):
         with self.assertRaises(ValueError):
