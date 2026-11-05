@@ -48,7 +48,7 @@ test('AI fleet rejects automatic changes to security and release-control paths',
 });
 
 test('AI fleet rejects path traversal, absolute paths and control characters', () => {
-  for (const path of ['../outside.txt', '/tmp/secret.txt', 'src/../../outside.txt', 'src/\\\\..\\\\outside.txt', 'src/unsafe\\nname.ts']) {
+  for (const path of ['../outside.txt', '/tmp/secret.txt', 'src/../../outside.txt', 'src/\\\\..\\\\outside.txt', 'src/unsafe\nname.ts']) {
     const result = validateAiFleetDiff({
       files: [{ ...safeChange, path }],
       diffText: '',
