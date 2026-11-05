@@ -112,6 +112,7 @@ test('AI fleet scans added lines whose content begins with plus signs', () => {
   for (const secret of [
     '++ghp_abcdefghijklmnopqrstuvwxyz0123456789',
     '++-----BEGIN PRIVATE KEY-----',
+    '++ b/ghp_abcdefghijklmnopqrstuvwxyz0123456789',
   ]) {
     const result = validateAiFleetDiff({
       files: [safeChange],
