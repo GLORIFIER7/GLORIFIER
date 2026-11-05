@@ -20,18 +20,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        include:
-          - role: architect
-            prompt: Inspect the repository and make one small, high-value reliability or architecture improvement.
-          - role: security
-            prompt: Find one concrete, verifiable security or dependency risk and fix it if low-risk.
-          - role: qa
-            prompt: Make one small improvement to tests, type safety, build reliability, error handling, or observability.
-
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -127,12 +115,14 @@ jobs:
           safety-strategy: "drop-sudo"
           effort: high
           prompt: |
-            ${{ matrix.prompt }}
-
-            Follow AGENTS.md. Keep the change small and reviewable. Never expose or modify secrets.
-            Do not alter the trusted AI-fleet validator, its tests, capability authorization, package
-            manifests, lockfiles, or workflow files. Run npm run lint and npm run build when applicable.
-            If there is no safe worthwhile change, make no code change.
+            Act as GLORIFIER's cross-functional reliability, security, architecture, and QA maintainer.
+            Inspect the repository and its tests. Select at most one concrete, reproducible, high-value
+            defect or reliability weakness and make the smallest safe fix with a regression test.
+            Prioritize security and correctness before feature work. Keep the change small and reviewable.
+            Follow AGENTS.md. Never expose or modify secrets. Do not alter the trusted AI-fleet validator,
+            its tests, capability authorization, package manifests, lockfiles, or workflow files.
+            Run npm run lint and the relevant focused tests, then run npm run build when applicable.
+            If there is no safe, evidence-backed improvement, make no code change.
 
       - name: Stage AI-generated changes for review
         id: stage
@@ -202,7 +192,7 @@ jobs:
         id: branch
         env:
           GH_TOKEN: ${{ github.token }}
-          ROLE: ${{ matrix.role }}
+          ROLE: maintainer
           RUN_ID: ${{ github.run_id }}
         run: |
           if git diff --cached --quiet; then
@@ -227,7 +217,7 @@ jobs:
         run: |
           gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" \
             --title "AI Fleet: $ROLE maintenance" \
-            --body "Autonomous GLORIFIER maintenance proposal. The repository pull_request CI runs after publication. This PR remains a draft and is not auto-merged."
+            --body "Autonomous GLORIFIER maintenance proposal. Because this PR is published with GITHUB_TOKEN, a separate least-privilege workflow_dispatch runs CI against the generated branch. This PR remains a draft and is never auto-merged."
 
       - name: Report that the Laos publication window is closed
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed != 'true' }}
@@ -254,12 +244,13 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: write
-      pull-requests: write
+      contents: read
     steps:
       - name: Dispatch CI against generated branch
         id: dispatch
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           BRANCH: ${{ needs.coding-fleet.outputs.branch }}
         run: |
           set -euo pipefail
