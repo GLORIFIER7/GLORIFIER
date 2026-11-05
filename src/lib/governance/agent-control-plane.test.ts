@@ -128,7 +128,7 @@ test('registerAgent returns a defensive copy of authorization policy', () => {
   const registered = registerTestAgent('agent-register-result-isolation', { humanApprovalRequired: true });
   registered.humanApprovalRequired = false;
   registered.lifecycle = 'revoked';
-  registered.capabilities.push('tool.invoke');
+  registered.capabilities.push('capability.injected');
   registered.allowedTools.push('shell');
   registered.allowedDataScopes.push('secrets');
 
@@ -138,12 +138,30 @@ test('registerAgent returns a defensive copy of authorization policy', () => {
   );
   assert.equal(
     authorizeAgentAction('agent-register-result-isolation', {
-      capability: 'tool.invoke',
+      capability: 'capability.injected',
       tool: 'shell',
       dataScope: 'secrets',
       humanAuthorized: true,
     }).reason,
     'capability_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', {
+      capability: 'tool.invoke',
+      tool: 'shell',
+      dataScope: 'public',
+      humanAuthorized: true,
+    }).reason,
+    'tool_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-register-result-isolation', {
+      capability: 'tool.invoke',
+      tool: 'browser',
+      dataScope: 'secrets',
+      humanAuthorized: true,
+    }).reason,
+    'data_scope_denied',
   );
 });
 
@@ -154,15 +172,15 @@ test('getAgent and listControlledAgents never expose mutable registry entries', 
   assert.ok(fetched);
   fetched.humanApprovalRequired = false;
   fetched.lifecycle = 'revoked';
-  fetched.capabilities.push('tool.invoke');
+  fetched.capabilities.push('capability.injected');
   fetched.allowedTools.push('shell');
   fetched.allowedDataScopes.push('secrets');
 
   const listed = listControlledAgents().find((agent) => agent.agentId === 'agent-read-result-isolation');
   assert.ok(listed);
   listed.humanApprovalRequired = false;
-  listed.lifecycle = 'active';
-  listed.capabilities.push('tool.invoke');
+  listed.lifecycle = 'paused';
+  listed.capabilities.push('capability.injected');
   listed.allowedTools.push('shell');
   listed.allowedDataScopes.push('secrets');
 
@@ -172,12 +190,16 @@ test('getAgent and listControlledAgents never expose mutable registry entries', 
   );
   assert.equal(
     authorizeAgentAction('agent-read-result-isolation', {
-      capability: 'tool.invoke',
+      capability: 'capability.injected',
       tool: 'shell',
       dataScope: 'secrets',
       humanAuthorized: true,
     }).reason,
     'capability_denied',
+  );
+  assert.equal(
+    authorizeAgentAction('agent-read-result-isolation', { capability: 'read.repository' }).reason,
+    'human_authorization_required',
   );
 });
 
