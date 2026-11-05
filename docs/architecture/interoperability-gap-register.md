@@ -198,7 +198,7 @@ The Neon control-plane inspection showed that main compute uses `suspend_timeout
 
 ### Remediation under review
 
-[PR #669](https://github.com/GLORIFIER7/GLORIFIER/pull/669) adds a bounded 15-second Hyperdrive connection timeout, 10-second query timeout, a regression test, and a 30-second full-stack smoke request deadline. Its Cloudflare Worker validate-and-build job passed TypeScript, Worker regression, Neon adapter, production smoke-contract, frontend and Wrangler dry-run checks. Production deployment was skipped. Until the PR is merged through the repository's required review process, deployed, and a new live smoke passes, the operational report capability remains **DEGRADED**.
+[PR #669](https://github.com/GLORIFIER7/GLORIFIER/pull/669) proposes a bounded 15-second Hyperdrive connection timeout, preserves the existing 5-second per-statement SQL timeout, and gives only the reports smoke probe a 35-second deadline (connect + up to three read-only statements + transport margin); all unrelated smoke probes retain 10 seconds. The branch includes regression tests for the connection budget and route-specific smoke deadline. Its current final-head CI is being rerun after this refinement. Production deployment remains skipped. Until the PR passes final-head CI, is merged through the repository's required review process, deployed, and a new live smoke passes, the operational report capability remains **DEGRADED**.
 
 ### Remaining universal-interoperability gates
 
