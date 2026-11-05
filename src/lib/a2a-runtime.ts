@@ -467,6 +467,34 @@ export async function getA2ATaskForProtocol(id: string): Promise<A2ATask | null>
   return task;
 }
 
+/**
+ * Retrieve a task with the requester predicate applied in SQL, preventing
+ * cross-requester task existence checks from being performed by the protocol adapter.
+ */
+export async function getA2ATaskForRequesterProtocol(
+  id: string,
+  requesterAgentId: string,
+): Promise<A2ATask | null> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  if (!id || !requester) return null;
+  if (!process.env.DATABASE_URL) {
+    const task = memoryTasks.get(id);
+    return task?.requesterAgentId === requester ? task : null;
+  }
+  await initializeA2ARuntime();
+  const result = await getPostgresPool().query(
+    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+            attempts,max_attempts,result,error,evidence_id,created_at,updated_at
+     FROM a2a_tasks WHERE id = $1 AND requester_agent_id = $2 LIMIT 1`,
+    [id, requester],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const task = mapPersistedA2ATask(row);
+  memoryTasks.set(task.id, task);
+  return task;
+}
+
 export function createSignedHandoff(task: A2ATask, toAgentId: string, payload: unknown, ttlSeconds = 300) {
   if (!signingSecret()) throw new Error('A2A signing is not configured');
   const issuedAt = new Date();
