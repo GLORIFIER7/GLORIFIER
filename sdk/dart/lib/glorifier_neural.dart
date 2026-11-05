@@ -87,11 +87,11 @@ class GlorifierNeuralClient {
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (body != null) {
       request.headers.contentType = ContentType('application', 'json', charset: 'utf-8');
-      request.add(body);
     }
     if (method == 'POST' && path == '/api/neural/v1/tasks' && _token != null) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $_token');
     }
+    if (body != null) request.add(body);
     final response = await request.close().timeout(_timeout);
     final output = BytesBuilder(copy: false);
     await for (final chunk in response.timeout(_timeout)) {
