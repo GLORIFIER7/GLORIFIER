@@ -306,7 +306,7 @@ await withServer({
     return null;
   },
 }, async (origin) => {
-  const canceled = await fetch(\`\${origin}/api/a2a/v1\`, {
+  const canceled = await fetch(origin + '/api/a2a/v1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 'cancel-queued', method: 'CancelTask', params: { id: 'queued-task' } }),
@@ -316,7 +316,7 @@ await withServer({
   assert.equal(canceledBody.error, undefined);
   assert.equal(canceledBody.result?.status.state, 'TASK_STATE_CANCELED');
 
-  const running = await fetch(\`\${origin}/api/a2a/v1\`, {
+  const running = await fetch(origin + '/api/a2a/v1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 'cancel-running', method: 'CancelTask', params: { id: 'running-task' } }),
