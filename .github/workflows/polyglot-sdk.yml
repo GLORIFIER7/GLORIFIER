@@ -95,7 +95,7 @@ jobs:
           extensions: curl, mbstring
           coverage: none
       - name: Test native PHP SDK
-        run: php sdk/php/tests/run.php
+        run: php sdk/php/tests/run.php && php sdk/php/tests/interoperability_fixtures.php
 
   ruby:
     name: Ruby SDK (3.2)
@@ -106,7 +106,7 @@ jobs:
         with:
           ruby-version: "3.2"
       - name: Test native Ruby SDK
-        run: ruby sdk/ruby/test/test_client.rb
+        run: ruby sdk/ruby/test/test_client.rb && ruby sdk/ruby/test/test_interoperability_fixtures.rb
 
   swift:
     name: Swift SDK (5.9+)
