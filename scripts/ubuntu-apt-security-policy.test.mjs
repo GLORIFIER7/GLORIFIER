@@ -25,6 +25,12 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     assert.ok(upgradeIndex > updateIndex, 'apt and libapt must be upgraded before application packages are installed');
     assert.ok(aptVersionCheckIndex > upgradeIndex, 'the installed apt version must be checked against the Ubuntu fix');
     assert.ok(libaptVersionCheckIndex > aptVersionCheckIndex, 'the installed libapt-pkg version must be checked against the Ubuntu fix');
+    const runtimePackageInstallIndex = source.indexOf(
+      'apt-get -o Acquire::Retries=0 install -y --no-install-recommends ca-certificates',
+    );
+    assert.ok(runtimePackageInstallIndex > upgradeIndex, 'runtime packages must be installed with APT retries disabled after the security upgrade');
+    assert.ok(runtimePackageInstallIndex > libaptVersionCheckIndex, 'runtime packages must only be installed after both patched package versions are verified');
+    assert.ok(!source.includes('apt-get -o Acquire::Retries=0 purge -y apt libapt-pkg6.0t64'), 'the runtime must retain Ubuntu Essential APT packages rather than attempt an unsafe purge');
 
   });
 }
