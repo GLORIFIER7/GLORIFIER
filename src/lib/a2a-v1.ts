@@ -378,7 +378,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       }
       if (params.statusTimestampAfter !== undefined &&
           (typeof params.statusTimestampAfter !== 'string' ||
-           !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(params.statusTimestampAfter) ||
+           !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(params.statusTimestampAfter) ||
            !Number.isFinite(Date.parse(params.statusTimestampAfter)))) {
         return rpcError(id, -32602, 'statusTimestampAfter must be a valid RFC 3339 timestamp.');
       }
