@@ -29,7 +29,15 @@ export type NeonPgClient = {
   end(): Promise<void>;
 };
 
-export type NeonPgClientFactory = (connectionString: string) => NeonPgClient;
+export type NeonPgClientOptions = {
+  connectionTimeoutMillis: number;
+  query_timeout: number;
+};
+
+export type NeonPgClientFactory = (
+  connectionString: string,
+  options: NeonPgClientOptions,
+) => NeonPgClient;
 
 const OPERATIONAL_COUNTS_SQL = `
 SELECT table_name, row_count
@@ -56,11 +64,19 @@ const isValidPostgresConnectionString = (value: string): boolean => {
   return Boolean(url && isSupportedPostgresUrl(url) && url.hostname && !url.hash);
 };
 
-const defaultNeonPgClientFactory: NeonPgClientFactory = (connectionString) =>
+// Neon Free can suspend immediately while idle. The production trace recorded a
+// Hyperdrive connection timeout at the same instant the Neon compute woke up;
+// allow a bounded 15s connection window without changing the database's
+// auto-suspend policy or allowing unbounded Worker requests.
+const NEON_PG_CLIENT_OPTIONS: NeonPgClientOptions = Object.freeze({
+  connectionTimeoutMillis: 15_000,
+  query_timeout: 5_000,
+});
+
+const defaultNeonPgClientFactory: NeonPgClientFactory = (connectionString, options) =>
   new Client({
     connectionString,
-    connectionTimeoutMillis: 5_000,
-    query_timeout: 5_000,
+    ...options,
   }) as unknown as NeonPgClient;
 
 const isOperationalTable = (value: unknown): value is NeonOperationalTable =>
@@ -213,6 +229,6 @@ export const readNeonOperationalCounts = (
     return Promise.reject(new Error('A valid PostgreSQL Hyperdrive connection string is required.'));
   }
 
-  const client = clientFactory(connectionString);
+  const client = clientFactory(connectionString, NEON_PG_CLIENT_OPTIONS);
   return executeNeonCountQuery(client);
 };

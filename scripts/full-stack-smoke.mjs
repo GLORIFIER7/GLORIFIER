@@ -19,8 +19,11 @@ const checks = [
 const results = [];
 for (const check of checks) {
   const started = Date.now();
+  const requestTimeoutMs = check.name === 'cloudflare-operational-reports' ? 35_000 : 10_000;
   try {
-    const response = await fetch(check.url, { redirect: 'follow', headers: { accept: 'application/json,text/html' }, signal: AbortSignal.timeout(10000) });
+    // Allow 15s for Neon wake-up plus up to three 5s read-only statements and transport margin.
+    // Keep every unrelated smoke probe on its original 10s deadline.
+    const response = await fetch(check.url, { redirect: 'follow', headers: { accept: 'application/json,text/html' }, signal: AbortSignal.timeout(requestTimeoutMs) });
     const text = await response.text();
     const contentType = response.headers.get('content-type') || '';
     let body = null;

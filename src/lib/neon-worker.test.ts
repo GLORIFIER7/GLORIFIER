@@ -62,6 +62,25 @@ test('reads exact counts for the six fixed operational tables through Hyperdrive
   assert.doesNotMatch(capturedSql, /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER)\b/i);
 });
 
+test('allows a bounded Neon Hyperdrive cold-start wake-up window', async () => {
+  let capturedOptions: { connectionTimeoutMillis: number; query_timeout: number } | undefined;
+  const factory: NeonPgClientFactory = (_connectionString, options?: { connectionTimeoutMillis: number; query_timeout: number }) => {
+    capturedOptions = options;
+    return {
+      connect: () => Promise.resolve(),
+      query: () => Promise.resolve({ rows: expectedRows }),
+      end: () => Promise.resolve(),
+    };
+  };
+
+  await readNeonOperationalCounts(binding, factory);
+
+  assert.deepEqual(capturedOptions, {
+    connectionTimeoutMillis: 15_000,
+    query_timeout: 5_000,
+  }, 'the initial Hyperdrive connection must have a bounded allowance for Neon Free compute wake-up');
+});
+
 test('rejects missing, duplicate, or unexpected operational count rows', async () => {
   const cases = [
     expectedRows.slice(0, 5),
