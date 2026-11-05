@@ -299,6 +299,36 @@ await withServer({
 
 await withServer({
   ...baseDependencies(),
+  cancelTask: async (id, requesterAgentId) => {
+    if (requesterAgentId !== 'express-test-user') return null;
+    if (id === 'queued-task') return task({ id, status: 'canceled' });
+    if (id === 'running-task') return task({ id, status: 'running' });
+    return null;
+  },
+}, async (origin) => {
+  const canceled = await fetch(\`\${origin}/api/a2a/v1\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'cancel-queued', method: 'CancelTask', params: { id: 'queued-task' } }),
+  });
+  assert.equal(canceled.status, 200);
+  const canceledBody = await canceled.json() as { error?: { code: number }; result?: { status: { state: string } } };
+  assert.equal(canceledBody.error, undefined);
+  assert.equal(canceledBody.result?.status.state, 'TASK_STATE_CANCELED');
+
+  const running = await fetch(\`\${origin}/api/a2a/v1\`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'cancel-running', method: 'CancelTask', params: { id: 'running-task' } }),
+  });
+  assert.equal(running.status, 200);
+  const runningBody = await running.json() as { error?: { code: number }; result?: unknown };
+  assert.equal(runningBody.error?.code, -32002);
+  assert.equal(runningBody.result, undefined);
+});
+
+await withServer({
+  ...baseDependencies(),
   initializePersistence: async () => { throw new Error('database initialization failed'); },
   createTask: async () => { throw new Error('createTask must not run after init failure'); },
 }, async (origin) => {
