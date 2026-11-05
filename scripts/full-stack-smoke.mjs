@@ -20,7 +20,8 @@ const results = [];
 for (const check of checks) {
   const started = Date.now();
   try {
-    const response = await fetch(check.url, { redirect: 'follow', headers: { accept: 'application/json,text/html' }, signal: AbortSignal.timeout(10000) });
+    // Allow the adapter's bounded 15s Neon wake-up + 10s query budgets, with transport margin.
+    const response = await fetch(check.url, { redirect: 'follow', headers: { accept: 'application/json,text/html' }, signal: AbortSignal.timeout(30000) });
     const text = await response.text();
     const contentType = response.headers.get('content-type') || '';
     let body = null;
