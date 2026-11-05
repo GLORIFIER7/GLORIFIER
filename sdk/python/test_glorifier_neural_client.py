@@ -98,6 +98,11 @@ class ClientTests(unittest.TestCase):
             {"task": "read", "require_approval": "yes"},
             {"task": "read", "action_class": ""},
             {"task": "read", "action_class": "a" * 65},
+            {"task": "read", "purpose": None},
+            {"task": "read", "require_approval": None},
+            {"task": "read", "action_class": None},
+            {"task": "x" * 20_001},
+            {"task": "read", 1: "not-a-json-contract-key"},
         )
         with patch("glorifier_neural_client.urlopen") as open_url:
             for payload in invalid_payloads:
