@@ -98,7 +98,9 @@
     "test:neon-worker": "tsx src/lib/neon-worker.test.ts",
     "test:cloudflare-production-smoke": "node --test scripts/cloudflare-production-smoke.test.mjs",
     "test:safe-external-url": "node --import tsx/esm --test src/lib/safe-external-url.test.ts",
-    "test:integration-external-link": "node --import tsx/esm --test src/components/IntegrationExternalLink.test.tsx"
+    "test:integration-external-link": "node --import tsx/esm --test src/components/IntegrationExternalLink.test.tsx",
+    "test:ai-fleet-diff-policy": "node --test scripts/ai-fleet-diff-policy.test.mjs",
+    "test:ai-fleet-diff-gate": "node --import tsx/esm --test scripts/validate-ai-fleet-diff.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

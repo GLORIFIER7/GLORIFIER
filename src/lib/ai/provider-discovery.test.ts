@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, recordProviderInferenceVerification } from './provider-discovery.ts';
+import { discoverGlobalProviders, getGlobalProviderDiscoveryPolicy, getGlobalProviderDiscoverySnapshot, recordProviderInferenceVerification } from './provider-discovery.ts';
 
 const environmentKeys = [
   'QWEN_API_KEY', 'QWEN_BASE_URL', 'META_API_KEY', 'META_BASE_URL', 'META_AUTHORIZED',
@@ -214,7 +214,12 @@ test('read-only NVIDIA model discovery does not imply inference authorization', 
   assert.equal(afterInference?.authenticated, true);
   assert.equal(afterInference?.authorization, 'configured');
   assert.ok(afterInference?.models.includes('nvidia/inference-confirmed-only'));
-  await discoverGlobalProviders('provider-discovery-refresh-regression-test', { persistConnections: false });
+  const refreshedProviders = await discoverGlobalProviders('provider-discovery-refresh-regression-test', { persistConnections: false });
+  const returnedAfterRefresh = refreshedProviders.find((provider) => provider.id === 'nvidia');
+  assert.equal(returnedAfterRefresh?.authenticated, true,
+    'the refresh result must expose the preserved inference proof, not the raw unauthenticated model-list probe');
+  assert.equal(returnedAfterRefresh?.authorization, 'configured');
+  assert.ok(returnedAfterRefresh?.models.includes('nvidia/inference-confirmed-only'));
   const afterRefresh = getGlobalProviderDiscoverySnapshot().find((provider) => provider.id === 'nvidia');
   assert.equal(afterRefresh?.authenticated, true);
   assert.equal(afterRefresh?.authorization, 'configured');
@@ -254,4 +259,29 @@ test('provider discovery uses GET only and never invokes inference endpoints', (
   assert.ok(gemini.models.includes('gemini-2.5-flash'));
   assert.equal(requests.some((request) => request.method !== 'GET'), false);
   assert.equal(requests.some((request) => request.url.endsWith('/chat/completions')), false);
+});
+
+test('NVIDIA inference verification expires and requires a fresh authorized inference', async () => {
+  nvidiaProbeStatus = 200;
+  await recordProviderInferenceVerification('nvidia', 'nvidia/inference-freshness-test');
+  const maxAge = getGlobalProviderDiscoveryPolicy().nvidiaInferenceVerificationMaxAgeMs;
+  const verified = getGlobalProviderDiscoverySnapshot().find((entry) => entry.id === 'nvidia');
+  assert.equal(verified?.authenticated, true);
+  assert.equal(verified?.authorization, 'configured');
+
+  const originalNow = Date.now;
+  try {
+    Date.now = () => originalNow() + maxAge + 1;
+    const expired = getGlobalProviderDiscoverySnapshot().find((entry) => entry.id === 'nvidia');
+    assert.equal(expired?.authenticated, false);
+    assert.equal(expired?.authorization, 'pending');
+    assert.match(expired?.reason || '', /inference verification expired/i);
+
+    const refreshed = await discoverGlobalProviders('provider-discovery-expired-inference-proof', { persistConnections: false });
+    const returned = refreshed.find((entry) => entry.id === 'nvidia');
+    assert.equal(returned?.authenticated, false);
+    assert.equal(returned?.authorization, 'pending');
+  } finally {
+    Date.now = originalNow;
+  }
 });

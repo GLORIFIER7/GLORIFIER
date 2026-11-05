@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { registerConnection, recordConnectionEvent } from '../connection-registry.ts';
 
 export type ProviderAvailability = 'available' | 'unconfigured' | 'quota_exhausted' | 'rate_limited' | 'auth_failure' | 'capability_mismatch' | 'unreachable' | 'error';
-export interface DiscoveredProvider { id:string; name:string; kind:'native'|'openai-compatible'|'router'|'self-hosted'; endpoint:string; configured:boolean; authenticated:boolean; availability:ProviderAvailability; capabilities:string[]; models:string[]; latencyMs:number|null; lastCheckedAt:string|null; cooldownUntil:string|null; reason:string|null; authorization:'configured'|'pending'|'not-configured'; }
+export interface DiscoveredProvider { id:string; name:string; kind:'native'|'openai-compatible'|'router'|'self-hosted'; endpoint:string; configured:boolean; authenticated:boolean; availability:ProviderAvailability; capabilities:string[]; models:string[]; latencyMs:number|null; lastCheckedAt:string|null; cooldownUntil:string|null; reason:string|null; authorization:'configured'|'pending'|'not-configured'; inferenceVerifiedAt?:string|null; }
 interface ProviderDefinition { id:string; name:string; kind:DiscoveredProvider['kind']; endpoint:string; keyEnv?:string; baseUrlEnv?:string; modelEnv?:string; workspaceIdEnv?:string; defaultModel?:string; capabilities:string[]; }
 
 const definitions: ProviderDefinition[] = [
@@ -25,6 +25,8 @@ const definitions: ProviderDefinition[] = [
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
 const inferenceVerifiedConfiguration = new Map<string, string>();
+const inferenceVerifiedAt = new Map<string, number>();
+const NVIDIA_INFERENCE_VERIFICATION_TTL_MS = 15 * 60 * 1000;
 const env = (name?:string) => name ? process.env[name]?.trim() || '' : '';
 const endpointFor = (d:ProviderDefinition) => env(d.baseUrlEnv) || d.endpoint;
 
@@ -78,6 +80,16 @@ function providerConfigurationFingerprint(d: ProviderDefinition): string {
  const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\u0000');
  return createHash('sha256').update(material).digest('hex');
 }
+function isNvidiaInferenceVerificationFresh(definition: ProviderDefinition): boolean {
+ const verifiedAt = inferenceVerifiedAt.get(definition.id);
+ const now = Date.now();
+ return typeof verifiedAt === 'number'
+  && Number.isFinite(verifiedAt)
+  && now >= verifiedAt
+  && now - verifiedAt <= NVIDIA_INFERENCE_VERIFICATION_TTL_MS
+  && inferenceVerifiedConfiguration.get(definition.id) === providerConfigurationFingerprint(definition);
+}
+
 function classify(status: number, body: string): ProviderAvailability {
   if (status === 401 || status === 403) {
     return 'auth_failure';
@@ -172,6 +184,7 @@ export async function recordProviderInferenceVerification(providerId: string, mo
   authorization: 'pending' as const,
  };
  const verifiedAt = new Date().toISOString();
+ inferenceVerifiedAt.set(providerId, Date.parse(verifiedAt));
  inferenceVerifiedConfiguration.set(providerId, providerConfigurationFingerprint(definition));
  const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';
  const models = normalizedModel
@@ -186,6 +199,7 @@ export async function recordProviderInferenceVerification(providerId: string, mo
   models,
   reason: null,
   lastCheckedAt: verifiedAt,
+  inferenceVerifiedAt: verifiedAt,
  });
 
  // Keep the persistent connection registry consistent with the successful,
@@ -214,12 +228,15 @@ export async function recordProviderInferenceVerification(providerId: string, mo
     models,
     lastInferenceModel: normalizedModel || null,
     inferenceVerified: true,
+    inferenceVerifiedAt: verifiedAt,
+    inferenceVerificationExpiresAt: new Date(Date.parse(verifiedAt) + NVIDIA_INFERENCE_VERIFICATION_TTL_MS).toISOString(),
     authorization: 'configured',
    },
   });
   await recordConnectionEvent(connectionId, 'provider_inference_verified', 'provider-registry', {
    modelId: normalizedModel || null,
    verifiedAt,
+   verificationExpiresAt: new Date(Date.parse(verifiedAt) + NVIDIA_INFERENCE_VERIFICATION_TTL_MS).toISOString(),
    evidence: 'successful inference response after explicit NVIDIA_AUTHORIZED=true configuration',
   });
  } catch (error) {
@@ -227,10 +244,36 @@ export async function recordProviderInferenceVerification(providerId: string, mo
  }
 }
 export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
- return definitions.map(d=>{
-  const endpoint=safeEndpointForDiagnostics(endpointFor(d));
-  const configured=Boolean((d.keyEnv?env(d.keyEnv):true)&&endpointFor(d));
-  return snapshot.get(d.id)||{id:d.id,name:d.name,kind:d.kind,endpoint,configured,authenticated:false,availability:configured?'unreachable':'unconfigured',capabilities:d.capabilities,models:[],latencyMs:null,lastCheckedAt:null,cooldownUntil:null,reason:'Not probed yet.',authorization:configured?'pending':'not-configured'};
+ return definitions.map(d => {
+  const endpoint = safeEndpointForDiagnostics(endpointFor(d));
+  const configured = Boolean((d.keyEnv ? env(d.keyEnv) : true) && endpointFor(d));
+  const stored = snapshot.get(d.id);
+  if (!stored) {
+   return {
+    id:d.id,name:d.name,kind:d.kind,endpoint,configured,authenticated:false,
+    availability:configured?'unreachable':'unconfigured',capabilities:d.capabilities,
+    models:[],latencyMs:null,lastCheckedAt:null,cooldownUntil:null,
+    reason:'Not probed yet.',authorization:configured?'pending':'not-configured',
+    ...(d.id === 'nvidia' ? { inferenceVerifiedAt: null } : {}),
+   };
+  }
+  if (d.id === 'nvidia' && stored.authenticated && stored.authorization === 'configured'
+    && !isNvidiaInferenceVerificationFresh(d)) {
+   const verifiedAt = inferenceVerifiedAt.get(d.id);
+   return {
+    ...stored,
+    endpoint,
+    configured,
+    authenticated:false,
+    availability:configured ? stored.availability : 'unconfigured',
+    authorization:configured ? 'pending' : 'not-configured',
+    inferenceVerifiedAt: typeof verifiedAt === 'number' ? new Date(verifiedAt).toISOString() : null,
+    reason:configured
+      ? 'NVIDIA inference verification expired or no longer matches the current provider configuration; a fresh authorized inference is required.'
+      : 'NVIDIA provider credential or endpoint is not configured.',
+   };
+  }
+  return stored;
  });
 }
 export function getEligibleGlobalProviders(capability?:string) { return getGlobalProviderDiscoverySnapshot().filter(p=>p.configured&&p.authenticated&&p.availability==='available'&&(!capability||p.capabilities.includes(capability))); }
@@ -239,6 +282,7 @@ export async function discoverGlobalProviders(
   options: { persistConnections?: boolean } = {},
 ) {
   const results = await Promise.all(definitions.map(probe));
+  const reconciledResults: DiscoveredProvider[] = [];
   for (const discoveredProvider of results) {
     const definition = definitions.find((candidate) => candidate.id === discoveredProvider.id);
     const previous = snapshot.get(discoveredProvider.id);
@@ -247,17 +291,19 @@ export async function discoverGlobalProviders(
       previous?.authenticated === true &&
       previous.authorization === 'configured' &&
       discoveredProvider.availability !== 'auth_failure' &&
-      inferenceVerifiedConfiguration.get(discoveredProvider.id) === providerConfigurationFingerprint(definition!);
+      isNvidiaInferenceVerificationFresh(definition!);
     const provider: DiscoveredProvider = sameVerifiedNvidiaConfiguration && previous
       ? {
           ...discoveredProvider,
           authenticated: true,
           authorization: 'configured',
+          inferenceVerifiedAt: new Date(inferenceVerifiedAt.get(discoveredProvider.id)!).toISOString(),
           models: [...new Set([...discoveredProvider.models, ...previous.models])],
           reason: discoveredProvider.availability === 'available' ? null : discoveredProvider.reason,
         }
       : discoveredProvider;
     snapshot.set(provider.id, provider);
+    reconciledResults.push(provider);
     if (options.persistConnections === false) continue;
     const connectionId = 'provider-' + provider.id;
     await registerConnection({
@@ -278,6 +324,6 @@ export async function discoverGlobalProviders(
       availability: provider.availability, authenticated: provider.authenticated, latencyMs: provider.latencyMs, models: provider.models,
     });
   }
-  return results;
+  return reconciledResults;
 }
-export function getGlobalProviderDiscoveryPolicy(){ return {architecture:'GLOBAL_PROVIDER_DISCOVERY_FAILOVER_FABRIC',authenticatedRegistrationRequired:true,authorizationSeparateFromAuthentication:true,nvidiaInferenceVerificationRequired:true,noSyntheticSuccess:true,quotaExhaustionIsNotHidden:true,internetDiscoveryBoundary:'documented/configured provider endpoints only; no quota, authentication, paywall, regional or access-control bypass',fallbackOrder:['configured-provider','router-provider','self-hosted-compute'],truthStates:['available','unconfigured','quota_exhausted','rate_limited','auth_failure','capability_mismatch','unreachable','error']} as const; }
+export function getGlobalProviderDiscoveryPolicy(){ return {architecture:'GLOBAL_PROVIDER_DISCOVERY_FAILOVER_FABRIC',authenticatedRegistrationRequired:true,authorizationSeparateFromAuthentication:true,nvidiaInferenceVerificationRequired:true,nvidiaInferenceVerificationMaxAgeMs:NVIDIA_INFERENCE_VERIFICATION_TTL_MS,noSyntheticSuccess:true,quotaExhaustionIsNotHidden:true,internetDiscoveryBoundary:'documented/configured provider endpoints only; no quota, authentication, paywall, regional or access-control bypass',fallbackOrder:['configured-provider','router-provider','self-hosted-compute'],truthStates:['available','unconfigured','quota_exhausted','rate_limited','auth_failure','capability_mismatch','unreachable','error']} as const; }

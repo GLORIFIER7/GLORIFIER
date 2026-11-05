@@ -55,7 +55,7 @@ This document composes the existing provider-neutral, governance, language SDK, 
    Gemini              NVIDIA NIM          approved agents
    Anthropic           other runtimes
    and others
-       |
+       |                  |                   |
        +------------------+-------------------+
                           |
                 ENTERPRISE INTEGRATION FABRIC
@@ -220,12 +220,14 @@ It must not silently change production policy, widen permissions, rotate credent
 | Tier | Class | Default policy |
 |---|---|---|
 | R0 | Observe: read health, inspect approved records, summarize | Automatic, read-only |
-| R1 | Draft: prepare analysis, messages, plans, and code changes | Automatic draft; publishing remains governed |
-| R2 | Bounded reversible: retry safe work, refresh a cache, create an issue or PR | Automatic only under a narrow policy, quota, audit, and rollback controls |
+| R1 | Draft: prepare analysis, messages, plans, tests, and a reviewable code-change branch | Automatic draft work within an isolated workspace, resource limits, and audit controls; do not publish or open a PR |
+| R2 | Shared/reviewable change: open a pull request or update a shared issue/configuration | Only through its dedicated capability (for code, `create.pull_request`), central policy checks, an exact scoped target, and a validated reviewable diff; no merge or deployment authority |
 | R3 | Material external effect: customer communications, paid resource changes, refunds, business-record writes | Explicit scoped approval unless a separately reviewed policy permits a narrow action |
 | R4 | Irreversible/high impact: asset transfer, signing, trading, credential rotation, privilege elevation, destructive production changes, legal/financial commitment | Human authorization and existing secure execution controls required |
 
 A tier is assigned by the centrally resolved policy, not by the agent requesting the action.
+
+For code changes, creating a branch and preparing a diff are distinct from publishing a pull request. The R2 gate must verify the dedicated `create.pull_request` capability, repository/branch scope, change limits, validation results, and reviewable diff. Missing or incomplete evidence blocks PR creation. Pull-request creation never authorizes approval, merge, protected-branch writes, or deployment; those remain separate higher-risk actions.
 
 ## 8. Interoperability fabric
 
