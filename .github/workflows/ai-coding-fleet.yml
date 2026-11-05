@@ -74,7 +74,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1 tag target observed 2026-10-26
         with:
-          openai-api-key: ${{ env.OPENAI_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
           safety-strategy: "drop-sudo"
           effort: high
@@ -146,8 +146,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
           git checkout -b "$BRANCH"
-          git commit -m "ai(${{ matrix.role }}): governed maintenance"
-          git push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
+          git -c core.hooksPath=/dev/null commit -m "ai(${{ matrix.role }}): governed maintenance"
+          git -c core.hooksPath=/dev/null push --set-upstream "https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git" "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
@@ -156,7 +156,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. Review CI and the diff before merge."
+          gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" --title "AI Fleet: ${{ matrix.role }} maintenance" --body "Autonomous GLORIFIER maintenance task. This is a draft PR. Review CI and the diff before merge."
 
       - name: Report that PR creation was not authorized
         if: ${{ inputs.authorize_pull_request != true }}
