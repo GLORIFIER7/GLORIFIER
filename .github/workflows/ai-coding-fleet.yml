@@ -2,15 +2,9 @@ name: GLORIFIER Governed AI Coding Fleet
 
 on:
   schedule:
-    # Weekly at 09:17 Laos time; cost-gated with AI_MAINTENANCE_AUTORUN=true.
-    - cron: "17 2 * * 0"
+    # Every 4 hours at :17; cost-gated with AI_MAINTENANCE_AUTORUN=true.
+    - cron: "17 */4 * * *"
   workflow_dispatch:
-    inputs:
-      authorize_pull_request:
-        description: "Authorize this run to open draft PRs after validation."
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -40,6 +34,8 @@ jobs:
 
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      branch: ${{ steps.branch.outputs.branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -52,13 +48,10 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          DISPATCH_AUTHORIZATION: ${{ inputs.authorize_pull_request }}
           SCHEDULE_AUTHORIZATION: ${{ vars.AI_MAINTENANCE_AUTORUN }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$DISPATCH_AUTHORIZATION" == "true" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$EVENT_NAME" == "schedule" && "$SCHEDULE_AUTHORIZATION" == "true" ]]; then
+          if [[ "$SCHEDULE_AUTHORIZATION" == "true" ]]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -127,8 +120,6 @@ jobs:
       - name: Run Codex
         id: codex
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # pinned action revision
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -211,16 +202,18 @@ jobs:
         id: branch
         env:
           GH_TOKEN: ${{ github.token }}
+          ROLE: ${{ matrix.role }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git config user.name "GLORIFIER AI Fleet (${{ matrix.role }})"
+          git config user.name "GLORIFIER AI Fleet ($ROLE)"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          BRANCH="ai/${{ matrix.role }}/${{ github.run_id }}"
+          BRANCH="ai/$ROLE/$RUN_ID"
           git checkout -b "$BRANCH"
-          git -c core.hooksPath=/dev/null commit -m "ai(${{ matrix.role }}): governed maintenance"
+          git -c core.hooksPath=/dev/null commit -m "ai($ROLE): governed maintenance"
           gh auth setup-git
           git -c core.hooksPath=/dev/null push --set-upstream origin "$BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -230,9 +223,10 @@ jobs:
         if: ${{ steps.branch.outputs.changed == 'true' && steps.validation.outcome == 'success' && steps.policy.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          ROLE: ${{ matrix.role }}
         run: |
           gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" \
-            --title "AI Fleet: ${{ matrix.role }} maintenance" \
+            --title "AI Fleet: $ROLE maintenance" \
             --body "Autonomous GLORIFIER maintenance proposal. The repository pull_request CI runs after publication. This PR remains a draft and is not auto-merged."
 
       - name: Report that the Laos publication window is closed
@@ -242,7 +236,7 @@ jobs:
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
         run: |
-          echo "::notice::No AI model was invoked. Enable the weekly schedule by setting the repository Actions variable AI_MAINTENANCE_AUTORUN=true, or manually dispatch with authorize_pull_request=true."
+          echo "::notice::No AI model was invoked. Enable by setting the repository Actions variable AI_MAINTENANCE_AUTORUN=true."
 
       - name: Report missing API key
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed == 'true' && steps.provider.outputs.configured != 'true' }}
@@ -252,3 +246,31 @@ jobs:
       - name: Report Codex capacity limitation
         if: ${{ failure() && steps.codex.outcome == 'failure' }}
         run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
+
+  dispatch-ci:
+    needs: coding-fleet
+    if: ${{ always() && needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.branch != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      pull-requests: write
+    steps:
+      - name: Dispatch CI against generated branch
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.coding-fleet.outputs.branch }}
+        run: |
+          set -euo pipefail
+          gh workflow run ci.yml --ref "$BRANCH"
+
+      - name: Enable auto-merge on generated PR
+        if: ${{ steps.dispatch.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.coding-fleet.outputs.branch }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER="$(gh pr view "$BRANCH" --json number --jq '.number')"
+          gh pr merge "$PR_NUMBER" --auto --squash
