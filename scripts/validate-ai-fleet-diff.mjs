@@ -77,7 +77,7 @@ if (process.env.GLORIFIER_PR_CREATION_AUTHORIZED !== 'true') {
       ]));
       const symlinkPaths = readSymlinkPaths();
       const modeSummary = gitRaw(['diff', '--cached', '--no-renames', '--summary']);
-      if (/\\b(?:create|delete) mode 120000\\b|\\bmode change [^\\n]*\\b120000\\b/.test(modeSummary)) {
+      if (/create mode 120000|delete mode 120000|mode change.*120000/.test(modeSummary)) {
         throw new Error('Symbolic-link mode changes are not permitted in automatic PRs.');
       }
 
