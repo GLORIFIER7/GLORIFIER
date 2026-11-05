@@ -91,6 +91,33 @@ test('PR gate rejects a newly staged symbolic link', () => {
   assert.match(result.stderr, /binary_or_symlink_change_not_reviewable|Symbolic-link mode changes/);
 });
 
+test('PR gate rejects replacing an existing symlink with a regular file', () => {
+  const cwd = freshRepository();
+  writeFileSync(join(cwd, 'target.txt'), 'target\n');
+  symlinkSync('target.txt', join(cwd, 'link.txt'));
+  runGit(cwd, ['add', 'target.txt', 'link.txt']);
+  runGit(cwd, ['commit', '-q', '-m', 'add symlink']);
+  rmSync(join(cwd, 'link.txt'));
+  writeFileSync(join(cwd, 'link.txt'), 'regular file\n');
+  runGit(cwd, ['add', 'link.txt']);
+  const result = executeGate(cwd);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Symbolic-link mode changes are not permitted/);
+});
+
+test('PR gate rejects deletion of an existing symlink', () => {
+  const cwd = freshRepository();
+  writeFileSync(join(cwd, 'target.txt'), 'target\n');
+  symlinkSync('target.txt', join(cwd, 'link.txt'));
+  runGit(cwd, ['add', 'target.txt', 'link.txt']);
+  runGit(cwd, ['commit', '-q', '-m', 'add symlink']);
+  rmSync(join(cwd, 'link.txt'));
+  runGit(cwd, ['add', '-u', 'link.txt']);
+  const result = executeGate(cwd);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Symbolic-link mode changes are not permitted/);
+});
+
 test('PR gate rejects renaming a protected workflow file into an ordinary directory', () => {
   const cwd = freshRepository();
   writeRepoFile(cwd, '.github/workflows/policy.yml', 'name: protected\n');
