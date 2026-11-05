@@ -1089,7 +1089,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1135,7 +1135,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1181,7 +1181,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to .NET 8 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to .NET 8 / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1227,7 +1227,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Rust stable / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to Rust stable / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1273,7 +1273,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1319,7 +1319,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Ruby 3.2 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to Ruby 3.2 / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1365,7 +1365,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1411,7 +1411,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Dart 3.4.4 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
+        "Verification is limited to Dart 3.4.4 / Ubuntu 24.04 x86_64 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
