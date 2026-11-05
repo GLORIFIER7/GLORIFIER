@@ -17,14 +17,13 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: glorifier-ai-fleet-${{ github.ref }}
+  group: glorifier-ai-fleet-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
   coding-fleet:
     if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     permissions:
-      actions: write
       contents: write
       pull-requests: write
     strategy:
@@ -233,13 +232,7 @@ jobs:
         run: |
           gh pr create --draft --base main --head "${{ steps.branch.outputs.branch }}" \
             --title "AI Fleet: ${{ matrix.role }} maintenance" \
-            --body "Autonomous GLORIFIER maintenance proposal. Validation ran before publication; a separate CI workflow_dispatch is queued for this branch. This PR remains a draft and is not auto-merged."
-
-      - name: Run CI against the generated PR branch
-        if: ${{ steps.branch.outputs.changed == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --ref "${{ steps.branch.outputs.branch }}"
+            --body "Autonomous GLORIFIER maintenance proposal. The repository pull_request CI runs after publication. This PR remains a draft and is not auto-merged."
 
       - name: Report that the Laos publication window is closed
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed != 'true' }}
