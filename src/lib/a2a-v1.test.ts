@@ -213,6 +213,43 @@ void test('A2A JSON-RPC rejects invalid message roles, parts, and disabled push 
     'the current A2A 1.0 push configuration field must be rejected when push is disabled');
 });
 
+void test('A2A SendMessage accepts every JSON value supported by Part.data', async () => {
+  const { created, handler } = createTestHandler();
+  const values: unknown[] = [
+    { nested: { enabled: true }, tags: ['a', 'b'] },
+    ['first', 2, false, null],
+    'structured scalar',
+    42,
+    0,
+    true,
+    false,
+    null,
+  ];
+
+  for (const [index, value] of values.entries()) {
+    const response = await handler({
+      jsonrpc: '2.0',
+      id: 'data-' + index,
+      method: 'SendMessage',
+      params: {
+        message: {
+          messageId: 'data-message-' + index,
+          role: 'ROLE_USER',
+          parts: [{ data: value, mediaType: 'application/json' }],
+        },
+      },
+    });
+
+    assert.equal(response.error, undefined, 'valid JSON data value at index ' + index + ' must be accepted');
+    const stored = created[index].input as { parts: Array<{ data: unknown; mediaType: string }> };
+    assert.deepEqual(stored.parts[0].data, value, 'the original JSON value must be preserved');
+    assert.equal(stored.parts[0].mediaType, 'application/json');
+    assert.equal(created[index].objective, JSON.stringify(value),
+      'the governed task objective must preserve the full JSON value without lossy coercion');
+  }
+  assert.equal(created.length, values.length);
+});
+
 void test('A2A SendMessage continues a requester-owned task inside its stable context', async () => {
   const { existing, created, handler } = createTestHandler();
   const continued = await handler({
@@ -318,6 +355,43 @@ void test('A2A JSON-RPC rejects unsupported methods and invalid protocol version
     params: { id: existing.id },
   });
   assert.equal((invalidVersion.error as { code: number }).code, -32600);
+});
+
+void test('A2A CancelTask cancels only requester-owned queued tasks', async () => {
+  const requester = 'verified-user-42';
+  const queued = baseTask({ id: 'queued-cancel', requesterAgentId: requester, status: 'queued' });
+  const running = baseTask({ id: 'running-cancel', requesterAgentId: requester, status: 'running' });
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: requester,
+    createTask: () => { throw new Error('not used'); },
+    getTask: (id) => id === queued.id ? queued : id === running.id ? running : null,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+    cancelTask: async (id) => id === queued.id
+      ? { ...queued, status: 'canceled' }
+      : id === running.id ? running : null,
+  });
+
+  const canceled = await handler({
+    jsonrpc: '2.0', id: 'cancel-1', method: 'CancelTask', params: { id: queued.id },
+  });
+  assert.equal(canceled.error, undefined);
+  assert.equal((canceled.result as { status: { state: string } }).status.state, 'TASK_STATE_CANCELED');
+
+  const active = await handler({
+    jsonrpc: '2.0', id: 'cancel-2', method: 'CancelTask', params: { id: running.id },
+  });
+  assert.equal((active.error as { code: number }).code, -32002,
+    'running tasks must not be reported canceled when the provider cannot be interrupted');
+
+  const foreignOrMissing = await handler({
+    jsonrpc: '2.0', id: 'cancel-3', method: 'CancelTask', params: { id: 'not-owned' },
+  });
+  assert.equal((foreignOrMissing.error as { code: number }).code, -32001);
+
+  const malformed = await handler({
+    jsonrpc: '2.0', id: 'cancel-4', method: 'CancelTask', params: { id: ' ' },
+  });
+  assert.equal((malformed.error as { code: number }).code, -32602);
 });
 
 void test('A2A JSON-RPC enforces the inclusive text limit and rejects unsupported file parts', async () => {

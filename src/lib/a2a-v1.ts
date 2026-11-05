@@ -91,6 +91,8 @@ export interface A2AJsonRpcDependencies {
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
+  /** Requester-scoped, atomic cancellation. Running tasks must be returned unchanged. */
+  cancelTask?(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
 }
 
 export interface A2AJsonRpcResponse {
@@ -108,6 +110,14 @@ type JsonRecord = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is JsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): boolean => {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
 
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
@@ -175,7 +185,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
 }
 
 function statusFor(task: A2ATaskLike): {
-  state: 'TASK_STATE_SUBMITTED' | 'TASK_STATE_WORKING' | 'TASK_STATE_COMPLETED' | 'TASK_STATE_FAILED' | 'TASK_STATE_REJECTED';
+  state: 'TASK_STATE_SUBMITTED' | 'TASK_STATE_WORKING' | 'TASK_STATE_COMPLETED' | 'TASK_STATE_FAILED' | 'TASK_STATE_REJECTED' | 'TASK_STATE_CANCELED';
   message: string;
 } {
   switch (task.status) {
@@ -193,6 +203,8 @@ function statusFor(task: A2ATaskLike): {
       return { state: 'TASK_STATE_FAILED', message: 'The task failed.' };
     case 'blocked':
       return { state: 'TASK_STATE_REJECTED', message: 'The task was blocked by GLORIFIER governance.' };
+    case 'canceled':
+      return { state: 'TASK_STATE_CANCELED', message: 'The task was canceled before execution.' };
   }
 }
 
@@ -265,13 +277,14 @@ function messageText(message: JsonRecord): {
       continue;
     }
     if (contentFields[0] === 'data') {
-      if (!isRecord(part.data)) return null;
-      let serialized: string;
+      if (!isJsonValue(part.data)) return null;
+      let serialized: string | undefined;
       try {
         serialized = JSON.stringify(part.data);
       } catch {
         return null;
       }
+      if (typeof serialized !== 'string') return null;
       normalizedParts.push({ data: part.data, ...optionalPartFields });
       textParts.push(serialized);
       continue;
@@ -389,6 +402,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         TASK_STATE_COMPLETED: ['completed'],
         TASK_STATE_FAILED: ['failed'],
         TASK_STATE_REJECTED: ['blocked'],
+        TASK_STATE_CANCELED: ['canceled'],
       };
       let statuses: A2ATaskLike['status'][] | undefined;
       if (params.status !== undefined) {
@@ -414,6 +428,31 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         });
       } catch {
         return rpcError(id, -32602, 'The task page token or filter is invalid.');
+      }
+    }
+
+    if (payload.method === 'CancelTask') {
+      const taskId = payload.params.id;
+      if (typeof taskId !== 'string' || !taskId.trim()) {
+        return rpcError(id, -32602, 'Invalid params: task id is required.');
+      }
+      if (!dependencies.requesterAgentId.trim()) {
+        return rpcError(id, -32603, 'Authenticated requester identity is unavailable.');
+      }
+      if (!dependencies.cancelTask) {
+        return rpcError(id, -32601, 'CancelTask is not supported by this agent.');
+      }
+      try {
+        const task = await dependencies.cancelTask(taskId);
+        if (!task || task.requesterAgentId !== dependencies.requesterAgentId) {
+          return rpcError(id, -32001, 'Task not found.');
+        }
+        if (task.status !== 'canceled') {
+          return rpcError(id, -32002, 'The task is not cancelable because it is no longer queued.');
+        }
+        return rpcResult(id, toA2ATask(task));
+      } catch {
+        return rpcError(id, -32603, 'Task cancellation is temporarily unavailable.');
       }
     }
 

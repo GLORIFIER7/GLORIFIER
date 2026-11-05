@@ -22,6 +22,7 @@ export interface A2AExpressDependencies {
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(requesterAgentId: string, input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
+  cancelTask?(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
 }
 
 function jsonRpcHttpError(
@@ -137,6 +138,9 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
       createTask: dependencies.createTask,
       getTask: (id) => dependencies.getTask(id, requesterAgentId),
       listTasks: (input) => dependencies.listTasks(requesterAgentId, input),
+      ...(dependencies.cancelTask
+        ? { cancelTask: (id: string) => dependencies.cancelTask!(id, requesterAgentId) }
+        : {}),
     });
     try {
       const response = await handle(req.body);
