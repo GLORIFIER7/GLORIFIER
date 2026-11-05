@@ -122,6 +122,7 @@ test('PR gate rejects renaming a protected workflow file into an ordinary direct
   const cwd = freshRepository();
   writeRepoFile(cwd, '.github/workflows/policy.yml', 'name: protected\n');
   runGit(cwd, ['commit', '-q', '-m', 'add protected workflow']);
+  mkdirSync(join(cwd, 'docs'), { recursive: true });
   runGit(cwd, ['mv', '.github/workflows/policy.yml', 'docs/policy-notes.md']);
   const result = executeGate(cwd);
   assert.notEqual(result.status, 0);
