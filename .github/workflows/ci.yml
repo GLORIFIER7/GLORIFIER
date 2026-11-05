@@ -321,6 +321,9 @@ jobs:
       - name: Validate permanent orchestrator JavaScript syntax
         run: node --check scripts/permanent-orchestrator.mjs
 
+      - name: AI fleet pull-request diff policy tests
+        run: npm run test:ai-fleet-diff-policy
+
       - name: Production frontend and server build
         run: npm run build
 
