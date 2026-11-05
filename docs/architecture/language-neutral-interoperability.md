@@ -125,3 +125,33 @@ These are baseline fixtures, not a claim of multi-language certification. Each a
 ## AI provider interoperability boundary
 
 Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
+
+## Native SDK implementations — 2026-11-05
+
+The repository now contains native HTTP/JSON client packages for the following additional languages. These are implementation targets, not certified compatibility claims:
+
+| SDK | Runtime target | Package path | CI job |
+|---|---|---|---|
+| Java | JDK 17+ | `sdk/java` | Java SDK |
+| Kotlin | Kotlin/JVM 2.0.21, JDK 17+ | `sdk/kotlin` | Kotlin SDK |
+| C# / .NET | .NET 8 | `sdk/dotnet` | .NET SDK |
+| Rust | stable Rust, edition 2021 | `sdk/rust` | Rust SDK |
+| PHP | PHP 8.2+, cURL, mbstring | `sdk/php` | PHP SDK |
+| Ruby | Ruby 3.2+ | `sdk/ruby` | Ruby SDK |
+| Swift | Swift 5.9+, macOS 13+ | `sdk/swift` | Swift SDK |
+| Dart | Dart 3.4+ | `sdk/dart` | Dart SDK |
+
+The implementation contract for each package is:
+
+- Exact-origin HTTPS validation; loopback HTTP is available only through an explicit test/development opt-in.
+- Health and readiness calls do not carry the caller's bearer token.
+- The bearer token is attached only to `POST /api/neural/v1/tasks`.
+- Authenticated redirects are not followed.
+- Task payloads use only the canonical OpenAPI fields: `task`, `purpose`, `require_approval`, and `action_class`.
+- Task request bodies are limited to 65,536 UTF-8 bytes; response reads are limited to 1 MiB where the runtime transport provides bounded streaming.
+- HTTP 503 readiness observations are returned with their status and JSON body; task submission is not automatically retried because the API does not define an idempotency key.
+- Unknown task fields and invalid field types/lengths are rejected before network access.
+
+Run each language's test command as listed in [the SDK package index](../../sdk/README.md). The dedicated [native SDK conformance workflow](../../.github/workflows/polyglot-sdk.yml) runs the language-specific contract suites. A capability remains `NOT VERIFIED` until the exact current commit's corresponding CI job succeeds. A successful mocked/local test run does not establish a live Neural origin, production credentials, external A2A/MCP conformance, or provider readiness.
+
+These packages are initial, independently implemented clients. They are not generated from a single OpenAPI code generator, and their language runtimes, dependency trees, and exception/error models remain language-specific. The shared wire contract and conformance tests—not shared in-memory objects—are the compatibility boundary.

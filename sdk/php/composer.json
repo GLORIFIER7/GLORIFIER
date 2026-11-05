@@ -1,0 +1,7 @@
+{
+  "name": "glorifier/neural-sdk",
+  "description": "Native PHP client for the GLORIFIER Neural API",
+  "type": "library",
+  "require": { "php": ">=8.2", "ext-curl": "*", "ext-mbstring": "*" },
+  "autoload": { "psr-4": { "Glorifier\\Neural\\": "src/" } }
+}

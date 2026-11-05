@@ -1,0 +1,131 @@
+name: GLORIFIER Native SDK Conformance
+
+on:
+  pull_request:
+    paths:
+      - "sdk/java/**"
+      - "sdk/kotlin/**"
+      - "sdk/dotnet/**"
+      - "sdk/rust/**"
+      - "sdk/php/**"
+      - "sdk/ruby/**"
+      - "sdk/swift/**"
+      - "sdk/dart/**"
+      - ".github/workflows/polyglot-sdk.yml"
+      - "docs/architecture/interoperability-contract-fixtures.json"
+      - "docs/architecture/interoperability-capabilities.json"
+      - "docs/architecture/language-neutral-interoperability.md"
+  push:
+    branches: [main]
+    paths:
+      - "sdk/java/**"
+      - "sdk/kotlin/**"
+      - "sdk/dotnet/**"
+      - "sdk/rust/**"
+      - "sdk/php/**"
+      - "sdk/ruby/**"
+      - "sdk/swift/**"
+      - "sdk/dart/**"
+      - ".github/workflows/polyglot-sdk.yml"
+      - "docs/architecture/interoperability-contract-fixtures.json"
+      - "docs/architecture/interoperability-capabilities.json"
+      - "docs/architecture/language-neutral-interoperability.md"
+
+permissions:
+  contents: read
+
+jobs:
+  java:
+    name: Java SDK (JDK 17)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Test native Java SDK
+        working-directory: sdk/java
+        run: mvn --batch-mode --no-transfer-progress test
+
+  kotlin:
+    name: Kotlin SDK (JVM 17 / Kotlin 2.0)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Test native Kotlin SDK
+        run: gradle --no-daemon -p sdk/kotlin test
+
+  dotnet:
+    name: .NET SDK (8.0)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test native .NET SDK
+        run: dotnet test sdk/dotnet/Glorifier.Neural.Tests/Glorifier.Neural.Tests.csproj --configuration Release
+
+  rust:
+    name: Rust SDK (stable)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test native Rust SDK
+        run: cargo test --manifest-path sdk/rust/Cargo.toml --all-targets
+
+  php:
+    name: PHP SDK (8.2)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: curl, mbstring
+          coverage: none
+      - name: Test native PHP SDK
+        run: php sdk/php/tests/run.php
+
+  ruby:
+    name: Ruby SDK (3.2)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Test native Ruby SDK
+        run: ruby sdk/ruby/test/test_client.rb
+
+  swift:
+    name: Swift SDK (5.9+)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test native Swift SDK
+        run: swift test --package-path sdk/swift
+
+  dart:
+    name: Dart SDK (3.4)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.4.4"
+      - name: Test native Dart SDK
+        working-directory: sdk/dart
+        run: |
+          dart pub get
+          dart test
