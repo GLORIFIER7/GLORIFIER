@@ -8,7 +8,19 @@ from __future__ import annotations
 import json
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects so caller credentials cannot cross an origin boundary."""
+
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+def urlopen(request: Request, *, timeout: float):
+    """Open one request without following redirects."""
+    return build_opener(_NoRedirectHandler()).open(request, timeout=timeout)
 
 
 MAX_TASK_BODY_BYTES = 65_536
