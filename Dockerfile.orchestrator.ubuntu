@@ -1,15 +1,29 @@
 # GLORIFIER Permanent Orchestrator — minimal, reproducible Ubuntu runtime
-# Copy only the Node.js executable from a digest-pinned official Node 24 image.
-FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
+# Copy only the Node.js executable from the pinned Node 24.22.2 Bookworm slim image.
+# Ubuntu 24.04 Noble runtime pinned by OCI digest.
+FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
+FROM ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production
 
 # Install only the shared libraries needed by the copied Node binary, CA roots
 # for outbound HTTPS, and the tools needed to create a fixed non-root identity.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates libstdc++6 libgcc-s1 libatomic1 libssl3t64 zlib1g passwd \
+RUN apt-get -o Acquire::Retries=0 update \
+ && apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt libapt-pkg6.0t64 \
+ && apt_version="$(dpkg-query -W -f='${Version}' apt)" \
+ && dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1 \
+ && libapt_version="$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" \
+ && dpkg --compare-versions "$libapt_version" ge 2.8.4ubuntu0.1 \
+ && printf '%s\n' 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-glorifier-no-retries \
+  && apt-get -o Acquire::Retries=0 install -y --no-install-recommends \
+     ca-certificates \
+     libatomic1 \
+     libgcc-s1 \
+     libssl3t64 \
+     libstdc++6 \
+     passwd \
+     zlib1g \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --system --gid 10001 glorifier \

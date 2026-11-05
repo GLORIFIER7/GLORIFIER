@@ -16,6 +16,9 @@ on:
       - "public/**"
       - "index.html"
       - "vite.config.ts"
+      - "scripts/ubuntu-apt-security-policy.test.mjs"
+      - ".trivy.yaml"
+      - "security/vex/**"
       - ".github/workflows/docker-image.yml"
   workflow_run:
     workflows: ["GLORIFIER CI"]
@@ -40,6 +43,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
+      - name: Verify Ubuntu runtime APT security policy
+        run: node --test scripts/ubuntu-apt-security-policy.test.mjs
 
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
@@ -67,7 +73,8 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
 
       - name: Smoke test Ubuntu runtime health endpoint
@@ -150,7 +157,8 @@ jobs:
           format: table
           exit-code: "0"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block image with high or critical vulnerabilities
@@ -160,7 +168,8 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -171,7 +180,8 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
@@ -223,7 +233,8 @@ jobs:
           format: table
           exit-code: "0"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Block candidate image with high or critical vulnerabilities
@@ -234,7 +245,8 @@ jobs:
           format: table
           exit-code: "1"
           vuln-type: os,library
-          version: v0.76.0
+          version: v0.76.1
+          trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
