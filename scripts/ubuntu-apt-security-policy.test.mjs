@@ -25,6 +25,8 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     assert.ok(upgradeIndex > updateIndex, 'apt and libapt must be upgraded before application packages are installed');
     assert.ok(aptVersionCheckIndex > upgradeIndex, 'the installed apt version must be checked against the Ubuntu fix');
     assert.ok(libaptVersionCheckIndex > aptVersionCheckIndex, 'the installed libapt-pkg version must be checked against the Ubuntu fix');
+    const retryPolicyIndex = source.indexOf('Acquire::Retries "0";');
+    assert.ok(retryPolicyIndex > libaptVersionCheckIndex, 'the runtime must persistently disable APT retries after validating patched packages');
     const runtimePackageInstallIndex = source.indexOf(
       'apt-get -o Acquire::Retries=0 install -y --no-install-recommends ca-certificates',
     );
