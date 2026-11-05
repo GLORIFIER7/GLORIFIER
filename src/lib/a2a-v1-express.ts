@@ -139,7 +139,7 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
       getTask: (id) => dependencies.getTask(id, requesterAgentId),
       listTasks: (input) => dependencies.listTasks(requesterAgentId, input),
       ...(dependencies.cancelTask
-        ? { cancelTask: (id: string) => dependencies.cancelTask!(id, requesterAgentId) }
+        ? { cancelTask: (id: string, authenticatedRequesterId: string) => dependencies.cancelTask!(id, authenticatedRequesterId) }
         : {}),
     });
     try {
