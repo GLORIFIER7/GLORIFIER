@@ -171,7 +171,7 @@ await withServer(baseDependencies(), async (origin) => {
   });
   const body = await response.json() as { error?: { code: number } };
   assert.equal(body.error?.code, -32603, 'task listing must fail closed without authenticated identity');
-});
+}, null);
 
 await withServer({
   ...baseDependencies(),
