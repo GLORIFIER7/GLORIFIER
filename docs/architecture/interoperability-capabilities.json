@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-03T09:02:31.399Z",
+  "updatedAt": "2026-11-05T07:59:56.316Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1033,6 +1033,254 @@
         "Cloudflare deployment metadata still assigns 100% of production traffic to deployment 3c5abfa9-91b3-4ee8-ade5-01b1305d4431, Worker version 880 (5a854d11-1f57-4401-80f9-fb39cf036cbf), built from older main commit 46b6f28.",
         "PR #628 is open and unmerged. The production endpoint responses cannot become verified until the approved protected main-branch release is reviewed, merged, deployed and smoke-tested.",
         "Do not upload/promote a preview directly or bypass the guarded workflow_dispatch and deploy_production=true release gate."
+      ]
+    },
+    {
+      "id": "sdk.java-neural-http-client",
+      "title": "Java Neural HTTP SDK",
+      "boundary": "Native Java SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "JDK 17+; Java HttpClient; JSON mapping with Jackson",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; Eclipse Temurin JDK 17"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/java/src/main/java/io/glorifier/sdk/GlorifierNeuralClient.java",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Eclipse Temurin JDK 17",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/java/src/test/java/io/glorifier/sdk/GlorifierNeuralClientTest.java",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Eclipse Temurin JDK 17",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.kotlin-neural-http-client",
+      "title": "Kotlin Neural HTTP SDK",
+      "boundary": "Native Kotlin SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Kotlin/JVM 2.0.21 on JDK 17+; JVM HttpClient",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; JDK 17; Kotlin 2.0.21"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/kotlin/src/main/kotlin/io/glorifier/sdk/GlorifierNeuralClient.kt",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; JDK 17; Kotlin 2.0.21",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/kotlin/src/test/kotlin/io/glorifier/sdk/GlorifierNeuralClientTest.kt",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; JDK 17; Kotlin 2.0.21",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.dotnet-neural-http-client",
+      "title": ".NET Neural HTTP SDK",
+      "boundary": "Native .NET SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": ".NET 8; System.Net.Http and System.Text.Json",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/dotnet/Glorifier.Neural/GlorifierNeuralClient.cs",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/dotnet/Glorifier.Neural.Tests/ClientTests.cs",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.rust-neural-http-client",
+      "title": "Rust Neural HTTP SDK",
+      "boundary": "Native Rust SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Rust stable; edition 2021; reqwest blocking and serde_json",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; Rust stable"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/rust/src/lib.rs",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Rust stable",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/rust/src/lib.rs#tests",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Rust stable",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.php-neural-http-client",
+      "title": "PHP Neural HTTP SDK",
+      "boundary": "Native PHP SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "PHP 8.2+; cURL and mbstring",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; PHP 8.2"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/php/src/GlorifierNeuralClient.php",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; PHP 8.2",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/php/tests/run.php",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; PHP 8.2",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.ruby-neural-http-client",
+      "title": "Ruby Neural HTTP SDK",
+      "boundary": "Native Ruby SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Ruby 3.2+; Net::HTTP and JSON",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; Ruby 3.2"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/ruby/lib/glorifier_neural_client.rb",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Ruby 3.2",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/ruby/test/test_client.rb",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Ruby 3.2",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.swift-neural-http-client",
+      "title": "Swift Neural HTTP SDK",
+      "boundary": "Native Swift SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Swift 5.9+; Foundation URLSession",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted macOS 14; Swift toolchain"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/swift/Sources/GlorifierNeural/GlorifierNeuralClient.swift",
+          "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/swift/Tests/GlorifierNeuralTests/GlorifierNeuralClientTests.swift",
+          "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
+      ]
+    },
+    {
+      "id": "sdk.dart-neural-http-client",
+      "title": "Dart Neural HTTP SDK",
+      "boundary": "Native Dart SDK to the GLORIFIER versioned Neural HTTPS/JSON API",
+      "scope": "Dart 3.4+; dart:io and dart:convert",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GitHub-hosted Ubuntu 24.04 x86_64; Dart 3.4.4"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "sdk/dart/lib/glorifier_neural.dart",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Dart 3.4.4",
+          "observedAt": null,
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "sdk/dart/test/glorifier_neural_test.dart",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Dart 3.4.4",
+          "observedAt": null,
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+        }
+      ],
+      "limitations": [
+        "Source and test files are present, but no exact-head successful CI evidence is yet recorded for this runtime.",
+        "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
+        "No A2A or MCP protocol certification is implied by this HTTP SDK."
       ]
     }
   ]
