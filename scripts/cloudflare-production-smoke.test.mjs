@@ -183,7 +183,7 @@ test('production MCP tool surface must be the exact read-only allowlist', () => 
 test('full-stack smoke extends only the Neon reports deadline', () => {
   const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
   assert.match(smokeSource,
-    /const requestTimeoutMs = check\.name === 'cloudflare-operational-reports' \? 30_000 : 10_000;/);
+    /const requestTimeoutMs = check\.name === 'cloudflare-operational-reports' \? 35_000 : 10_000;/);
   assert.match(smokeSource, /signal: AbortSignal\.timeout\(requestTimeoutMs\)/);
   assert.doesNotMatch(smokeSource, /signal: AbortSignal\.timeout\(30_000\)/,
     'other smoke probes must retain their original 10-second deadline');
