@@ -28,11 +28,34 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     const retryPolicyIndex = source.indexOf('Acquire::Retries "0";');
     assert.ok(retryPolicyIndex > libaptVersionCheckIndex, 'the runtime must persistently disable APT retries after validating patched packages');
     const runtimePackageInstallIndex = source.indexOf(
-      'apt-get -o Acquire::Retries=0 install -y --no-install-recommends ca-certificates',
+      'apt-get -o Acquire::Retries=0 install -y --no-install-recommends',
+      upgradeIndex + 1,
     );
     assert.ok(runtimePackageInstallIndex > upgradeIndex, 'runtime packages must be installed with APT retries disabled after the security upgrade');
     assert.ok(runtimePackageInstallIndex > libaptVersionCheckIndex, 'runtime packages must only be installed after both patched package versions are verified');
     assert.ok(runtimePackageInstallIndex > retryPolicyIndex, 'runtime packages must only be installed after the persistent no-retry policy is configured');
+    const runtimePackages = [
+      'ca-certificates',
+      'libatomic1',
+      'libgcc-s1',
+      'libssl3t64',
+      'libstdc++6',
+      'passwd',
+      'zlib1g',
+    ];
+    const runtimePackageIndexes = runtimePackages.map((name) =>
+      source.indexOf(name, runtimePackageInstallIndex),
+    );
+    assert.ok(
+      runtimePackageIndexes.every((index) => index > runtimePackageInstallIndex),
+      'all runtime packages must be explicitly listed after the install command',
+    );
+    assert.ok(
+      runtimePackageIndexes.every(
+        (index, position) => position === 0 || index > runtimePackageIndexes[position - 1],
+      ),
+      'runtime package names must remain sorted alphanumerically',
+    );
     assert.ok(!source.includes('apt-get -o Acquire::Retries=0 purge -y apt libapt-pkg6.0t64'), 'the runtime must retain Ubuntu Essential APT packages rather than attempt an unsafe purge');
 
   });
