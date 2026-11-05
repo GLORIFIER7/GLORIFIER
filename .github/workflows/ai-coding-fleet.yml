@@ -71,12 +71,35 @@ jobs:
         run: |
           set -euo pipefail
           current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"
-          if [[ "$current_hhmm" -lt 0831 ]]; then
+          if [[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]; then
+            echo "::error::The Asia/Vientiane clock did not return HHMM digits."
+            exit 1
+          fi
+          current_hhmm_decimal=$((10#$current_hhmm))
+          if (( current_hhmm_decimal < 831 )); then
             echo "allowed=false" >> "$GITHUB_OUTPUT"
             echo "::notice::AI maintenance publication is held until after 08:30 Asia/Vientiane."
           else
             echo "allowed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Verify Laos time-window boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for sample in 0000 0830 0831 0917 2359; do
+            actual=false
+            if (( 10#$sample >= 831 )); then
+              actual=true
+            fi
+            case "$sample:$actual" in
+              0000:false|0830:false|0831:true|0917:true|2359:true) ;;
+              *)
+                echo "::error::Incorrect time-window boundary for $sample: $actual"
+                exit 1
+                ;;
+            esac
+          done
+
       - name: Check OpenAI credential availability
         id: provider
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed == 'true' }}
@@ -99,12 +122,12 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install trusted validation dependencies
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex
         id: codex
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # pinned action revision
@@ -219,7 +242,7 @@ jobs:
         run: gh workflow run ci.yml --ref "${{ steps.branch.outputs.branch }}"
 
       - name: Report that the Laos publication window is closed
-        if: ${{ steps.time_window.outputs.allowed != 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed != 'true' }}
         run: echo "::notice::No model was invoked and no PR was created because it is before 08:31 Asia/Vientiane."
 
       - name: Report that AI maintenance is not enabled
@@ -228,7 +251,7 @@ jobs:
           echo "::notice::No AI model was invoked. Enable the weekly schedule by setting the repository Actions variable AI_MAINTENANCE_AUTORUN=true, or manually dispatch with authorize_pull_request=true."
 
       - name: Report missing API key
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured != 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed == 'true' && steps.provider.outputs.configured != 'true' }}
         run: |
           echo "::warning::OPENAI_API_KEY is not configured. AI maintenance did not run."
 
