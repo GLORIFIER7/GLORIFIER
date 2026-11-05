@@ -101,10 +101,10 @@ export function validateAiFleetDiff({ files, diffText = '', limits = {} } = {}) 
     return reject('invalid_diff_content');
   }
   const addedLines = diffText
-    .split(/\\r?\\n/)
+    .split(/\r?\n/)
     .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
     .map((line) => line.slice(1))
-    .join('\\n');
+    .join('\n');
   if (SECRET_PATTERNS.some((pattern) => pattern.test(addedLines))) {
     return reject('secret_like_material_detected', { additions, deletions, fileCount: files.length });
   }
