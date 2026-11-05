@@ -269,7 +269,8 @@ const run = async (): Promise<void> => {
         const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
           error: { code: number; message: string };
         };
-        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32600,
+        assert.equal(modernHeaderWithoutMetadata.status, 400);
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32020,
           'a modern HTTP request must carry the protocol version in per-request metadata as well as the header');
         assert.match(modernHeaderWithoutMetadataBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
 
@@ -289,7 +290,8 @@ const run = async (): Promise<void> => {
         const modernMetadataWithoutHeaderBody = await modernMetadataWithoutHeader.json() as {
           error: { code: number; message: string };
         };
-        assert.equal(modernMetadataWithoutHeaderBody.error.code, -32600);
+        assert.equal(modernMetadataWithoutHeader.status, 400);
+        assert.equal(modernMetadataWithoutHeaderBody.error.code, -32020);
         assert.match(modernMetadataWithoutHeaderBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
 
         const mismatchedModernProtocolVersions = await worker.fetch(
@@ -357,6 +359,80 @@ const run = async (): Promise<void> => {
         );
         assert.equal(modernDiscoverBody.result.ttlMs, 3_600_000);
         assert.equal(modernDiscoverBody.result.cacheScope, 'public');
+
+        const missingModernClientCapabilities = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'server/discover' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'missing-client-capabilities',
+              method: 'server/discover',
+              params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } },
+            }),
+          }),
+          env,
+        );
+        const missingModernClientCapabilitiesBody = await missingModernClientCapabilities.json() as {
+          error: { code: number };
+        };
+        assert.equal(missingModernClientCapabilities.status, 400);
+        assert.equal(missingModernClientCapabilitiesBody.error.code, -32602,
+          'modern requests require clientCapabilities even when the object is empty');
+
+        const mismatchedMcpMethod = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'resources/list' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-mcp-method',
+              method: 'tools/list',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const mismatchedMcpMethodBody = await mismatchedMcpMethod.json() as { error: { code: number } };
+        assert.equal(mismatchedMcpMethod.status, 400);
+        assert.equal(mismatchedMcpMethodBody.error.code, -32020);
+
+        const missingMcpName = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'tools/call' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'missing-mcp-name',
+              method: 'tools/call',
+              params: { _meta: modernMetadata, name: 'github_get_repository', arguments: {} },
+            }),
+          }),
+          env,
+        );
+        const missingMcpNameBody = await missingMcpName.json() as { error: { code: number } };
+        assert.equal(missingMcpName.status, 400);
+        assert.equal(missingMcpNameBody.error.code, -32020);
+
+        const encodedMcpName = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'tools/call', 'Mcp-Name': '=?base64?5bel5YW3?=' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'encoded-mcp-name',
+              method: 'tools/call',
+              params: { _meta: modernMetadata, name: '工具', arguments: {} },
+            }),
+          }),
+          env,
+        );
+        const encodedMcpNameBody = await encodedMcpName.json() as {
+          result: { isError?: boolean; content: Array<{ text: string }> };
+        };
+        assert.equal(encodedMcpName.status, 200);
+        assert.equal(encodedMcpNameBody.result.isError, true,
+          'a valid base64-sentinel MCP name must pass header/body validation before normal tool lookup');
 
         const modernToolsList = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -455,6 +531,24 @@ const run = async (): Promise<void> => {
         assert.equal(unsupportedModernBody.error.code, -32022);
         assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28']);
         assert.equal(unsupportedModernBody.error.data.requested, '2026-01-01');
+
+        const modernUnknownMethod = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'resources/list' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'modern-unknown-method',
+              method: 'resources/list',
+              params: { _meta: modernMetadata },
+            }),
+          }),
+          env,
+        );
+        const modernUnknownMethodBody = await modernUnknownMethod.json() as { error: { code: number } };
+        assert.equal(modernUnknownMethod.status, 404);
+        assert.equal(modernUnknownMethodBody.error.code, -32601,
+          'modern Streamable HTTP method-not-found errors must use 404');
 
         const modernInitializeRejected = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
