@@ -375,8 +375,7 @@ void test('A2A CancelTask cancels only requester-owned queued tasks', async () =
     jsonrpc: '2.0', id: 'cancel-1', method: 'CancelTask', params: { id: queued.id },
   });
   assert.equal(canceled.error, undefined);
-  assert.equal((canceled.result as A2ATaskLike).status, 'canceled');
-  assert.equal(toA2ATask(canceled.result as A2ATaskLike).status.state, 'TASK_STATE_CANCELED');
+  assert.equal((canceled.result as { status: { state: string } }).status.state, 'TASK_STATE_CANCELED');
 
   const active = await handler({
     jsonrpc: '2.0', id: 'cancel-2', method: 'CancelTask', params: { id: running.id },
