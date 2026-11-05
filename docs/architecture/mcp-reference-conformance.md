@@ -6,7 +6,7 @@
 **Production route:** `POST /mcp` on the `glorifier` Cloudflare Worker  
 **Implementation:** `src/lib/github-mcp.ts`, mounted in `src/worker.ts`  
 **Worker tests:** `src/worker.test.ts`; command: `npm run test:cloudflare-worker`  
-**Modern target revision:** `2026-07-28`; **legacy compatibility:** `2025-11-25`, `2025-06-18`, and `2025-03-26`. Implemented behavior is not equivalent to full conformance.
+**Target protocol revision:** `2026-07-28` (modern stateless subset; full conformance is not claimed); **legacy compatibility:** `2025-11-25`, `2025-06-18`, and `2025-03-26`.
 
 ## Implemented endpoint: fixed-scope GitHub MCP
 
@@ -88,7 +88,7 @@ A deployment record proves that Cloudflare has a deployment assigned 100% of tra
 
 ## Broader protocol conformance target: MCP 2026-07-28
 
-The selected normative target is revision `2026-07-28`. In that revision, `server/discover` reports modern supported protocol versions, capabilities, and server identity; every modern request carries protocol version and client capabilities; and Streamable HTTP requires request-routing headers. The fixed-scope GitHub MCP route implements only a subset of this surface.
+The selected normative target is revision `2026-07-28`. In that revision, `server/discover` reports modern supported protocol versions, its supported capabilities, and server identity; every modern request carries protocol version and client capabilities; and Streamable HTTP requires request-routing headers. The fixed-scope GitHub MCP route implements only a subset of this surface.
 
 The target reference is pinned. Merged PR #629 added modern discovery and the initial version contract; PR #661 adds mandatory client-capability and routing-header validation plus correct HTTP error statuses. Resource/prompt operations, SSE, subscriptions, and full transport/client conformance remain NOT VERIFIED until independent external client/server tests pass.
 
