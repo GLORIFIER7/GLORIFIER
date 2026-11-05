@@ -155,7 +155,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
       bearer: {
         httpAuthSecurityScheme: {
           scheme: 'Bearer',
-          description: 'A GLORIFIER authenticated identity token is required for task submission and retrieval.',
+          description: 'A GLORIFIER authenticated identity token is required for task submission, continuation, retrieval, and listing.',
         },
       },
     },
