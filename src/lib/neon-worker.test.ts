@@ -77,7 +77,7 @@ test('allows a bounded Neon Hyperdrive cold-start wake-up window', async () => {
 
   assert.deepEqual(capturedOptions, {
     connectionTimeoutMillis: 15_000,
-    query_timeout: 10_000,
+    query_timeout: 5_000,
   }, 'the initial Hyperdrive connection must have a bounded allowance for Neon Free compute wake-up');
 });
 
