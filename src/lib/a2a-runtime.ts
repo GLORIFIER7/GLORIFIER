@@ -292,6 +292,165 @@ export async function listA2ATasksForProtocol(
   return tasks;
 }
 
+
+export interface A2ATaskPageRequest {
+  requesterAgentId: string;
+  pageSize: number;
+  pageToken?: string;
+  contextId?: string;
+  statuses?: A2ATaskStatus[];
+  statusTimestampAfter?: string;
+}
+
+export interface A2ATaskPage {
+  tasks: A2ATask[];
+  nextPageToken: string;
+  pageSize: number;
+  totalSize: number;
+}
+
+interface A2ATaskPageCursor {
+  version: 1;
+  requesterAgentId: string;
+  contextId: string | null;
+  statuses: A2ATaskStatus[] | null;
+  statusTimestampAfter: string | null;
+  updatedAt: string;
+  id: string;
+}
+
+function pageFiltersMatch(cursor: A2ATaskPageCursor, request: A2ATaskPageRequest): boolean {
+  return cursor.version === 1 &&
+    cursor.requesterAgentId === request.requesterAgentId &&
+    cursor.contextId === (request.contextId || null) &&
+    JSON.stringify(cursor.statuses) === JSON.stringify(request.statuses || null) &&
+    cursor.statusTimestampAfter === (request.statusTimestampAfter || null);
+}
+
+function decodeA2ATaskPageCursor(token: string, request: A2ATaskPageRequest): A2ATaskPageCursor {
+  if (!token || token.length > 2048) throw new Error('A2A page token is invalid.');
+  try {
+    const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as Partial<A2ATaskPageCursor>;
+    const knownStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded'];
+    if (decoded.version !== 1 || typeof decoded.requesterAgentId !== 'string' ||
+        typeof decoded.updatedAt !== 'string' || !Number.isFinite(Date.parse(decoded.updatedAt)) ||
+        typeof decoded.id !== 'string' || !decoded.id ||
+        !(decoded.contextId === null || typeof decoded.contextId === 'string') ||
+        !(decoded.statuses === null || (Array.isArray(decoded.statuses) &&
+          decoded.statuses.every((status) => knownStatuses.includes(status)))) ||
+        !(decoded.statusTimestampAfter === null || (typeof decoded.statusTimestampAfter === 'string' &&
+          Number.isFinite(Date.parse(decoded.statusTimestampAfter))))) {
+      throw new Error('A2A page token is invalid.');
+    }
+    const cursor = decoded as A2ATaskPageCursor;
+    if (!pageFiltersMatch(cursor, request)) throw new Error('A2A page token does not match the current filters.');
+    return cursor;
+  } catch {
+    throw new Error('A2A page token is invalid or does not match the current filters.');
+  }
+}
+
+function encodeA2ATaskPageCursor(task: A2ATask, request: A2ATaskPageRequest): string {
+  const cursor: A2ATaskPageCursor = {
+    version: 1,
+    requesterAgentId: request.requesterAgentId,
+    contextId: request.contextId || null,
+    statuses: request.statuses || null,
+    statusTimestampAfter: request.statusTimestampAfter || null,
+    updatedAt: task.updatedAt,
+    id: task.id,
+  };
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+/**
+ * List tasks with authenticated requester scoping and stable cursor pagination.
+ * Cursors are bound to the requester and filters; durable queries apply those
+ * filters before pagination and order by updated_at/id descending.
+ */
+export async function listA2ATaskPageForProtocol(request: A2ATaskPageRequest): Promise<A2ATaskPage> {
+  const requester = typeof request.requesterAgentId === 'string' ? request.requesterAgentId.trim() : '';
+  if (!requester) throw new Error('Authenticated requester identity is required.');
+  const pageSize = Math.max(1, Math.min(100, Math.floor(request.pageSize || 50)));
+  const normalizedRequest = {
+    ...request,
+    requesterAgentId: requester,
+    pageSize,
+    statuses: request.statuses ? [...new Set(request.statuses)].sort() : undefined,
+  };
+  const cursor = request.pageToken ? decodeA2ATaskPageCursor(request.pageToken, normalizedRequest) : null;
+  const statusAfter = request.statusTimestampAfter ? new Date(request.statusTimestampAfter).toISOString() : null;
+
+  if (!process.env.DATABASE_URL) {
+    const matching = [...memoryTasks.values()]
+      .filter((task) => task.requesterAgentId === requester)
+      .filter((task) => !request.contextId || (task.parentTaskId || task.id) === request.contextId)
+      .filter((task) => !normalizedRequest.statuses || normalizedRequest.statuses.includes(task.status))
+      .filter((task) => !statusAfter || Date.parse(task.updatedAt) >= Date.parse(statusAfter))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id));
+    const totalSize = matching.length;
+    const afterCursor = cursor
+      ? matching.filter((task) => task.updatedAt < cursor.updatedAt ||
+          (task.updatedAt === cursor.updatedAt && task.id < cursor.id))
+      : matching;
+    const tasks = afterCursor.slice(0, pageSize);
+    const hasMore = afterCursor.length > pageSize;
+    return {
+      tasks,
+      nextPageToken: hasMore && tasks.length ? encodeA2ATaskPageCursor(tasks[tasks.length - 1], normalizedRequest) : '',
+      pageSize,
+      totalSize,
+    };
+  }
+
+  await initializeA2ARuntime();
+  const filters = ['requester_agent_id = $1'];
+  const filterParams: unknown[] = [requester];
+  if (request.contextId) {
+    filterParams.push(request.contextId);
+    filters.push(`COALESCE(parent_task_id, id) = $${filterParams.length}`);
+  }
+  if (normalizedRequest.statuses?.length) {
+    filterParams.push(normalizedRequest.statuses);
+    filters.push(`status = ANY($${filterParams.length}::text[])`);
+  }
+  if (statusAfter) {
+    filterParams.push(statusAfter);
+    filters.push(`updated_at >= $${filterParams.length}::timestamptz`);
+  }
+
+  const filterSql = filters.join(' AND ');
+  const countResult = await getPostgresPool().query(
+    `SELECT COUNT(*)::bigint AS total_size FROM a2a_tasks WHERE ${filterSql}`,
+    filterParams,
+  );
+  const totalSize = Number(countResult.rows[0]?.total_size ?? 0);
+  if (!Number.isSafeInteger(totalSize) || totalSize < 0) {
+    throw new Error('A2A task count is outside the safe integer range.');
+  }
+
+  const pageParams = [...filterParams];
+  let pageSql = `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+                        attempts,max_attempts,result,error,evidence_id,created_at,updated_at
+                 FROM a2a_tasks WHERE ${filterSql}`;
+  if (cursor) {
+    pageParams.push(cursor.updatedAt, cursor.id);
+    pageSql += ` AND (updated_at, id) < ($${pageParams.length - 1}::timestamptz, $${pageParams.length})`;
+  }
+  pageParams.push(pageSize + 1);
+  pageSql += ` ORDER BY updated_at DESC, id DESC LIMIT $${pageParams.length}`;
+  const pageResult = await getPostgresPool().query(pageSql, pageParams);
+  const hasMore = pageResult.rows.length > pageSize;
+  const tasks = pageResult.rows.slice(0, pageSize).map((row) => mapPersistedA2ATask(row));
+  for (const task of tasks) memoryTasks.set(task.id, task);
+  return {
+    tasks,
+    nextPageToken: hasMore && tasks.length ? encodeA2ATaskPageCursor(tasks[tasks.length - 1], normalizedRequest) : '',
+    pageSize,
+    totalSize,
+  };
+}
+
 export async function getA2ATaskForProtocol(id: string): Promise<A2ATask | null> {
   if (!process.env.DATABASE_URL) return memoryTasks.get(id) || null;
   await initializeA2ARuntime();
@@ -300,6 +459,34 @@ export async function getA2ATaskForProtocol(id: string): Promise<A2ATask | null>
             attempts,max_attempts,result,error,evidence_id,created_at,updated_at
      FROM a2a_tasks WHERE id = $1 LIMIT 1`,
     [id],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const task = mapPersistedA2ATask(row);
+  memoryTasks.set(task.id, task);
+  return task;
+}
+
+/**
+ * Retrieve a task with the requester predicate applied in SQL, preventing
+ * cross-requester task existence checks from being performed by the protocol adapter.
+ */
+export async function getA2ATaskForRequesterProtocol(
+  id: string,
+  requesterAgentId: string,
+): Promise<A2ATask | null> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  if (!id || !requester) return null;
+  if (!process.env.DATABASE_URL) {
+    const task = memoryTasks.get(id);
+    return task?.requesterAgentId === requester ? task : null;
+  }
+  await initializeA2ARuntime();
+  const result = await getPostgresPool().query(
+    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+            attempts,max_attempts,result,error,evidence_id,created_at,updated_at
+     FROM a2a_tasks WHERE id = $1 AND requester_agent_id = $2 LIMIT 1`,
+    [id, requester],
   );
   const row = result.rows[0];
   if (!row) return null;

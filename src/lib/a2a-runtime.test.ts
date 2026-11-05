@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, listA2ATasks } from './a2a-runtime.ts';
+import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
+import crypto from 'node:crypto';
 
 const withA2ATestEnvironment = async (run: () => Promise<void>): Promise<void> => {
   const previousDatabaseUrl = process.env.DATABASE_URL;
@@ -74,5 +75,78 @@ void test('A2A executor prompts use real line boundaries', async () => {
       !capturedPrompt.includes('\\nAgent identity:'),
       'executor prompt must not contain literal backslash-n separators',
     );
+  });
+});
+
+
+void test('A2A protocol task pages are requester-scoped, filtered, and cursor-stable', async () => {
+  await withA2ATestEnvironment(async () => {
+    const requester = `a2a-page-${crypto.randomUUID()}`;
+    const otherRequester = `a2a-page-other-${crypto.randomUUID()}`;
+    const context = `a2a-context-${crypto.randomUUID()}`;
+    const created = [
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'page one', parentTaskId: context }),
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'page two', parentTaskId: context }),
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'page three', parentTaskId: context }),
+    ];
+    createA2ATask({ requesterAgentId: otherRequester, capability: 'research', objective: 'foreign task' });
+
+    const first = await listA2ATaskPageForProtocol({ requesterAgentId: requester, pageSize: 1, contextId: context });
+    assert.equal(first.pageSize, 1);
+    assert.equal(first.totalSize, 3);
+    assert.equal(first.tasks.length, 1);
+    assert.ok(first.nextPageToken);
+
+    const second = await listA2ATaskPageForProtocol({
+      requesterAgentId: requester,
+      pageSize: 1,
+      contextId: context,
+      pageToken: first.nextPageToken,
+    });
+    const third = await listA2ATaskPageForProtocol({
+      requesterAgentId: requester,
+      pageSize: 1,
+      contextId: context,
+      pageToken: second.nextPageToken,
+    });
+    assert.equal(second.totalSize, 3);
+    assert.equal(third.totalSize, 3);
+    assert.equal(second.tasks.length, 1);
+    assert.equal(third.tasks.length, 1);
+    assert.equal(third.nextPageToken, '');
+
+    const listedIds = [first.tasks[0].id, second.tasks[0].id, third.tasks[0].id];
+    assert.equal(new Set(listedIds).size, 3, 'cursor pagination must not repeat tasks');
+    assert.deepEqual([...listedIds].sort(), created.map((task) => task.id).sort(),
+      'all requester-owned tasks in the selected context must be returned exactly once');
+
+    await assert.rejects(
+      listA2ATaskPageForProtocol({
+        requesterAgentId: otherRequester,
+        pageSize: 1,
+        contextId: context,
+        pageToken: first.nextPageToken,
+      }),
+      /invalid or does not match/,
+      'a cursor must not be reusable by a different requester',
+    );
+  });
+});
+
+
+void test('A2A protocol task lookup applies requester scope before returning a task', async () => {
+  await withA2ATestEnvironment(async () => {
+    const owner = `a2a-read-owner-${crypto.randomUUID()}`;
+    const stranger = `a2a-read-stranger-${crypto.randomUUID()}`;
+    const task = createA2ATask({
+      requesterAgentId: owner,
+      capability: 'research',
+      objective: 'Check requester-scoped task reads',
+    });
+
+    assert.equal((await getA2ATaskForRequesterProtocol(task.id, owner))?.id, task.id);
+    assert.equal(await getA2ATaskForRequesterProtocol(task.id, stranger), null);
+    assert.equal(await getA2ATaskForRequesterProtocol(task.id, ''), null);
+    assert.equal(await getA2ATaskForRequesterProtocol('missing-task', owner), null);
   });
 });

@@ -60,6 +60,12 @@ const baseDependencies = (): A2AExpressDependencies => ({
     objective: input.objective,
   }),
   getTask: async () => null,
+  listTasks: async (requesterAgentId, input) => ({
+    tasks: [],
+    nextPageToken: '',
+    pageSize: input.pageSize,
+    totalSize: requesterAgentId === 'express-test-user' ? 0 : 999,
+  }),
 });
 
 async function assertUnsupportedProtocolVersion(origin: string, version?: string): Promise<void> {
@@ -125,6 +131,47 @@ await withServer(baseDependencies(), async (origin) => {
   assert.equal(body.result?.task.id, 'express-a2a-task');
   assert.equal(body.result?.task.status.state, 'TASK_STATE_SUBMITTED');
 });
+
+await withServer({
+  ...baseDependencies(),
+  listTasks: async (requesterAgentId, input) => ({
+    tasks: [task({ requesterAgentId, status: 'running' })],
+    nextPageToken: 'next-page',
+    pageSize: input.pageSize,
+    totalSize: 4,
+  }),
+}, async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'express-list-1',
+      method: 'ListTasks',
+      params: { pageSize: 1, status: 'TASK_STATE_WORKING' },
+    }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as {
+    id: string;
+    result?: { tasks: Array<{ status: { state: string } }>; nextPageToken: string; pageSize: number; totalSize: number };
+  };
+  assert.equal(body.id, 'express-list-1');
+  assert.equal(body.result?.tasks[0].status.state, 'TASK_STATE_WORKING');
+  assert.equal(body.result?.nextPageToken, 'next-page');
+  assert.equal(body.result?.pageSize, 1);
+  assert.equal(body.result?.totalSize, 4);
+});
+
+await withServer(baseDependencies(), async (origin) => {
+  const response = await fetch(`${origin}/api/a2a/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'list-no-auth', method: 'ListTasks', params: {} }),
+  });
+  const body = await response.json() as { error?: { code: number } };
+  assert.equal(body.error?.code, -32603, 'task listing must fail closed without authenticated identity');
+}, null);
 
 await withServer({
   ...baseDependencies(),

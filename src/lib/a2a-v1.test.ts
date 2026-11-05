@@ -29,11 +29,17 @@ const createTestHandler = () => {
     requesterAgentId: 'verified-user-42',
     createTask(input) {
       created.push(input);
-      return baseTask({ requesterAgentId: input.requesterAgentId, objective: input.objective });
+      return baseTask({ requesterAgentId: input.requesterAgentId, objective: input.objective, parentTaskId: input.parentTaskId || null });
     },
     getTask(id) {
       return id === existing.id ? existing : null;
     },
+    listTasks: async (input) => ({
+      tasks: [existing],
+      nextPageToken: '',
+      pageSize: input.pageSize,
+      totalSize: 1,
+    }),
   });
   return { created, existing, handler };
 };
@@ -140,6 +146,7 @@ void test('A2A GetTask returns only tasks owned by the authenticated requester',
     requesterAgentId: 'other-user',
     createTask: () => { throw new Error('not used'); },
     getTask: () => existing,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
   });
   const crossUserTask = await privateTaskHandler({
     jsonrpc: '2.0',
@@ -206,16 +213,95 @@ void test('A2A JSON-RPC rejects invalid message roles, parts, and disabled push 
     'the current A2A 1.0 push configuration field must be rejected when push is disabled');
 });
 
-void test('A2A JSON-RPC rejects unsupported continuations, methods, and protocol versions', async () => {
-  const { existing, handler } = createTestHandler();
-
-  const unsupportedContinuation = await handler({
+void test('A2A SendMessage continues a requester-owned task inside its stable context', async () => {
+  const { existing, created, handler } = createTestHandler();
+  const continued = await handler({
     jsonrpc: '2.0',
-    id: 6,
+    id: 'continue-1',
     method: 'SendMessage',
-    params: { message: { messageId: 'x', role: 'ROLE_USER', taskId: 'existing', parts: [{ text: 'continue' }] } },
+    params: {
+      message: {
+        messageId: 'follow-up-1',
+        role: 'ROLE_USER',
+        taskId: existing.id,
+        contextId: existing.id,
+        parts: [{ text: 'Add this clarification' }],
+      },
+    },
   });
-  assert.equal((unsupportedContinuation.error as { code: number }).code, -32602);
+  assert.equal(continued.error, undefined);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].parentTaskId, existing.id);
+  const task = (continued.result as { task: { contextId: string } }).task;
+  assert.equal(task.contextId, existing.id);
+});
+
+void test('A2A SendMessage rejects foreign and terminal task continuations', async () => {
+  const { existing } = createTestHandler();
+  const foreign = createA2AJsonRpcHandler({
+    requesterAgentId: 'other-user',
+    createTask: () => { throw new Error('must not create a task'); },
+    getTask: () => existing,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+  });
+  const denied = await foreign({
+    jsonrpc: '2.0', id: 61, method: 'SendMessage',
+    params: { message: { messageId: 'foreign-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
+  });
+  assert.equal((denied.error as { code: number }).code, -32001);
+
+  const terminal = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: () => { throw new Error('terminal tasks cannot be resumed'); },
+    getTask: () => ({ ...existing, status: 'completed' }),
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+  });
+  const rejected = await terminal({
+    jsonrpc: '2.0', id: 62, method: 'SendMessage',
+    params: { message: { messageId: 'terminal-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
+  });
+  assert.equal((rejected.error as { code: number }).code, -32000);
+});
+
+void test('A2A ListTasks returns a bounded requester-scoped page with stable result fields', async () => {
+  const existing = baseTask({ status: 'running', result: { secret: 'only include when requested' } });
+  let received: unknown;
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: () => { throw new Error('not used'); },
+    getTask: () => existing,
+    listTasks: async (input) => {
+      received = input;
+      return { tasks: [existing], nextPageToken: 'next-cursor', pageSize: input.pageSize, totalSize: 3 };
+    },
+  });
+  const page = await handler({
+    jsonrpc: '2.0', id: 63, method: 'ListTasks',
+    params: { pageSize: 2, pageToken: 'prior-cursor', status: 'TASK_STATE_WORKING', contextId: 'a2a-context' },
+  });
+  assert.equal(page.error, undefined);
+  assert.deepEqual(received, {
+    pageSize: 2,
+    pageToken: 'prior-cursor',
+    contextId: 'a2a-context',
+    statuses: ['running', 'degraded'],
+  });
+  const result = page.result as { tasks: Array<{ status: { state: string }; artifacts: unknown[] }>; nextPageToken: string; pageSize: number; totalSize: number };
+  assert.equal(result.tasks[0].status.state, 'TASK_STATE_WORKING');
+  assert.deepEqual(result.tasks[0].artifacts, [], 'list results omit artifacts unless requested');
+  assert.equal(result.nextPageToken, 'next-cursor');
+  assert.equal(result.pageSize, 2);
+  assert.equal(result.totalSize, 3);
+
+  const invalid = await handler({
+    jsonrpc: '2.0', id: 64, method: 'ListTasks',
+    params: { pageSize: 101 },
+  });
+  assert.equal((invalid.error as { code: number }).code, -32602);
+});
+
+void test('A2A JSON-RPC rejects unsupported methods and invalid protocol versions', async () => {
+  const { existing, handler } = createTestHandler();
 
   const unsupportedMethod = await handler({
     jsonrpc: '2.0',
@@ -319,6 +405,7 @@ void test('A2A JSON-RPC waits for durable creation and reports persistence failu
     requesterAgentId: 'verified-user-async',
     createTask: async () => durableCreate,
     getTask: async (id) => id === existing.id ? existing : null,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
   });
 
   let responseSettled = false;
@@ -350,6 +437,7 @@ void test('A2A JSON-RPC waits for durable creation and reports persistence failu
     requesterAgentId: 'verified-user-async',
     createTask: async () => { throw new Error('database write failed'); },
     getTask: async () => null,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
   });
   const persistenceFailure = await persistenceFailureHandler({
     jsonrpc: '2.0',
