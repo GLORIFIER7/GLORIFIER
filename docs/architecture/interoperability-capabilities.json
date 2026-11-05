@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T08:09:17.801Z",
+  "updatedAt": "2026-11-05T08:12:36.341Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1065,10 +1065,17 @@
           "targetEnvironment": "JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Java SDK (JDK 17) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Java SDK (JDK 17) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1104,10 +1111,17 @@
           "targetEnvironment": "Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Kotlin SDK (JVM 17 / Kotlin 2.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Kotlin SDK (JVM 17 / Kotlin 2.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to Kotlin 2.0.21 / JDK 17 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1143,10 +1157,17 @@
           "targetEnvironment": ".NET 8 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": ".NET SDK (8.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": ".NET 8 / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": ".NET SDK (8.0) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to .NET 8 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to .NET 8 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1182,10 +1203,17 @@
           "targetEnvironment": "Rust stable / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Rust SDK (stable) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "Rust stable / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Rust SDK (stable) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to Rust stable / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to Rust stable / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1221,10 +1249,17 @@
           "targetEnvironment": "PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "PHP SDK (8.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "PHP SDK (8.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to PHP 8.2 / cURL / mbstring / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1260,10 +1295,17 @@
           "targetEnvironment": "Ruby 3.2 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Ruby SDK (3.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "Ruby 3.2 / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Ruby SDK (3.2) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to Ruby 3.2 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to Ruby 3.2 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1299,10 +1341,17 @@
           "targetEnvironment": "Swift toolchain / macOS 14; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Swift SDK (5.9+) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "Swift toolchain / macOS 14; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Swift SDK (5.9+) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
@@ -1338,10 +1387,17 @@
           "targetEnvironment": "Dart 3.4.4 / Ubuntu 24.04 x86_64; exact PR #658 merge commit 4a08d350a1d4e996f3fa8728b44535e8a3cd39d0; PR head 09dbd85dee1c17dc39f2e2983546c786b1fc795f",
           "observedAt": "2026-11-05T08:09:17.801Z",
           "notes": "Dart SDK (3.4) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. The exact SDK job passed its language-specific compile/test suite at PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f. Evidence is limited to this named runtime and runner; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992438998",
+          "targetEnvironment": "Dart 3.4.4 / Ubuntu 24.04 x86_64; exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20",
+          "observedAt": "2026-11-05T08:12:36.341Z",
+          "notes": "Dart SDK (3.4) completed successfully in the dedicated GLORIFIER Native SDK Conformance workflow. Its language-specific compile/test job passed at PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
         }
       ],
       "limitations": [
-        "Verification is limited to Dart 3.4.4 / Ubuntu 24.04 x86_64 and the exact PR #658 head 09dbd85dee1c17dc39f2e2983546c786b1fc795f.",
+        "Verification is limited to Dart 3.4.4 / Ubuntu 24.04 x86_64 and the exact PR #658 head 3077a9a21d9d1caea8899c73828b4eaa6091fd20.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
