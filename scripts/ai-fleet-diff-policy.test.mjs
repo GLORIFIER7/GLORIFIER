@@ -107,3 +107,31 @@ test('AI fleet rejects symbolic links as non-reviewable changes', () => {
 test('AI fleet rejects empty diff descriptions instead of treating them as approved', () => {
   assert.equal(validateAiFleetDiff({ files: [], diffText: '' }).allowed, false);
 });
+
+test('AI fleet scans added lines whose content begins with plus signs', () => {
+  for (const secret of [
+    '++ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+    '++-----BEGIN PRIVATE KEY-----',
+  ]) {
+    const result = validateAiFleetDiff({
+      files: [safeChange],
+      diffText: `diff --git a/src/lib/example.ts b/src/lib/example.ts
+index 1111111..2222222 100644
+--- a/src/lib/example.ts
++++ b/src/lib/example.ts
+@@ -1,0 +1,1 @@
++${secret}
+`,
+    });
+    assert.equal(result.allowed, false, `expected secret to be detected: ${secret}`);
+    assert.equal(result.reason, 'secret_like_material_detected');
+  }
+});
+
+test('AI fleet does not scan unified-diff file headers as added source content', () => {
+  const result = validateAiFleetDiff({
+    files: [safeChange],
+    diffText: 'diff --git a/src/lib/example.ts b/src/lib/example.ts\n--- a/src/lib/example.ts\n+++ b/src/lib/example.ts\n@@ -1,0 +1,1 @@\n+export const safe = true;\n',
+  });
+  assert.equal(result.allowed, true);
+});
