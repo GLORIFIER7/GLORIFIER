@@ -53,7 +53,10 @@ class GlorifierNeuralClient:
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         headers = {"Accept": "application/json"}
         body = None
-        if self._token:
+        # Caller credentials are scoped to the authenticated task-submission
+        # route only. Health and readiness are public probes and must not carry
+        # a bearer token, even when the client is configured with one.
+        if method == "POST" and path == "/api/neural/v1/tasks" and self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         if payload is not None:
             headers["Content-Type"] = "application/json; charset=utf-8"
