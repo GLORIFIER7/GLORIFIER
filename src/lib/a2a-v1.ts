@@ -68,12 +68,29 @@ export interface A2ACreateTaskInput {
   capability: string;
   objective: string;
   input: unknown;
+  parentTaskId?: string;
+}
+
+export interface A2AListTasksInput {
+  pageSize: number;
+  pageToken?: string;
+  contextId?: string;
+  statuses?: A2ATaskLike['status'][];
+  statusTimestampAfter?: string;
+}
+
+export interface A2ATaskListPage {
+  tasks: A2ATaskLike[];
+  nextPageToken: string;
+  pageSize: number;
+  totalSize: number;
 }
 
 export interface A2AJsonRpcDependencies {
   requesterAgentId: string;
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  listTasks(input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
 }
 
 export interface A2AJsonRpcResponse {
@@ -179,9 +196,9 @@ function statusFor(task: A2ATaskLike): {
   }
 }
 
-export function toA2ATask(task: A2ATaskLike) {
+export function toA2ATask(task: A2ATaskLike, includeArtifacts = true) {
   const mapped = statusFor(task);
-  const artifacts = task.result === undefined || task.result === null ? [] : [{
+  const artifacts = !includeArtifacts || task.result === undefined || task.result === null ? [] : [{
     artifactId: task.evidenceId || `artifact-${task.id}`,
     name: 'GLORIFIER task result',
     parts: [{
@@ -216,9 +233,15 @@ function rpcResult(id: string | number, result: unknown): A2AJsonRpcResponse {
   return { jsonrpc: '2.0', id, result };
 }
 
-function messageText(message: JsonRecord): { text: string; normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> } | null {
+function messageText(message: JsonRecord): {
+  text: string;
+  normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }>;
+  taskId?: string;
+  contextId?: string;
+} | null {
   if (message.role !== 'ROLE_USER' || typeof message.messageId !== 'string' || !message.messageId.trim()) return null;
-  if (hasOwn(message, 'taskId') || hasOwn(message, 'contextId')) return null;
+  if (hasOwn(message, 'taskId') && (typeof message.taskId !== 'string' || !message.taskId.trim())) return null;
+  if (hasOwn(message, 'contextId') && (typeof message.contextId !== 'string' || !message.contextId.trim())) return null;
   if (!Array.isArray(message.parts) || message.parts.length < 1 || message.parts.length > 20) return null;
 
   const normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }> = [];
@@ -259,7 +282,12 @@ function messageText(message: JsonRecord): { text: string; normalizedParts: Arra
 
   const text = textParts.join('\n');
   if (!text.trim() || text.length > A2A_MAX_MESSAGE_TEXT_CHARS) return null;
-  return { text, normalizedParts };
+  return {
+    text,
+    normalizedParts,
+    ...(typeof message.taskId === 'string' ? { taskId: message.taskId } : {}),
+    ...(typeof message.contextId === 'string' ? { contextId: message.contextId } : {}),
+  };
 }
 
 export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
@@ -284,7 +312,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         return rpcError(
           id,
           -32602,
-          'Invalid message. Submit a new user message with text or JSON data parts, no taskId/contextId, and at most 20,000 characters.',
+          'Invalid message. Submit a user message with text or JSON data parts and at most 20,000 characters.',
         );
       }
       if (!dependencies.requesterAgentId.trim()) {
@@ -292,6 +320,23 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       }
 
       try {
+        let parentTaskId: string | undefined;
+        const referenceTaskId = parsed.taskId || parsed.contextId;
+        if (referenceTaskId) {
+          const existing = await dependencies.getTask(referenceTaskId);
+          if (!existing || existing.requesterAgentId !== dependencies.requesterAgentId) {
+            return rpcError(id, -32001, 'Task not found.');
+          }
+          const contextId = existing.parentTaskId || existing.id;
+          if (parsed.contextId && parsed.contextId !== contextId) {
+            return rpcError(id, -32001, 'Task not found.');
+          }
+          if (['completed', 'failed', 'blocked'].includes(existing.status)) {
+            return rpcError(id, -32000, 'A task in a terminal state cannot accept additional messages.');
+          }
+          parentTaskId = contextId;
+        }
+
         const task = await dependencies.createTask({
           requesterAgentId: dependencies.requesterAgentId,
           capability: 'a2a-message-intake',
@@ -300,6 +345,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
             messageId: params.message.messageId,
             parts: parsed.normalizedParts,
           },
+          ...(parentTaskId ? { parentTaskId } : {}),
         });
         return rpcResult(id, { task: toA2ATask(task) });
       } catch (error) {
@@ -309,6 +355,65 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
           errorName: error instanceof Error ? error.name : 'UnknownError',
         });
         return rpcError(id, -32603, 'The task could not be recorded.');
+      }
+    }
+
+
+    if (payload.method === 'ListTasks') {
+      if (!dependencies.requesterAgentId.trim()) {
+        return rpcError(id, -32603, 'Authenticated requester identity is unavailable.');
+      }
+      const params = payload.params;
+      const pageSizeValue = params.pageSize === undefined ? 50 : params.pageSize;
+      if (!Number.isInteger(pageSizeValue) || (pageSizeValue as number) < 1 || (pageSizeValue as number) > 100) {
+        return rpcError(id, -32602, 'pageSize must be an integer from 1 through 100.');
+      }
+      if (params.pageToken !== undefined &&
+          (typeof params.pageToken !== 'string' || params.pageToken.length > 2048)) {
+        return rpcError(id, -32602, 'pageToken must be a string no longer than 2,048 characters.');
+      }
+      if (params.contextId !== undefined &&
+          (typeof params.contextId !== 'string' || !params.contextId.trim() || params.contextId.length > 256)) {
+        return rpcError(id, -32602, 'contextId must be a non-empty string no longer than 256 characters.');
+      }
+      if (params.statusTimestampAfter !== undefined &&
+          (typeof params.statusTimestampAfter !== 'string' ||
+           !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$/.test(params.statusTimestampAfter) ||
+           !Number.isFinite(Date.parse(params.statusTimestampAfter)))) {
+        return rpcError(id, -32602, 'statusTimestampAfter must be a valid RFC 3339 timestamp.');
+      }
+
+      const statusMap: Record<string, A2ATaskLike['status'][]> = {
+        TASK_STATE_SUBMITTED: ['queued'],
+        TASK_STATE_WORKING: ['running', 'degraded'],
+        TASK_STATE_COMPLETED: ['completed'],
+        TASK_STATE_FAILED: ['failed'],
+        TASK_STATE_REJECTED: ['blocked'],
+      };
+      let statuses: A2ATaskLike['status'][] | undefined;
+      if (params.status !== undefined) {
+        if (typeof params.status !== 'string' || !statusMap[params.status]) {
+          return rpcError(id, -32602, 'status is not a supported A2A task state.');
+        }
+        statuses = statusMap[params.status];
+      }
+
+      try {
+        const page = await dependencies.listTasks({
+          pageSize: pageSizeValue as number,
+          ...(typeof params.pageToken === 'string' ? { pageToken: params.pageToken } : {}),
+          ...(typeof params.contextId === 'string' ? { contextId: params.contextId } : {}),
+          ...(statuses ? { statuses } : {}),
+          ...(typeof params.statusTimestampAfter === 'string' ? { statusTimestampAfter: params.statusTimestampAfter } : {}),
+        });
+        return rpcResult(id, {
+          tasks: page.tasks.map((task) => toA2ATask(task, params.includeArtifacts === true)),
+          nextPageToken: page.nextPageToken,
+          pageSize: page.pageSize,
+          totalSize: page.totalSize,
+        });
+      } catch {
+        return rpcError(id, -32602, 'The task page token or filter is invalid.');
       }
     }
 
