@@ -17,8 +17,14 @@ client = GlorifierNeuralClient("https://api.example.com", token="YOUR_CALLER_TOK
 try:
     print(client.health())
     print(client.ready())  # HTTP 503 is surfaced as GlorifierAPIError
-    # Use only an approved, harmless task schema:
-    # print(client.submit_task({"action": "read_only_status"}))
+    # The task payload follows the canonical OpenAPI schema.
+    # Submission is authenticated; health/readiness requests do not send the token.
+    # print(client.submit_task({
+    #     "task": "read_only_status",
+    #     "purpose": "general",
+    #     "require_approval": True,
+    #     "action_class": "read_only",
+    # }))
 except GlorifierAPIError as exc:
     print("GLORIFIER request failed:", exc.status, exc.code, str(exc))
 ```
