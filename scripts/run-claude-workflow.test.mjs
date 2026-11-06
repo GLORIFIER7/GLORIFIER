@@ -98,7 +98,7 @@ test('runs the provided wrapper and keeps its prompt and arguments isolated', as
   assert.ok(args.includes('--output-format'));
   assert.ok(args.includes('json'));
   assert.ok(args.includes('--allowedTools'));
-  assert.match(prompt, /BEGIN UNTRUSTED TASK TEXT\ninspect the worker\nEND UNTRUSTED TASK TEXT/);
+  assert.ok(prompt.includes('UNTRUSTED_TASK_TEXT_JSON:' + String.fromCharCode(10) + JSON.stringify('inspect the worker')));
 });
 
 test('fails closed on provider errors and never returns sensitive CLI output', async (t) => {
