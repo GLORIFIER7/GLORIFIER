@@ -50,7 +50,7 @@ test('generated changes cross the privilege boundary only as a validated patch a
 test('only the trusted publication and CI-dispatch jobs receive write permissions', () => {
   assert.match(publish, /permissions:\n      contents: write\n      pull-requests: write/);
   assert.match(publish, /needs: coding-fleet/);
-  assert.match(publish, /outputs\\.authorized/);
+  assert.match(publish, /outputs\.authorized/);
   assert.match(dispatch, /permissions:\n      actions: write\n      contents: read/);
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/);
   assert.match(dispatch, /needs: publish-proposal/);
