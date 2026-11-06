@@ -177,7 +177,7 @@ test('NVIDIA maintenance executes the explicit run ID guard before fallback', ()
   }
   assert.ok(failure, 'a malformed explicit run ID must stop the executable workflow step');
   assert.equal(failure.status, 1);
-  assert.match(failure.stderr.toString(), /Invalid run_id input/);
+  assert.match(failure.stdout.toString(), /Invalid run_id input/);
 });
 
 test('NVIDIA maintenance checks credentials only after identifying a failed CI run', () => {
