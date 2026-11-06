@@ -56,7 +56,7 @@ jobs:
           for name in OCTOPUS_SPACE OCTOPUS_PROJECT OCTOPUS_ENVIRONMENT OCTOPUS_SERVICE_ACCOUNT_ID; do
             value="${!name:-}"
             if [[ -z "$value" ]]; then
-              echo "::error::Missing repository Actions variable: $name. Configure the Octopus integration before deploying."
+              echo "::error::Missing required Octopus configuration: $name. Configure the Octopus integration before deploying."
               exit 1
             fi
           done
@@ -138,7 +138,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
-          package_version: sha-${{ env.SOURCE_COMMIT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
           release_notes: |
             Automated release from ${{ github.repository }}.
             Source commit: ${{ env.SOURCE_COMMIT }}
@@ -151,7 +151,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
-          package_version: sha-${{ env.SOURCE_COMMIT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
           git_ref: refs/heads/main
           git_commit: ${{ env.SOURCE_COMMIT }}
           release_notes: |
