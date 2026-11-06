@@ -1,0 +1,90 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+
+const workflow = readFileSync(
+  new URL('../.github/workflows/octopus-deploy.yml', import.meta.url),
+  'utf8',
+);
+
+function taskOutputScript() {
+  const marker = '      - name: Validate the deployment task response\n';
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, 'Octopus deployment task validation step must exist');
+
+  const nextStep = workflow.indexOf('\n      - name:', start + marker.length);
+  const step = workflow.slice(start, nextStep === -1 ? undefined : nextStep);
+  const runMarker = '        run: |\n';
+  const runStart = step.indexOf(runMarker);
+  assert.notEqual(runStart, -1, 'Octopus task validation step must use an inline script');
+
+  return step
+    .slice(runStart + runMarker.length)
+    .split(/\r?\n/)
+    .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+    .join('\n')
+    .trimEnd();
+}
+
+function executeTaskOutputScript(serverTasks, outputPath) {
+  try {
+    execFileSync('bash', ['-euo', 'pipefail', '-c', taskOutputScript()], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: outputPath,
+        OCTOPUS_SERVER_TASKS: serverTasks,
+      },
+    });
+    return { success: true, output: readFileSync(outputPath, 'utf8') };
+  } catch (error) {
+    return {
+      success: false,
+      output: readFileSync(outputPath, 'utf8'),
+      stderr: error.stderr?.toString('utf8') ?? '',
+    };
+  }
+}
+
+test('Octopus task output accepts one valid server task ID', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'octopus-task-output-'));
+  const outputPath = join(directory, 'github-output');
+  try {
+    writeFileSync(outputPath, '');
+    const result = executeTaskOutputScript(
+      JSON.stringify([{ serverTaskId: 'ServerTasks-1234' }]),
+      outputPath,
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(result.output, 'server_task_id=ServerTasks-1234\n');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Octopus task output rejects CR or LF before writing GitHub outputs', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'octopus-task-output-'));
+  const outputPath = join(directory, 'github-output');
+  try {
+    for (const serverTaskId of [
+      'ServerTasks-1234\nINJECTED=value',
+      'ServerTasks-1234\rINJECTED=value',
+    ]) {
+      writeFileSync(outputPath, '');
+      const result = executeTaskOutputScript(
+        JSON.stringify([{ serverTaskId }]),
+        outputPath,
+      );
+
+      assert.equal(result.success, false, 'control characters must fail closed');
+      assert.equal(result.output, '', 'invalid IDs must not write to GITHUB_OUTPUT');
+      assert.match(result.stderr, /unexpected newline/i);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
