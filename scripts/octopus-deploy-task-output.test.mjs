@@ -9,6 +9,10 @@ const workflow = readFileSync(
   new URL('../.github/workflows/octopus-deploy.yml', import.meta.url),
   'utf8',
 );
+const dockerImageWorkflow = readFileSync(
+  new URL('../.github/workflows/docker-image.yml', import.meta.url),
+  'utf8',
+);
 
 function taskOutputScript() {
   const marker = '      - name: Validate the deployment task response\n';
@@ -121,7 +125,7 @@ test('Octopus workflow rejects stale main commits before requesting an OIDC toke
 
 test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
   const pinnedPackageVersions = workflow.match(
-    /package_version:\s*sha-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+    /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
   ) ?? [];
   assert.equal(pinnedPackageVersions.length, 2);
 });
@@ -203,4 +207,9 @@ test('upstream publication check accepts only the exact successful image publica
   const output = runUpstreamPublicationCheck('success');
   assert.match(output, /Verified published Docker image/);
   assert.throws(() => runUpstreamPublicationCheck('skipped'), (error) => error.status === 1);
+});
+
+
+test('Docker image workflow publishes the exact commit-derived Octopus package tag', () => {
+  assert.match(dockerImageWorkflow, /0\\.0\\.0-\\$\\{IMAGE_SHA\\}/);
 });
