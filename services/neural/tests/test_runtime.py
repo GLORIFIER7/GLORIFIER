@@ -204,7 +204,7 @@ def test_nvidia_provider_sanitizes_untrusted_runtime_errors_from_body_reader():
 
     class BrokenResponse:
         status = 200
-        headers = {}
+        headers: ClassVar[dict[str, str]] = {}
         body = BrokenStream()
 
     async def fake_fetch(*_args, **_kwargs):
