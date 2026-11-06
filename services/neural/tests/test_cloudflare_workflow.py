@@ -188,7 +188,7 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     workflow_path = WORKFLOW_PATH
     workflow = workflow_path.read_text(encoding="utf-8")
     smoke_job = re.search(
-        r"(?ms)^  smoke:\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        r"(?ms)^  smoke:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         workflow,
     )
     assert smoke_job is not None, "Cloudflare production smoke job must exist"
