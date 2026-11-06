@@ -7,6 +7,32 @@ from typing import ClassVar
 from app.providers.openai import OpenAIResponsesAdapter
 
 
+class _FakeReader:
+    def __init__(self, body: bytes):
+        self._body = body
+        self._read = False
+
+    async def read(self):
+        if self._read:
+            return type("ReadResult", (), {"done": True, "value": None})()
+        self._read = True
+        return type("ReadResult", (), {"done": False, "value": self._body})()
+
+    async def cancel(self):
+        return None
+
+    def releaseLock(self):
+        return None
+
+
+class _FakeStream:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def getReader(self):
+        return _FakeReader(self._body)
+
+
 def test_openai_adapter_requires_api_key():
     adapter = OpenAIResponsesAdapter(api_key="", model="gpt-6-luna")
 
@@ -125,9 +151,7 @@ def test_openai_async_readiness_and_inference_use_request_scoped_fetch():
 
         def __init__(self, payload):
             self.payload = payload
-
-        async def text(self):
-            return json.dumps(self.payload)
+            self.body = _FakeStream(json.dumps(payload).encode())
 
     async def fake_fetch(url, *, method, headers, body=None, redirect="manual"):
         calls.append({
@@ -190,12 +214,24 @@ def test_openai_async_provider_sanitizes_upstream_errors():
 
 
 def test_openai_async_provider_sanitizes_response_body_failures():
+    class BrokenReader:
+        async def read(self):
+            raise RuntimeError("sensitive body parser and credential detail")
+
+        async def cancel(self):
+            return None
+
+        def releaseLock(self):
+            return None
+
+    class BrokenStream:
+        def getReader(self):
+            return BrokenReader()
+
     class BrokenResponse:
         status = 200
         headers: ClassVar[dict[str, str]] = {}
-
-        async def text(self):
-            raise RuntimeError("sensitive body parser and credential detail")
+        body = BrokenStream()
 
     async def fake_fetch(*_args, **_kwargs):
         return BrokenResponse()
@@ -217,9 +253,7 @@ def test_openai_async_provider_rejects_empty_or_malformed_model_response():
     class FakeResponse:
         status = 200
         headers: ClassVar[dict[str, str]] = {}
-
-        async def text(self):
-            return "not-json"
+        body = _FakeStream(b"not-json")
 
     async def fake_fetch(*_args, **_kwargs):
         return FakeResponse()
