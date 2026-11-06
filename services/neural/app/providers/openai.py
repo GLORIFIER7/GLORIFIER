@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 
 from app.providers.base import InferenceResult, ProviderAdapter
-from app.providers.http import ResponseBodyTooLargeError, read_bounded_response_text
+from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -244,12 +244,9 @@ class OpenAIResponsesAdapter(ProviderAdapter):
         fetch_fn = self._resolve_fetch()
         deadline = time.monotonic() + timeout_seconds
         try:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("OpenAI request exceeded its deadline")
-            response = await asyncio.wait_for(
+            response = await await_with_deadline(
                 fetch_fn(url, **options),
-                timeout=remaining,
+                deadline=deadline,
             )
         except TimeoutError:
             label = "readiness probe" if readiness else "request"
