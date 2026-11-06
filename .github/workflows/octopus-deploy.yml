@@ -65,7 +65,8 @@ jobs:
             echo "::error::Refusing stale Octopus deployment source $SOURCE_COMMIT; current main is $current_main_sha."
             exit 1
           fi
-          if [[ "$OCTOPUS_ENVIRONMENT" == *','* || "$OCTOPUS_ENVIRONMENT" == *
+          if [[ "$OCTOPUS_ENVIRONMENT" == *','* || "$OCTOPUS_ENVIRONMENT" == *$'\n'* || "$OCTOPUS_ENVIRONMENT" == *$'\r'* ]]; then
+            echo "::error::OCTOPUS_ENVIRONMENT must contain exactly one environment name (no commas, CR, or LF)."
             exit 1
           fi
           case "${OCTOPUS_CONFIG_AS_CODE:-false}" in
