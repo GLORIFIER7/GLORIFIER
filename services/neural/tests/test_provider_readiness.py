@@ -332,3 +332,40 @@ def test_provider_readiness_is_cached_for_thirty_seconds(monkeypatch):
 
     assert third == first
     assert provider.readiness_calls == 2
+
+
+def test_nvidia_readiness_sanitizes_runtime_error_from_stream_reader():
+    class FailingReader:
+        async def read(self):
+            raise RuntimeError("sensitive upstream body and credential detail")
+
+        async def cancel(self):
+            return None
+
+        def releaseLock(self):
+            return None
+
+    class FailingBody:
+        def getReader(self):
+            return FailingReader()
+
+    async def fake_fetch(_url, **_options):
+        return SimpleNamespace(status=200, headers={}, body=FailingBody())
+
+    adapter = NvidiaNimAdapter(api_key="readiness-secret")
+
+    async def exercise():
+        return await adapter._fetch_text(
+            fake_fetch,
+            "https://nvidia.example.test/v1/models",
+            {},
+            timeout_seconds=1.0,
+            max_bytes=1024,
+            readiness=True,
+        )
+
+    with pytest.raises(RuntimeError, match="readiness endpoint is unavailable") as exc_info:
+        asyncio.run(exercise())
+
+    assert "sensitive" not in str(exc_info.value)
+    assert "readiness-secret" not in str(exc_info.value)
