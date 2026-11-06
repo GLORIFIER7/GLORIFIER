@@ -80,7 +80,7 @@ test('every Claude invocation blocks npm install commands that execute lifecycle
     assert.doesNotMatch(
       allowedTools,
       /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/,
-      \`Claude invocation \${index + 1} must not run npm install commands that execute lifecycle scripts\`,
+      'Claude invocation ' + (index + 1) + ' must not run npm install commands that execute lifecycle scripts',
     );
   }
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
