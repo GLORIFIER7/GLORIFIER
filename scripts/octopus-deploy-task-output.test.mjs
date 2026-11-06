@@ -123,14 +123,216 @@ test('Octopus workflow rejects stale main commits before requesting an OIDC toke
   assert.match(preflight, /\[\[ "\$current_main_sha" != "\$SOURCE_COMMIT" \]\]/);
 });
 
-test('Octopus workflow accepts only one deployment environment', () => {
+test('Octopus workflow rejects comma, LF, and CR in one target environment', () => {
   const preflightStart = workflow.indexOf('      - name: Validate Octopus deployment configuration');
   const authenticateStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
   assert.ok(preflightStart >= 0 && authenticateStart > preflightStart);
 
   const preflight = workflow.slice(preflightStart, authenticateStart);
-  assert.ok(preflight.includes(`OCTOPUS_ENVIRONMENT" == *','*`));
+  for (const guard of [
+    `"$OCTOPUS_ENVIRONMENT" == *','*`,
+    `"$OCTOPUS_ENVIRONMENT" == *
+
+
+test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
+  const pinnedPackageVersions = workflow.match(
+    /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+  ) ?? [];
+  assert.equal(pinnedPackageVersions.length, 2);
+});
+
+
+test('GLORIFIER Octopus waits for the verified Docker image workflow', () => {
+  assert.ok(workflow.includes('workflows: ["GLORIFIER Docker Image"]'));
+  assert.ok(workflow.includes("github.event.workflow_run.event == 'workflow_run'"));
+  assert.ok(workflow.includes('github.event.workflow_run.head_sha == github.sha'));
+});
+
+
+test('upstream image publication verification preserves least-privilege token permissions', () => {
+  assert.equal(/^\s*actions:\s*read\s*$/m.test(workflow), false);
+  const verifyStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
+  const authenticateStart = workflow.indexOf('      - name: Authenticate to Octopus Deploy using GitHub OIDC');
+  assert.ok(verifyStart >= 0 && authenticateStart > verifyStart);
+  const verification = workflow.slice(verifyStart, authenticateStart);
+  assert.ok(verification.includes("job.get(\"name\") == \"publish-after-ci\""));
+  assert.ok(verification.includes("step.get(\"name\") == \"Tag and publish verified image\""));
+  assert.equal(verification.includes('Authorization'), false);
+});
+
+
+function upstreamPublicationScript() {
+  const marker = '      - name: Verify the upstream Docker image publication succeeded\n';
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1);
+  const nextStep = workflow.indexOf('\n      - name:', start + marker.length);
+  const step = workflow.slice(start, nextStep === -1 ? undefined : nextStep);
+  const runMarker = '        run: |\n';
+  const runStart = step.indexOf(runMarker);
+  assert.notEqual(runStart, -1);
+  const shellScript = step.slice(runStart + runMarker.length)
+    .split(/\r?\n/)
+    .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+    .join('\n')
+    .trimEnd();
+  const pythonMarker = "python3 - <<'PY'\n";
+  const pythonStart = shellScript.indexOf(pythonMarker);
+  const pythonEnd = shellScript.lastIndexOf('\nPY');
+  assert.ok(pythonStart >= 0 && pythonEnd > pythonStart);
+  return shellScript.slice(pythonStart + pythonMarker.length, pythonEnd);
+}
+function runUpstreamPublicationCheck(conclusion) {
+  const script = upstreamPublicationScript();
+  const harness = `import io, json, os, urllib.request
+sha = os.environ["SOURCE_COMMIT"]
+scenario = os.environ["SCENARIO"]
+def fake_urlopen(request, timeout=20):
+    url = request.full_url
+    if url.endswith("/actions/runs/123"):
+        payload = {"head_sha": sha, "head_branch": "main", "conclusion": "success"}
+    elif url.endswith("/actions/runs/123/jobs?per_page=100"):
+        publish_conclusion = "success" if scenario == "success" else "skipped"
+        payload = {"jobs": [{"name": "publish-after-ci", "conclusion": publish_conclusion,
+            "steps": [{"name": "Tag and publish verified image", "conclusion": publish_conclusion}]}]}
+    else:
+        raise AssertionError("unexpected GitHub API URL: " + url)
+    return io.BytesIO(json.dumps(payload).encode("utf-8"))
+urllib.request.urlopen = fake_urlopen
+script = os.environ["WORKFLOW_STEP_SCRIPT"]
+exec(compile(script, "<upstream-publication-check>", "exec"), {"__name__": "__main__"})
+`;
+  return execFileSync('python3', ['-c', harness], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: 'GLORIFIER7/GLORIFIER',
+      UPSTREAM_RUN_ID: '123',
+      SOURCE_COMMIT: 'a'.repeat(40),
+      SCENARIO: conclusion,
+      WORKFLOW_STEP_SCRIPT: script,
+    },
+  });
+}
+
+test('upstream publication check accepts only the exact successful image publication', () => {
+  const output = runUpstreamPublicationCheck('success');
+  assert.match(output, /Verified published Docker image/);
+  assert.throws(() => runUpstreamPublicationCheck('skipped'), (error) => error.status === 1);
+});
+
+
+test('Docker image workflow publishes the exact commit-derived Octopus package tag', () => {
+  assert.match(dockerImageWorkflow, /0\.0\.0-\$\{IMAGE_SHA\}/);
+});
+\\n'*`,
+    `"$OCTOPUS_ENVIRONMENT" == *
+
+
+test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
+  const pinnedPackageVersions = workflow.match(
+    /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+  ) ?? [];
+  assert.equal(pinnedPackageVersions.length, 2);
+});
+
+
+test('GLORIFIER Octopus waits for the verified Docker image workflow', () => {
+  assert.ok(workflow.includes('workflows: ["GLORIFIER Docker Image"]'));
+  assert.ok(workflow.includes("github.event.workflow_run.event == 'workflow_run'"));
+  assert.ok(workflow.includes('github.event.workflow_run.head_sha == github.sha'));
+});
+
+
+test('upstream image publication verification preserves least-privilege token permissions', () => {
+  assert.equal(/^\s*actions:\s*read\s*$/m.test(workflow), false);
+  const verifyStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
+  const authenticateStart = workflow.indexOf('      - name: Authenticate to Octopus Deploy using GitHub OIDC');
+  assert.ok(verifyStart >= 0 && authenticateStart > verifyStart);
+  const verification = workflow.slice(verifyStart, authenticateStart);
+  assert.ok(verification.includes("job.get(\"name\") == \"publish-after-ci\""));
+  assert.ok(verification.includes("step.get(\"name\") == \"Tag and publish verified image\""));
+  assert.equal(verification.includes('Authorization'), false);
+});
+
+
+function upstreamPublicationScript() {
+  const marker = '      - name: Verify the upstream Docker image publication succeeded\n';
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1);
+  const nextStep = workflow.indexOf('\n      - name:', start + marker.length);
+  const step = workflow.slice(start, nextStep === -1 ? undefined : nextStep);
+  const runMarker = '        run: |\n';
+  const runStart = step.indexOf(runMarker);
+  assert.notEqual(runStart, -1);
+  const shellScript = step.slice(runStart + runMarker.length)
+    .split(/\r?\n/)
+    .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+    .join('\n')
+    .trimEnd();
+  const pythonMarker = "python3 - <<'PY'\n";
+  const pythonStart = shellScript.indexOf(pythonMarker);
+  const pythonEnd = shellScript.lastIndexOf('\nPY');
+  assert.ok(pythonStart >= 0 && pythonEnd > pythonStart);
+  return shellScript.slice(pythonStart + pythonMarker.length, pythonEnd);
+}
+function runUpstreamPublicationCheck(conclusion) {
+  const script = upstreamPublicationScript();
+  const harness = `import io, json, os, urllib.request
+sha = os.environ["SOURCE_COMMIT"]
+scenario = os.environ["SCENARIO"]
+def fake_urlopen(request, timeout=20):
+    url = request.full_url
+    if url.endswith("/actions/runs/123"):
+        payload = {"head_sha": sha, "head_branch": "main", "conclusion": "success"}
+    elif url.endswith("/actions/runs/123/jobs?per_page=100"):
+        publish_conclusion = "success" if scenario == "success" else "skipped"
+        payload = {"jobs": [{"name": "publish-after-ci", "conclusion": publish_conclusion,
+            "steps": [{"name": "Tag and publish verified image", "conclusion": publish_conclusion}]}]}
+    else:
+        raise AssertionError("unexpected GitHub API URL: " + url)
+    return io.BytesIO(json.dumps(payload).encode("utf-8"))
+urllib.request.urlopen = fake_urlopen
+script = os.environ["WORKFLOW_STEP_SCRIPT"]
+exec(compile(script, "<upstream-publication-check>", "exec"), {"__name__": "__main__"})
+`;
+  return execFileSync('python3', ['-c', harness], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: 'GLORIFIER7/GLORIFIER',
+      UPSTREAM_RUN_ID: '123',
+      SOURCE_COMMIT: 'a'.repeat(40),
+      SCENARIO: conclusion,
+      WORKFLOW_STEP_SCRIPT: script,
+    },
+  });
+}
+
+test('upstream publication check accepts only the exact successful image publication', () => {
+  const output = runUpstreamPublicationCheck('success');
+  assert.match(output, /Verified published Docker image/);
+  assert.throws(() => runUpstreamPublicationCheck('skipped'), (error) => error.status === 1);
+});
+
+
+test('Docker image workflow publishes the exact commit-derived Octopus package tag', () => {
+  assert.match(dockerImageWorkflow, /0\.0\.0-\$\{IMAGE_SHA\}/);
+});
+\\r'*`,
+  ]) {
+    assert.ok(preflight.includes(guard), `preflight must include environment guard: ${guard}`);
+  }
   assert.ok(preflight.includes('exactly one environment name (no commas, CR, or LF)'));
+});
+
+test('Octopus workflow contains exactly one release and deployment sequence', () => {
+  for (const step of [
+    '      - name: Validate Octopus deployment configuration',
+    '      - name: Authenticate to Octopus Deploy using GitHub OIDC',
+    '      - name: Wait for the Octopus deployment to finish',
+  ]) {
+    assert.equal(workflow.split(step).length - 1, 1, `workflow must contain one ${step.trim()}`);
+  }
 });
 
 
