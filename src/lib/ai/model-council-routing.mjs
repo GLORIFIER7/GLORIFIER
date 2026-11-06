@@ -1,5 +1,5 @@
 export const MAX_MODEL_COUNCIL_PROVIDERS = 8;
-export const DEFAULT_MODEL_COUNCIL_TIMEOUT_MS = 45_000;
+export const DEFAULT_MODEL_COUNCIL_TIMEOUT_MS = 30_000;
 
 const LEGACY_MODEL_PROVIDER_IDS = Object.freeze({
   'gpt-4o': 'openai',

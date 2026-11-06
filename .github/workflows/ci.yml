@@ -40,6 +40,12 @@ jobs:
       - name: Supply-chain and maintenance hardening regression tests
         run: node --test scripts/supply-chain-and-maintenance-hardening.test.mjs
 
+      - name: AI maintenance authorization regression tests
+        run: bash scripts/ai-fleet-authorization.test.sh
+
+      - name: AI coding fleet workflow security contract tests
+        run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
 

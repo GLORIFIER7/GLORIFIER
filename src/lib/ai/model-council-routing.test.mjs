@@ -135,6 +135,7 @@ test('AI council route requires owner authorization and has a principal-scoped s
   assert.match(serverSource, /singleInstanceConfirmed:\s*process\.env\.AI_COUNCIL_SINGLE_INSTANCE === 'true'/);
   assert.match(serverSource, /handler:\s*\(_req,\s*res\)\s*=>\s*\{[\s\S]*?error:\s*'AI council usage is limited to two requests per minute/);
   assert.match(serverSource, /model:\s*modelId,\s*messages,[^}]*\bsignal\s*,?\s*\}/);
+  assert.match(serverSource, /timeoutMs:\s*DEFAULT_MODEL_COUNCIL_TIMEOUT_MS/);
   const executionSource = await readFile(new URL('./model-council-execution.mjs', import.meta.url), 'utf8');
   assert.match(executionSource, /isValidModelCouncilResponse\(response,\s*synthesisParticipant\.provider,\s*synthesisParticipant\.model\)/);
 });
@@ -452,4 +453,34 @@ test('ingress quota key uses direct socket peer and ignores forwarded headers an
     get: () => '198.51.100.42',
   });
   assert.equal(address, '192.0.2.25');
+});
+
+
+test('model council enforces one end-to-end deadline across provider responses and synthesis', { timeout: 1_000 }, async () => {
+  let synthesisSignal;
+  const startedAt = Date.now();
+  const result = await executeModelCouncilRequest({
+    participants: [
+      { providerId: 'openai', modelId: 'gpt-4o' },
+      { providerId: 'anthropic', modelId: 'claude-opus-5' },
+    ],
+    messages: [{ role: 'user', content: 'Check the complete request deadline.' }],
+    topic: 'Check the complete request deadline.',
+    timeoutMs: 40,
+    generate: async (providerId, modelId, messages, signal) => {
+      if (messages[0].content.includes('synthesis reviewer')) {
+        synthesisSignal = signal;
+        return new Promise(() => {});
+      }
+      return { provider: providerId, model: modelId, text: 'Independent provider evidence.' };
+    },
+  });
+
+  assert.ok(Date.now() - startedAt < 500, 'the council must not add a second full timeout for synthesis');
+  assert.equal(synthesisSignal?.aborted, true, 'the synthesis request must receive the shared deadline');
+  assert.equal(result.status, 200);
+  assert.equal(result.body.participantCount, 2);
+  assert.equal(result.body.synthesis, null);
+  assert.equal(result.body.synthesisStatus, 'not-completed');
+  assert.match(result.body.unifiedConsensus, /synthesis was not completed/i);
 });
