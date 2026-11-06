@@ -246,5 +246,7 @@ def test_openai_provider_is_unconfigured_without_explicit_model(monkeypatch):
     orchestrator = build_orchestrator_from_environment()
     provider = orchestrator._providers.get("openai")
 
-    assert provider is not None
-    assert provider.is_configured() is False
+    assert provider is None
+    result = orchestrator.run(TaskRequest(task="hello", require_approval=False))
+    assert result.status == "NOT VERIFIED"
+    assert result.evidence == ["provider:openai:unavailable", "execution:none"]
