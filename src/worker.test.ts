@@ -2290,7 +2290,7 @@ const run = async (): Promise<void> => {
         assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
 
         upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
-        const callerCorrelationId = '550e8400-e29b-41d4-a716-446655440000';
+        const callerCorrelationId = '550E8400-E29B-41D4-A716-446655440000';
         const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
           headers: {
