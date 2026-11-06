@@ -34,6 +34,10 @@ const geminiWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url),
   'utf8',
 );
+const geminiDevelopmentWorkflow = readFileSync(
+  new URL('../.github/workflows/gemini-development.yml', import.meta.url),
+  'utf8',
+);
 const foundryWorkflows = [
   readFileSync(new URL('../.github/workflows/glorifier-bnb-testnet-deploy.yml', import.meta.url), 'utf8'),
   readFileSync(new URL('../.github/workflows/glorifier-sepolia-rpc-check.yml', import.meta.url), 'utf8'),
@@ -197,4 +201,33 @@ test('NVIDIA maintenance summary reports the selected run ID for manual dispatch
   );
   assert.match(summaryStep, /TARGET_RUN_ID: \$\{\{ steps\.target\.outputs\.run_id \|\| 'not-selected' \}\}/);
   assert.match(summaryStep, /echo "- Run ID: \$TARGET_RUN_ID"/);
+});
+
+test('Gemini development workflow has unique step-level keys', () => {
+  const lines = geminiDevelopmentWorkflow.split(/\r?\n/);
+  let stepIndent = null;
+  let keys = new Set();
+  for (const line of lines) {
+    const step = line.match(/^(\s*)-\s+name:/);
+    if (step) {
+      stepIndent = step[1].length;
+      keys = new Set(['name']);
+      continue;
+    }
+    if (stepIndent === null) continue;
+    const property = line.match(/^(\s+)([A-Za-z0-9_-]+):(?:\s|$)/);
+    if (!property) continue;
+    const indent = property[1].length;
+    if (indent <= stepIndent) {
+      stepIndent = null;
+      continue;
+    }
+    if (indent === stepIndent + 2) {
+      assert.ok(
+        !keys.has(property[2]),
+        `duplicate step-level key "${property[2]}" in Gemini development workflow`,
+      );
+      keys.add(property[2]);
+    }
+  }
 });
