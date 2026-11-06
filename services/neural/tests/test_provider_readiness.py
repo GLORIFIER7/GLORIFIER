@@ -1,3 +1,4 @@
+import asyncio
 """Regression coverage for fail-closed provider and database readiness."""
 
 import urllib.error
