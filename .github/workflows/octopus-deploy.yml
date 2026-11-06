@@ -10,13 +10,12 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
-  cancel-in-progress: false
-
 jobs:
   deploy:
     name: Create release and deploy through Octopus
+    concurrency:
+      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
+      cancel-in-progress: false
     if: >-
       (github.event_name == 'workflow_dispatch' &&
        github.ref == 'refs/heads/main' &&
