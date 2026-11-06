@@ -44,7 +44,7 @@ test('the model-execution job has no GitHub write permissions', () => {
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
   assert.match(coding, /git diff --cached --binary HEAD/);
   assert.match(coding, /uses: actions\/upload-artifact@v4/);
-  assert.match(publish, /uses: actions\/download-artifact@v4/);
+  assert.match(publish, /uses: actions\/download-artifact@v8/);
   assert.match(publish, /git apply --check/);
   assert.match(publish, /node --import tsx\/esm scripts\/validate-ai-fleet-diff\.mjs/);
   assert.match(publish, /gh pr create --draft/);

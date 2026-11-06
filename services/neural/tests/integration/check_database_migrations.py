@@ -62,9 +62,13 @@ def main() -> None:
             conn, insert_task,
             (str(uuid4()), base[1], base[2], json.dumps(["x"] * 21), base[4], base[5]),
         )
+        # The upper bound rejects even one second beyond 720 elapsed hours.
         rejected(
             conn, insert_task,
-            (str(uuid4()), base[1], base[2], "[]", base[4], base[4] + timedelta(days=31)),
+            (
+                str(uuid4()), base[1], base[2], "[]",
+                now, now + timedelta(hours=720, seconds=1),
+            ),
         )
 
         conn.execute(

@@ -2287,10 +2287,34 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
         assert.match(neuralReady.headers.get('x-correlation-id') ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), neuralReady.headers.get('x-correlation-id'), 'the same correlation ID must cross the Worker and Neural boundary');
+        const nilCorrelationId = '00000000-0000-0000-0000-000000000000';
+        const neuralReadyWithNilCorrelationId = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready', {
+          headers: { 'X-Correlation-ID': nilCorrelationId },
+        }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+        assert.equal(neuralReadyWithNilCorrelationId.status, 503);
+        assert.equal(neuralReadyWithNilCorrelationId.headers.get('x-correlation-id'), nilCorrelationId);
+
+        assert.equal(getCapturedRequest().headers.get('x-correlation-id'), nilCorrelationId, 'the nil UUID accepted by NEURAL must cross the Worker unchanged');
+        const nonVersionedCorrelationId = '00000000-0000-0000-0000-000000000001';
+        const neuralReadyWithNonVersionedCorrelationId = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready', {
+          headers: { 'X-Correlation-ID': nonVersionedCorrelationId },
+        }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+        assert.equal(neuralReadyWithNonVersionedCorrelationId.status, 503);
+        assert.equal(neuralReadyWithNonVersionedCorrelationId.headers.get('x-correlation-id'), nonVersionedCorrelationId);
+        assert.equal(getCapturedRequest().headers.get('x-correlation-id'), nonVersionedCorrelationId, 'every canonical UUID form accepted by NEURAL must cross the Worker unchanged');
+
+        const nonRfcVersionCorrelationId = '00000000-0000-0000-0000-000000000001';
+        const neuralReadyWithCanonicalUuid = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready', {
+          headers: { 'X-Correlation-ID': nonRfcVersionCorrelationId },
+        }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+        assert.equal(neuralReadyWithCanonicalUuid.status, 503);
+        assert.equal(neuralReadyWithCanonicalUuid.headers.get('x-correlation-id'), nonRfcVersionCorrelationId);
+        assert.equal(getCapturedRequest().headers.get('x-correlation-id'), nonRfcVersionCorrelationId, 'any canonical UUID accepted by NEURAL must cross the Worker unchanged');
+
         assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
 
         upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
-        const callerCorrelationId = '550e8400-e29b-41d4-a716-446655440000';
+        const callerCorrelationId = '550E8400-E29B-41D4-A716-446655440000';
         const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
           headers: {

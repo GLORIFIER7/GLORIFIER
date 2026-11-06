@@ -807,11 +807,11 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
 };
 
 
-const CORRELATION_ID_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CORRELATION_ID_UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 const neuralRoute = async (request: Request, pathname: string, env: CloudflareEnv): Promise<Response> => {
   const candidate = (request.headers.get('x-correlation-id') || '').trim();
-  const correlationId = CORRELATION_ID_UUID.test(candidate) ? candidate.toLowerCase() : crypto.randomUUID();
+  const correlationId = CORRELATION_ID_UUID.test(candidate) ? candidate : crypto.randomUUID();
   const upstreamResponse = await neuralRouteImplementation(request, pathname, env, correlationId);
   const responseHeaders = new Headers(upstreamResponse.headers);
   responseHeaders.set('X-Correlation-ID', correlationId);

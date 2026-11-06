@@ -2,6 +2,34 @@ from app.providers import NvidiaNimAdapter
 from app.runtime import build_orchestrator_from_environment
 from app.schemas import TaskRequest
 from typing import ClassVar
+from types import SimpleNamespace
+
+
+
+class _RuntimeBodyReader:
+    def __init__(self, body: bytes):
+        self._body = body
+        self._read = False
+
+    async def read(self):
+        if self._read:
+            return SimpleNamespace(done=True, value=None)
+        self._read = True
+        return SimpleNamespace(done=False, value=self._body)
+
+    async def cancel(self):
+        return None
+
+    def releaseLock(self):
+        return None
+
+
+class _RuntimeReadableStream:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def getReader(self):
+        return _RuntimeBodyReader(self._body)
 
 
 def clear_runtime_environment(monkeypatch):
@@ -101,9 +129,7 @@ def test_cloudflare_runtime_uses_request_scoped_nvidia_bindings_and_fetch():
             self.status = 200
             self.headers = {"content-length": str(len(json.dumps(payload)))}
             self.payload = payload
-
-        async def text(self):
-            return json.dumps(self.payload)
+            self.body = _RuntimeReadableStream(json.dumps(payload).encode())
 
     async def fake_fetch(url, *, method, headers, body=None, redirect="manual"):
         calls.append({
@@ -152,6 +178,90 @@ def test_cloudflare_runtime_uses_request_scoped_nvidia_bindings_and_fetch():
     assert calls[1]["redirect"] == "manual"
 
 
+
+def test_nvidia_provider_sanitizes_untrusted_runtime_errors_from_body_reader():
+    import asyncio
+
+    class BrokenReader:
+        def __init__(self):
+            self.cancel_calls = 0
+            self.release_calls = 0
+
+        async def read(self):
+            raise RuntimeError("private upstream detail and secret-value")
+
+        async def cancel(self):
+            self.cancel_calls += 1
+
+        def releaseLock(self):
+            self.release_calls += 1
+
+    reader = BrokenReader()
+
+    class BrokenStream:
+        def getReader(self):
+            return reader
+
+    class BrokenResponse:
+        status = 200
+        headers: ClassVar[dict[str, str]] = {}
+        body = BrokenStream()
+
+    async def fake_fetch(*_args, **_kwargs):
+        return BrokenResponse()
+
+    adapter = NvidiaNimAdapter(
+        api_key="request-scoped-secret",
+        model="nvidia/test-model",
+        fetch_fn=fake_fetch,
+    )
+
+    try:
+        asyncio.run(adapter.acheck_readiness())
+    except RuntimeError as error:
+        assert str(error) == "NVIDIA NIM readiness endpoint is unavailable"
+        assert "private upstream detail" not in str(error)
+        assert "secret-value" not in str(error)
+        assert "request-scoped-secret" not in str(error)
+    else:
+        raise AssertionError("expected the untrusted body-reader error to be rejected")
+
+    assert reader.cancel_calls == 1
+    assert reader.release_calls == 1
+
+
+
+def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
+    import asyncio
+
+    async def exercise():
+        finish = asyncio.Event()
+
+        async def resistant_fetch(*_args, **_kwargs):
+            try:
+                await finish.wait()
+            except asyncio.CancelledError:
+                await finish.wait()
+                raise
+
+        adapter = NvidiaNimAdapter(
+            api_key="test-key",
+            model="nvidia/test-model",
+            timeout_seconds=0.04,
+            fetch_fn=resistant_fetch,
+        )
+        asyncio.get_running_loop().call_later(0.15, finish.set)
+        started = asyncio.get_running_loop().time()
+        try:
+            await adapter.acheck_readiness()
+        except RuntimeError as error:
+            assert str(error) == "NVIDIA NIM readiness probe exceeded its timeout"
+        else:
+            raise AssertionError("expected the NVIDIA Fetch deadline to expire")
+        assert asyncio.get_running_loop().time() - started < 0.10
+
+    asyncio.run(exercise())
+
 def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkeypatch):
     import asyncio
     import json
@@ -164,8 +274,7 @@ def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkey
         status = 200
         headers: ClassVar[dict[str, str]] = {}
 
-        async def text(self):
-            return json.dumps({"id": "gpt-6-luna", "object": "model"})
+        body = _RuntimeReadableStream(json.dumps({"id": "gpt-6-luna", "object": "model"}).encode())
 
     async def fake_fetch(url, *, method, headers, body=None, redirect="manual"):
         assert method == "GET", "inference-disabled readiness must not submit task prompts"
