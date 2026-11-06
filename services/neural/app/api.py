@@ -543,6 +543,12 @@ async def _persist_task_run(
                 provider=result.provider,
                 evidence=result.evidence[:20],
             )
+    except ValueError:
+        _mark_persistence_degraded(
+            result,
+            "persistence:task_runs:invalid-record",
+            "Task-run metadata validation",
+        )
     except Exception:  # noqa: BLE001 - task has already completed; do not invite retries
         _mark_persistence_degraded(
             result, "persistence:task_runs:degraded", "Task-run persistence"
