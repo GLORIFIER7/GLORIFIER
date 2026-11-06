@@ -4,7 +4,9 @@
   "compatibility_date": "2026-10-12",
   "vars": {
     "GLORIFIER_SUPABASE_URL": "https://ymbhbxrobfpqlxhyulbt.supabase.co",
-    "GLORIFIER_DATABASE_PROVIDER": "neon"
+    "GLORIFIER_DATABASE_PROVIDER": "neon",
+    "GLORIFIER_NEURAL_ORIGIN": "https://glorifier-neural.glorifier.workers.dev",
+    "GLORIFIER_NEURAL_ALLOWED_HOSTS": "glorifier-neural.glorifier.workers.dev"
   },
   "secrets": {
     "required": [
@@ -79,7 +81,9 @@
   },
   "previews": {
     "vars": {
-      "GLORIFIER_DATABASE_PROVIDER": "neon"
+      "GLORIFIER_DATABASE_PROVIDER": "neon",
+      "GLORIFIER_NEURAL_ORIGIN": "",
+      "GLORIFIER_NEURAL_ALLOWED_HOSTS": ""
     }
   },
   "main": "./src/worker.ts",
