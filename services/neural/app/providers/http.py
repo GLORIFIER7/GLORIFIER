@@ -10,6 +10,9 @@ import time
 from typing import Any, NoReturn
 
 
+CANCELLATION_CLEANUP_BUDGET_SECONDS = 0.05
+
+
 class ResponseBodyTooLargeError(ValueError):
     """Raised when a streamed provider response exceeds its configured byte limit."""
 
@@ -66,11 +69,12 @@ async def _await_task_until(task: asyncio.Task[Any], *, deadline: float) -> Any:
 async def _cancel_target(target: Any, *, deadline: float) -> None:
     """Request cancellation, but never spend more than the remaining deadline."""
     cancel = getattr(target, "cancel", None)
-    if not callable(cancel) or deadline <= time.monotonic():
+    cleanup_deadline = min(deadline, time.monotonic() + CANCELLATION_CLEANUP_BUDGET_SECONDS)
+    if not callable(cancel) or cleanup_deadline <= time.monotonic():
         return
     with suppress(Exception):  # best-effort cleanup must not mask the primary failure
         task = asyncio.create_task(_await_js(cancel()))
-        await _await_task_until(task, deadline=deadline)
+        await _await_task_until(task, deadline=cleanup_deadline)
 
 
 async def _cancel_and_raise(target: Any, *, deadline: float, error: Exception) -> NoReturn:
