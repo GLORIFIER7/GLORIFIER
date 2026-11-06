@@ -234,3 +234,23 @@ test('upstream publication check accepts only the exact successful image publica
 test('Docker image workflow publishes the exact commit-derived Octopus package tag', () => {
   assert.match(dockerImageWorkflow, /0\.0\.0-\$\{IMAGE_SHA\}/);
 });
+
+test('Octopus service-account secret is step-scoped, never job-scoped', () => {
+  const deploy = workflow.slice(workflow.indexOf('  deploy:'));
+  const jobEnv = deploy.match(/(?ms)^    env:\\n(.*?)(?=^    steps:)/);
+  assert.ok(jobEnv, 'The deploy job environment must exist');
+  assert.doesNotMatch(jobEnv[1], /OCTOPUS_SERVICE_ACCOUNT_ID/);
+
+  const validation = deploy.match(
+    /(?ms)^      - name: Validate Octopus service account secret is configured\\n(.*?)(?=^      - name:|\\Z)/,
+  );
+  assert.ok(validation, 'A step-scoped service-account secret preflight must exist');
+  assert.match(validation[1], /OCTOPUS_SERVICE_ACCOUNT_ID: \\${{ secrets\\.OCTOPUS_SERVICE_ACCOUNT_ID }}/);
+  assert.match(validation[1], /test -n "\\$\\{OCTOPUS_SERVICE_ACCOUNT_ID:-\\}"/);
+
+  const login = deploy.match(
+    /(?ms)^      - name: Authenticate to Octopus Deploy using GitHub OIDC\\n(.*?)(?=^      - name:|\\Z)/,
+  );
+  assert.ok(login, 'The OIDC login step must exist');
+  assert.match(login[1], /service_account_id: \\${{ secrets\\.OCTOPUS_SERVICE_ACCOUNT_ID }}/);
+});
