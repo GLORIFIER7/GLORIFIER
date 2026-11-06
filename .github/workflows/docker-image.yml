@@ -16,7 +16,7 @@ on:
       - "public/**"
       - "index.html"
       - "vite.config.ts"
-      - "scripts/ubuntu-apt-security-policy.test.mjs"
+      - "scripts/container-runtime-security-policy.test.mjs"
       - ".trivy.yaml"
       - "security/vex/**"
       - ".github/workflows/docker-image.yml"
@@ -44,8 +44,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify Ubuntu runtime APT security policy
-        run: node --test scripts/ubuntu-apt-security-policy.test.mjs
+      - name: Verify Debian runtime zlib security policy
+        run: node --test scripts/container-runtime-security-policy.test.mjs
 
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
@@ -54,8 +54,8 @@ jobs:
         run: |
           docker run --rm glorifier/glorifier:pr-${{ github.event.pull_request.number }} -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1); console.log("Verified production Node.js runtime: " + process.versions.node)'
 
-      - name: Build Ubuntu runtime image
-        run: docker build --pull --file Dockerfile.ubuntu --tag glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }} .
+      - name: Build application compatibility runtime image
+        run: docker build --pull --file Dockerfile.ubuntu --tag glorifier/glorifier:debian-pr-${{ github.event.pull_request.number }} .
 
       - name: Build permanent orchestrator runtime image
         run: docker build --pull --file Dockerfile.orchestrator.ubuntu --tag glorifier/orchestrator:pr-${{ github.event.pull_request.number }} .
@@ -77,11 +77,11 @@ jobs:
           trivy-config: .trivy.yaml
           severity: HIGH,CRITICAL
 
-      - name: Smoke test Ubuntu runtime health endpoint
+      - name: Smoke test application compatibility runtime health endpoint
         shell: bash
         run: |
           set -euo pipefail
-          container="glorifier-ubuntu-smoke-${{ github.event.pull_request.number }}"
+          container="glorifier-debian-smoke-${{ github.event.pull_request.number }}"
           postgres="glorifier-postgres-smoke-${{ github.event.pull_request.number }}"
           network="glorifier-smoke-${{ github.event.pull_request.number }}"
           # Keep cleanup commands directly in the EXIT trap so actionlint's
@@ -132,16 +132,16 @@ jobs:
             --mount "type=bind,src=$tls_dir/server.crt,dst=/run/secrets/postgres-ca.crt,readonly" \
             --env DATABASE_SSL_CA=/run/secrets/postgres-ca.crt \
             --env DATABASE_URL=postgresql://glorifier_test:glorifier_test_only@"$postgres":5432/glorifier_test \
-            glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }}
+            glorifier/glorifier:debian-pr-${{ github.event.pull_request.number }}
 
           for _ in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/api/health; then
-              echo "Ubuntu runtime started with an isolated PostgreSQL service and /api/health returned success."
+              echo "Application compatibility runtime started with an isolated PostgreSQL service and /api/health returned success."
               exit 0
             fi
             sleep 2
           done
-          echo "::error::Ubuntu runtime did not return a healthy response within 60 seconds."
+          echo "::error::Application compatibility runtime did not return a healthy response within 60 seconds."
           echo "Container state for diagnosis:"
           docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' "$container" || true
           echo "Application container logs:"
@@ -173,10 +173,10 @@ jobs:
           severity: HIGH,CRITICAL
           skip-setup-trivy: true
 
-      - name: Block Ubuntu image with high or critical vulnerabilities
+      - name: Block application compatibility image with high or critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: glorifier/glorifier:ubuntu-pr-${{ github.event.pull_request.number }}
+          image-ref: glorifier/glorifier:debian-pr-${{ github.event.pull_request.number }}
           format: table
           exit-code: "1"
           vuln-type: os,library

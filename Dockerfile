@@ -13,14 +13,14 @@ RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number)
  && npm ci --include=dev --ignore-scripts --no-audit --no-fund
 
 COPY . .
-# Bundle the TypeScript server while esbuild is still installed. The runtime
-# image prunes devDependencies, so it must not launch the server through tsx.
+# Bundle the TypeScript server while esbuild is still installed.
 RUN npm run build \
  && npm prune --omit=dev --no-audit --no-fund \
  && npm cache clean --force
 
-# Minimal, non-root runtime; the image has no shell or package manager.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot
+# Debian unstable currently carries the upstream zlib fix for both reported
+# gzwrite heap-buffer-overflow CVEs. Enforce the fixed package floor at build time.
+FROM debian:unstable-slim AS runtime
 
 ENV NODE_ENV=production \
     PORT=3000
@@ -30,15 +30,30 @@ LABEL org.opencontainers.image.title="GLORIFIER" \
       org.opencontainers.image.source="https://github.com/GLORIFIER7/GLORIFIER" \
       org.opencontainers.image.licenses="Apache-2.0"
 
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      libatomic1 \
+      libgcc-s1 \
+      libssl3t64 \
+      libstdc++6 \
+      zlib1g; \
+    zlib_version="$(dpkg-query -W -f='${Version}' zlib1g)"; \
+    dpkg --compare-versions "$zlib_version" ge '1:1.3.dfsg+really1.3.2-4'; \
+    rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /app; \
+    chown 65532:65532 /app
+
+COPY --from=build /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 COPY --from=build --chown=65532:65532 /app /app
 
+USER 65532:65532
 EXPOSE 3000
 
-# Exec-form healthcheck does not require a shell in the runtime image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+  CMD ["/usr/local/bin/node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
-# Distroless supplies Node as its entrypoint. Run the bundled server directly;
-# tsx is a devDependency and is intentionally absent from the production image.
+ENTRYPOINT ["/usr/local/bin/node"]
 CMD ["dist/server.cjs"]
