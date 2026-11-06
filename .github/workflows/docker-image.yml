@@ -16,7 +16,7 @@ on:
       - "public/**"
       - "index.html"
       - "vite.config.ts"
-      - "scripts/ubuntu-apt-security-policy.test.mjs"
+      - "scripts/container-runtime-security-policy.test.mjs"
       - ".trivy.yaml"
       - "security/vex/**"
       - ".github/workflows/docker-image.yml"
@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
 
       - name: Verify Debian runtime zlib security policy
-        run: node --test scripts/ubuntu-apt-security-policy.test.mjs
+        run: node --test scripts/container-runtime-security-policy.test.mjs
 
       - name: Build image
         run: docker build --pull --tag glorifier/glorifier:pr-${{ github.event.pull_request.number }} .
