@@ -144,3 +144,60 @@ test('upstream image publication verification preserves least-privilege token pe
   assert.ok(verification.includes("step.get(\"name\") == \"Tag and publish verified image\""));
   assert.equal(verification.includes('Authorization'), false);
 });
+
+
+function upstreamPublicationScript() {
+  const marker = '      - name: Verify the upstream Docker image publication succeeded\n';
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, 'upstream publication verification step must exist');
+  const nextStep = workflow.indexOf('\n      - name:', start + marker.length);
+  const step = workflow.slice(start, nextStep === -1 ? undefined : nextStep);
+  const runMarker = '        run: |\n';
+  const runStart = step.indexOf(runMarker);
+  assert.notEqual(runStart, -1, 'upstream publication verification must use an inline script');
+  return step
+    .slice(runStart + runMarker.length)
+    .split(/\r?\n/)
+    .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+    .join('\n')
+    .trimEnd();
+}
+
+function runUpstreamPublicationCheck(conclusion) {
+  const script = upstreamPublicationScript();
+  const harness = `import io, json, os, urllib.request
+sha = os.environ["SOURCE_COMMIT"]
+scenario = os.environ["SCENARIO"]
+def fake_urlopen(request, timeout=20):
+    url = request.full_url
+    if url.endswith("/actions/runs/123"):
+        payload = {"head_sha": sha, "head_branch": "main", "conclusion": "success"}
+    elif url.endswith("/actions/runs/123/jobs?per_page=100"):
+        publish_conclusion = "success" if scenario == "success" else "skipped"
+        payload = {"jobs": [{"name": "publish-after-ci", "conclusion": publish_conclusion,
+            "steps": [{"name": "Tag and publish verified image", "conclusion": publish_conclusion}]}]}
+    else:
+        raise AssertionError("unexpected GitHub API URL: " + url)
+    return io.BytesIO(json.dumps(payload).encode("utf-8"))
+urllib.request.urlopen = fake_urlopen
+script = os.environ["WORKFLOW_STEP_SCRIPT"]
+exec(compile(script, "<upstream-publication-check>", "exec"), {"__name__": "__main__"})
+`;
+  return execFileSync('python3', ['-c', harness], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: 'GLORIFIER7/GLORIFIER',
+      UPSTREAM_RUN_ID: '123',
+      SOURCE_COMMIT: 'a'.repeat(40),
+      SCENARIO: conclusion,
+      WORKFLOW_STEP_SCRIPT: script,
+    },
+  });
+}
+
+test('upstream publication check accepts only the exact successful image publication', () => {
+  const output = runUpstreamPublicationCheck('success');
+  assert.match(output, /Verified published Docker image/);
+  assert.throws(() => runUpstreamPublicationCheck('skipped'), (error) => error.status === 1);
+});
