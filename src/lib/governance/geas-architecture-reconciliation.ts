@@ -291,7 +291,8 @@ export function reconcileArchitectureStates(
   } else {
     let authenticated = false;
     try {
-      authenticated = authenticateVerificationEvidence(verificationEvidence);
+      const authenticationResult: unknown = authenticateVerificationEvidence(verificationEvidence);
+      authenticated = authenticationResult === true;
     } catch {
       authenticated = false;
     }
