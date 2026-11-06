@@ -32,6 +32,7 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     );
 
     assert.ok(updateIndex >= 0, 'APT metadata must be refreshed in the runtime stage');
+    assert.ok(installIndex >= 0, 'the runtime stage must contain apt-get install -y --no-install-recommends');
     assert.ok(installIndex > updateIndex, 'runtime packages must be installed after refreshing APT metadata');
     assert.ok(
       runtimeSource.indexOf('zlib1g', installIndex) > installIndex,
