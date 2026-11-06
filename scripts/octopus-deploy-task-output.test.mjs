@@ -89,3 +89,29 @@ test('Octopus task output rejects CR or LF before writing GitHub outputs', () =>
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('Octopus workflow uses one concurrency group for manual and automatic main deployments', () => {
+  assert.match(
+    workflow,
+    /group:\s*octopus-deploy-\$\{\{\s*github\.workflow\s*\}\}-\$\{\{\s*github\.event\.workflow_run\.head_branch\s*\|\|\s*github\.ref_name\s*\}\}/,
+  );
+});
+
+test('Octopus workflow rejects stale main commits before requesting an OIDC token', () => {
+  const preflightStart = workflow.indexOf('      - name: Validate Octopus deployment configuration');
+  const authenticateStart = workflow.indexOf('      - name: Authenticate to Octopus Deploy using GitHub OIDC');
+  assert.ok(preflightStart >= 0 && authenticateStart > preflightStart);
+
+  const preflight = workflow.slice(preflightStart, authenticateStart);
+  assert.match(preflight, /GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/);
+  assert.match(preflight, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/commits\/main" --jq \.sha/);
+  assert.match(preflight, /\[\[ "\$current_main_sha" != "\$SOURCE_COMMIT" \]\]/);
+});
+
+test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
+  const pinnedPackageVersions = workflow.match(
+    /package_version:\s*\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+  ) ?? [];
+  assert.equal(pinnedPackageVersions.length, 2);
+});
