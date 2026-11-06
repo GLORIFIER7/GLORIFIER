@@ -69,6 +69,7 @@ jobs:
           set -euo pipefail
           unset CLAUDE_CODE_ENTRYPOINT
           unset CLAUDE_CODE_ACTION
+          export DISABLE_AUTOUPDATER=1
           exec "$HOME/.local/bin/claude" "$@"
           EOF
           chmod 700 "$WRAPPER"
