@@ -8,9 +8,11 @@ Keep `GLORIFIER7/GLORIFIER` as the single authoritative source repository and go
 
 - GLORIFIER's Cloudflare Worker serves the frontend and selected native APIs. Its current backend proxy is configured separately through `GLORIFIER_BACKEND_ORIGIN`; unported routes fail closed when that setting is absent.
 - GLORIFIER-NEURAL exposes `GET /health`, `GET /ready`, and a protected `POST /v1/tasks`. The task endpoint returns 503 when `GLORIFIER_API_TOKEN` is absent, compares bearer tokens in constant time, rate-limits authenticated requests, and denies financial, wallet-signing, minting, destructive, production-write, and unknown action classes by default.
-- Neural readiness currently returns HTTP 503 while provider readiness is unverified. Its README explicitly states that providers and database integrations are not established as live.
+- Read-only public probes on 2026-11-06 returned `/health` with process `VERIFIED`; provider, database, and PyTorch checks on that endpoint remained `NOT VERIFIED`. The separate `/ready` response reported overall `READY`, with provider access, database connectivity, authentication configuration, and rate limiting `VERIFIED`; optional audit and task-run persistence remained unconfigured.
+- The `/ready` response explicitly returned `inference_performed=false`. No prompt was submitted and no live inference or API charge was triggered.
+- The GLORIFIER public `/api/runtime-verification` response reported `checks.neural.status=not-configured`, and `/api/neural/health` returned HTTP 503 because the production Worker did not yet contain the Neural origin/allowlist settings.
 
-These repository contracts do not prove a deployed Neural origin exists or is reachable.
+The Neural service is deployed and ready for authenticated task execution, but its live inference path has not been exercised.
 
 ## Proposed request flow
 
@@ -68,13 +70,13 @@ Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` es
 5. Keep provider inference disabled until separately approved and verified. Keep consequential action classes denied; human approval remains mandatory.
 6. Verify required GLORIFIER CI checks and a staging smoke test before proposing production configuration. Production deployment, secrets, provider egress, database migrations, and paid services require separate explicit approval.
 
-## Implementation status (updated 2026-10-25)
+## Implementation status (updated 2026-11-06)
 
-**Worker adapter: IMPLEMENTED IN REPOSITORY / NOT FULLY VERIFIED.** PR #469 added the Worker route adapter and tests; PR #470 added the POST streaming `duplex: 'half'` handling and corrected the unknown-route assertion. Both PRs are merged. The adapter is present in `src/worker.ts` on `main`.
+**Worker adapter:** IMPLEMENTED in GLORIFIER source and present in the active source lineage inspected for Worker version 910. It retains the fixed three-route mapping, exact HTTPS origin validation, exact-host allowlist, caller bearer-token forwarding, 64 KiB request cap, timeout, status preservation, correlation IDs, and no arbitrary-path proxy.
 
-**CI evidence:** the combined status for merge commit `44244b272b3178604c24f04d3ec2c97395273421` reports Vercel `success` and CircleCI `failure` (https://circleci.com/gh/GLORIFIER7/GLORIFIER/207). The failure cause has not yet been established from logs. Treat CI as blocking; do not mark this integration verified until the failing job is diagnosed and all required checks pass.
+**Live Neural readiness:** public read-only probes returned `/health` HTTP 200 and `/ready` HTTP 200 on 2026-11-06. The readiness response reported provider, read-only database connectivity, authentication configuration, and rate limiting as `VERIFIED`; optional audit and task-run persistence were not configured. No inference was performed.
 
-**Runtime configuration and live operation:** no evidence here confirms that `GLORIFIER_NEURAL_ORIGIN` is configured, that a Neural deployment is reachable, or that `/health`, `/ready`, authentication rejection, and a harmless read-only task have passed against staging. No production deployment, secret setup, provider egress, or database write was performed.
+**GLORIFIER production configuration gap:** the active Worker returned `NEURAL_ORIGIN_NOT_CONFIGURED` from `/api/neural/health` (HTTP 503) and `checks.neural.status=not-configured` from `/api/runtime-verification`. The repository fix is tracked in PR [#675](https://github.com/GLORIFIER7/GLORIFIER/pull/675): it adds the verified Neural HTTPS origin and exact hostname to production Wrangler variables and explicitly sets both preview values to empty. A test-first Cloudflare Worker CI run failed on the expected missing production origin before the configuration change.
 
 **Next steps:** diagnose CircleCI failure; run Worker contract tests and security checks; then configure a reviewed staging origin and perform the staging smoke tests listed above. Keep provider inference and consequential action classes disabled until separately approved and verified.
 
@@ -94,3 +96,10 @@ This migration intentionally preserves the service boundary:
 **History limitation:** this migration imports a content snapshot tied to the exact source commit above; it does not transplant the full NEURAL commit graph or rewrite prior commit history. The standalone source repository must remain available until the snapshot passes CI, deployment parity is verified, open PR work is reconciled, and any separately required history-preservation operation is completed.
 
 **Cutover gates:** (1) all NEURAL files and tests are present under `services/neural/`; (2) root NEURAL CI, Cloudflare dry-run and disposable database migration workflows pass; (3) GLORIFIER Worker-to-NEURAL staging calls pass health, readiness, invalid-token rejection and harmless read-only task checks; (4) production deployment parity and rollback are documented; (5) open NEURAL PRs #62 and #63 are migrated or deliberately closed only after their changes are accounted for. Do not archive or delete the standalone source repository before these gates pass.
+**Release state:** PR #675 is a source/configuration change only. It does not deploy or mutate the production Cloudflare Worker. Production remains behind the protected `workflow_dispatch` release gate. After merge, the owner must dispatch `.github/workflows/cloudflare-worker.yml` from `main` with `deploy_production=true` and ensure `CLOUDFLARE_DEPLOY_ENABLED=true`; then verify the deployed `/api/neural/health`, `/api/neural/ready`, and runtime verification endpoints.
+
+**Task execution and cost:** the protected `POST /api/neural/v1/tasks` route requires the caller's valid Neural bearer token, forwards it unchanged, and is additionally rate-limited and policy-gated by Neural. No token was exposed, no task was submitted, no model inference occurred, and no provider spend was triggered. The ability to invoke the task endpoint is therefore NOT VERIFIED from this chat.
+
+**ChatGPT client boundary:** connecting a custom MCP server to the ChatGPT interface is separately subject to ChatGPT plan, workspace, web-client, and OAuth requirements. The current ChatGPT Go workspace cannot be given extra GPU/CPU allocation by this repository integration, and custom MCP connection support is not available on Go. See the current [ChatGPT custom MCP availability documentation](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt).
+
+**Remaining verification:** merge after all required checks pass, release through the protected workflow, confirm GLORIFIER-to-NEURAL read-only health/readiness, then separately approve and conduct a bounded inference test before claiming end-to-end inference is verified.

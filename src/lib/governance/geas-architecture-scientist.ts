@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
-import type { StateEvidence as ReconciliationStateEvidence } from './geas-architecture-reconciliation';
+import type {
+  IndependentVerificationEvidence as ReconciliationVerificationEvidence,
+  ReconciliationStatus,
+  StateEvidence as ReconciliationStateEvidence,
+} from './geas-architecture-reconciliation';
 
 export type ArchitectureDomain =
   | 'enterprise-architecture'
@@ -39,7 +43,9 @@ export interface ArchitectureReconciliationContract {
   deployed: Record<string, unknown>;
   observed: Record<string, unknown>;
   verified: Record<string, unknown>;
-  status: 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
+  status: ReconciliationStatus;
+  /** Optional independent attestation; it is not trusted until an injected verifier authenticates it. */
+  verificationEvidence?: ReconciliationVerificationEvidence;
   /** Aggregate references are traceability-only; every state also needs snapshot-bound evidence. */
   evidenceRefs: string[];
   evidenceByState: Record<ArchitectureState, ReconciliationStateEvidence>;
@@ -309,7 +315,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336),
   createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336),
   createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai', ['genai-agent-telemetry'], 336),
-  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['cost-outcome-accounting'], 336),
+  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336),
   createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336),
   createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336),
@@ -372,6 +378,16 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   definePattern('vendor-neutral-telemetry', 'Common telemetry semantics', 'observability', 'opentelemetry-semconv', 'Use common semantic conventions so telemetry can be correlated across systems.', 'Agent observability + evidence graph', ['OBS-01'], ['semantic conventions', 'telemetry', 'traces', 'metrics']),
   definePattern('evidence-minimization', 'Sensitive telemetry minimization', 'observability', 'opentelemetry-semconv', 'Treat telemetry data as potentially sensitive and apply redaction and retention controls.', 'Evidence minimization policy', ['EVID-01'], ['sensitive', 'redact', 'privacy']),
   definePattern('cost-outcome-accounting', 'Standardized cost and usage accounting', 'finops', 'finops-focus', 'Normalize technology cost and usage data so architecture and economic decisions can be compared.', 'Revenue Control Plane + cost-per-verified-outcome', ['FIN-01'], ['cost', 'usage', 'standard']),
+  definePattern(
+    'focus-invoice-reconciliation',
+    'FOCUS 1.4 invoice reconciliation',
+    'finops',
+    'finops-focus-1-4',
+    'Analyze FOCUS 1.4 invoice reconciliation across Cost and Usage, Invoice Detail, and Billing Period datasets.',
+    'GEAS FOCUS reconciliation: aggregate by Invoice Issuer Name and Invoice ID, and by Invoice Detail ID where available; preserve billing currency, inclusive start/exclusive end period bounds, and explicit rounding tolerance. Dataset alignment is analysis, not invoice authenticity or proof of payment.',
+    ['FIN-01', 'ECO-01'],
+    ['Reconcile Cost and Usage to Invoice Detail by Invoice ID'],
+  ),
   definePattern('policy-as-code', 'Declarative policy enforcement', 'platform-engineering', 'cncf-kyverno', 'Encode guardrails as versioned policies and enforce them at platform control points.', 'GEAS policy engine + deployment gates', ['POL-01'], ['policy', 'enforce']),
   definePattern('durable-agent-execution', 'Durable agent execution', 'reliability', 'cncf-dapr-agents', 'Use durable state and recovery patterns for long-running agent workflows.', 'Daemon + durable work coordinator', ['REL-01', 'STATE-01'], ['durable', 'state', 'recovery', 'workflow']),
   definePattern('federated-continuum', 'Federated cloud-network-edge-device continuum', 'networking', 'etsi-eni', 'Use semantic interoperability and common information models across network, edge and compute domains.', 'Connection Registry + provider-neutral orchestration', ['FED-01'], ['interoperability', 'common information', 'edge']),

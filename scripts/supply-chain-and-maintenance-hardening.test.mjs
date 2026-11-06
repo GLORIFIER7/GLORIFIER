@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
+import './octopus-deploy-task-output.test.mjs';
 
 const agaveSources = [
   readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
@@ -137,4 +138,63 @@ test('Node loads the isolated module directory from NODE_PATH at process startup
     { encoding: 'utf8', env: { ...process.env, NODE_PATH: probePath } },
   );
   assert.equal(result, 'ok');
+});
+
+
+const nvidiaMaintenanceWorkflow = readFileSync(
+  new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url),
+  'utf8',
+);
+
+test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
+  const guardStart = nvidiaMaintenanceWorkflow.indexOf(
+    'if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then',
+  );
+  const guardEnd = nvidiaMaintenanceWorkflow.indexOf('\n          fi', guardStart);
+  const fallbackStart = nvidiaMaintenanceWorkflow.indexOf('candidate="$(gh run list');
+  assert.ok(guardStart >= 0, 'an explicit run ID must be validated');
+  assert.ok(guardEnd > guardStart, 'the run ID validation guard must close');
+  assert.match(nvidiaMaintenanceWorkflow.slice(guardStart, guardEnd), /::error::Invalid run_id input/);
+  assert.match(nvidiaMaintenanceWorkflow.slice(guardStart, guardEnd), /exit 1/);
+  assert.ok(fallbackStart > guardEnd, 'latest-failure fallback must happen only after explicit-input validation');
+});
+
+
+test('NVIDIA maintenance executes the explicit run ID guard before fallback', () => {
+  const lines = nvidiaMaintenanceWorkflow.split(String.fromCharCode(10));
+  const stepStart = lines.indexOf('      - name: Validate failed CI run');
+  const runIndex = lines.indexOf('        run: |', stepStart);
+  const nextStepIndex = lines.findIndex((line, index) => index > runIndex && line.startsWith('      - name:'));
+  assert.ok(stepStart >= 0 && runIndex > stepStart && nextStepIndex > runIndex, 'the run-ID validation shell step must be extractable');
+  const script = lines.slice(runIndex + 1, nextStepIndex).map((line) => line.startsWith('          ') ? line.slice(10) : line).join(String.fromCharCode(10));
+  let failure;
+  try {
+    execFileSync('bash', ['-euo', 'pipefail', '-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, RUN_ID: 'not-a-number', GITHUB_REPOSITORY: 'GLORIFIER7/GLORIFIER', GITHUB_OUTPUT: '/dev/null' },
+    });
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure, 'a malformed explicit run ID must stop the executable workflow step');
+  assert.equal(failure.status, 1);
+  assert.match(failure.stdout.toString(), /Invalid run_id input/);
+});
+
+test('NVIDIA maintenance checks credentials only after identifying a failed CI run', () => {
+  const targetStep = nvidiaMaintenanceWorkflow.indexOf('- name: Validate failed CI run');
+  const credentialStep = nvidiaMaintenanceWorkflow.indexOf('- name: Require NVIDIA credential');
+  const requestStep = nvidiaMaintenanceWorkflow.indexOf('- name: Request a constrained patch from Nemotron');
+  assert.ok(targetStep >= 0 && credentialStep > targetStep, 'target run validation must precede the NVIDIA credential check');
+  assert.ok(requestStep > credentialStep, 'the NVIDIA credential check must precede the model request');
+  const credentialBlock = nvidiaMaintenanceWorkflow.slice(credentialStep, requestStep);
+  assert.match(credentialBlock, /if: steps\.target\.outputs\.skip != 'true'/);
+});
+
+test('NVIDIA maintenance summary reports the selected run ID for manual dispatches', () => {
+  const summaryStep = nvidiaMaintenanceWorkflow.slice(
+    nvidiaMaintenanceWorkflow.indexOf('- name: Summarize and clean up'),
+  );
+  assert.match(summaryStep, /TARGET_RUN_ID: \$\{\{ steps\.target\.outputs\.run_id \|\| 'not-selected' \}\}/);
+  assert.match(summaryStep, /echo "- Run ID: \$TARGET_RUN_ID"/);
 });

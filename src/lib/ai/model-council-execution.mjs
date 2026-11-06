@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MODEL_COUNCIL_TIMEOUT_MS,
   executeModelCouncilProviders,
   isValidModelCouncilResponse,
 } from './model-council-routing.mjs';
@@ -63,13 +64,24 @@ async function synthesizeCouncilResponses({ council, topic, generate, timeoutMs 
     },
   ];
 
+  let timeoutHandle;
+  const controller = new AbortController();
   try {
-    const response = await generate(
+    const timeout = new Promise((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort();
+        const error = new Error('Model council synthesis deadline exceeded.');
+        error.code = 'provider_timeout';
+        reject(error);
+      }, timeoutMs);
+    });
+    const execution = Promise.resolve().then(() => generate(
       synthesisParticipant.provider,
       synthesisParticipant.model,
       messages,
-      AbortSignal.timeout(timeoutMs),
-    );
+      controller.signal,
+    ));
+    const response = await Promise.race([execution, timeout]);
     if (!isValidModelCouncilResponse(response, synthesisParticipant.provider, synthesisParticipant.model)) {
       return fallback;
     }
@@ -81,6 +93,8 @@ async function synthesizeCouncilResponses({ council, topic, generate, timeoutMs 
     return { synthesis, unifiedConsensus: synthesis.output };
   } catch {
     return fallback;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
@@ -89,9 +103,13 @@ export async function executeModelCouncilRequest({
   messages,
   topic,
   generate,
-  timeoutMs = 45_000,
+  timeoutMs = DEFAULT_MODEL_COUNCIL_TIMEOUT_MS,
   timestamp = () => new Date().toISOString(),
 }) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new RangeError('timeoutMs must be a positive integer.');
+  }
+  const deadlineAt = Date.now() + timeoutMs;
   const council = await executeModelCouncilProviders({
     participants,
     messages,
@@ -116,12 +134,18 @@ export async function executeModelCouncilRequest({
   }
 
   const responseParticipants = mapCouncilParticipants(council.participants);
-  const synthesisResult = await synthesizeCouncilResponses({
-    council,
-    topic,
-    generate,
-    timeoutMs,
-  });
+  const remainingSynthesisMs = Math.max(0, deadlineAt - Date.now());
+  const synthesisResult = remainingSynthesisMs > 0
+    ? await synthesizeCouncilResponses({
+      council,
+      topic,
+      generate,
+      timeoutMs: remainingSynthesisMs,
+    })
+    : {
+      synthesis: null,
+      unifiedConsensus: noSynthesisMessage(council.providerDiversity),
+    };
 
   return {
     status: 200,
