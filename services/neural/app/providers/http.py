@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 import math
 import time
 from collections.abc import Mapping
@@ -43,10 +44,8 @@ async def _cancel_target(target: Any, *, deadline: float) -> None:
     if remaining <= 0:
         return
 
-    try:
+    with suppress(Exception):  # best-effort cleanup must not mask the primary failure
         await asyncio.wait_for(_await_js(cancel()), timeout=remaining)
-    except Exception:  # noqa: BLE001 - cancellation is best-effort cleanup
-        pass
 
 
 def _chunk_length(value: Any) -> int:
@@ -111,11 +110,8 @@ async def read_bounded_response_text(
     if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 1:
         raise ValueError("max_bytes must be a positive integer")
     if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool):
-        raise ValueError("timeout_seconds must be a finite positive number")
-    try:
-        timeout_value = float(timeout_seconds)
-    except (TypeError, ValueError, OverflowError):
-        raise ValueError("timeout_seconds must be a finite positive number") from None
+        raise TypeError("timeout_seconds must be a finite positive number")
+    timeout_value = float(timeout_seconds)
     if not math.isfinite(timeout_value) or timeout_value <= 0:
         raise ValueError("timeout_seconds must be a finite positive number")
 
@@ -187,7 +183,5 @@ async def read_bounded_response_text(
         if not callable(release):
             release = getattr(reader, "release_lock", None)
         if callable(release):
-            try:
+            with suppress(Exception):  # do not mask the read result during cleanup
                 release()
-            except Exception:  # noqa: BLE001 - do not mask the read result
-                pass
