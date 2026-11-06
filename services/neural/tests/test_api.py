@@ -677,3 +677,45 @@ def test_local_task_rate_limit_isolated_per_client_address(monkeypatch):
     assert len(keys) == 2
     assert keys[0] != keys[1], "different clients must not share one authenticated rate-limit bucket"
     assert all("shared-token" not in key for key in keys)
+
+def test_task_run_validation_failure_is_distinguished_from_storage_failure(monkeypatch):
+    monkeypatch.setenv("GLORIFIER_API_TOKEN", "task-run-validation-token")
+    monkeypatch.delenv("GLORIFIER_AUDIT_ENABLED", raising=False)
+    calls = {"task": 0, "write": 0}
+
+    class InvalidTaskRunRepository:
+        def record(self, **_values):
+            calls["write"] += 1
+            raise ValueError("invalid task-run metadata")
+
+    def completed_task(_task_request):
+        calls["task"] += 1
+        from app.schemas import TaskResponse
+
+        return TaskResponse(
+            status="VERIFIED",
+            result="completed result",
+            evidence=["execution:inference"],
+            message="Task processing completed.",
+        )
+
+    monkeypatch.setattr(
+        "app.api.TaskRunRepository.from_environment",
+        lambda *_args: InvalidTaskRunRepository(),
+    )
+    monkeypatch.setattr("app.api.SupabaseRestAuditSink.from_environment", lambda *_args: None)
+    monkeypatch.setattr("app.api.orchestrator.run", completed_task)
+
+    response = client.post(
+        "/v1/tasks",
+        headers={"Authorization": "Bearer task-run-validation-token"},
+        json={"task": "safe read-only task", "require_approval": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PARTIALLY VERIFIED"
+    assert response.json()["result"] == "completed result"
+    assert "persistence:task_runs:invalid-record" in response.json()["evidence"]
+    assert "Task-run metadata validation degraded after processing" in response.json()["message"]
+    assert "invalid task-run metadata" not in response.text
+    assert calls == {"task": 1, "write": 1}
