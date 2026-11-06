@@ -2,7 +2,7 @@ name: Octopus Deploy
 
 on:
   workflow_run:
-    workflows: ["GLORIFIER CI"]
+    workflows: ["GLORIFIER Docker Image"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
   deploy:
     name: Create release and deploy through Octopus
     concurrency:
-      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
+      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name_name }}
       cancel-in-progress: false
     if: >-
       (github.event_name == 'workflow_dispatch' &&
@@ -25,8 +25,9 @@ jobs:
        vars.OCTOPUS_ENVIRONMENT != '') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.event == '${cfg.upstreamEvent}' &&
        github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_sha == github.sha &&
        vars.OCTOPUS_ENABLED == 'true' &&
        vars.OCTOPUS_SPACE != '' &&
        vars.OCTOPUS_PROJECT != '' &&
@@ -129,15 +130,12 @@ jobs:
           set -euo pipefail
           task_id="$(jq -er '
             if type == "array" and length == 1 and
-              (.[0].serverTaskId | type == "string" and length > 0)
+              (.[0].serverTaskId |
+                type == "string" and length > 0 and (explode | all(.[]; . >= 32 and . != 127)))
             then .[0].serverTaskId
-            else error("expected exactly one Octopus deployment task")
+            else error("expected exactly one safe Octopus deployment task ID")
             end
           ' <<< "$OCTOPUS_SERVER_TASKS")"
-          if [[ "$task_id" == *$'\x0a'* || "$task_id" == *$'\x0d'* ]]; then
-            echo "::error::Octopus serverTaskId contains an unexpected newline; refusing to write GitHub output."
-            exit 1
-          fi
           printf 'server_task_id=%s\n' "$task_id" >> "$GITHUB_OUTPUT"
 
       - name: Wait for the Octopus deployment to finish
