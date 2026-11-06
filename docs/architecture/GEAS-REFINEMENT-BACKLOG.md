@@ -28,6 +28,9 @@ The first applicable rule wins. Each result must retain its evidence references,
 - Replace keyword-only verification with claim-level checks tied to exact excerpts.
 - Record retrieval timestamp, content hash, final URL, and source version where available.
 - Keep content-matched classified as analysis; never emit claim-supported without a separate validation record.
+### P0 — FOCUS 1.4 source-to-pattern alignment
+- Bind the dedicated `finops-focus-1-4` scanner source to an invoice-reconciliation pattern and the matching registry claim type; do not leave an active source with an orphaned pattern declaration.
+- Keep the resulting source match classified as analysis. Invoice authenticity, payable status, settlement, GLORIFIER's actual spend, and verified economic outcomes remain separate evidence requirements.
 ### P0 — live drift reconciliation
 - Add adapters for repository declarations, deployment metadata, runtime health, and independent tests.
 - Store timestamps and evidence references per state; stale evidence is UNKNOWN, not aligned.
