@@ -27,19 +27,16 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
     steps:
-      - name: Require NVIDIA credential
-        env:
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$NVIDIA_API_KEY" ]]; then echo "::error::Configure NVIDIA_API_KEY in Actions secrets; never paste it into chat or source."; exit 1; fi
       - name: Validate failed CI run
         id: target
         shell: bash
         run: |
           set -euo pipefail
           candidate="$RUN_ID"
-          if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then candidate=""; fi
+          if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid run_id input; expected a decimal GitHub Actions run ID."
+            exit 1
+          fi
           if [[ -z "$candidate" ]]; then
             candidate="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "GLORIFIER CI" --branch main --status failure --limit 20 --json databaseId,workflowName,headBranch,conclusion | jq -r '[.[] | select(.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure")][0].databaseId // empty')"
           fi
@@ -101,6 +98,13 @@ jobs:
           Path("source-context.txt").write_text("\n\n".join(ctx) if ctx else "No eligible changed source files. Return NO_PATCH.")
           Path("logs.raw").unlink(missing_ok=True)
           PY
+      - name: Require NVIDIA credential
+        if: steps.target.outputs.skip != 'true'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$NVIDIA_API_KEY" ]]; then echo "::error::Configure NVIDIA_API_KEY in Actions secrets; never paste it into chat or source."; exit 1; fi
       - name: Request a constrained patch from Nemotron
         if: steps.target.outputs.skip != 'true'
         env:
@@ -167,11 +171,13 @@ jobs:
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed structural checks, npm audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
       - name: Summarize and clean up
         if: always()
+        env:
+          TARGET_RUN_ID: ${{ steps.target.outputs.run_id || 'not-selected' }}
         run: |
           {
             echo "# NVIDIA-assisted maintenance"
             echo
-            echo "- Run ID: $RUN_ID"
+            echo "- Run ID: $TARGET_RUN_ID"
             echo "- Auto-merge: disabled"
             echo "- Deployment: not performed"
             echo "- Production health: NOT VERIFIED by this workflow"
