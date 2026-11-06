@@ -13,7 +13,7 @@ import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
-import { resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
+import { DEFAULT_MODEL_COUNCIL_TIMEOUT_MS, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
 import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
 import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
 import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
@@ -1121,7 +1121,7 @@ app.post('/api/ai/council', requireOwnerOrInternalService, aiCouncilRateLimit, a
       participants: selectedParticipants,
       messages: buildModelCouncilMessages(topic, body),
       topic,
-      timeoutMs: 45_000,
+      timeoutMs: DEFAULT_MODEL_COUNCIL_TIMEOUT_MS,
       generate: (providerId, modelId, messages, signal) => aiOrchestrator.generate({
         provider: providerId,
         model: modelId,
