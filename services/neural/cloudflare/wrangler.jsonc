@@ -1,0 +1,66 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "glorifier-neural",
+  "main": "worker.py",
+  "compatibility_date": "2026-11-04",
+  "compatibility_flags": [
+    "python_workers"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "previews": {},
+  "ratelimits": [
+    {
+      "name": "GLORIFIER_RATE_LIMITER",
+      "namespace_id": "47041104",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "GLORIFIER_READINESS_LIMITER",
+      "namespace_id": "47041105",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true,
+      "head_sampling_rate": 0.01
+    },
+    "issues": {
+      "enabled": true
+    }
+  },
+  "vars": {
+    "GLORIFIER_NEON_CONNECTIVITY_ENABLED": "true",
+    "GLORIFIER_PROVIDER": "openai",
+    "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
+    "GLORIFIER_ENABLE_INFERENCE": "true"
+  },
+  "hyperdrive": [
+    {
+      "binding": "NEON_READONLY",
+      "id": "eff847b6c3c64488a989f1fa67d966a0"
+    }
+  ],
+  "python_modules": {
+    "exclude": [
+      "**/*.pyc",
+      "**/__pycache__",
+      "**/*.dist-info/*.txt"
+    ]
+  }
+}

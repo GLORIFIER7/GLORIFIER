@@ -1,0 +1,77 @@
+name: NEURAL disposable PostgreSQL migration tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/neural/db/**"
+      - "services/neural/tests/integration/**"
+      - ".github/workflows/neural-database-integration.yml"
+      - "services/neural/pyproject.toml"
+      - "services/neural/uv.lock"
+  push:
+    branches: [main]
+    paths:
+      - "services/neural/db/**"
+      - "services/neural/tests/integration/**"
+      - ".github/workflows/neural-database-integration.yml"
+      - "services/neural/pyproject.toml"
+      - "services/neural/uv.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-integration-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  migrations:
+    defaults:
+      run:
+        working-directory: services/neural
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-temporary
+          POSTGRES_DB: glorifier_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d glorifier_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      GLORIFIER_TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}-temporary@localhost:5432/glorifier_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # immutable commit pin
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+          version: "0.13.6"
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Export hash-pinned database dependencies from committed lock
+        run: uv export --locked --extra neon --no-dev --no-emit-project --format requirements-txt --output-file /tmp/requirements.txt
+      - name: Install only locked wheel distributions
+        run: >-
+          python -m pip install --only-binary=:all: --require-hashes -r /tmp/requirements.txt
+      - name: Create isolated migration role
+        run: psql "$GLORIFIER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE service_role NOLOGIN"
+      - name: Apply proposed Neon migration to disposable database
+        run: psql "$GLORIFIER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/neon/migrations/0001_task_runs.sql
+      - name: Apply proposed Supabase-compatible migration to disposable database
+        run: psql "$GLORIFIER_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/supabase/migrations/0001_audit_events.sql
+      - name: Verify constraints, RLS, and least-privilege grants
+        run: python tests/integration/check_database_migrations.py
