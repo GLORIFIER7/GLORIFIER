@@ -1,6 +1,6 @@
-# Reproducible Ubuntu runtime with pinned OCI image digests.
-# Refresh these digests deliberately through a reviewed dependency update.
-# This pinned stage supplies only the Node.js runtime binary to Ubuntu.
+# Reproducible application compatibility runtime.
+# Keep the Node.js build inputs pinned; use Debian unstable only as the runtime
+# package source until the CVE-2026-76844 backport reaches a supported release.
 FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node-bins
 
 FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build-deps
@@ -10,8 +10,6 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 
 FROM build-deps AS build
 COPY . .
-# Build both the frontend and the bundled server while esbuild is available.
-# The runtime stage intentionally omits devDependencies and therefore tsx.
 RUN npm run build
 
 FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS production-deps
@@ -19,36 +17,33 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
 
-FROM ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS runtime
+FROM debian:unstable-slim AS runtime
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false
 
-# Install the shared libraries required by the official Node binary copied from Debian.
-RUN apt-get -o Acquire::Retries=0 update \
- && apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt libapt-pkg6.0t64 \
- && apt_version="$(dpkg-query -W -f='${Version}' apt)" \
- && dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1 \
- && libapt_version="$(dpkg-query -W -f='${Version}' libapt-pkg6.0t64)" \
- && dpkg --compare-versions "$libapt_version" ge 2.8.4ubuntu0.1 \
- && printf '%s\n' 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-glorifier-no-retries \
-  && apt-get -o Acquire::Retries=0 install -y --no-install-recommends \
-     ca-certificates \
-     libatomic1 \
-     libgcc-s1 \
-     libssl3t64 \
-     libstdc++6 \
-     passwd \
-     zlib1g \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* \
- && groupadd --system --gid 10001 app \
- && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app
+# Require the Debian zlib package containing both gzwrite security fixes.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      libatomic1 \
+      libgcc-s1 \
+      libssl3t64 \
+      libstdc++6 \
+      passwd \
+      zlib1g; \
+    zlib_version="$(dpkg-query -W -f='${Version}' zlib1g)"; \
+    dpkg --compare-versions "$zlib_version" ge '1:1.3.dfsg+really1.3.2-4'; \
+    rm -rf /var/lib/apt/lists/*; \
+    groupadd --system --gid 10001 app; \
+    useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app; \
+    mkdir -p /app; \
+    chown 10001:10001 /app
 
 COPY --from=node-bins /usr/local/bin/node /usr/local/bin/node
-RUN /usr/local/bin/node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
- && mkdir -p /app && chown 10001:10001 /app
+RUN /usr/local/bin/node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' 
 WORKDIR /app
 COPY --from=production-deps --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/dist ./dist
@@ -58,5 +53,4 @@ COPY --from=build --chown=10001:10001 /app/package.json ./package.json
 
 USER 10001:10001
 EXPOSE 3000
-# Keep the runtime entrypoint independent of npm and the dev-only tsx package.
 CMD ["node", "dist/server.cjs"]
