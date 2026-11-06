@@ -233,6 +233,58 @@ class VllmAdapter(ProviderAdapter):
             raise RuntimeError("Cloudflare Fetch transport is unavailable") from None
         return fetch
 
+    async def _read_bounded_stream(
+        self,
+        response,
+        *,
+        deadline: float,
+        max_bytes: int,
+    ) -> bytes:
+        """Consume a Fetch ReadableStream incrementally under one absolute deadline."""
+        stream = getattr(response, "body", None)
+        get_reader = getattr(stream, "getReader", None)
+        if not callable(get_reader):
+            raise RuntimeError("vLLM response body is not a readable stream")
+
+        reader = get_reader()
+        collected = bytearray()
+        try:
+            while True:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError
+                item = await asyncio.wait_for(reader.read(), timeout=remaining)
+                if bool(item.done):
+                    break
+                chunk = item.value
+                converter = getattr(chunk, "to_py", None)
+                if callable(converter):
+                    chunk = converter()
+                try:
+                    part = bytes(chunk)
+                except (TypeError, ValueError):
+                    raise RuntimeError("vLLM returned an invalid response stream chunk") from None
+                if len(collected) + len(part) > max_bytes:
+                    raise RuntimeError("vLLM response exceeded the response size limit")
+                collected.extend(part)
+            return bytes(collected)
+        except BaseException:
+            # Cancel upstream work on timeout, oversized bodies, or task cancellation.
+            try:
+                cancel = getattr(reader, "cancel", None)
+                if callable(cancel):
+                    await cancel()
+            except BaseException:
+                pass
+            raise
+        finally:
+            try:
+                release_lock = getattr(reader, "releaseLock", None)
+                if callable(release_lock):
+                    release_lock()
+            except Exception:  # noqa: BLE001 - preserve the primary response outcome
+                pass
+
     async def _fetch_json(
         self,
         url: str,
@@ -264,18 +316,17 @@ class VllmAdapter(ProviderAdapter):
                         raise RuntimeError("vLLM response exceeded the response size limit")
                 except ValueError:
                     raise RuntimeError("vLLM returned an invalid content length") from None
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                raise TimeoutError
-            raw = await asyncio.wait_for(response.text(), timeout=remaining)
+            raw = await self._read_bounded_stream(
+                response,
+                deadline=deadline,
+                max_bytes=max_bytes,
+            )
         except TimeoutError:
             raise RuntimeError("vLLM request exceeded its timeout") from None
         except RuntimeError:
             raise
         except Exception:  # noqa: BLE001 - provider details may contain secrets
             raise RuntimeError("vLLM endpoint is unavailable") from None
-        if not isinstance(raw, str) or len(raw.encode("utf-8")) > max_bytes:
-            raise RuntimeError("vLLM response exceeded the response size limit")
         return self._decode_json(raw)
 
     async def acheck_readiness(self) -> None:
