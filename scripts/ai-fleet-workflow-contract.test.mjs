@@ -66,14 +66,23 @@ test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
 
-test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
-  const allowedTools = claudeWorkflow.match(/--allowedTools\s+"([^"]+)"/)?.[1];
-  assert.ok(allowedTools, 'Claude allowed-tool list must be present and quoted');
-  assert.doesNotMatch(
-    allowedTools,
-    /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/,
-    'Claude must not be able to run npm install commands that execute lifecycle scripts',
+test('every Claude invocation blocks npm install commands that execute lifecycle scripts', () => {
+  const allowedToolLists = [...claudeWorkflow.matchAll(/--allowedTools\s+"([^"]+)"/g)]
+    .map((match) => match[1]);
+  const claudeInvocations = (claudeWorkflow.match(/uses: anthropics\/claude-code-action@/g) || []).length;
+  assert.ok(allowedToolLists.length > 0, 'Claude allowed-tool lists must be present and quoted');
+  assert.equal(
+    allowedToolLists.length,
+    claudeInvocations,
+    'each Claude invocation must declare an explicit allowed-tool list',
   );
+  for (const [index, allowedTools] of allowedToolLists.entries()) {
+    assert.doesNotMatch(
+      allowedTools,
+      /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/,
+      \`Claude invocation \${index + 1} must not run npm install commands that execute lifecycle scripts\`,
+    );
+  }
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
   const claudeAction = claudeWorkflow.indexOf('uses: anthropics/claude-code-action@');
   assert.ok(
