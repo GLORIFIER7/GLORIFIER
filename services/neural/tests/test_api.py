@@ -93,6 +93,33 @@ def test_action_class_input_is_bounded(monkeypatch):
     )
     assert response.status_code == 422
 
+
+def test_unknown_action_class_is_rejected_before_audit_persistence(monkeypatch):
+    monkeypatch.setenv("GLORIFIER_API_TOKEN", "test-secret")
+    audit_events = []
+
+    class RecordingAuditSink:
+        def write(self, event):
+            audit_events.append(event)
+
+    monkeypatch.setattr(
+        "app.api.SupabaseRestAuditSink.from_environment",
+        lambda *_args: RecordingAuditSink(),
+    )
+
+    response = client.post(
+        "/v1/tasks",
+        headers={"Authorization": "Bearer test-secret"},
+        json={
+            "task": "read-only task",
+            "action_class": "customer@example.com",
+            "require_approval": False,
+        },
+    )
+
+    assert response.status_code == 422
+    assert audit_events == [], "untrusted free-form action_class values must never reach audit persistence"
+
 def test_task_input_bounds_are_enforced(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "test-secret")
     headers = {"Authorization": "Bearer test-secret"}
