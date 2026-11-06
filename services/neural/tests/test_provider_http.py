@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from app.providers.http import ResponseBodyTooLargeError, read_bounded_response_text
+from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
 
 
 class FakeReadResult:
@@ -406,4 +406,97 @@ def test_caller_cancellation_cancels_reader_and_releases_lock():
     assert elapsed < 0.15
 
     assert response.body_reader.cancel_calls == 1
+    assert response.body_reader.release_calls == 1
+
+
+def test_stalled_fetch_coroutine_cannot_extend_absolute_deadline():
+    async def cancellation_resistant_fetch():
+        try:
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+        return "late response"
+
+    async def exercise():
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await await_with_deadline(
+                cancellation_resistant_fetch(), deadline=time.monotonic() + 0.06
+            )
+        return time.monotonic() - started
+
+    elapsed = asyncio.run(exercise())
+
+    assert elapsed < 0.10
+
+
+def test_caller_cancellation_is_propagated_without_waiting_for_fetch_cleanup():
+    async def exercise():
+        started_event = asyncio.Event()
+
+        async def cancellation_resistant_fetch():
+            started_event.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+                return "late response"
+
+        task = asyncio.create_task(
+            await_with_deadline(
+                cancellation_resistant_fetch(), deadline=time.monotonic() + 1.0
+            )
+        )
+        await started_event.wait()
+        started = time.monotonic()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return time.monotonic() - started
+
+    elapsed = asyncio.run(exercise())
+
+    assert elapsed < 0.10
+
+
+def test_reader_lock_release_is_deferred_until_cancelled_read_settles():
+    class PendingReleaseReader(FakeReader):
+        def __init__(self):
+            super().__init__([])
+            self.pending_read = False
+
+        async def read(self):
+            self.read_calls += 1
+            self.pending_read = True
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+            self.pending_read = False
+            return FakeReadResult(done=True)
+
+        def releaseLock(self):
+            if self.pending_read:
+                raise RuntimeError("cannot release while a read request is pending")
+            self.release_calls += 1
+
+    response = FakeResponse([])
+    response.body_reader = PendingReleaseReader()
+    response.body = FakeStream(response.body_reader)
+
+    async def exercise():
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await read_bounded_response_text(
+                response, max_bytes=16, timeout_seconds=0.06
+            )
+        elapsed = time.monotonic() - started
+        released_before_read_settled = response.body_reader.release_calls
+        await asyncio.sleep(0.12)
+        return elapsed, released_before_read_settled
+
+    elapsed, released_before_read_settled = asyncio.run(exercise())
+
+    assert elapsed < 0.10
+    assert released_before_read_settled == 0
     assert response.body_reader.release_calls == 1
