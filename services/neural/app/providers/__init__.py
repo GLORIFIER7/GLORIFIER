@@ -5,7 +5,6 @@ secret manager and explicitly inject it into the provider registry.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import time
@@ -13,7 +12,11 @@ import urllib.error
 import urllib.request
 
 from app.providers.base import InferenceResult, ProviderAdapter
-from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
+from app.providers.http import (
+    ResponseBodyTooLargeError,
+    await_with_deadline,
+    read_bounded_response_text,
+)
 
 
 class _NvidiaNimHttpStatusError(RuntimeError):
