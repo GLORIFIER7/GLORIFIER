@@ -34,16 +34,43 @@ async def _await_js(value: Any) -> Any:
     return await value
 
 
+def _consume_task_result(task: asyncio.Task[Any]) -> None:
+    """Retrieve detached task failures so timeout cleanup stays quiet."""
+    if task.done() and not task.cancelled():
+        with suppress(BaseException):
+            task.exception()
+
+
+async def _await_task_until(task: asyncio.Task[Any], *, deadline: float) -> Any:
+    """Wait until a deadline without waiting for cancellation-resistant work."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        task.cancel()
+        task.add_done_callback(_consume_task_result)
+        raise TimeoutError("provider response body exceeded its deadline")
+
+    try:
+        completed, _ = await asyncio.wait({task}, timeout=remaining)
+    except asyncio.CancelledError:
+        task.cancel()
+        task.add_done_callback(_consume_task_result)
+        raise
+
+    if not completed:
+        task.cancel()
+        task.add_done_callback(_consume_task_result)
+        raise TimeoutError("provider response body exceeded its deadline")
+    return task.result()
+
+
 async def _cancel_target(target: Any, *, deadline: float) -> None:
     """Request cancellation, but never spend more than the remaining deadline."""
     cancel = getattr(target, "cancel", None)
-    if not callable(cancel):
-        return
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
+    if not callable(cancel) or deadline <= time.monotonic():
         return
     with suppress(Exception):  # best-effort cleanup must not mask the primary failure
-        await asyncio.wait_for(_await_js(cancel()), timeout=remaining)
+        task = asyncio.create_task(_await_js(cancel()))
+        await _await_task_until(task, deadline=deadline)
 
 
 async def _cancel_and_raise(target: Any, *, deadline: float, error: Exception) -> NoReturn:
@@ -109,17 +136,20 @@ async def _response_reader(response: Any, *, max_bytes: int, deadline: float) ->
             parsed_length = int(declared_length)
         except (TypeError, ValueError):
             await _cancel_and_raise(
-                body, deadline=deadline,
+                body,
+                deadline=deadline,
                 error=ValueError("provider returned an invalid content length"),
             )
         if parsed_length < 0:
             await _cancel_and_raise(
-                body, deadline=deadline,
+                body,
+                deadline=deadline,
                 error=ValueError("provider returned an invalid content length"),
             )
         if parsed_length > max_bytes:
             await _cancel_and_raise(
-                body, deadline=deadline,
+                body,
+                deadline=deadline,
                 error=ResponseBodyTooLargeError("provider response exceeded response size limit"),
             )
 
@@ -128,7 +158,8 @@ async def _response_reader(response: Any, *, max_bytes: int, deadline: float) ->
         get_reader = getattr(body, "get_reader", None)
     if not callable(get_reader):
         await _cancel_and_raise(
-            body, deadline=deadline,
+            body,
+            deadline=deadline,
             error=TypeError("provider response does not expose a readable stream"),
         )
     return get_reader()
@@ -143,10 +174,8 @@ def _read_result_field(result: Any, name: str) -> Any:
 async def _read_chunks(reader: Any, *, max_bytes: int, deadline: float) -> bytearray:
     collected = bytearray()
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError("provider response body exceeded its deadline")
-        result = await asyncio.wait_for(_await_js(reader.read()), timeout=remaining)
+        read_task = asyncio.create_task(_await_js(reader.read()))
+        result = await _await_task_until(read_task, deadline=deadline)
         if _read_result_field(result, "done") is True:
             return collected
         value = _read_result_field(result, "value")
@@ -179,8 +208,8 @@ async def read_bounded_response_text(
     """Read a Fetch Response incrementally under a byte and absolute-time ceiling.
 
     The body stream is cancelled on malformed or oversized declared lengths,
-    streamed overflow, timeout, and read failure. A small part of the absolute
-    deadline is reserved for bounded cancellation cleanup.
+    streamed overflow, timeout, caller cancellation, and read failure. Read and
+    cancellation waits cannot block the caller beyond the remaining deadline.
     """
     if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 1:
         raise ValueError("max_bytes must be a positive integer")
@@ -199,6 +228,9 @@ async def read_bounded_response_text(
             return collected.decode("utf-8")
         except UnicodeDecodeError:
             raise ValueError("provider response was not valid UTF-8") from None
+    except asyncio.CancelledError:
+        await _cancel_target(reader, deadline=deadline)
+        raise
     except Exception:
         await _cancel_target(reader, deadline=deadline)
         raise
