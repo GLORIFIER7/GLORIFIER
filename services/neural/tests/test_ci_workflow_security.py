@@ -50,8 +50,16 @@ def test_untrusted_test_job_does_not_persist_github_token():
 def test_review_event_uses_the_documented_top_level_pull_request_payload():
     policy_job = _job_section("ai-review-policy")
     assert "github.event.review.pull_request" not in policy_job
-    assert "ref: ${{ github.event.pull_request.base.sha }}" in policy_job
+    assert (
+        "repository: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' "
+        "&& 'GLORIFIER7/GLORIFIER-NEURAL' || github.repository }}"
+    ) in policy_job
+    assert (
+        "ref: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' "
+        "&& '9a32356ee4fa7d517e74db936b69312de488ae85' || github.event.pull_request.base.sha }}"
+    ) in policy_job
     assert "PR_NUMBER: ${{ github.event.pull_request.number }}" in policy_job
+    assert "persist-credentials: false" in policy_job
     assert "PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}" in policy_job
 
 
@@ -72,3 +80,5 @@ def test_policy_job_uses_canonical_pull_request_head_from_github_api():
     assert 'output.write("head_sha=" + head_sha + chr(10))' in policy_job
     assert "PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}" in policy_job
     assert "github.event.pull_request.head.sha" not in policy_job
+    assert "working-directory: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && 'trusted-policy' || 'trusted-policy/services/neural' }}" in policy_job
+    assert "github.workspace" in policy_job

@@ -79,18 +79,21 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      # Bootstrap the migration PR from the immutable source commit because main does not yet contain services/neural/.
+      # After this PR lands, subsequent PRs use the trusted main-branch policy under services/neural/.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          repository: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && 'GLORIFIER7/GLORIFIER-NEURAL' || github.repository }}
+          ref: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && '9a32356ee4fa7d517e74db936b69312de488ae85' || github.event.pull_request.base.sha }}
           path: trusted-policy
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # immutable action pin
         with:
           python-version: "3.12"
       - name: Verify the trusted policy runner is importable
-        working-directory: trusted-policy/services/neural
+        working-directory: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && 'trusted-policy' || 'trusted-policy/services/neural' }}
         env:
-          PYTHONPATH: ${{ github.workspace }}/trusted-policy/services/neural
+          PYTHONPATH: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && format('{0}/trusted-policy', github.workspace) || format('{0}/trusted-policy/services/neural', github.workspace) }}
         run: python -c "import app.ai_review_policy; print('Trusted AI review policy runner import verified')"
       - name: Resolve canonical PR head SHA from GitHub
         id: current-pr
@@ -128,8 +131,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}
-          PYTHONPATH: ${{ github.workspace }}/trusted-policy/services/neural
+          PYTHONPATH: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && format('{0}/trusted-policy', github.workspace) || format('{0}/trusted-policy/services/neural', github.workspace) }}
           AI_REVIEW_WAIT_SECONDS: "900"
           AI_REVIEW_POLL_INTERVAL_SECONDS: "30"
-        working-directory: trusted-policy/services/neural
+        working-directory: ${{ github.event.pull_request.base.sha == 'cabbbaca15790ce0b1aa1835d14a0be5e6d48725' && 'trusted-policy' || 'trusted-policy/services/neural' }}
         run: python -m app.ai_review_policy
