@@ -42,7 +42,7 @@ class _WorkerEnvironmentASGI:
         await self.app(scope, receive, send)
 
 
-def test_worker_task_endpoint_uses_rate_limit_binding_and_hashed_credential():
+def test_worker_task_endpoint_uses_rate_limit_binding_and_per_client_address():
     import hashlib
     import hmac
 
@@ -64,16 +64,53 @@ def test_worker_task_endpoint_uses_rate_limit_binding_and_hashed_credential():
     }
     worker_client = TestClient(_WorkerEnvironmentASGI(app, worker_env))
 
+    responses = [
+        worker_client.post(
+            "/v1/tasks",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "CF-Connecting-IP": client_ip,
+            },
+            json={"task": "worker request", "require_approval": False},
+        )
+        for client_ip in ("198.51.100.10", "198.51.100.11")
+    ]
+
+    assert [response.status_code for response in responses] == [200, 200]
+    expected = [
+        hmac.new(
+            token.encode("utf-8"),
+            f"glorifier-rate-limit-v1:{client_ip}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        for client_ip in ("198.51.100.10", "198.51.100.11")
+    ]
+    assert limiter.keys == expected
+    assert len(set(limiter.keys)) == 2
+    assert all(token not in key for key in limiter.keys)
+
+
+def test_worker_task_endpoint_fails_closed_when_client_identity_is_missing():
+    from fastapi.testclient import TestClient
+
+    token = secrets.token_urlsafe(32)
+    limiter = type("AllowBinding", (), {"limit": lambda self, _options: _allow()})()
+    async def _allow():
+        return {"success": True}
+
+    worker_client = TestClient(
+        _WorkerEnvironmentASGI(
+            app,
+            {"GLORIFIER_API_TOKEN": token, "GLORIFIER_RATE_LIMITER": limiter},
+        )
+    )
     response = worker_client.post(
         "/v1/tasks",
         headers={"Authorization": f"Bearer {token}"},
         json={"task": "worker request", "require_approval": False},
     )
-
-    assert response.status_code == 200
-    assert limiter.keys == [hmac.new(token.encode("utf-8"), b"glorifier-rate-limit-v1", hashlib.sha256).hexdigest()]
-    assert token not in limiter.keys[0]
-
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Task client identity is unavailable"
 
 def test_worker_task_endpoint_fails_closed_when_rate_limit_binding_is_missing():
     from fastapi.testclient import TestClient
@@ -113,7 +150,7 @@ def test_worker_task_endpoint_rejects_rate_limited_credentials():
 
     response = worker_client.post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "CF-Connecting-IP": "198.51.100.12"},
         json={"task": "worker request", "require_approval": False},
     )
 
@@ -162,7 +199,7 @@ def test_worker_task_endpoint_persists_minimal_neon_task_run_metadata(monkeypatc
 
     response = TestClient(WorkerEnvironment(app)).post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {worker_token}"},
+        headers={"Authorization": f"Bearer {worker_token}", "CF-Connecting-IP": "198.51.100.13"},
         json={"task": "safe metadata test", "require_approval": False},
     )
 
