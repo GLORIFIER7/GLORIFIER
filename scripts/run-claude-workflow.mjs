@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
+const CLI_TIMEOUT_MS = 25 * 60 * 1000;
+
 const ALLOWED_TOOLS = [
   'Read',
   'Glob',
@@ -90,7 +92,7 @@ export function classifyClaudeOutput(stdout) {
   return { ok: true, code: 'success' };
 }
 
-export function runClaude({ taskText, wrapper, env = process.env }) {
+export function runClaude({ taskText, wrapper, env = process.env, timeoutMs = CLI_TIMEOUT_MS }) {
   if (typeof taskText !== 'string' || taskText.trim() === '') {
     return { exitCode: 2, code: 'missing_task' };
   }
@@ -100,16 +102,26 @@ export function runClaude({ taskText, wrapper, env = process.env }) {
   if (!env.ANTHROPIC_API_KEY) {
     return { exitCode: 2, code: 'missing_api_key' };
   }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    return { exitCode: 2, code: 'invalid_timeout' };
+  }
 
   const result = spawnSync(wrapper, buildClaudeArgs(buildPrompt(taskText)), {
     encoding: 'utf8',
     env,
     maxBuffer: 64 * 1024 * 1024,
+    timeout: timeoutMs,
     windowsHide: true,
   });
 
+  if (result.error?.code === 'ETIMEDOUT') {
+    return { exitCode: 1, code: 'cli_timeout' };
+  }
   if (result.error) {
     return { exitCode: 1, code: 'cli_launch_failed' };
+  }
+  if (result.signal) {
+    return { exitCode: 1, code: 'cli_terminated_by_signal' };
   }
 
   const classification = classifyClaudeOutput(result.stdout ?? '');
