@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from app.providers.base import InferenceResult, ProviderAdapter
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -244,7 +247,7 @@ class VllmAdapter(ProviderAdapter):
         stream = getattr(response, "body", None)
         get_reader = getattr(stream, "getReader", None)
         if not callable(get_reader):
-            raise RuntimeError("vLLM response body is not a readable stream")
+            raise TypeError("vLLM response body is not a readable stream")
 
         reader = get_reader()
         collected = bytearray()
@@ -268,22 +271,24 @@ class VllmAdapter(ProviderAdapter):
                     raise RuntimeError("vLLM response exceeded the response size limit")
                 collected.extend(part)
             return bytes(collected)
-        except BaseException:
-            # Cancel upstream work on timeout, oversized bodies, or task cancellation.
-            try:
-                cancel = getattr(reader, "cancel", None)
-                if callable(cancel):
-                    await cancel()
-            except BaseException:
-                pass
+        except (Exception, asyncio.CancelledError):  # noqa: BLE001 - cancel upstream on any failed read
+            cancel = getattr(reader, "cancel", None)
+            if callable(cancel):
+                try:
+                    await asyncio.wait_for(cancel(), timeout=0.25)
+                except (Exception, asyncio.CancelledError):  # noqa: BLE001 - preserve the primary failure
+                    _LOGGER.debug("Unable to cancel vLLM response stream (%s)", "cleanup-error")
             raise
         finally:
-            try:
-                release_lock = getattr(reader, "releaseLock", None)
-                if callable(release_lock):
+            release_lock = getattr(reader, "releaseLock", None)
+            if callable(release_lock):
+                try:
                     release_lock()
-            except Exception:  # noqa: BLE001 - preserve the primary response outcome
-                pass
+                except Exception as exc:  # noqa: BLE001 - preserve the primary response outcome
+                    _LOGGER.debug(
+                        "Unable to release vLLM response stream lock (%s)",
+                        type(exc).__name__,
+                    )
 
     async def _fetch_json(
         self,
