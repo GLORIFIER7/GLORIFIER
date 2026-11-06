@@ -21,7 +21,7 @@ try {
   reconciliation = readFileSync(reconciliationPath, 'utf8');
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${JSON.stringify({ valid: false, failures: [`unable to read required GEAS reconciliation file (${reconciliationPath}): ${detail}`] }, null, 2)}\\n`);
+  process.stderr.write(JSON.stringify({ valid: false, failures: [`unable to read required GEAS reconciliation file (${reconciliationPath}): ${detail}`] }, null, 2) + '\n');
   process.exit(1);
 }
 
@@ -55,11 +55,11 @@ requirePattern(/architectureStateModel:\s*\['desired',\s*'declared',\s*'deployed
 requirePattern(/export interface ArchitectureReconciliationContract\s*\{[^}]*evidenceByState:\s*Record<ArchitectureState,\s*ReconciliationStateEvidence>/,
   'five-state reconciliation contract must require snapshot-bound evidence for every state');
 
-requireReconciliationPattern(/export type ReconciliationStatus = 'VERIFIED' \\| 'ALIGNED' \\| 'PARTIALLY_VERIFIED' \\| 'DRIFT' \\| 'UNKNOWN'/,
+requireReconciliationPattern(/export type ReconciliationStatus = 'VERIFIED' \| 'ALIGNED' \| 'PARTIALLY_VERIFIED' \| 'DRIFT' \| 'UNKNOWN'/,
   'five-state reconciler must expose the complete outcome vocabulary');
-requireReconciliationPattern(/export interface IndependentVerificationEvidence[\\s\\S]*?result: 'passed' \\| 'failed'/,
+requireReconciliationPattern(/export interface IndependentVerificationEvidence[\s\S]*?result: 'passed' \| 'failed'/,
   'VERIFIED must be backed by explicit independent verification evidence');
-requireReconciliationPattern(/authenticateVerificationEvidence\\?: VerificationEvidenceAuthenticator/,
+requireReconciliationPattern(/authenticateVerificationEvidence\?: VerificationEvidenceAuthenticator/,
   'independent verification evidence must pass through an injected trusted authenticator');
 
 // Drift is not allowed to claim a confirmed mismatch without traceable evidence.
