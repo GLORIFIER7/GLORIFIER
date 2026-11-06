@@ -43,6 +43,12 @@ uvicorn app.api:app --host 127.0.0.1 --port 8000
 
 Open `http://127.0.0.1:8000/docs`. The `/health` endpoint reports process status separately from external dependencies. `/ready` performs a bounded read-only model-access check against the explicitly configured provider; OpenAI uses `GET https://api.openai.com/v1/models/{model}`, NVIDIA NIM queries its model catalogue, and vLLM uses `GET {GLORIFIER_VLLM_BASE_URL}/models` to confirm the explicitly selected model ID. These checks do not submit a prompt or execute inference. The optional Neon `SELECT 1` probe is reported separately and blocks readiness only when explicitly enabled but failing. Provider readiness is independent of inference: `/ready` validates the selected provider's read-only model-access probe and other required checks; it does not execute inference even when `GLORIFIER_ENABLE_INFERENCE=true`. Without a configured, accessible provider, provider readiness remains `NOT VERIFIED` and `/ready` returns HTTP 503.
 
+## Self-hosted GPU worker
+
+An optional single-GPU vLLM worker template is maintained in `../../deployments/vllm/`. It uses an HTTPS ingress restricted to the authenticated `/v1` API and an exact-origin allowlist in the NEURAL adapter. See [the deployment runbook](../../deployments/vllm/README.md) for the Kubernetes prerequisites, external secret setup, runtime configuration, and verification gates.
+
+The template does not provision infrastructure. Keep GPU deployment and live inference **NOT VERIFIED** until an authorized GPU cluster, TLS endpoint, model availability, and a controlled inference request have all been independently checked.
+
 ## Cloudflare deployment
 
 Neural is deployed as a dedicated Cloudflare Python Worker, not as a Railway service.
