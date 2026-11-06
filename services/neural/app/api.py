@@ -86,17 +86,26 @@ def _request_orchestrator(request: Request):
 
 
 async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
-    """Apply Cloudflare's credential-keyed limit; fail closed on errors.
+    """Apply a per-client Cloudflare/local limit; fail closed on identity or binding errors.
 
     Raises:
         HTTPException: 429 when the task limit is exceeded; 503 when the
-            Cloudflare rate-limit binding is missing, invalid, or unavailable.
+            client identity or rate-limit infrastructure is unavailable.
     """
-    credential_key = hmac.new(
-        api_token.encode("utf-8"), b"glorifier-rate-limit-v1", hashlib.sha256
-    ).hexdigest()
     worker_env = request.scope.get("env")
     if worker_env is None:
+        client = request.client
+        client_host = getattr(client, "host", None)
+        if not isinstance(client_host, str) or not client_host.strip():
+            raise HTTPException(
+                status_code=503, detail="Task client identity is unavailable"
+            )
+        client_identity = f"local:{client_host.strip()}"
+        credential_key = hmac.new(
+            api_token.encode("utf-8"),
+            f"glorifier-rate-limit-v1:{client_identity}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
         allowed, retry_after = TASK_RATE_LIMITER.allow(credential_key)
     else:
         rate_limit_binding = _request_worker_binding(request, "GLORIFIER_RATE_LIMITER")
@@ -110,6 +119,18 @@ async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
                 status_code=503,
                 detail="Task rate limiting is unavailable",
             )
+        raw_client_ip = request.headers.get("cf-connecting-ip", "").strip()
+        try:
+            client_ip = str(ipaddress.ip_address(raw_client_ip))
+        except ValueError:
+            raise HTTPException(
+                status_code=503, detail="Task client identity is unavailable"
+            ) from None
+        credential_key = hmac.new(
+            api_token.encode("utf-8"),
+            f"glorifier-rate-limit-v1:worker:{client_ip}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
         try:
             result = await rate_limit_binding.limit({"key": credential_key})
             success = (
@@ -136,7 +157,6 @@ async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
             detail="Task rate limit exceeded; retry after the current minute window",
             headers={"Retry-After": str(retry_after)},
         )
-
 
 async def _write_audit_event(sink, event: AuditEvent, *, worker_request: bool) -> None:
     """Persist audit events through Fetch on Workers and urllib in local deployments."""
