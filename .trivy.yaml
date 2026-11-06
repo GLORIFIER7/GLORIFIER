@@ -1,6 +1,6 @@
-# Keep the image HIGH/CRITICAL gate enabled. This VEX records only Canonical's
-# fixed Ubuntu 24.04 package versions for CVE-2026-109518; other versions and CVEs
-# remain subject to the normal Trivy severity gate.
+# Scan operating-system and application-library packages.
+# No CVE ignore rules or VEX exemptions are applied to the runtime images.
 vulnerability:
-  vex:
-    - security/vex/CVE-2026-109518.openvex.json
+  type:
+    - os
+    - library
