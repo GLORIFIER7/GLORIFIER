@@ -80,7 +80,7 @@ def test_worker_task_endpoint_uses_rate_limit_binding_and_per_client_address():
     expected = [
         hmac.new(
             token.encode("utf-8"),
-            f"glorifier-rate-limit-v1:{client_ip}".encode("utf-8"),
+            f"glorifier-rate-limit-v1:{client_ip}".encode(),
             hashlib.sha256,
         ).hexdigest()
         for client_ip in ("198.51.100.10", "198.51.100.11")
