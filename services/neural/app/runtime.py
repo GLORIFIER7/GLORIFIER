@@ -76,7 +76,7 @@ def build_orchestrator_from_environment(
                 model=_environment_value(
                     environment,
                     "OPENAI_MODEL",
-                    OpenAIResponsesAdapter.default_model,
+                    "",
                 ),
                 fetch_fn=fetch_fn,
             )
