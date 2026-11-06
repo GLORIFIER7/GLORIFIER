@@ -14,7 +14,7 @@ jobs:
   deploy:
     name: Create release and deploy through Octopus
     concurrency:
-      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name_name }}
+      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
       cancel-in-progress: false
     if: >-
       (github.event_name == 'workflow_dispatch' &&
@@ -25,7 +25,7 @@ jobs:
        vars.OCTOPUS_ENVIRONMENT != '') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == '${cfg.upstreamEvent}' &&
+       github.event.workflow_run.event == 'workflow_run' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_sha == github.sha &&
        vars.OCTOPUS_ENABLED == 'true' &&
@@ -91,7 +91,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
-          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          package_version: sha-${{ env.SOURCE_COMMIT }}
           release_notes: |
             Automated release from ${{ github.repository }}.
             Source commit: ${{ env.SOURCE_COMMIT }}
@@ -104,7 +104,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
-          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          package_version: sha-${{ env.SOURCE_COMMIT }}
           git_ref: refs/heads/main
           git_commit: ${{ env.SOURCE_COMMIT }}
           release_notes: |
