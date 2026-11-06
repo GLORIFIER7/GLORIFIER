@@ -111,7 +111,7 @@ test('Octopus workflow rejects stale main commits before requesting an OIDC toke
 
 test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
   const pinnedPackageVersions = workflow.match(
-    /package_version:\s*\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+    /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
   ) ?? [];
   assert.equal(pinnedPackageVersions.length, 2);
 });
