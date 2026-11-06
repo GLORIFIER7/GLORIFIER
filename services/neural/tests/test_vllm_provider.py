@@ -8,15 +8,47 @@ from app.runtime import build_orchestrator_from_environment
 from app.schemas import TaskRequest
 
 
+class FakeReadResult:
+    def __init__(self, *, done, value=None):
+        self.done = done
+        self.value = value
+
+
+class FakeReader:
+    def __init__(self, chunks):
+        self._chunks = list(chunks)
+        self.cancelled = False
+        self.released = False
+
+    async def read(self):
+        if not self._chunks:
+            return FakeReadResult(done=True)
+        return FakeReadResult(done=False, value=self._chunks.pop(0))
+
+    async def cancel(self):
+        self.cancelled = True
+
+    def releaseLock(self):
+        self.released = True
+
+
+class FakeBody:
+    def __init__(self, chunks):
+        self.reader = FakeReader(chunks)
+
+    def getReader(self):
+        return self.reader
+
+
 class FakeResponse:
-    def __init__(self, payload, status=200):
+    def __init__(self, payload, status=200, *, headers=None, chunks=None):
         self.status = status
         self.payload = payload
         self.raw = json.dumps(payload)
-        self.headers = {"content-length": str(len(self.raw.encode("utf-8")))}
-
-    async def text(self):
-        return self.raw
+        self.headers = headers if headers is not None else {
+            "content-length": str(len(self.raw.encode("utf-8")))
+        }
+        self.body = FakeBody(chunks if chunks is not None else [self.raw.encode("utf-8")])
 
 
 def configured_environment(**overrides):
@@ -149,3 +181,60 @@ def test_vllm_rejects_oversized_prompt_before_network_request():
     with pytest.raises(ValueError):
         asyncio.run(adapter.ainfer("x" * 20_001))
     assert calls == []
+
+
+
+def test_vllm_streamed_response_is_bounded_without_content_length():
+    body = b"x" * (VllmAdapter.max_response_bytes + 1)
+    stream_response = FakeResponse(
+        {},
+        headers={},
+        chunks=[body],
+    )
+    stream_reader = stream_response.body.reader
+
+    async def fake_fetch(*args, **kwargs):
+        return stream_response
+
+    adapter = VllmAdapter(
+        base_url="https://gpu.example.test/v1",
+        allowed_origin="https://gpu.example.test",
+        api_key="test-only-key",
+        model="Qwen/Qwen3-8B",
+        fetch_fn=fake_fetch,
+    )
+    with pytest.raises(RuntimeError, match="response size limit"):
+        asyncio.run(adapter.ainfer("bounded stream test"))
+    assert stream_reader.cancelled is True
+    assert stream_reader.released is True
+
+
+def test_vllm_streamed_response_obeys_absolute_deadline():
+    class SlowReader(FakeReader):
+        async def read(self):
+            await asyncio.sleep(0.05)
+            return await super().read()
+
+    class SlowBody:
+        def __init__(self):
+            self.reader = SlowReader([b'{"choices": [{"message": {"content": "late"}}]}'])
+
+        def getReader(self):
+            return self.reader
+
+    stream_response = FakeResponse({})
+    stream_response.body = SlowBody()
+
+    async def fake_fetch(*args, **kwargs):
+        return stream_response
+
+    adapter = VllmAdapter(
+        base_url="https://gpu.example.test/v1",
+        allowed_origin="https://gpu.example.test",
+        api_key="test-only-key",
+        model="Qwen/Qwen3-8B",
+        fetch_fn=fake_fetch,
+    )
+    with pytest.raises(RuntimeError, match="exceeded its timeout"):
+        asyncio.run(adapter.ainfer("deadline test", timeout_seconds=0.01))
+    assert stream_response.body.reader.released is True
