@@ -9,6 +9,7 @@ const runtimeDockerfiles = [
 ];
 
 const fixedZlibVersion = '1:1.3.dfsg+really1.3.2-4';
+const versionQuery = "dpkg-query -W -f='${Version}' zlib1g";
 
 for (const [label, relativePath] of runtimeDockerfiles) {
   test(label + ' installs Debian sid zlib with both high-severity gzwrite fixes', () => {
@@ -16,12 +17,9 @@ for (const [label, relativePath] of runtimeDockerfiles) {
     const runtimeStage = source.indexOf('FROM debian:unstable-slim AS runtime');
     const updateIndex = source.indexOf('apt-get update', runtimeStage);
     const installIndex = source.indexOf('apt-get install -y --no-install-recommends', updateIndex);
-    const versionReadIndex = source.indexOf(
-      'zlib_version="$(dpkg-query -W -f=\'\u0024{Version}\' zlib1g)"',
-      installIndex,
-    );
+    const versionReadIndex = source.indexOf(versionQuery, installIndex);
     const versionCheckIndex = source.indexOf(
-      'dpkg --compare-versions "$zlib_version" ge',
+      "dpkg --compare-versions \"$zlib_version\" ge '" + fixedZlibVersion + "'",
       versionReadIndex,
     );
 
@@ -42,10 +40,25 @@ for (const [label, relativePath] of runtimeDockerfiles) {
   });
 }
 
-test('the container vulnerability configuration does not apply an Ubuntu-only VEX assertion to Debian runtime images', () => {
+test('Trivy configuration scans OS and library packages without zlib CVE suppressions', () => {
   const trivyConfig = readFileSync(new URL('../.trivy.yaml', import.meta.url), 'utf8');
+  assert.ok(trivyConfig.includes('- os'), 'OS packages must remain in scope');
+  assert.ok(trivyConfig.includes('- library'), 'application libraries must remain in scope');
   assert.ok(
-    !trivyConfig.includes('CVE-2026-109518.openvex.json'),
-    'the Ubuntu-specific APT VEX document must not be applied to Debian runtime images',
+    !/CVE-2026-(76844|85091)/.test(trivyConfig),
+    'neither zlib CVE may be suppressed through Trivy configuration',
+  );
+
+  const dockerWorkflow = readFileSync(
+    new URL('../.github/workflows/docker-image.yml', import.meta.url),
+    'utf8',
+  );
+  assert.ok(
+    (dockerWorkflow.match(/severity: HIGH,CRITICAL/g) || []).length >= 3,
+    'each runtime image must retain the HIGH/CRITICAL severity gate',
+  );
+  assert.ok(
+    (dockerWorkflow.match(/exit-code: "1"/g) || []).length >= 3,
+    'each runtime image must fail the workflow when HIGH/CRITICAL vulnerabilities are found',
   );
 });
