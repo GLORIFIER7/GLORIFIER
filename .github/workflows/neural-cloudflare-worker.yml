@@ -18,9 +18,6 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-    defaults:
-      run:
-        working-directory: services/neural
         description: "Deploy the Neural Worker to Cloudflare production"
         required: true
         default: false
@@ -119,6 +116,9 @@ jobs:
           retention-days: 7
 
   deploy:
+    defaults:
+      run:
+        working-directory: services/neural
     if: github.event_name == 'workflow_dispatch' && inputs.deploy == true && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
