@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { compareCodeUnits } from '../deterministic-string-order';
 
 export type ArchitectureState = 'desired' | 'declared' | 'deployed' | 'observed' | 'verified';
-export type ReconciliationStatus = 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
+export type ReconciliationStatus = 'VERIFIED' | 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
 
 export interface StateEvidence {
   refs: string[];
@@ -11,6 +11,25 @@ export interface StateEvidence {
   /** SHA-256 of the canonicalized state snapshot this evidence is intended to support. */
   snapshotHash: string;
 }
+
+/**
+ * Independent test evidence for the verified snapshot. The evidence reference
+ * must resolve to an attested test result; this metadata is not self-authenticating.
+ */
+export interface IndependentVerificationEvidence {
+  evidenceRef: string;
+  verifierId: string;
+  verifierVersion: string;
+  observedAt: string;
+  validUntil: string;
+  snapshotHash: string;
+  result: 'passed' | 'failed';
+}
+
+/** A trusted adapter that authenticates the referenced verifier/test attestation. */
+export type VerificationEvidenceAuthenticator = (
+  evidence: Readonly<IndependentVerificationEvidence>,
+) => boolean;
 
 export interface ReconciliationInput {
   resourceId: string;
@@ -22,6 +41,8 @@ export interface ReconciliationInput {
   /** Legacy aggregate references are retained for traceability but never satisfy per-state evidence. */
   evidenceRefs?: string[];
   evidenceByState?: Partial<Record<ArchitectureState, StateEvidence>>;
+  /** Optional independent test attestation; it is never trusted without an authenticator. */
+  verificationEvidence?: IndependentVerificationEvidence | null;
 }
 
 export interface ReconciliationResult {
@@ -30,6 +51,10 @@ export interface ReconciliationResult {
   comparedStates: ArchitectureState[];
   mismatches: Array<{ expectedState: ArchitectureState; actualState: ArchitectureState; keys: string[] }>;
   evidenceRefs: string[];
+  /** Authenticated verifier identity/version; null unless the attestation passed the injected authenticator. */
+  verifier: { id: string; version: string } | null;
+  /** Authenticated independent test evidence reference; never populated from untrusted metadata. */
+  verificationEvidenceRef: string | null;
   reason: string;
 }
 
@@ -173,11 +198,43 @@ function isFreshStateEvidence(
     && compareEvidenceTimestamps(validUntil, observedAt) >= 0;
 }
 
+function isFreshIndependentVerificationEvidence(
+  evidence: IndependentVerificationEvidence | null | undefined,
+  snapshot: Record<string, unknown> | null | undefined,
+  nowMs: number,
+): evidence is IndependentVerificationEvidence {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return false;
+  if (!evidence
+      || typeof evidence.evidenceRef !== 'string' || !evidence.evidenceRef.trim()
+      || typeof evidence.verifierId !== 'string' || !evidence.verifierId.trim()
+      || typeof evidence.verifierVersion !== 'string' || !evidence.verifierVersion.trim()
+      || (evidence.result !== 'passed' && evidence.result !== 'failed')) return false;
+  if (typeof evidence.snapshotHash !== 'string' || !/^[a-f0-9]{64}$/i.test(evidence.snapshotHash)) return false;
+  let computedHash: string;
+  try {
+    computedHash = hashArchitectureSnapshot(snapshot);
+  } catch {
+    return false;
+  }
+  if (computedHash !== evidence.snapshotHash.toLowerCase()) return false;
+  const observedAt = parseEvidenceTimestamp(evidence.observedAt);
+  const validUntil = parseEvidenceTimestamp(evidence.validUntil);
+  const now = evidenceTimestampFromMilliseconds(nowMs);
+  return observedAt !== null && validUntil !== null && now !== null
+    && compareEvidenceTimestamps(observedAt, now) <= 0
+    && compareEvidenceTimestamps(validUntil, now) > 0
+    && compareEvidenceTimestamps(validUntil, observedAt) >= 0;
+}
+
 /**
  * Reconciles explicit snapshots only. Every state needs its own fresh evidence.
  * This gate validates evidence metadata, not the external evidence's semantic truth.
  */
-export function reconcileArchitectureStates(input: ReconciliationInput, now: Date = new Date()): ReconciliationResult {
+export function reconcileArchitectureStates(
+  input: ReconciliationInput,
+  now: Date = new Date(),
+  authenticateVerificationEvidence?: VerificationEvidenceAuthenticator,
+): ReconciliationResult {
   const states: ArchitectureState[] = ['desired', 'declared', 'deployed', 'observed', 'verified'];
   const supplied = states.filter((state) => {
     const value = input[state];
@@ -206,6 +263,9 @@ export function reconcileArchitectureStates(input: ReconciliationInput, now: Dat
 
   let status: ReconciliationStatus;
   let reason: string;
+  let verifier: ReconciliationResult['verifier'] = null;
+  let verificationEvidenceRef: string | null = null;
+  const verificationEvidence = input.verificationEvidence;
   if (supplied.length < states.length) {
     status = 'UNKNOWN';
     reason = 'One or more architecture states are missing; no alignment or drift is inferred.';
@@ -215,10 +275,54 @@ export function reconcileArchitectureStates(input: ReconciliationInput, now: Dat
   } else if (mismatches.length) {
     status = 'DRIFT';
     reason = 'Adjacent architecture states differ and each state has fresh evidence metadata; validate evidence content before acting.';
-  } else {
+  } else if (!verificationEvidence) {
     status = 'ALIGNED';
-    reason = 'All five supplied states match and each state has fresh evidence metadata; external verification must still validate evidence content.';
+    reason = 'All five supplied states match and each state has fresh evidence metadata; independent behavioral verification has not been established.';
+  } else if (!isFreshIndependentVerificationEvidence(
+    verificationEvidence,
+    input.verified,
+    now.getTime(),
+  )) {
+    status = 'UNKNOWN';
+    reason = 'Independent verification evidence must be complete, fresh, and bound to the verified architecture snapshot.';
+  } else if (!authenticateVerificationEvidence) {
+    status = 'ALIGNED';
+    reason = 'All five supplied states match, but no trusted authenticator is configured for the supplied independent verification attestation.';
+  } else {
+    let authenticated = false;
+    try {
+      authenticated = authenticateVerificationEvidence(verificationEvidence);
+    } catch {
+      authenticated = false;
+    }
+    if (!authenticated) {
+      status = 'UNKNOWN';
+      reason = 'Independent verification evidence could not be authenticated by the configured trusted verifier.';
+    } else {
+      verifier = {
+        id: verificationEvidence.verifierId,
+        version: verificationEvidence.verifierVersion,
+      };
+      verificationEvidenceRef = verificationEvidence.evidenceRef;
+      evidenceRefs.push(verificationEvidenceRef);
+      if (verificationEvidence.result === 'passed') {
+        status = 'VERIFIED';
+        reason = 'All five supplied states match and a fresh, snapshot-bound independent verification attestation was authenticated as passed.';
+      } else {
+        status = 'DRIFT';
+        reason = 'All five supplied states match, but the authenticated independent verification attestation reports a failed control/test.';
+      }
+    }
   }
 
-  return { resourceId: input.resourceId, status, comparedStates: supplied, mismatches, evidenceRefs, reason };
+  return {
+    resourceId: input.resourceId,
+    status,
+    comparedStates: supplied,
+    mismatches,
+    evidenceRefs,
+    verifier,
+    verificationEvidenceRef,
+    reason,
+  };
 }
