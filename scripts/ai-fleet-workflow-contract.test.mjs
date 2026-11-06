@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
+const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publishMarker = '\n  publish-proposal:\n';
@@ -86,4 +87,12 @@ test('Claude cannot run npm install commands that execute lifecycle scripts', ()
     'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
   );
   assert.doesNotMatch(claudeWorkflow, /uses: anthropics\/claude-code-action@/);
+});
+
+
+test('CI runs the Claude direct CLI runner regression suite', () => {
+  assert.match(
+    ciWorkflow,
+    /- name: Claude direct CLI runner regression tests\s+run: node --test scripts\/run-claude-workflow\.test\.mjs/,
+  );
 });
