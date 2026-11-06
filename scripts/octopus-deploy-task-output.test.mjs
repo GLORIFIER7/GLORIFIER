@@ -91,10 +91,20 @@ test('Octopus task output rejects CR or LF before writing GitHub outputs', () =>
 });
 
 
-test('Octopus workflow uses one concurrency group for manual and automatic main deployments', () => {
-  assert.match(
-    workflow,
-    /group:\s*octopus-deploy-\$\{\{\s*github\.workflow\s*\}\}-\$\{\{\s*github\.event\.workflow_run\.head_branch\s*\|\|\s*github\.ref_name\s*\}\}/,
+test('Octopus deployment concurrency is job-scoped and normalized', () => {
+  assert.equal(
+    /^concurrency:/m.test(workflow),
+    false,
+    'skipped workflow_run events must not acquire the deployment concurrency group',
+  );
+  const deployStart = workflow.indexOf('  deploy:\\n');
+  assert.ok(deployStart >= 0, 'Octopus deploy job must exist');
+  const deploy = workflow.slice(deployStart);
+  assert.ok(
+    deploy.includes(
+      '    concurrency:\\n      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}',
+    ),
+    'manual and automatic main deployments must share a job-level concurrency group',
   );
 });
 
