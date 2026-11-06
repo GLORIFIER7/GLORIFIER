@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 60
     environment: octopus-deploy
     permissions:
+      actions: read
       contents: read
       id-token: write
     env:
@@ -77,6 +78,56 @@ jobs:
             echo "::error::The source commit is not a full Git SHA; refusing a Config as Code release."
             exit 1
           fi
+
+      - name: Verify the upstream Docker image publication succeeded
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          run_id = os.environ["UPSTREAM_RUN_ID"]
+          source_commit = os.environ["SOURCE_COMMIT"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get_json(url: str) -> dict:
+              request = Request(url, headers=headers)
+              with urlopen(request, timeout=20) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          root = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}"
+          upstream = get_json(root)
+          if (
+              upstream.get("head_sha") != source_commit
+              or upstream.get("head_branch") != "main"
+              or upstream.get("conclusion") != "success"
+          ):
+              raise SystemExit("Upstream Docker image workflow does not match a successful main-branch run.")
+
+          jobs = get_json(root + "/jobs?per_page=100").get("jobs", [])
+          publishers = [job for job in jobs if job.get("name") == "publish-after-ci"]
+          if len(publishers) != 1 or publishers[0].get("conclusion") != "success":
+              raise SystemExit("The publish-after-ci job did not complete successfully; deployment blocked.")
+
+          steps = publishers[0].get("steps", [])
+          publish_steps = [step for step in steps if step.get("name") == "Tag and publish verified image"]
+          if len(publish_steps) != 1 or publish_steps[0].get("conclusion") != "success":
+              raise SystemExit("The exact commit-tagged Docker image was not published successfully; deployment blocked.")
+
+          print(f"Verified published Docker image for source commit {source_commit}.")
+          PY
 
       - name: Authenticate to Octopus Deploy using GitHub OIDC
         uses: OctopusDeploy/login@b6156b03b4b892ffc8e9c57d098e9fe1866dcdb3 # v2
