@@ -138,3 +138,16 @@ test('Node loads the isolated module directory from NODE_PATH at process startup
   );
   assert.equal(result, 'ok');
 });
+
+
+const nvidiaMaintenanceWorkflow = readFileSync(
+  new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url),
+  'utf8',
+);
+
+test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
+  assert.match(
+    nvidiaMaintenanceWorkflow,
+    /if \\[\\[ -n "\\$candidate" && ! "\\$candidate" =~ \\^\\[0-9\\]\\+\\$ \\]\\]; then\\s+echo "::error::Invalid run_id input; expected a decimal GitHub Actions run ID\\."\\s+exit 1\\s+fi\\s+if \\[\\[ -z "\\$candidate" \\]\\]; then\\s+candidate="\\$\\(gh run list/,
+  );
+});
