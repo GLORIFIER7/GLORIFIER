@@ -1,0 +1,22 @@
+[project]
+name = "glorifier-neural-cloudflare"
+version = "0.2.0"
+description = "Cloudflare Python Worker package for GLORIFIER Neural"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "pydantic>=2.8,<3.0",
+    "pg8000>=1.31,<2.0",
+    "asyncpg==0.31.0",
+    "glorifier-neural-app",
+]
+
+[tool.uv.sources]
+glorifier-neural-app = { path = "neural_app", editable = false }
+
+[dependency-groups]
+dev = [
+    "workers-py==1.17.8",
+    "workers-runtime-sdk",
+]
+

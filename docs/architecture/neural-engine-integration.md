@@ -2,7 +2,7 @@
 
 ## Decision
 
-Keep `GLORIFIER7/GLORIFIER` as the governance/control plane and `GLORIFIER7/GLORIFIER-NEURAL` as a separately deployable Python/FastAPI inference and task-orchestration service. Integrate through a narrow, authenticated API boundary; do not copy the Neural application into the Worker or treat a passing CI run as proof that inference is live.
+Keep `GLORIFIER7/GLORIFIER` as the single authoritative source repository and governance/control plane. Maintain NEURAL at `services/neural/` as a separately deployable Python/FastAPI inference and task-orchestration service. The monorepo does not collapse the runtimes: Node.js/TypeScript and Python retain independent dependency locks, tests, containers, deployment workflows and health checks. Integrate through a narrow, authenticated API boundary; do not copy the Neural application into the GLORIFIER Worker or treat a passing CI run as proof that inference is live.
 
 ## Current evidence
 
@@ -78,6 +78,25 @@ Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` es
 
 **Repository wiring:** PR #675 merged on 2026-11-06 at 04:18:31Z, merge commit 6075c598ec04475f5697f3e420d3cef173527b7a. The merged main Wrangler configuration now sets the production Neural origin to https://glorifier-neural.glorifier.workers.dev with an exact hostname allowlist. Preview origin and allowlist values are empty. The test contract is called by npm run test:cloudflare-worker.
 
+**Next steps:** diagnose CircleCI failure; run Worker contract tests and security checks; then configure a reviewed staging origin and perform the staging smoke tests listed above. Keep provider inference and consequential action classes disabled until separately approved and verified.
+
+
+## Monorepo consolidation record — 2026-11-06
+
+The NEURAL source snapshot is being consolidated from `GLORIFIER7/GLORIFIER-NEURAL` into `GLORIFIER7/GLORIFIER/services/neural/`. The migration branch imports the NEURAL `main` tree at source commit `9a32356ee4fa7d517e74db936b69312de488ae85`. The source repository remains intact during review and cutover.
+
+This migration intentionally preserves the service boundary:
+
+- NEURAL remains a Python/FastAPI service with its own `pyproject.toml`, `uv.lock`, Dockerfile, tests and Cloudflare Python Worker package.
+- GLORIFIER root workflows own CI, security scanning, scheduled automation and deployment orchestration. NEURAL-specific workflows run from the root and target `services/neural/**`.
+- The existing Worker API contract, exact-host allowlist, bearer-token validation, rate limiting and fail-closed behavior remain in force.
+- The existing NEURAL Cloudflare Worker name, deployment configuration and secret names are not changed by repository consolidation.
+- No production deployment, secret rotation, provider egress change, database migration, wallet signing, asset transfer or paid action is performed by this source migration.
+
+**History limitation:** this migration imports a content snapshot tied to the exact source commit above; it does not transplant the full NEURAL commit graph or rewrite prior commit history. The standalone source repository must remain available until the snapshot passes CI, deployment parity is verified, open PR work is reconciled, and any separately required history-preservation operation is completed.
+
+**Cutover gates:** (1) all NEURAL files and tests are present under `services/neural/`; (2) root NEURAL CI, Cloudflare dry-run and disposable database migration workflows pass; (3) GLORIFIER Worker-to-NEURAL staging calls pass health, readiness, invalid-token rejection and harmless read-only task checks; (4) production deployment parity and rollback are documented; (5) open NEURAL PRs #62 and #63 are migrated or deliberately closed only after their changes are accounted for. Do not archive or delete the standalone source repository before these gates pass.
+**Release state:** PR #675 is a source/configuration change only. It does not deploy or mutate the production Cloudflare Worker. Production remains behind the protected `workflow_dispatch` release gate. After merge, the owner must dispatch `.github/workflows/cloudflare-worker.yml` from `main` with `deploy_production=true` and ensure `CLOUDFLARE_DEPLOY_ENABLED=true`; then verify the deployed `/api/neural/health`, `/api/neural/ready`, and runtime verification endpoints.
 **Production deployment remains NOT VERIFIED.** A subsequent read-only Cloudflare inspection on 2026-11-06 found the active GLORIFIER deployment still serving Worker version 910 (a9cb3c32-e9ea-44f5-b8f1-2a4531e88aac) at 100% traffic. That active version binding inventory does not contain GLORIFIER_NEURAL_ORIGIN or GLORIFIER_NEURAL_ALLOWED_HOSTS. The public /api/runtime-verification probe continued to report checks.neural.status=not-configured; /api/neural/health and /api/neural/ready returned HTTP 503. The script-settings endpoint reports the newer Wrangler values, but that metadata is not proof they are present in the active version or receiving production traffic.
 
 **Release control:** the checked-in cloudflare-worker.yml is the required production release path. It requires a workflow dispatch from main, explicit deploy_production=true, CLOUDFLARE_DEPLOY_ENABLED=true, and valid production credentials. The connected GitHub tools in this session do not expose workflow dispatch. No direct Cloudflare upload, settings mutation, deployment promotion, or traffic change was performed. Do not bypass this gate.

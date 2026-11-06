@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=83.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glorifier-neural-app"
+version = "0.2.0"
+description = "GLORIFIER Neural FastAPI application package for Cloudflare Workers"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
