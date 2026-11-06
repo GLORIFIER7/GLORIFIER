@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 45
     outputs:
       changed: ${{ steps.package.outputs.changed }}
+      authorized: ${{ steps.authorization.outputs.enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -114,7 +115,7 @@ jobs:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
           safety-strategy: "drop-sudo"
-          effort: high
+          effort: medium
           prompt: |
             Act as GLORIFIER's cross-functional reliability, security, architecture, and QA maintainer.
             Inspect the repository and its tests. Select at most one concrete, reproducible, high-value
@@ -226,7 +227,7 @@ jobs:
 
   publish-proposal:
     needs: coding-fleet
-    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.changed == 'true' }}
+    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -272,7 +273,7 @@ jobs:
 
       - name: Re-run trusted capability and diff policy
         env:
-          GLORIFIER_PR_CREATION_AUTHORIZED: "true"
+          GLORIFIER_PR_CREATION_AUTHORIZED: ${{ needs.coding-fleet.outputs.authorized }}
         run: node --import tsx/esm scripts/validate-ai-fleet-diff.mjs
 
       - name: Publish validated draft PR
