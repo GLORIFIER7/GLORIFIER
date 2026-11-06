@@ -196,9 +196,13 @@ def test_incoming_correlation_id_is_preserved_and_echoed(correlation_id):
 
 @pytest.mark.parametrize(
     "correlation_id",
-    ["00000000-0000-0000-0000-000000000000"],
+    [
+        "00000000-0000-0000-0000-000000000000",
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-8000-000000000001",
+    ],
 )
-def test_nil_uuid_correlation_id_is_preserved_and_echoed(correlation_id):
+def test_canonical_uuid_correlation_id_is_preserved_and_echoed(correlation_id):
     response = client.get("/health", headers={"X-Correlation-ID": correlation_id})
 
     assert response.status_code == 200
