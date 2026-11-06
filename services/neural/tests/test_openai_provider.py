@@ -196,6 +196,34 @@ def test_openai_async_readiness_and_inference_use_request_scoped_fetch():
     assert calls[1]["redirect"] == "manual"
 
 
+
+def test_openai_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
+    import asyncio
+
+    async def exercise():
+        finish = asyncio.Event()
+
+        async def resistant_fetch(*_args, **_kwargs):
+            try:
+                await finish.wait()
+            except asyncio.CancelledError:
+                await finish.wait()
+                raise
+
+        adapter = OpenAIResponsesAdapter(
+            api_key="test-key",
+            model="gpt-6-luna",
+            timeout_seconds=0.04,
+            fetch_fn=resistant_fetch,
+        )
+        asyncio.get_running_loop().call_later(0.15, finish.set)
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(RuntimeError, match="request exceeded its timeout"):
+            await adapter.ainfer("bounded deadline")
+        assert asyncio.get_running_loop().time() - started < 0.10
+
+    asyncio.run(exercise())
+
 def test_openai_async_provider_sanitizes_upstream_errors():
     async def failed_fetch(*_args, **_kwargs):
         raise RuntimeError("secret credential and private upstream detail")
