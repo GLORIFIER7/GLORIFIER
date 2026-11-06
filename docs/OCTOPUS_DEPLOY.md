@@ -5,7 +5,7 @@ GitHub Actions remains the CI authority. The GLORIFIER-owned Octopus Cloud insta
 ## Workflow behavior
 
 The Octopus Deploy workflow:
-- Starts automatically only after **GLORIFIER CI** succeeds for a push to main.
+- Starts automatically only after **GLORIFIER Docker Image** succeeds for the current main commit; that workflow itself runs after successful GLORIFIER CI and publishes the scanned image.
 - Can also be started manually from main.
 - Does not deploy pull requests, failed CI runs, scheduled CI runs, or manual CI runs.
 - Creates a release, deploys it to one configured Octopus environment, and waits for the deployment task to finish.
@@ -39,9 +39,7 @@ The workflow pins the official Octopus GitHub Actions to commit SHAs. It does no
 
 ## Deployment boundary
 
-This workflow creates and deploys an Octopus release; it does **not** build or publish a GLORIFIER application package or container image. GLORIFIER CI builds and tests the application but does not publish an artifact to an Octopus feed. The Octopus Project's deployment process must already know how to obtain and deploy the intended artifact.
-
-Before enabling `OCTOPUS_ENABLED`, the Octopus feed must contain the package built for the source commit with version `0.0.0-<full-commit-sha>`. Both release paths pass `package_version: 0.0.0-${SOURCE_COMMIT}` so Octopus cannot silently select the feed's latest package. This workflow does not build or publish that package; release creation must fail if the exact version is absent. Preflight also compares the triggering source SHA with the current `main` head and refuses stale CI completions before OIDC authentication.
+This workflow creates and deploys an Octopus release; the upstream **GLORIFIER Docker Image** workflow builds the application image, scans it, and publishes a commit-specific Docker Hub tag `sha-<full-commit-sha>` only after GLORIFIER CI succeeds and the source SHA is still the current `main` head. The Octopus release passes `package_version: sha-${SOURCE_COMMIT}` in both release paths. The Octopus Project must reference that exact Docker image package/tag and must not resolve the deployment from `latest`. The Octopus workflow itself does not build or publish the image. Preflight also compares the triggering source SHA with the current `main` head and refuses stale CI completions before OIDC authentication.
  A successful CI run or created release is not proof that the live application is healthy. The workflow waits for the Octopus deployment task result; a separate post-deployment application health check is still required.
 
 Verify the first deployment against a non-production target before setting OCTOPUS_ENVIRONMENT to production. Confirm artifact provenance, rollback behavior, target permissions, and operational costs before enabling recurring production deployments.
