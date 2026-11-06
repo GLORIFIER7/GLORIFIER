@@ -198,14 +198,16 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     assert "timeout-minutes: 20" in smoke, (
         "Live health and readiness probes must retain their bounded smoke-test timeout"
     )
-    condition_match = re.search(
-        r"(?ms)^    if: >-\n(?P<expression>(?:^      [^ ].*\n?)+)",
-        smoke,
-    )
-    assert condition_match is not None, "Production smoke must have an explicit job condition"
-    expression = " ".join(
-        line.strip() for line in condition_match.group("expression").splitlines()
-    )
+    condition_header = "    if: >-\\n"
+    condition_start = smoke.find(condition_header)
+    assert condition_start >= 0, "Production smoke must have an explicit job condition"
+    condition_lines = []
+    for line in smoke[condition_start + len(condition_header):].splitlines():
+        indentation = len(line) - len(line.lstrip(" "))
+        if indentation < 6:
+            break
+        condition_lines.append(line.strip())
+    expression = " ".join(condition_lines)
     assert expression == (
         "github.event_name == 'workflow_dispatch' && "
         "github.ref == 'refs/heads/main' && "
