@@ -97,12 +97,12 @@ test('Octopus deployment concurrency is job-scoped and normalized', () => {
     false,
     'skipped workflow_run events must not acquire the deployment concurrency group',
   );
-  const deployStart = workflow.indexOf('  deploy:\\n');
+  const deployStart = workflow.indexOf('  deploy:\n');
   assert.ok(deployStart >= 0, 'Octopus deploy job must exist');
   const deploy = workflow.slice(deployStart);
   assert.ok(
     deploy.includes(
-      '    concurrency:\\n      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}',
+      '    concurrency:\n      group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}',
     ),
     'manual and automatic main deployments must share a job-level concurrency group',
   );
