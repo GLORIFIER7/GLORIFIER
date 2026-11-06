@@ -217,3 +217,28 @@ test('a rejected or throwing independent-verification authenticator fails closed
   assert.equal(thrown.status, 'UNKNOWN');
   assert.equal(thrown.verifier, null);
 });
+
+test('only synchronous boolean true authenticates independent verification evidence', () => {
+  const asynchronousAuthenticator = (() => Promise.resolve(true)) as unknown as (
+    evidence: IndependentVerificationEvidence,
+  ) => boolean;
+  const asynchronous = reconcileArchitectureStates({
+    ...base,
+    verificationEvidence: independentVerificationEvidence,
+  }, now, asynchronousAuthenticator);
+  assert.equal(asynchronous.status, 'UNKNOWN');
+  assert.equal(asynchronous.verifier, null);
+  assert.equal(asynchronous.verificationEvidenceRef, null);
+  assert.ok(!asynchronous.evidenceRefs.includes(independentVerificationEvidence.evidenceRef));
+
+  const truthyObjectAuthenticator = (() => ({ authenticated: true })) as unknown as (
+    evidence: IndependentVerificationEvidence,
+  ) => boolean;
+  const truthyObject = reconcileArchitectureStates({
+    ...base,
+    verificationEvidence: independentVerificationEvidence,
+  }, now, truthyObjectAuthenticator);
+  assert.equal(truthyObject.status, 'UNKNOWN');
+  assert.equal(truthyObject.verifier, null);
+  assert.equal(truthyObject.verificationEvidenceRef, null);
+});
