@@ -177,6 +177,11 @@ def test_non_cooperative_read_cannot_extend_the_absolute_deadline():
         def __init__(self):
             super().__init__([])
             self.finish = asyncio.Event()
+            self.released = asyncio.Event()
+
+        def releaseLock(self):
+            super().releaseLock()
+            self.released.set()
 
         async def read(self):
             self.read_calls += 1
@@ -201,7 +206,7 @@ def test_non_cooperative_read_cannot_extend_the_absolute_deadline():
             )
         elapsed = time.monotonic() - started
         response.body_reader.finish.set()
-        await asyncio.sleep(0)
+        await asyncio.wait_for(response.body_reader.released.wait(), timeout=0.05)
         assert elapsed < 0.15
         assert response.body_reader.cancel_calls == 1
         assert response.body_reader.release_calls == 1
