@@ -45,6 +45,26 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --ignore-scripts
+      # Claude Code Action versions using newer Bun releases can hit the
+      # tsconfig.json directory-mismatch runtime bug (Anthropic issue #1568).
+      # Bun 1.3.6 was reported stable; keep the current Claude action code while
+      # supplying that known-compatible runtime through its supported input.
+      - name: Setup compatible Bun runtime for Claude action
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.6
+          no-cache: true
+      - name: Resolve Bun executable
+        id: bun
+        if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUN_PATH="$(command -v bun)"
+          test -x "$BUN_PATH"
+          echo "Resolved Claude action Bun runtime: $(bun --version)"
+          printf 'path=%s\n' "$BUN_PATH" >> "$GITHUB_OUTPUT"
       - name: Run Claude Code
         id: run
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' }}
@@ -53,6 +73,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
+          path_to_bun_executable: ${{ steps.bun.outputs.path }}
           prompt: |
             Repository-owner task instructions:
             Inspect repository instructions (AGENTS.md and relevant docs) before editing.
@@ -88,6 +109,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
+          path_to_bun_executable: ${{ steps.bun.outputs.path }}
           prompt: |
             Repository-owner task instructions:
             Inspect repository instructions (AGENTS.md and relevant docs) before editing.
@@ -205,3 +227,4 @@ jobs:
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           "${GITC[@]}" -c http.https://github.com/.extraheader="$AUTH_HEADER" push --no-verify --set-upstream origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" --title "Claude: $SHORT_TASK" --body "AI-generated proposal from the owner-triggered Claude workflow. The model job had read-only repository permissions; publishing uses a separate fresh checkout. Protected workflow, credential, signing, environment, and key/certificate paths are blocked. No automatic merge or deployment was performed."
+
