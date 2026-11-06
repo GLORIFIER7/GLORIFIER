@@ -16,6 +16,10 @@ from app.providers.base import InferenceResult, ProviderAdapter
 from app.providers.http import ResponseBodyTooLargeError, read_bounded_response_text
 
 
+class _NvidiaNimHttpStatusError(RuntimeError):
+    """Safe HTTP status failure raised by the NVIDIA transport."""
+
+
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Reject redirects so bearer credentials cannot be forwarded to another host."""
 
@@ -175,7 +179,7 @@ class NvidiaNimAdapter(ProviderAdapter):
             status = int(response.status)
             if status != 200:
                 label = "readiness probe" if readiness else "request"
-                raise RuntimeError(f"NVIDIA NIM {label} failed with HTTP {status}")
+                raise _NvidiaNimHttpStatusError(f"NVIDIA NIM {label} failed with HTTP {status}")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("NVIDIA NIM response exceeded its deadline")
@@ -189,8 +193,11 @@ class NvidiaNimAdapter(ProviderAdapter):
         except TimeoutError:
             label = "readiness probe" if readiness else "request"
             raise RuntimeError(f"NVIDIA NIM {label} exceeded its timeout") from None
-        except RuntimeError:
+        except _NvidiaNimHttpStatusError:
             raise
+        except RuntimeError:
+            label = "readiness endpoint" if readiness else "request"
+            raise RuntimeError(f"NVIDIA NIM {label} is unavailable") from None
         except Exception:  # noqa: BLE001 - upstream details may contain secrets
             label = "readiness endpoint" if readiness else "request"
             raise RuntimeError(f"NVIDIA NIM {label} is unavailable") from None
