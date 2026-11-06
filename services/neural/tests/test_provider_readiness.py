@@ -1,5 +1,6 @@
-import asyncio
 """Regression coverage for fail-closed provider and database readiness."""
+
+import asyncio
 
 import urllib.error
 from types import SimpleNamespace
@@ -370,3 +371,36 @@ def test_nvidia_readiness_sanitizes_runtime_error_from_stream_reader():
 
     assert "sensitive" not in str(exc_info.value)
     assert "readiness-secret" not in str(exc_info.value)
+
+
+
+def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
+    async def exercise():
+        finish = asyncio.Event()
+
+        async def resistant_fetch(*_args, **_kwargs):
+            try:
+                await finish.wait()
+            except asyncio.CancelledError:
+                await finish.wait()
+                raise
+
+        adapter = NvidiaNimAdapter(
+            api_key="test-key",
+            model="nvidia/test-model",
+            timeout_seconds=0.04,
+        )
+        asyncio.get_running_loop().call_later(0.15, finish.set)
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(RuntimeError, match="readiness probe exceeded its timeout"):
+            await adapter._fetch_text(
+                resistant_fetch,
+                "https://nvidia.example.test/v1/models",
+                {},
+                timeout_seconds=0.04,
+                max_bytes=1024,
+                readiness=True,
+            )
+        assert asyncio.get_running_loop().time() - started < 0.10
+
+    asyncio.run(exercise())
