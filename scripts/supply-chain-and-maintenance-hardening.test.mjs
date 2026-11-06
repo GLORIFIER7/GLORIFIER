@@ -159,6 +159,27 @@ test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the
 });
 
 
+test('NVIDIA maintenance executes the explicit run ID guard before fallback', () => {
+  const lines = nvidiaMaintenanceWorkflow.split(/\\r?\\n/);
+  const stepStart = lines.indexOf('      - name: Validate failed CI run');
+  const runIndex = lines.indexOf('        run: |', stepStart);
+  const nextStepIndex = lines.findIndex((line, index) => index > runIndex && line.startsWith('      - name:'));
+  assert.ok(stepStart >= 0 && runIndex > stepStart && nextStepIndex > runIndex, 'the run-ID validation shell step must be extractable');
+  const script = lines.slice(runIndex + 1, nextStepIndex).map((line) => line.startsWith('          ') ? line.slice(10) : line).join('\\n');
+  let failure;
+  try {
+    execFileSync('bash', ['-euo', 'pipefail', '-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, RUN_ID: 'not-a-number', GITHUB_REPOSITORY: 'GLORIFIER7/GLORIFIER', GITHUB_OUTPUT: '/dev/null' },
+    });
+  } catch (error) {
+    failure = error;
+  }
+  assert.ok(failure, 'a malformed explicit run ID must stop the executable workflow step');
+  assert.equal(failure.status, 1);
+  assert.match(failure.stderr.toString(), /Invalid run_id input/);
+});
+
 test('NVIDIA maintenance checks credentials only after identifying a failed CI run', () => {
   const targetStep = nvidiaMaintenanceWorkflow.indexOf('- name: Validate failed CI run');
   const credentialStep = nvidiaMaintenanceWorkflow.indexOf('- name: Require NVIDIA credential');
