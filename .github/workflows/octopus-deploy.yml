@@ -65,8 +65,262 @@ jobs:
             echo "::error::Refusing stale Octopus deployment source $SOURCE_COMMIT; current main is $current_main_sha."
             exit 1
           fi
-          if [[ "$OCTOPUS_ENVIRONMENT" == *$'\n'* || "$OCTOPUS_ENVIRONMENT" == *$'\r'* ]]; then
-            echo "::error::OCTOPUS_ENVIRONMENT must contain exactly one environment name."
+          if [[ "$OCTOPUS_ENVIRONMENT" == *','* || "$OCTOPUS_ENVIRONMENT" == *
+            exit 1
+          fi
+          case "${OCTOPUS_CONFIG_AS_CODE:-false}" in
+            true|false|"") ;;
+            *) echo "::error::OCTOPUS_CONFIG_AS_CODE must be true or false."; exit 1 ;;
+          esac
+          if [[ "${OCTOPUS_CONFIG_AS_CODE:-false}" == "true" && ! "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::The source commit is not a full Git SHA; refusing a Config as Code release."
+            exit 1
+          fi
+
+      - name: Verify the upstream Docker image publication succeeded
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          run_id = os.environ["UPSTREAM_RUN_ID"]
+          source_commit = os.environ["SOURCE_COMMIT"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get_json(url: str) -> dict:
+              request = Request(url, headers=headers)
+              with urlopen(request, timeout=20) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          root = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}"
+          upstream = get_json(root)
+          if (
+              upstream.get("head_sha") != source_commit
+              or upstream.get("head_branch") != "main"
+              or upstream.get("conclusion") != "success"
+          ):
+              raise SystemExit("Upstream Docker image workflow does not match a successful main-branch run.")
+
+          jobs = get_json(root + "/jobs?per_page=100").get("jobs", [])
+          publishers = [job for job in jobs if job.get("name") == "publish-after-ci"]
+          if len(publishers) != 1 or publishers[0].get("conclusion") != "success":
+              raise SystemExit("The publish-after-ci job did not complete successfully; deployment blocked.")
+
+          steps = publishers[0].get("steps", [])
+          publish_steps = [step for step in steps if step.get("name") == "Tag and publish verified image"]
+          if len(publish_steps) != 1 or publish_steps[0].get("conclusion") != "success":
+              raise SystemExit("The exact commit-tagged Docker image was not published successfully; deployment blocked.")
+
+          print(f"Verified published Docker image for source commit {source_commit}.")
+          PY
+
+      - name: Authenticate to Octopus Deploy using GitHub OIDC
+        uses: OctopusDeploy/login@b6156b03b4b892ffc8e9c57d098e9fe1866dcdb3 # v2
+        with:
+          server: ${{ env.OCTOPUS_URL }}
+          service_account_id: ${{ env.OCTOPUS_SERVICE_ACCOUNT_ID }}
+
+      - name: Create release for a database-backed Octopus project
+        id: create_release_db
+        if: env.OCTOPUS_CONFIG_AS_CODE != 'true'
+        uses: OctopusDeploy/create-release-action@8c532ccb330c3964ea8729c35e4e232c46d1f77f # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          release_notes: |
+            Automated release from ${{ github.repository }}.
+            Source commit: ${{ env.SOURCE_COMMIT }}
+            Trigger: ${{ github.event_name }}
+
+      - name: Create release for a Config as Code Octopus project
+        id: create_release_cac
+        if: env.OCTOPUS_CONFIG_AS_CODE == 'true'
+        uses: OctopusDeploy/create-release-action@8c532ccb330c3964ea8729c35e4e232c46d1f77f # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          git_ref: refs/heads/main
+          git_commit: ${{ env.SOURCE_COMMIT }}
+          release_notes: |
+            Automated release from ${{ github.repository }}.
+            Source commit: ${{ env.SOURCE_COMMIT }}
+            Trigger: ${{ github.event_name }}
+
+      - name: Deploy the created release
+        id: deploy_release
+        uses: OctopusDeploy/deploy-release-action@18537a27317fbfabc10609a34e8452184da68dd0 # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          release_number: ${{ steps.create_release_cac.outputs.release_number || steps.create_release_db.outputs.release_number }}
+          environments: ${{ env.OCTOPUS_ENVIRONMENT }}
+
+      - name: Validate the deployment task response
+        id: deployment_task
+        shell: bash
+        env:
+          OCTOPUS_SERVER_TASKS: ${{ steps.deploy_release.outputs.server_tasks }}
+        run: |
+          set -euo pipefail
+          task_id="$(jq -er '
+            if type == "array" and length == 1 and
+              (.[0].serverTaskId |
+                type == "string" and length > 0 and (explode | all(.[]; . >= 32 and . != 127)))
+            then .[0].serverTaskId
+            else error("expected exactly one safe Octopus deployment task ID")
+            end
+          ' <<< "$OCTOPUS_SERVER_TASKS")"
+          printf 'server_task_id=%s\n' "$task_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the Octopus deployment to finish
+        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
+          polling_interval: '15'
+          timeout_after: '1800'
+          cancel_on_timeout: 'false'
+\n'* || "$OCTOPUS_ENVIRONMENT" == *
+            exit 1
+          fi
+          case "${OCTOPUS_CONFIG_AS_CODE:-false}" in
+            true|false|"") ;;
+            *) echo "::error::OCTOPUS_CONFIG_AS_CODE must be true or false."; exit 1 ;;
+          esac
+          if [[ "${OCTOPUS_CONFIG_AS_CODE:-false}" == "true" && ! "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::The source commit is not a full Git SHA; refusing a Config as Code release."
+            exit 1
+          fi
+
+      - name: Verify the upstream Docker image publication succeeded
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          run_id = os.environ["UPSTREAM_RUN_ID"]
+          source_commit = os.environ["SOURCE_COMMIT"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get_json(url: str) -> dict:
+              request = Request(url, headers=headers)
+              with urlopen(request, timeout=20) as response:
+                  return json.loads(response.read().decode("utf-8"))
+
+          root = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}"
+          upstream = get_json(root)
+          if (
+              upstream.get("head_sha") != source_commit
+              or upstream.get("head_branch") != "main"
+              or upstream.get("conclusion") != "success"
+          ):
+              raise SystemExit("Upstream Docker image workflow does not match a successful main-branch run.")
+
+          jobs = get_json(root + "/jobs?per_page=100").get("jobs", [])
+          publishers = [job for job in jobs if job.get("name") == "publish-after-ci"]
+          if len(publishers) != 1 or publishers[0].get("conclusion") != "success":
+              raise SystemExit("The publish-after-ci job did not complete successfully; deployment blocked.")
+
+          steps = publishers[0].get("steps", [])
+          publish_steps = [step for step in steps if step.get("name") == "Tag and publish verified image"]
+          if len(publish_steps) != 1 or publish_steps[0].get("conclusion") != "success":
+              raise SystemExit("The exact commit-tagged Docker image was not published successfully; deployment blocked.")
+
+          print(f"Verified published Docker image for source commit {source_commit}.")
+          PY
+
+      - name: Authenticate to Octopus Deploy using GitHub OIDC
+        uses: OctopusDeploy/login@b6156b03b4b892ffc8e9c57d098e9fe1866dcdb3 # v2
+        with:
+          server: ${{ env.OCTOPUS_URL }}
+          service_account_id: ${{ env.OCTOPUS_SERVICE_ACCOUNT_ID }}
+
+      - name: Create release for a database-backed Octopus project
+        id: create_release_db
+        if: env.OCTOPUS_CONFIG_AS_CODE != 'true'
+        uses: OctopusDeploy/create-release-action@8c532ccb330c3964ea8729c35e4e232c46d1f77f # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          release_notes: |
+            Automated release from ${{ github.repository }}.
+            Source commit: ${{ env.SOURCE_COMMIT }}
+            Trigger: ${{ github.event_name }}
+
+      - name: Create release for a Config as Code Octopus project
+        id: create_release_cac
+        if: env.OCTOPUS_CONFIG_AS_CODE == 'true'
+        uses: OctopusDeploy/create-release-action@8c532ccb330c3964ea8729c35e4e232c46d1f77f # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
+          git_ref: refs/heads/main
+          git_commit: ${{ env.SOURCE_COMMIT }}
+          release_notes: |
+            Automated release from ${{ github.repository }}.
+            Source commit: ${{ env.SOURCE_COMMIT }}
+            Trigger: ${{ github.event_name }}
+
+      - name: Deploy the created release
+        id: deploy_release
+        uses: OctopusDeploy/deploy-release-action@18537a27317fbfabc10609a34e8452184da68dd0 # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          project: ${{ env.OCTOPUS_PROJECT }}
+          release_number: ${{ steps.create_release_cac.outputs.release_number || steps.create_release_db.outputs.release_number }}
+          environments: ${{ env.OCTOPUS_ENVIRONMENT }}
+
+      - name: Validate the deployment task response
+        id: deployment_task
+        shell: bash
+        env:
+          OCTOPUS_SERVER_TASKS: ${{ steps.deploy_release.outputs.server_tasks }}
+        run: |
+          set -euo pipefail
+          task_id="$(jq -er '
+            if type == "array" and length == 1 and
+              (.[0].serverTaskId |
+                type == "string" and length > 0 and (explode | all(.[]; . >= 32 and . != 127)))
+            then .[0].serverTaskId
+            else error("expected exactly one safe Octopus deployment task ID")
+            end
+          ' <<< "$OCTOPUS_SERVER_TASKS")"
+          printf 'server_task_id=%s\n' "$task_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the Octopus deployment to finish
+        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
+        with:
+          space: ${{ env.OCTOPUS_SPACE }}
+          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
+          polling_interval: '15'
+          timeout_after: '1800'
+          cancel_on_timeout: 'false'
+\r'* ]]; then
+            echo "::error::OCTOPUS_ENVIRONMENT must contain exactly one environment name (no commas, CR, or LF)."
             exit 1
           fi
           case "${OCTOPUS_CONFIG_AS_CODE:-false}" in
