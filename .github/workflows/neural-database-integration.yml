@@ -51,6 +51,8 @@ jobs:
       GLORIFIER_TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}-${{ github.run_attempt }}-temporary@localhost:5432/glorifier_test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # immutable commit pin
         with:
           python-version: "3.12"
