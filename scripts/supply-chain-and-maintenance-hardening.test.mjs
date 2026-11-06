@@ -160,12 +160,12 @@ test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the
 
 
 test('NVIDIA maintenance executes the explicit run ID guard before fallback', () => {
-  const lines = nvidiaMaintenanceWorkflow.split(/\\r?\\n/);
+  const lines = nvidiaMaintenanceWorkflow.split(String.fromCharCode(10));
   const stepStart = lines.indexOf('      - name: Validate failed CI run');
   const runIndex = lines.indexOf('        run: |', stepStart);
   const nextStepIndex = lines.findIndex((line, index) => index > runIndex && line.startsWith('      - name:'));
   assert.ok(stepStart >= 0 && runIndex > stepStart && nextStepIndex > runIndex, 'the run-ID validation shell step must be extractable');
-  const script = lines.slice(runIndex + 1, nextStepIndex).map((line) => line.startsWith('          ') ? line.slice(10) : line).join('\\n');
+  const script = lines.slice(runIndex + 1, nextStepIndex).map((line) => line.startsWith('          ') ? line.slice(10) : line).join(String.fromCharCode(10));
   let failure;
   try {
     execFileSync('bash', ['-euo', 'pipefail', '-c', script], {
