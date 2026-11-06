@@ -230,6 +230,38 @@ def test_nvidia_provider_sanitizes_untrusted_runtime_errors_from_body_reader():
     assert reader.release_calls == 1
 
 
+
+def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
+    import asyncio
+
+    async def exercise():
+        finish = asyncio.Event()
+
+        async def resistant_fetch(*_args, **_kwargs):
+            try:
+                await finish.wait()
+            except asyncio.CancelledError:
+                await finish.wait()
+                raise
+
+        adapter = NvidiaNimAdapter(
+            api_key="test-key",
+            model="nvidia/test-model",
+            timeout_seconds=0.04,
+            fetch_fn=resistant_fetch,
+        )
+        asyncio.get_running_loop().call_later(0.15, finish.set)
+        started = asyncio.get_running_loop().time()
+        try:
+            await adapter.acheck_readiness()
+        except RuntimeError as error:
+            assert str(error) == "NVIDIA NIM readiness probe exceeded its timeout"
+        else:
+            raise AssertionError("expected the NVIDIA Fetch deadline to expire")
+        assert asyncio.get_running_loop().time() - started < 0.10
+
+    asyncio.run(exercise())
+
 def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkeypatch):
     import asyncio
     import json
