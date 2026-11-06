@@ -640,3 +640,40 @@ def test_readiness_checks_configured_nvidia_model_without_inference(
     assert body["checks"]["database"] == "NOT CONFIGURED (OPTIONAL)"
     assert body["execution"]["inference_performed"] is False
     assert "readiness-test-secret" not in response.text
+
+def test_local_task_rate_limit_isolated_per_client_address(monkeypatch):
+    import asyncio
+
+    from starlette.requests import Request
+
+    from app.api import _enforce_task_rate_limit
+
+    keys = []
+
+    class AllowAll:
+        def allow(self, key):
+            keys.append(key)
+            return True, 60
+
+    monkeypatch.setattr("app.api.TASK_RATE_LIMITER", AllowAll())
+
+    def request_for(client_host):
+        return Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/v1/tasks",
+            "headers": [],
+            "client": (client_host, 12345),
+            "server": ("testserver", 80),
+            "scheme": "http",
+            "query_string": b"",
+        })
+
+    async def enforce_for_two_clients():
+        await _enforce_task_rate_limit(request_for("198.51.100.10"), "shared-token")
+        await _enforce_task_rate_limit(request_for("198.51.100.11"), "shared-token")
+
+    asyncio.run(enforce_for_two_clients())
+    assert len(keys) == 2
+    assert keys[0] != keys[1], "different clients must not share one authenticated rate-limit bucket"
+    assert all("shared-token" not in key for key in keys)
