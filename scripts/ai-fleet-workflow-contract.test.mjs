@@ -71,7 +71,7 @@ test('Claude cannot run npm install commands that execute lifecycle scripts', ()
   assert.ok(allowedTools, 'Claude allowed-tool list must be present and quoted');
   assert.doesNotMatch(
     allowedTools,
-    /(?:^|,)Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
+    /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/,
     'Claude must not be able to run npm install commands that execute lifecycle scripts',
   );
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
