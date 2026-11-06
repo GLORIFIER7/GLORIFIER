@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
-import type { StateEvidence as ReconciliationStateEvidence } from './geas-architecture-reconciliation';
+import type {
+  IndependentVerificationEvidence as ReconciliationVerificationEvidence,
+  ReconciliationStatus,
+  StateEvidence as ReconciliationStateEvidence,
+} from './geas-architecture-reconciliation';
 
 export type ArchitectureDomain =
   | 'enterprise-architecture'
@@ -39,7 +43,9 @@ export interface ArchitectureReconciliationContract {
   deployed: Record<string, unknown>;
   observed: Record<string, unknown>;
   verified: Record<string, unknown>;
-  status: 'ALIGNED' | 'PARTIALLY_VERIFIED' | 'DRIFT' | 'UNKNOWN';
+  status: ReconciliationStatus;
+  /** Optional independent attestation; it is not trusted until an injected verifier authenticates it. */
+  verificationEvidence?: ReconciliationVerificationEvidence;
   /** Aggregate references are traceability-only; every state also needs snapshot-bound evidence. */
   evidenceRefs: string[];
   evidenceByState: Record<ArchitectureState, ReconciliationStateEvidence>;
