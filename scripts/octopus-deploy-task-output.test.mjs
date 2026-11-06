@@ -147,20 +147,24 @@ test('upstream image publication verification preserves least-privilege token pe
 
 
 function upstreamPublicationScript() {
-  const marker = '      - name: Verify the upstream Docker image publication succeeded\n';
+  const marker = '      - name: Verify the upstream Docker image publication succeeded\\n';
   const start = workflow.indexOf(marker);
-  assert.notEqual(start, -1, 'upstream publication verification step must exist');
-  const nextStep = workflow.indexOf('\n      - name:', start + marker.length);
+  assert.notEqual(start, -1);
+  const nextStep = workflow.indexOf('\\n      - name:', start + marker.length);
   const step = workflow.slice(start, nextStep === -1 ? undefined : nextStep);
-  const runMarker = '        run: |\n';
+  const runMarker = '        run: |\\n';
   const runStart = step.indexOf(runMarker);
-  assert.notEqual(runStart, -1, 'upstream publication verification must use an inline script');
-  return step
-    .slice(runStart + runMarker.length)
-    .split(/\r?\n/)
+  assert.notEqual(runStart, -1);
+  const shellScript = step.slice(runStart + runMarker.length)
+    .split(/\\r?\\n/)
     .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
-    .join('\n')
+    .join('\\n')
     .trimEnd();
+  const pythonMarker = "python3 - <<'PY'\\n";
+  const pythonStart = shellScript.indexOf(pythonMarker);
+  const pythonEnd = shellScript.lastIndexOf('\\nPY');
+  assert.ok(pythonStart >= 0 && pythonEnd > pythonStart);
+  return shellScript.slice(pythonStart + pythonMarker.length, pythonEnd);
 }
 
 function runUpstreamPublicationCheck(conclusion) {
