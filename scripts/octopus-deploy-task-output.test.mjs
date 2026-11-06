@@ -44,6 +44,7 @@ function executeTaskOutputScript(serverTasks, outputPath) {
     return {
       success: false,
       output: readFileSync(outputPath, 'utf8'),
+      stdout: error.stdout?.toString('utf8') ?? '',
       stderr: error.stderr?.toString('utf8') ?? '',
     };
   }
@@ -82,7 +83,7 @@ test('Octopus task output rejects CR or LF before writing GitHub outputs', () =>
 
       assert.equal(result.success, false, 'control characters must fail closed');
       assert.equal(result.output, '', 'invalid IDs must not write to GITHUB_OUTPUT');
-      assert.match(result.stderr, /unexpected newline/i);
+      assert.match(result.stdout, /unexpected newline/i);
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });
