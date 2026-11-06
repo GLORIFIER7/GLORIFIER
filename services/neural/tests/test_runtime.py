@@ -234,3 +234,17 @@ def test_provider_readiness_requires_external_egress_consent_when_inference_is_d
     assert "disabled" in message
     assert orchestrator._providers.get("openai") is None
     assert orchestrator._allow_inference is False
+
+
+def test_openai_provider_is_unconfigured_without_explicit_model(monkeypatch):
+    clear_runtime_environment(monkeypatch)
+    monkeypatch.setenv("GLORIFIER_ENABLE_INFERENCE", "true")
+    monkeypatch.setenv("GLORIFIER_PROVIDER", "openai")
+    monkeypatch.setenv("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
+
+    orchestrator = build_orchestrator_from_environment()
+    provider = orchestrator._providers.get("openai")
+
+    assert provider is not None
+    assert provider.is_configured() is False
