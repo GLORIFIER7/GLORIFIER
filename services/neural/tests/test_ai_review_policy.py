@@ -96,6 +96,43 @@ def test_unresolved_ai_blocker_on_current_head_blocks_merge():
     assert any("unresolved blocking finding" in failure for failure in failures)
 
 
+def test_unresolved_ai_blocker_from_earlier_commit_still_blocks_when_thread_is_current():
+    threads = [
+        thread(
+            "amazon-q-developer[bot]",
+            ":stop_sign: Still-open issue",
+            commit_id="b" * 40,
+            resolved=False,
+            outdated=False,
+        ),
+    ]
+
+    failures = evaluate_reviews(complete_reviews(), threads, HEAD_SHA)
+
+    assert any("unresolved blocking finding" in failure for failure in failures)
+
+
+def test_missing_resolution_flag_fails_closed_for_ai_blocker_thread():
+    threads = [
+        {
+            "isOutdated": False,
+            "comments": {
+                "nodes": [
+                    {
+                        "author": {"login": "codeant-ai[bot]"},
+                        "body": ":stop_sign: Blocker",
+                        "commit": {"oid": "b" * 40},
+                    }
+                ]
+            },
+        }
+    ]
+
+    failures = evaluate_reviews(complete_reviews(), threads, HEAD_SHA)
+
+    assert any("unresolved blocking finding" in failure for failure in failures)
+
+
 def test_resolved_ai_blocker_does_not_block_merge():
     threads = [
         thread("amazon-q-developer[bot]", ":stop_sign: Resolved issue", resolved=True),
