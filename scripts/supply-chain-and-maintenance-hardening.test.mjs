@@ -157,3 +157,22 @@ test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the
   assert.match(nvidiaMaintenanceWorkflow.slice(guardStart, guardEnd), /exit 1/);
   assert.ok(fallbackStart > guardEnd, 'latest-failure fallback must happen only after explicit-input validation');
 });
+
+
+test('NVIDIA maintenance checks credentials only after identifying a failed CI run', () => {
+  const targetStep = nvidiaMaintenanceWorkflow.indexOf('- name: Validate failed CI run');
+  const credentialStep = nvidiaMaintenanceWorkflow.indexOf('- name: Require NVIDIA credential');
+  const requestStep = nvidiaMaintenanceWorkflow.indexOf('- name: Request a constrained patch from Nemotron');
+  assert.ok(targetStep >= 0 && credentialStep > targetStep, 'target run validation must precede the NVIDIA credential check');
+  assert.ok(requestStep > credentialStep, 'the NVIDIA credential check must precede the model request');
+  const credentialBlock = nvidiaMaintenanceWorkflow.slice(credentialStep, requestStep);
+  assert.match(credentialBlock, /if: steps\.target\.outputs\.skip != 'true'/);
+});
+
+test('NVIDIA maintenance summary reports the selected run ID for manual dispatches', () => {
+  const summaryStep = nvidiaMaintenanceWorkflow.slice(
+    nvidiaMaintenanceWorkflow.indexOf('- name: Summarize and clean up'),
+  );
+  assert.match(summaryStep, /TARGET_RUN_ID: \$\{\{ steps\.target\.outputs\.run_id \|\| 'not-selected' \}\}/);
+  assert.match(summaryStep, /echo "- Run ID: \$TARGET_RUN_ID"/);
+});
