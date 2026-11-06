@@ -63,6 +63,18 @@ def test_review_event_uses_the_documented_top_level_pull_request_payload():
     assert "PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}" in policy_job
 
 
+def test_policy_job_resolves_the_current_pr_sha_from_workspace_root():
+    policy_job = _job_section("ai-review-policy")
+    resolver = re.search(
+        r"(?ms)^      - name: Resolve canonical PR head SHA from GitHub\n(.*?)(?=^      - name: |\Z)",
+        policy_job,
+    )
+    assert resolver, "The canonical PR head resolver must exist"
+    assert re.search(r"(?m)^        working-directory: \.?$", resolver.group(1)), (
+        "The inline GitHub API resolver must not inherit the NEURAL service working directory"
+    )
+
+
 def test_trusted_policy_module_has_a_preflight_before_execution():
     policy_job = _job_section("ai-review-policy")
     preflight = policy_job.find("- name: Verify the trusted policy runner is importable")

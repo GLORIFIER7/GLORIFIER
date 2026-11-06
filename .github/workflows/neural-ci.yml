@@ -97,6 +97,7 @@ jobs:
         run: python -c "import app.ai_review_policy; print('Trusted AI review policy runner import verified')"
       - name: Resolve canonical PR head SHA from GitHub
         id: current-pr
+        working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
