@@ -107,7 +107,8 @@
       "domain": "finops",
       "url": "https://focus.finops.org/docs/specification/v1-4/",
       "claimsAllowed": [
-        "cost-outcome-accounting"
+        "cost-outcome-accounting",
+        "focus-invoice-reconciliation"
       ],
       "reviewCadenceDays": 14,
       "implementationStatus": "not-assessed",
