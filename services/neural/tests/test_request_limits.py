@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from app.request_limits import RequestBodyLimitMiddleware
 
@@ -29,6 +30,9 @@ def test_streamed_body_over_limit_returns_413_without_content_length():
 
     assert responses[0]["status"] == 413
     assert b"5-byte limit" in responses[1]["body"]
+    assert json.loads(responses[1]["body"]) == {
+        "detail": "Request body exceeds the 5-byte limit"
+    }
 
 
 def test_streamed_body_at_limit_reaches_application():
