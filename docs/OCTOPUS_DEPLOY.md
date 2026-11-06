@@ -39,7 +39,10 @@ The workflow pins the official Octopus GitHub Actions to commit SHAs. It does no
 
 ## Deployment boundary
 
-This workflow creates and deploys an Octopus release; it does **not** build or publish a GLORIFIER application package or container image. GLORIFIER CI builds and tests the application but does not publish an artifact to an Octopus feed. The Octopus Project's deployment process must already know how to obtain and deploy the intended artifact. A successful CI run or created release is not proof that the live application is healthy. The workflow waits for the Octopus deployment task result; a separate post-deployment application health check is still required.
+This workflow creates and deploys an Octopus release; it does **not** build or publish a GLORIFIER application package or container image. GLORIFIER CI builds and tests the application but does not publish an artifact to an Octopus feed. The Octopus Project's deployment process must already know how to obtain and deploy the intended artifact.
+
+Before enabling `OCTOPUS_ENABLED`, the Octopus feed must contain the package built for the source commit with version `0.0.0-<full-commit-sha>`. Both release paths pass `package_version: 0.0.0-${SOURCE_COMMIT}` so Octopus cannot silently select the feed's latest package. This workflow does not build or publish that package; release creation must fail if the exact version is absent. Preflight also compares the triggering source SHA with the current `main` head and refuses stale CI completions before OIDC authentication.
+ A successful CI run or created release is not proof that the live application is healthy. The workflow waits for the Octopus deployment task result; a separate post-deployment application health check is still required.
 
 Verify the first deployment against a non-production target before setting OCTOPUS_ENVIRONMENT to production. Confirm artifact provenance, rollback behavior, target permissions, and operational costs before enabling recurring production deployments.
 
