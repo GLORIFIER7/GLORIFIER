@@ -39,7 +39,10 @@ jobs:
         run: |
           set -euo pipefail
           candidate="$RUN_ID"
-          if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then candidate=""; fi
+          if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid run_id input; expected a decimal GitHub Actions run ID."
+            exit 1
+          fi
           if [[ -z "$candidate" ]]; then
             candidate="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "GLORIFIER CI" --branch main --status failure --limit 20 --json databaseId,workflowName,headBranch,conclusion | jq -r '[.[] | select(.workflowName == "GLORIFIER CI" and .headBranch == "main" and .conclusion == "failure")][0].databaseId // empty')"
           fi
