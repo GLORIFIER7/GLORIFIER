@@ -360,6 +360,10 @@ const authoritativeRegistry = JSON.parse(readFileSync(
 )) as {
   sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[] }>;
 };
+const focusRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'finops-focus-1-4');
+if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || focusRegistryEntry.claimsAllowed.length !== 1 || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
+  throw new Error('FOCUS 1.4 registry must explicitly allow only its active invoice-reconciliation source for that claim type');
+}
 const discoveryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'owasp-agentic-applications-top10');
 if (!discoveryEntry
     || discoveryEntry.scannerStatus !== 'discovery-only'
@@ -385,6 +389,21 @@ if (!governanceSource || governanceSource.url !== 'https://airc.nist.gov/airmf-r
 }
 if (!governancePattern || governancePattern.domain !== 'governance' || governancePattern.sourceId !== 'nist-ai-rmf-playbook') {
   throw new Error('NIST AI RMF governance pattern must be linked to the governance domain and authoritative source');
+}
+
+const focusSource = model.sources.find((source) => source.id === 'finops-focus-1-4');
+const focusPattern = model.patterns.find((pattern) => pattern.id === 'focus-invoice-reconciliation');
+if (!focusSource || !focusSource.patternIds.includes('focus-invoice-reconciliation')) {
+  throw new Error('FOCUS 1.4 source must declare the dedicated invoice-reconciliation pattern');
+}
+if (!focusPattern || focusPattern.sourceId !== 'finops-focus-1-4' || focusPattern.domain !== 'finops') {
+  throw new Error('FOCUS 1.4 invoice-reconciliation pattern must be linked to its dedicated FinOps source');
+}
+if (findEarliestKeywordIndex('Reconcile Cost and Usage to Invoice Detail by Invoice ID', focusPattern.keywords) < 0) {
+  throw new Error('FOCUS 1.4 invoice-reconciliation source must match its documented invoice-join use case');
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('FOCUS 1.4 content matches must remain analysis until claim-level review');
 }
 if (!model.architectureStateModel.join(',').includes('desired,declared,deployed,observed,verified')) throw new Error('five-state architecture model missing');
 

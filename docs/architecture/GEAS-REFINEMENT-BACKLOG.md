@@ -14,20 +14,25 @@ Status: source and policy refinements; this document does not claim runtime cont
 ## Five-state reconciliation
 Record desired, declared, deployed, observed, and verified states separately. Each state's evidence must include nonempty references, observation/expiry timestamps, and a SHA-256 hash of that state's canonicalized snapshot. The reconciler recomputes the hash; evidence for an earlier or different snapshot must yield UNKNOWN, not ALIGNED or DRIFT. Hash binding proves integrity linkage only: it does not authenticate the referenced artifact or establish semantic truth. Deployment records do not prove observed health; health telemetry does not prove a security control works.
 
-The complete outcome set is **VERIFIED, ALIGNED, PARTIALLY_VERIFIED, DRIFT, UNKNOWN**. Apply these rules in order:
-1. **UNKNOWN** — any required evidence is missing, stale, unavailable, or contradictory. Do not infer alignment or failure from absent evidence.
-2. **DRIFT** — required evidence is current and authoritative, and directly demonstrates a policy-relevant mismatch.
-3. **VERIFIED** — all required states are evidenced and match, and the claim/control has passed the applicable independent verification test.
-4. **ALIGNED** — desired, declared, deployed, and observed states are evidenced and match, but independent behavioral verification is not part of the specific claim or has not been established.
-5. **PARTIALLY_VERIFIED** — some explicitly scoped checks have valid positive evidence, while other non-required or optional checks remain unresolved. Never use this outcome to conceal missing or stale required evidence.
+The outcome vocabulary is **VERIFIED, ALIGNED, PARTIALLY_VERIFIED, DRIFT, UNKNOWN**. The reconciler emits `VERIFIED` only when all five state snapshots have fresh, matching evidence and an injected trusted authenticator accepts a fresh independent-test attestation bound to the `verified` snapshot. The attestation records verifier ID/version and a `passed` or `failed` result. An authenticated pass yields `VERIFIED`; an authenticated failure yields `DRIFT`. A malformed, stale, snapshot-mismatched, rejected, or unauthenticated supplied attestation yields `UNKNOWN`. Without an attestation, matching states yield `ALIGNED`; without a trusted authenticator, a supplied but unauthenticated attestation never upgrades `ALIGNED` to `VERIFIED`. `PARTIALLY_VERIFIED` remains reserved until explicitly scoped optional checks are represented; it is not currently emitted.
 
-The first applicable rule wins. Each result must retain its evidence references, observation timestamps, verifier identity/version, and rationale.
+Apply the precedence rules in order:
+1. **UNKNOWN** — any required state evidence is missing, stale, unavailable, contradictory, or cannot be authenticated when supplied.
+2. **DRIFT** — current snapshot-bound state evidence demonstrates a policy-relevant mismatch, or an authenticated independent verification attestation reports failure.
+3. **VERIFIED** — all five states are evidenced and match, and the trusted authenticator accepts a fresh independent verification attestation as passed.
+4. **ALIGNED** — all five states are evidenced and match, but independent behavioral verification is absent or has not been authenticated.
+5. **PARTIALLY_VERIFIED** — reserved for explicitly scoped optional checks; never use it to conceal missing or stale required evidence.
+
+Each result retains state evidence references and rationale; verifier ID/version and the attestation reference are returned only after authentication succeeds.
 
 ## Implementation sequence
 ### P0 — evidence integrity
 - Replace keyword-only verification with claim-level checks tied to exact excerpts.
 - Record retrieval timestamp, content hash, final URL, and source version where available.
 - Keep content-matched classified as analysis; never emit claim-supported without a separate validation record.
+### P0 — FOCUS 1.4 source-to-pattern alignment
+- Bind the dedicated `finops-focus-1-4` scanner source to an invoice-reconciliation pattern and the matching registry claim type; do not leave an active source with an orphaned pattern declaration.
+- Keep the resulting source match classified as analysis. Invoice authenticity, payable status, settlement, GLORIFIER's actual spend, and verified economic outcomes remain separate evidence requirements.
 ### P0 — live drift reconciliation
 - Add adapters for repository declarations, deployment metadata, runtime health, and independent tests.
 - Store timestamps and evidence references per state; stale evidence is UNKNOWN, not aligned.
