@@ -198,16 +198,21 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     assert "timeout-minutes: 20" in smoke, (
         "Live health and readiness probes must retain their bounded smoke-test timeout"
     )
-    assert "github.event_name == 'workflow_dispatch'" in smoke
-    assert "github.ref == 'refs/heads/main'" in smoke
-    assert "needs.validate.result == 'success'" in smoke
-    assert "needs.deploy.result == 'success'" in smoke
-    assert "github.event_name == 'push'" not in smoke, (
-        "A main push must not claim a manually gated production deployment occurred"
+    condition_match = re.search(
+        r"(?ms)^    if: >-\\n(?P<expression>(?:^      .*\\n?)+)",
+        smoke,
     )
-    assert "always()" not in smoke, (
-        "A skipped manual deploy must also skip production smoke"
+    assert condition_match is not None, "Production smoke must have an explicit job condition"
+    expression = " ".join(
+        line.strip() for line in condition_match.group("expression").splitlines()
     )
+    assert expression == (
+        "github.event_name == 'workflow_dispatch' && "
+        "github.ref == 'refs/heads/main' && "
+        "inputs.deploy == true && "
+        "needs.validate.result == 'success' && "
+        "needs.deploy.result == 'success'"
+    ), "Production smoke must be restricted to the exact owner-authorized deploy event"
     assert "Wait for Cloudflare Workers Builds production deployment" not in smoke
     assert "Workers Builds: glorifier-neural" not in smoke
     assert "check-runs" not in smoke
