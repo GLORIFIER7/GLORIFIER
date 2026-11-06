@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.policy import ALLOWED_ACTION_CLASSES
+
 
 Status = Literal[
     "FULLY VERIFIED",
@@ -32,6 +34,13 @@ class TaskRequest(BaseModel):
     def reject_blank_values(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("value must not be blank")
+        return value
+
+    @field_validator("action_class")
+    @classmethod
+    def require_canonical_action_class(cls, value: str) -> str:
+        if value not in ALLOWED_ACTION_CLASSES:
+            raise ValueError("action_class must be a canonical policy category")
         return value
 
 
