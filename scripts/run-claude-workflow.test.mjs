@@ -66,4 +66,109 @@ test('runs the provided wrapper and keeps its prompt and arguments isolated', as
     "import { writeFileSync } from 'node:fs';",
     'writeFileSync(process.env.ARGS_FILE, JSON.stringify(process.argv.slice(2)));',
     'writeFileSync(process.env.PROMPT_FILE, process.argv[3]);',
-    "process.stdout.write(JSON.stringify({ is_error#¢fÇ6RÂ&W7VÇC¢vFöæRrÒ’“²"À¢rrÀ¢Òæ¦ö–â‚uÆâr’“°¢v—B6†ÖöB‡w&W"Âós“° ¢6öç7B&W7VÇBÒ'Vä6ÆVFR‡°¢F6µFW‡C¢v–ç7V7BF†Rv÷&¶W"rÀ¢w&W"À¢Vçc¢²ââç&ö6W72æVçbÂåD…$õ”5ô•ô´U“¢wFW7BÖöæÇ’rÂ$u5ôd”ÄS¢&w4f–ÆRÂ$ôÕEôd”ÄS¢&ö×Df–ÆRÒÀ¢Ò“° ¢76W'BæFVWWVÂ‡&W7VÇBÂ²W†—D6öFS¢Â6öFS¢w7V66W72rÒ“°¢6öç7B&w2Ò¥4ôâç'6R†v—B&VDf–ÆR†&w4f–ÆRÂwWFc‚r’“°¢6öç7B&ö×BÒv—B&VDf–ÆR‡&ö×Df–ÆRÂwWFc‚r“°¢76W'BæWVÂ†&w5³ÒÂr×r“°¢76W'BæWVÂ†&w5³ÒÂ&ö×B“°¢76W'Bæö²†&w2æ–æ6ÇVFW2‚rÒÖ÷WGWBÖf÷&ÖBr’“°¢76W'Bæö²†&w2æ–æ6ÇVFW2‚v§6öâr’“°¢76W'Bæö²†&w2æ–æ6ÇVFW2‚rÒÖÆÆ÷vVEFööÇ2r’“°¢76W'BæÖF6‚‡&ö×BÂô$Tt”âTåE%U5DTBD4²DU…EÆæ–ç7V7BF†Rv÷&¶W%ÆäTäBTåE%U5DTBD4²DU…Bò“°§Ò“° §FW7B‚vf–Ç26Æ÷6VBöâ&÷f–FW"W'&÷'2æBæWfW"&WGW&ç26Vç6—F—fR4Ä’÷WGWBrÂ7–æ2‡B’Óâ°¢6öç7BF—"Òv—BÖ¶GFV×‡F‚æ¦ö–â†÷2çF×F—"‚’ÂvvÆ÷&–f–W"Ö6ÆVFRÖÆW'&÷"Òr’“°¢BægFW"‚‚’Óâ&Ò†F—"Â²&V7W'6—fS¢G'VRÂf÷&6S¢G'VRÒ’“°¢6öç7Bw&W"ÒF‚æ¦ö–â†F—"Âvf¶RÖ6ÆVFRæÖ§2r“°¢v—Bw&—FTf–ÆR‡w&W"Â°¢r2÷W7"ö&–âöVçbæöFRrÀ¢'&ö6W72ç7FF÷WBçw&—FR„¥4ôâç7G&–æv–g’‡²—5öW'&÷#¢G'VRÂ•öW'&÷%÷7FGW3¢CÂW'&÷#¢w&—fFRW'&÷"FW‡BrÒ’“²"À¢'&ö6W72ç7FFW'"çw&—FR‚w&—fFR7FFW'"FW‡Br“²"À¢rrÀ¢Òæ¦ö–â‚uÆâr’“°¢v—B6†ÖöB‡w&W"Âós“° ¢6öç7B&W7VÇBÒ'Vä6ÆVFR‡°¢F6µFW‡C¢v–ç7V7BF†Rv÷&¶W"rÀ¢w&W"À¢Vçc¢²ââç&ö6W72æVçbÂåD…$õ”5ô•ô´U“¢wFW7BÖöæÇ’rÒÀ¢Ò“°¢76W'BæFVWWVÂ‡&W7VÇBÂ²W†—D6öFS¢Â6öFS¢w&÷f–FW%÷&V¦V7FVE÷&WVW7BrÒ“°¢76W'Bæö²‚¥4ôâç7G&–æv–g’‡&W7VÇB’æ–æ6ÇVFW2‚w&—fFRr’“°§Ò“°  §FW7B‚w76W2F†RÆÆ÷vVBFööÇ22F†RFö7VÖVçFVB76R×6W&FVB4Ä’Æ—7BrÂ‚’Óâ°¢6öç7B&w2Ò'V–ÆD6ÆVFT&w2‚wFW7B&ö×Br“°¢6öç7BÆÆ÷vVEFööÇ4–æFW‚Ò&w2æ–æFW„öb‚rÒÖÆÆ÷vVEFööÇ2r“°¢76W'BæFVWWVÂ†&w2ç6Æ–6R†ÆÆ÷vVEFööÇ4–æFW‚²’Â°¢u&VBrÀ¢tvÆö"rÀ¢tw&WrÀ¢tVF—BrÀ¢uw&—FRrÀ¢t&6‚†çÒ'VâÆ–çB’rÀ¢t&6‚†çÒ'Vâ'V–ÆB’rÀ¢t&6‚†çÒ'VâFW7C¦&6†—FV7GW&R’rÀ¢t&6‚†v—B7FGW2’rÀ¢t&6‚†v—BF–fb’rÀ¢Ò“°§Ò“° §FW7B‚w&WGW&ç2&÷VæFVBF–ÖV÷WB&W7VÇBv†VâF†R6ÆVFR4Ä’FöW2æ÷BW†—BrÂ7–æ2‡B’Óâ°¢6öç7BF—"Òv—BÖ¶GFV×‡F‚æ¦ö–â†÷2çF×F—"‚’ÂvvÆ÷&–f–W"Ö6ÆVFR×F–ÖV÷WBÒr’“°¢BægFW"‚‚’Óâ&Ò†F—"Â²&V7W'6—fS¢G'VRÂf÷&6S¢G'VRÒ’“°¢6öç7Bw&W"ÒF‚æ¦ö–â†F—"Âw6Æ÷rÖ6ÆVFRæÖ§2r“°¢v—Bw&—FTf–ÆR‡w&W"Â°¢r2÷W7"ö&–âöVçbæöFRrÀ¢'6WEF–ÖV÷WB‚‚’Óâ&ö6W72ç7FF÷WBçw&—FR„¥4ôâç7G&–æv–g’‡²—5öW'&÷#¢fÇ6RÂ&W7VÇC¢vÆFRrÒ’’ÂS“²"À¢rrÀ¢Òæ¦ö–â‚uÆâr’“°¢v—B6†ÖöB‡w&W"Âós“° ¢6öç7B&W7VÇBÒ'Vä6ÆVFR‡°¢F6µFW‡C¢v–ç7V7BF†Rv÷&¶W"rÀ¢w&W"À¢F–ÖV÷WD×3¢SÀ¢Vçc¢²ââç&ö6W72æVçbÂåD…$õ”5ô•ô´U“¢wFW7BÖöæÇ’rÒÀ¢Ò“° ¢76W'BæFVWWVÂ‡&W7VÇBÂ²W†—D6öFS¢Â6öFS¢v6Æ•÷F–ÖV÷WBrÒ“°§Ò“°  §FW7B‚v6Æ76–f–W26–væÂ×FW&Ö–æFVB4Ä’&ö6W72W‡Æ–6—FÇ’rÂ7–æ2‡B’Óâ°¢6öç7BF—"Òv—BÖ¶GFV×‡F‚æ¦ö–â†÷2çF×F—"‚’ÂvvÆ÷&–f–W"Ö6ÆVFR×6–væÂÒr’“°¢BægFW"‚‚’Óâ&Ò†F—"Â²&V7W'6—fS¢G'VRÂf÷&6S¢G'VRÒ’“°¢6öç7Bw&W"ÒF‚æ¦ö–â†F—"Âw6–væÂÖ6ÆVFRæÖ§2r“°¢v—Bw&—FTf–ÆR‡w&W"Â°¢r2÷W7"ö&–âöVçbæöFRrÀ¢'&ö6W72æ¶–ÆÂ‡&ö6W72ç–BÂu4”uDU$Òr“²"À¢rrÀ¢Òæ¦ö–â‚uÆâr’“°¢v—B6†ÖöB‡w&W"Âós“° ¢6öç7B&W7VÇBÒ'Vä6ÆVFR‡°¢F6µFW‡C¢v–ç7V7BF†Rv÷&¶W"rÀ¢w&W"À¢Vçc¢²ââç&ö6W72æVçbÂåD…$õ”5ô•ô´U“¢wFW7BÖöæÇ’rÒÀ¢Ò“° ¢76W'BæFVWWVÂ‡&W7VÇBÂ²W†—D6öFS¢Â6öFS¢v6Æ•÷FW&Ö–æFVEö'•÷6–væÂrÒ“°§Ò“° §FW7B‚w&V¦V7G2Ö—76–ærF6²Âw&W"÷"7&VFVçF–Â&Vf÷&RÆVæ6†–ærF†R4Ä’rÂ‚’Óâ°¢76W'BæWVÂ‡'Vä6ÆVFR‡²F6µFW‡C¢rrÂw&W#¢rö&–â÷G'VRrÂVçc¢²åD…$õ”5ô•ô´U“¢w‚rÒÒ’æ6öFRÂvÖ—76–æu÷F6²r“°¢76W'BæWVÂ‡'Vä6ÆVFR‡²F6µFW‡C¢w‚rÂw&W#¢rrÂVçc¢²åD…$õ”5ô•ô´U“¢w‚rÒÒ’æ6öFRÂvÖ—76–æuö6Æ•÷w&W"r“°¢76W'BæWVÂ‡'Vä6ÆVFR‡²F6µFW‡C¢w‚rÂw&W#¢rö&–â÷G'VRrÂVçc¢·ÒÒ’æ6öFRÂvÖ—76–æuö•ö¶W’r“°§Ò“°
+    "process.stdout.write(JSON.stringify({ is_error: false, result: 'done' }));",
+    '',
+  ].join('\n'));
+  await chmod(wrapper, 0o700);
+
+  const result = runClaude({
+    taskText: 'inspect the worker',
+    wrapper,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'test-only', ARGS_FILE: argsFile, PROMPT_FILE: promptFile },
+  });
+
+  assert.deepEqual(result, { exitCode: 0, code: 'success' });
+  const args = JSON.parse(await readFile(argsFile, 'utf8'));
+  const prompt = await readFile(promptFile, 'utf8');
+  assert.equal(args[0], '-p');
+  assert.equal(args[1], prompt);
+  assert.ok(args.includes('--output-format'));
+  assert.ok(args.includes('json'));
+  assert.ok(args.includes('--allowedTools'));
+  assert.match(prompt, /BEGIN UNTRUSTED TASK TEXT\ninspect the worker\nEND UNTRUSTED TASK TEXT/);
+});
+
+test('fails closed on provider errors and never returns sensitive CLI output', async (t) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'glorifier-claude-error-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const wrapper = path.join(dir, 'fake-claude.mjs');
+  await writeFile(wrapper, [
+    '#!/usr/bin/env node',
+    "process.stdout.write(JSON.stringify({ is_error: true, api_error_status: 400, error: 'private error text' }));",
+    "process.stderr.write('private stderr text');",
+    '',
+  ].join('\n'));
+  await chmod(wrapper, 0o700);
+
+  const result = runClaude({
+    taskText: 'inspect the worker',
+    wrapper,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'test-only' },
+  });
+  assert.deepEqual(result, { exitCode: 1, code: 'provider_rejected_request' });
+  assert.ok(!JSON.stringify(result).includes('private'));
+});
+
+test('passes the allowed tools as the documented space-separated CLI list', () => {
+  const args = buildClaudeArgs('test prompt');
+  const allowedToolsIndex = args.indexOf('--allowedTools');
+  assert.deepEqual(args.slice(allowedToolsIndex + 1), [
+    'Read',
+    'Glob',
+    'Grep',
+    'Edit',
+    'Write',
+    'Bash(npm run lint)',
+    'Bash(npm run build)',
+    'Bash(npm run test:architecture)',
+    'Bash(git status)',
+    'Bash(git diff)',
+  ]);
+});
+
+test('returns a bounded timeout result when the Claude CLI does not exit', async (t) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'glorifier-claude-timeout-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const wrapper = path.join(dir, 'slow-claude.mjs');
+  await writeFile(wrapper, [
+    '#!/usr/bin/env node',
+    "setTimeout(() => process.stdout.write(JSON.stringify({ is_error: false, result: 'late' })), 500);",
+    '',
+  ].join('\n'));
+  await chmod(wrapper, 0o700);
+
+  const result = runClaude({
+    taskText: 'inspect the worker',
+    wrapper,
+    timeoutMs: 50,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'test-only' },
+  });
+
+  assert.deepEqual(result, { exitCode: 1, code: 'cli_timeout' });
+});
+
+test('classifies a signal-terminated CLI process explicitly', async (t) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'glorifier-claude-signal-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const wrapper = path.join(dir, 'signal-claude.mjs');
+  await writeFile(wrapper, [
+    '#!/usr/bin/env node',
+    "process.kill(process.pid, 'SIGTERM');",
+    '',
+  ].join('\n'));
+  await chmod(wrapper, 0o700);
+
+  const result = runClaude({
+    taskText: 'inspect the worker',
+    wrapper,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'test-only' },
+  });
+
+  assert.deepEqual(result, { exitCode: 1, code: 'cli_terminated_by_signal' });
+});
+
+test('rejects missing task, wrapper or credential before launching the CLI', () => {
+  assert.equal(runClaude({ taskText: '', wrapper: '/bin/true', env: { ANTHROPIC_API_KEY: 'x' } }).code, 'missing_task');
+  assert.equal(runClaude({ taskText: 'x', wrapper: '', env: { ANTHROPIC_API_KEY: 'x' } }).code, 'missing_cli_wrapper');
+  assert.equal(runClaude({ taskText: 'x', wrapper: '/bin/true', env: {} }).code, 'missing_api_key');
+});
