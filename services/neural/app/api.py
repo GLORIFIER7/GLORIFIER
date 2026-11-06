@@ -221,6 +221,9 @@ def _worker_readiness_cache_key(request: Request) -> tuple[str, ...]:
         "GLORIFIER_PROVIDER",
         "NVIDIA_NIM_MODEL",
         "OPENAI_MODEL",
+        "GLORIFIER_VLLM_MODEL",
+        "GLORIFIER_VLLM_BASE_URL",
+        "GLORIFIER_VLLM_ALLOWED_ORIGIN",
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS",
         "GLORIFIER_NEON_CONNECTIVITY_ENABLED",
     )
@@ -229,6 +232,7 @@ def _worker_readiness_cache_key(request: Request) -> tuple[str, ...]:
         *values,
         "nvidia-key-present" if _request_environment_value(request, "NVIDIA_NIM_API_KEY") else "nvidia-key-absent",
         "openai-key-present" if _request_environment_value(request, "OPENAI_API_KEY") else "openai-key-absent",
+        "vllm-key-present" if _request_environment_value(request, "GLORIFIER_VLLM_API_KEY") else "vllm-key-absent",
         "neon-readonly-bound" if _request_worker_binding(request, "NEON_READONLY") is not None else "neon-readonly-unbound",
     )
 
