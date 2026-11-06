@@ -11,6 +11,10 @@ const dispatchStart = workflow.indexOf(dispatchMarker);
 assert.ok(codingStart >= 0 && publishStart > codingStart && dispatchStart > publishStart,
   'expected coding-fleet, publish-proposal, and dispatch-ci jobs in order');
 const coding = workflow.slice(codingStart, publishStart);
+const codexStart = coding.indexOf('      - name: Run Codex without GitHub write permissions');
+const stageStart = coding.indexOf('\n      - name: Stage AI-generated changes for review', codexStart);
+assert.ok(codexStart >= 0 && stageStart > codexStart, 'expected one bounded Codex execution step');
+const codex = coding.slice(codexStart, stageStart);
 const publish = workflow.slice(publishStart, dispatchStart);
 const dispatch = workflow.slice(dispatchStart);
 const dispatchDeclaration = workflow.slice(workflow.indexOf('  workflow_dispatch:'), workflow.indexOf('\n\npermissions:'));
@@ -32,9 +36,9 @@ test('the model-execution job has no GitHub write permissions', () => {
   assert.match(workflow, /^permissions:\n  contents: read\n  pull-requests: read/m);
   assert.doesNotMatch(coding, /(?:actions|contents|pull-requests):\s*write/);
   assert.match(coding, /uses: openai\/codex-action@/);
-  assert.match(coding, /effort: medium/);
-  assert.match(coding, /openai-api-key: \$\{\{ secrets\.OPENAI_API_KEY \}\}/);
-  assert.doesNotMatch(coding, /env:\n\s+OPENAI_API_KEY:/);
+  assert.match(codex, /effort: medium/);
+  assert.match(codex, /openai-api-key: \$\{\{ secrets\.OPENAI_API_KEY \}\}/);
+  assert.doesNotMatch(codex, /env:\n\s+OPENAI_API_KEY:/);
 });
 
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
