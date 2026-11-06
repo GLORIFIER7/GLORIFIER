@@ -178,6 +178,58 @@ def test_cloudflare_runtime_uses_request_scoped_nvidia_bindings_and_fetch():
     assert calls[1]["redirect"] == "manual"
 
 
+
+def test_nvidia_provider_sanitizes_untrusted_runtime_errors_from_body_reader():
+    import asyncio
+
+    class BrokenReader:
+        def __init__(self):
+            self.cancel_calls = 0
+            self.release_calls = 0
+
+        async def read(self):
+            raise RuntimeError("private upstream detail and secret-value")
+
+        async def cancel(self):
+            self.cancel_calls += 1
+
+        def releaseLock(self):
+            self.release_calls += 1
+
+    reader = BrokenReader()
+
+    class BrokenStream:
+        def getReader(self):
+            return reader
+
+    class BrokenResponse:
+        status = 200
+        headers = {}
+        body = BrokenStream()
+
+    async def fake_fetch(*_args, **_kwargs):
+        return BrokenResponse()
+
+    adapter = NvidiaNimAdapter(
+        api_key="request-scoped-secret",
+        model="nvidia/test-model",
+        fetch_fn=fake_fetch,
+    )
+
+    try:
+        asyncio.run(adapter.acheck_readiness())
+    except RuntimeError as error:
+        assert str(error) == "NVIDIA NIM readiness endpoint is unavailable"
+        assert "private upstream detail" not in str(error)
+        assert "secret-value" not in str(error)
+        assert "request-scoped-secret" not in str(error)
+    else:
+        raise AssertionError("expected the untrusted body-reader error to be rejected")
+
+    assert reader.cancel_calls == 1
+    assert reader.release_calls == 1
+
+
 def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkeypatch):
     import asyncio
     import json
