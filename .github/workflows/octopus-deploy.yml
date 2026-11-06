@@ -28,7 +28,7 @@ jobs:
        vars.OCTOPUS_ENVIRONMENT != '' &&
        vars.OCTOPUS_SERVICE_ACCOUNT_ID != '')
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     environment: octopus-deploy
     permissions:
       contents: read
