@@ -13,6 +13,7 @@ from typing import Any
 from app.orchestrator import Orchestrator
 from app.providers import NvidiaNimAdapter
 from app.providers.openai import OpenAIResponsesAdapter
+from app.providers.vllm import VllmAdapter
 from app.providers.registry import ProviderRegistry
 
 
@@ -81,6 +82,23 @@ def build_orchestrator_from_environment(
                 fetch_fn=fetch_fn,
             )
         )
+
+    elif external_egress_allowed and provider_name == VllmAdapter.name:
+        try:
+            adapter = VllmAdapter(
+                base_url=_environment_value(environment, "GLORIFIER_VLLM_BASE_URL"),
+                allowed_origin=_environment_value(
+                    environment, "GLORIFIER_VLLM_ALLOWED_ORIGIN"
+                ),
+                api_key=_environment_value(environment, "GLORIFIER_VLLM_API_KEY"),
+                model=_environment_value(environment, "GLORIFIER_VLLM_MODEL"),
+                fetch_fn=fetch_fn,
+            )
+        except ValueError:
+            # Unsafe or mismatched endpoints are unavailable; never attempt egress.
+            adapter = None
+        if adapter is not None:
+            registry.register(adapter)
 
     return Orchestrator(
         providers=registry,
