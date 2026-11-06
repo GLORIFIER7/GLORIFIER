@@ -29,7 +29,6 @@ concurrency:
 
 permissions:
   contents: read
-  checks: read
 
 jobs:
   validate:
@@ -221,12 +220,11 @@ jobs:
       run:
         working-directory: services/neural
     if: >-
-      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.deploy == true &&
       needs.validate.result == 'success' &&
-      (
-        (github.event_name == 'workflow_dispatch' && needs.deploy.result == 'success') ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/main')
-      )
+      needs.deploy.result == 'success'
     needs: [validate, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -234,54 +232,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Wait for Cloudflare Workers Builds production deployment
-        if: github.event_name == 'push'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          deadline=$((SECONDS + 900))
-          while (( SECONDS < deadline )); do
-            response="$(curl --silent --show-error --fail \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")"
-            decision="$(printf '%s' "$response" | python -c '
-          import json
-          import sys
-
-          payload = json.load(sys.stdin)
-          builds = [
-              check
-              for check in payload.get("check_runs", [])
-              if check.get("name") == "Workers Builds: glorifier-neural"
-          ]
-          if not builds:
-              print("pending")
-          else:
-              latest = max(builds, key=lambda check: check.get("started_at") or "")
-              if latest.get("status") != "completed":
-                  print("pending")
-              elif latest.get("conclusion") == "success":
-                  print("success")
-              else:
-                  print("failure")
-          ')"
-            case "$decision" in
-              success)
-                echo "Cloudflare Workers Builds deployed this exact main commit successfully."
-                exit 0
-                ;;
-              failure)
-                echo "::error::Cloudflare Workers Builds did not deploy this main commit successfully."
-                exit 1
-                ;;
-            esac
-            sleep 10
-          done
-          echo "::error::Timed out waiting for the Cloudflare production build check for this commit."
-          exit 1
       - name: Verify deployed health endpoint
         env:
           NEURAL_URL: https://glorifier-neural.glorifier.workers.dev

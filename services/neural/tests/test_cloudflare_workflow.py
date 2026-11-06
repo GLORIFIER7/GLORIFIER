@@ -184,7 +184,7 @@ def test_cloudflare_worker_excludes_duplicate_entry_point_metadata():
     )
 
 
-def test_cloudflare_smoke_verifies_automatic_main_deployment_and_manual_deployments():
+def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deployment():
     workflow_path = WORKFLOW_PATH
     workflow = workflow_path.read_text(encoding="utf-8")
     smoke_job = re.search(
@@ -192,26 +192,35 @@ def test_cloudflare_smoke_verifies_automatic_main_deployment_and_manual_deployme
         workflow,
     )
     assert smoke_job is not None, "Cloudflare production smoke job must exist"
+    smoke = smoke_job.group(1)
 
-    assert "checks: read" in workflow, (
-        "Automatic production smoke must be able to inspect the Cloudflare deployment check"
+    assert "needs: [validate, deploy]" in smoke
+    assert "timeout-minutes: 20" in smoke, (
+        "Live health and readiness probes must retain their bounded smoke-test timeout"
     )
-    assert "needs: [validate, deploy]" in smoke_job.group(1)
-    assert "timeout-minutes: 20" in smoke_job.group(1), (
-        "Smoke must allow the 15-minute Cloudflare wait plus live health/readiness probes"
+    condition_header = "    if: >-" + chr(10)
+    condition_start = smoke.find(condition_header)
+    assert condition_start >= 0, "Production smoke must have an explicit job condition"
+    condition_lines = []
+    for line in smoke[condition_start + len(condition_header):].splitlines():
+        indentation = len(line) - len(line.lstrip(" "))
+        if indentation < 6:
+            break
+        condition_lines.append(line.strip())
+    expression = " ".join(condition_lines)
+    assert expression == (
+        "github.event_name == 'workflow_dispatch' && "
+        "github.ref == 'refs/heads/main' && "
+        "inputs.deploy == true && "
+        "needs.validate.result == 'success' && "
+        "needs.deploy.result == 'success'"
+    ), "Production smoke must be restricted to the exact owner-authorized deploy event"
+    assert "Wait for Cloudflare Workers Builds production deployment" not in smoke
+    assert "Workers Builds: glorifier-neural" not in smoke
+    assert "check-runs" not in smoke
+    assert "checks: read" not in workflow, (
+        "The workflow must not request check-run permissions when it no longer polls check runs"
     )
-    assert "always()" in smoke_job.group(1), (
-        "Smoke must still run on main pushes when the manual-only deploy job is skipped"
-    )
-    assert "needs.validate.result == 'success'" in smoke_job.group(1)
-    assert "github.event_name == 'push'" in smoke_job.group(1)
-    assert "github.ref == 'refs/heads/main'" in smoke_job.group(1)
-    assert "github.event_name == 'workflow_dispatch'" in smoke_job.group(1)
-    assert "needs.deploy.result == 'success'" in smoke_job.group(1)
-
-    assert "Wait for Cloudflare Workers Builds production deployment" in smoke_job.group(1)
-    assert "Workers Builds: glorifier-neural" in smoke_job.group(1)
-    assert "commits/${GITHUB_SHA}/check-runs?per_page=100" in smoke_job.group(1)
 
 
 def test_cloudflare_worker_enables_owner_authorized_openai_inference():
