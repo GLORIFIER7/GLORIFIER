@@ -108,7 +108,9 @@ def evaluate_reviews(
             )
 
     for thread in threads:
-        if thread.get("isResolved") is not False:
+        # Only explicit resolution or outdated status removes an AI finding.
+        # A comment can remain actionable after unrelated commits advance the head.
+        if thread.get("isResolved") is True:
             continue
         if thread.get("isOutdated") is True:
             continue
@@ -116,15 +118,12 @@ def evaluate_reviews(
         comments = thread.get("comments", {}).get("nodes", [])
         for comment in comments:
             author = comment.get("author") or {}
-            commit = comment.get("commit") or {}
             login = _normalize_login(author.get("login"))
             if login not in AI_REVIEWERS:
                 continue
-            if commit.get("oid") != head_sha:
-                continue
             if _has_blocker(comment.get("body")):
                 failures.append(
-                    f"{login} has an unresolved blocking finding on the current head."
+                    f"{login} has an unresolved blocking finding in a current review thread."
                 )
 
     return failures
