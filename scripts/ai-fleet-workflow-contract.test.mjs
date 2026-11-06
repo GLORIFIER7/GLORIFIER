@@ -76,10 +76,23 @@ test('every Claude invocation blocks npm install commands that execute lifecycle
     claudeInvocations,
     'each Claude invocation must declare an explicit allowed-tool list',
   );
+  const forbiddenInstallTool = /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/;
+  for (const command of ['ci', 'install', 'i', 'add']) {
+    assert.match(
+      'Read,Bash(npm ' + command + ')',
+      forbiddenInstallTool,
+      'the denylist must recognize npm ' + command + ' as an install-capable command',
+    );
+  }
+  assert.match(
+    'Read,Bash(npm ci --ignore-scripts)',
+    forbiddenInstallTool,
+    'the allowlist must not permit npm ci through an alternate flag form',
+  );
   for (const [index, allowedTools] of allowedToolLists.entries()) {
     assert.doesNotMatch(
       allowedTools,
-      /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/,
+      forbiddenInstallTool,
       'Claude invocation ' + (index + 1) + ' must not run npm install commands that execute lifecycle scripts',
     );
   }
