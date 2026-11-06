@@ -361,7 +361,7 @@ const authoritativeRegistry = JSON.parse(readFileSync(
   sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[] }>;
 };
 const focusRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'finops-focus-1-4');
-if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || !focusRegistryEntry.claimsAllowed.includes('focus-invoice-reconciliation')) {
+if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || focusRegistryEntry.claimsAllowed.length !== 1 || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
   throw new Error('FOCUS 1.4 registry must explicitly allow only its active invoice-reconciliation source for that claim type');
 }
 const discoveryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'owasp-agentic-applications-top10');
