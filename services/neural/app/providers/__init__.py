@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 
 from app.providers.base import InferenceResult, ProviderAdapter
+from app.providers.http import ResponseBodyTooLargeError, read_bounded_response_text
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -165,33 +166,34 @@ class NvidiaNimAdapter(ProviderAdapter):
         readiness: bool,
     ) -> str:
         """Fetch and bound the response text before JSON decoding."""
+        deadline = time.monotonic() + min(timeout_seconds, self._timeout)
         try:
             response = await asyncio.wait_for(
                 fetch_fn(url, **options),
-                timeout=min(timeout_seconds, self._timeout),
+                timeout=max(0.001, deadline - time.monotonic()),
             )
             status = int(response.status)
             if status != 200:
                 label = "readiness probe" if readiness else "request"
                 raise RuntimeError(f"NVIDIA NIM {label} failed with HTTP {status}")
-            response_headers = getattr(response, "headers", None)
-            length = response_headers.get("content-length") if response_headers is not None else None
-            if length:
-                try:
-                    if int(length) > max_bytes:
-                        raise RuntimeError("NVIDIA NIM response exceeded the response size limit")
-                except ValueError:
-                    raise RuntimeError("NVIDIA NIM returned an invalid content length") from None
-            raw = await response.text()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("NVIDIA NIM response exceeded its deadline")
+            raw = await read_bounded_response_text(
+                response,
+                max_bytes=max_bytes,
+                timeout_seconds=remaining,
+            )
+        except ResponseBodyTooLargeError:
+            raise RuntimeError("NVIDIA NIM response exceeded the response size limit") from None
         except TimeoutError:
-            raise RuntimeError("NVIDIA NIM request exceeded its timeout") from None
+            label = "readiness probe" if readiness else "request"
+            raise RuntimeError(f"NVIDIA NIM {label} exceeded its timeout") from None
         except RuntimeError:
             raise
         except Exception:  # noqa: BLE001 - upstream details may contain secrets
             label = "readiness endpoint" if readiness else "request"
             raise RuntimeError(f"NVIDIA NIM {label} is unavailable") from None
-        if not isinstance(raw, str) or len(raw.encode("utf-8")) > max_bytes:
-            raise RuntimeError("NVIDIA NIM response exceeded the response size limit")
         return raw
 
     @staticmethod
