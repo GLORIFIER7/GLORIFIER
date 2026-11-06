@@ -32,7 +32,7 @@ The workflow pins the official Octopus GitHub Actions to commit SHAs. It does no
    | OCTOPUS_ENABLED | Set to `true` only after the Octopus project, target and OIDC trust are configured |
    | OCTOPUS_SPACE | Exact Octopus Space name |
    | OCTOPUS_PROJECT | Exact Octopus Project name |
-   | OCTOPUS_ENVIRONMENT | Exact single target Environment name |
+   | OCTOPUS_ENVIRONMENT | Exact single target Environment name; commas, CR, and LF are rejected |
    | OCTOPUS_CONFIG_AS_CODE | `true` only if the Octopus Project configuration is stored in Git; otherwise `false` or unset |
 
 6. Create and configure the Octopus Project deployment process, package feeds, deployment targets, variables, and lifecycle. For Config as Code, connect the project to its source repository through Octopus's GitHub connection and align its default branch with main.
