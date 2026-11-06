@@ -126,51 +126,7 @@ jobs:
             else error("expected exactly one Octopus deployment task")
             end
           ' <<< "$OCTOPUS_SERVER_TASKS")"
-          if [[ "$task_id" == *
-
-      - name: Wait for the Octopus deployment to finish
-        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
-        with:
-          space: ${{ env.OCTOPUS_SPACE }}
-          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
-          polling_interval: '15'
-          timeout_after: '1800'
-          cancel_on_timeout: 'false'
-\n'* || "$task_id" == *
-
-      - name: Wait for the Octopus deployment to finish
-        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
-        with:
-          space: ${{ env.OCTOPUS_SPACE }}
-          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
-          polling_interval: '15'
-          timeout_after: '1800'
-          cancel_on_timeout: 'false'
-\r'* ]]; then
-            echo "::error::Octopus serverTaskId contains an unexpected newline; aborting."
-            exit 1
-          fi
-          if [[ "$task_id" == *
-
-      - name: Wait for the Octopus deployment to finish
-        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
-        with:
-          space: ${{ env.OCTOPUS_SPACE }}
-          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
-          polling_interval: '15'
-          timeout_after: '1800'
-          cancel_on_timeout: 'false'
-\n'* || "$task_id" == *
-
-      - name: Wait for the Octopus deployment to finish
-        uses: OctopusDeploy/await-task-action@2d45f7571a355fbb73e0150893d06840bbef870e # v4
-        with:
-          space: ${{ env.OCTOPUS_SPACE }}
-          server_task_id: ${{ steps.deployment_task.outputs.server_task_id }}
-          polling_interval: '15'
-          timeout_after: '1800'
-          cancel_on_timeout: 'false'
-\r'* ]]; then
+          if [[ "$task_id" == *$'\x0a'* || "$task_id" == *$'\x0d'* ]]; then
             echo "::error::Octopus serverTaskId contains an unexpected newline; refusing to write GitHub output."
             exit 1
           fi
