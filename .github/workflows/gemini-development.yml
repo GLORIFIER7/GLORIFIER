@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   gemini:
-    if: ${{ github.actor == 'GLORIFIER7' }}
+    if: ${{ github.actor == 'GLORIFIER7' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
     outputs:
@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -98,6 +99,7 @@ jobs:
       TASK: ${{ inputs.task }}
     steps:
       - name: Fresh checkout for publishing
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -124,6 +126,8 @@ jobs:
           paths = (changed + untracked).decode("utf-8", "surrogateescape").split("\0")
           protected = re.compile(
               r"(^|/)\.github/workflows/|(^|/)\.env(?:$|[./])|"
+              r"(^|/)package\.json$|(^|/)package-lock\.json$|"
+              r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
               r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
               r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|"
               r"p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
@@ -136,6 +140,19 @@ jobs:
           PY
           "${GITC[@]}" add -A
           "${GITC[@]}" diff --cached --check
+      - name: Setup Node.js for independent patch validation
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install trusted locked dependencies without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Independently validate the generated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint
+          npm run build
       - name: Create review branch and pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
