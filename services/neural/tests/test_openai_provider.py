@@ -283,3 +283,12 @@ def test_openai_runtime_requires_explicit_inference_egress_and_key(monkeypatch):
     assert orchestrator._provider_name == "openai"
     assert orchestrator._allow_inference is True
     assert orchestrator._providers.get("openai") is not None
+
+
+def test_openai_adapter_requires_an_explicit_model_when_environment_is_unset(monkeypatch):
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    adapter = OpenAIResponsesAdapter(api_key="test-key")
+
+    assert adapter.is_configured() is False
+    with pytest.raises(RuntimeError, match="OpenAI is not configured"):
+        adapter.check_readiness()
