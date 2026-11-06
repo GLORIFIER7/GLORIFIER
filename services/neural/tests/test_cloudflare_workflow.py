@@ -199,7 +199,7 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
         "Live health and readiness probes must retain their bounded smoke-test timeout"
     )
     condition_match = re.search(
-        r"(?ms)^    if: >-\n(?P<expression>(?:^      .*\n?)+)",
+        r"(?ms)^    if: >-\n(?P<expression>(?:^      [^ ].*\n?)+)",
         smoke,
     )
     assert condition_match is not None, "Production smoke must have an explicit job condition"
