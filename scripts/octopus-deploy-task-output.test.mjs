@@ -132,3 +132,15 @@ test('GLORIFIER Octopus waits for the verified Docker image workflow', () => {
   assert.ok(workflow.includes("github.event.workflow_run.event == 'workflow_run'"));
   assert.ok(workflow.includes('github.event.workflow_run.head_sha == github.sha'));
 });
+
+
+test('upstream image publication verification preserves least-privilege token permissions', () => {
+  assert.equal(/^\s*actions:\s*read\s*$/m.test(workflow), false);
+  const verifyStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
+  const authenticateStart = workflow.indexOf('      - name: Authenticate to Octopus Deploy using GitHub OIDC');
+  assert.ok(verifyStart >= 0 && authenticateStart > verifyStart);
+  const verification = workflow.slice(verifyStart, authenticateStart);
+  assert.ok(verification.includes("job.get(\"name\") == \"publish-after-ci\""));
+  assert.ok(verification.includes("step.get(\"name\") == \"Tag and publish verified image\""));
+  assert.equal(verification.includes('Authorization'), false);
+});
