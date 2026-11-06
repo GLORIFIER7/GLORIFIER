@@ -66,10 +66,42 @@ async def _await_task_until(task: asyncio.Task[Any], *, deadline: float) -> Any:
     return task.result()
 
 
-async def await_with_deadline(awaitable: Any, *, deadline: float) -> Any:
-    """Await a provider fetch without blocking on cancellation-resistant work."""
+def create_abort_controller() -> Any | None:
+    """Create a Workers AbortController when the JavaScript runtime exposes it."""
+    try:
+        import js
+    except ImportError:
+        return None
+    controller_type = getattr(js, "AbortController", None)
+    if controller_type is None:
+        return None
+    with suppress(Exception):  # optional runtime capability; Python tests may lack JS globals
+        return controller_type.new()
+    return None
+
+
+def _abort_controller(controller: Any | None) -> None:
+    if controller is None:
+        return
+    abort = getattr(controller, "abort", None)
+    if callable(abort):
+        with suppress(Exception):  # cancellation must not mask the transport outcome
+            abort()
+
+
+async def await_with_deadline(
+    awaitable: Any,
+    *,
+    deadline: float,
+    abort_controller: Any | None = None,
+) -> Any:
+    """Await a provider fetch under a deadline and abort its underlying request."""
     task = asyncio.create_task(_await_js(awaitable))
-    return await _await_task_until(task, deadline=deadline)
+    try:
+        return await _await_task_until(task, deadline=deadline)
+    except (TimeoutError, asyncio.CancelledError):
+        _abort_controller(abort_controller)
+        raise
 
 
 async def _cancel_target(target: Any, *, deadline: float) -> None:
