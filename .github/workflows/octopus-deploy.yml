@@ -43,7 +43,6 @@ jobs:
       OCTOPUS_SPACE: ${{ vars.OCTOPUS_SPACE }}
       OCTOPUS_PROJECT: ${{ vars.OCTOPUS_PROJECT }}
       OCTOPUS_ENVIRONMENT: ${{ vars.OCTOPUS_ENVIRONMENT }}
-      OCTOPUS_SERVICE_ACCOUNT_ID: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
       OCTOPUS_CONFIG_AS_CODE: ${{ vars.OCTOPUS_CONFIG_AS_CODE }}
       SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
@@ -53,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for name in OCTOPUS_SPACE OCTOPUS_PROJECT OCTOPUS_ENVIRONMENT OCTOPUS_SERVICE_ACCOUNT_ID; do
+          for name in OCTOPUS_SPACE OCTOPUS_PROJECT OCTOPUS_ENVIRONMENT; do
             value="${!name:-}"
             if [[ -z "$value" ]]; then
               echo "::error::Missing required Octopus configuration: $name. Configure the Octopus integration before deploying."
@@ -125,11 +124,22 @@ jobs:
           print(f"Verified published Docker image for source commit {source_commit}.")
           PY
 
+      - name: Validate Octopus service account secret is configured
+        shell: bash
+        env:
+          OCTOPUS_SERVICE_ACCOUNT_ID: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${OCTOPUS_SERVICE_ACCOUNT_ID:-}" || {
+            echo "::error::Missing environment secret OCTOPUS_SERVICE_ACCOUNT_ID."
+            exit 1
+          }
+
       - name: Authenticate to Octopus Deploy using GitHub OIDC
         uses: OctopusDeploy/login@b6156b03b4b892ffc8e9c57d098e9fe1866dcdb3 # v2
         with:
           server: ${{ env.OCTOPUS_URL }}
-          service_account_id: ${{ env.OCTOPUS_SERVICE_ACCOUNT_ID }}
+          service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
 
       - name: Create release for a database-backed Octopus project
         id: create_release_db
