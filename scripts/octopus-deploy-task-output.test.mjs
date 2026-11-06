@@ -166,7 +166,6 @@ function upstreamPublicationScript() {
   assert.ok(pythonStart >= 0 && pythonEnd > pythonStart);
   return shellScript.slice(pythonStart + pythonMarker.length, pythonEnd);
 }
-
 function runUpstreamPublicationCheck(conclusion) {
   const script = upstreamPublicationScript();
   const harness = `import io, json, os, urllib.request
