@@ -48,7 +48,8 @@
     "GLORIFIER_NEON_CONNECTIVITY_ENABLED": "true",
     "GLORIFIER_PROVIDER": "openai",
     "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
-    "GLORIFIER_ENABLE_INFERENCE": "true"
+    "GLORIFIER_ENABLE_INFERENCE": "true",
+    "OPENAI_MODEL": "gpt-6-luna"
   },
   "hyperdrive": [
     {
