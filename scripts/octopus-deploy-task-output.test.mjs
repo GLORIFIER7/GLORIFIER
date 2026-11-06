@@ -83,7 +83,7 @@ test('Octopus task output rejects CR or LF before writing GitHub outputs', () =>
 
       assert.equal(result.success, false, 'control characters must fail closed');
       assert.equal(result.output, '', 'invalid IDs must not write to GITHUB_OUTPUT');
-      assert.match(result.stdout, /unexpected newline/i);
+      assert.match(result.stderr, /safe Octopus deployment task ID/i);
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -121,7 +121,14 @@ test('Octopus workflow rejects stale main commits before requesting an OIDC toke
 
 test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
   const pinnedPackageVersions = workflow.match(
-    /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
+    /package_version:\s*sha-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
   ) ?? [];
   assert.equal(pinnedPackageVersions.length, 2);
+});
+
+
+test('GLORIFIER Octopus waits for the verified Docker image workflow', () => {
+  assert.ok(workflow.includes('workflows: ["GLORIFIER Docker Image"]'));
+  assert.ok(workflow.includes("github.event.workflow_run.event == 'workflow_run'"));
+  assert.ok(workflow.includes('github.event.workflow_run.head_sha == github.sha'));
 });
