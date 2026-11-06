@@ -3,103 +3,49 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const runtimeDockerfiles = [
-  ['Ubuntu application runtime', '../Dockerfile.ubuntu'],
-  ['Ubuntu permanent orchestrator runtime', '../Dockerfile.orchestrator.ubuntu'],
+  ['Primary application runtime', '../Dockerfile'],
+  ['Application compatibility runtime', '../Dockerfile.ubuntu'],
+  ['Permanent orchestrator runtime', '../Dockerfile.orchestrator.ubuntu'],
 ];
 
+const fixedZlibVersion = '1:1.3.dfsg+really1.3.2-4';
+
 for (const [label, relativePath] of runtimeDockerfiles) {
-  test(label + ' installs the fixed APT security packages without retrying vulnerable downloads', () => {
+  test(label + ' installs Debian sid zlib with both high-severity gzwrite fixes', () => {
     const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
-    const updateIndex = source.indexOf('apt-get -o Acquire::Retries=0 update');
-    const upgradeIndex = source.indexOf(
-      'apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt libapt-pkg6.0t64',
+    const runtimeStage = source.indexOf('FROM debian:unstable-slim AS runtime');
+    const updateIndex = source.indexOf('apt-get update', runtimeStage);
+    const installIndex = source.indexOf('apt-get install -y --no-install-recommends', updateIndex);
+    const versionReadIndex = source.indexOf(
+      'zlib_version="$(dpkg-query -W -f=\'\u0024{Version}\' zlib1g)"',
+      installIndex,
     );
-    const aptVersionCheckIndex = source.indexOf(
-      'dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1',
-    );
-    const libaptVersionCheckIndex = source.indexOf(
-      'dpkg --compare-versions "$libapt_version" ge 2.8.4ubuntu0.1',
+    const versionCheckIndex = source.indexOf(
+      'dpkg --compare-versions "$zlib_version" ge',
+      versionReadIndex,
     );
 
-    assert.ok(updateIndex >= 0, 'APT metadata update must disable retries');
-    assert.ok(upgradeIndex > updateIndex, 'apt and libapt must be upgraded before application packages are installed');
-    assert.ok(aptVersionCheckIndex > upgradeIndex, 'the installed apt version must be checked against the Ubuntu fix');
-    assert.ok(libaptVersionCheckIndex > aptVersionCheckIndex, 'the installed libapt-pkg version must be checked against the Ubuntu fix');
-    const retryPolicyIndex = source.indexOf('Acquire::Retries "0";');
-    assert.ok(retryPolicyIndex > libaptVersionCheckIndex, 'the runtime must persistently disable APT retries after validating patched packages');
-    const runtimePackageInstallIndex = source.indexOf(
-      'apt-get -o Acquire::Retries=0 install -y --no-install-recommends',
-      upgradeIndex + 1,
-    );
-    assert.ok(runtimePackageInstallIndex > upgradeIndex, 'runtime packages must be installed with APT retries disabled after the security upgrade');
-    assert.ok(runtimePackageInstallIndex > libaptVersionCheckIndex, 'runtime packages must only be installed after both patched package versions are verified');
-    assert.ok(runtimePackageInstallIndex > retryPolicyIndex, 'runtime packages must only be installed after the persistent no-retry policy is configured');
-    const runtimePackages = [
-      'ca-certificates',
-      'libatomic1',
-      'libgcc-s1',
-      'libssl3t64',
-      'libstdc++6',
-      'passwd',
-      'zlib1g',
-    ];
-    const runtimePackageIndexes = runtimePackages.map((name) =>
-      source.indexOf(name, runtimePackageInstallIndex),
+    assert.ok(runtimeStage >= 0, 'the runtime must use the Debian sid base whose zlib package contains the security backport');
+    assert.ok(updateIndex > runtimeStage, 'APT metadata must be refreshed in the runtime stage');
+    assert.ok(installIndex > updateIndex, 'runtime packages must be installed after refreshing APT metadata');
+    assert.ok(source.indexOf('zlib1g', installIndex) > installIndex, 'zlib1g must be explicitly installed or upgraded');
+    assert.ok(versionReadIndex > installIndex, 'the installed zlib package version must be read after installation');
+    assert.ok(versionCheckIndex > versionReadIndex, 'the zlib security floor must be enforced after reading the installed version');
+    assert.ok(
+      source.includes(fixedZlibVersion),
+      'the runtime must require the Debian package version that includes the CVE-2026-76844 and CVE-2026-85091 fixes',
     );
     assert.ok(
-      runtimePackageIndexes.every((index) => index > runtimePackageInstallIndex),
-      'all runtime packages must be explicitly listed after the install command',
+      source.indexOf('rm -rf /var/lib/apt/lists/*', versionCheckIndex) > versionCheckIndex,
+      'APT metadata must only be removed after the package version check succeeds',
     );
-    assert.ok(
-      runtimePackageIndexes.every(
-        (index, position) => position === 0 || index > runtimePackageIndexes[position - 1],
-      ),
-      'runtime package names must remain sorted alphanumerically',
-    );
-    assert.ok(!source.includes('apt-get -o Acquire::Retries=0 purge -y apt libapt-pkg6.0t64'), 'the runtime must retain Ubuntu Essential APT packages rather than attempt an unsafe purge');
-
   });
 }
 
-test('Trivy VEX acknowledges only Canonical-fixed Ubuntu APT package versions', () => {
-  const vex = JSON.parse(
-    readFileSync(
-      new URL('../security/vex/CVE-2026-109518.openvex.json', import.meta.url),
-      'utf8',
-    ),
-  );
-  const expectedProducts = [
-    'pkg:deb/ubuntu/apt@2.8.4ubuntu0.1',
-    'pkg:deb/ubuntu/libapt-pkg6.0t64@2.8.4ubuntu0.1',
-  ];
-  const statements = vex.statements;
-
-  assert.equal(vex.version, 1, 'the VEX document must use OpenVEX version 1');
-  assert.equal(statements.length, 2, 'the VEX scope must remain limited to the two reported APT packages');
-  assert.deepEqual(
-    statements.map((statement) => statement.products?.[0]?.['@id']).sort(),
-    expectedProducts.sort(),
-    'VEX must match only the exact Canonical-fixed Ubuntu 24.04 package versions',
-  );
-  assert.ok(
-    statements.every(
-      (statement) =>
-        statement.vulnerability?.name === 'CVE-2026-109518' &&
-        statement.status === 'fixed',
-    ),
-    'only CVE-2026-109518 may be marked fixed for these exact package versions',
-  );
-  const canonicalStatusNotes =
-    "Canonical's Ubuntu CVE tracker identifies Ubuntu 24.04 Noble apt as fixed in 2.8.4ubuntu0.1. Canonical USN-8996-1 documents the security update. The runtime Dockerfiles also set Acquire::Retries to 0 persistently. Primary evidence: https://ubuntu.com/security/CVE-2026-109518 and https://ubuntu.com/security/notices/USN-8996-1.";
-
-  assert.ok(
-    statements.every((statement) => statement.status_notes === canonicalStatusNotes),
-    'each VEX statement must cite the exact Canonical primary-evidence statement',
-  );
-
+test('the container vulnerability configuration does not apply an Ubuntu-only VEX assertion to Debian runtime images', () => {
   const trivyConfig = readFileSync(new URL('../.trivy.yaml', import.meta.url), 'utf8');
   assert.ok(
-    trivyConfig.includes('security/vex/CVE-2026-109518.openvex.json'),
-    'Trivy must load the package-scoped VEX document',
+    !trivyConfig.includes('CVE-2026-109518.openvex.json'),
+    'the Ubuntu-specific APT VEX document must not be applied to Debian runtime images',
   );
 });
