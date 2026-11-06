@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from contextlib import suppress
 import math
 import time
-from collections.abc import Mapping
-from typing import Any
+from typing import Any, NoReturn
 
 
 class ResponseBodyTooLargeError(ValueError):
@@ -39,24 +39,19 @@ async def _cancel_target(target: Any, *, deadline: float) -> None:
     cancel = getattr(target, "cancel", None)
     if not callable(cancel):
         return
-
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         return
-
     with suppress(Exception):  # best-effort cleanup must not mask the primary failure
         await asyncio.wait_for(_await_js(cancel()), timeout=remaining)
 
 
-def _chunk_length(value: Any) -> int:
-    """Read a byte length without materializing a JavaScript typed-array chunk."""
-    if isinstance(value, bytes):
-        return len(value)
-    if isinstance(value, bytearray):
-        return len(value)
-    if isinstance(value, memoryview):
-        return value.nbytes
+async def _cancel_and_raise(target: Any, *, deadline: float, error: Exception) -> NoReturn:
+    await _cancel_target(target, deadline=deadline)
+    raise error
 
+
+def _typed_array_byte_length(value: Any) -> int | None:
     for attribute in ("byteLength", "byte_length"):
         try:
             size = getattr(value, attribute)
@@ -71,7 +66,18 @@ def _chunk_length(value: Any) -> int:
         if length < 0:
             raise ValueError("provider response chunk has a negative byte length")
         return length
+    return None
 
+
+def _chunk_length(value: Any) -> int:
+    """Read a byte length without materializing a JavaScript typed-array chunk."""
+    if isinstance(value, (bytes, bytearray)):
+        return len(value)
+    if isinstance(value, memoryview):
+        return value.nbytes
+    typed_array_length = _typed_array_byte_length(value)
+    if typed_array_length is not None:
+        return typed_array_length
     try:
         length = len(value)
     except (TypeError, ValueError, OverflowError):
@@ -95,6 +101,75 @@ def _chunk_bytes(value: Any) -> bytes:
         raise
 
 
+async def _response_reader(response: Any, *, max_bytes: int, deadline: float) -> Any:
+    body = getattr(response, "body", None)
+    declared_length = _header(getattr(response, "headers", None), "content-length")
+    if declared_length is not None:
+        try:
+            parsed_length = int(declared_length)
+        except (TypeError, ValueError):
+            await _cancel_and_raise(
+                body, deadline=deadline,
+                error=ValueError("provider returned an invalid content length"),
+            )
+        if parsed_length < 0:
+            await _cancel_and_raise(
+                body, deadline=deadline,
+                error=ValueError("provider returned an invalid content length"),
+            )
+        if parsed_length > max_bytes:
+            await _cancel_and_raise(
+                body, deadline=deadline,
+                error=ResponseBodyTooLargeError("provider response exceeded response size limit"),
+            )
+
+    get_reader = getattr(body, "getReader", None)
+    if not callable(get_reader):
+        get_reader = getattr(body, "get_reader", None)
+    if not callable(get_reader):
+        await _cancel_and_raise(
+            body, deadline=deadline,
+            error=TypeError("provider response does not expose a readable stream"),
+        )
+    return get_reader()
+
+
+def _read_result_field(result: Any, name: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(name)
+    return getattr(result, name, None)
+
+
+async def _read_chunks(reader: Any, *, max_bytes: int, deadline: float) -> bytearray:
+    collected = bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("provider response body exceeded its deadline")
+        result = await asyncio.wait_for(_await_js(reader.read()), timeout=remaining)
+        if _read_result_field(result, "done") is True:
+            return collected
+        value = _read_result_field(result, "value")
+        if value is None:
+            continue
+        chunk_length = _chunk_length(value)
+        if chunk_length > max_bytes - len(collected):
+            raise ResponseBodyTooLargeError("provider response exceeded response size limit")
+        chunk = _chunk_bytes(value)
+        if len(chunk) != chunk_length:
+            raise ValueError("provider response chunk byte length changed during conversion")
+        collected.extend(chunk)
+
+
+def _release_reader(reader: Any) -> None:
+    release = getattr(reader, "releaseLock", None)
+    if not callable(release):
+        release = getattr(reader, "release_lock", None)
+    if callable(release):
+        with suppress(Exception):  # do not mask the read result during cleanup
+            release()
+
+
 async def read_bounded_response_text(
     response: Any,
     *,
@@ -116,72 +191,16 @@ async def read_bounded_response_text(
         raise ValueError("timeout_seconds must be a finite positive number")
 
     deadline = time.monotonic() + timeout_value
-    body = getattr(response, "body", None)
-    declared_length = _header(getattr(response, "headers", None), "content-length")
-    if declared_length is not None:
-        try:
-            parsed_length = int(declared_length)
-        except (TypeError, ValueError):
-            await _cancel_target(body, deadline=deadline)
-            raise ValueError("provider returned an invalid content length") from None
-        if parsed_length < 0:
-            await _cancel_target(body, deadline=deadline)
-            raise ValueError("provider returned an invalid content length")
-        if parsed_length > max_bytes:
-            await _cancel_target(body, deadline=deadline)
-            raise ResponseBodyTooLargeError("provider response exceeded response size limit")
-
-    get_reader = getattr(body, "getReader", None)
-    if not callable(get_reader):
-        get_reader = getattr(body, "get_reader", None)
-    if not callable(get_reader):
-        await _cancel_target(body, deadline=deadline)
-        raise TypeError("provider response does not expose a readable stream")
-
-    reader = get_reader()
-    cleanup_budget = min(0.05, timeout_value * 0.1)
-    read_deadline = deadline - cleanup_budget
-    collected = bytearray()
+    reader = await _response_reader(response, max_bytes=max_bytes, deadline=deadline)
+    read_deadline = deadline - min(0.05, timeout_value * 0.1)
     try:
-        while True:
-            remaining = read_deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("provider response body exceeded its deadline")
-            result = await asyncio.wait_for(_await_js(reader.read()), timeout=remaining)
-            done = getattr(result, "done", None)
-            if done is None and isinstance(result, Mapping):
-                done = result.get("done")
-            if done is True:
-                break
-            value = getattr(result, "value", None)
-            if value is None and isinstance(result, Mapping):
-                value = result.get("value")
-            if value is None:
-                continue
-
-            remaining_bytes = max_bytes - len(collected)
-            chunk_length = _chunk_length(value)
-            if chunk_length > remaining_bytes:
-                raise ResponseBodyTooLargeError("provider response exceeded response size limit")
-            chunk = _chunk_bytes(value)
-            if len(chunk) != chunk_length:
-                raise ValueError("provider response chunk byte length changed during conversion")
-            collected.extend(chunk)
-
+        collected = await _read_chunks(reader, max_bytes=max_bytes, deadline=read_deadline)
         try:
             return collected.decode("utf-8")
         except UnicodeDecodeError:
             raise ValueError("provider response was not valid UTF-8") from None
-    except (TimeoutError, ResponseBodyTooLargeError):
-        await _cancel_target(reader, deadline=deadline)
-        raise
     except Exception:
         await _cancel_target(reader, deadline=deadline)
         raise
     finally:
-        release = getattr(reader, "releaseLock", None)
-        if not callable(release):
-            release = getattr(reader, "release_lock", None)
-        if callable(release):
-            with suppress(Exception):  # do not mask the read result during cleanup
-                release()
+        _release_reader(reader)
