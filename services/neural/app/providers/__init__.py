@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 from app.providers.base import InferenceResult, ProviderAdapter
-from app.providers.http import ResponseBodyTooLargeError, read_bounded_response_text
+from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
 
 
 class _NvidiaNimHttpStatusError(RuntimeError):
@@ -172,9 +172,9 @@ class NvidiaNimAdapter(ProviderAdapter):
         """Fetch and bound the response text before JSON decoding."""
         deadline = time.monotonic() + min(timeout_seconds, self._timeout)
         try:
-            response = await asyncio.wait_for(
+            response = await await_with_deadline(
                 fetch_fn(url, **options),
-                timeout=max(0.001, deadline - time.monotonic()),
+                deadline=deadline,
             )
             status = int(response.status)
             if status != 200:
