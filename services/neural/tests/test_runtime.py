@@ -30,7 +30,6 @@ class _RuntimeReadableStream:
 
     def getReader(self):
         return _RuntimeBodyReader(self._body)
-from types import SimpleNamespace
 
 
 def clear_runtime_environment(monkeypatch):
