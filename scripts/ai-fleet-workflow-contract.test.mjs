@@ -32,6 +32,7 @@ test('the model-execution job has no GitHub write permissions', () => {
   assert.match(workflow, /^permissions:\n  contents: read\n  pull-requests: read/m);
   assert.doesNotMatch(coding, /(?:actions|contents|pull-requests):\s*write/);
   assert.match(coding, /uses: openai\/codex-action@/);
+  assert.match(coding, /effort: medium/);
   assert.match(coding, /openai-api-key: \$\{\{ secrets\.OPENAI_API_KEY \}\}/);
   assert.doesNotMatch(coding, /env:\n\s+OPENAI_API_KEY:/);
 });
@@ -48,6 +49,8 @@ test('generated changes cross the privilege boundary only as a validated patch a
 
 test('only the trusted publication and CI-dispatch jobs receive write permissions', () => {
   assert.match(publish, /permissions:\n      contents: write\n      pull-requests: write/);
+  assert.match(publish, /needs: coding-fleet/);
+  assert.match(publish, /outputs\\.authorized/);
   assert.match(dispatch, /permissions:\n      actions: write\n      contents: read/);
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/);
   assert.match(dispatch, /needs: publish-proposal/);
