@@ -198,7 +198,7 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     assert "timeout-minutes: 20" in smoke, (
         "Live health and readiness probes must retain their bounded smoke-test timeout"
     )
-    condition_header = "    if: >-\\n"
+    condition_header = "    if: >-" + chr(10)
     condition_start = smoke.find(condition_header)
     assert condition_start >= 0, "Production smoke must have an explicit job condition"
     condition_lines = []
