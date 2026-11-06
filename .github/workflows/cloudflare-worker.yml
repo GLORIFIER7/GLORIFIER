@@ -45,6 +45,8 @@ jobs:
 
       - name: Test Cloudflare Worker proxy and fallback handling
         run: npm run test:cloudflare-worker
+      - name: Test production and preview Neural origin configuration
+        run: node scripts/neural-worker-config.test.mjs
 
       - name: Test Worker integration registry and data truth contract
         run: npm run test:worker-integration-registry
