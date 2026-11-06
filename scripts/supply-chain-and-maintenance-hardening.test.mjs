@@ -146,8 +146,14 @@ const nvidiaMaintenanceWorkflow = readFileSync(
 );
 
 test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
-  assert.match(
-    nvidiaMaintenanceWorkflow,
-    /if \\[\\[ -n "\\$candidate" && ! "\\$candidate" =~ \\^\\[0-9\\]\\+\\$ \\]\\]; then\\s+echo "::error::Invalid run_id input; expected a decimal GitHub Actions run ID\\."\\s+exit 1\\s+fi\\s+if \\[\\[ -z "\\$candidate" \\]\\]; then\\s+candidate="\\$\\(gh run list/,
+  const guardStart = nvidiaMaintenanceWorkflow.indexOf(
+    'if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then',
   );
+  const guardEnd = nvidiaMaintenanceWorkflow.indexOf('\n          fi', guardStart);
+  const fallbackStart = nvidiaMaintenanceWorkflow.indexOf('candidate="$(gh run list');
+  assert.ok(guardStart >= 0, 'an explicit run ID must be validated');
+  assert.ok(guardEnd > guardStart, 'the run ID validation guard must close');
+  assert.match(nvidiaMaintenanceWorkflow.slice(guardStart, guardEnd), /::error::Invalid run_id input/);
+  assert.match(nvidiaMaintenanceWorkflow.slice(guardStart, guardEnd), /exit 1/);
+  assert.ok(fallbackStart > guardEnd, 'latest-failure fallback must happen only after explicit-input validation');
 });
