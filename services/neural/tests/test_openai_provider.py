@@ -277,6 +277,7 @@ def test_openai_runtime_requires_explicit_inference_egress_and_key(monkeypatch):
     monkeypatch.setenv("GLORIFIER_PROVIDER", "openai")
     monkeypatch.setenv("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
+    monkeypatch.setenv("OPENAI_MODEL", "configured-test-model")
 
     orchestrator = build_orchestrator_from_environment()
 
