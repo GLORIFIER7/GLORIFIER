@@ -221,6 +221,8 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     assert "checks: read" not in workflow, (
         "The workflow must not request check-run permissions when it no longer polls check runs"
     )
+
+
 def test_cloudflare_worker_enables_owner_authorized_openai_inference():
     config_path = (
         SERVICE_ROOT
