@@ -9,7 +9,8 @@ The Octopus Deploy workflow:
 - Can also be started manually from main.
 - Does not deploy pull requests, failed CI runs, scheduled CI runs, or manual CI runs.
 - Creates a release, deploys it to one configured Octopus environment, and waits for the deployment task to finish.
-- Skips automatic deployment until all required Octopus repository variables exist. A manual run with missing configuration fails clearly at preflight.
+- Runs only when the repository Actions variable `OCTOPUS_ENABLED` is exactly `true` and the required project/environment variables are present. Manual dispatch is also gated at the job level and is accepted only from `main`.
+- Checks the Octopus service-account ID from the `octopus-deploy` Environment secret before requesting an OIDC token.
 - Uses GitHub OIDC and a dedicated Octopus service account; no long-lived Octopus API key is stored in GitHub.
 
 The workflow pins the official Octopus GitHub Actions to commit SHAs. It does not bypass branch protection, merge pull requests, or modify repository rulesets.
@@ -23,17 +24,18 @@ The workflow pins the official Octopus GitHub Actions to commit SHAs. It does no
 
    Let Octopus provide the required audience and remaining identity settings. Do not broaden the subject to all repositories or refs.
 3. In GitHub, create the repository Environment named **octopus-deploy** and restrict it to the **main** branch. Add required reviewers or other environment protections only when required by the deployment policy.
-4. Add these repository Actions **Variables** (not secrets):
+4. In the GitHub `octopus-deploy` Environment, add the environment **Secret** `OCTOPUS_SERVICE_ACCOUNT_ID` containing the dedicated Octopus service-account ID. Keep this ID out of repository variables and workflow logs.
+5. Add these repository Actions **Variables**:
 
    | Variable | Value |
    |---|---|
-   | OCTOPUS_SERVICE_ACCOUNT_ID | Dedicated Octopus service-account ID |
+   | OCTOPUS_ENABLED | Set to `true` only after the Octopus project, target and OIDC trust are configured |
    | OCTOPUS_SPACE | Exact Octopus Space name |
    | OCTOPUS_PROJECT | Exact Octopus Project name |
    | OCTOPUS_ENVIRONMENT | Exact single target Environment name |
-   | OCTOPUS_CONFIG_AS_CODE | true only if the Octopus Project configuration is stored in Git; otherwise false or unset |
+   | OCTOPUS_CONFIG_AS_CODE | `true` only if the Octopus Project configuration is stored in Git; otherwise `false` or unset |
 
-5. Create and configure the Octopus Project deployment process, package feeds, deployment targets, variables, and lifecycle. For Config as Code, connect the project to its source repository through Octopus's GitHub connection and align its default branch with main.
+6. Create and configure the Octopus Project deployment process, package feeds, deployment targets, variables, and lifecycle. For Config as Code, connect the project to its source repository through Octopus's GitHub connection and align its default branch with main.
 
 ## Deployment boundary
 
