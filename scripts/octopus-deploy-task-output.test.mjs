@@ -236,21 +236,24 @@ test('Docker image workflow publishes the exact commit-derived Octopus package t
 });
 
 test('Octopus service-account secret is step-scoped, never job-scoped', () => {
-  const deploy = workflow.slice(workflow.indexOf('  deploy:'));
-  const jobEnv = deploy.match(/^    env:\n([\\s\\S]*?)(?=^    steps:)/m);
-  assert.ok(jobEnv, 'The deploy job environment must exist');
-  assert.doesNotMatch(jobEnv[1], /OCTOPUS_SERVICE_ACCOUNT_ID/);
+  const lines = workflow.slice(workflow.indexOf('  deploy:')).split('\n');
+  const envStart = lines.indexOf('    env:');
+  const stepsStart = lines.indexOf('    steps:');
+  assert.ok(envStart >= 0 && stepsStart > envStart, 'The deploy job environment must exist');
+  const jobEnv = lines.slice(envStart, stepsStart).join('\n');
+  assert.doesNotMatch(jobEnv, /OCTOPUS_SERVICE_ACCOUNT_ID/);
 
-  const validation = deploy.match(
-    /^      - name: Validate Octopus service account secret is configured\\n([\\s\\S]*?)(?=^      - name:|$)/m,
-  );
-  assert.ok(validation, 'A step-scoped service-account secret preflight must exist');
-  assert.match(validation[1], /OCTOPUS_SERVICE_ACCOUNT_ID: \\${{ secrets\\.OCTOPUS_SERVICE_ACCOUNT_ID }}/);
-  assert.match(validation[1], /test -n "\\$\\{OCTOPUS_SERVICE_ACCOUNT_ID:-\\}"/);
+  const secretReference = "${{" + " secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}";
+  const validationStart = lines.indexOf('      - name: Validate Octopus service account secret is configured');
+  assert.ok(validationStart >= 0, 'A step-scoped service-account secret preflight must exist');
+  const validationEnd = lines.findIndex((line, index) => index > validationStart && line.startsWith('      - name:'));
+  const validation = lines.slice(validationStart, validationEnd < 0 ? undefined : validationEnd).join('\n');
+  assert.ok(validation.includes('OCTOPUS_SERVICE_ACCOUNT_ID: ' + secretReference));
+  assert.ok(validation.includes('test -n "${OCTOPUS_SERVICE_ACCOUNT_ID:-}"'));
 
-  const login = deploy.match(
-    /^      - name: Authenticate to Octopus Deploy using GitHub OIDC\\n([\\s\\S]*?)(?=^      - name:|$)/m,
-  );
-  assert.ok(login, 'The OIDC login step must exist');
-  assert.match(login[1], /service_account_id: \\${{ secrets\\.OCTOPUS_SERVICE_ACCOUNT_ID }}/);
+  const loginStart = lines.indexOf('      - name: Authenticate to Octopus Deploy using GitHub OIDC');
+  assert.ok(loginStart >= 0, 'The OIDC login step must exist');
+  const loginEnd = lines.findIndex((line, index) => index > loginStart && line.startsWith('      - name:'));
+  const login = lines.slice(loginStart, loginEnd < 0 ? undefined : loginEnd).join('\n');
+  assert.ok(login.includes('service_account_id: ' + secretReference));
 });
