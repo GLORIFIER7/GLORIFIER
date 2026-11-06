@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: octopus-deploy-${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -49,6 +49,8 @@ jobs:
     steps:
       - name: Validate Octopus deployment configuration
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for name in OCTOPUS_SPACE OCTOPUS_PROJECT OCTOPUS_ENVIRONMENT OCTOPUS_SERVICE_ACCOUNT_ID; do
@@ -58,6 +60,11 @@ jobs:
               exit 1
             fi
           done
+          current_main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ "$current_main_sha" != "$SOURCE_COMMIT" ]]; then
+            echo "::error::Refusing stale Octopus deployment source $SOURCE_COMMIT; current main is $current_main_sha."
+            exit 1
+          fi
           if [[ "$OCTOPUS_ENVIRONMENT" == *$'\n'* || "$OCTOPUS_ENVIRONMENT" == *$'\r'* ]]; then
             echo "::error::OCTOPUS_ENVIRONMENT must contain exactly one environment name."
             exit 1
@@ -84,6 +91,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
           release_notes: |
             Automated release from ${{ github.repository }}.
             Source commit: ${{ env.SOURCE_COMMIT }}
@@ -96,6 +104,7 @@ jobs:
         with:
           space: ${{ env.OCTOPUS_SPACE }}
           project: ${{ env.OCTOPUS_PROJECT }}
+          package_version: 0.0.0-${{ env.SOURCE_COMMIT }}
           git_ref: refs/heads/main
           git_commit: ${{ env.SOURCE_COMMIT }}
           release_notes: |
