@@ -28,8 +28,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Require the default branch for patch consistency
+        if: ${{ github.ref != 'refs/heads/main' }}
+        shell: bash
+        run: |
+          echo "::error::Dispatch this workflow from main; the publisher applies patches to main."
+          exit 1
       - name: Checkout without persisted credentials
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Setup Node.js
@@ -103,7 +109,7 @@ jobs:
       TASK: ${{ inputs.task }}
     steps:
       - name: Fresh checkout for publishing
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           persist-credentials: false
