@@ -271,7 +271,7 @@ class VllmAdapter(ProviderAdapter):
                     raise RuntimeError("vLLM response exceeded the response size limit")
                 collected.extend(part)
             return bytes(collected)
-        except (Exception, asyncio.CancelledError):  # noqa: BLE001 - cancel upstream on any failed read
+        except (Exception, asyncio.CancelledError):
             cancel = getattr(reader, "cancel", None)
             if callable(cancel):
                 try:
