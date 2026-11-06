@@ -211,5 +211,5 @@ test('upstream publication check accepts only the exact successful image publica
 
 
 test('Docker image workflow publishes the exact commit-derived Octopus package tag', () => {
-  assert.match(dockerImageWorkflow, /0\\.0\\.0-\\$\\{IMAGE_SHA\\}/);
+  assert.match(dockerImageWorkflow, /0\.0\.0-\$\{IMAGE_SHA\}/);
 });
