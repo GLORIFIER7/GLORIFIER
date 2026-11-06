@@ -2287,6 +2287,14 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/ready');
         assert.match(neuralReady.headers.get('x-correlation-id') ?? '', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), neuralReady.headers.get('x-correlation-id'), 'the same correlation ID must cross the Worker and Neural boundary');
+        const nilCorrelationId = '00000000-0000-0000-0000-000000000000';
+        const neuralReadyWithNilCorrelationId = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/ready', {
+          headers: { 'X-Correlation-ID': nilCorrelationId },
+        }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
+        assert.equal(neuralReadyWithNilCorrelationId.status, 503);
+        assert.equal(neuralReadyWithNilCorrelationId.headers.get('x-correlation-id'), nilCorrelationId);
+        assert.equal(getCapturedRequest().headers.get('x-correlation-id'), nilCorrelationId, 'the nil UUID accepted by NEURAL must cross the Worker unchanged');
+
         assert.equal(neuralReady.headers.get('set-cookie'), null, 'upstream cookies must not be forwarded');
 
         upstreamResponse = new Response('{"accepted":true}', { status: 202, headers: { 'Content-Type': 'application/json' } });
