@@ -134,6 +134,19 @@ test('Octopus workflow rejects comma, LF, and CR in one target environment', () 
     `"$OCTOPUS_ENVIRONMENT" == *
 
 
+test('Octopus preflight rejects comma-delimited deployment environments', () => {
+  const preflightStart = workflow.indexOf('      - name: Validate Octopus deployment configuration');
+  const verifyStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
+  assert.ok(preflightStart >= 0 && verifyStart > preflightStart);
+
+  const preflight = workflow.slice(preflightStart, verifyStart);
+  assert.ok(preflight.includes(String.raw`"$OCTOPUS_ENVIRONMENT" == *','*`));
+  assert.ok(preflight.includes(String.raw`"$OCTOPUS_ENVIRONMENT" == *$'\\n'*`));
+  assert.ok(preflight.includes(String.raw`"$OCTOPUS_ENVIRONMENT" == *$'\\r'*`));
+  assert.ok(preflight.includes('exactly one environment name (no commas, CR, or LF)'));
+});
+
+
 test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
   const pinnedPackageVersions = workflow.match(
     /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
