@@ -204,18 +204,18 @@ test('NVIDIA maintenance summary reports the selected run ID for manual dispatch
 });
 
 test('Gemini development workflow has unique step-level keys', () => {
-  const lines = geminiDevelopmentWorkflow.split(/\\r?\\n/);
+  const lines = geminiDevelopmentWorkflow.split(/\r?\n/);
   let stepIndent = null;
   let keys = new Set();
   for (const line of lines) {
-    const step = line.match(/^(\\s*)-\\s+name:/);
+    const step = line.match(/^(\s*)-\s+name:/);
     if (step) {
       stepIndent = step[1].length;
       keys = new Set(['name']);
       continue;
     }
     if (stepIndent === null) continue;
-    const property = line.match(/^(\\s+)([A-Za-z0-9_-]+):(?:\\s|$)/);
+    const property = line.match(/^(\s+)([A-Za-z0-9_-]+):(?:\s|$)/);
     if (!property) continue;
     const indent = property[1].length;
     if (indent <= stepIndent) {
