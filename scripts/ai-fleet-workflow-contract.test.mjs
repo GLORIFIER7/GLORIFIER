@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
+const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publishMarker = '\n  publish-proposal:\n';
 const codingStart = workflow.indexOf('  coding-fleet:\n');
@@ -63,4 +64,20 @@ test('only the trusted publication and CI-dispatch jobs receive write permission
 test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.match(publish, /gh pr create --draft/);
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
+});
+
+test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
+  const allowedTools = claudeWorkflow.match(/--allowedTools\s+"([^"]+)"/)?.[1];
+  assert.ok(allowedTools, 'Claude allowed-tool list must be present and quoted');
+  assert.doesNotMatch(
+    allowedTools,
+    /(?:^|,)Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
+    'Claude must not be able to run npm install commands that execute lifecycle scripts',
+  );
+  const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
+  const claudeAction = claudeWorkflow.indexOf('uses: anthropics/claude-code-action@');
+  assert.ok(
+    dependencyInstall >= 0 && claudeAction > dependencyInstall,
+    'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
+  );
 });
