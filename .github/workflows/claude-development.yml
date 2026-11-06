@@ -102,7 +102,7 @@ jobs:
             END UNTRUSTED TASK TEXT
           claude_args: |
             --max-turns 10
-            --allowedTools "Read,Glob,Grep,Edit,Write,Bash(npm ci),Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff)"
+            --allowedTools "Read,Glob,Grep,Edit,Write,Bash(npm run lint),Bash(npm run build),Bash(npm run test:architecture),Bash(git status),Bash(git diff)"
       - name: Reset workspace after failed Claude attempt
         if: ${{ steps.run.outcome == 'failure' }}
         shell: bash
