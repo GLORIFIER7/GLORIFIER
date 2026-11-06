@@ -67,11 +67,11 @@ test('automated changes remain draft PRs and are never auto-merged', () => {
 });
 
 test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
-  const allowedTools = claudeWorkflow.match(/--allowedTools\\s+"([^"]+)"/)?.[1];
+  const allowedTools = claudeWorkflow.match(/--allowedTools\s+"([^"]+)"/)?.[1];
   assert.ok(allowedTools, 'Claude allowed-tool list must be present and quoted');
   assert.doesNotMatch(
     allowedTools,
-    /(?:^|,)Bash\\(npm\\s+(?:ci|install|i)(?:\\s|\\))/,
+    /(?:^|,)Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
     'Claude must not be able to run npm install commands that execute lifecycle scripts',
   );
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
