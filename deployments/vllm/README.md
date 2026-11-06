@@ -33,15 +33,16 @@ Create the namespace by applying the manifest once, then provision the two refer
 For a controlled non-production setup, the Kubernetes CLI equivalents are:
 
 ```bash
-kubectl apply -f deployments/vllm/kubernetes.yaml --dry-run=client
-kubectl apply -f deployments/vllm/kubernetes.yaml
+kubectl create namespace glorifier-ai --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n glorifier-ai create secret generic glorifier-vllm-api \
-  --from-literal=api-key="$GLORIFIER_VLLM_API_KEY"
+  --from-file=api-key=/secure/path/vllm-api-key
 kubectl -n glorifier-ai create secret tls glorifier-vllm-tls \
   --cert=/secure/path/tls.crt --key=/secure/path/tls.key
+kubectl apply -f deployments/vllm/kubernetes.yaml --dry-run=client
+kubectl apply -f deployments/vllm/kubernetes.yaml
 ```
 
-Create the secrets before the Deployment starts; do not put their values in shell history in a shared environment. Prefer an external secret manager or cert-manager for production. Replace `vllm.example.com` in the manifest with the approved hostname before applying it. The manifest's NetworkPolicy allows ingress only from the `ingress-nginx` namespace; adapt that selector only after reviewing the actual controller namespace and labels.
+Create the secrets before the Deployment starts. Read the API key from a protected file or approved secret manager; do not pass its value as a command-line literal or commit it to shell history. Prefer an external secret manager or cert-manager for production. Replace `vllm.example.com` in the manifest with the approved hostname before applying it. The manifest's NetworkPolicy allows ingress only from the `ingress-nginx` namespace; adapt that selector only after reviewing the actual controller namespace and labels.
 
 ## GLORIFIER-NEURAL configuration
 
