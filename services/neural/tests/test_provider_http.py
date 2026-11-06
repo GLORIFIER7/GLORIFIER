@@ -305,3 +305,96 @@ def test_rejects_oversized_typed_array_before_materializing_bytes():
     assert not chunk.converted
     assert response.body_reader.cancel_calls == 1
     assert response.body_reader.release_calls == 1
+
+
+def test_stalled_read_cancellation_does_not_extend_absolute_deadline():
+    class CancellationResistantReader(FakeReader):
+        async def read(self):
+            self.read_calls += 1
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+            return FakeReadResult(done=True)
+
+    response = FakeResponse([])
+    response.body_reader = CancellationResistantReader([])
+    response.body = FakeStream(response.body_reader)
+
+    async def exercise():
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await read_bounded_response_text(
+                response, max_bytes=16, timeout_seconds=0.06
+            )
+        return time.monotonic() - started
+
+    elapsed = asyncio.run(exercise())
+
+    assert elapsed < 0.10
+    assert response.body_reader.cancel_calls == 1
+    assert response.body_reader.release_calls == 1
+
+
+def test_stalled_cancel_promise_does_not_extend_absolute_deadline():
+    class CancellationResistantCancelReader(FakeReader):
+        async def read(self):
+            self.read_calls += 1
+            await asyncio.sleep(1)
+            return FakeReadResult(done=True)
+
+        async def cancel(self):
+            self.cancel_calls += 1
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
+
+    response = FakeResponse([])
+    response.body_reader = CancellationResistantCancelReader([])
+    response.body = FakeStream(response.body_reader)
+
+    async def exercise():
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            await read_bounded_response_text(
+                response, max_bytes=16, timeout_seconds=0.06
+            )
+        return time.monotonic() - started
+
+    elapsed = asyncio.run(exercise())
+
+    assert elapsed < 0.10
+    assert response.body_reader.cancel_calls == 1
+    assert response.body_reader.release_calls == 1
+
+
+def test_caller_cancellation_cancels_reader_and_releases_lock():
+    class WaitingReader(FakeReader):
+        def __init__(self):
+            super().__init__([])
+            self.started = asyncio.Event()
+
+        async def read(self):
+            self.read_calls += 1
+            self.started.set()
+            await asyncio.Event().wait()
+            return FakeReadResult(done=True)
+
+    async def exercise():
+        response = FakeResponse([])
+        response.body_reader = WaitingReader()
+        response.body = FakeStream(response.body_reader)
+        task = asyncio.create_task(
+            read_bounded_response_text(response, max_bytes=16, timeout_seconds=1.0)
+        )
+        await response.body_reader.started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return response
+
+    response = asyncio.run(exercise())
+
+    assert response.body_reader.cancel_calls == 1
+    assert response.body_reader.release_calls == 1
