@@ -216,7 +216,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
   smoke:
-    de  smoke:
     defaults:
       run:
         working-directory: services/neural
