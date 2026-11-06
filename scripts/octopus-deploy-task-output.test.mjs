@@ -123,6 +123,17 @@ test('Octopus workflow rejects stale main commits before requesting an OIDC toke
   assert.match(preflight, /\[\[ "\$current_main_sha" != "\$SOURCE_COMMIT" \]\]/);
 });
 
+test('Octopus workflow accepts only one deployment environment', () => {
+  const preflightStart = workflow.indexOf('      - name: Validate Octopus deployment configuration');
+  const authenticateStart = workflow.indexOf('      - name: Verify the upstream Docker image publication succeeded');
+  assert.ok(preflightStart >= 0 && authenticateStart > preflightStart);
+
+  const preflight = workflow.slice(preflightStart, authenticateStart);
+  assert.ok(preflight.includes(`OCTOPUS_ENVIRONMENT" == *','*`));
+  assert.ok(preflight.includes('exactly one environment name (no commas, CR, or LF)'));
+});
+
+
 test('both Octopus release paths pin package versions to the CI-tested source commit', () => {
   const pinnedPackageVersions = workflow.match(
     /package_version:\s*0\.0\.0-\$\{\{\s*env\.SOURCE_COMMIT\s*\}\}/g,
