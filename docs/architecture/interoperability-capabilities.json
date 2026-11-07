@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-07T17:18:21Z",
+  "updatedAt": "2026-11-07T18:44:58Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -347,7 +347,9 @@
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.10",
         "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.11",
-        "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.12"
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.12",
+        "Python 3.12 / Windows Server 2022 x86_64",
+        "Python 3.12 / macOS 15 ARM64"
       ],
       "evidence": [
         {
@@ -391,6 +393,20 @@
           "targetEnvironment": "Python 3.10, 3.11 and 3.12; Ubuntu hosted runners; final SDK conformance job on PR #661 head 368236b13d7cd16d70c4c7e1ba9231a42e1a2b82",
           "observedAt": "2026-11-05T09:20:36Z",
           "notes": "Python shared contract fixtures passed on Python 3.10, 3.11 and 3.12. This exact PR-head CI run validates the listed Python versions only and does not imply a live Neural origin or provider readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982855",
+          "targetEnvironment": "Python 3.12 / Windows Server 2022 x86_64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Python Neural SDK client and shared interoperability fixture tests passed on Windows Server 2022 x86_64. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982689",
+          "targetEnvironment": "Python 3.12 / macOS 15 ARM64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Python Neural SDK client and shared interoperability fixture tests passed on the GitHub-hosted macOS 15 ARM64 runner. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
         }
       ],
       "limitations": [
@@ -822,7 +838,9 @@
       "status": "VERIFIED",
       "targetEnvironments": [
         "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9 on main",
-        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3 on main"
+        "GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3 on main",
+        "Go 1.26.x / Windows Server 2022 x86_64",
+        "Go 1.26.x / macOS 15 ARM64"
       ],
       "evidence": [
         {
@@ -845,6 +863,20 @@
           "targetEnvironment": "Go 1.26.x and 1.27.x; Ubuntu hosted runners; final SDK conformance job on PR #661 head 368236b13d7cd16d70c4c7e1ba9231a42e1a2b82",
           "observedAt": "2026-11-05T09:20:36Z",
           "notes": "Go shared contract tests and go vet passed on Go 1.26.x and 1.27.x. This exact PR-head CI run validates the listed Go versions only and does not imply a live Neural origin or provider readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982770",
+          "targetEnvironment": "Go 1.26.x / Windows Server 2022 x86_64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Go SDK contract tests and go vet passed on Windows Server 2022 x86_64. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982831",
+          "targetEnvironment": "Go 1.26.x / macOS 15 ARM64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Go SDK contract tests and go vet passed on the GitHub-hosted macOS 15 ARM64 runner. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
         }
       ],
       "limitations": [
@@ -1347,7 +1379,8 @@
       "scope": "Swift 5.9+; Foundation URLSession",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted macOS 14; Swift toolchain"
+        "GitHub-hosted macOS 14; Swift toolchain",
+        "Swift 5.9+ / macOS 15 ARM64"
       ],
       "evidence": [
         {
@@ -1377,6 +1410,13 @@
           "targetEnvironment": "Swift toolchain / macOS 14; exact final PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e",
           "observedAt": "2026-11-05T08:14:53Z",
           "notes": "Swift Neural HTTP SDK passed its language-specific job in the dedicated native SDK conformance workflow on the exact final PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e. PR #658 merged to main as 3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057. Verification is limited to the named runtime and runner; it does not establish live Neural connectivity, production provider readiness, external A2A/MCP protocol conformance, other runtime versions, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982738",
+          "targetEnvironment": "Swift 5.9+ / macOS 15 ARM64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Native Swift SDK package tests passed on the GitHub-hosted macOS 15 ARM64 runner; this replaces macOS 14 as the current GitHub Actions verification target. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
         }
       ],
       "limitations": [
@@ -1439,7 +1479,9 @@
       "scope": "Node.js 24.12.0+; ECMAScript module with TypeScript declarations; built-in Fetch; shared wire-fixture and mocked HTTP contract tests",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0"
+        "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0",
+        "Node.js 24.12.0 / Windows Server 2022 x86_64",
+        "Node.js 24.12.0 / macOS 15 ARM64"
       ],
       "evidence": [
         {
@@ -1469,6 +1511,20 @@
           "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; Node.js 24.12.0; exact PR #663 head 23d43cd19e0333e57d813759f2efb9a199610c69",
           "observedAt": "2026-11-05T11:11:27.041Z",
           "notes": "The JavaScript / TypeScript SDK job in GLORIFIER Native SDK Conformance completed successfully on the exact PR #663 head. Node.js 24.12.0 ran all 9 contract tests successfully, including shared JSON fixtures, exact origin validation, task-route-only bearer credentials, redirect blocking, timeout enforcement, bounded request/response sizes, and truthful HTTP 503 readiness behavior. This is limited to the named Node.js and Ubuntu 24.04 x86_64 target; it does not establish live Neural connectivity, real provider inference, external A2A/MCP conformance, browser support, other runtimes, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982683",
+          "targetEnvironment": "Node.js 24.12.0 / Windows Server 2022 x86_64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Server-side JavaScript/TypeScript SDK contract tests passed on Windows Server 2022 x86_64. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620/job/128492982731",
+          "targetEnvironment": "Node.js 24.12.0 / macOS 15 ARM64; exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad; GitHub Actions run #42402454620",
+          "observedAt": "2026-11-07T18:44:58Z",
+          "notes": "Server-side JavaScript/TypeScript SDK contract tests passed on the GitHub-hosted macOS 15 ARM64 runner. Exact commit tested: 319897d4316862f8c73726c6825c1b6ff7270aad. This is SDK contract evidence for this runtime, OS, and architecture only; it does not establish live Neural connectivity, provider readiness, external A2A/MCP conformance, or production deployment."
         }
       ],
       "limitations": [
