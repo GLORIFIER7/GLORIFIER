@@ -112,12 +112,12 @@ This status does not extend automatically to additional runtime versions, CPU ar
 
 | Platform target | Evidence boundary | Status |
 |---|---|---|
-| Ubuntu 24.04 x86_64 | The eleven SDKs have individual named CI targets; see the table above. | VERIFIED only for each SDK's exact listed runtime and runner |
-| Ubuntu 22.04 x86_64 | The interoperability source workflow tests the control-plane source on this runner; it does not run all eleven SDK suites here. | NOT VERIFIED for the full SDK portfolio |
-| macOS 15 ARM64 | Swift plus supplementary Python, Go, and Node.js conformance jobs are configured on this current runner family. | NOT VERIFIED until the exact PR jobs pass and their evidence is recorded |\n| macOS 14 x86_64 | The last recorded Swift pass used macOS 14; GitHub Actions retired this image on 2026-11-02. | Historical exact-target evidence only; no longer a runnable GitHub Actions target |
-| Windows 2022 | Python 3.12, Go 1.26.x, and Node.js 24.12.0 smoke jobs are being added. | NOT VERIFIED until the exact platform jobs pass and their evidence is recorded |
-| Linux ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
-| macOS ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
+| Ubuntu 24.04 x86_64 | All eleven SDKs have named native CI targets on this platform. | VERIFIED for each exact runtime and runner listed above |
+| Windows Server 2022 x86_64 | Python 3.12, Go 1.26.x, and Node.js 24.12.0 passed on PR #728 head `319897d4316862f8c73726c6825c1b6ff7270aad` in [run #42402454620](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42402454620). | PARTIALLY VERIFIED for those three SDK/runtime pairs only |
+| macOS 15 ARM64 | Python 3.12, Go 1.26.x, Node.js 24.12.0, and Swift 5.9+ passed on the same exact PR head and run. | PARTIALLY VERIFIED for those four SDK/runtime pairs only |
+| macOS 14 x86_64 | Historical Swift pass; GitHub Actions retired the macOS 14 image on 2026-11-02. | Historical exact-target evidence; no longer a runnable GitHub Actions target |
+| Ubuntu 22.04 x86_64 | The interoperability source workflow tests control-plane source here; it does not run all eleven SDK suites on this target. | NOT VERIFIED for the full SDK portfolio |
+| Linux ARM64 | No complete first-party SDK matrix is recorded. | NOT VERIFIED |
 | Browser JavaScript/TypeScript | No browser SDK is provided; bearer credentials remain server-side by design. | NOT SUPPORTED by the current security boundary |
 
 The supplementary Windows/macOS jobs are coverage probes, not automatic status promotion. A platform target becomes VERIFIED only after its exact job succeeds and the capability registry records the commit, runtime, OS, architecture, timestamp, and CI evidence. A pass for Python, Go, or Node.js does not extend the claim to the other SDKs.
