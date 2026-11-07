@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const testCredentials = () => ({ email: process.env.E2E_TEST_EMAIL, password: process.env.E2E_TEST_PASSWORD });
-const frontendUrl = process.env.FRONTEND_URL || 'https://glorifier.glorifier.workers.dev';
+const frontendUrl = process.env.FRONTEND_URL || 'https://glorifier.pages.dev';
 
 test.describe('GLORIFIER production end-to-end', () => {
     test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {

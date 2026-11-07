@@ -24,6 +24,10 @@ on:
       - "scripts/validate-interoperability-capabilities.mjs"
       - "scripts/interoperability-evidence-policy.mjs"
       - "scripts/interoperability-evidence-policy.test.mjs"
+      - "src/lib/linux-host-agent*.ts"
+      - "src/lib/auth/protected-api-paths.ts"
+      - "src/lib/auth/protected-api-paths.test.ts"
+      - "agents/linux-host-agent/**"
       - ".github/workflows/interoperability-linux.yml"
       - "Dockerfile"
       - "Dockerfile.ubuntu"
@@ -55,6 +59,10 @@ on:
       - "scripts/validate-interoperability-capabilities.mjs"
       - "scripts/interoperability-evidence-policy.mjs"
       - "scripts/interoperability-evidence-policy.test.mjs"
+      - "src/lib/linux-host-agent*.ts"
+      - "src/lib/auth/protected-api-paths.ts"
+      - "src/lib/auth/protected-api-paths.test.ts"
+      - "agents/linux-host-agent/**"
       - ".github/workflows/interoperability-linux.yml"
       - "Dockerfile"
       - "Dockerfile.ubuntu"
@@ -86,6 +94,12 @@ jobs:
         run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Test evidence freshness policy
         run: npm run test:interoperability-evidence-policy
+      - name: Test Linux host-agent contract
+        run: npm run test:linux-host-agent-contract
+      - name: Test Python Linux host agent
+        run: python3 -m unittest discover -s agents/linux-host-agent -p "test_*.py" -v
+      - name: Test API authentication bypass policy
+        run: npm run test:protected-api-paths
       - name: Test MCP interoperability registry policy
         run: npm run test:interoperability-registry
       - name: Test A2A 1.0 JSON-RPC adapter contract

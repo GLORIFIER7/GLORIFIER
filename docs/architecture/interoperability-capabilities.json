@@ -1,6 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "updatedAt": "2026-11-07T18:44:58Z",
+  "updatedAt": "2026-11-07T19:35:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1575,6 +1576,48 @@
         "The configured ingress has not been demonstrated to enforce TLS and bearer authentication; sending an Authorization header is not proof the server validates it.",
         "Mocked unit tests, container builds, Worker previews, and NVIDIA compatibility documentation cannot be promoted to live runtime verification.",
         "Follow-up PR #68 is open and marked ready for review (draft=false), but remains unmerged. Python 3.11/3.12 tests, Ruff, pip-audit, container build, CodeQL, and Worker validation passed; AI Review Policy failed because the current-head formal review from codeant-ai[bot] is missing. The head commit is unsigned; an authorized signed-commit path and required human review remain necessary before merge."
+      ]
+    },
+    {
+      "id": "linux.host-agent-pull-execution",
+      "title": "Authenticated GLORIFIER Linux host-agent pull execution",
+      "boundary": "Owner-authorized GLORIFIER backend task broker to an enrolled Linux host agent over outbound HTTPS",
+      "scope": "Source implementation of per-host bearer enrollment, heartbeat, lease-token-bound task polling, bounded result receipts, and fixed read-only diagnostics; no live host evidence",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "Feature branch feat/linux-host-agent-pull-runtime-20261108",
+        "Linux hosts running the unprivileged Python 3 host agent; no host enrolled or probed"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "src/lib/linux-host-agent.ts",
+          "targetEnvironment": "GLORIFIER backend source on feature branch",
+          "observedAt": null,
+          "notes": "Implements transactional enrollment, SHA-256 token storage, constant-time token verification, heartbeat freshness, owner-approved task creation, 45-second per-claim lease tokens stored only as SHA-256 digests, atomic task/audit transitions, canonical JSON receipt hashing, task history, and credential revocation. Source presence is not a live backend deployment."
+        },
+        {
+          "kind": "source",
+          "reference": "agents/linux-host-agent/agent.py",
+          "targetEnvironment": "Linux host-agent source on feature branch",
+          "observedAt": null,
+          "notes": "Outbound HTTPS-only Python agent implements fixed host.info, memory.info, and disk.info diagnostics. It requires a claim-specific lease token for result submission and does not invoke a shell or execute caller-supplied commands."
+        },
+        {
+          "kind": "documentation",
+          "reference": "agents/linux-host-agent/README.md",
+          "targetEnvironment": "Operator installation documentation",
+          "observedAt": null,
+          "notes": "Documents one-time enrollment token handling, unprivileged systemd deployment, API routes, installation, and verification steps. No host installation was performed."
+        }
+      ],
+      "limitations": [
+        "No authorized Linux host has been enrolled, installed, heartbeated, or used to complete a task.",
+        "The backend routes require a deployed backend and a correctly configured Worker backend origin plus exact-host allowlist where the Worker is the public entry point.",
+        "Only three fixed read-only diagnostics are implemented; arbitrary shell execution, sudo, service control, file writes, package installation, and privilege escalation are intentionally unsupported.",
+        "The agent protocol and contract tests still require successful exact-head CI and review before merge.",
+        "Universal Linux distribution and architecture compatibility is not claimed.",
+        "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation."
       ]
     }
   ]

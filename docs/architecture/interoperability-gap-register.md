@@ -201,6 +201,16 @@ The Neon control-plane inspection showed that main compute uses `suspend_timeout
 
 [PR #669](https://github.com/GLORIFIER7/GLORIFIER/pull/669) proposes a bounded 15-second Hyperdrive connection timeout, preserves the existing 5-second per-statement SQL timeout, and gives only the reports smoke probe a 35-second deadline (connect + up to three read-only statements + transport margin); all unrelated smoke probes retain 10 seconds. The branch includes regression tests for the connection budget and route-specific smoke deadline. Its current final-head CI is being rerun after this refinement. Production deployment remains skipped. Until the PR passes final-head CI, is merged through the repository's required review process, deployed, and a new live smoke passes, the operational report capability remains **DEGRADED**.
 
+## Linux host-agent implementation checkpoint — 2026-11-08
+
+A bounded pull-based Linux host-agent implementation is being prepared on branch `feat/linux-host-agent-pull-runtime-20261108`. It adds owner-gated enrollment and task approval, per-host bearer credentials stored as SHA-256 digests, outbound HTTPS heartbeat/task polling, lease-bound task results, task-history inspection, and credential revocation. The Python agent exposes only three fixed read-only diagnostics (`host.info`, `memory.info`, and `disk.info`) and is designed to run as an unprivileged systemd service.
+
+The implementation intentionally does not expose arbitrary shell execution, sudo, service control, file writes, package installation, or privilege escalation. A task is approved only when created through the owner-authenticated API route. Stale heartbeats are treated as offline; expired leases cannot accept late results.
+
+**Status: NOT VERIFIED.** This is source implementation only. No authorized host has been enrolled, installed, heartbeated, or used to complete a task. The API requires a deployed backend, database access, and the reviewed Worker backend origin/exact-host allowlist where the Worker is the public entry point. Exact-head CI, human review, deployment, real-host heartbeat, task-result and revocation evidence are required before promotion.
+
+See [the Linux host-agent integration contract](./linux-host-agent.md) and [the agent installation guide](../../agents/linux-host-agent/README.md).
+
 ### Remaining universal-interoperability gates
 
 - The eleven first-party SDKs have bounded language-specific CI evidence; this does not establish all operating systems, architectures, runtime versions, or live Neural connectivity.

@@ -111,6 +111,7 @@ The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push t
 - [AI community platform architecture: GitHub + Stack Overflow for AI](docs/ai-community-platform-architecture.md)
 - [ASAP Protocol integration boundary and acceptance gates](docs/architecture/asap-protocol-integration.md)
 - [Linux- and Web-inspired architecture](docs/linux-web-inspired-architecture.md)
+- [Linux host-agent integration and verification gates](docs/architecture/linux-host-agent.md)
 - [SAP-inspired enterprise operations architecture](docs/sap-inspired-enterprise-operations-architecture.md)
 - [Canonical GLR asset registry](docs/canonical-asset-registry.md)
 - [Tokenomics](docs/tokenomics.md)

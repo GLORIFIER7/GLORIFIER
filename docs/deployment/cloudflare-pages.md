@@ -1,36 +1,66 @@
-# Cloudflare Workers frontend deployment
+# Cloudflare Pages public interface
 
-GLORIFIER already has a Cloudflare Worker entry point in `src/worker.ts` and configuration in `wrangler.jsonc`. Use the existing Worker at `https://glorifier.glorifier.workers.dev/` rather than creating a separate Cloudflare Pages project.
+## Intended production topology
 
-## Existing architecture
+- **Public website:** `https://glorifier.pages.dev` (Cloudflare Pages).
+- **Private application/API execution:** the existing Cloudflare Worker named `glorifier`.
+- **NEURAL execution service:** the separate `glorifier-neural` Worker, retaining its own authentication and service boundary.
+- **Database and provider credentials:** remain on server-side Worker bindings/secrets; never expose them through `VITE_*` build variables.
 
-- Static frontend: Vite build output in `dist`, served through the Worker's `ASSETS` binding.
-- API and authentication: Worker-native handlers cover selected routes. Remaining `/api/*` and `/auth/*` routes require an explicitly configured `GLORIFIER_BACKEND_ORIGIN`; there is no implicit Railway fallback, and unconfigured routes fail closed.
-- Database: backend database access is not proven to be Worker-native. Never expose database credentials in frontend or Worker client-visible values.
+Pages serves the static Vite frontend. A Pages catch-all Function forwards only the existing runtime routes to the internal `glorifier` Worker through the `GLORIFIER_WORKER` service binding. The service binding is Cloudflare's Worker-to-Worker path; it does not require a request to the public `workers.dev` hostname.
 
-## GitHub-connected deployment
+The Pages Function forwards these paths:
 
-1. In Cloudflare Dashboard, open **Workers & Pages**.
-2. Select the existing `glorifier` Worker.
-3. Under **Settings → Builds**, connect the `GLORIFIER7/GLORIFIER` GitHub repository if it is not already connected.
-4. Configure the production branch as `main`. Use the repository's lockfile-based install and frontend build command `npm ci && npm run build:frontend`; use the deploy command `npx wrangler deploy --config wrangler.jsonc` only after Wrangler is explicitly pinned in `package.json` and the lockfile and the command is verified in CI. Check the dashboard's detected settings before saving.
-5. For previews, use **Settings → Builds → Set up Worker Previews**, configure preview-specific variables, secrets, and bindings, review the preview command, and select **Switch to Worker Previews**. Then open **Settings → Build → Branch control** and enable preview builds for non-production branches. This switch is not reversible, so review Cloudflare's current guidance before enabling it.
-6. Keep secrets in Cloudflare Worker secrets or Railway environment variables, never in `VITE_*` variables. Do not point previews at production unless their access controls and backend origin policy are explicitly reviewed.
-7. Confirm Firebase Authentication's Authorized domains include the exact intended Worker origin before testing popup/redirect sign-in; do not broadly allow wildcard preview domains.
-8. Check OAuth callback/return URLs against the configured `GLORIFIER_FRONTEND_URL`; do not claim `/auth/*` is fully verified until the callback returns to the intended Worker origin and a real login round-trip succeeds.
-9. Deploy a preview and verify it before changing production routing.
+- `/api` and `/api/*`
+- `/auth` and `/auth/*`
+- `/mcp`
+- `/.well-known/agent-card.json`
 
-Cloudflare's documented Git integration can build and deploy a Worker on pushes and provides preview deployments for non-production branches: https://developers.cloudflare.com/workers/ci-cd/builds/ and https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/.
+All other paths continue through Pages static asset and SPA routing. Missing service bindings fail closed with JSON 503 responses. Service-binding exceptions return a bounded JSON 502 without exposing internal exception details.
 
-This repository is configured for **Cloudflare Workers with `wrangler.jsonc`**, not Cloudflare Pages. Do not add a Pages-only `public/_redirects` file or use Pages `200` proxy rewrites for this Worker. The Worker itself must implement API/auth proxying. A backend origin is configuration, not a credential, but it must be explicitly reviewed and kept server-side in Worker configuration; never bake it into `VITE_*` client variables. Do not configure a Railway origin when claiming Railway independence. Preview traffic must not become an unreviewed proxy into production.
+## Pages project build settings
+
+Cloudflare Pages project `glorifier` is provisioned in the GLORIFIER account and connected to `GLORIFIER7/GLORIFIER`. Its deployment settings are:
+
+| Setting | Value |
+|---|---|
+| Production branch | `main` |
+| Build watch paths | `*` (all repository paths) |
+| Preview deployments | Disabled |
+| Root directory | `/` |
+| Build command | `npm ci --no-audit --no-fund --ignore-scripts && CLOUDFLARE_BUILD=true npm run build:frontend` |
+| Build output directory | `dist` |
+| Node.js build version | `24.12.0` or newer |
+| Production service binding | `GLORIFIER_WORKER` → Worker service `glorifier` |
+
+Do not set `VITE_API_BASE_URL` for the Pages deployment. The application uses same-origin `/api/*` and `/auth/*` requests, which the Pages Function sends to the internal Worker.
+
+The production Pages environment is configured with the `GLORIFIER_WORKER` service binding to the `glorifier` Worker. Production Git deployments are enabled, build watch paths are `*` (all repository paths), and preview deployments remain disabled. Initial pushes were skipped because the project initially had an empty path-includes rule (`skip_reason: path_config`); this has been corrected to `*`. No successful production deployment has been observed yet; a subsequent push to `main` should trigger the initial Git-integrated Pages build. Do not bind production credentials or production services into untrusted preview deployments. Keep preview deployments disabled unless isolated, reviewed bindings are established.
+
+## Safe cutover sequence
+
+1. Keep the Pages project connected to `GLORIFIER7/GLORIFIER` with production branch `main`, the configured build command, and output directory `dist`.
+2. Merge a reviewed, CI-green commit to `main` to trigger the initial Git-integrated Pages build.
+3. Inspect the Pages deployment logs and confirm the build artifact contains `index.html`, the Vite assets, and the `functions/` routes.
+4. Verify static assets, nested-route refresh, `/api/health`, Worker-native reporting/identity responses, unauthenticated authorization boundaries, login/logout, and callback URLs on the Pages origin.
+5. Update Firebase Authentication authorized domains and OAuth redirect/return URLs to include the exact Pages hostname only after the provider configuration has been reviewed.
+6. Confirm all required UI flows and APIs on Pages. API routes that the Worker deliberately reports as unavailable remain unavailable; a frontend deployment does not prove legacy backend migration or provider health.
+7. Only after successful Pages verification and a rollback plan, disable the old public `workers.dev` route for the main Worker. The Pages service binding must remain configured and tested first.
+8. Keep the NEURAL Worker behind its existing authentication policy. Do not remove its Access policy or expose its direct hostname as a public app.
+
+## Evidence and limitations
+
+The Cloudflare account contains the Pages project `glorifier`, linked to this repository, with production Git deployments enabled and `GLORIFIER_WORKER → glorifier` configured. At the latest configuration check, `latest_deployment` and `canonical_deployment` were null; therefore the Pages project exists but its first deployment has not yet been verified. The production deployment is triggered by a new commit to `main`. This does not claim that all backend routes are implemented, or that authentication, databases, AI providers, or external integrations are fully verified.
+
+A successful `/api/health` response proves only that the Worker runtime answered. It does not prove backend, identity-provider, database, NEURAL, or AI-provider health. Continue to use evidence-backed status labels and keep missing evidence as NOT VERIFIED.
 
 ## Verification before production
 
-- Home page loads and static assets return the expected content types.
-- Nested routes survive direct navigation and refresh.
-- `/api/health` returns a valid API response rather than HTML.
-- Login/logout, session cookies, protected API calls, and CORS work on mobile.
-- Missing JavaScript/CSS assets return 404 rather than the SPA HTML.
-- Worker logs show no upstream failures or secret leakage.
-
-Do not disable or delete the Vercel deployment until the Cloudflare Worker is verified and a rollback path is confirmed.
+- `npm run test:cloudflare-worker` includes the Pages proxy contract tests.
+- The Pages preview renders the built frontend and static assets with correct content types.
+- Direct navigation and refresh work for frontend routes.
+- `/api/health` returns JSON from the Worker, not the Pages SPA shell.
+- `/api/app-state` remains protected and returns the documented unauthenticated response when no session is supplied.
+- The Pages service binding is the only application-to-Worker path required for browser requests; no browser JavaScript calls the private `workers.dev` origin.
+- Login/logout, session cookies, OAuth callbacks, and protected API calls succeed on the Pages hostname.
+- The old Worker public hostname is not disabled until all replacement checks pass.
