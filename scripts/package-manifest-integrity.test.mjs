@@ -5,79 +5,92 @@ import test from "node:test";
 const packageJsonText = await readFile(new URL("../package.json", import.meta.url), "utf8");
 const packageLockText = await readFile(new URL("../package-lock.json", import.meta.url), "utf8");
 
+function nextNonWhitespace(source, index) {
+  while (index < source.length && /\s/.test(source[index])) index += 1;
+  return source[index];
+}
+
+function valuePath(parent) {
+  if (!parent) return "";
+  if (parent.type === "array") return parent.path + "[" + parent.index + "]";
+  if (parent.currentKey === null) return parent.path;
+  return parent.path ? parent.path + "." + parent.currentKey : parent.currentKey;
+}
+
+function createContainer(char, parent) {
+  const path = valuePath(parent);
+  if (char === "{") {
+    return { type: "object", path, keys: new Set(), expectingKey: true, currentKey: null };
+  }
+  return { type: "array", path, index: 0 };
+}
+
+function recordObjectKey(object, key, duplicates) {
+  const duplicatePath = object.path ? object.path + "." + key : key;
+  if (object.keys.has(key)) duplicates.push(duplicatePath);
+  object.keys.add(key);
+  object.currentKey = key;
+  object.expectingKey = false;
+}
+
+function advanceContainer(container) {
+  if (!container) return;
+  if (container.type === "object") {
+    container.expectingKey = true;
+    container.currentKey = null;
+    return;
+  }
+  container.index += 1;
+}
+
 function duplicateJsonKeys(source) {
-  let index = 0;
+  JSON.parse(source);
   const duplicates = [];
-  const skipWhitespace = () => {
-    while (/\s/.test(source[index] ?? "")) index += 1;
-  };
-  const parseString = () => {
-    const start = index;
-    if (source[index] !== '"') throw new SyntaxError("Expected JSON string at offset " + index);
-    index += 1;
-    let escaped = false;
-    while (index < source.length) {
-      const char = source[index++];
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === '"') return JSON.parse(source.slice(start, index));
-    }
-    throw new SyntaxError("Unterminated JSON string");
-  };
-  const parseValue = (path) => {
-    skipWhitespace();
+  const containers = [];
+  let stringStart = -1;
+  let escaped = false;
+
+  for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
-    if (char === "{") {
-      index += 1;
-      skipWhitespace();
-      const seen = new Set();
-      if (source[index] === "}") {
-        index += 1;
-        return;
+    if (stringStart >= 0) {
+      if (escaped) {
+        escaped = false;
+        continue;
       }
-      while (index < source.length) {
-        skipWhitespace();
-        const key = parseString();
-        if (seen.has(key)) duplicates.push(path ? path + "." + key : key);
-        seen.add(key);
-        skipWhitespace();
-        if (source[index++] !== ":") throw new SyntaxError("Expected ':' after " + key);
-        parseValue(path ? path + "." + key : key);
-        skipWhitespace();
-        const separator = source[index++];
-        if (separator === "}") return;
-        if (separator !== ",") throw new SyntaxError("Expected ',' or '}' at offset " + (index - 1));
+      if (char === "\\") {
+        escaped = true;
+        continue;
       }
-      throw new SyntaxError("Unterminated JSON object");
+      if (char === '"') {
+        const parent = containers.at(-1);
+        if (
+          parent?.type === "object" &&
+          parent.expectingKey &&
+          nextNonWhitespace(source, index + 1) === ":"
+        ) {
+          const key = JSON.parse(source.slice(stringStart, index + 1));
+          recordObjectKey(parent, key, duplicates);
+        }
+        stringStart = -1;
+      }
+      continue;
     }
-    if (char === "[") {
-      index += 1;
-      skipWhitespace();
-      if (source[index] === "]") {
-        index += 1;
-        return;
-      }
-      let item = 0;
-      while (index < source.length) {
-        parseValue(path + "[" + item++ + "]");
-        skipWhitespace();
-        const separator = source[index++];
-        if (separator === "]") return;
-        if (separator !== ",") throw new SyntaxError("Expected ',' or ']' at offset " + (index - 1));
-      }
-      throw new SyntaxError("Unterminated JSON array");
-    }
+
     if (char === '"') {
-      parseString();
-      return;
+      stringStart = index;
+      continue;
     }
-    const start = index;
-    while (index < source.length && !/[\s,}\]]/.test(source[index])) index += 1;
-    if (index === start) throw new SyntaxError("Invalid JSON value at offset " + index);
-  };
-  parseValue("");
-  skipWhitespace();
-  if (index !== source.length) throw new SyntaxError("Unexpected trailing JSON at offset " + index);
+    if (char === "{" || char === "[") {
+      containers.push(createContainer(char, containers.at(-1)));
+      continue;
+    }
+    if (char === "}" || char === "]") {
+      containers.pop();
+      continue;
+    }
+    if (char === ",") advanceContainer(containers.at(-1));
+  }
+
   return duplicates;
 }
 
@@ -102,7 +115,7 @@ test("package-lock root manifest matches package.json dependencies", () => {
 });
 
 test("duplicateJsonKeys handles escaped quotes and backslashes in values", () => {
-    const source = String.raw`{"value":"escaped quote: \\" and slash: \\\\","value":"second"}`;
+  const source = "{\"value\":\"escaped quote: \\\" and slash: \\\\\",\"value\":\"second\"}";
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
 });
 
@@ -110,9 +123,9 @@ test("standalone build entry points run package manifest integrity first", () =>
   const manifest = JSON.parse(packageJsonText);
   for (const script of ["build:frontend", "build:server", "build:android"]) {
     assert.equal(
-      manifest.scripts?.[`pre${script}`],
+      manifest.scripts?.["pre" + script],
       "npm run test:package-manifest-integrity",
-      `${script} must run the package manifest integrity gate before building`,
+      script + " must run the package manifest integrity gate before building",
     );
   }
 });
