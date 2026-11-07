@@ -56,7 +56,7 @@ export function canonicalizeLinuxHostAgentJson(value: unknown): string {
     return JSON.stringify(value);
   }
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('JSON numbers must be finite');
+    if (!Number.isSafeInteger(value)) throw new Error('JSON numbers must be safe integers');
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
