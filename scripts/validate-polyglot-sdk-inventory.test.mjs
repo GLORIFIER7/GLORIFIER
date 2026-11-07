@@ -60,6 +60,15 @@ test('rejects an SDK without its dedicated CI job', () => {
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
 });
 
+test('rejects documentation status that differs from the capability registry', () => {
+  const input = fixture();
+  input.sdkReadme = input.sdkReadme.replace(
+    '| Python | `sdk/python` | Runtime target | Test command | VERIFIED |',
+    '| Python | `sdk/python` | Runtime target | Test command | NOT VERIFIED |',
+  );
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('evidence status for Python must match')));
+});
+
 test('preserves a first-party SDK with an explicit NOT VERIFIED status without promoting it', () => {
   const input = fixture();
   input.registry.statusVocabulary = ['VERIFIED', 'PARTIALLY VERIFIED', 'NOT VERIFIED', 'DEGRADED', 'NOT OBSERVABLE'];
