@@ -50,7 +50,7 @@ test('rejects stale ten-SDK statements in the architecture guide', () => {
 
 test('rejects documentation that omits a first-party SDK package', () => {
   const input = fixture();
-  input.sdkReadme = input.sdkReadme.replace('| Python | \`sdk/python\` | target |', '');
+  input.sdkReadme = input.sdkReadme.replace('| Python | `sdk/python` | Runtime target | Test command | VERIFIED |', '');
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('sdk/python')));
 });
 
