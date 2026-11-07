@@ -10,6 +10,10 @@ const PROTECTED_READ_PREFIXES = [
   '/control-plane',
   '/app-state',
   '/auth/session',
+  // Linux host inventory and task receipts are owner-only control-plane reads.
+  '/linux/runtimes',
+  // Agent reads have no per-host bearer-token route; require user identity.
+  '/linux/agent',
   // Payment-intent reads expose payer/payee and settlement metadata; require identity.
   '/economy/glr/intents',
   // Legacy A2A task reads expose requester-scoped state and require authentication.
@@ -28,12 +32,21 @@ export const isProtectedApiReadPath = (pathname: string): boolean => {
   );
 };
 /**
+ * Agent routes use a per-host 256-bit bearer credential and perform their own
+ * constant-time credential verification. Exempt only the three exact POST
+ * shapes; every other mutation remains behind user identity authentication.
+ */
+const LINUX_HOST_AGENT_POST_PATH =
+  /^\/(?:api\/)?linux\/agent\/linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:heartbeat|tasks\/claim|tasks\/linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result)$/i;
+
+/**
  * Public API authentication bypass policy. Only preflight requests and
  * unprotected read-only paths bypass identity verification; all mutations
  * and protected reads continue through the authentication middleware.
  */
 export const shouldBypassApiAuthentication = (method: string, pathname: string): boolean => {
-  if (method === 'OPTIONS') return true;
-  if (method !== 'GET' && method !== 'HEAD') return false;
+  if (method.toUpperCase() === 'OPTIONS') return true;
+  if (method.toUpperCase() === 'POST' && LINUX_HOST_AGENT_POST_PATH.test(pathname)) return true;
+  if (method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD') return false;
   return !isProtectedApiReadPath(pathname);
 };
