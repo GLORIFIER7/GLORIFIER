@@ -189,17 +189,17 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
     throw new Error('Linux host heartbeat is stale or host is not online');
   }
   await db.query(
-    \`UPDATE linux_agent_tasks SET status = 'expired'
-      WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()\`,
+    `UPDATE linux_agent_tasks SET status = 'expired'
+      WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()`,
     [runtimeId],
   );
   await db.query(
-    \`UPDATE linux_agent_tasks SET status = 'expired'
-      WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()\`,
+    `UPDATE linux_agent_tasks SET status = 'expired'
+      WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()`,
     [runtimeId],
   );
   const r = await db.query(
-    \`UPDATE linux_agent_tasks
+    `UPDATE linux_agent_tasks
         SET status = 'claimed', claimed_at = NOW(),
             lease_until = NOW() + ($2 * INTERVAL '1 second')
       WHERE id = (
@@ -208,7 +208,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
          ORDER BY approved_at, id
          LIMIT 1 FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, action, params, lease_until\`,
+      RETURNING id, action, params, lease_until`,
     [runtimeId, TASK_LEASE_SECONDS],
   );
   const row = r.rows[0];
@@ -286,12 +286,12 @@ export async function revokeLinuxHostAgent(runtimeId: string, actor: string): Pr
 export async function listLinuxHostAgentTasks(runtimeId: string) {
   await initializeLinuxHostAgentTables();
   const r = await getPostgresPool().query(
-    \`SELECT id, action, status, requested_by, approved_by, approved_at, claimed_at,
+    `SELECT id, action, status, requested_by, approved_by, approved_at, claimed_at,
             lease_until, completed_at, expires_at, result, result_sha256, error_code
        FROM linux_agent_tasks
       WHERE runtime_id = $1
       ORDER BY created_at DESC
-      LIMIT 50\`,
+      LIMIT 50`,
     [runtimeId],
   );
   return r.rows;
@@ -300,10 +300,10 @@ export async function listLinuxHostAgentTasks(runtimeId: string) {
 export async function listLinuxHostAgents() {
   await initializeLinuxHostAgentTables();
   await getPostgresPool().query(
-    \`UPDATE linux_runtime_registry
+    `UPDATE linux_runtime_registry
         SET status = 'offline', updated_at = NOW()
       WHERE status = 'online'
-        AND last_verified_at < NOW() - ($1 * INTERVAL '1 second')\`,
+        AND last_verified_at < NOW() - ($1 * INTERVAL '1 second')`,
     [HEARTBEAT_FRESHNESS_SECONDS],
   );
   return listLinuxRuntimes();
