@@ -33,6 +33,16 @@ if (googleArchitectureSource?.url !== 'https://docs.cloud.google.com/architectur
   throw new Error('Google Cloud architecture source must use the verified canonical Well-Architected Framework URL');
 }
 
+const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
+if (owaspAgentControlSource?.url !== 'https://owaspacs.org/docs/acs/') {
+  throw new Error('OWASP Agent Control Standard must use its canonical specification documentation');
+}
+
+const otelGenAiAgentSource = model.sources.find((source) => source.id === 'otel-genai-agents');
+if (otelGenAiAgentSource?.url !== 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md') {
+  throw new Error('OpenTelemetry GenAI agent source must target the canonical agent-span specification');
+}
+
 for (const source of model.sources) {
   if (!isTrustedArchitectureSourceUrl(source.url)) {
     throw new Error(`model source is not covered by the curated hostname allowlist: ${source.id}`);
@@ -58,6 +68,8 @@ if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A 
 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
+  'https://owaspacs.org/docs/acs/',
+  'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
   'https://focus.finops.org/docs/specification/v1-4/',
@@ -79,6 +91,8 @@ const rejectedCuratedSourceUrls = [
   'https://www.nist.gov:8443/forged',
   'file:///etc/passwd',
   'https://www.nist.gov/internal',
+  'https://owaspacs.org/docs/unregistered/',
+  'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/README.md',
   'https://airc.nist.gov/another-document',
   'https://raw.githubusercontent.com/attacker/repo/main/payload',
   'https://www.nist.gov/itl/ai-risk-management-framework/../internal',

@@ -19,6 +19,31 @@ Status: **recommendation / analysis only**. The W3C PROV-O source is registered 
 | `prov:wasDerivedFrom` | Architecture analysis derived from an exact source snapshot or prior evidence record | Parent evidence IDs plus content hashes | Derived analysis remains analysis unless claim-level review and independent verification are recorded. |
 | `prov:wasAssociatedWith` / `prov:wasAttributedTo` | Reviewer or execution identity associated with a decision or artifact | Actor reference plus authorization/authentication evidence | Attribution is not equivalent to authorization or endorsement. |
 
+## OWASP Agent Control Standard provenance and trust-basis crosswalk (v0.1.4)
+
+Authoritative references:
+
+- [ACS provenance model](https://owaspacs.org/docs/concepts/provenance/)
+- [ACS trust basis](https://owaspacs.org/docs/concepts/trust/)
+- [ACS specification and profile overview](https://owaspacs.org/docs/acs/)
+
+The ACS documentation distinguishes provenance (where data came from and how it was derived) from trust basis (the grounds on which a Guardian may rely on the data). Its provenance object carries framework-assigned `origin`, `source_id`, and `derived_from` fields. The framework, not the LLM or data producer, assigns those fields from the execution path. Lineage is transitive: summaries and compacted content retain the lineage of their inputs.
+
+| ACS concept | Proposed GEAS mapping | Required handling | Limitation |
+| --- | --- | --- | --- |
+| `origin` | Controlled evidence-origin classification (for example, user input, tool output, retrieved content, agent-generated content, or inter-agent input) | Assign from the actual boundary/code path; do not infer from content or accept an LLM assertion | Origin classification does not authenticate the source or establish semantic truth. |
+| `source_id` | Stable source/tool/memory/peer identifier; use a GEAS registry ID only when the value actually resolves to that registry entry | Resolve identity against the relevant source or component registry and retain the namespace | A string identifier alone is not authenticated identity. |
+| `derived_from` | Parent evidence/provenance references in the GEAS evidence graph | Preserve the transitive union of input lineage through summaries, transformations, memory writes, and compaction | A missing parent link makes lineage incomplete; timestamps or keyword similarity cannot reconstruct it. |
+| `provenance_producer` | Runtime declaration that provenance is assigned deterministically outside the model output path | Require an authenticated handshake/configuration observation and runtime conformance evidence before claiming ACS-Provenance support | A declared producer mode is not proof that the runtime enforces it. |
+| AgBOM `registration_provenance` | Component inventory event distinguishing framework-declared from runtime-discovered dependencies | Bind each component to an inventory snapshot and acquisition event | A static SBOM does not establish dynamic runtime inventory. |
+| Trust basis | Separate GEAS metadata for asserted, deterministically attached, or cryptographically attested evidence | Preserve the basis across every derivation and boundary; reject trust elevation during summarization or forwarding | Deterministic attachment is only as trustworthy as the framework; cryptographic integrity does not prove semantic truth. |
+
+ACS describes three trust-basis rungs: asserted, deterministically attached, and cryptographically attested. They must not be collapsed. A derived summary of asserted content remains asserted; restating or hashing it does not elevate it to an attested fact. GEAS must keep this trust-basis dimension separate from `ClaimReviewDecision`, `EvidenceStatus`, and the five-state `ReconciliationStatus`. In particular, neither a provenance record nor a cryptographic digest alone may promote a claim to `claim-supported` or an architecture state to `VERIFIED`.
+
+### Implementation boundary
+
+This crosswalk is a design mapping only. The presence of the ACS source in the GEAS registry does not establish that GLORIFIER implements ACS-Core, ACS-Provenance, ACS-Crypto, or ACS-Audit. Runtime hook interception, Guardian decisions, authenticated capability negotiation, deterministic provenance production, transitive lineage preservation, and independently verifiable signatures/hash-chain evidence remain **NOT VERIFIED** until corresponding runtime artifacts and conformance tests are observed.
+
 ## Acceptance criteria before promotion
 
 1. Keep `source-available` and `content-matched` classified as analysis.
