@@ -102,6 +102,17 @@ test("package-lock root manifest matches package.json dependencies", () => {
 });
 
 test("duplicateJsonKeys handles escaped quotes and backslashes in values", () => {
-  const source = String.raw`{"value":"escaped quote: \" and slash: \\","value":"second"}`;
+  const source = String.raw`{"value":"escaped quote: \\" and slash: \\\\","value":"second"}`;
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
+});
+
+test("standalone build entry points run package manifest integrity first", () => {
+  const manifest = JSON.parse(packageJsonText);
+  for (const script of ["build:frontend", "build:server", "build:android"]) {
+    assert.equal(
+      manifest.scripts?.[`pre${script}`],
+      "npm run test:package-manifest-integrity",
+      `${script} must run the package manifest integrity gate before building`,
+    );
+  }
 });
