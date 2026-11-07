@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-07T18:34:00Z",
+  "updatedAt": "2026-11-07T19:35:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1525,7 +1525,7 @@
       "id": "linux.host-agent-pull-execution",
       "title": "Authenticated GLORIFIER Linux host-agent pull execution",
       "boundary": "Owner-authorized GLORIFIER backend task broker to an enrolled Linux host agent over outbound HTTPS",
-      "scope": "Source implementation of per-host bearer enrollment, heartbeat, leased task polling, bounded result receipts, and fixed read-only diagnostics; no live host evidence",
+      "scope": "Source implementation of per-host bearer enrollment, heartbeat, lease-token-bound task polling, bounded result receipts, and fixed read-only diagnostics; no live host evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
         "Feature branch feat/linux-host-agent-pull-runtime-20261108",
@@ -1537,14 +1537,14 @@
           "reference": "src/lib/linux-host-agent.ts",
           "targetEnvironment": "GLORIFIER backend source on feature branch",
           "observedAt": null,
-          "notes": "Implements transactional enrollment, SHA-256 token storage, constant-time token verification, heartbeat freshness, owner-approved task creation, lease-bound claims/results, task history, and credential revocation. Source presence is not a live backend deployment."
+          "notes": "Implements transactional enrollment, SHA-256 token storage, constant-time token verification, heartbeat freshness, owner-approved task creation, 45-second per-claim lease tokens stored only as SHA-256 digests, atomic task/audit transitions, canonical JSON receipt hashing, task history, and credential revocation. Source presence is not a live backend deployment."
         },
         {
           "kind": "source",
           "reference": "agents/linux-host-agent/agent.py",
           "targetEnvironment": "Linux host-agent source on feature branch",
           "observedAt": null,
-          "notes": "Outbound HTTPS-only Python agent implements fixed host.info, memory.info, and disk.info diagnostics. It does not invoke a shell or execute caller-supplied commands."
+          "notes": "Outbound HTTPS-only Python agent implements fixed host.info, memory.info, and disk.info diagnostics. It requires a claim-specific lease token for result submission and does not invoke a shell or execute caller-supplied commands."
         },
         {
           "kind": "documentation",
@@ -1559,7 +1559,8 @@
         "The backend routes require a deployed backend and a correctly configured Worker backend origin plus exact-host allowlist where the Worker is the public entry point.",
         "Only three fixed read-only diagnostics are implemented; arbitrary shell execution, sudo, service control, file writes, package installation, and privilege escalation are intentionally unsupported.",
         "The agent protocol and contract tests still require successful exact-head CI and review before merge.",
-        "Universal Linux distribution and architecture compatibility is not claimed."
+        "Universal Linux distribution and architecture compatibility is not claimed.",
+        "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation."
       ]
     }
   ]
