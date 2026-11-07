@@ -68,12 +68,25 @@ test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
 
-test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
+test('Claude direct runner blocks npm lifecycle-install commands', () => {
   const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \[([\s\S]*?)\];/)?.[1];
   assert.ok(allowedTools, 'Claude CLI allowlist must be present in the direct runner');
+  const forbiddenInstallTool = /Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/;
+  for (const command of ['ci', 'install', 'i', 'add']) {
+    assert.match(
+      'Bash(npm ' + command + ')',
+      forbiddenInstallTool,
+      'the denylist must recognize npm ' + command + ' as an install-capable command',
+    );
+  }
+  assert.match(
+    'Bash(npm ci --ignore-scripts)',
+    forbiddenInstallTool,
+    'the denylist must recognize npm ci even when an alternate flag is supplied',
+  );
   assert.doesNotMatch(
     allowedTools,
-    /Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
+    forbiddenInstallTool,
     'Claude must not be able to run npm install commands that execute lifecycle scripts',
   );
   assert.match(allowedTools, /Bash\(npm run lint\)/);
@@ -86,9 +99,13 @@ test('Claude cannot run npm install commands that execute lifecycle scripts', ()
     dependencyInstall >= 0 && claudeCli > dependencyInstall,
     'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
   );
+  assert.equal(
+    (claudeWorkflow.match(/run: node scripts\/run-claude-workflow\.mjs/g) || []).length,
+    1,
+    'the Claude workflow must invoke the direct runner exactly once',
+  );
   assert.doesNotMatch(claudeWorkflow, /uses: anthropics\/claude-code-action@/);
 });
-
 
 test('CI runs the Claude direct CLI runner regression suite', () => {
   assert.match(
