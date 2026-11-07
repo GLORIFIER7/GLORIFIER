@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   canonicalizeLinuxHostAgentJson,
   isLinuxHostAgentAction,
+  isValidLinuxHostAgentToken,
   isSafeLinuxHostRuntimeId,
   isSafeLinuxHostTaskId,
   normalizeLinuxHostHeartbeat,
@@ -33,6 +34,8 @@ test('Linux host-agent contract accepts only a 256-bit bearer token encoding', (
   assert.equal(parseLinuxHostAgentBearerToken('bearer ' + token), null);
   assert.equal(parseLinuxHostAgentBearerToken('Bearer short'), null);
   assert.equal(parseLinuxHostAgentBearerToken(undefined), null);
+  assert.equal(isValidLinuxHostAgentToken(token), true);
+  assert.equal(isValidLinuxHostAgentToken('short'), false);
 });
 
 test('Linux host-agent enrollment validates display name and architecture', () => {
