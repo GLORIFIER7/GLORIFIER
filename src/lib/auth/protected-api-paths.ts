@@ -28,12 +28,21 @@ export const isProtectedApiReadPath = (pathname: string): boolean => {
   );
 };
 /**
+ * Agent routes use a per-host 256-bit bearer credential and perform their own
+ * constant-time credential verification. Exempt only the three exact POST
+ * shapes; every other mutation remains behind user identity authentication.
+ */
+const LINUX_HOST_AGENT_POST_PATH =
+  /^\/linux\/agent\/linux-[0-9a-f-]{36}\/(?:heartbeat|tasks\/claim|tasks\/linux-task-[0-9a-f-]{36}\/result)$/i;
+
+/**
  * Public API authentication bypass policy. Only preflight requests and
  * unprotected read-only paths bypass identity verification; all mutations
  * and protected reads continue through the authentication middleware.
  */
 export const shouldBypassApiAuthentication = (method: string, pathname: string): boolean => {
-  if (method === 'OPTIONS') return true;
-  if (method !== 'GET' && method !== 'HEAD') return false;
+  if (method.toUpperCase() === 'OPTIONS') return true;
+  if (method.toUpperCase() === 'POST' && LINUX_HOST_AGENT_POST_PATH.test(pathname)) return true;
+  if (method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD') return false;
   return !isProtectedApiReadPath(pathname);
 };
