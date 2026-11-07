@@ -92,10 +92,10 @@ class LinuxHostAgentTests(unittest.TestCase):
                 "GLORIFIER_LINUX_RUNTIME_ID": "linux-123e4567-e89b-42d3-a456-426614174000",
                 "GLORIFIER_LINUX_AGENT_TOKEN": "a" * 43,
             },
-        ), unittest.mock.patch.object(AGENT, "LinuxHostAgentClient", FakeClient), \
-           unittest.mock.patch.object(AGENT, "run_once", side_effect=AGENT.AgentError("offline")), \
-           unittest.mock.patch.object(AGENT.sys, "argv", ["agent.py", "--once"]), \
-           unittest.mock.patch("builtins.print"):
+        ), mock.patch.object(AGENT, "LinuxHostAgentClient", FakeClient), \
+           mock.patch.object(AGENT, "run_once", side_effect=AGENT.AgentError("offline")), \
+           mock.patch.object(AGENT.sys, "argv", ["agent.py", "--once"]), \
+           mock.patch("builtins.print"):
             self.assertEqual(AGENT.main(), 1)
 
     def test_claim_rejects_missing_or_malformed_lease_token(self):
