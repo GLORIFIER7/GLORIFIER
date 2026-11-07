@@ -99,7 +99,6 @@ test('Pages Functions are invoked only for the explicit backend route allowlist'
       '/auth',
       '/auth/*',
       '/mcp',
-      '/mcp/*',
       '/.well-known/agent-card.json',
     ],
     exclude: [],
