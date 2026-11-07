@@ -104,9 +104,23 @@ A language/runtime should be labelled `VERIFIED` only for the specific version/p
 
 ## Current implementation status
 
-The initial SDK delivery is complete for the ten languages listed above. Shared wire fixtures cover UTF-8/Unicode, arbitrary-precision decimal strings, absent-versus-null behavior, nested JSON values, and stable machine-readable errors. The eight newer SDK packages have fixture-driven tests; Python and Go consume the same canonical fixture file through their own conformance workflow.
+The first-party SDK catalog is complete for the eleven languages listed above. All eleven packages include fixture-driven tests for UTF-8/Unicode, arbitrary-precision decimal strings, absent-versus-null behavior, nested JSON values, and stable machine-readable errors. Python and Go consume the same canonical fixture file through their dedicated conformance workflow; the other nine SDKs run the corresponding fixture suites through the native SDK workflow.
 
 This status does not extend automatically to additional runtime versions, CPU architectures, operating systems, or other GLORIFIER interfaces. The current Linux source/container workflow covers only the exact Ubuntu runner and container targets it names. It does not establish support for every Linux distribution, ARM64, Windows, or every macOS version.
+
+### Cross-platform verification scope
+
+| Platform target | Evidence boundary | Status |
+|---|---|---|
+| Ubuntu 24.04 x86_64 | The eleven SDKs have individual named CI targets; see the table above. | VERIFIED only for each SDK's exact listed runtime and runner |
+| Ubuntu 22.04 x86_64 | The interoperability source workflow tests the control-plane source on this runner; it does not run all eleven SDK suites here. | NOT VERIFIED for the full SDK portfolio |
+| macOS 14 | Swift has a dedicated native SDK job. Additional Python, Go, and Node.js smoke jobs are being added. | Swift VERIFIED for its named target; additional targets require exact CI evidence |
+| Windows 2022 | Python 3.12, Go 1.26.x, and Node.js 24.12.0 smoke jobs are being added. | NOT VERIFIED until the exact platform jobs pass and their evidence is recorded |
+| Linux ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
+| macOS ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
+| Browser JavaScript/TypeScript | No browser SDK is provided; bearer credentials remain server-side by design. | NOT SUPPORTED by the current security boundary |
+
+The supplementary Windows/macOS jobs are coverage probes, not automatic status promotion. A platform target becomes VERIFIED only after its exact job succeeds and the capability registry records the commit, runtime, OS, architecture, timestamp, and CI evidence. A pass for Python, Go, or Node.js does not extend the claim to the other SDKs.
 
 The common Neural SDK surface is intentionally small:
 
@@ -141,9 +155,9 @@ The SDK tests establish wire-format consistency for the named test targets. They
 
 Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
 
-## First-party native SDKs — evidence as of 2026-11-05
+## First-party native SDKs — evidence reviewed 2026-11-08
 
-The ten maintained first-party HTTP/JSON clients and their named runtime/runner evidence are listed in [the SDK package index](../../sdk/README.md) and [the capability registry](./interoperability-capabilities.json). Eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart) passed the final PR #658 head in [Native SDK Conformance run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python 3.10/3.11/3.12 and Go 1.26.x/1.27.x passed in [SDK Conformance run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782).
+The eleven maintained first-party HTTP/JSON clients and their named runtime/runner evidence are listed in [the SDK package index](../../sdk/README.md) and [the capability registry](./interoperability-capabilities.json). The registry records one capability per SDK, exact target environments, and retained CI-run evidence. The SDK inventory validator checks that the catalog, documentation tables, capability records, package directories, and workflow jobs remain aligned.
 
 Each VERIFIED SDK capability is limited to its exact runtime, operating system, architecture, test suite and recorded run. It is not a promise of support for every runtime version, platform, distribution, architecture or protocol. The packages are independently implemented clients, not generated from one code generator; the shared OpenAPI/JSON contract and fixture tests are the compatibility boundary.
 
