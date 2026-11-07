@@ -1485,30 +1485,30 @@
       "scope": "source-adapter-contract; no live runtime deployment or inference evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "GLORIFIER7/GLORIFIER-NEURAL main (adapter PR #67 merged); follow-up fix PR #68 remains draft",
+        "GLORIFIER7/GLORIFIER-NEURAL main (adapter PR #67 merged); follow-up fix PR #68 is open, ready for review, and not merged",
         "No authorized Dynamo endpoint, GPU host, or Kubernetes environment supplied"
       ],
       "evidence": [
         {
           "kind": "source",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67",
-          "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL main; adapter present at base commit ace74961e36163882ae0624008268dd27538ac7d; follow-up branch fix/dynamo-close-response-and-wildcard-origin-20261107",
-          "observedAt": "2026-11-07T14:19:00Z",
-          "notes": "Adapter source PR #67 is merged and the optional provider is present on NEURAL main. Main still contains two reproduced defects: the synchronous HTTP/1.0 close-after-response path can fail while reading the response, and matching wildcard hostnames are accepted. Draft PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f adds retained-socket handling and wildcard rejection. Its tests, CodeQL, and Worker validation pass, but AI Review Policy fails for missing current-head formal AI reviews; the PR remains draft and its commits are reported unsigned. No live GPU deployment or inference is verified."
+          "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL main; adapter present at base commit ace74961e36163882ae0624008268dd27538ac7d; follow-up PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
+          "observedAt": "2026-11-07T17:18:21Z",
+          "notes": "Adapter source PR #67 is merged and the optional provider is present on NEURAL main. Main had two reproduced defects: the synchronous HTTP/1.0 close-after-response path could fail while reading the response, and matching wildcard hostnames were accepted. Open PR #68 (GitHub API reports draft=false) adds retained-socket handling and wildcard rejection. Its Python tests, CodeQL, and Worker validation pass, but AI Review Policy fails because the formal current-head CodeAnt review is missing. The head commit is unsigned; review/signature governance remains unresolved. No live GPU deployment or inference is verified."
         },
         {
-          "kind": "automated-test",
-          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42364310353",
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42393326386",
           "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f; Python 3.11/3.12 GitHub-hosted CI",
-          "observedAt": "2026-11-07T10:46:35Z",
-          "notes": "Both Python matrix jobs completed successfully, including locked dependency validation, Ruff, pytest, pip-audit, container build, and runtime-image PostgreSQL-driver verification. This is source/contract CI evidence, not live NVIDIA hardware or endpoint evidence. The separate AI Review Policy job failed."
+          "observedAt": "2026-11-07T17:05:54Z",
+          "notes": "Exact-head Python 3.11 and 3.12 jobs both passed locked dependency validation, Ruff, pytest, pip-audit, container build, and runtime-image PostgreSQL-driver verification. The AI Review Policy job failed because a formal current-head review from codeant-ai[bot] is missing. GHCR image publish was skipped. This is source/contract CI evidence, not live NVIDIA hardware or endpoint evidence."
         },
         {
           "kind": "ci-run",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42364310528",
           "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
           "observedAt": "2026-11-07T10:46:35Z",
-          "notes": "CodeQL Analyze passed in this run. Cloudflare Worker validation/build also passed in run 42364310300; deploy and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and reported no blocking code defects; it is not an approval. Review/signature governance remains unresolved."
+          "notes": "CodeQL Analyze passed in this run. Cloudflare Worker validation/build passed in run 42364310300; deployment and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and found no blocking code defects; it is not a formal approval. The current AI Review Policy still fails for missing CodeAnt review."
         }
       ],
       "limitations": [
@@ -1518,7 +1518,7 @@
         "No live authorized Dynamo /v1/models readiness or /v1/chat/completions inference has been performed.",
         "The configured ingress has not been demonstrated to enforce TLS and bearer authentication; sending an Authorization header is not proof the server validates it.",
         "Mocked unit tests, container builds, Worker previews, and NVIDIA compatibility documentation cannot be promoted to live runtime verification.",
-        "Follow-up PR #68 remains draft at head 8b21a25d454313888fba0bd33f3b5b17d431276f. Python 3.11/3.12 tests, Ruff, pip-audit, container build, CodeQL, and Worker validation passed; AI Review Policy failed because required current-head formal reviews are missing. Commits are reported unsigned and the PR must not merge until the authorized signed-commit and human-review gates are satisfied."
+        "Follow-up PR #68 is open and marked ready for review (draft=false), but remains unmerged. Python 3.11/3.12 tests, Ruff, pip-audit, container build, CodeQL, and Worker validation passed; AI Review Policy failed because the current-head formal review from codeant-ai[bot] is missing. The head commit is unsigned; an authorized signed-commit path and required human review remain necessary before merge."
       ]
     }
   ]
