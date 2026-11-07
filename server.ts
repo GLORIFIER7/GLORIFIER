@@ -3976,8 +3976,10 @@ app.get('/api/linux/runtimes', requireOwner, async (_req: Request, res: Response
 
 app.post('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
     const actor = req.auth?.uid || 'human-owner';
-    const task = await createLinuxHostAgentTask(String(req.params.runtimeId || ''), req.body?.action, actor);
+    const task = await createLinuxHostAgentTask(runtimeId, req.body?.action, actor);
     return res.status(202).json({ ok: true, task });
   } catch (error) {
     return apiError(res, 400, 'Linux host-agent task was not accepted', error);
@@ -3986,7 +3988,9 @@ app.post('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: Authe
 
 app.get('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: Request, res: Response) => {
   try {
-    return res.json({ ok: true, tasks: await listLinuxHostAgentTasks(String(req.params.runtimeId || '')) });
+    const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
+    return res.json({ ok: true, tasks: await listLinuxHostAgentTasks(runtimeId) });
   } catch (error) {
     return apiError(res, 503, 'Linux host-agent task history is unavailable', error);
   }
@@ -4018,6 +4022,7 @@ app.post('/api/linux/agent/:runtimeId/heartbeat', async (req: Request, res: Resp
 app.post('/api/linux/agent/:runtimeId/tasks/claim', async (req: Request, res: Response) => {
   try {
     const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
     const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
     if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
     const task = await claimLinuxHostAgentTask(runtimeId);
