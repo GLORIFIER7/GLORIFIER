@@ -12,6 +12,8 @@ on:
       - "sdk/swift/**"
       - "sdk/dart/**"
       - "sdk/javascript/**"
+      - "sdk/python/**"
+      - "sdk/go/**"
       - "sdk/README.md"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/interoperability-capabilities.json"
@@ -21,9 +23,7 @@ on:
       - "scripts/validate-polyglot-sdk-inventory.test.mjs"
       - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
-      - "docs/architecture/interoperability-contract-fixtures.json"
-      - "docs/architecture/interoperability-capabilities.json"
-      - "docs/architecture/language-neutral-interoperability.md"
+      - ".github/workflows/python-sdk.yml"
   push:
     branches: [main]
     paths:
@@ -36,6 +36,8 @@ on:
       - "sdk/swift/**"
       - "sdk/dart/**"
       - "sdk/javascript/**"
+      - "sdk/python/**"
+      - "sdk/go/**"
       - "sdk/README.md"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/interoperability-capabilities.json"
@@ -45,9 +47,7 @@ on:
       - "scripts/validate-polyglot-sdk-inventory.test.mjs"
       - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
-      - "docs/architecture/interoperability-contract-fixtures.json"
-      - "docs/architecture/interoperability-capabilities.json"
-      - "docs/architecture/language-neutral-interoperability.md"
+      - ".github/workflows/python-sdk.yml"
 
 permissions:
   contents: read
