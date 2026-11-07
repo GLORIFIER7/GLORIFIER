@@ -479,9 +479,10 @@ test('production build provenance uses a GET request and validates the live resp
 });
 
 
+
 test('full-stack smoke defaults to the public Cloudflare Pages origin', () => {
   const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
-  assert.match(smokeSource, /process\\.env\\.FRONTEND_URL \\|\\| ['"]https:\\/\\/glorifier\\.pages\\.dev['"]/);
-  assert.doesNotMatch(smokeSource, /https:\\/\\/glorifier\\.glorifier\\.workers\\.dev/,
+  assert.ok(smokeSource.includes("process.env.FRONTEND_URL || 'https://glorifier.pages.dev'"));
+  assert.ok(!smokeSource.includes('https://glorifier.glorifier.workers.dev'),
     'the public full-stack smoke must not default to the internal Worker hostname');
 });
