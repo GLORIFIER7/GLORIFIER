@@ -530,6 +530,31 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
     reason.includes('CostAndUsage row 3 must not contain InvoiceDetail payment-currency fields'),
   ));
 
+  const costAndUsagePaymentCurrencyWithNormalizationFailure = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [
+      ...input.costAndUsage,
+      charge('tax-1', 'Tax', '2.50', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '2.50',
+        paymentCurrencyInvoiceDetailId: 'tax-1',
+      }),
+      charge('invalid-period', 'Usage', '1.00', {
+        billingPeriodStart: 'not-a-timestamp',
+      }),
+    ],
+  });
+  assert.equal(costAndUsagePaymentCurrencyWithNormalizationFailure.status, 'UNKNOWN');
+  assert.equal(costAndUsagePaymentCurrencyWithNormalizationFailure.paymentCurrencyStatus, 'UNKNOWN');
+  assert.equal(costAndUsagePaymentCurrencyWithNormalizationFailure.taxReconciliationStatus, 'NOT_COMPARABLE');
+  assert.equal(costAndUsagePaymentCurrencyWithNormalizationFailure.taxVariance, null);
+  assert.ok(costAndUsagePaymentCurrencyWithNormalizationFailure.reasons.some((reason) =>
+    reason.includes('CostAndUsage row 3 must not contain InvoiceDetail payment-currency fields'),
+  ));
+  assert.ok(costAndUsagePaymentCurrencyWithNormalizationFailure.reasons.some((reason) =>
+    reason.includes('CostAndUsage row 4 has invalid FOCUS UTC billing-period bounds'),
+  ));
+
   const invalidPaymentLineageWithTaxVariance = reconcileFocusInvoice({
     ...input,
     costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
