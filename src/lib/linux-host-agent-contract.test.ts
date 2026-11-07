@@ -81,6 +81,8 @@ test('Linux host-agent canonical JSON digest input ignores object key insertion 
   const second = { items: [3, 2, 1], nested: { a: 'value', b: true }, z: 1 };
   assert.equal(canonicalizeLinuxHostAgentJson(first), canonicalizeLinuxHostAgentJson(second));
   assert.equal(canonicalizeLinuxHostAgentJson({ b: 1, a: 2 }), '{"a":2,"b":1}');
+  assert.throws(() => canonicalizeLinuxHostAgentJson({ measurement: 0.5 }), /safe integers/);
+  assert.throws(() => canonicalizeLinuxHostAgentJson({ measurement: Number.MAX_SAFE_INTEGER + 1 }), /safe integers/);
 });
 
 test('Linux host-agent task results enforce bounded structured output', () => {
