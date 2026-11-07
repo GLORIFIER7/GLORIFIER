@@ -359,5 +359,97 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
   assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).status, 'RECONCILED');
   assert.equal(reconcileFocusInvoice(payableIssuerOpenBillingPeriod).billingPeriodStatus, 'Open');
   
+
+  const multiCurrencySettlement = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [
+      charge('line-usage', 'Usage', '3.03'),
+      charge('line-tax', 'Tax', '0.30'),
+    ],
+    invoiceDetail: [
+      charge('line-usage', 'Usage', '3.03', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '0.00',
+        paymentCurrencyInvoiceDetailId: 'line-settlement',
+      }),
+      charge('line-tax', 'Tax', '0.30', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '0.00',
+        paymentCurrencyInvoiceDetailId: 'line-settlement',
+      }),
+      charge('line-settlement', 'Adjustment', '0.00', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '5.17',
+        paymentCurrencyInvoiceDetailId: 'line-settlement',
+      }),
+    ],
+  });
+  assert.equal(
+    multiCurrencySettlement.status,
+    'RECONCILED',
+    'the payment-currency aggregate record with zero billing-currency cost must not create a false missing usage mapping',
+  );
+  const multiCurrencyEvidence = multiCurrencySettlement as unknown as {
+    paymentCurrencyStatus?: string;
+    paymentCurrencyGroups?: Array<{
+      paymentCurrency: string;
+      paymentCurrencyInvoiceDetailId: string;
+      billingCurrencyBilledCost: string;
+      paymentCurrencyBilledCost: string;
+    }>;
+  };
+  assert.equal(multiCurrencyEvidence.paymentCurrencyStatus, 'ANALYZED');
+  assert.deepEqual(multiCurrencyEvidence.paymentCurrencyGroups, [{
+    paymentCurrency: 'AUD',
+    paymentCurrencyInvoiceDetailId: 'line-settlement',
+    billingCurrencyBilledCost: '3.33',
+    paymentCurrencyBilledCost: '5.17',
+  }]);
+
+  const brokenPaymentCurrencyLineage = reconcileFocusInvoice({
+    ...input,
+    invoiceDetail: input.invoiceDetail.map((row) => ({
+      ...row,
+      paymentCurrency: 'AUD',
+      paymentCurrencyBilledCost: '1.00',
+      paymentCurrencyInvoiceDetailId: 'missing-aggregate-row',
+    })),
+  });
+  assert.equal(brokenPaymentCurrencyLineage.status, 'UNKNOWN');
+  assert.ok(brokenPaymentCurrencyLineage.reasons.some((reason) =>
+    reason.includes('PaymentCurrencyInvoiceDetailId'),
+  ));
+  const brokenPaymentEvidence = brokenPaymentCurrencyLineage as unknown as { paymentCurrencyStatus?: string };
+  assert.equal(brokenPaymentEvidence.paymentCurrencyStatus, 'UNKNOWN');
+
+  const taxComparable = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.40')],
+  });
+  const taxComparableEvidence = taxComparable as unknown as {
+    taxReconciliationStatus?: string;
+    taxVariance?: string | null;
+  };
+  assert.equal(taxComparableEvidence.taxReconciliationStatus, 'RECONCILED');
+  assert.equal(taxComparableEvidence.taxVariance, '0');
+
+  const taxVariance = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
+  });
+  const taxVarianceEvidence = taxVariance as unknown as {
+    taxReconciliationStatus?: string;
+    taxVariance?: string | null;
+  };
+  assert.equal(taxVariance.status, 'RECONCILED', 'the existing overall status remains explicitly limited to non-tax reconciliation');
+  assert.equal(taxVarianceEvidence.taxReconciliationStatus, 'VARIANCE');
+  assert.equal(taxVarianceEvidence.taxVariance, '0.1');
+
+  const invoiceDetailOnlyTaxEvidence = aligned as unknown as { taxReconciliationStatus?: string };
+  assert.equal(
+    invoiceDetailOnlyTaxEvidence.taxReconciliationStatus,
+    'NOT_COMPARABLE',
+    'invoice-detail tax must be reported but not compared when CostAndUsage has no tax rows',
+  );
   process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
 });
