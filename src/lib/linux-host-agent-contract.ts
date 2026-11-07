@@ -115,9 +115,9 @@ export function normalizeLinuxHostTaskResult(input: unknown): LinuxHostTaskResul
 }
 
 export function isSafeLinuxHostRuntimeId(value: unknown): value is string {
-  return typeof value === 'string' && /^linux-[0-9a-f-]{36}$/.test(value);
+  return typeof value === 'string' && /^linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 }
 
 export function isSafeLinuxHostTaskId(value: unknown): value is string {
-  return typeof value === 'string' && /^linux-task-[0-9a-f-]{36}$/.test(value);
+  return typeof value === 'string' && /^linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 }
