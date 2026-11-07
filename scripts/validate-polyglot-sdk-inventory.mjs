@@ -64,12 +64,23 @@ export function validatePolyglotSdkInventory({
       }
     }
 
-    const row = `| ${sdk.language} | \`sdk/${sdk.packageName}\` |`;
-    if (typeof sdkReadme !== 'string' || !sdkReadme.includes(row)) {
-      errors.push(`SDK package index is missing the ${sdk.language} row (${row}).`);
+    const rowPrefix = `| ${sdk.language} | \`sdk/${sdk.packageName}\` |`;
+    const statusSuffix = `| ${capability?.status ?? 'UNKNOWN'} |`;
+    const readmeRows = typeof sdkReadme === 'string'
+      ? sdkReadme.split(/\\r?\\n/).filter((line) => line.startsWith(rowPrefix))
+      : [];
+    const guideRows = typeof architectureGuide === 'string'
+      ? architectureGuide.split(/\\r?\\n/).filter((line) => line.startsWith(rowPrefix))
+      : [];
+    if (readmeRows.length === 0) {
+      errors.push(`SDK package index is missing the ${sdk.language} row (${rowPrefix}).`);
+    } else if (!readmeRows.some((line) => line.endsWith(statusSuffix))) {
+      errors.push(`SDK package index evidence status for ${sdk.language} must match the capability registry (${statusSuffix}).`);
     }
-    if (typeof architectureGuide !== 'string' || !architectureGuide.includes(row)) {
-      errors.push(`Language-neutral architecture guide is missing the ${sdk.language} row (${row}).`);
+    if (guideRows.length === 0) {
+      errors.push(`Language-neutral architecture guide is missing the ${sdk.language} row (${rowPrefix}).`);
+    } else if (!guideRows.some((line) => line.endsWith(statusSuffix))) {
+      errors.push(`Language-neutral architecture guide evidence status for ${sdk.language} must match the capability registry (${statusSuffix}).`);
     }
 
     const workflow = sdk.workflow === 'python' ? pythonWorkflow : polyglotWorkflow;
