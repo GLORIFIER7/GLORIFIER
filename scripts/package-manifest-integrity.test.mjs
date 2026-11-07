@@ -102,7 +102,7 @@ test("package-lock root manifest matches package.json dependencies", () => {
 });
 
 test("duplicateJsonKeys handles escaped quotes and backslashes in values", () => {
-  const source = String.raw`{"value":"escaped quote: \\" and slash: \\\\","value":"second"}`;
+    const source = String.raw`{"value":"escaped quote: \" and slash: \\","value":"second"}`;
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
 });
 
