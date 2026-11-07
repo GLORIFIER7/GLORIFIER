@@ -3998,10 +3998,12 @@ app.get('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: Reques
 
 app.post('/api/linux/runtimes/:runtimeId/revoke', requireOwner, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
     const actor = req.auth?.uid || 'human-owner';
-    const revoked = await revokeLinuxHostAgent(String(req.params.runtimeId || ''), actor);
+    const revoked = await revokeLinuxHostAgent(runtimeId, actor);
     if (!revoked) return res.status(404).json({ ok: false, error: 'Linux host is not enrolled or is already revoked' });
-    return res.json({ ok: true, status: 'revoked', runtimeId: String(req.params.runtimeId || '') });
+    return res.json({ ok: true, status: 'revoked', runtimeId });
   } catch (error) {
     return apiError(res, 503, 'Linux host-agent revocation failed', error);
   }
