@@ -67,10 +67,10 @@ export function validatePolyglotSdkInventory({
     const rowPrefix = `| ${sdk.language} | \`sdk/${sdk.packageName}\` |`;
     const statusSuffix = `| ${capability?.status ?? 'UNKNOWN'} |`;
     const readmeRows = typeof sdkReadme === 'string'
-      ? sdkReadme.split(/\\r?\\n/).filter((line) => line.startsWith(rowPrefix))
+      ? sdkReadme.split(/\r?\n/).filter((line) => line.startsWith(rowPrefix))
       : [];
     const guideRows = typeof architectureGuide === 'string'
-      ? architectureGuide.split(/\\r?\\n/).filter((line) => line.startsWith(rowPrefix))
+      ? architectureGuide.split(/\r?\n/).filter((line) => line.startsWith(rowPrefix))
       : [];
     if (readmeRows.length === 0) {
       errors.push(`SDK package index is missing the ${sdk.language} row (${rowPrefix}).`);
