@@ -2,6 +2,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { duplicateJsonKeys } from './package-manifest-integrity.mjs';
 
 export const POLYGLOT_SDK_CATALOG = Object.freeze([
   { language: 'Python', packageName: 'python', capabilityId: 'sdk.python-contract', workflow: 'python', jobName: 'python-sdk-tests' },
@@ -103,6 +104,7 @@ export function validatePolyglotSdkInventory({
 async function main() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const read = (path) => readFile(join(repositoryRoot, path), 'utf8');
+  let registryText;
   let registry;
   let architectureGuide;
   let sdkReadme;
@@ -111,15 +113,23 @@ async function main() {
   let fixtureText;
 
   try {
-    [registry, architectureGuide, sdkReadme, polyglotWorkflow, pythonWorkflow, fixtureText] = await Promise.all([
-      read('docs/architecture/interoperability-capabilities.json').then(JSON.parse),
+    [registryText, architectureGuide, sdkReadme, polyglotWorkflow, pythonWorkflow, fixtureText] = await Promise.all([
+      read('docs/architecture/interoperability-capabilities.json'),
       read('docs/architecture/language-neutral-interoperability.md'),
       read('sdk/README.md'),
       read('.github/workflows/polyglot-sdk.yml'),
       read('.github/workflows/python-sdk.yml'),
       read('docs/architecture/interoperability-contract-fixtures.json'),
     ]);
-    JSON.parse(fixtureText);
+    const registryDuplicates = duplicateJsonKeys(registryText);
+    if (registryDuplicates.length > 0) {
+      throw new Error(`Capability registry contains duplicate JSON keys: ${registryDuplicates.join(', ')}.`);
+    }
+    const fixtureDuplicates = duplicateJsonKeys(fixtureText);
+    if (fixtureDuplicates.length > 0) {
+      throw new Error(`Interoperability fixtures contain duplicate JSON keys: ${fixtureDuplicates.join(', ')}.`);
+    }
+    registry = JSON.parse(registryText);
   } catch (error) {
     console.error(`Polyglot inventory inputs could not be read or parsed: ${error.message}`);
     process.exitCode = 2;
