@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "include": [
+    "/api",
+    "/api/*",
+    "/auth",
+    "/auth/*",
+    "/mcp",
+    "/mcp/*",
+    "/.well-known/agent-card.json"
+  ],
+  "exclude": []
+}
