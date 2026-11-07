@@ -488,6 +488,25 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
     reason.includes('incomplete or invalid PaymentCurrency'),
   ));
 
+  const explicitNullPaymentCurrencyWithTaxVariance = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
+    invoiceDetail: input.invoiceDetail.map((row) => ({
+      ...row,
+      paymentCurrency: null,
+      paymentCurrencyBilledCost: null,
+      paymentCurrencyInvoiceDetailId: null,
+    })),
+  });
+  assert.equal(explicitNullPaymentCurrencyWithTaxVariance.status, 'UNKNOWN');
+  assert.equal(explicitNullPaymentCurrencyWithTaxVariance.paymentCurrencyStatus, 'UNKNOWN');
+  assert.equal(
+    explicitNullPaymentCurrencyWithTaxVariance.taxReconciliationStatus,
+    'VARIANCE',
+    'invalid payment-currency metadata must not suppress independently comparable tax evidence',
+  );
+  assert.equal(explicitNullPaymentCurrencyWithTaxVariance.taxVariance, '0.1');
+
   const invalidPaymentLineageWithTaxVariance = reconcileFocusInvoice({
     ...input,
     costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
