@@ -21,9 +21,9 @@ test('Linux host-agent contract rejects arbitrary commands and unsupported actio
 });
 
 test('Linux host-agent contract accepts only generated runtime and task identifiers', () => {
-  assert.equal(isSafeLinuxHostRuntimeId('linux-123e4567-e89b-12d3-a456-426614174000'), true);
+  assert.equal(isSafeLinuxHostRuntimeId('linux-123e4567-e89b-42d3-a456-426614174000'), true);
   assert.equal(isSafeLinuxHostRuntimeId('linux-../../etc/passwd'), false);
-  assert.equal(isSafeLinuxHostTaskId('linux-task-123e4567-e89b-12d3-a456-426614174000'), true);
+  assert.equal(isSafeLinuxHostTaskId('linux-task-123e4567-e89b-42d3-a456-426614174000'), true);
   assert.equal(isSafeLinuxHostTaskId('linux-task-../../etc/passwd'), false);
 });
 
