@@ -23,7 +23,7 @@ The API routes are implemented in the GLORIFIER backend:
 - Agent: `POST /api/linux/agent/{runtimeId}/tasks/claim`
 - Agent: `POST /api/linux/agent/{runtimeId}/tasks/{taskId}/result`
 
-The owner routes require a verified GLORIFIER owner identity. Enrollment creates a random 256-bit bearer token; only its SHA-256 hash is stored. The plaintext token is returned once. Agent routes use the per-host token and fail closed for invalid, unknown or revoked credentials. Every task is created through an owner-authenticated route and limited to the three actions above. Claimed work has a 45-second lease; unclaimed tasks expire after two minutes.
+The owner routes require a verified GLORIFIER owner identity. Enrollment creates a random 256-bit bearer token; only its SHA-256 hash is stored. The plaintext token is returned once. Agent routes use the per-host token and fail closed for invalid, unknown or revoked credentials. Every task is created through an owner-authenticated route and limited to the three actions above. Claimed work has a 45-second lease and a unique random 256-bit lease token per claim. Only the token digest is stored; the token is required to submit that claim's result, so an expired worker cannot complete a later claim. An expired claim is re-queued while the task's two-minute lifetime remains; the task expires after that lifetime.
 
 The API is reachable through the Cloudflare Worker only when the backend origin and exact-host allowlist are configured correctly. The Worker does not bypass authentication or provide a backend fallback.
 
