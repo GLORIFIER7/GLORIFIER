@@ -1504,11 +1504,11 @@
           "notes": "Both Python matrix jobs completed successfully, including locked dependency validation, Ruff, pytest, pip-audit, container build, and runtime-image PostgreSQL-driver verification. This is source/contract CI evidence, not live NVIDIA hardware or endpoint evidence. The separate AI Review Policy job failed."
         },
         {
-          "kind": "codeql-and-worker-validation",
+          "kind": "ci-run",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42364310528",
           "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
           "observedAt": "2026-11-07T10:46:35Z",
-          "notes": "CodeQL Analyze passed. Cloudflare Worker validation/build also passed in run 42364310300, while deploy and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and reported no blocking code defects; it is not an approval. Review/signature governance remains unresolved."
+          "notes": "CodeQL Analyze passed in this run. Cloudflare Worker validation/build also passed in run 42364310300; deploy and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and reported no blocking code defects; it is not an approval. Review/signature governance remains unresolved."
         }
       ],
       "limitations": [
