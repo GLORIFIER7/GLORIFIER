@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  canonicalizeLinuxHostAgentJson,
   isLinuxHostAgentAction,
   isSafeLinuxHostRuntimeId,
   isSafeLinuxHostTaskId,
@@ -61,6 +62,25 @@ test('Linux host-agent heartbeat validates bounded platform facts', () => {
     architecture: 'x86_64',
     pythonVersion: '3.12.3',
   }));
+});
+
+test('Linux host-agent heartbeat accepts Python prerelease version strings', () => {
+  const heartbeat = normalizeLinuxHostHeartbeat({
+    agentVersion: '1.0.0',
+    hostname: 'worker-rc',
+    distribution: 'Ubuntu 24.04',
+    kernelRelease: '6.8.0-generic',
+    architecture: 'x86_64',
+    pythonVersion: '3.13.0rc1',
+  });
+  assert.equal(heartbeat.pythonVersion, '3.13.0rc1');
+});
+
+test('Linux host-agent canonical JSON digest input ignores object key insertion order', () => {
+  const first = { z: 1, nested: { b: true, a: 'value' }, items: [3, 2, 1] };
+  const second = { items: [3, 2, 1], nested: { a: 'value', b: true }, z: 1 };
+  assert.equal(canonicalizeLinuxHostAgentJson(first), canonicalizeLinuxHostAgentJson(second));
+  assert.equal(canonicalizeLinuxHostAgentJson({ b: 1, a: 2 }), '{"a":2,"b":1}');
 });
 
 test('Linux host-agent task results enforce bounded structured output', () => {
