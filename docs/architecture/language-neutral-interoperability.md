@@ -24,19 +24,19 @@ Do not expose TypeScript interfaces as the only specification. Do not assume tha
 
 GLORIFIER currently maintains first-party HTTP/JSON clients for eleven languages:
 
-| Language | Package | Verified CI target |
+| Language | Package | CI target | Evidence status |
 |---|---|---|
-| Python | `sdk/python` | Python 3.10, 3.11, 3.12 on Ubuntu 24.04 x86_64 |
-| Go | `sdk/go` | Go 1.26.x and 1.27.x on Ubuntu 24.04 x86_64 |
-| Java | `sdk/java` | JDK 17 on Ubuntu 24.04 x86_64 |
-| Kotlin | `sdk/kotlin` | Kotlin/JVM 2.0.21 on JDK 17 / Ubuntu 24.04 x86_64 |
-| C# / .NET | `sdk/dotnet` | .NET 8 on Ubuntu 24.04 x86_64 |
-| Rust | `sdk/rust` | stable Rust, edition 2021, on Ubuntu 24.04 x86_64 |
-| PHP | `sdk/php` | PHP 8.2 with cURL and mbstring on Ubuntu 24.04 x86_64 |
-| Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64 |
-| Swift | `sdk/swift` | Swift toolchain; last passing GitHub CI used retired macOS 14, with macOS 15 ARM64 revalidation pending |
-| Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64 |
-| JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64 |
+| Python | `sdk/python` | Python 3.10, 3.11, 3.12 on Ubuntu 24.04 x86_64  | VERIFIED |
+| Go | `sdk/go` | Go 1.26.x and 1.27.x on Ubuntu 24.04 x86_64  | VERIFIED |
+| Java | `sdk/java` | JDK 17 on Ubuntu 24.04 x86_64  | VERIFIED |
+| Kotlin | `sdk/kotlin` | Kotlin/JVM 2.0.21 on JDK 17 / Ubuntu 24.04 x86_64  | VERIFIED |
+| C# / .NET | `sdk/dotnet` | .NET 8 on Ubuntu 24.04 x86_64  | VERIFIED |
+| Rust | `sdk/rust` | stable Rust, edition 2021, on Ubuntu 24.04 x86_64  | VERIFIED |
+| PHP | `sdk/php` | PHP 8.2 with cURL and mbstring on Ubuntu 24.04 x86_64  | VERIFIED |
+| Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64  | VERIFIED |
+| Swift | `sdk/swift` | Swift toolchain; last passing GitHub CI used retired macOS 14, with macOS 15 ARM64 revalidation pending  | VERIFIED |
+| Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64  | VERIFIED |
+| JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64  | VERIFIED |
 
 The eight additional native SDK jobs (Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, Dart) passed the dedicated native SDK workflow on PR #658 head `23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e` in [run #41992741980](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41992741980); PR #658 merged to main as `3a04a42b50c3e1e2ef5b70b1ca7d0a0581f09057`. Python and Go retain separate multi-version conformance matrices; their latest recorded successful run is [run #42001480782](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42001480782) on PR #661 head `368236b13d7cd16d70c4c7e1ba9231a42e1a2b82`. See [the SDK package index](../../sdk/README.md) and the capability registry for exact per-language evidence.
 
