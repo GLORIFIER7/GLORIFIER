@@ -489,9 +489,9 @@
     },
     {
       "id": "owasp-agent-control",
-      "authority": "OWASP",
+      "authority": "OWASP GenAI Security Project",
       "domain": "cybersecurity",
-      "url": "https://genai.owasp.org/resource/agent-control-standard-acs/",
+      "url": "https://owaspacs.org/docs/acs/",
       "claimsAllowed": [
         "runtime-agent-controls"
       ],
