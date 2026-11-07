@@ -17,6 +17,8 @@ const protectedPaths = [
   '/api/a2a/tasks',
   '/API/A2A/TASKS/task-123',
   '/API/AUTH/SESSION',
+  '/api/linux/runtimes',
+  '/api/linux/runtimes/linux-123e4567-e89b-42d3-a456-426614174000/tasks',
 ];
 
 const unprotectedPaths = [
@@ -35,6 +37,8 @@ const authenticationBypassCases: Array<[string, string, boolean]> = [
   ['GET', '/public/status', true],
   ['HEAD', '/public/status', true],
   ['GET', '/economy/glr/intents/intent-123', false],
+  ['GET', '/linux/runtimes', false],
+  ['GET', '/linux/runtimes/linux-123e4567-e89b-42d3-a456-426614174000/tasks', false],
   ['HEAD', '/A2A/TASKS/task-123', false],
   ['POST', '/public/status', false],
   ['PUT', '/public/status', false],
