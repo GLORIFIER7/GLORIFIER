@@ -158,10 +158,12 @@ class LinuxHostAgentClient:
                     raise AgentError("GLORIFIER returned a non-JSON response")
         except urllib.error.HTTPError as exc:
             raise AgentError("GLORIFIER returned HTTP " + str(exc.code)) from None
-        except urllib.error.URLError:
-            raise AgentError("GLORIFIER endpoint is unreachable") from None
         except TimeoutError:
             raise AgentError("GLORIFIER request timed out") from None
+        except urllib.error.URLError:
+            raise AgentError("GLORIFIER endpoint is unreachable") from None
+        except OSError:
+            raise AgentError("GLORIFIER request failed") from None
         try:
             data = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -205,11 +207,11 @@ class LinuxHostAgentClient:
         )
 
 
-def run_once(client: LinuxHostAgentClient) -> bool:
+def run_once(client: LinuxHostAgentClient) -> tuple[bool, bool]:
     client.heartbeat()
     task = client.claim_task()
     if task is None:
-        return False
+        return False, True
     action = task["action"]
     try:
         result = {"status": "succeeded", "result": execute_action(action)}
@@ -218,7 +220,7 @@ def run_once(client: LinuxHostAgentClient) -> bool:
     except Exception:
         result = {"status": "failed", "errorCode": "probe_failed"}
     client.submit_result(task["taskId"], result)
-    return True
+    return True, result["status"] == "succeeded"
 
 
 def main() -> int:
@@ -240,11 +242,17 @@ def main() -> int:
 
     while True:
         try:
-            processed = run_once(client)
-            if processed:
+            processed, succeeded = run_once(client)
+            if processed and succeeded:
                 print("Completed one approved read-only diagnostic task.")
+            elif processed:
+                print("Approved diagnostic task returned a failure receipt.", file=sys.stderr)
+                if args.once:
+                    return 1
         except AgentError as exc:
             print("Agent check failed: " + str(exc), file=sys.stderr)
+            if args.once:
+                return 1
         if args.once:
             return 0
         time.sleep(args.poll_seconds)
