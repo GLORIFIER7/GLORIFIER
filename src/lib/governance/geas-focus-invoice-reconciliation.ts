@@ -10,6 +10,15 @@ import { compareCodeUnits } from '../deterministic-string-order';
  */
 
 export type FocusInvoiceReconciliationStatus = 'RECONCILED' | 'VARIANCE' | 'UNKNOWN';
+export type FocusPaymentCurrencyStatus = 'NOT_PROVIDED' | 'ANALYZED' | 'UNKNOWN';
+export type FocusTaxReconciliationStatus = 'NOT_COMPARABLE' | 'RECONCILED' | 'VARIANCE';
+
+export interface FocusPaymentCurrencyGroup {
+  paymentCurrency: string;
+  paymentCurrencyInvoiceDetailId: string;
+  billingCurrencyBilledCost: string;
+  paymentCurrencyBilledCost: string;
+}
 
 export interface FocusInvoiceCharge {
   invoiceIssuerName: string;
@@ -17,6 +26,9 @@ export interface FocusInvoiceCharge {
   billingPeriodStart: string;
   billingPeriodEnd: string;
   invoiceDetailId?: string | null;
+  paymentCurrency?: string | null;
+  paymentCurrencyBilledCost?: string | null;
+  paymentCurrencyInvoiceDetailId?: string | null;
   chargeCategory: string;
   billingCurrency: string;
   billedCost: string;
@@ -61,8 +73,15 @@ export interface FocusInvoiceReconciliationResult {
   /** A dataset reconciliation is analysis, not proof of invoice authenticity. */
   evidenceClass: 'analysis';
   reconciliationScope: 'provided-dataset-consistency-only';
-  /** RECONCILED applies only to non-tax line items; tax totals are reported, not compared. */
+  /** The overall status is limited to non-tax billing-currency line items. */
   reconciliationBasis: 'non-tax-line-items-only';
+  /** Deterministic payment-currency lineage analysis; never proof that payment settled. */
+  paymentCurrencyStatus: FocusPaymentCurrencyStatus;
+  paymentCurrencyGroups: FocusPaymentCurrencyGroup[];
+  /** Tax comparison is independent because CostAndUsage commonly omits tax rows. */
+  taxReconciliationStatus: FocusTaxReconciliationStatus;
+  /** CostAndUsage tax total minus InvoiceDetail tax total; null when not comparable. */
+  taxVariance: string | null;
   invoiceIssuerName: string | null;
   invoiceId: string | null;
   billingPeriodStart: string | null;
@@ -86,6 +105,10 @@ interface NormalizedCharge {
   chargeCategory: string;
   billingCurrency: string;
   billedCost: string;
+  paymentCurrency: string | null;
+  paymentCurrencyBilledCost: string | null;
+  paymentCurrencyInvoiceDetailId: string | null;
+  paymentCurrencyFieldsPresent: boolean;
 }
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -95,6 +118,16 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 
 const textValue = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
+
+const hasPaymentCurrencyInput = (values: unknown): boolean =>
+  Array.isArray(values) && values.some((value) => {
+    const row = asRecord(value);
+    return Boolean(row && [
+      'paymentCurrency',
+      'paymentCurrencyBilledCost',
+      'paymentCurrencyInvoiceDetailId',
+    ].some((key) => row[key] !== undefined && row[key] !== null));
+  });
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
 const hasCanonicalUtcTimestampShape = (value: string): boolean =>
@@ -158,6 +191,7 @@ const unknownResult = (
   roundingTolerance: string | null,
   reasons: string[],
   billingPeriodStatus: string | null = null,
+  paymentCurrencyStatus: FocusPaymentCurrencyStatus = 'NOT_PROVIDED',
 ): FocusInvoiceReconciliationResult => {
   return {
     specVersion: 'FOCUS-1.4',
@@ -165,6 +199,10 @@ const unknownResult = (
     evidenceClass: 'analysis',
     reconciliationScope: 'provided-dataset-consistency-only',
     reconciliationBasis: 'non-tax-line-items-only',
+    paymentCurrencyStatus,
+    paymentCurrencyGroups: [],
+    taxReconciliationStatus: 'NOT_COMPARABLE',
+    taxVariance: null,
     invoiceIssuerName,
     invoiceId,
     billingPeriodStart,
@@ -205,6 +243,13 @@ interface ParsedNormalizedCharge {
   chargeCategory: string;
   billingCurrency: string;
   billedCost: string;
+  paymentCurrency: string | null;
+  paymentCurrencyValue: unknown;
+  paymentCurrencyBilledCost: string | null;
+  paymentCurrencyBilledCostValue: unknown;
+  paymentCurrencyInvoiceDetailId: string | null;
+  paymentCurrencyInvoiceDetailIdValue: unknown;
+  paymentCurrencyFieldsPresent: boolean;
 }
 
 const hasRequiredChargeFields = (values: readonly (string | null)[]): boolean =>
@@ -247,10 +292,25 @@ const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCh
   const fields = readNormalizedChargeFields(row);
   if (!fields) return null;
   const invoiceDetailIdValue = row.invoiceDetailId;
+  const paymentCurrencyValue = row.paymentCurrency;
+  const paymentCurrencyBilledCostValue = row.paymentCurrencyBilledCost;
+  const paymentCurrencyInvoiceDetailIdValue = row.paymentCurrencyInvoiceDetailId;
+  const paymentCurrencyFieldsPresent = [
+    paymentCurrencyValue,
+    paymentCurrencyBilledCostValue,
+    paymentCurrencyInvoiceDetailIdValue,
+  ].some((value) => value !== undefined && value !== null);
   return {
     ...fields,
     invoiceDetailId: textValue(invoiceDetailIdValue),
     invoiceDetailIdValue,
+    paymentCurrency: textValue(paymentCurrencyValue),
+    paymentCurrencyValue,
+    paymentCurrencyBilledCost: textValue(paymentCurrencyBilledCostValue),
+    paymentCurrencyBilledCostValue,
+    paymentCurrencyInvoiceDetailId: textValue(paymentCurrencyInvoiceDetailIdValue),
+    paymentCurrencyInvoiceDetailIdValue,
+    paymentCurrencyFieldsPresent,
   };
 };
 
@@ -316,6 +376,20 @@ const normalizeSingleRow = (
     context.reasons.push(`${context.datasetName} row ${index} ${failure}`);
     return null;
   }
+  if (parsed.paymentCurrencyFieldsPresent) {
+    if (context.datasetName !== 'InvoiceDetail') {
+      context.reasons.push(`${context.datasetName} row ${index} must not contain InvoiceDetail payment-currency fields`);
+      return null;
+    }
+    if (!parsed.paymentCurrency
+        || !isUppercaseCurrencyCode(parsed.paymentCurrency)
+        || !parsed.paymentCurrencyBilledCost
+        || decimalScale(parsed.paymentCurrencyBilledCost) === null
+        || !parsed.paymentCurrencyInvoiceDetailId) {
+      context.reasons.push(`InvoiceDetail row ${index} has incomplete or invalid PaymentCurrency, PaymentCurrencyBilledCost, or PaymentCurrencyInvoiceDetailId fields`);
+      return null;
+    }
+  }
   return {
     invoiceIssuerName: parsed.invoiceIssuerName,
     invoiceId: parsed.invoiceId,
@@ -323,6 +397,10 @@ const normalizeSingleRow = (
     chargeCategory: parsed.chargeCategory,
     billingCurrency: parsed.billingCurrency,
     billedCost: parsed.billedCost,
+    paymentCurrency: parsed.paymentCurrency,
+    paymentCurrencyBilledCost: parsed.paymentCurrencyBilledCost,
+    paymentCurrencyInvoiceDetailId: parsed.paymentCurrencyInvoiceDetailId,
+    paymentCurrencyFieldsPresent: parsed.paymentCurrencyFieldsPresent,
   };
 };
 
@@ -381,6 +459,16 @@ interface ComparableInvoiceRows {
   usageNonTaxRows: NormalizedCharge[];
   detailNonTaxRows: NormalizedCharge[];
   toleranceUnits: bigint;
+}
+
+interface PaymentCurrencyAnalysis {
+  status: FocusPaymentCurrencyStatus;
+  groups: FocusPaymentCurrencyGroup[];
+}
+
+interface TaxReconciliationAnalysis {
+  status: FocusTaxReconciliationStatus;
+  variance: string | null;
 }
 
 interface InvoiceLineComparison {
@@ -586,9 +674,13 @@ const normalizeInvoiceDatasets = (
   };
   const usageRows = normalizeRows(metadata.usageValues, { ...sharedContext, datasetName: 'CostAndUsage' });
   const detailRows = normalizeRows(metadata.detailValues, { ...sharedContext, datasetName: 'InvoiceDetail' });
-  const scales = [...usageRows, ...detailRows].map((row) => decimalScale(row.billedCost));
+  const scales = [
+    ...[...usageRows, ...detailRows].map((row) => decimalScale(row.billedCost)),
+    ...detailRows.filter((row) => row.paymentCurrencyFieldsPresent)
+      .map((row) => decimalScale(row.paymentCurrencyBilledCost)),
+  ];
   if (scales.some((scale) => scale === null)) {
-    reasons.push('all billed costs must be decimal strings with at most 12 fractional digits');
+    reasons.push('all billed costs, including payment-currency amounts, must be decimal strings with at most 12 fractional digits');
   }
   if (reasons.length > 0) return null;
   const scale = scales.reduce<number>((maximum, value) => value === null ? maximum : Math.max(maximum, value), metadata.toleranceScale);
@@ -619,13 +711,22 @@ const validateUsageIdentifiers = (rows: NormalizedCharge[], reasons: string[]): 
   }
 };
 
+const isPaymentCurrencyAggregateOnlyRow = (row: NormalizedCharge, scale: number): boolean =>
+  row.paymentCurrencyFieldsPresent
+  && row.paymentCurrencyBilledCost !== null
+  && decimalUnits(row.billedCost, scale) === 0n
+  && decimalUnits(row.paymentCurrencyBilledCost, scale) !== 0n;
+
 const getComparableInvoiceRows = (
   usageRows: NormalizedCharge[],
   detailRows: NormalizedCharge[],
+  scale: number,
   reasons: string[],
 ): { usageNonTaxRows: NormalizedCharge[]; detailNonTaxRows: NormalizedCharge[] } => {
   const usageNonTaxRows = usageRows.filter((row) => !isTax(row));
-  const detailNonTaxRows = detailRows.filter((row) => !isTax(row));
+  // A payment-currency aggregate is a settlement record, not an independent
+  // usage charge in the billing currency. Keep it in payment lineage analysis.
+  const detailNonTaxRows = detailRows.filter((row) => !isTax(row) && !isPaymentCurrencyAggregateOnlyRow(row, scale));
   if (usageNonTaxRows.length === 0) reasons.push('no non-tax CostAndUsage rows are available for comparison');
   if (detailNonTaxRows.length === 0) reasons.push('no non-tax InvoiceDetail rows are available for comparison');
   return { usageNonTaxRows, detailNonTaxRows };
@@ -640,7 +741,7 @@ const validateInvoiceLineage = (
 ): ComparableInvoiceRows | null => {
   validateInvoiceDetailIdentifiers(detailRows, reasons);
   validateUsageIdentifiers(usageRows, reasons);
-  const comparable = getComparableInvoiceRows(usageRows, detailRows, reasons);
+  const comparable = getComparableInvoiceRows(usageRows, detailRows, scale, reasons);
   if (reasons.length > 0) return null;
   return {
     ...comparable,
@@ -650,6 +751,105 @@ const validateInvoiceLineage = (
 
 const sumBilledCosts = (rows: NormalizedCharge[], scale: number): bigint =>
   rows.reduce((total, row) => total + decimalUnits(row.billedCost, scale), 0n);
+
+const analyzePaymentCurrency = (
+  detailRows: NormalizedCharge[],
+  scale: number,
+  reasons: string[],
+): PaymentCurrencyAnalysis => {
+  const paymentRows = detailRows.filter((row) => row.paymentCurrencyFieldsPresent);
+  if (paymentRows.length === 0) return { status: 'NOT_PROVIDED', groups: [] };
+
+  const initialReasonCount = reasons.length;
+  if (paymentRows.length !== detailRows.length) {
+    reasons.push('PaymentCurrency fields must be provided for every InvoiceDetail row when the dataset uses payment currency');
+  }
+  const detailById = new Map<string, NormalizedCharge>();
+  for (const row of detailRows) {
+    if (!row.invoiceDetailId) continue;
+    if (detailById.has(row.invoiceDetailId)) {
+      reasons.push('PaymentCurrencyInvoiceDetailId validation requires unique InvoiceDetailId values');
+    } else {
+      detailById.set(row.invoiceDetailId, row);
+    }
+  }
+
+  const groups = new Map<string, {
+    paymentCurrency: string;
+    targetId: string;
+    billingCurrencyBilledCost: bigint;
+    paymentCurrencyBilledCost: bigint;
+  }>();
+  const currencyByTarget = new Map<string, string>();
+
+  for (const row of paymentRows) {
+    const currency = row.paymentCurrency;
+    const targetId = row.paymentCurrencyInvoiceDetailId;
+    const paymentAmount = row.paymentCurrencyBilledCost;
+    if (!row.invoiceDetailId || !currency || !targetId || paymentAmount === null) {
+      reasons.push('PaymentCurrency, PaymentCurrencyBilledCost, and PaymentCurrencyInvoiceDetailId are required together');
+      continue;
+    }
+    const targetRow = detailById.get(targetId);
+    if (!targetRow) {
+      reasons.push(`PaymentCurrencyInvoiceDetailId ${targetId} does not resolve to an InvoiceDetailId in the invoice`);
+      continue;
+    }
+    if (!targetRow.paymentCurrencyFieldsPresent
+        || targetRow.paymentCurrency !== currency
+        || targetRow.paymentCurrencyInvoiceDetailId !== targetId) {
+      reasons.push(`PaymentCurrencyInvoiceDetailId ${targetId} does not resolve to its matching payment-currency aggregate record`);
+    }
+    if (decimalUnits(paymentAmount, scale) !== 0n && row.invoiceDetailId !== targetId) {
+      reasons.push('non-zero PaymentCurrencyBilledCost requires PaymentCurrencyInvoiceDetailId to equal the row InvoiceDetailId');
+    }
+    const priorCurrency = currencyByTarget.get(targetId);
+    if (priorCurrency && priorCurrency !== currency) {
+      reasons.push(`PaymentCurrency values conflict for PaymentCurrencyInvoiceDetailId ${targetId}`);
+    } else {
+      currencyByTarget.set(targetId, currency);
+    }
+    const key = JSON.stringify([currency, targetId]);
+    const aggregate = groups.get(key) ?? {
+      paymentCurrency: currency,
+      targetId,
+      billingCurrencyBilledCost: 0n,
+      paymentCurrencyBilledCost: 0n,
+    };
+    aggregate.billingCurrencyBilledCost += decimalUnits(row.billedCost, scale);
+    aggregate.paymentCurrencyBilledCost += decimalUnits(paymentAmount, scale);
+    groups.set(key, aggregate);
+  }
+
+  if (reasons.length > initialReasonCount) return { status: 'UNKNOWN', groups: [] };
+  const result = [...groups.values()]
+    .sort((left, right) => compareCodeUnits(left.targetId, right.targetId))
+    .map((group) => ({
+      paymentCurrency: group.paymentCurrency,
+      paymentCurrencyInvoiceDetailId: group.targetId,
+      billingCurrencyBilledCost: formatUnits(group.billingCurrencyBilledCost, scale),
+      paymentCurrencyBilledCost: formatUnits(group.paymentCurrencyBilledCost, scale),
+    }));
+  return { status: 'ANALYZED', groups: result };
+};
+
+const analyzeTaxReconciliation = (
+  usageRows: NormalizedCharge[],
+  detailRows: NormalizedCharge[],
+  toleranceUnits: bigint,
+  scale: number,
+): TaxReconciliationAnalysis => {
+  const usageTaxRows = usageRows.filter(isTax);
+  const detailTaxRows = detailRows.filter(isTax);
+  if (usageTaxRows.length === 0 || detailTaxRows.length === 0) {
+    return { status: 'NOT_COMPARABLE', variance: null };
+  }
+  const variance = sumBilledCosts(usageTaxRows, scale) - sumBilledCosts(detailTaxRows, scale);
+  return {
+    status: absolute(variance) <= toleranceUnits ? 'RECONCILED' : 'VARIANCE',
+    variance: formatUnits(variance, scale),
+  };
+};
 
 const aggregateUsageByDetailId = (rows: NormalizedCharge[], scale: number): Map<string, bigint> => {
   const amounts = new Map<string, bigint>();
@@ -788,6 +988,8 @@ const buildInvoiceResult = (
   datasets: NormalizedInvoiceDatasets,
   comparableRows: ComparableInvoiceRows,
   comparison: InvoiceLineComparison,
+  paymentCurrency: PaymentCurrencyAnalysis,
+  tax: TaxReconciliationAnalysis,
   reasons: string[],
   billingPeriodStatus: string | null,
 ): FocusInvoiceReconciliationResult => ({
@@ -796,6 +998,10 @@ const buildInvoiceResult = (
   evidenceClass: 'analysis',
   reconciliationScope: 'provided-dataset-consistency-only',
   reconciliationBasis: 'non-tax-line-items-only',
+  paymentCurrencyStatus: paymentCurrency.status,
+  paymentCurrencyGroups: paymentCurrency.groups,
+  taxReconciliationStatus: tax.status,
+  taxVariance: tax.variance,
   invoiceIssuerName: metadata.issuer,
   invoiceId: metadata.invoiceId,
   billingPeriodStart: metadata.billingPeriodStart,
@@ -816,6 +1022,8 @@ export const reconcileFocusInvoice = (
   input: FocusInvoiceReconciliationInput,
 ): FocusInvoiceReconciliationResult => {
   const reasons: string[] = [];
+  const paymentCurrencyWasSupplied = hasPaymentCurrencyInput(input?.invoiceDetail);
+  const unknownPaymentCurrencyStatus: FocusPaymentCurrencyStatus = paymentCurrencyWasSupplied ? 'UNKNOWN' : 'NOT_PROVIDED';
   const metadataDraft = parseInvoiceMetadata(input, reasons);
   if (reasons.length > 0) {
     return unknownResult(
@@ -826,6 +1034,8 @@ export const reconcileFocusInvoice = (
       metadataDraft.currency,
       metadataDraft.tolerance,
       reasons,
+      null,
+      unknownPaymentCurrencyStatus,
     );
   }
   if (!isCompleteInvoiceMetadata(metadataDraft)) {
@@ -837,13 +1047,28 @@ export const reconcileFocusInvoice = (
       metadataDraft.currency,
       metadataDraft.tolerance,
       ['invoice metadata is incomplete'],
+      null,
+      unknownPaymentCurrencyStatus,
     );
   }
   const metadata: InvoiceMetadata = metadataDraft;
   const billingPeriodStatus = validateBillingPeriodDataset(metadata, reasons);
-  if (reasons.length > 0) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons, billingPeriodStatus);
+  if (reasons.length > 0) return unknownResult(
+    metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
+    metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, unknownPaymentCurrencyStatus,
+  );
   const datasets = normalizeInvoiceDatasets(metadata, reasons);
-  if (!datasets) return unknownResult(metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd, metadata.currency, metadata.tolerance, reasons);
+  if (!datasets) return unknownResult(
+    metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
+    metadata.currency, metadata.tolerance, reasons, null, unknownPaymentCurrencyStatus,
+  );
+  const paymentCurrency = analyzePaymentCurrency(datasets.detailRows, datasets.scale, reasons);
+  if (paymentCurrency.status === 'UNKNOWN') {
+    return unknownResult(
+      metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
+      metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, 'UNKNOWN',
+    );
+  }
   const comparableRows = validateInvoiceLineage(
     datasets.usageRows,
     datasets.detailRows,
@@ -860,6 +1085,8 @@ export const reconcileFocusInvoice = (
       metadata.currency,
       formatUnits(decimalUnits(metadata.tolerance, datasets.scale), datasets.scale),
       reasons,
+      null,
+      paymentCurrency.status,
     );
   }
   const comparison = compareInvoiceLineItems(
@@ -869,7 +1096,15 @@ export const reconcileFocusInvoice = (
     datasets.scale,
     reasons,
   );
-  return buildInvoiceResult(metadata, datasets, comparableRows, comparison, reasons, billingPeriodStatus);
+  const tax = analyzeTaxReconciliation(
+    datasets.usageRows,
+    datasets.detailRows,
+    comparableRows.toleranceUnits,
+    datasets.scale,
+  );
+  return buildInvoiceResult(
+    metadata, datasets, comparableRows, comparison, paymentCurrency, tax, reasons, billingPeriodStatus,
+  );
 };
 
 
