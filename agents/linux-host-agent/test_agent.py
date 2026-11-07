@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location("glorifier_linux_host_agent", Path(__file__).with_name("agent.py"))
@@ -27,7 +28,7 @@ class LinuxHostAgentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AGENT.LinuxHostAgentClient("https://example.org", "../../etc/passwd", "a" * 43)
         with self.assertRaises(ValueError):
-            AGENT.LinuxHostAgentClient("https://example.org", "linux-123e4567-e89b-12d3-a456-426614174000", "short")
+            AGENT.LinuxHostAgentClient("https://example.org", "linux-123e4567-e89b-42d3-a456-426614174000", "short")
 
     def test_only_fixed_read_only_diagnostics_are_executable(self):
         self.assertEqual(
@@ -48,7 +49,7 @@ class LinuxHostAgentTests(unittest.TestCase):
                     AGENT.execute_action(unsafe)
 
     def test_run_once_reports_diagnostic_failure_after_persisting_receipt(self):
-        task_id = "linux-task-123e4567-e89b-12d3-a456-426614174000"
+        task_id = "linux-task-123e4567-e89b-42d3-a456-426614174000"
 
         class FakeClient:
             submitted = None
@@ -77,6 +78,24 @@ class LinuxHostAgentTests(unittest.TestCase):
         self.assertFalse(succeeded)
         self.assertEqual(client.submitted[0], task_id)
         self.assertEqual(client.submitted[1], {"status": "failed", "errorCode": "probe_failed"})
+
+    def test_one_shot_main_returns_nonzero_when_transport_fails(self):
+        class FakeClient:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+        with mock.patch.dict(
+            AGENT.os.environ,
+            {
+                "GLORIFIER_API_ORIGIN": "https://example.org",
+                "GLORIFIER_LINUX_RUNTIME_ID": "linux-123e4567-e89b-42d3-a456-426614174000",
+                "GLORIFIER_LINUX_AGENT_TOKEN": "a" * 43,
+            },
+        ), unittest.mock.patch.object(AGENT, "LinuxHostAgentClient", FakeClient), \
+           unittest.mock.patch.object(AGENT, "run_once", side_effect=AGENT.AgentError("offline")), \
+           unittest.mock.patch.object(AGENT.sys, "argv", ["agent.py", "--once"]), \
+           unittest.mock.patch("builtins.print"):
+            self.assertEqual(AGENT.main(), 1)
 
     def test_memory_parser_reads_only_expected_numeric_fields(self):
         with tempfile.TemporaryDirectory() as directory:
