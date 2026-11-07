@@ -1482,33 +1482,33 @@
       "id": "runtime.nvidia-dynamo",
       "title": "NVIDIA Dynamo governed inference runtime",
       "boundary": "GLORIFIER-NEURAL provider registry to an owner-operated NVIDIA Dynamo OpenAI-compatible frontend",
-      "scope": "draft-adapter-source-contract; no live runtime deployment or inference evidence",
+      "scope": "source-adapter-contract; no live runtime deployment or inference evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "GLORIFIER7/GLORIFIER-NEURAL draft PR #67",
+        "GLORIFIER7/GLORIFIER-NEURAL main (adapter PR #67 merged); follow-up fix PR #68 remains draft",
         "No authorized Dynamo endpoint, GPU host, or Kubernetes environment supplied"
       ],
       "evidence": [
         {
           "kind": "source",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67",
-          "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL branch feat/nvidia-dynamo-governed-runtime; current draft head 098d44a08005e372d203361ff9a9f2110087733e",
-          "observedAt": null,
-          "notes": "Draft PR #67 remains open at head 098d44a08005e372d203361ff9a9f2110087733e. Python 3.11 and 3.12 tests, Cloudflare Worker build, and CodeQL completed successfully on this exact head. AI Review Policy is still in progress and Codacy reports one new issue requiring disposition. No GPU-backed Dynamo deployment, live readiness, or inference has been verified."
+          "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL main; adapter present at base commit ace74961e36163882ae0624008268dd27538ac7d; follow-up branch fix/dynamo-close-response-and-wildcard-origin-20261107",
+          "observedAt": "2026-11-07T14:19:00Z",
+          "notes": "Adapter source PR #67 is merged and the optional provider is present on NEURAL main. Main still contains two reproduced defects: the synchronous HTTP/1.0 close-after-response path can fail while reading the response, and matching wildcard hostnames are accepted. Draft PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f adds retained-socket handling and wildcard rejection. Its tests, CodeQL, and Worker validation pass, but AI Review Policy fails for missing current-head formal AI reviews; the PR remains draft and its commits are reported unsigned. No live GPU deployment or inference is verified."
         },
         {
           "kind": "automated-test",
-          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/feat/nvidia-dynamo-governed-runtime/tests/test_nvidia_dynamo_provider.py",
-          "targetEnvironment": "GLORIFIER-NEURAL PR #67 head 098d44a08005e372d203361ff9a9f2110087733e; mocked Fetch/HTTP test harness",
-          "observedAt": null,
-          "notes": "The adapter contract is covered by the exact-head Python 3.11/3.12 CI jobs. Tests use controlled Fetch/HTTP responses; they do not contact a live Dynamo endpoint or prove GPU-backed deployment."
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42364310353",
+          "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f; Python 3.11/3.12 GitHub-hosted CI",
+          "observedAt": "2026-11-07T10:46:35Z",
+          "notes": "Both Python matrix jobs completed successfully, including locked dependency validation, Ruff, pytest, pip-audit, container build, and runtime-image PostgreSQL-driver verification. This is source/contract CI evidence, not live NVIDIA hardware or endpoint evidence. The separate AI Review Policy job failed."
         },
         {
-          "kind": "documentation",
-          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/feat/nvidia-dynamo-governed-runtime/docs/NVIDIA-DYNAMO.md",
-          "targetEnvironment": "NVIDIA Dynamo v1.6.0 compatibility target; no GLORIFIER deployment",
-          "observedAt": null,
-          "notes": "Records a pinned compatibility baseline and the required deployment, security, readiness, inference, and operations evidence. Documentation is a plan, not runtime proof."
+          "kind": "codeql-and-worker-validation",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42364310528",
+          "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
+          "observedAt": "2026-11-07T10:46:35Z",
+          "notes": "CodeQL Analyze passed. Cloudflare Worker validation/build also passed in run 42364310300, while deploy and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and reported no blocking code defects; it is not an approval. Review/signature governance remains unresolved."
         }
       ],
       "limitations": [
@@ -1518,7 +1518,7 @@
         "No live authorized Dynamo /v1/models readiness or /v1/chat/completions inference has been performed.",
         "The configured ingress has not been demonstrated to enforce TLS and bearer authentication; sending an Authorization header is not proof the server validates it.",
         "Mocked unit tests, container builds, Worker previews, and NVIDIA compatibility documentation cannot be promoted to live runtime verification.",
-        "The NEURAL adapter PR remains draft at head 098d44a08005e372d203361ff9a9f2110087733e. Exact-head Python 3.11/3.12 tests, Cloudflare Worker build, and CodeQL passed; Codacy has one action-required finding and AI Review Policy is still running."
+        "Follow-up PR #68 remains draft at head 8b21a25d454313888fba0bd33f3b5b17d431276f. Python 3.11/3.12 tests, Ruff, pip-audit, container build, CodeQL, and Worker validation passed; AI Review Policy failed because required current-head formal reviews are missing. Commits are reported unsigned and the PR must not merge until the authorized signed-commit and human-review gates are satisfied."
       ]
     }
   ]
