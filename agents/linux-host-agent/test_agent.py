@@ -47,6 +47,37 @@ class LinuxHostAgentTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     AGENT.execute_action(unsafe)
 
+    def test_run_once_reports_diagnostic_failure_after_persisting_receipt(self):
+        task_id = "linux-task-123e4567-e89b-12d3-a456-426614174000"
+
+        class FakeClient:
+            submitted = None
+
+            def heartbeat(self):
+                return {"ok": True}
+
+            def claim_task(self):
+                return {"taskId": task_id, "action": "memory.info"}
+
+            def submit_result(self, submitted_task_id, result):
+                self.submitted = (submitted_task_id, result)
+                return {"ok": True}
+
+        client = FakeClient()
+        original_execute_action = AGENT.execute_action
+        try:
+            def fail_probe(_action):
+                raise AGENT.AgentError("controlled test failure")
+            AGENT.execute_action = fail_probe
+            processed, succeeded = AGENT.run_once(client)
+        finally:
+            AGENT.execute_action = original_execute_action
+
+        self.assertTrue(processed)
+        self.assertFalse(succeeded)
+        self.assertEqual(client.submitted[0], task_id)
+        self.assertEqual(client.submitted[1], {"status": "failed", "errorCode": "probe_failed"})
+
     def test_memory_parser_reads_only_expected_numeric_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "meminfo"
