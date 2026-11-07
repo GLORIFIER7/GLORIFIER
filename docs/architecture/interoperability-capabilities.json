@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-05T15:42:50.764Z",
+  "updatedAt": "2026-11-07T00:54:44Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1476,6 +1476,49 @@
         "Tests use injected Fetch and local Response objects; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "Server-side Node.js only; browser usage is intentionally unsupported to keep caller bearer tokens out of browser bundles.",
         "No A2A/MCP certification, cross-provider semantic equivalence, or production deployment is implied."
+      ]
+    },
+    {
+      "id": "runtime.nvidia-dynamo",
+      "title": "NVIDIA Dynamo governed inference runtime",
+      "boundary": "GLORIFIER-NEURAL provider registry to an owner-operated NVIDIA Dynamo OpenAI-compatible frontend",
+      "scope": "draft-adapter-source-contract; no live runtime deployment or inference evidence",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GLORIFIER7/GLORIFIER-NEURAL draft PR #67",
+        "No authorized Dynamo endpoint, GPU host, or Kubernetes environment supplied"
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67",
+          "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL branch feat/nvidia-dynamo-governed-runtime; head af1b6bb5bf170a32adcd0f7e0762afafdf0cd9bb",
+          "observedAt": null,
+          "notes": "Draft PR adds an optional OpenAI-compatible Dynamo adapter, exact HTTPS origin checks, explicit provider and egress gates, bounded readiness/inference paths, and readiness cache-key coverage. The PR is not merged; exact-head CI and review are not yet complete."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/feat/nvidia-dynamo-governed-runtime/tests/test_nvidia_dynamo_provider.py",
+          "targetEnvironment": "GLORIFIER-NEURAL draft PR #67 test harness; mocked Fetch/HTTP responses",
+          "observedAt": null,
+          "notes": "Test contract covers exact HTTPS origin configuration, model-catalogue readiness, non-streaming chat completion, response bounds, prompt bounds, redirect/error handling, secret sanitization, and runtime egress/selection gates. Passing exact-head test evidence is pending."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/blob/feat/nvidia-dynamo-governed-runtime/docs/NVIDIA-DYNAMO.md",
+          "targetEnvironment": "NVIDIA Dynamo v1.6.0 compatibility target; no GLORIFIER deployment",
+          "observedAt": null,
+          "notes": "Records a pinned compatibility baseline and the required deployment, security, readiness, inference, and operations evidence. Documentation is a plan, not runtime proof."
+        }
+      ],
+      "limitations": [
+        "No GLORIFIER-owned or authorized NVIDIA Dynamo deployment has been identified or tested.",
+        "No exact Dynamo image digest, backend/version, model/revision, GPU architecture/count/memory, CUDA runtime, NVIDIA driver, operating system, or Kubernetes/operator tuple has been captured.",
+        "No GPU node visibility, scheduler placement, workload health, or rollback evidence exists.",
+        "No live authorized Dynamo /v1/models readiness or /v1/chat/completions inference has been performed.",
+        "The configured ingress has not been demonstrated to enforce TLS and bearer authentication; sending an Authorization header is not proof the server validates it.",
+        "The NEURAL adapter PR remains draft and exact-head CI/security/review outcomes are pending.",
+        "Mocked unit tests, container builds, Worker previews, and NVIDIA compatibility documentation cannot be promoted to live runtime verification."
       ]
     }
   ]
