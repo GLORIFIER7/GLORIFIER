@@ -58,10 +58,10 @@ class LinuxHostAgentTests(unittest.TestCase):
                 return {"ok": True}
 
             def claim_task(self):
-                return {"taskId": task_id, "action": "memory.info"}
+                return {"taskId": task_id, "action": "memory.info", "leaseToken": "b" * 43}
 
-            def submit_result(self, submitted_task_id, result):
-                self.submitted = (submitted_task_id, result)
+            def submit_result(self, submitted_task_id, lease_token, result):
+                self.submitted = (submitted_task_id, lease_token, result)
                 return {"ok": True}
 
         client = FakeClient()
@@ -77,7 +77,8 @@ class LinuxHostAgentTests(unittest.TestCase):
         self.assertTrue(processed)
         self.assertFalse(succeeded)
         self.assertEqual(client.submitted[0], task_id)
-        self.assertEqual(client.submitted[1], {"status": "failed", "errorCode": "probe_failed"})
+        self.assertEqual(client.submitted[1], "b" * 43)
+        self.assertEqual(client.submitted[2], {"status": "failed", "errorCode": "probe_failed"})
 
     def test_one_shot_main_returns_nonzero_when_transport_fails(self):
         class FakeClient:
