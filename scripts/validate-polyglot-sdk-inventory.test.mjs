@@ -12,14 +12,16 @@ function fixture() {
       evidence: [{ kind: 'ci-run', reference: 'https://example.invalid/run/1' }],
     })),
   };
-  const table = (sdk) => `| ${sdk.language} | \`sdk/${sdk.packageName}\` | target |`;
+  const guideTable = (sdk) => `| ${sdk.language} | ` + "`sdk/" + sdk.packageName + "`" + ` | CI target | VERIFIED |`,
+  const readmeTable = (sdk) => `| ${sdk.language} | ` + "`sdk/" + sdk.packageName + "`" + ` | Runtime target | Test command | VERIFIED |`,
   const architectureGuide = [
     'First-party SDK implementations now exist for eleven language ecosystems.',
-    ...POLYGLOT_SDK_CATALOG.map(table),
+    ...POLYGLOT_SDK_CATALOG.map(guideTable),
   ].join('\n');
   const sdkReadme = [
     'All eleven first-party SDKs use the shared contract.',
-    ...POLYGLOT_SDK_CATALOG.map(table),
+    ...POLYGLOT_SDK_CATALOG.map(readmeTable),
+  ].join('\n');
   ].join('\n');
   const polyglotWorkflow = POLYGLOT_SDK_CATALOG
     .filter((sdk) => sdk.workflow === 'polyglot')
