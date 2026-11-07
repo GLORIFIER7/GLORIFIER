@@ -3,9 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 function extractJsonObject(source, propertyName) {
-  const escapedName = propertyName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-  const match = new RegExp(`"${escapedName}"\\\\s*:\\\\s*\\\\{`).exec(source);
-  assert.ok(match, `package.json must declare ${propertyName}`);
+  const match = new RegExp('"' + propertyName + '"\\s*:\\s*\\{').exec(source);
+  assert.ok(match, 'package.json must declare ' + propertyName);
 
   const openingBrace = match.index + match[0].lastIndexOf('{');
   let depth = 0;
@@ -17,7 +16,7 @@ function extractJsonObject(source, propertyName) {
 
     if (inString) {
       if (escaped) escaped = false;
-      else if (character === '\\\\') escaped = true;
+      else if (character === '\\') escaped = true;
       else if (character === '"') inString = false;
       continue;
     }
@@ -30,19 +29,19 @@ function extractJsonObject(source, propertyName) {
     }
   }
 
-  assert.fail(`unterminated JSON object for ${propertyName}`);
+  assert.fail('unterminated JSON object for ' + propertyName);
 }
 
 function assertUniqueObjectKeys(source, sectionName) {
   const objectSource = extractJsonObject(source, sectionName);
   const seen = new Set();
 
-  for (const line of objectSource.split(/\\r?\\n/)) {
-    const match = /^\\s*"((?:[^"\\\\]|\\\\.)+)"\\s*:/.exec(line);
+  for (const line of objectSource.split(/\r?\n/)) {
+    const match = /^\s*"((?:[^"\\]|\\.)+)"\s*:/.exec(line);
     if (!match) continue;
 
-    const key = JSON.parse(`"${match[1]}"`);
-    assert.ok(!seen.has(key), `duplicate ${sectionName} key: ${key}`);
+    const key = JSON.parse('"' + match[1] + '"');
+    assert.ok(!seen.has(key), 'duplicate ' + sectionName + ' key: ' + key);
     seen.add(key);
   }
 }
