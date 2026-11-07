@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { POLYGLOT_SDK_CATALOG, validatePolyglotSdkInventory } from './validate-polyglot-sdk-inventory.mjs';
+
+function fixture() {
+  const registry = {
+    capabilities: POLYGLOT_SDK_CATALOG.map((sdk) => ({
+      id: sdk.capabilityId,
+      status: 'VERIFIED',
+      targetEnvironments: ['documented CI target'],
+      evidence: [{ kind: 'ci-run', reference: 'https://example.invalid/run/1' }],
+    })),
+  };
+  const table = (sdk) => `| ${sdk.language} | \`sdk/${sdk.packageName}\` | target |`;
+  const architectureGuide = [
+    'First-party SDK implementations now exist for eleven language ecosystems.',
+    ...POLYGLOT_SDK_CATALOG.map(table),
+  ].join('\n');
+  const sdkReadme = [
+    'All eleven first-party SDKs use the shared contract.',
+    ...POLYGLOT_SDK_CATALOG.map(table),
+  ].join('\n');
+  const polyglotWorkflow = POLYGLOT_SDK_CATALOG
+    .filter((sdk) => sdk.workflow === 'polyglot')
+    .map((sdk) => `  ${sdk.jobName}:\n    runs-on: ubuntu-24.04`)
+    .join('\n');
+  const pythonWorkflow = POLYGLOT_SDK_CATALOG
+    .filter((sdk) => sdk.workflow === 'python')
+    .map((sdk) => `  ${sdk.jobName}:\n    runs-on: ubuntu-latest`)
+    .join('\n');
+  return { registry, architectureGuide, sdkReadme, polyglotWorkflow, pythonWorkflow };
+}
+
+test('accepts the eleven first-party SDKs when registry, docs, and CI agree', () => {
+  assert.deepEqual(validatePolyglotSdkInventory(fixture()), []);
+});
+
+test('rejects a missing SDK capability record', () => {
+  const input = fixture();
+  input.registry.capabilities.pop();
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('SDK capability inventory')));
+});
+
+test('rejects stale ten-SDK statements in the architecture guide', () => {
+  const input = fixture();
+  input.architectureGuide += '\nThe initial SDK delivery is complete for the ten languages listed above.';
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('stale ten-SDK statement')));
+});
+
+test('rejects documentation that omits a first-party SDK package', () => {
+  const input = fixture();
+  input.sdkReadme = input.sdkReadme.replace('| Python | \`sdk/python\` | target |', '');
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('sdk/python')));
+});
+
+test('rejects an SDK without its dedicated CI job', () => {
+  const input = fixture();
+  input.polyglotWorkflow = input.polyglotWorkflow.replace(/  java:[\s\S]*?(?=\n  |$)/, '');
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
+});
+
+test('rejects a first-party SDK whose evidence status is not VERIFIED', () => {
+  const input = fixture();
+  input.registry.capabilities[0].status = 'NOT VERIFIED';
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('must be VERIFIED')));
+});
