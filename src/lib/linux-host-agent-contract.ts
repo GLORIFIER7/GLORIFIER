@@ -64,7 +64,7 @@ export function normalizeLinuxHostHeartbeat(input: unknown): LinuxHostHeartbeat 
   }
   if (!/^[A-Za-z0-9._+-]+$/.test(normalized.agentVersion)) throw new Error('agentVersion is invalid');
   if (!/^[A-Za-z0-9._-]+$/.test(normalized.hostname)) throw new Error('hostname is invalid');
-  if (!/^[A-Za-z0-9._+ -]+$/.test(normalized.distribution)) throw new Error('distribution is invalid');
+  if (!/^[A-Za-z0-9._+ /()'-]+$/.test(normalized.distribution)) throw new Error('distribution is invalid');
   if (!/^[A-Za-z0-9._+~-]+$/.test(normalized.kernelRelease)) throw new Error('kernelRelease is invalid');
   if (!/^[A-Za-z0-9_]+$/.test(normalized.architecture)) throw new Error('architecture is invalid');
   if (!/^[0-9.]+$/.test(normalized.pythonVersion)) throw new Error('pythonVersion is invalid');
@@ -79,7 +79,7 @@ export function normalizeLinuxHostTaskResult(input: unknown): LinuxHostTaskResul
   if (input.status === 'succeeded') {
     if (!isRecord(input.result)) throw new Error('Successful task result must be a JSON object');
     const encoded = JSON.stringify(input.result);
-    if (Buffer.byteLength(encoded, 'utf8') > 16_384) throw new Error('Task result exceeds 16 KiB');
+    if (encoded === undefined || Buffer.byteLength(encoded, 'utf8') > 16_384) throw new Error('Task result exceeds 16 KiB');
     return { status: 'succeeded', result: input.result };
   }
   const errorCode = input.errorCode;
