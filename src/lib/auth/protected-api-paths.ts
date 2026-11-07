@@ -33,7 +33,7 @@ export const isProtectedApiReadPath = (pathname: string): boolean => {
  * shapes; every other mutation remains behind user identity authentication.
  */
 const LINUX_HOST_AGENT_POST_PATH =
-  /^\/linux\/agent\/linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:heartbeat|tasks\/claim|tasks\/linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result)$/i;
+  /^\/(?:api\/)?linux\/agent\/linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:heartbeat|tasks\/claim|tasks\/linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result)$/i;
 
 /**
  * Public API authentication bypass policy. Only preflight requests and
