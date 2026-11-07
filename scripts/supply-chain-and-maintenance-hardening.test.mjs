@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 import './octopus-deploy-task-output.test.mjs';
+import './package-metadata-validation.test.mjs';
 
 const agaveSources = [
   readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
