@@ -100,3 +100,8 @@ test("package-lock root manifest matches package.json dependencies", () => {
   assert.deepEqual(lock.packages?.[""]?.dependencies ?? {}, manifest.dependencies ?? {});
   assert.deepEqual(lock.packages?.[""]?.devDependencies ?? {}, manifest.devDependencies ?? {});
 });
+
+test("duplicateJsonKeys handles escaped quotes and backslashes in values", () => {
+  const source = String.raw`{"value":"escaped quote: \\" and slash: \\\\","value":"second"}`;
+  assert.deepEqual(duplicateJsonKeys(source), ["value"]);
+});
