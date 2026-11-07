@@ -54,6 +54,7 @@ import { initializeVerifiedOutcomes, recordVerifiedOutcome } from './src/lib/ver
 import { initializeMonetizationTables, createCheckout, captureCheckout, getSubscription } from './src/lib/revenue/monetization';
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
 import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
+import { enrollLinuxHostAgent, authenticateLinuxHostAgent, recordLinuxHostAgentHeartbeat, createLinuxHostAgentTask, claimLinuxHostAgentTask, completeLinuxHostAgentTask, revokeLinuxHostAgent, listLinuxHostAgents } from './src/lib/linux-host-agent';
 import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
@@ -3944,6 +3945,88 @@ app.post('/api/agent-miner/run', requireOwner, async (_req: Request, res: Respon
     const cycle = await runAgentMinerCycle();
     return res.status(201).json({ ok: true, cycle, miner: getAgentMinerSnapshot() });
   } catch (error) { return apiError(res, 503, 'Agent Miner cycle failed', error); }
+});
+
+// Linux host agents: per-host bearer credentials, owner-approved read-only tasks, and revocation.
+// No route accepts shell commands, executable paths, arbitrary arguments, or privilege escalation.
+app.post('/api/linux/runtimes/enroll', requireOwner, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = req.auth?.uid || 'human-owner';
+    const enrollment = await enrollLinuxHostAgent(req.body, actor);
+    return res.status(201).json({
+      ok: true,
+      runtimeId: enrollment.runtimeId,
+      token: enrollment.token,
+      allowedActions: enrollment.allowedActions,
+      tokenDisclosure: 'This token is shown once. Store it in the host agent environment file; it cannot be retrieved again.',
+    });
+  } catch (error) {
+    return apiError(res, 400, 'Linux host-agent enrollment failed', error);
+  }
+});
+
+app.get('/api/linux/runtimes', requireOwner, async (_req: Request, res: Response) => {
+  try {
+    return res.json({ ok: true, runtimes: await listLinuxHostAgents() });
+  } catch (error) {
+    return apiError(res, 503, 'Linux host-agent registry is unavailable', error);
+  }
+});
+
+app.post('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = req.auth?.uid || 'human-owner';
+    const task = await createLinuxHostAgentTask(String(req.params.runtimeId || ''), req.body?.action, actor);
+    return res.status(202).json({ ok: true, task });
+  } catch (error) {
+    return apiError(res, 400, 'Linux host-agent task was not accepted', error);
+  }
+});
+
+app.post('/api/linux/runtimes/:runtimeId/revoke', requireOwner, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const actor = req.auth?.uid || 'human-owner';
+    const revoked = await revokeLinuxHostAgent(String(req.params.runtimeId || ''), actor);
+    if (!revoked) return res.status(404).json({ ok: false, error: 'Linux host is not enrolled or is already revoked' });
+    return res.json({ ok: true, status: 'revoked', runtimeId: String(req.params.runtimeId || '') });
+  } catch (error) {
+    return apiError(res, 503, 'Linux host-agent revocation failed', error);
+  }
+});
+
+app.post('/api/linux/agent/:runtimeId/heartbeat', async (req: Request, res: Response) => {
+  try {
+    const runtimeId = String(req.params.runtimeId || '');
+    const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
+    if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
+    return res.json(await recordLinuxHostAgentHeartbeat(runtimeId, req.body));
+  } catch (error) {
+    return apiError(res, 400, 'Linux host-agent heartbeat rejected', error);
+  }
+});
+
+app.post('/api/linux/agent/:runtimeId/tasks/claim', async (req: Request, res: Response) => {
+  try {
+    const runtimeId = String(req.params.runtimeId || '');
+    const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
+    if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
+    const task = await claimLinuxHostAgentTask(runtimeId);
+    return res.json({ ok: true, task });
+  } catch (error) {
+    return apiError(res, 503, 'Linux host-agent task claim failed', error);
+  }
+});
+
+app.post('/api/linux/agent/:runtimeId/tasks/:taskId/result', async (req: Request, res: Response) => {
+  try {
+    const runtimeId = String(req.params.runtimeId || '');
+    const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
+    if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
+    const result = await completeLinuxHostAgentTask(runtimeId, String(req.params.taskId || ''), req.body);
+    return res.json({ ok: true, result });
+  } catch (error) {
+    return apiError(res, 409, 'Linux host-agent task result rejected', error);
+  }
 });
 
 app.use('/api', (_req: Request, res: Response) => { apiError(res, 404, 'API endpoint not found'); });
