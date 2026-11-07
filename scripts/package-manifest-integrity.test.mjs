@@ -8,10 +8,12 @@ const packageLockText = await readFile(new URL("../package-lock.json", import.me
 function duplicateJsonKeys(source) {
   let index = 0;
   const duplicates = [];
-  const skipWhitespace = () => { while (/\\s/.test(source[index] ?? "")) index += 1; };
+  const skipWhitespace = () => {
+    while (/\s/.test(source[index] ?? "")) index += 1;
+  };
   const parseString = () => {
     const start = index;
-    if (source[index] !== '"') throw new SyntaxError(`Expected JSON string at offset ${index}`);
+    if (source[index] !== '"') throw new SyntaxError(\`Expected JSON string at offset \${index}\`);
     index += 1;
     let escaped = false;
     while (index < source.length) {
@@ -29,44 +31,53 @@ function duplicateJsonKeys(source) {
       index += 1;
       skipWhitespace();
       const seen = new Set();
-      if (source[index] === "}") { index += 1; return; }
+      if (source[index] === "}") {
+        index += 1;
+        return;
+      }
       while (index < source.length) {
         skipWhitespace();
         const key = parseString();
-        if (seen.has(key)) duplicates.push(path ? `${path}.${key}` : key);
+        if (seen.has(key)) duplicates.push(path ? \`\${path}.\${key}\` : key);
         seen.add(key);
         skipWhitespace();
-        if (source[index++] !== ":") throw new SyntaxError(`Expected ':' after ${key}`);
-        parseValue(path ? `${path}.${key}` : key);
+        if (source[index++] !== ":") throw new SyntaxError(\`Expected ':' after \${key}\`);
+        parseValue(path ? \`\${path}.\${key}\` : key);
         skipWhitespace();
         const separator = source[index++];
         if (separator === "}") return;
-        if (separator !== ",") throw new SyntaxError(`Expected ',' or '}' at offset ${index - 1}`);
+        if (separator !== ",") throw new SyntaxError(\`Expected ',' or '}' at offset \${index - 1}\`);
       }
       throw new SyntaxError("Unterminated JSON object");
     }
     if (char === "[") {
       index += 1;
       skipWhitespace();
-      if (source[index] === "]") { index += 1; return; }
+      if (source[index] === "]") {
+        index += 1;
+        return;
+      }
       let item = 0;
       while (index < source.length) {
-        parseValue(`${path}[${item++}]`);
+        parseValue(\`\${path}[\${item++}]\`);
         skipWhitespace();
         const separator = source[index++];
         if (separator === "]") return;
-        if (separator !== ",") throw new SyntaxError(`Expected ',' or ']' at offset ${index - 1}`);
+        if (separator !== ",") throw new SyntaxError(\`Expected ',' or ']' at offset \${index - 1}\`);
       }
       throw new SyntaxError("Unterminated JSON array");
     }
-    if (char === '"') { parseString(); return; }
+    if (char === '"') {
+      parseString();
+      return;
+    }
     const start = index;
-    while (index < source.length && !/[\\s,}\\]]/.test(source[index])) index += 1;
-    if (index === start) throw new SyntaxError(`Invalid JSON value at offset ${index}`);
+    while (index < source.length && !/[\s,}\]]/.test(source[index])) index += 1;
+    if (index === start) throw new SyntaxError(\`Invalid JSON value at offset \${index}\`);
   };
   parseValue("");
   skipWhitespace();
-  if (index !== source.length) throw new SyntaxError(`Unexpected trailing JSON at offset ${index}`);
+  if (index !== source.length) throw new SyntaxError(\`Unexpected trailing JSON at offset \${index}\`);
   return duplicates;
 }
 
