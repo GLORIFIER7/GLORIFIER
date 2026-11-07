@@ -666,8 +666,8 @@ const validateBillingPeriodDataset = (
 const normalizeInvoiceDatasets = (
   metadata: InvoiceMetadata,
   reasons: string[],
+  paymentCurrencyReasons: string[],
 ): NormalizedInvoiceDatasets | null => {
-  const paymentCurrencyReasons: string[] = [];
   const sharedContext = {
     invoiceIssuerName: metadata.issuer,
     invoiceId: metadata.invoiceId,
@@ -1065,11 +1065,19 @@ export const reconcileFocusInvoice = (
     metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
     metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, unknownPaymentCurrencyStatus,
   );
-  const datasets = normalizeInvoiceDatasets(metadata, reasons);
-  if (!datasets) return unknownResult(
-    metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
-    metadata.currency, metadata.tolerance, reasons, null, unknownPaymentCurrencyStatus,
-  );
+  const paymentCurrencyReasons: string[] = [];
+  const datasets = normalizeInvoiceDatasets(metadata, reasons, paymentCurrencyReasons);
+  if (!datasets) {
+    reasons.push(...paymentCurrencyReasons);
+    return unknownResult(
+      metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
+      metadata.currency,
+      metadata.tolerance,
+      reasons,
+      null,
+      paymentCurrencyReasons.length > 0 ? 'UNKNOWN' : unknownPaymentCurrencyStatus,
+    );
+  }
   const toleranceUnits = decimalUnits(metadata.tolerance, datasets.scale);
   const tax = analyzeTaxReconciliation(
     datasets.usageRows,
