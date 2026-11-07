@@ -9,7 +9,7 @@
 
 Pages serves the static Vite frontend. A Pages catch-all Function forwards only the existing runtime routes to the internal `glorifier` Worker through the `GLORIFIER_WORKER` service binding. The service binding is Cloudflare's Worker-to-Worker path; it does not require a request to the public `workers.dev` hostname.
 
-The root-level Pages Function invocation manifest is maintained at `public/_routes.json`. Vite copies it to `dist/_routes.json`, which Cloudflare Pages reads at deployment. It limits Function invocation to `/api`, `/api/*`, `/auth`, `/auth/*`, `/mcp`, and `/.well-known/agent-card.json`. Static assets and frontend routes bypass the Pages Function, preserving Pages' unlimited free static-request allowance. The Cloudflare Worker remains reachable through the private service binding only; this manifest does not change Worker Access policies.
+The root-level Pages Function invocation manifest is maintained at `public/_routes.json`. Vite copies it to `dist/_routes.json`, which Cloudflare Pages reads at deployment. It limits Function invocation to `/api`, `/api/*`, `/auth`, `/auth/*`, `/mcp`, and `/.well-known/agent-card.json`. Static assets and frontend routes bypass the Pages Function, preserving Pages' unlimited free static-request allowance. Browser API requests use the internal service binding; the direct `workers.dev` hostname remains independently protected by Cloudflare Access. This manifest does not change Worker Access policies.
 
 The Pages Function forwards these paths:
 
