@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
-import { getLinuxRuntime, initializeLinuxRuntimeRegistry, listLinuxRuntimes } from './linux-runtime';
+import { initializeLinuxRuntimeRegistry, listLinuxRuntimes } from './linux-runtime';
 import {
   isLinuxHostAgentAction,
   normalizeLinuxHostHeartbeat,
