@@ -40,6 +40,7 @@ const authenticationBypassCases: Array<[string, string, boolean]> = [
   ['PUT', '/public/status', false],
   ['DELETE', '/public/status', false],
   ['POST', '/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/heartbeat', true],
+  ['POST', '/api/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/heartbeat', true],
   ['POST', '/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/tasks/claim', true],
   ['POST', '/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/tasks/linux-task-123e4567-e89b-42d3-a456-426614174000/result', true],
   ['post', '/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/heartbeat', true],
