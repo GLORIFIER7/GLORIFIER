@@ -145,20 +145,32 @@ export async function recordLinuxHostAgentHeartbeat(runtimeId: string, input: un
     kernelRelease: heartbeat.kernelRelease,
     pythonVersion: heartbeat.pythonVersion,
   };
-  const r = await db.query(
-    `UPDATE linux_runtime_registry
-        SET status = 'online', architecture = $2, last_verified_at = NOW(),
-            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
-      WHERE id = $1 AND status <> 'revoked'
-      RETURNING last_verified_at`,
+  const observed = await db.query(
+    `WITH prior AS (
+       SELECT status FROM linux_runtime_registry WHERE id = $1 FOR UPDATE
+     ),
+     updated AS (
+       UPDATE linux_runtime_registry
+          SET status = 'online', architecture = $2, last_verified_at = NOW(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
+        WHERE id = $1 AND status <> 'revoked'
+        RETURNING last_verified_at
+     )
+     SELECT prior.status AS prior_status, updated.last_verified_at
+       FROM prior JOIN updated ON TRUE`,
     [runtimeId, heartbeat.architecture, JSON.stringify(metadata)],
   );
-  if (!r.rows[0]) throw new Error('Linux host is not enrolled or has been revoked');
-  await db.query(
-    'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
-    ['lre-' + randomUUID(), runtimeId, 'agent_heartbeat', 'linux-host-agent', JSON.stringify({ architecture: heartbeat.architecture, distribution: heartbeat.distribution, agentVersion: heartbeat.agentVersion })],
-  );
-  return { ok: true, status: 'online', lastVerifiedAt: new Date(r.rows[0].last_verified_at).toISOString() };
+  const row = observed.rows[0];
+  if (!row) throw new Error('Linux host is not enrolled or has been revoked');
+  // Record state transitions only; the 15-second heartbeat itself is reflected
+  // by last_verified_at and must not create an unbounded audit-event stream.
+  if (row.prior_status !== 'online') {
+    await db.query(
+      'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
+      ['lre-' + randomUUID(), runtimeId, 'agent_online', 'linux-host-agent', JSON.stringify({ architecture: heartbeat.architecture, distribution: heartbeat.distribution, agentVersion: heartbeat.agentVersion })],
+    );
+  }
+  return { ok: true, status: 'online', lastVerifiedAt: new Date(row.last_verified_at).toISOString() };
 }
 
 export async function createLinuxHostAgentTask(runtimeId: string, action: unknown, actor: string): Promise<{ taskId: string; action: string; status: 'approved' }> {
