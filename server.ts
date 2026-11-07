@@ -54,7 +54,7 @@ import { initializeVerifiedOutcomes, recordVerifiedOutcome } from './src/lib/ver
 import { initializeMonetizationTables, createCheckout, captureCheckout, getSubscription } from './src/lib/revenue/monetization';
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
 import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
-import { enrollLinuxHostAgent, authenticateLinuxHostAgent, recordLinuxHostAgentHeartbeat, createLinuxHostAgentTask, claimLinuxHostAgentTask, completeLinuxHostAgentTask, revokeLinuxHostAgent, listLinuxHostAgents } from './src/lib/linux-host-agent';
+import { enrollLinuxHostAgent, authenticateLinuxHostAgent, recordLinuxHostAgentHeartbeat, createLinuxHostAgentTask, claimLinuxHostAgentTask, completeLinuxHostAgentTask, revokeLinuxHostAgent, listLinuxHostAgents, listLinuxHostAgentTasks } from './src/lib/linux-host-agent';
 import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
@@ -3980,6 +3980,14 @@ app.post('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: Authe
     return res.status(202).json({ ok: true, task });
   } catch (error) {
     return apiError(res, 400, 'Linux host-agent task was not accepted', error);
+  }
+});
+
+app.get('/api/linux/runtimes/:runtimeId/tasks', requireOwner, async (req: Request, res: Response) => {
+  try {
+    return res.json({ ok: true, tasks: await listLinuxHostAgentTasks(String(req.params.runtimeId || '')) });
+  } catch (error) {
+    return apiError(res, 503, 'Linux host-agent task history is unavailable', error);
   }
 });
 
