@@ -406,6 +406,27 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
     paymentCurrencyBilledCost: '5.17',
   }]);
 
+  const partialPaymentCurrencyDataset = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [
+      charge('line-1', 'Usage', '10.00'),
+      charge('line-2', 'Usage', '20.00'),
+    ],
+    invoiceDetail: [
+      charge('line-1', 'Usage', '10.00', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '9.00',
+        paymentCurrencyInvoiceDetailId: 'line-1',
+      }),
+      charge('line-2', 'Usage', '20.00'),
+    ],
+  });
+  assert.equal(partialPaymentCurrencyDataset.status, 'UNKNOWN');
+  assert.ok(partialPaymentCurrencyDataset.reasons.some((reason) =>
+    reason.includes('PaymentCurrency fields must be provided for every InvoiceDetail row'),
+  ));
+  assert.equal(partialPaymentCurrencyDataset.paymentCurrencyStatus, 'UNKNOWN');
+
   const brokenPaymentCurrencyLineage = reconcileFocusInvoice({
     ...input,
     invoiceDetail: input.invoiceDetail.map((row) => ({
