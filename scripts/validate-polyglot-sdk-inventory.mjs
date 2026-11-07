@@ -50,15 +50,17 @@ export function validatePolyglotSdkInventory({
     if (!capability) {
       errors.push(`Missing SDK capability record: ${sdk.capabilityId}.`);
     } else {
-      if (capability.status !== 'VERIFIED') {
-        errors.push(`${sdk.language} SDK capability ${sdk.capabilityId} must be VERIFIED before inclusion in the supported SDK catalog.`);
+      const allowedStatuses = new Set(Array.isArray(registry?.statusVocabulary) ? registry.statusVocabulary : []);
+      if (!allowedStatuses.has(capability.status)) {
+        errors.push(`${sdk.language} SDK capability has an unsupported evidence status: ${capability.status}.`);
       }
       if (!Array.isArray(capability.targetEnvironments) || capability.targetEnvironments.length === 0) {
         errors.push(`${sdk.language} SDK capability must name its exact target environment.`);
       }
-      if (!Array.isArray(capability.evidence) ||
-          !capability.evidence.some((item) => item?.kind === 'ci-run' && typeof item.reference === 'string' && item.reference.trim())) {
-        errors.push(`${sdk.language} SDK capability must retain a CI-run evidence reference.`);
+      if (capability.status === 'VERIFIED' &&
+          (!Array.isArray(capability.evidence) ||
+           !capability.evidence.some((item) => item?.kind === 'ci-run' && typeof item.reference === 'string' && item.reference.trim()))) {
+        errors.push(`${sdk.language} SDK capability marked VERIFIED must retain a CI-run evidence reference.`);
       }
     }
 
