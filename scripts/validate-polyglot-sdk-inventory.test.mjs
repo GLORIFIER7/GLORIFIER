@@ -84,3 +84,9 @@ test('rejects an SDK capability with an unknown evidence status', () => {
   input.registry.capabilities[0].status = 'FULLY TRUSTED';
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('unsupported evidence status')));
 });
+
+test('rejects commented-out SDK job declarations', () => {
+  const input = fixture();
+  input.polyglotWorkflow = input.polyglotWorkflow.replace('  java:\\n', '#  java:\\n');
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
+});
