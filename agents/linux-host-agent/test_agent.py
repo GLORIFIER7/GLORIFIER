@@ -121,6 +121,29 @@ class LinuxHostAgentTests(unittest.TestCase):
                 {"status": "succeeded", "result": {"ok": True}},
             )
 
+    def test_valid_claim_returns_claim_token_and_result_submission_echoes_it(self):
+        client = AGENT.LinuxHostAgentClient.__new__(AGENT.LinuxHostAgentClient)
+        client.runtime_path = "linux-123e4567-e89b-42d3-a456-426614174000"
+        lease_token = "c" * 43
+        client._post = lambda _path, _payload: {
+            "task": {
+                "taskId": "linux-task-123e4567-e89b-42d3-a456-426614174000",
+                "action": "host.info",
+                "leaseToken": lease_token,
+            }
+        }
+        task = client.claim_task()
+        self.assertEqual(task["leaseToken"], lease_token)
+        seen = {}
+        client._post = lambda path, payload: seen.update({"path": path, "payload": payload}) or {"ok": True}
+        client.submit_result(
+            task["taskId"],
+            task["leaseToken"],
+            {"status": "succeeded", "result": {"architecture": "x86_64"}},
+        )
+        self.assertEqual(seen["payload"]["leaseToken"], lease_token)
+        self.assertEqual(seen["payload"]["status"], "succeeded")
+
     def test_memory_parser_reads_only_expected_numeric_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "meminfo"
