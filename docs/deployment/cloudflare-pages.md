@@ -25,6 +25,8 @@ Cloudflare Pages project `glorifier` is provisioned in the GLORIFIER account and
 | Setting | Value |
 |---|---|
 | Production branch | `main` |
+| Build watch paths | `*` (all repository paths) |
+| Preview deployments | Disabled |
 | Root directory | `/` |
 | Build command | `npm ci --no-audit --no-fund --ignore-scripts && CLOUDFLARE_BUILD=true npm run build:frontend` |
 | Build output directory | `dist` |
@@ -33,7 +35,7 @@ Cloudflare Pages project `glorifier` is provisioned in the GLORIFIER account and
 
 Do not set `VITE_API_BASE_URL` for the Pages deployment. The application uses same-origin `/api/*` and `/auth/*` requests, which the Pages Function sends to the internal Worker.
 
-The production Pages environment is configured with the `GLORIFIER_WORKER` service binding to the `glorifier` Worker. Production Git deployments are enabled and preview deployments remain disabled. No `latest_deployment` was present when the project was provisioned; the next push to `main` should trigger the initial Git-integrated Pages build. Do not bind production credentials or production services into untrusted preview deployments. Keep preview deployments disabled unless isolated, reviewed bindings are established.
+The production Pages environment is configured with the `GLORIFIER_WORKER` service binding to the `glorifier` Worker. Production Git deployments are enabled, build watch paths are `*` (all repository paths), and preview deployments remain disabled. Initial pushes were skipped because the project initially had an empty path-includes rule (`skip_reason: path_config`); this has been corrected to `*`. No successful production deployment has been observed yet; a subsequent push to `main` should trigger the initial Git-integrated Pages build. Do not bind production credentials or production services into untrusted preview deployments. Keep preview deployments disabled unless isolated, reviewed bindings are established.
 
 ## Safe cutover sequence
 
