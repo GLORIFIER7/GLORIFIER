@@ -119,6 +119,8 @@ def execute_action(action: str) -> dict[str, Any]:
 
 class LinuxHostAgentClient:
     def __init__(self, api_origin: str, runtime_id: str, token: str, timeout: int = REQUEST_TIMEOUT_SECONDS):
+        if platform.system() != "Linux":
+            raise ValueError("GLORIFIER Linux Host Agent must run on Linux")
         self.api_origin = validate_api_origin(api_origin)
         if not re.fullmatch(r"linux-[0-9a-f-]{36}", runtime_id):
             raise ValueError("GLORIFIER_LINUX_RUNTIME_ID is invalid")
