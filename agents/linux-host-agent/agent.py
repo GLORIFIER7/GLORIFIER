@@ -122,7 +122,7 @@ class LinuxHostAgentClient:
         if platform.system() != "Linux":
             raise ValueError("GLORIFIER Linux Host Agent must run on Linux")
         self.api_origin = validate_api_origin(api_origin)
-        if not re.fullmatch(r"linux-[0-9a-f-]{36}", runtime_id):
+        if not re.fullmatch(r"linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", runtime_id):
             raise ValueError("GLORIFIER_LINUX_RUNTIME_ID is invalid")
         if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
             raise ValueError("GLORIFIER_LINUX_AGENT_TOKEN is invalid")
@@ -192,14 +192,14 @@ class LinuxHostAgentClient:
             raise AgentError("GLORIFIER returned an invalid task")
         task_id = task.get("taskId")
         action = task.get("action")
-        if not isinstance(task_id, str) or not re.fullmatch(r"linux-task-[0-9a-f-]{36}", task_id):
+        if not isinstance(task_id, str) or not re.fullmatch(r"linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", task_id):
             raise AgentError("GLORIFIER task identifier is invalid")
         if action not in ALLOWED_ACTIONS:
             raise AgentError("GLORIFIER offered an unsupported action")
         return task
 
     def submit_result(self, task_id: str, result: dict[str, Any]) -> dict[str, Any]:
-        if not re.fullmatch(r"linux-task-[0-9a-f-]{36}", task_id):
+        if not re.fullmatch(r"linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", task_id):
             raise ValueError("task identifier is invalid")
         return self._post(
             "/api/linux/agent/" + self.runtime_path + "/tasks/" + urllib.parse.quote(task_id, safe="") + "/result",
