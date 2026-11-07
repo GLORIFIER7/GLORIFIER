@@ -126,7 +126,7 @@ const hasPaymentCurrencyInput = (values: unknown): boolean =>
       'paymentCurrency',
       'paymentCurrencyBilledCost',
       'paymentCurrencyInvoiceDetailId',
-    ].some((key) => row[key] !== undefined && row[key] !== null));
+    ].some((key) => row[key] !== undefined));
   });
 
 /** FOCUS DateTimeFormat requires a UTC ISO 8601 timestamp ending in Z. */
@@ -192,6 +192,7 @@ const unknownResult = (
   reasons: string[],
   billingPeriodStatus: string | null = null,
   paymentCurrencyStatus: FocusPaymentCurrencyStatus = 'NOT_PROVIDED',
+  tax: TaxReconciliationAnalysis | null = null,
 ): FocusInvoiceReconciliationResult => {
   return {
     specVersion: 'FOCUS-1.4',
@@ -201,8 +202,8 @@ const unknownResult = (
     reconciliationBasis: 'non-tax-line-items-only',
     paymentCurrencyStatus,
     paymentCurrencyGroups: [],
-    taxReconciliationStatus: 'NOT_COMPARABLE',
-    taxVariance: null,
+    taxReconciliationStatus: tax?.status ?? 'NOT_COMPARABLE',
+    taxVariance: tax?.variance ?? null,
     invoiceIssuerName,
     invoiceId,
     billingPeriodStart,
@@ -299,7 +300,7 @@ const parseNormalizedCharge = (row: Record<string, unknown>): ParsedNormalizedCh
     paymentCurrencyValue,
     paymentCurrencyBilledCostValue,
     paymentCurrencyInvoiceDetailIdValue,
-  ].some((value) => value !== undefined && value !== null);
+  ].some((value) => value !== undefined);
   return {
     ...fields,
     invoiceDetailId: textValue(invoiceDetailIdValue),
@@ -1062,11 +1063,18 @@ export const reconcileFocusInvoice = (
     metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
     metadata.currency, metadata.tolerance, reasons, null, unknownPaymentCurrencyStatus,
   );
+  const toleranceUnits = decimalUnits(metadata.tolerance, datasets.scale);
+  const tax = analyzeTaxReconciliation(
+    datasets.usageRows,
+    datasets.detailRows,
+    toleranceUnits,
+    datasets.scale,
+  );
   const paymentCurrency = analyzePaymentCurrency(datasets.detailRows, datasets.scale, reasons);
   if (paymentCurrency.status === 'UNKNOWN') {
     return unknownResult(
       metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
-      metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, 'UNKNOWN',
+      metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, 'UNKNOWN', tax,
     );
   }
   const comparableRows = validateInvoiceLineage(
@@ -1087,6 +1095,7 @@ export const reconcileFocusInvoice = (
       reasons,
       null,
       paymentCurrency.status,
+      tax,
     );
   }
   const comparison = compareInvoiceLineItems(
@@ -1095,12 +1104,6 @@ export const reconcileFocusInvoice = (
     comparableRows.toleranceUnits,
     datasets.scale,
     reasons,
-  );
-  const tax = analyzeTaxReconciliation(
-    datasets.usageRows,
-    datasets.detailRows,
-    comparableRows.toleranceUnits,
-    datasets.scale,
   );
   return buildInvoiceResult(
     metadata, datasets, comparableRows, comparison, paymentCurrency, tax, reasons, billingPeriodStatus,

@@ -472,5 +472,36 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
     'NOT_COMPARABLE',
     'invoice-detail tax must be reported but not compared when CostAndUsage has no tax rows',
   );
+
+  const explicitNullPaymentCurrency = reconcileFocusInvoice({
+    ...input,
+    invoiceDetail: input.invoiceDetail.map((row) => ({
+      ...row,
+      paymentCurrency: null,
+      paymentCurrencyBilledCost: null,
+      paymentCurrencyInvoiceDetailId: null,
+    })),
+  });
+  assert.equal(explicitNullPaymentCurrency.status, 'UNKNOWN');
+  assert.equal(explicitNullPaymentCurrency.paymentCurrencyStatus, 'UNKNOWN');
+  assert.ok(explicitNullPaymentCurrency.reasons.some((reason) =>
+    reason.includes('incomplete or invalid PaymentCurrency'),
+  ));
+
+  const invalidPaymentLineageWithTaxVariance = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
+    invoiceDetail: input.invoiceDetail.map((row) => ({
+      ...row,
+      paymentCurrency: 'AUD',
+      paymentCurrencyBilledCost: '1.00',
+      paymentCurrencyInvoiceDetailId: 'missing-aggregate-row',
+    })),
+  });
+  assert.equal(invalidPaymentLineageWithTaxVariance.status, 'UNKNOWN');
+  assert.equal(invalidPaymentLineageWithTaxVariance.paymentCurrencyStatus, 'UNKNOWN');
+  assert.equal(invalidPaymentLineageWithTaxVariance.taxReconciliationStatus, 'VARIANCE');
+  assert.equal(invalidPaymentLineageWithTaxVariance.taxVariance, '0.1');
+
   process.stdout.write('GEAS FOCUS invoice reconciliation tests passed.\n');
 });
