@@ -69,9 +69,9 @@ test('automated changes remain draft PRs and are never auto-merged', () => {
 });
 
 test('Claude direct runner blocks npm lifecycle-install commands', () => {
-  const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \\[([\\s\\S]*?)\\];/)?.[1];
+  const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \[([\s\S]*?)\];/)?.[1];
   assert.ok(allowedTools, 'Claude CLI allowlist must be present in the direct runner');
-  const forbiddenInstallTool = /Bash\\(npm\\s+(?:ci|install|i|add)(?:\\s|\\))/;
+  const forbiddenInstallTool = /Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/;
   for (const command of ['ci', 'install', 'i', 'add']) {
     assert.match(
       'Bash(npm ' + command + ')',
@@ -89,8 +89,8 @@ test('Claude direct runner blocks npm lifecycle-install commands', () => {
     forbiddenInstallTool,
     'Claude must not be able to run npm install commands that execute lifecycle scripts',
   );
-  assert.match(allowedTools, /Bash\\(npm run lint\\)/);
-  assert.match(allowedTools, /Bash\\(npm run build\\)/);
+  assert.match(allowedTools, /Bash\(npm run lint\)/);
+  assert.match(allowedTools, /Bash\(npm run build\)/);
   assert.doesNotMatch(claudeRunner, /--dangerously-skip-permissions/);
 
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
@@ -100,11 +100,11 @@ test('Claude direct runner blocks npm lifecycle-install commands', () => {
     'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
   );
   assert.equal(
-    (claudeWorkflow.match(/run: node scripts\\/run-claude-workflow\\.mjs/g) || []).length,
+    (claudeWorkflow.match(/run: node scripts\/run-claude-workflow\.mjs/g) || []).length,
     1,
     'the Claude workflow must invoke the direct runner exactly once',
   );
-  assert.doesNotMatch(claudeWorkflow, /uses: anthropics\\/claude-code-action@/);
+  assert.doesNotMatch(claudeWorkflow, /uses: anthropics\/claude-code-action@/);
 });
 
 test('CI runs the Claude direct CLI runner regression suite', () => {
