@@ -28,10 +28,14 @@ export function isLinuxHostAgentAction(value: unknown): value is LinuxHostAgentA
     (LINUX_HOST_AGENT_ACTIONS as readonly string[]).includes(value);
 }
 
+export function isValidLinuxHostAgentToken(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
+}
+
 export function parseLinuxHostAgentBearerToken(header: string | undefined): string | null {
   if (typeof header !== 'string') return null;
-  const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(header.trim());
-  return match?.[1] || null;
+  const match = /^Bearer (.+)$/.exec(header.trim());
+  return match && isValidLinuxHostAgentToken(match[1]) ? match[1] : null;
 }
 
 export function validateLinuxHostEnrollment(input: unknown): {
