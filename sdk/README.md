@@ -14,7 +14,7 @@ All eleven first-party clients use the same language-neutral HTTPS/JSON contract
 | Rust | `sdk/rust` | stable Rust, edition 2021 | `cargo test --manifest-path sdk/rust/Cargo.toml --all-targets` |
 | PHP | `sdk/php` | PHP 8.2+, cURL, mbstring | `php sdk/php/tests/run.php && php sdk/php/tests/interoperability_fixtures.php` |
 | Ruby | `sdk/ruby` | Ruby 3.2+ | `ruby sdk/ruby/test/test_client.rb && ruby sdk/ruby/test/test_interoperability_fixtures.rb` |
-| Swift | `sdk/swift` | Swift 5.9+, macOS 13+ | `swift test --package-path sdk/swift` |
+| Swift | `sdk/swift` | Swift 5.9+; last passing CI used retired macOS 14; macOS 15 ARM64 revalidation pending | `swift test --package-path sdk/swift` |
 | Dart | `sdk/dart` | Dart 3.4+ | `cd sdk/dart && dart pub get && dart test` |
 | JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64 | `cd sdk/javascript && npm test` |
 
@@ -24,7 +24,7 @@ These are bounded CI contract results. They do not establish live Neural connect
 
 ## Cross-platform expansion probes
 
-The native SDK jobs above remain the evidence baseline for the exact runtime/runner targets listed in the table. A supplementary CI matrix also exercises Python 3.12, Go 1.26.x, and Node.js 24.12.0 on Windows 2022 and macOS 14. These are coverage probes; they do not automatically widen a capability's VERIFIED scope. Successful results must be recorded against the exact commit, runtime, operating system, architecture, and CI run in the capability registry before the support matrix is updated.
+The native SDK jobs above remain the evidence baseline for the exact runtime/runner targets listed in the table. A supplementary CI matrix also exercises Python 3.12, Go 1.26.x, and Node.js 24.12.0 on Windows 2022 and macOS 15 ARM64. These are coverage probes; they do not automatically widen a capability's VERIFIED scope. Successful results must be recorded against the exact commit, runtime, operating system, architecture, and CI run in the capability registry before the support matrix is updated.
 
 Windows and ARM64 support for the remaining SDKs, Linux ARM64, and macOS ARM64 remain NOT VERIFIED. Browser JavaScript/TypeScript remains intentionally unsupported because bearer credentials must stay out of browser bundles.
 
