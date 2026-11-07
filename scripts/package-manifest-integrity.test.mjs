@@ -13,13 +13,13 @@ function duplicateJsonKeys(source) {
   };
   const parseString = () => {
     const start = index;
-    if (source[index] !== '"') throw new SyntaxError(\`Expected JSON string at offset \${index}\`);
+    if (source[index] !== '"') throw new SyntaxError("Expected JSON string at offset " + index);
     index += 1;
     let escaped = false;
     while (index < source.length) {
       const char = source[index++];
       if (escaped) escaped = false;
-      else if (char === "\\\\") escaped = true;
+      else if (char === "\\") escaped = true;
       else if (char === '"') return JSON.parse(source.slice(start, index));
     }
     throw new SyntaxError("Unterminated JSON string");
@@ -38,15 +38,15 @@ function duplicateJsonKeys(source) {
       while (index < source.length) {
         skipWhitespace();
         const key = parseString();
-        if (seen.has(key)) duplicates.push(path ? \`\${path}.\${key}\` : key);
+        if (seen.has(key)) duplicates.push(path ? path + "." + key : key);
         seen.add(key);
         skipWhitespace();
-        if (source[index++] !== ":") throw new SyntaxError(\`Expected ':' after \${key}\`);
-        parseValue(path ? \`\${path}.\${key}\` : key);
+        if (source[index++] !== ":") throw new SyntaxError("Expected ':' after " + key);
+        parseValue(path ? path + "." + key : key);
         skipWhitespace();
         const separator = source[index++];
         if (separator === "}") return;
-        if (separator !== ",") throw new SyntaxError(\`Expected ',' or '}' at offset \${index - 1}\`);
+        if (separator !== ",") throw new SyntaxError("Expected ',' or '}' at offset " + (index - 1));
       }
       throw new SyntaxError("Unterminated JSON object");
     }
@@ -59,11 +59,11 @@ function duplicateJsonKeys(source) {
       }
       let item = 0;
       while (index < source.length) {
-        parseValue(\`\${path}[\${item++}]\`);
+        parseValue(path + "[" + item++ + "]");
         skipWhitespace();
         const separator = source[index++];
         if (separator === "]") return;
-        if (separator !== ",") throw new SyntaxError(\`Expected ',' or ']' at offset \${index - 1}\`);
+        if (separator !== ",") throw new SyntaxError("Expected ',' or ']' at offset " + (index - 1));
       }
       throw new SyntaxError("Unterminated JSON array");
     }
@@ -73,11 +73,11 @@ function duplicateJsonKeys(source) {
     }
     const start = index;
     while (index < source.length && !/[\s,}\]]/.test(source[index])) index += 1;
-    if (index === start) throw new SyntaxError(\`Invalid JSON value at offset \${index}\`);
+    if (index === start) throw new SyntaxError("Invalid JSON value at offset " + index);
   };
   parseValue("");
   skipWhitespace();
-  if (index !== source.length) throw new SyntaxError(\`Unexpected trailing JSON at offset \${index}\`);
+  if (index !== source.length) throw new SyntaxError("Unexpected trailing JSON at offset " + index);
   return duplicates;
 }
 
