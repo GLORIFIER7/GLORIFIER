@@ -137,7 +137,7 @@ export async function recordLinuxHostAgentHeartbeat(runtimeId: string, input: un
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   const heartbeat = normalizeLinuxHostHeartbeat(input);
   await initializeLinuxHostAgentTables();
-  const db = getPostgresPool();
+  const client = await getPostgresPool().connect();
   const metadata = {
     agentVersion: heartbeat.agentVersion,
     hostname: heartbeat.hostname,
@@ -145,32 +145,40 @@ export async function recordLinuxHostAgentHeartbeat(runtimeId: string, input: un
     kernelRelease: heartbeat.kernelRelease,
     pythonVersion: heartbeat.pythonVersion,
   };
-  const observed = await db.query(
-    `WITH prior AS (
-       SELECT status FROM linux_runtime_registry WHERE id = $1 FOR UPDATE
-     ),
-     updated AS (
-       UPDATE linux_runtime_registry
+  try {
+    await client.query('BEGIN');
+    const prior = await client.query(
+      'SELECT status FROM linux_runtime_registry WHERE id = $1 FOR UPDATE',
+      [runtimeId],
+    );
+    if (!prior.rows[0] || prior.rows[0].status === 'revoked') {
+      throw new Error('Linux host is not enrolled or has been revoked');
+    }
+    const updated = await client.query(
+      `UPDATE linux_runtime_registry
           SET status = 'online', architecture = $2, last_verified_at = NOW(),
               metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
-        WHERE id = $1 AND status <> 'revoked'
-        RETURNING last_verified_at
-     )
-     SELECT prior.status AS prior_status, updated.last_verified_at
-       FROM prior JOIN updated ON TRUE`,
-    [runtimeId, heartbeat.architecture, JSON.stringify(metadata)],
-  );
-  const row = observed.rows[0];
-  if (!row) throw new Error('Linux host is not enrolled or has been revoked');
-  // Record state transitions only; the 15-second heartbeat itself is reflected
-  // by last_verified_at and must not create an unbounded audit-event stream.
-  if (row.prior_status !== 'online') {
-    await db.query(
-      'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
-      ['lre-' + randomUUID(), runtimeId, 'agent_online', 'linux-host-agent', JSON.stringify({ architecture: heartbeat.architecture, distribution: heartbeat.distribution, agentVersion: heartbeat.agentVersion })],
+        WHERE id = $1
+        RETURNING last_verified_at`,
+      [runtimeId, heartbeat.architecture, JSON.stringify(metadata)],
     );
+    if (!updated.rows[0]) throw new Error('Linux host is not enrolled or has been revoked');
+    // Record state transitions only; the 15-second heartbeat is reflected by
+    // last_verified_at and must not create an unbounded audit-event stream.
+    if (prior.rows[0].status !== 'online') {
+      await client.query(
+        'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
+        ['lre-' + randomUUID(), runtimeId, 'agent_online', 'linux-host-agent', JSON.stringify({ architecture: heartbeat.architecture, distribution: heartbeat.distribution, agentVersion: heartbeat.agentVersion })],
+      );
+    }
+    await client.query('COMMIT');
+    return { ok: true, status: 'online', lastVerifiedAt: new Date(updated.rows[0].last_verified_at).toISOString() };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-  return { ok: true, status: 'online', lastVerifiedAt: new Date(row.last_verified_at).toISOString() };
 }
 
 export async function createLinuxHostAgentTask(runtimeId: string, action: unknown, actor: string): Promise<{ taskId: string; action: string; status: 'approved' }> {
