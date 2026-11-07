@@ -2,48 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-function extractJsonObject(source, propertyName) {
-  const match = new RegExp('"' + propertyName + '"\\s*:\\s*\\{').exec(source);
-  assert.ok(match, 'package.json must declare ' + propertyName);
-
-  const openingBrace = match.index + match[0].lastIndexOf('{');
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = openingBrace; index < source.length; index += 1) {
-    const character = source[index];
-
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (character === '\\') escaped = true;
-      else if (character === '"') inString = false;
-      continue;
-    }
-
-    if (character === '"') inString = true;
-    else if (character === '{') depth += 1;
-    else if (character === '}') {
-      depth -= 1;
-      if (depth === 0) return source.slice(openingBrace, index + 1);
-    }
-  }
-
-  assert.fail('unterminated JSON object for ' + propertyName);
-}
-
-function assertUniqueObjectKeys(source, sectionName) {
-  const objectSource = extractJsonObject(source, sectionName);
-  const seen = new Set();
-
-  for (const line of objectSource.split(/\r?\n/)) {
-    const match = /^\s*"((?:[^"\\]|\\.)+)"\s*:/.exec(line);
-    if (!match) continue;
-
-    const key = JSON.parse('"' + match[1] + '"');
-    assert.ok(!seen.has(key), 'duplicate ' + sectionName + ' key: ' + key);
-    seen.add(key);
-  }
+function dependencyKeys(source, section) {
+  const match = source.match(new RegExp('"' + section + '"\\s*:\\s*\\{([\\s\\S]*?)\\n\\s*\\}'));
+  assert.ok(match, 'package.json must declare ' + section);
+  return [...match[1].matchAll(/^\s*"([^"]+)"\s*:/gm)].map(([, key]) => key);
 }
 
 test('package dependency declarations are unique and match the lockfile root', () => {
@@ -52,8 +14,11 @@ test('package dependency declarations are unique and match the lockfile root', (
   const manifest = JSON.parse(manifestSource);
   const lock = JSON.parse(lockSource);
 
-  assertUniqueObjectKeys(manifestSource, 'dependencies');
-  assertUniqueObjectKeys(manifestSource, 'devDependencies');
+  for (const section of ['dependencies', 'devDependencies']) {
+    const keys = dependencyKeys(manifestSource, section);
+    assert.equal(new Set(keys).size, keys.length, 'duplicate key in package.json ' + section);
+  }
+
   assert.deepEqual(lock.packages?.['']?.dependencies, manifest.dependencies,
     'package-lock.json root dependencies must match package.json');
   assert.deepEqual(lock.packages?.['']?.devDependencies, manifest.devDependencies,
