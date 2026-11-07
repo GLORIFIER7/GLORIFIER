@@ -102,7 +102,7 @@ test("package-lock root manifest matches package.json dependencies", () => {
 });
 
 test("duplicateJsonKeys handles escaped quotes and backslashes in values", () => {
-    const source = String.raw`{"value":"escaped quote: \" and slash: \\","value":"second"}`;
+    const source = String.raw`{"value":"escaped quote: \\" and slash: \\\\","value":"second"}`;
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
 });
 
@@ -121,4 +121,15 @@ test("rimraf override follows its direct dependency spec", () => {
   const manifest = JSON.parse(packageJsonText);
   assert.equal(manifest.dependencies?.rimraf, "6.1.3");
   assert.equal(manifest.overrides?.rimraf?.["."], "$rimraf");
+});
+
+test("duplicateJsonKeys detects duplicates inside nested arrays", () => {
+  assert.deepEqual(
+    duplicateJsonKeys('{"items":[{"name":"first","name":"second"}]}'),
+    ["items[0].name"],
+  );
+});
+
+test("duplicateJsonKeys rejects malformed JSON", () => {
+  assert.throws(() => duplicateJsonKeys('{"value": truX}'), SyntaxError);
 });
