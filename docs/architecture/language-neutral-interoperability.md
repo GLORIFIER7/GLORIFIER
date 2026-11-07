@@ -155,7 +155,7 @@ The SDK tests establish wire-format consistency for the named test targets. They
 
 Provider adapters must advertise capabilities explicitly (modalities, tool calling, streaming, structured output, context limits, and supported authentication mode) and return normalized errors without claiming semantic equivalence between different models. Routing may select only adapters that meet the task's declared capability and policy requirements. Provider fallback is permitted only when explicitly configured and authorized; it must not silently change data residency, cost, model class, or action permissions. MCP and A2A adapters require separate protocol testing and must not bypass GLORIFIER authorization, evidence, or human-approval controls.
 
-## First-party native SDKs — evidence reviewed 2026-11-08
+## First-party native SDKs — evidence reviewed 2026-11-08 Asia/Vientiane (UTC+07:00)
 
 The eleven maintained first-party HTTP/JSON clients and their named runtime/runner evidence are listed in [the SDK package index](../../sdk/README.md) and [the capability registry](./interoperability-capabilities.json). The registry records one capability per SDK, exact target environments, and retained CI-run evidence. The SDK inventory validator checks that the catalog, documentation tables, capability records, package directories, and workflow jobs remain aligned.
 
