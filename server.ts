@@ -4042,7 +4042,7 @@ app.post('/api/linux/agent/:runtimeId/tasks/:taskId/result', async (req: Request
     if (!isSafeLinuxHostTaskId(taskId)) return res.status(400).json({ ok: false, error: 'Invalid task identifier' });
     const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
     if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
-    const result = await completeLinuxHostAgentTask(runtimeId, taskId, req.body);
+    const result = await completeLinuxHostAgentTask(runtimeId, taskId, String(req.body?.leaseToken || ''), req.body);
     return res.json({ ok: true, result });
   } catch (error) {
     return apiError(res, 409, 'Linux host-agent task result rejected', error);
