@@ -7,6 +7,8 @@ import {
   normalizeLinuxHostTaskResult,
   parseLinuxHostAgentBearerToken,
   validateLinuxHostEnrollment,
+  isSafeLinuxHostRuntimeId,
+  isSafeLinuxHostTaskId,
 } from './linux-host-agent-contract';
 
 const TOKEN_BYTES = 32;
@@ -106,6 +108,7 @@ export async function enrollLinuxHostAgent(input: unknown, actor: string): Promi
 }
 
 export async function authenticateLinuxHostAgent(runtimeId: string, authorizationHeader: string | undefined): Promise<boolean> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) return false;
   const token = parseLinuxHostAgentBearerToken(authorizationHeader);
   if (!token) return false;
   await initializeLinuxHostAgentTables();
@@ -113,7 +116,8 @@ export async function authenticateLinuxHostAgent(runtimeId: string, authorizatio
     `SELECT c.token_sha256
        FROM linux_agent_credentials c
        JOIN linux_runtime_registry r ON r.id = c.runtime_id
-      WHERE c.runtime_id = $1 AND c.revoked_at IS NULL AND r.status <> 'revoked'`,
+      WHERE c.runtime_id = $1 AND c.revoked_at IS NULL AND r.status <> 'revoked'
+      LIMIT 1`,
     [runtimeId],
   );
   const storedHash = credential.rows[0]?.token_sha256;
@@ -129,6 +133,7 @@ export async function authenticateLinuxHostAgent(runtimeId: string, authorizatio
 }
 
 export async function recordLinuxHostAgentHeartbeat(runtimeId: string, input: unknown): Promise<{ ok: true; status: 'online'; lastVerifiedAt: string }> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   const heartbeat = normalizeLinuxHostHeartbeat(input);
   await initializeLinuxHostAgentTables();
   const db = getPostgresPool();
@@ -156,6 +161,7 @@ export async function recordLinuxHostAgentHeartbeat(runtimeId: string, input: un
 }
 
 export async function createLinuxHostAgentTask(runtimeId: string, action: unknown, actor: string): Promise<{ taskId: string; action: string; status: 'approved' }> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   if (!isLinuxHostAgentAction(action)) throw new Error('Unsupported Linux host-agent action');
   await initializeLinuxHostAgentTables();
   const runtime = await getLinuxRuntime(runtimeId);
@@ -182,6 +188,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
   params: Record<string, unknown>;
   leaseUntil: string;
 }> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   await initializeLinuxHostAgentTables();
   const db = getPostgresPool();
   const runtime = await getLinuxRuntime(runtimeId);
@@ -225,6 +232,8 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
   };
 }
 export async function completeLinuxHostAgentTask(runtimeId: string, taskId: string, input: unknown): Promise<{ taskId: string; status: 'succeeded' | 'failed' }> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
+  if (!isSafeLinuxHostTaskId(taskId)) throw new Error('Invalid Linux task identifier');
   const result = normalizeLinuxHostTaskResult(input);
   await initializeLinuxHostAgentTables();
   const encodedResult = JSON.stringify(result.result || {});
@@ -284,6 +293,7 @@ export async function revokeLinuxHostAgent(runtimeId: string, actor: string): Pr
 }
 
 export async function listLinuxHostAgentTasks(runtimeId: string) {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   await initializeLinuxHostAgentTables();
   const r = await getPostgresPool().query(
     `SELECT id, action, status, requested_by, approved_by, approved_at, claimed_at,
