@@ -5,6 +5,7 @@ import {
   isLinuxHostAgentAction,
   normalizeLinuxHostHeartbeat,
   normalizeLinuxHostTaskResult,
+  canonicalizeLinuxHostAgentJson,
   parseLinuxHostAgentBearerToken,
   validateLinuxHostEnrollment,
   isSafeLinuxHostRuntimeId,
@@ -164,22 +165,44 @@ export async function createLinuxHostAgentTask(runtimeId: string, action: unknow
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   if (!isLinuxHostAgentAction(action)) throw new Error('Unsupported Linux host-agent action');
   await initializeLinuxHostAgentTables();
-  const runtime = await getLinuxRuntime(runtimeId);
-  if (!runtime || runtime.status === 'revoked') throw new Error('Linux host is not enrolled or has been revoked');
-  if (runtime.status !== 'online' || !runtime.lastVerifiedAt || Date.now() - new Date(runtime.lastVerifiedAt).getTime() > HEARTBEAT_FRESHNESS_SECONDS * 1000) throw new Error('Linux host must have a fresh heartbeat before tasks can be issued');
-  if (!runtime.allowedActions.includes(action)) throw new Error('Action is not authorized for this Linux host');
+  const db = getPostgresPool();
+  const client = await db.connect();
   const taskId = 'linux-task-' + randomUUID();
-  await getPostgresPool().query(
-    `INSERT INTO linux_agent_tasks
-      (id, runtime_id, action, params, status, requested_by, approved_by, expires_at)
-     VALUES ($1, $2, $3, '{}'::jsonb, 'approved', $4, $4, NOW() + ($5 * INTERVAL '1 second'))`,
-    [taskId, runtimeId, action, actor, TASK_TTL_SECONDS],
-  );
-  await getPostgresPool().query(
-    'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
-    ['lre-' + randomUUID(), runtimeId, 'read_only_task_approved', actor, JSON.stringify({ taskId, action, approvalBoundary: 'owner-authenticated-route' })],
-  );
-  return { taskId, action, status: 'approved' };
+  try {
+    await client.query('BEGIN');
+    const locked = await client.query(
+      `SELECT status, last_verified_at, allowed_actions
+         FROM linux_runtime_registry
+        WHERE id = $1
+        FOR UPDATE`,
+      [runtimeId],
+    );
+    const runtime = locked.rows[0];
+    if (!runtime || runtime.status === 'revoked') throw new Error('Linux host is not enrolled or has been revoked');
+    const lastVerifiedAt = runtime.last_verified_at ? new Date(runtime.last_verified_at).getTime() : 0;
+    if (runtime.status !== 'online' || !lastVerifiedAt || Date.now() - lastVerifiedAt > HEARTBEAT_FRESHNESS_SECONDS * 1000) {
+      throw new Error('Linux host must have a fresh heartbeat before tasks can be issued');
+    }
+    const allowedActions = Array.isArray(runtime.allowed_actions) ? runtime.allowed_actions : [];
+    if (!allowedActions.includes(action)) throw new Error('Action is not authorized for this Linux host');
+    await client.query(
+      `INSERT INTO linux_agent_tasks
+        (id, runtime_id, action, params, status, requested_by, approved_by, expires_at)
+       VALUES ($1, $2, $3, '{}'::jsonb, 'approved', $4, $4, NOW() + ($5 * INTERVAL '1 second'))`,
+      [taskId, runtimeId, action, actor, TASK_TTL_SECONDS],
+    );
+    await client.query(
+      'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
+      ['lre-' + randomUUID(), runtimeId, 'read_only_task_approved', actor, JSON.stringify({ taskId, action, approvalBoundary: 'owner-authenticated-route' })],
+    );
+    await client.query('COMMIT');
+    return { taskId, action, status: 'approved' };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null | {
@@ -190,71 +213,103 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
 }> {
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   await initializeLinuxHostAgentTables();
-  const db = getPostgresPool();
-  const runtime = await getLinuxRuntime(runtimeId);
-  if (!runtime || runtime.status !== 'online' || !runtime.lastVerifiedAt || Date.now() - new Date(runtime.lastVerifiedAt).getTime() > HEARTBEAT_FRESHNESS_SECONDS * 1000) {
-    throw new Error('Linux host heartbeat is stale or host is not online');
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    const locked = await client.query(
+      `SELECT status, last_verified_at
+         FROM linux_runtime_registry
+        WHERE id = $1
+        FOR UPDATE`,
+      [runtimeId],
+    );
+    const runtime = locked.rows[0];
+    const lastVerifiedAt = runtime?.last_verified_at ? new Date(runtime.last_verified_at).getTime() : 0;
+    if (!runtime || runtime.status !== 'online' || !lastVerifiedAt || Date.now() - lastVerifiedAt > HEARTBEAT_FRESHNESS_SECONDS * 1000) {
+      throw new Error('Linux host heartbeat is stale or host is not online');
+    }
+    await client.query(
+      `UPDATE linux_agent_tasks SET status = 'expired'
+        WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()`,
+      [runtimeId],
+    );
+    await client.query(
+      `UPDATE linux_agent_tasks SET status = 'expired'
+        WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()`,
+      [runtimeId],
+    );
+    const r = await client.query(
+      `UPDATE linux_agent_tasks
+          SET status = 'claimed', claimed_at = NOW(),
+              lease_until = NOW() + ($2 * INTERVAL '1 second')
+        WHERE id = (
+          SELECT id FROM linux_agent_tasks
+           WHERE runtime_id = $1 AND status = 'approved' AND expires_at > NOW()
+           ORDER BY approved_at, id
+           LIMIT 1 FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, action, params, lease_until`,
+      [runtimeId, TASK_LEASE_SECONDS],
+    );
+    const row = r.rows[0];
+    if (!row) {
+      await client.query('COMMIT');
+      return null;
+    }
+    await client.query(
+      'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
+      ['lre-' + randomUUID(), runtimeId, 'agent_task_claimed', 'linux-host-agent', JSON.stringify({ taskId: row.id, action: row.action })],
+    );
+    await client.query('COMMIT');
+    return {
+      taskId: row.id,
+      action: row.action,
+      params: row.params || {},
+      leaseUntil: new Date(row.lease_until).toISOString(),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-  await db.query(
-    `UPDATE linux_agent_tasks SET status = 'expired'
-      WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()`,
-    [runtimeId],
-  );
-  await db.query(
-    `UPDATE linux_agent_tasks SET status = 'expired'
-      WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()`,
-    [runtimeId],
-  );
-  const r = await db.query(
-    `UPDATE linux_agent_tasks
-        SET status = 'claimed', claimed_at = NOW(),
-            lease_until = NOW() + ($2 * INTERVAL '1 second')
-      WHERE id = (
-        SELECT id FROM linux_agent_tasks
-         WHERE runtime_id = $1 AND status = 'approved' AND expires_at > NOW()
-         ORDER BY approved_at, id
-         LIMIT 1 FOR UPDATE SKIP LOCKED
-      )
-      RETURNING id, action, params, lease_until`,
-    [runtimeId, TASK_LEASE_SECONDS],
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  await db.query(
-    'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
-    ['lre-' + randomUUID(), runtimeId, 'agent_task_claimed', 'linux-host-agent', JSON.stringify({ taskId: row.id, action: row.action })],
-  );
-  return {
-    taskId: row.id,
-    action: row.action,
-    params: row.params || {},
-    leaseUntil: new Date(row.lease_until).toISOString(),
-  };
 }
+
 export async function completeLinuxHostAgentTask(runtimeId: string, taskId: string, input: unknown): Promise<{ taskId: string; status: 'succeeded' | 'failed' }> {
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   if (!isSafeLinuxHostTaskId(taskId)) throw new Error('Invalid Linux task identifier');
   const result = normalizeLinuxHostTaskResult(input);
   await initializeLinuxHostAgentTables();
-  const encodedResult = JSON.stringify(result.result || {});
+  const encodedResult = canonicalizeLinuxHostAgentJson(result.result || {});
   const resultHash = createHash('sha256').update(encodedResult, 'utf8').digest('hex');
-  const updated = await getPostgresPool().query(
-    `UPDATE linux_agent_tasks
-        SET status = $3, result = $4::jsonb, result_sha256 = $5,
-            error_code = $6, completed_at = NOW()
-      WHERE id = $1 AND runtime_id = $2 AND status = 'claimed' AND lease_until > NOW()
-      RETURNING id, status`,
-    [taskId, runtimeId, result.status, encodedResult, resultHash, result.errorCode || null],
-  );
-  if (!updated.rows[0]) throw new Error('Task is not claimed by this host or its lease has expired');
-  await getPostgresPool().query(
-    'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
-    ['lre-' + randomUUID(), runtimeId, 'agent_task_completed', 'linux-host-agent', JSON.stringify({ taskId, status: result.status, resultSha256: resultHash })],
-  );
-  return { taskId, status: result.status };
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    const updated = await client.query(
+      `UPDATE linux_agent_tasks
+          SET status = $3, result = $4::jsonb, result_sha256 = $5,
+              error_code = $6, completed_at = NOW()
+        WHERE id = $1 AND runtime_id = $2 AND status = 'claimed' AND lease_until > NOW()
+        RETURNING id, status`,
+      [taskId, runtimeId, result.status, encodedResult, resultHash, result.errorCode || null],
+    );
+    if (!updated.rows[0]) throw new Error('Task is not claimed by this host or its lease has expired');
+    await client.query(
+      'INSERT INTO linux_runtime_events(id, runtime_id, event_type, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)',
+      ['lre-' + randomUUID(), runtimeId, 'agent_task_completed', 'linux-host-agent', JSON.stringify({ taskId, status: result.status, resultSha256: resultHash, resultHashEncoding: 'canonical-json-v1' })],
+    );
+    await client.query('COMMIT');
+    return { taskId, status: result.status };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function revokeLinuxHostAgent(runtimeId: string, actor: string): Promise<boolean> {
+  if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   await initializeLinuxHostAgentTables();
   const db = getPostgresPool();
   const client = await db.connect();
