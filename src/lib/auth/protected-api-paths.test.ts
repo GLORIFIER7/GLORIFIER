@@ -39,6 +39,15 @@ const authenticationBypassCases: Array<[string, string, boolean]> = [
   ['POST', '/public/status', false],
   ['PUT', '/public/status', false],
   ['DELETE', '/public/status', false],
+  ['POST', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/heartbeat', true],
+  ['POST', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/tasks/claim', true],
+  ['POST', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/tasks/linux-task-123e4567-e89b-12d3-a456-426614174000/result', true],
+  ['post', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/heartbeat', true],
+  ['GET', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/heartbeat', false],
+  ['POST', '/linux/agent/not-a-runtime/heartbeat', false],
+  ['POST', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/tasks/linux-task-bad/result', false],
+  ['POST', '/linux/agent/linux-123e4567-e89b-12d3-a456-426614174000/tasks/claim/extra', false],
+  ['POST', '/linux/runtimes/enroll', false],
 ];
 
 const server = readFileSync('server.ts', 'utf8');
