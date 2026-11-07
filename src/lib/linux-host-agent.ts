@@ -194,10 +194,12 @@ export async function createLinuxHostAgentTask(runtimeId: string, action: unknow
   try {
     await client.query('BEGIN');
     const locked = await client.query(
-      `SELECT status, last_verified_at, allowed_actions
-         FROM linux_runtime_registry
-        WHERE id = $1
-        FOR UPDATE`,
+      `SELECT r.status, r.last_verified_at, r.allowed_actions
+         FROM linux_runtime_registry r
+         JOIN linux_agent_credentials c
+           ON c.runtime_id = r.id AND c.revoked_at IS NULL
+        WHERE r.id = $1
+        FOR UPDATE OF r`,
       [runtimeId],
     );
     const runtime = locked.rows[0];
