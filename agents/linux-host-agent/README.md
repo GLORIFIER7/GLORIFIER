@@ -43,7 +43,7 @@ Record the returned `runtimeId` and one-time `token`. Do not paste the token int
 Create a dedicated unprivileged service account and install the files:
 
 ```sh
-sudo useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin glorifier-agent
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin glorifier-agent
 sudo install -d -o root -g glorifier-agent -m 0750 /opt/glorifier-linux-agent
 sudo install -o root -g root -m 0644 agent.py /opt/glorifier-linux-agent/agent.py
 sudo install -d -o root -g root -m 0750 /etc/glorifier
