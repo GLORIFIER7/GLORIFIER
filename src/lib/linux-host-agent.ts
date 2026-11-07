@@ -316,6 +316,13 @@ export async function completeLinuxHostAgentTask(runtimeId: string, taskId: stri
   const client = await getPostgresPool().connect();
   try {
     await client.query('BEGIN');
+    const runtimeLock = await client.query(
+      'SELECT status FROM linux_runtime_registry WHERE id = $1 FOR UPDATE',
+      [runtimeId],
+    );
+    if (!runtimeLock.rows[0] || runtimeLock.rows[0].status === 'revoked') {
+      throw new Error('Linux host is not enrolled or has been revoked');
+    }
     const updated = await client.query(
       `UPDATE linux_agent_tasks
           SET status = $3, result = $4::jsonb, result_sha256 = $5,
