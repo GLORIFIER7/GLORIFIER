@@ -145,11 +145,19 @@ const parseRfc3339Timestamp = (value: unknown): number | null => {
   return Number.isFinite(timestamp) ? timestamp : null;
 };
 
+const hasNonZeroSubMillisecondPrecision = (value: string): boolean => {
+  const match = parseRfc3339TimestampParts(value);
+  const fractionalSeconds = match?.[7] ?? '';
+  return fractionalSeconds.length > 3 && /[1-9]/.test(fractionalSeconds.slice(3));
+};
+
 const isClaimReviewDecision = (value: unknown): value is ClaimReviewDecision =>
   value === 'supported' || value === 'contradicted' || value === 'insufficient';
 
 const validateValidationClock = (nowMs: number, failures: string[]): void => {
-  if (!Number.isFinite(nowMs)) failures.push('validation clock must be a finite timestamp');
+  if (!Number.isSafeInteger(nowMs)) {
+    failures.push('validation clock must be a safe integer epoch-millisecond timestamp');
+  }
 };
 
 const validateDecision = (decision: unknown, failures: string[]): void => {
@@ -290,9 +298,15 @@ const validateTrustedClaimAllowance = (
 };
 
 const getObservationAgeMs = (observedAt: unknown, nowMs: number): number | null => {
-  if (typeof observedAt !== 'string' || !Number.isFinite(nowMs)) return null;
+  if (typeof observedAt !== 'string' || !Number.isSafeInteger(nowMs)) return null;
   const observedAtMs = parseRfc3339Timestamp(observedAt);
-  return observedAtMs === null ? null : nowMs - observedAtMs;
+  if (observedAtMs === null) return null;
+
+  // Date.parse retains only milliseconds. When it truncates a timestamp to
+  // exactly the validation clock, inspect the remaining RFC 3339 fraction so
+  // a value a fraction of a millisecond in the future cannot be admitted.
+  if (observedAtMs === nowMs && hasNonZeroSubMillisecondPrecision(observedAt)) return -1;
+  return nowMs - observedAtMs;
 };
 
 const observationAgeFailure = (ageMs: number | null, cadenceDays: number): string | null => {
@@ -318,8 +332,10 @@ const validateSourceFreshness = (
   nowMs: number,
   failures: string[],
 ): void => {
-  if (!Number.isInteger(source.reviewCadenceDays) || source.reviewCadenceDays < 1) {
-    failures.push('trusted source reviewCadenceDays must be a positive integer');
+  if (!Number.isSafeInteger(source.reviewCadenceDays)
+      || source.reviewCadenceDays < 1
+      || !Number.isSafeInteger(source.reviewCadenceDays * DAYS_PER_MILLISECOND)) {
+    failures.push('trusted source reviewCadenceDays must be a positive safe integer with safe millisecond conversion');
     return;
   }
   validateObservationAge(getObservationAgeMs(observedAt, nowMs), source.reviewCadenceDays, failures);
