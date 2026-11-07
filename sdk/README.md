@@ -22,6 +22,12 @@ The Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart conformance jobs all pa
 
 These are bounded CI contract results. They do not establish live Neural connectivity, production credentials, provider availability, external A2A/MCP protocol certification, compatibility on untested OS/architecture/runtime versions, or a production deployment.
 
+## Cross-platform expansion probes
+
+The native SDK jobs above remain the evidence baseline for the exact runtime/runner targets listed in the table. A supplementary CI matrix also exercises Python 3.12, Go 1.26.x, and Node.js 24.12.0 on Windows 2022 and macOS 14. These are coverage probes; they do not automatically widen a capability's VERIFIED scope. Successful results must be recorded against the exact commit, runtime, operating system, architecture, and CI run in the capability registry before the support matrix is updated.
+
+Windows and ARM64 support for the remaining SDKs, Linux ARM64, and macOS ARM64 remain NOT VERIFIED. Browser JavaScript/TypeScript remains intentionally unsupported because bearer credentials must stay out of browser bundles.
+
 ## Shared wire-fixture parity
 
 The canonical fixture file at `docs/architecture/interoperability-contract-fixtures.json` defines common UTF-8, Unicode, arbitrary-precision decimal-string, null-versus-absent, nested-type, and stable-error cases. All eleven SDK packages include language-specific fixture tests. Python and Go execute them through [the Python/Go workflow](../.github/workflows/python-sdk.yml); Java, Kotlin, .NET, Rust, PHP, Ruby, Swift, and Dart execute them through [the native SDK workflow](../.github/workflows/polyglot-sdk.yml); JavaScript/TypeScript executes them through the Node.js job in that workflow.
