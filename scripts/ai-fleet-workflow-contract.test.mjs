@@ -68,46 +68,29 @@ test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
 
-test('every Claude invocation blocks npm install commands that execute lifecycle scripts', () => {
-  const allowedToolLists = [...claudeWorkflow.matchAll(/--allowedTools\s+"([^"]+)"/g)]
-    .map((match) => match[1]);
-  const claudeInvocations = (claudeWorkflow.match(/uses: anthropics\/claude-code-action@/g) || []).length;
-  assert.ok(allowedToolLists.length > 0, 'Claude allowed-tool lists must be present and quoted');
-  assert.equal(
-    allowedToolLists.length,
-    claudeInvocations,
-    'each Claude invocation must declare an explicit allowed-tool list',
-  );
-  const forbiddenInstallTool = /(?:^|,)Bash\(npm\s+(?:ci|install|i|add)(?:\s|\))/;
+test('Claude direct runner blocks npm lifecycle-install commands', () => {
+  const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \\[([\\s\\S]*?)\\];/)?.[1];
+  assert.ok(allowedTools, 'Claude CLI allowlist must be present in the direct runner');
+  const forbiddenInstallTool = /Bash\\(npm\\s+(?:ci|install|i|add)(?:\\s|\\))/;
   for (const command of ['ci', 'install', 'i', 'add']) {
     assert.match(
-      'Read,Bash(npm ' + command + ')',
+      'Bash(npm ' + command + ')',
       forbiddenInstallTool,
       'the denylist must recognize npm ' + command + ' as an install-capable command',
     );
   }
   assert.match(
-    'Read,Bash(npm ci --ignore-scripts)',
+    'Bash(npm ci --ignore-scripts)',
     forbiddenInstallTool,
-    'the allowlist must not permit npm ci through an alternate flag form',
+    'the denylist must recognize npm ci even when an alternate flag is supplied',
   );
-  for (const [index, allowedTools] of allowedToolLists.entries()) {
-    assert.doesNotMatch(
-      allowedTools,
-      forbiddenInstallTool,
-      'Claude invocation ' + (index + 1) + ' must not run npm install commands that execute lifecycle scripts',
-    );
-  }
-test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
-  const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \[([\s\S]*?)\];/)?.[1];
-  assert.ok(allowedTools, 'Claude CLI allowlist must be present in the direct runner');
   assert.doesNotMatch(
     allowedTools,
-    /Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
+    forbiddenInstallTool,
     'Claude must not be able to run npm install commands that execute lifecycle scripts',
   );
-  assert.match(allowedTools, /Bash\(npm run lint\)/);
-  assert.match(allowedTools, /Bash\(npm run build\)/);
+  assert.match(allowedTools, /Bash\\(npm run lint\\)/);
+  assert.match(allowedTools, /Bash\\(npm run build\\)/);
   assert.doesNotMatch(claudeRunner, /--dangerously-skip-permissions/);
 
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
@@ -116,9 +99,13 @@ test('Claude cannot run npm install commands that execute lifecycle scripts', ()
     dependencyInstall >= 0 && claudeCli > dependencyInstall,
     'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
   );
-  assert.doesNotMatch(claudeWorkflow, /uses: anthropics\/claude-code-action@/);
+  assert.equal(
+    (claudeWorkflow.match(/run: node scripts\\/run-claude-workflow\\.mjs/g) || []).length,
+    1,
+    'the Claude workflow must invoke the direct runner exactly once',
+  );
+  assert.doesNotMatch(claudeWorkflow, /uses: anthropics\\/claude-code-action@/);
 });
-
 
 test('CI runs the Claude direct CLI runner regression suite', () => {
   assert.match(
