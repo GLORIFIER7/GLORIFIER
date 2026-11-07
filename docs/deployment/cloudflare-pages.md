@@ -20,7 +20,7 @@ All other paths continue through Pages static asset and SPA routing. Missing ser
 
 ## Pages project build settings
 
-Create a Cloudflare Pages project named `glorifier` connected to `GLORIFIER7/GLORIFIER`:
+Cloudflare Pages project `glorifier` is provisioned in the GLORIFIER account and connected to `GLORIFIER7/GLORIFIER`. Its deployment settings are:
 
 | Setting | Value |
 |---|---|
@@ -33,13 +33,13 @@ Create a Cloudflare Pages project named `glorifier` connected to `GLORIFIER7/GLO
 
 Do not set `VITE_API_BASE_URL` for the Pages deployment. The application uses same-origin `/api/*` and `/auth/*` requests, which the Pages Function sends to the internal Worker.
 
-Configure the `GLORIFIER_WORKER` service binding for the production Pages environment and redeploy after it is saved. Do not bind production credentials or production services into untrusted preview deployments. Preview environments must use isolated, reviewed bindings or remain without the service binding.
+The production Pages environment is configured with the `GLORIFIER_WORKER` service binding to the `glorifier` Worker. Production Git deployments are enabled and preview deployments remain disabled. No `latest_deployment` was present when the project was provisioned; the next push to `main` should trigger the initial Git-integrated Pages build. Do not bind production credentials or production services into untrusted preview deployments. Keep preview deployments disabled unless isolated, reviewed bindings are established.
 
 ## Safe cutover sequence
 
-1. Review and merge the Pages Function, tests, and this deployment guide through the repository's protected pull-request process.
-2. Create/connect the Pages project with production deployments disabled until the project settings and source are reviewed.
-3. Add the production `GLORIFIER_WORKER` service binding and deploy a Pages preview.
+1. Keep the Pages project connected to `GLORIFIER7/GLORIFIER` with production branch `main`, the configured build command, and output directory `dist`.
+2. Merge a reviewed, CI-green commit to `main` to trigger the initial Git-integrated Pages build.
+3. Inspect the Pages deployment logs and confirm the build artifact contains `index.html`, the Vite assets, and the `functions/` routes.
 4. Verify static assets, nested-route refresh, `/api/health`, Worker-native reporting/identity responses, unauthenticated authorization boundaries, login/logout, and callback URLs on the Pages origin.
 5. Update Firebase Authentication authorized domains and OAuth redirect/return URLs to include the exact Pages hostname only after the provider configuration has been reviewed.
 6. Confirm all required UI flows and APIs on Pages. API routes that the Worker deliberately reports as unavailable remain unavailable; a frontend deployment does not prove legacy backend migration or provider health.
@@ -48,7 +48,7 @@ Configure the `GLORIFIER_WORKER` service binding for the production Pages enviro
 
 ## Evidence and limitations
 
-At the time this guide was prepared, the connected Cloudflare account had no Pages projects, while it had Workers named `glorifier` and `glorifier-neural`. This repository change prepares the Pages-to-Worker routing boundary; it does not claim that a Pages project has been deployed, that all backend routes are implemented, or that authentication, databases, AI providers, or external integrations are fully verified.
+The Cloudflare account contains the Pages project `glorifier`, linked to this repository, with production Git deployments enabled and `GLORIFIER_WORKER → glorifier` configured. At the latest configuration check, `latest_deployment` and `canonical_deployment` were null; therefore the Pages project exists but its first deployment has not yet been verified. The production deployment is triggered by a new commit to `main`. This does not claim that all backend routes are implemented, or that authentication, databases, AI providers, or external integrations are fully verified.
 
 A successful `/api/health` response proves only that the Worker runtime answered. It does not prove backend, identity-provider, database, NEURAL, or AI-provider health. Continue to use evidence-backed status labels and keep missing evidence as NOT VERIFIED.
 
