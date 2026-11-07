@@ -5,10 +5,16 @@ import { duplicateJsonKeys } from "./package-manifest-integrity.mjs";
 
 const packageJsonText = await readFile(new URL("../package.json", import.meta.url), "utf8");
 const packageLockText = await readFile(new URL("../package-lock.json", import.meta.url), "utf8");
+const capabilityRegistryText = await readFile(new URL("../docs/architecture/interoperability-capabilities.json", import.meta.url), "utf8");
 
 test("duplicateJsonKeys identifies repeats without flagging separate objects", () => {
   assert.deepEqual(duplicateJsonKeys('{"dependencies":{"a":"1","a":"2"}}'), ["dependencies.a"]);
   assert.deepEqual(duplicateJsonKeys('{"a":{"x":1},"b":{"x":2}}'), []);
+});
+
+
+test("interoperability capability registry contains no duplicate JSON keys", () => {
+  assert.deepEqual(duplicateJsonKeys(capabilityRegistryText), []);
 });
 
 test("package.json contains no duplicate JSON keys", () => {

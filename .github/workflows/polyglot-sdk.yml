@@ -12,11 +12,19 @@ on:
       - "sdk/swift/**"
       - "sdk/dart/**"
       - "sdk/javascript/**"
+      - "sdk/python/**"
+      - "sdk/go/**"
+      - "sdk/README.md"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/interoperability-capabilities.json"
+      - "docs/architecture/interoperability-contract-fixtures.json"
+      - "docs/architecture/interoperability-gap-register.md"
+      - "docs/INTEROPERABILITY-VERIFICATION-MATRIX.md"
+      - "scripts/validate-polyglot-sdk-inventory.mjs"
+      - "scripts/validate-polyglot-sdk-inventory.test.mjs"
       - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
-      - "docs/architecture/interoperability-contract-fixtures.json"
-      - "docs/architecture/interoperability-capabilities.json"
-      - "docs/architecture/language-neutral-interoperability.md"
+      - ".github/workflows/python-sdk.yml"
   push:
     branches: [main]
     paths:
@@ -29,11 +37,19 @@ on:
       - "sdk/swift/**"
       - "sdk/dart/**"
       - "sdk/javascript/**"
+      - "sdk/python/**"
+      - "sdk/go/**"
+      - "sdk/README.md"
+      - "docs/architecture/language-neutral-interoperability.md"
+      - "docs/architecture/interoperability-capabilities.json"
+      - "docs/architecture/interoperability-contract-fixtures.json"
+      - "docs/architecture/interoperability-gap-register.md"
+      - "docs/INTEROPERABILITY-VERIFICATION-MATRIX.md"
+      - "scripts/validate-polyglot-sdk-inventory.mjs"
+      - "scripts/validate-polyglot-sdk-inventory.test.mjs"
       - ".node-version"
       - ".github/workflows/polyglot-sdk.yml"
-      - "docs/architecture/interoperability-contract-fixtures.json"
-      - "docs/architecture/interoperability-capabilities.json"
-      - "docs/architecture/language-neutral-interoperability.md"
+      - ".github/workflows/python-sdk.yml"
 
 permissions:
   contents: read
@@ -114,7 +130,7 @@ jobs:
 
   swift:
     name: Swift SDK (5.9+)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Test native Swift SDK
@@ -143,4 +159,74 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Test server-side JavaScript/TypeScript SDK and shared fixtures
+        run: npm --prefix sdk/javascript test
+
+  inventory-contract:
+    name: SDK inventory, documentation and evidence alignment
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Validate polyglot inventory regressions
+        run: node --test scripts/validate-polyglot-sdk-inventory.test.mjs
+      - name: Validate package, documentation, capability and CI inventory
+        run: node scripts/validate-polyglot-sdk-inventory.mjs
+
+  # These are supplementary probes. Their results do not widen registry support
+  # until exact successful runs are added to the relevant capability records.
+  python-platform-smoke:
+    name: Python 3.12 platform probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Run Python SDK client tests
+        working-directory: sdk/python
+        run: python -m unittest -v test_glorifier_neural_client.py
+      - name: Run Python shared fixture tests
+        working-directory: sdk/python
+        run: python -m unittest -v test_interoperability_fixtures.py
+
+  go-platform-smoke:
+    name: Go 1.26.x platform probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.x"
+          cache: true
+          cache-dependency-path: sdk/go/go.mod
+      - name: Run Go SDK tests
+        working-directory: sdk/go
+        run: go test -count=1 ./...
+      - name: Run Go static analysis
+        working-directory: sdk/go
+        run: go vet ./...
+
+  javascript-platform-smoke:
+    name: Node.js 24 platform probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Run server-side JavaScript/TypeScript SDK contract tests
         run: npm --prefix sdk/javascript test
