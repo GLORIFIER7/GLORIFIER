@@ -10,6 +10,7 @@ import {
   validateLinuxHostEnrollment,
   isSafeLinuxHostRuntimeId,
   isSafeLinuxHostTaskId,
+  isValidLinuxHostAgentToken,
 } from './linux-host-agent-contract';
 
 const TOKEN_BYTES = 32;
@@ -41,6 +42,7 @@ async function initializeLinuxHostAgentTables(): Promise<void> {
         '  approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),',
         '  claimed_at TIMESTAMPTZ,',
         '  lease_until TIMESTAMPTZ,',
+        '  lease_token_sha256 TEXT CHECK (lease_token_sha256 IS NULL OR lease_token_sha256 ~ \'^[a-f0-9]{64}$\'),',
         '  completed_at TIMESTAMPTZ,',
         '  expires_at TIMESTAMPTZ NOT NULL,',
         '  result JSONB CHECK (result IS NULL OR jsonb_typeof(result) = \'object\'),',
@@ -49,6 +51,7 @@ async function initializeLinuxHostAgentTables(): Promise<void> {
         '  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()',
         ');',
         'CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_claim ON linux_agent_tasks(runtime_id, status, approved_at);',
+        'ALTER TABLE linux_agent_tasks ADD COLUMN IF NOT EXISTS lease_token_sha256 TEXT;',
         'CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_expiry ON linux_agent_tasks(status, expires_at);',
       ].join('\n');
       await getPostgresPool().query(schema);
@@ -230,6 +233,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
   action: string;
   params: Record<string, unknown>;
   leaseUntil: string;
+  leaseToken: string;
 }> {
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   await initializeLinuxHostAgentTables();
@@ -254,14 +258,18 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
       [runtimeId],
     );
     await client.query(
-      `UPDATE linux_agent_tasks SET status = 'expired'
+      `UPDATE linux_agent_tasks
+          SET status = CASE WHEN expires_at > NOW() THEN 'approved' ELSE 'expired' END,
+              claimed_at = NULL, lease_until = NULL, lease_token_sha256 = NULL
         WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()`,
       [runtimeId],
     );
+    const leaseToken = randomBytes(TOKEN_BYTES).toString('base64url');
+    const leaseTokenHash = createHash('sha256').update(leaseToken, 'utf8').digest('hex');
     const r = await client.query(
       `UPDATE linux_agent_tasks
           SET status = 'claimed', claimed_at = NOW(),
-              lease_until = NOW() + ($2 * INTERVAL '1 second')
+              lease_until = NOW() + ($2 * INTERVAL '1 second'), lease_token_sha256 = $3
         WHERE id = (
           SELECT id FROM linux_agent_tasks
            WHERE runtime_id = $1 AND status = 'approved' AND expires_at > NOW()
@@ -269,7 +277,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
            LIMIT 1 FOR UPDATE SKIP LOCKED
         )
         RETURNING id, action, params, lease_until`,
-      [runtimeId, TASK_LEASE_SECONDS],
+      [runtimeId, TASK_LEASE_SECONDS, leaseTokenHash],
     );
     const row = r.rows[0];
     if (!row) {
@@ -286,6 +294,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
       action: row.action,
       params: row.params || {},
       leaseUntil: new Date(row.lease_until).toISOString(),
+      leaseToken,
     };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -295,9 +304,11 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
   }
 }
 
-export async function completeLinuxHostAgentTask(runtimeId: string, taskId: string, input: unknown): Promise<{ taskId: string; status: 'succeeded' | 'failed' }> {
+export async function completeLinuxHostAgentTask(runtimeId: string, taskId: string, leaseToken: string, input: unknown): Promise<{ taskId: string; status: 'succeeded' | 'failed' }> {
   if (!isSafeLinuxHostRuntimeId(runtimeId)) throw new Error('Invalid Linux runtime identifier');
   if (!isSafeLinuxHostTaskId(taskId)) throw new Error('Invalid Linux task identifier');
+  if (!isValidLinuxHostAgentToken(leaseToken)) throw new Error('Invalid Linux task lease token');
+  const leaseTokenHash = createHash('sha256').update(leaseToken, 'utf8').digest('hex');
   const result = normalizeLinuxHostTaskResult(input);
   await initializeLinuxHostAgentTables();
   const encodedResult = canonicalizeLinuxHostAgentJson(result.result || {});
@@ -308,10 +319,17 @@ export async function completeLinuxHostAgentTask(runtimeId: string, taskId: stri
     const updated = await client.query(
       `UPDATE linux_agent_tasks
           SET status = $3, result = $4::jsonb, result_sha256 = $5,
-              error_code = $6, completed_at = NOW()
+              error_code = $6, completed_at = NOW(), lease_token_sha256 = NULL
         WHERE id = $1 AND runtime_id = $2 AND status = 'claimed' AND lease_until > NOW()
+          AND lease_token_sha256 = $7
+          AND EXISTS (
+            SELECT 1 FROM linux_runtime_registry r
+             JOIN linux_agent_credentials c ON c.runtime_id = r.id
+            WHERE r.id = linux_agent_tasks.runtime_id
+              AND r.status <> 'revoked' AND c.revoked_at IS NULL
+          )
         RETURNING id, status`,
-      [taskId, runtimeId, result.status, encodedResult, resultHash, result.errorCode || null],
+      [taskId, runtimeId, result.status, encodedResult, resultHash, result.errorCode || null, leaseTokenHash],
     );
     if (!updated.rows[0]) throw new Error('Task is not claimed by this host or its lease has expired');
     await client.query(
