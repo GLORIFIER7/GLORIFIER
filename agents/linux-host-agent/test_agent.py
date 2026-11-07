@@ -98,6 +98,28 @@ class LinuxHostAgentTests(unittest.TestCase):
            unittest.mock.patch("builtins.print"):
             self.assertEqual(AGENT.main(), 1)
 
+    def test_claim_rejects_missing_or_malformed_lease_token(self):
+        client = AGENT.LinuxHostAgentClient.__new__(AGENT.LinuxHostAgentClient)
+        client._post = lambda _path, _payload: {
+            "task": {
+                "taskId": "linux-task-123e4567-e89b-42d3-a456-426614174000",
+                "action": "host.info",
+            }
+        }
+        with self.assertRaises(AGENT.AgentError):
+            client.claim_task()
+
+    def test_result_submission_rejects_malformed_lease_token(self):
+        client = AGENT.LinuxHostAgentClient.__new__(AGENT.LinuxHostAgentClient)
+        client.runtime_path = "linux-123e4567-e89b-42d3-a456-426614174000"
+        client._post = lambda _path, _payload: {"ok": True}
+        with self.assertRaises(ValueError):
+            client.submit_result(
+                "linux-task-123e4567-e89b-42d3-a456-426614174000",
+                "short",
+                {"status": "succeeded", "result": {"ok": True}},
+            )
+
     def test_memory_parser_reads_only_expected_numeric_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "meminfo"
