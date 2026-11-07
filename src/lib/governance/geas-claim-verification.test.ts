@@ -284,3 +284,39 @@ test('source snapshot hashes and supporting excerpts are verified exactly', () =
   assert.equal(missing.recordIntegrityAdmitted, false);
   assert.ok(missing.failures.some((failure) => failure.includes('sourceSnapshot')));
 });
+
+
+test('sub-millisecond future claim-review observations are rejected', () => {
+  const result = review({
+    ...valid,
+    observedAt: '2026-10-26T13:00:00.0000001Z',
+  });
+  assert.equal(result.recordIntegrityAdmitted, false);
+  assert.ok(result.failures.some((failure) => failure.includes('cannot be in the future')));
+  assert.equal(result.evidenceRef, null);
+});
+
+test('unsafe source review cadence integers cannot extend claim evidence freshness', () => {
+  const unsafeCadence = {
+    ...registry,
+    sources: registry.sources.map((source) => source.id === trustedSource.id
+      ? { ...source, reviewCadenceDays: Number.MAX_SAFE_INTEGER + 1 }
+      : source),
+  };
+  const result = review({
+    ...valid,
+    observedAt: '1970-01-01T00:00:00Z',
+  }, unsafeCadence);
+  assert.equal(result.recordIntegrityAdmitted, false);
+  assert.ok(result.failures.some((failure) => failure.includes('reviewCadenceDays')));
+  assert.equal(result.evidenceRef, null);
+});
+
+test('fractional and unsafe validation clocks fail closed', () => {
+  for (const invalidClock of [fixedNowMs + 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    const result = review(valid, registry, invalidClock);
+    assert.equal(result.recordIntegrityAdmitted, false);
+    assert.ok(result.failures.some((failure) => failure.includes('validation clock')));
+    assert.equal(result.evidenceRef, null);
+  }
+});
