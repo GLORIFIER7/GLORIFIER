@@ -192,6 +192,7 @@ class LinuxHostAgentClient:
             raise AgentError("GLORIFIER returned an invalid task")
         task_id = task.get("taskId")
         action = task.get("action")
+        lease_token = task.get("leaseToken")
         if not isinstance(task_id, str) or not re.fullmatch(r"linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", task_id):
             raise AgentError("GLORIFIER task identifier is invalid")
         if action not in ALLOWED_ACTIONS:
@@ -203,6 +204,8 @@ class LinuxHostAgentClient:
     def submit_result(self, task_id: str, lease_token: str, result: dict[str, Any]) -> dict[str, Any]:
         if not re.fullmatch(r"linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", task_id):
             raise ValueError("task identifier is invalid")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", lease_token):
+            raise ValueError("lease token is invalid")
         return self._post(
             "/api/linux/agent/" + self.runtime_path + "/tasks/" + urllib.parse.quote(task_id, safe="") + "/result",
             {**result, "leaseToken": lease_token},
