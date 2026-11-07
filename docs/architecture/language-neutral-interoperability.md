@@ -25,7 +25,7 @@ Do not expose TypeScript interfaces as the only specification. Do not assume tha
 GLORIFIER currently maintains first-party HTTP/JSON clients for eleven languages:
 
 | Language | Package | CI target | Evidence status |
-|---|---|---|
+|---|---|---|---|
 | Python | `sdk/python` | Python 3.10, 3.11, 3.12 on Ubuntu 24.04 x86_64  | VERIFIED |
 | Go | `sdk/go` | Go 1.26.x and 1.27.x on Ubuntu 24.04 x86_64  | VERIFIED |
 | Java | `sdk/java` | JDK 17 on Ubuntu 24.04 x86_64  | VERIFIED |
