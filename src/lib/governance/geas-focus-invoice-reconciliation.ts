@@ -761,6 +761,9 @@ const analyzePaymentCurrency = (
   if (paymentRows.length === 0) return { status: 'NOT_PROVIDED', groups: [] };
 
   const initialReasonCount = reasons.length;
+  if (paymentRows.length !== detailRows.length) {
+    reasons.push('PaymentCurrency fields must be provided for every InvoiceDetail row when the dataset uses payment currency');
+  }
   const detailById = new Map<string, NormalizedCharge>();
   for (const row of detailRows) {
     if (!row.invoiceDetailId) continue;
