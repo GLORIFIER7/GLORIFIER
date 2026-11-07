@@ -381,6 +381,7 @@ const normalizeSingleRow = (
   if (parsed.paymentCurrencyFieldsPresent) {
     if (context.datasetName !== 'InvoiceDetail') {
       context.paymentCurrencyReasons.push(`${context.datasetName} row ${index} must not contain InvoiceDetail payment-currency fields`);
+      return null;
     } else if (!parsed.paymentCurrency
         || !isUppercaseCurrencyCode(parsed.paymentCurrency)
         || !parsed.paymentCurrencyBilledCost
@@ -687,7 +688,7 @@ const normalizeInvoiceDatasets = (
     ...paymentCurrencyScales,
   ];
   if (scales.some((scale) => scale === null)) {
-    reasons.push('all billing-currency billed costs must be decimal strings with at most 12 fractional digits');
+    reasons.push('all billed costs, including payment-currency amounts, must be decimal strings with at most 12 fractional digits');
   }
   if (reasons.length > 0) return null;
   const scale = scales.reduce<number>((maximum, value) => value === null ? maximum : Math.max(maximum, value), metadata.toleranceScale);
