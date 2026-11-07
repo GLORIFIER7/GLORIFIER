@@ -55,6 +55,7 @@ import { initializeMonetizationTables, createCheckout, captureCheckout, getSubsc
 import { initializePayoutRegistry, createPayoutRequest, getAvailablePayoutBalance, listPayoutRequests } from './src/lib/payouts';
 import { LINUX_PHILOSOPHY_ARCHITECTURE } from './src/lib/governance/linux-philosophy';
 import { enrollLinuxHostAgent, authenticateLinuxHostAgent, recordLinuxHostAgentHeartbeat, createLinuxHostAgentTask, claimLinuxHostAgentTask, completeLinuxHostAgentTask, revokeLinuxHostAgent, listLinuxHostAgents, listLinuxHostAgentTasks } from './src/lib/linux-host-agent';
+import { isSafeLinuxHostRuntimeId, isSafeLinuxHostTaskId } from './src/lib/linux-host-agent-contract';
 import { getArchitectureConsolidationSnapshot, listCapabilities, listArchitectureProviders, listSpecialistPlugins, listArchitectureAudit, listVerificationRecords } from './src/lib/governance/architecture-core';
 import { getGeasPolicy, evaluateGeasPolicy, registerAgent, getAgent, listControlledAgents, authorizeAgentAction, quarantineAgent, getEvidenceGraph, addEvidenceNode, linkEvidence, recordAgentTrace, getAgentObservabilitySnapshot, appendProvenanceEvent, listProvenanceEvents, verifyProvenanceChain, getProvenanceArchitecture } from './src/lib/governance';
 import { initializeGeasArchitectureScientist, runGeasArchitectureScan, getLatestGeasArchitectureScan, getGeasArchitectureModel, getGeasArchitectureSources, getGeasArchitecturePatterns, getGeasArchitectureControls, getGeasArchitectureReliabilityContract, getGeasSovereigntyDefaults, createAIImpactAssessment, createFinOpsArchitectureDecision, startGeasArchitectureScientistDaemon } from './src/lib/governance/geas-architecture-scientist';
@@ -4005,6 +4006,7 @@ app.post('/api/linux/runtimes/:runtimeId/revoke', requireOwner, async (req: Auth
 app.post('/api/linux/agent/:runtimeId/heartbeat', async (req: Request, res: Response) => {
   try {
     const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
     const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
     if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
     return res.json(await recordLinuxHostAgentHeartbeat(runtimeId, req.body));
@@ -4028,9 +4030,12 @@ app.post('/api/linux/agent/:runtimeId/tasks/claim', async (req: Request, res: Re
 app.post('/api/linux/agent/:runtimeId/tasks/:taskId/result', async (req: Request, res: Response) => {
   try {
     const runtimeId = String(req.params.runtimeId || '');
+    if (!isSafeLinuxHostRuntimeId(runtimeId)) return res.status(400).json({ ok: false, error: 'Invalid runtime identifier' });
+    const taskId = String(req.params.taskId || '');
+    if (!isSafeLinuxHostTaskId(taskId)) return res.status(400).json({ ok: false, error: 'Invalid task identifier' });
     const authenticated = await authenticateLinuxHostAgent(runtimeId, req.get('authorization'));
     if (!authenticated) return res.status(401).json({ ok: false, error: 'Linux host-agent authentication failed' });
-    const result = await completeLinuxHostAgentTask(runtimeId, String(req.params.taskId || ''), req.body);
+    const result = await completeLinuxHostAgentTask(runtimeId, taskId, req.body);
     return res.json({ ok: true, result });
   } catch (error) {
     return apiError(res, 409, 'Linux host-agent task result rejected', error);
