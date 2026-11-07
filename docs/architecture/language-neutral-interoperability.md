@@ -34,7 +34,7 @@ GLORIFIER currently maintains first-party HTTP/JSON clients for eleven languages
 | Rust | `sdk/rust` | stable Rust, edition 2021, on Ubuntu 24.04 x86_64  | VERIFIED |
 | PHP | `sdk/php` | PHP 8.2 with cURL and mbstring on Ubuntu 24.04 x86_64  | VERIFIED |
 | Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64  | VERIFIED |
-| Swift | `sdk/swift` | Swift toolchain; last passing GitHub CI used retired macOS 14, with macOS 15 ARM64 revalidation pending  | VERIFIED |
+| Swift | `sdk/swift` | Swift 5.9+ / macOS 15 ARM64; macOS 14 is historical (runner retired)  | VERIFIED |
 | Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64  | VERIFIED |
 | JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64  | VERIFIED |
 
