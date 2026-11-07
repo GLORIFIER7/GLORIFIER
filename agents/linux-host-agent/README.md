@@ -17,6 +17,8 @@ The API routes are implemented in the GLORIFIER backend:
 - Owner: `POST /api/linux/runtimes/enroll`
 - Owner: `GET /api/linux/runtimes`
 - Owner: `POST /api/linux/runtimes/{runtimeId}/tasks`
+- Owner: `POST /api/linux/runtimes/{runtimeId}/tasks` (create an approved read-only diagnostic task)
+- Owner: `GET /api/linux/runtimes/{runtimeId}/tasks` (inspect task receipts)
 - Owner: `POST /api/linux/runtimes/{runtimeId}/revoke`
 - Agent: `POST /api/linux/agent/{runtimeId}/heartbeat`
 - Agent: `POST /api/linux/agent/{runtimeId}/tasks/claim`
