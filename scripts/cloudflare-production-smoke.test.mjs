@@ -477,3 +477,14 @@ test('production build provenance uses a GET request and validates the live resp
   assert.deepEqual(requests, [{ pathname: '/api/build-info', method: 'GET' }]);
   assert.equal(result.git.commit, 'a'.repeat(40));
 });
+
+
+
+test('full-stack smoke uses a fixed, public Pages origin', () => {
+  const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
+  assert.ok(smokeSource.includes("const base = 'https://glorifier.pages.dev';"));
+  assert.ok(!smokeSource.includes('process.env.FRONTEND_URL'),
+    'production smoke must not accept an arbitrary caller-controlled request origin');
+  assert.ok(!smokeSource.includes('https://glorifier.glorifier.workers.dev'),
+    'the public full-stack smoke must not target the internal Worker hostname');
+});

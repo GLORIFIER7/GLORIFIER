@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      FRONTEND_URL: ${{ vars.GLORIFIER_FRONTEND_URL || 'https://glorifier.glorifier.workers.dev' }}
+      FRONTEND_URL: https://glorifier.pages.dev
       CI: true
     steps:
       - name: Checkout verified commit

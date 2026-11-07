@@ -32,7 +32,7 @@ The workflow at .github/workflows/vercel-production-deploy.yml performs local de
 
 ## Production target and independent checks
 
-- Cloudflare Workers is the intended public frontend target: `https://glorifier.glorifier.workers.dev` unless an explicit `GLORIFIER_FRONTEND_URL` repository variable overrides it. Vercel is not the production-hosting authority. The Vercel-named GitHub Actions workflow is a local build/type-check gate and must not be removed just because an external Vercel status fails.
+- Cloudflare Pages is the intended public frontend at `https://glorifier.pages.dev`. The `glorifier` Worker is the internal API/execution layer reached through the Pages `GLORIFIER_WORKER` service binding; do not use its `workers.dev` hostname as the public frontend default. Vercel is not the production-hosting authority. The Vercel-named GitHub Actions workflow is a local build/type-check gate and must not be removed just because an external Vercel status fails.
 - A Vercel external status is non-blocking only after an authorized repository admin confirms it is absent from all required-check rulesets/branch-protection rules. Preserve all GLORIFIER-owned CI, security, architecture, container, review, and runtime checks.
 - Keep direct Railway health/readiness/runtime checks and unauthenticated API authorization checks.
 - Do not mark Cloudflare API routing verified based only on the frontend returning HTTP 200. Test API routes for the expected JSON content type and response contract.
@@ -61,7 +61,7 @@ For each production claim, record the timestamp, commit/deployment identifier, e
 ## Current known facts (2026-10-16)
 
 - PR #331 removed the Vercel routing probe from the 24/7 system health guardian.
-- PR #332 changed full-stack smoke and Playwright defaults to Cloudflare and was merged as 9074959e515056bdbfa0f6268598b759338a5898.
+- PR #332 changed full-stack smoke and Playwright defaults to Cloudflare Workers and was merged as 9074959e515056bdbfa0f6268598b759338a5898. The Pages public-interface migration is now moving those defaults to `glorifier.pages.dev`.
 - The merged commit still shows a Vercel external failure status. This is a posted status, not proof that it blocks merging.
 - The available GitHub integration was denied access to read main branch protection (HTTP 403), so the current required-check ruleset could not be authoritatively inspected here. Do not claim the Vercel context has been removed from branch protection until the settings are checked by an authorized repository admin.
 - The latest queried merge-commit status also showed a Railway service check pending. Therefore overall production verification is not yet all-green.

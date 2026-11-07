@@ -1,4 +1,4 @@
-const base = process.env.FRONTEND_URL || 'https://glorifier.glorifier.workers.dev';
+const base = 'https://glorifier.pages.dev';
 const checks = [
   { name: 'cloudflare-frontend', url: new URL('/', base).toString(), kind: 'html' },
   { name: 'cloudflare-worker-health', url: new URL('/api/health', base).toString(), kind: 'json', validate: body => body.ok === true && body.status === 'worker-ready' && body.layer === 'cloudflare-worker' },
