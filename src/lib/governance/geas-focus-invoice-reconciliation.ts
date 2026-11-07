@@ -229,6 +229,7 @@ interface NormalizeRowsContext {
   billingPeriodEnd: string;
   billingCurrency: string;
   reasons: string[];
+  paymentCurrencyReasons: string[];
 }
 
 const isUppercaseCurrencyCode = (value: string): boolean =>
@@ -379,16 +380,15 @@ const normalizeSingleRow = (
   }
   if (parsed.paymentCurrencyFieldsPresent) {
     if (context.datasetName !== 'InvoiceDetail') {
-      context.reasons.push(`${context.datasetName} row ${index} must not contain InvoiceDetail payment-currency fields`);
-      return null;
-    }
-    if (!parsed.paymentCurrency
+      context.paymentCurrencyReasons.push(`${context.datasetName} row ${index} must not contain InvoiceDetail payment-currency fields`);
+    } else if (!parsed.paymentCurrency
         || !isUppercaseCurrencyCode(parsed.paymentCurrency)
         || !parsed.paymentCurrencyBilledCost
         || decimalScale(parsed.paymentCurrencyBilledCost) === null
         || !parsed.paymentCurrencyInvoiceDetailId) {
-      context.reasons.push(`InvoiceDetail row ${index} has incomplete or invalid PaymentCurrency, PaymentCurrencyBilledCost, or PaymentCurrencyInvoiceDetailId fields`);
-      return null;
+      // Keep the billing-currency row for independent tax analysis. The
+      // payment-currency failure is reported separately and remains UNKNOWN.
+      context.paymentCurrencyReasons.push(`InvoiceDetail row ${index} has incomplete or invalid PaymentCurrency, PaymentCurrencyBilledCost, or PaymentCurrencyInvoiceDetailId fields`);
     }
   }
   return {
@@ -454,6 +454,7 @@ interface NormalizedInvoiceDatasets {
   usageRows: NormalizedCharge[];
   detailRows: NormalizedCharge[];
   scale: number;
+  paymentCurrencyReasons: string[];
 }
 
 interface ComparableInvoiceRows {
@@ -665,6 +666,7 @@ const normalizeInvoiceDatasets = (
   metadata: InvoiceMetadata,
   reasons: string[],
 ): NormalizedInvoiceDatasets | null => {
+  const paymentCurrencyReasons: string[] = [];
   const sharedContext = {
     invoiceIssuerName: metadata.issuer,
     invoiceId: metadata.invoiceId,
@@ -672,20 +674,24 @@ const normalizeInvoiceDatasets = (
     billingPeriodEnd: metadata.billingPeriodEnd,
     billingCurrency: metadata.currency,
     reasons,
+    paymentCurrencyReasons,
   };
   const usageRows = normalizeRows(metadata.usageValues, { ...sharedContext, datasetName: 'CostAndUsage' });
   const detailRows = normalizeRows(metadata.detailValues, { ...sharedContext, datasetName: 'InvoiceDetail' });
+  const paymentCurrencyScales = detailRows
+    .filter((row) => row.paymentCurrencyFieldsPresent)
+    .map((row) => decimalScale(row.paymentCurrencyBilledCost))
+    .filter((scale): scale is number => scale !== null);
   const scales = [
     ...[...usageRows, ...detailRows].map((row) => decimalScale(row.billedCost)),
-    ...detailRows.filter((row) => row.paymentCurrencyFieldsPresent)
-      .map((row) => decimalScale(row.paymentCurrencyBilledCost)),
+    ...paymentCurrencyScales,
   ];
   if (scales.some((scale) => scale === null)) {
-    reasons.push('all billed costs, including payment-currency amounts, must be decimal strings with at most 12 fractional digits');
+    reasons.push('all billing-currency billed costs must be decimal strings with at most 12 fractional digits');
   }
   if (reasons.length > 0) return null;
   const scale = scales.reduce<number>((maximum, value) => value === null ? maximum : Math.max(maximum, value), metadata.toleranceScale);
-  return { usageRows, detailRows, scale };
+  return { usageRows, detailRows, scale, paymentCurrencyReasons };
 };
 
 const validateInvoiceDetailIdentifiers = (
@@ -1070,6 +1076,13 @@ export const reconcileFocusInvoice = (
     toleranceUnits,
     datasets.scale,
   );
+  if (datasets.paymentCurrencyReasons.length > 0) {
+    reasons.push(...datasets.paymentCurrencyReasons);
+    return unknownResult(
+      metadata.issuer, metadata.invoiceId, metadata.billingPeriodStart, metadata.billingPeriodEnd,
+      metadata.currency, metadata.tolerance, reasons, billingPeriodStatus, 'UNKNOWN', tax,
+    );
+  }
   const paymentCurrency = analyzePaymentCurrency(datasets.detailRows, datasets.scale, reasons);
   if (paymentCurrency.status === 'UNKNOWN') {
     return unknownResult(
