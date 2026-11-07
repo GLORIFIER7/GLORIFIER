@@ -10,6 +10,8 @@ const PROTECTED_READ_PREFIXES = [
   '/control-plane',
   '/app-state',
   '/auth/session',
+  // Agent reads have no per-host bearer-token route; require user identity.
+  '/linux/agent',
   // Payment-intent reads expose payer/payee and settlement metadata; require identity.
   '/economy/glr/intents',
   // Legacy A2A task reads expose requester-scoped state and require authentication.
