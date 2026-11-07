@@ -34,7 +34,7 @@ GLORIFIER currently maintains first-party HTTP/JSON clients for eleven languages
 | Rust | `sdk/rust` | stable Rust, edition 2021, on Ubuntu 24.04 x86_64 |
 | PHP | `sdk/php` | PHP 8.2 with cURL and mbstring on Ubuntu 24.04 x86_64 |
 | Ruby | `sdk/ruby` | Ruby 3.2 on Ubuntu 24.04 x86_64 |
-| Swift | `sdk/swift` | Swift toolchain on macOS 14 |
+| Swift | `sdk/swift` | Swift toolchain; last passing GitHub CI used retired macOS 14, with macOS 15 ARM64 revalidation pending |
 | Dart | `sdk/dart` | Dart 3.4.4 on Ubuntu 24.04 x86_64 |
 | JavaScript / TypeScript | `sdk/javascript` | Node.js 24.12.0 on Ubuntu 24.04 x86_64 |
 
@@ -114,7 +114,7 @@ This status does not extend automatically to additional runtime versions, CPU ar
 |---|---|---|
 | Ubuntu 24.04 x86_64 | The eleven SDKs have individual named CI targets; see the table above. | VERIFIED only for each SDK's exact listed runtime and runner |
 | Ubuntu 22.04 x86_64 | The interoperability source workflow tests the control-plane source on this runner; it does not run all eleven SDK suites here. | NOT VERIFIED for the full SDK portfolio |
-| macOS 14 | Swift has a dedicated native SDK job. Additional Python, Go, and Node.js smoke jobs are being added. | Swift VERIFIED for its named target; additional targets require exact CI evidence |
+| macOS 15 ARM64 | Swift plus supplementary Python, Go, and Node.js conformance jobs are configured on this current runner family. | NOT VERIFIED until the exact PR jobs pass and their evidence is recorded |\n| macOS 14 x86_64 | The last recorded Swift pass used macOS 14; GitHub Actions retired this image on 2026-11-02. | Historical exact-target evidence only; no longer a runnable GitHub Actions target |
 | Windows 2022 | Python 3.12, Go 1.26.x, and Node.js 24.12.0 smoke jobs are being added. | NOT VERIFIED until the exact platform jobs pass and their evidence is recorded |
 | Linux ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
 | macOS ARM64 | No complete first-party SDK matrix is currently recorded. | NOT VERIFIED |
