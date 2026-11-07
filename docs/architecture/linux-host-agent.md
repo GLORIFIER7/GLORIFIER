@@ -26,7 +26,7 @@ Supported actions are intentionally read-only:
 - `memory.info`: total, available and used memory from `/proc/meminfo`.
 - `disk.info`: root filesystem capacity from the standard-library disk usage API.
 
-Tasks expire if not claimed within two minutes. Claimed tasks have a 45-second lease. The backend rejects late results and stores a bounded JSON result with a SHA-256 digest. Heartbeat freshness is 90 seconds; stale hosts are shown as offline and cannot be issued new tasks.
+Tasks expire after two minutes. Each claim has a 45-second lease and a distinct random 256-bit lease token; only its SHA-256 digest is persisted, and the token must accompany the result receipt. An expired claim is returned to the approved queue only while its two-minute task lifetime remains. Reclaims rotate the lease token, and the backend rejects stale/replayed results and stores a bounded JSON result with a canonical JSON SHA-256 digest. Heartbeat freshness is 90 seconds; stale hosts are shown as offline and cannot be issued new tasks.
 
 ## API surface
 
