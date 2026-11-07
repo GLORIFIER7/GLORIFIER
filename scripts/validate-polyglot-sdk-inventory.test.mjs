@@ -85,6 +85,14 @@ test('rejects an SDK capability with an unknown evidence status', () => {
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('unsupported evidence status')));
 });
 
+test('does not treat a needs reference as an SDK job definition', () => {
+  const input = fixture();
+  input.polyglotWorkflow = input.polyglotWorkflow.replace(
+    '  java:\n    runs-on: ubuntu-24.04',
+    '  aggregate:\n    needs: [java]\n    runs-on: ubuntu-24.04',
+  );
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
+});
 test('rejects commented-out SDK job declarations', () => {
   const input = fixture();
   input.polyglotWorkflow = input.polyglotWorkflow.replace('  java:' + String.fromCharCode(10), '#  java:' + String.fromCharCode(10));
