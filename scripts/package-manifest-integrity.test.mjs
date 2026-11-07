@@ -116,3 +116,9 @@ test("standalone build entry points run package manifest integrity first", () =>
     );
   }
 });
+
+test("rimraf override follows its direct dependency spec", () => {
+  const manifest = JSON.parse(packageJsonText);
+  assert.equal(manifest.dependencies?.rimraf, "6.1.3");
+  assert.equal(manifest.overrides?.rimraf?.["."], "$rimraf");
+});
