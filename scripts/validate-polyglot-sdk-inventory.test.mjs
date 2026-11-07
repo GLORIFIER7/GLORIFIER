@@ -4,6 +4,7 @@ import { POLYGLOT_SDK_CATALOG, validatePolyglotSdkInventory } from './validate-p
 
 function fixture() {
   const registry = {
+    statusVocabulary: ['VERIFIED', 'PARTIALLY VERIFIED', 'NOT VERIFIED', 'DEGRADED', 'NOT OBSERVABLE'],
     capabilities: POLYGLOT_SDK_CATALOG.map((sdk) => ({
       id: sdk.capabilityId,
       status: 'VERIFIED',
@@ -63,6 +64,8 @@ test('preserves a first-party SDK with an explicit NOT VERIFIED status without p
   const input = fixture();
   input.registry.statusVocabulary = ['VERIFIED', 'PARTIALLY VERIFIED', 'NOT VERIFIED', 'DEGRADED', 'NOT OBSERVABLE'];
   input.registry.capabilities[0].status = 'NOT VERIFIED';
+  input.architectureGuide = input.architectureGuide.replace('| Python | `sdk/python` | CI target | VERIFIED |', '| Python | `sdk/python` | CI target | NOT VERIFIED |');
+  input.sdkReadme = input.sdkReadme.replace('| Python | `sdk/python` | Runtime target | Test command | VERIFIED |', '| Python | `sdk/python` | Runtime target | Test command | NOT VERIFIED |');
   assert.deepEqual(validatePolyglotSdkInventory(input), []);
 });
 
