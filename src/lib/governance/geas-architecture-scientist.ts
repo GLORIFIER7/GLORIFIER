@@ -314,7 +314,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336),
   createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336),
   createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336),
-  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai', ['genai-agent-telemetry'], 336),
+  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336),
   createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336),
   createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336),
