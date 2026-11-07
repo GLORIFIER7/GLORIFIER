@@ -196,14 +196,16 @@ class LinuxHostAgentClient:
             raise AgentError("GLORIFIER task identifier is invalid")
         if action not in ALLOWED_ACTIONS:
             raise AgentError("GLORIFIER offered an unsupported action")
+        if not isinstance(lease_token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", lease_token):
+            raise AgentError("GLORIFIER task lease token is invalid")
         return task
 
-    def submit_result(self, task_id: str, result: dict[str, Any]) -> dict[str, Any]:
+    def submit_result(self, task_id: str, lease_token: str, result: dict[str, Any]) -> dict[str, Any]:
         if not re.fullmatch(r"linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", task_id):
             raise ValueError("task identifier is invalid")
         return self._post(
             "/api/linux/agent/" + self.runtime_path + "/tasks/" + urllib.parse.quote(task_id, safe="") + "/result",
-            result,
+            {**result, "leaseToken": lease_token},
         )
 
 
@@ -219,7 +221,7 @@ def run_once(client: LinuxHostAgentClient) -> tuple[bool, bool]:
         result = {"status": "failed", "errorCode": "unsupported_action"}
     except Exception:
         result = {"status": "failed", "errorCode": "probe_failed"}
-    client.submit_result(task["taskId"], result)
+    client.submit_result(task["taskId"], task["leaseToken"], result)
     return True, result["status"] == "succeeded"
 
 
