@@ -507,6 +507,29 @@ test("GEAS FOCUS invoice reconciliation regression cases", () => {
   );
   assert.equal(explicitNullPaymentCurrencyWithTaxVariance.taxVariance, '0.1');
 
+  const costAndUsagePaymentCurrencyFields = reconcileFocusInvoice({
+    ...input,
+    costAndUsage: [
+      ...input.costAndUsage,
+      charge('tax-1', 'Tax', '2.50', {
+        paymentCurrency: 'AUD',
+        paymentCurrencyBilledCost: '2.50',
+        paymentCurrencyInvoiceDetailId: 'tax-1',
+      }),
+    ],
+  });
+  assert.equal(costAndUsagePaymentCurrencyFields.status, 'UNKNOWN');
+  assert.equal(costAndUsagePaymentCurrencyFields.paymentCurrencyStatus, 'UNKNOWN');
+  assert.equal(
+    costAndUsagePaymentCurrencyFields.taxReconciliationStatus,
+    'NOT_COMPARABLE',
+    'invalid CostAndUsage payment-currency fields must not be admitted as tax evidence',
+  );
+  assert.equal(costAndUsagePaymentCurrencyFields.taxVariance, null);
+  assert.ok(costAndUsagePaymentCurrencyFields.reasons.some((reason) =>
+    reason.includes('CostAndUsage row 3 must not contain InvoiceDetail payment-currency fields'),
+  ));
+
   const invalidPaymentLineageWithTaxVariance = reconcileFocusInvoice({
     ...input,
     costAndUsage: [...input.costAndUsage, charge('tax-1', 'Tax', '2.50')],
