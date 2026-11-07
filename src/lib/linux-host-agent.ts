@@ -12,42 +12,52 @@ import {
 const TOKEN_BYTES = 32;
 const TASK_LEASE_SECONDS = 45;
 const TASK_TTL_SECONDS = 120;
+const HEARTBEAT_FRESHNESS_SECONDS = 90;
+let tableInitialization: Promise<void> | null = null;
 
 async function initializeLinuxHostAgentTables(): Promise<void> {
-  await initializeLinuxRuntimeRegistry();
-  await getPostgresPool().query(`
-    CREATE TABLE IF NOT EXISTS linux_agent_credentials (
-      runtime_id TEXT PRIMARY KEY REFERENCES linux_runtime_registry(id) ON DELETE CASCADE,
-      token_sha256 TEXT NOT NULL,
-      issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_used_at TIMESTAMPTZ,
-      revoked_at TIMESTAMPTZ
-    );
-    CREATE TABLE IF NOT EXISTS linux_agent_tasks (
-      id TEXT PRIMARY KEY,
-      runtime_id TEXT NOT NULL REFERENCES linux_runtime_registry(id) ON DELETE CASCADE,
-      action TEXT NOT NULL,
-      params JSONB NOT NULL DEFAULT '{}',
-      status TEXT NOT NULL DEFAULT 'approved',
-      requested_by TEXT NOT NULL,
-      approved_by TEXT NOT NULL,
-      approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      claimed_at TIMESTAMPTZ,
-      lease_until TIMESTAMPTZ,
-      completed_at TIMESTAMPTZ,
-      expires_at TIMESTAMPTZ NOT NULL,
-      result JSONB,
-      result_sha256 TEXT,
-      error_code TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_claim
-      ON linux_agent_tasks(runtime_id, status, approved_at);
-    CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_expiry
-      ON linux_agent_tasks(status, expires_at);
-  `);
+  if (!tableInitialization) {
+    tableInitialization = (async () => {
+      await initializeLinuxRuntimeRegistry();
+      const schema = [
+        'CREATE TABLE IF NOT EXISTS linux_agent_credentials (',
+        '  runtime_id TEXT PRIMARY KEY REFERENCES linux_runtime_registry(id) ON DELETE CASCADE,',
+        '  token_sha256 TEXT NOT NULL,',
+        '  issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),',
+        '  last_used_at TIMESTAMPTZ,',
+        '  revoked_at TIMESTAMPTZ',
+        ');',
+        'CREATE TABLE IF NOT EXISTS linux_agent_tasks (',
+        '  id TEXT PRIMARY KEY,',
+        '  runtime_id TEXT NOT NULL REFERENCES linux_runtime_registry(id) ON DELETE CASCADE,',
+        '  action TEXT NOT NULL,',
+        '  params JSONB NOT NULL DEFAULT \'{}\',',
+        '  status TEXT NOT NULL DEFAULT \'approved\',',
+        '  requested_by TEXT NOT NULL,',
+        '  approved_by TEXT NOT NULL,',
+        '  approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),',
+        '  claimed_at TIMESTAMPTZ,',
+        '  lease_until TIMESTAMPTZ,',
+        '  completed_at TIMESTAMPTZ,',
+        '  expires_at TIMESTAMPTZ NOT NULL,',
+        '  result JSONB,',
+        '  result_sha256 TEXT,',
+        '  error_code TEXT,',
+        '  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()',
+        ');',
+        'CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_claim ON linux_agent_tasks(runtime_id, status, approved_at);',
+        'CREATE INDEX IF NOT EXISTS idx_linux_agent_tasks_expiry ON linux_agent_tasks(status, expires_at);',
+      ].join('\n');
+      await getPostgresPool().query(schema);
+    })();
+  }
+  try {
+    await tableInitialization;
+  } catch (error) {
+    tableInitialization = null;
+    throw error;
+  }
 }
-
 export async function enrollLinuxHostAgent(input: unknown, actor: string): Promise<{
   runtimeId: string;
   token: string;
@@ -150,7 +160,7 @@ export async function createLinuxHostAgentTask(runtimeId: string, action: unknow
   await initializeLinuxHostAgentTables();
   const runtime = await getLinuxRuntime(runtimeId);
   if (!runtime || runtime.status === 'revoked') throw new Error('Linux host is not enrolled or has been revoked');
-  if (runtime.status !== 'online') throw new Error('Linux host must be online before tasks can be issued');
+  if (runtime.status !== 'online' || !runtime.lastVerifiedAt || Date.now() - new Date(runtime.lastVerifiedAt).getTime() > HEARTBEAT_FRESHNESS_SECONDS * 1000) throw new Error('Linux host must have a fresh heartbeat before tasks can be issued');
   if (!runtime.allowedActions.includes(action)) throw new Error('Action is not authorized for this Linux host');
   const taskId = 'linux-task-' + randomUUID();
   await getPostgresPool().query(
@@ -174,14 +184,22 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
 }> {
   await initializeLinuxHostAgentTables();
   const db = getPostgresPool();
+  const runtime = await getLinuxRuntime(runtimeId);
+  if (!runtime || runtime.status !== 'online' || !runtime.lastVerifiedAt || Date.now() - new Date(runtime.lastVerifiedAt).getTime() > HEARTBEAT_FRESHNESS_SECONDS * 1000) {
+    throw new Error('Linux host heartbeat is stale or host is not online');
+  }
   await db.query(
-    `UPDATE linux_agent_tasks
-        SET status = 'expired'
-      WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()`,
+    \`UPDATE linux_agent_tasks SET status = 'expired'
+      WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()\`,
+    [runtimeId],
+  );
+  await db.query(
+    \`UPDATE linux_agent_tasks SET status = 'expired'
+      WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()\`,
     [runtimeId],
   );
   const r = await db.query(
-    `UPDATE linux_agent_tasks
+    \`UPDATE linux_agent_tasks
         SET status = 'claimed', claimed_at = NOW(),
             lease_until = NOW() + ($2 * INTERVAL '1 second')
       WHERE id = (
@@ -190,7 +208,7 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
          ORDER BY approved_at, id
          LIMIT 1 FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, action, params, lease_until`,
+      RETURNING id, action, params, lease_until\`,
     [runtimeId, TASK_LEASE_SECONDS],
   );
   const row = r.rows[0];
@@ -206,7 +224,6 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
     leaseUntil: new Date(row.lease_until).toISOString(),
   };
 }
-
 export async function completeLinuxHostAgentTask(runtimeId: string, taskId: string, input: unknown): Promise<{ taskId: string; status: 'succeeded' | 'failed' }> {
   const result = normalizeLinuxHostTaskResult(input);
   await initializeLinuxHostAgentTables();
@@ -266,7 +283,28 @@ export async function revokeLinuxHostAgent(runtimeId: string, actor: string): Pr
   }
 }
 
+export async function listLinuxHostAgentTasks(runtimeId: string) {
+  await initializeLinuxHostAgentTables();
+  const r = await getPostgresPool().query(
+    \`SELECT id, action, status, requested_by, approved_by, approved_at, claimed_at,
+            lease_until, completed_at, expires_at, result, result_sha256, error_code
+       FROM linux_agent_tasks
+      WHERE runtime_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50\`,
+    [runtimeId],
+  );
+  return r.rows;
+}
+
 export async function listLinuxHostAgents() {
   await initializeLinuxHostAgentTables();
+  await getPostgresPool().query(
+    \`UPDATE linux_runtime_registry
+        SET status = 'offline', updated_at = NOW()
+      WHERE status = 'online'
+        AND last_verified_at < NOW() - ($1 * INTERVAL '1 second')\`,
+    [HEARTBEAT_FRESHNESS_SECONDS],
+  );
   return listLinuxRuntimes();
 }
