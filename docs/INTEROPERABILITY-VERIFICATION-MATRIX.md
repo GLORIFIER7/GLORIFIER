@@ -12,7 +12,7 @@ This matrix separates implementation/configuration from externally verified inte
 | MCP 2026-07-28 | Live authorized client/server interoperability test | NOT_VERIFIED | Exercise current request semantics through multiple replicas |
 | Runtime sandbox/quarantine | Actual isolated execution test, egress/tool/resource policy test, kill/quarantine evidence | NOT_VERIFIED | Execute a harmless canary workload in the real isolated runtime |
 | Kubernetes/GPU | Cluster evidence, scheduled workload, GPU visibility, readiness and logs | NOT_VERIFIED | Deploy a non-production read-only canary with explicit authorization |
-| NVIDIA Dynamo | Exact Dynamo/runtime/backend/GPU/CUDA/driver tuple plus successful workload evidence | NOT_VERIFIED | Verify the exact supported tuple in an authorized environment |
+| NVIDIA Dynamo | Exact Dynamo image/release, backend/model, GPU, CUDA, driver, OS/architecture and Kubernetes tuple; GPU visibility/scheduling; authenticated live model-catalogue readiness and inference; security/rollback evidence | NOT_VERIFIED | Validate the draft adapter in NEURAL PR #67, then deploy only in an authorized GPU environment and retain exact-tuple workload evidence; mocked tests and CI do not promote this row |
 | Cross-provider semantic equivalence | Same task corpus, normalized outputs, provider-native error preservation, predefined acceptance thresholds | NOT_VERIFIED | Run a deterministic evaluation corpus across authorized providers |
 | Provider billing reconciliation | Provider usage records matched to GLORIFIER metering and independently reconciled totals | NOT_VERIFIED | Reconcile a bounded, non-financial test account/export |
 | Independently verified economic outcomes | External authoritative evidence connecting authorized execution to outcome/settlement | NOT_VERIFIED | Validate one bounded outcome with independent evidence |
@@ -37,3 +37,8 @@ Each verified claim should retain:
 5. raw or immutable evidence reference;
 6. verifier/result;
 7. expiry or freshness rule where applicable.
+
+
+## NVIDIA Dynamo evidence checkpoint — 2026-11-07
+
+A draft governed adapter is under review in [GLORIFIER-NEURAL PR #67](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67). The branch adds explicit provider selection, an exact HTTPS origin allowlist, bearer-authenticated OpenAI-compatible model-catalogue and chat-completion requests, bounded non-streaming I/O, and separate egress/inference gates. Its test suite uses controlled/mocked responses. The PR is not merged, exact-head CI/review is still in progress, and no GPU-backed Dynamo endpoint or Kubernetes workload has been verified. **NVIDIA Dynamo remains NOT_VERIFIED.**
