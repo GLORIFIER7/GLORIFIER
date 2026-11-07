@@ -17,19 +17,19 @@ function fixture() {
   const architectureGuide = [
     'First-party SDK implementations now exist for eleven language ecosystems.',
     ...POLYGLOT_SDK_CATALOG.map(guideTable),
-  ].join('\\n');
+  ].join('\n');
   const sdkReadme = [
     'All eleven first-party SDKs use the shared contract.',
     ...POLYGLOT_SDK_CATALOG.map(readmeTable),
-  ].join('\\n');
+  ].join('\n');
   const polyglotWorkflow = POLYGLOT_SDK_CATALOG
     .filter((sdk) => sdk.workflow === 'polyglot')
-    .map((sdk) => '  ' + sdk.jobName + ':\\n    runs-on: ubuntu-24.04')
-    .join('\\n');
+    .map((sdk) => '  ' + sdk.jobName + ':\n    runs-on: ubuntu-24.04')
+    .join('\n');
   const pythonWorkflow = POLYGLOT_SDK_CATALOG
     .filter((sdk) => sdk.workflow === 'python')
-    .map((sdk) => '  ' + sdk.jobName + ':\\n    runs-on: ubuntu-latest')
-    .join('\\n');
+    .map((sdk) => '  ' + sdk.jobName + ':\n    runs-on: ubuntu-latest')
+    .join('\n');
   return { registry, architectureGuide, sdkReadme, polyglotWorkflow, pythonWorkflow };
 }
 test('accepts the eleven first-party SDKs when registry, docs, and CI agree', () => {
