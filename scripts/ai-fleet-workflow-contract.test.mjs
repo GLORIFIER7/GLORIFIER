@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
+const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publishMarker = '\n  publish-proposal:\n';
 const codingStart = workflow.indexOf('  coding-fleet:\n');
@@ -96,10 +98,31 @@ test('every Claude invocation blocks npm install commands that execute lifecycle
       'Claude invocation ' + (index + 1) + ' must not run npm install commands that execute lifecycle scripts',
     );
   }
+test('Claude cannot run npm install commands that execute lifecycle scripts', () => {
+  const allowedTools = claudeRunner.match(/const ALLOWED_TOOLS = \[([\s\S]*?)\];/)?.[1];
+  assert.ok(allowedTools, 'Claude CLI allowlist must be present in the direct runner');
+  assert.doesNotMatch(
+    allowedTools,
+    /Bash\(npm\s+(?:ci|install|i)(?:\s|\))/,
+    'Claude must not be able to run npm install commands that execute lifecycle scripts',
+  );
+  assert.match(allowedTools, /Bash\(npm run lint\)/);
+  assert.match(allowedTools, /Bash\(npm run build\)/);
+  assert.doesNotMatch(claudeRunner, /--dangerously-skip-permissions/);
+
   const dependencyInstall = claudeWorkflow.indexOf('run: npm ci --ignore-scripts');
-  const claudeAction = claudeWorkflow.indexOf('uses: anthropics/claude-code-action@');
+  const claudeCli = claudeWorkflow.indexOf('run: node scripts/run-claude-workflow.mjs');
   assert.ok(
-    dependencyInstall >= 0 && claudeAction > dependencyInstall,
+    dependencyInstall >= 0 && claudeCli > dependencyInstall,
     'trusted dependencies must be installed with lifecycle scripts disabled before Claude starts',
+  );
+  assert.doesNotMatch(claudeWorkflow, /uses: anthropics\/claude-code-action@/);
+});
+
+
+test('CI runs the Claude direct CLI runner regression suite', () => {
+  assert.match(
+    ciWorkflow,
+    /- name: Claude direct CLI runner regression tests\s+run: node --test scripts\/run-claude-workflow\.test\.mjs/,
   );
 });
