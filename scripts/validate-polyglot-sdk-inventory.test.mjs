@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { POLYGLOT_SDK_CATALOG, validatePolyglotSdkInventory } from './validate-polyglot-sdk-inventory.mjs';
 
 function fixture() {
@@ -85,6 +86,14 @@ test('rejects an SDK capability with an unknown evidence status', () => {
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('unsupported evidence status')));
 });
 
+
+const sdkReadme = await readFile(new URL('../sdk/README.md', import.meta.url), 'utf8');
+const architectureGuide = await readFile(new URL('../docs/architecture/language-neutral-interoperability.md', import.meta.url), 'utf8');
+
+function tableColumnCount(line) {
+  return line.split('|').filter((cell) => cell.trim().length > 0).length;
+}
+
 test('does not treat a needs reference as an SDK job definition', () => {
   const input = fixture();
   input.polyglotWorkflow = input.polyglotWorkflow.replace(
@@ -97,4 +106,17 @@ test('rejects commented-out SDK job declarations', () => {
   const input = fixture();
   input.polyglotWorkflow = input.polyglotWorkflow.replace('  java:' + String.fromCharCode(10), '#  java:' + String.fromCharCode(10));
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
+});
+
+
+test('SDK documentation evidence tables have matching header and separator columns', () => {
+  for (const [document, header] of [
+    [sdkReadme, '| Language | Package | Runtime target | Test command | Evidence status |'],
+    [architectureGuide, '| Language | Package | CI target | Evidence status |'],
+  ]) {
+    const lines = document.split(/\r?\n/);
+    const index = lines.findIndex((line) => line.trim() === header);
+    assert.notEqual(index, -1, `missing SDK evidence table header: ${header}`);
+    assert.equal(tableColumnCount(lines[index + 1]), tableColumnCount(lines[index]), `table delimiter must match header: ${header}`);
+  }
 });
