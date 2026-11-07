@@ -5,7 +5,7 @@ All eleven first-party clients use the same language-neutral HTTPS/JSON contract
 ## Current packages and verified targets
 
 | Language | Package | Runtime target | Test command | Evidence status |
-|---|---|---|---|
+|---|---|---|---|---|
 | Python | `sdk/python` | Python 3.10–3.12 CI matrix | `cd sdk/python && python -m unittest -v`  | VERIFIED |
 | Go | `sdk/go` | Go 1.26.x and 1.27.x CI matrix | `cd sdk/go && go test -race -count=1 ./... && go vet ./...`  | VERIFIED |
 | Java | `sdk/java` | JDK 17+ | `cd sdk/java && mvn --batch-mode test`  | VERIFIED |
