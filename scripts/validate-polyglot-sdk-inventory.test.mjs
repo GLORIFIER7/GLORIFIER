@@ -87,6 +87,6 @@ test('rejects an SDK capability with an unknown evidence status', () => {
 
 test('rejects commented-out SDK job declarations', () => {
   const input = fixture();
-  input.polyglotWorkflow = input.polyglotWorkflow.replace('  java:\\n', '#  java:\\n');
+  input.polyglotWorkflow = input.polyglotWorkflow.replace('  java:' + String.fromCharCode(10), '#  java:' + String.fromCharCode(10));
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
 });
