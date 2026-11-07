@@ -46,6 +46,31 @@ export function validateLinuxHostEnrollment(input: unknown): {
   return { displayName, architecture };
 }
 
+/**
+ * Stable JSON encoding for result receipts. Object keys are sorted recursively;
+ * array order and scalar values are preserved. The SHA-256 digest is over this
+ * canonical representation, not PostgreSQL's JSONB textual formatting.
+ */
+export function canonicalizeLinuxHostAgentJson(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('JSON numbers must be finite');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return '[' + value.map((item) => canonicalizeLinuxHostAgentJson(item)).join(',') + ']';
+  }
+  if (isRecord(value)) {
+    const keys = Object.keys(value).sort();
+    return '{' + keys.map((key) =>
+      JSON.stringify(key) + ':' + canonicalizeLinuxHostAgentJson(value[key])
+    ).join(',') + '}';
+  }
+  throw new Error('Value is not representable as JSON');
+}
+
 export function normalizeLinuxHostHeartbeat(input: unknown): LinuxHostHeartbeat {
   if (!isRecord(input)) throw new Error('Heartbeat body must be a JSON object');
   const fields: Array<[keyof LinuxHostHeartbeat, number]> = [
@@ -67,7 +92,7 @@ export function normalizeLinuxHostHeartbeat(input: unknown): LinuxHostHeartbeat 
   if (!/^[A-Za-z0-9._+ /()'-]+$/.test(normalized.distribution)) throw new Error('distribution is invalid');
   if (!/^[A-Za-z0-9._+~-]+$/.test(normalized.kernelRelease)) throw new Error('kernelRelease is invalid');
   if (!/^[A-Za-z0-9_]+$/.test(normalized.architecture)) throw new Error('architecture is invalid');
-  if (!/^[0-9.]+$/.test(normalized.pythonVersion)) throw new Error('pythonVersion is invalid');
+  if (!/^[0-9]+(?:\.[0-9]+){1,2}(?:[A-Za-z][A-Za-z0-9.]*)?$/.test(normalized.pythonVersion)) throw new Error('pythonVersion is invalid');
   return normalized as LinuxHostHeartbeat;
 }
 
