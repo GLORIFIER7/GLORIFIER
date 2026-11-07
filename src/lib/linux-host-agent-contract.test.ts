@@ -47,7 +47,7 @@ test('Linux host-agent heartbeat validates bounded platform facts', () => {
   const heartbeat = normalizeLinuxHostHeartbeat({
     agentVersion: '1.0.0',
     hostname: 'worker-01',
-    distribution: 'ubuntu-24.04',
+    distribution: 'Debian GNU/Linux 12 (bookworm)',
     kernelRelease: '6.8.0-45-generic',
     architecture: 'x86_64',
     pythonVersion: '3.12.3',
