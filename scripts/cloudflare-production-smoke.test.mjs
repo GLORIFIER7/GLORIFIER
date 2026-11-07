@@ -495,6 +495,11 @@ test('full-stack smoke uses a fixed, public Pages origin', () => {
     /\burl:\s*['"`]https?:\/\//,
     'all probe URLs must be resolved from the fixed public base',
   );
+  assert.doesNotMatch(
+    smokeSource,
+    /\\bglorifier\\.glorifier\\.workers\\.dev\\b/i,
+    'the public full-stack smoke must never target the internal Worker hostname',
+  );
   assert.ok(!smokeSource.includes('process.env.FRONTEND_URL'),
     'production smoke must not accept an arbitrary caller-controlled request origin');
 });
