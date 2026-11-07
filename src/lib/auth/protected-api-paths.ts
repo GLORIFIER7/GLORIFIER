@@ -10,6 +10,8 @@ const PROTECTED_READ_PREFIXES = [
   '/control-plane',
   '/app-state',
   '/auth/session',
+  // Linux host inventory and task receipts are owner-only control-plane reads.
+  '/linux/runtimes',
   // Agent reads have no per-host bearer-token route; require user identity.
   '/linux/agent',
   // Payment-intent reads expose payer/payee and settlement metadata; require identity.
