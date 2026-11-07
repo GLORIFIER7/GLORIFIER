@@ -59,8 +59,16 @@ test('rejects an SDK without its dedicated CI job', () => {
   assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('Java SDK CI job')));
 });
 
-test('rejects a first-party SDK whose evidence status is not VERIFIED', () => {
+test('preserves a first-party SDK with an explicit NOT VERIFIED status without promoting it', () => {
   const input = fixture();
+  input.registry.statusVocabulary = ['VERIFIED', 'PARTIALLY VERIFIED', 'NOT VERIFIED', 'DEGRADED', 'NOT OBSERVABLE'];
   input.registry.capabilities[0].status = 'NOT VERIFIED';
-  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('must be VERIFIED')));
+  assert.deepEqual(validatePolyglotSdkInventory(input), []);
+});
+
+test('rejects an SDK capability with an unknown evidence status', () => {
+  const input = fixture();
+  input.registry.statusVocabulary = ['VERIFIED', 'PARTIALLY VERIFIED', 'NOT VERIFIED', 'DEGRADED', 'NOT OBSERVABLE'];
+  input.registry.capabilities[0].status = 'FULLY TRUSTED';
+  assert.ok(validatePolyglotSdkInventory(input).some((error) => error.includes('unsupported evidence status')));
 });
