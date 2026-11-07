@@ -1,0 +1,31 @@
+[Unit]
+Description=GLORIFIER read-only Linux host agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=glorifier-agent
+Group=glorifier-agent
+WorkingDirectory=/opt/glorifier-linux-agent
+EnvironmentFile=/etc/glorifier/linux-host-agent.env
+ExecStart=/usr/bin/python3 /opt/glorifier-linux-agent/agent.py --poll-seconds 15
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
