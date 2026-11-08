@@ -72,6 +72,24 @@ test('distinguishes an unauthenticated 401 from proof of a working login flow', 
   assert.match(result.detail, /does not verify the signed-in session flow/);
 });
 
+test('keeps authentication NOT PROBED when the check is absent as well as when ok is null', () => {
+  const missing = summarizeRuntime({
+    checks: {
+      worker: { ok: true },
+      database: { ok: true, source: 'neon-hyperdrive' },
+    },
+  });
+  const explicitNull = summarizeRuntime({
+    checks: {
+      worker: { ok: true },
+      database: { ok: true, source: 'neon-hyperdrive' },
+      authentication: { ok: null, status: 'not-probed' },
+    },
+  });
+  assert.equal(missing.authentication, 'NOT PROBED');
+  assert.equal(explicitNull.authentication, 'NOT PROBED');
+});
+
 test('does not infer database, authentication, neural, or inference readiness beyond returned checks', () => {
   const result = summarizeRuntime({
     ok: true,
