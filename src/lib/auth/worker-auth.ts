@@ -124,6 +124,11 @@ async function fetchJwks(
   const requestedKeyIsCached = cacheIsFresh && cached?.keys.some(key => key.kid === requestedKid);
   if (requestedKeyIsCached && cached) return cached.keys;
 
+  // Share one refresh across concurrent unknown-kid requests. The caller still
+  // matches its requested kid after this promise resolves and fails closed if
+  // the key is absent. The per-issuer cooldown intentionally bounds refreshes
+  // for random kid values; a second rotation during that window may be rejected
+  // until the cooldown expires.
   const inFlight = jwksRefreshInFlight.get(issuer);
   if (inFlight) return inFlight;
 
