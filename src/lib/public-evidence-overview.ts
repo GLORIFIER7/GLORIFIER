@@ -2,6 +2,7 @@ export type OperationalReport = {
   generatedAt: string | null;
   source: 'neon-hyperdrive';
   exactRowCounts: true;
+  revenueStatus: string | null;
   counts: {
     connectionApprovals: number;
     connectionEvents: number;
@@ -48,7 +49,8 @@ export function parseOperationalReport(value: unknown): OperationalReport | null
     ? value.generatedAt
     : null;
 
-  return { generatedAt, source: 'neon-hyperdrive', exactRowCounts: true, counts };
+  const revenueStatus = typeof evidence.revenue === 'string' ? evidence.revenue : null;
+  return { generatedAt, source: 'neon-hyperdrive', exactRowCounts: true, revenueStatus, counts };
 }
 
 export type EndpointSummary = {
@@ -111,6 +113,31 @@ export function summarizeOperationalReportResponse(
     };
   }
   return generic;
+}
+
+export function summarizeRevenueEvidence(report: OperationalReport | null): EndpointSummary {
+  if (!report) {
+    return {
+      label: 'NOT VERIFIED — REPORT UNAVAILABLE',
+      detail: 'No valid Neon operational report is available. Revenue evidence cannot be inferred from this check; this does not mean revenue is zero.',
+    };
+  }
+  if (report.revenueStatus === 'not-observable-from-operational-tables') {
+    return {
+      label: 'NOT OBSERVABLE IN REPORTED TABLES',
+      detail: 'The exact-count report states that revenue is not observable from these operational tables. This does not mean revenue is zero.',
+    };
+  }
+  if (report.revenueStatus === 'observable') {
+    return {
+      label: 'SOURCE REPORTS OBSERVABLE · NOT VERIFIED',
+      detail: 'The source labels revenue as observable, but this does not verify a revenue amount, settlement, payment, or independently reconciled outcome.',
+    };
+  }
+  return {
+    label: 'NOT VERIFIED — SOURCE STATUS UNKNOWN',
+    detail: 'The report did not provide a recognized revenue evidence status. No revenue value or zero balance is inferred.',
+  };
 }
 
 export type RuntimeSummary = {
