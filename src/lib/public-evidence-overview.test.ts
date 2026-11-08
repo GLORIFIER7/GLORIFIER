@@ -4,6 +4,7 @@ import {
   parseOperationalReport,
   summarizeEndpoint,
   summarizeOperationalReportResponse,
+  summarizeRevenueEvidence,
   summarizeRuntime,
 } from './public-evidence-overview';
 
@@ -25,6 +26,27 @@ const validReport = {
     revenue: 'not-observable-from-operational-tables',
   },
 };
+
+test('does not infer revenue status when the operational report is missing', () => {
+  const result = summarizeRevenueEvidence(null);
+  assert.equal(result.label, 'NOT VERIFIED — REPORT UNAVAILABLE');
+  assert.match(result.detail, /does not mean revenue is zero/);
+});
+
+test('uses only the revenue evidence label carried by a valid Neon report', () => {
+  const report = parseOperationalReport(validReport);
+  assert.ok(report);
+  const unobservable = summarizeRevenueEvidence(report);
+  assert.equal(unobservable.label, 'NOT OBSERVABLE IN REPORTED TABLES');
+  assert.match(unobservable.detail, /does not mean revenue is zero/);
+
+  const observable = summarizeRevenueEvidence({ ...report, revenueStatus: 'observable' });
+  assert.equal(observable.label, 'SOURCE REPORTS OBSERVABLE · NOT VERIFIED');
+  assert.match(observable.detail, /does not verify a revenue amount/);
+
+  const unknown = summarizeRevenueEvidence({ ...report, revenueStatus: null });
+  assert.equal(unknown.label, 'NOT VERIFIED — SOURCE STATUS UNKNOWN');
+});
 
 test('accepts only exact operational row counts from the declared Neon source', () => {
   const parsed = parseOperationalReport(validReport);
