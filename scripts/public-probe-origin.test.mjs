@@ -10,6 +10,12 @@ test('production and monitoring smoke checks use the public Pages origin', () =>
   const productionSmoke = read('scripts/cloudflare-production-smoke.mjs');
   assert.match(productionSmoke, /const PRODUCTION_PUBLIC_ORIGIN = 'https:\/\/glorifier\.pages\.dev';/);
   assert.doesNotMatch(productionSmoke, /https:\/\/glorifier\.glorifier\.workers\.dev/);
+  assert.equal((productionSmoke.match(/https:\/\/glorifier\.pages\.dev/g) || []).length, 1,
+    'production smoke must use one canonical public-origin literal');
+  for (const path of ['/api/health', '/api/reports/summary', '/api/runtime-verification?probeAi=false', '/api/app-state', '/api/identity']) {
+    assert.ok(productionSmoke.includes("new URL('" + path + "', PRODUCTION_PUBLIC_ORIGIN)"),
+      'production smoke must derive ' + path + ' from the canonical origin');
+  }
 
   const infrastructureHealth = read('.github/workflows/infrastructure-health.yml');
   for (const path of ['/api/health', '/api/runtime-verification?probeAi=false', '/api/app-state']) {
