@@ -175,7 +175,7 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
     concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id"),
     'each review event must have its own concurrency key',
   );
-  assert.ok(concurrency.includes("|| 'latest'"));
+  assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
   assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new branch updates may continue to supersede older branch-update runs');
 });
