@@ -220,8 +220,9 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
           <input
             type="number"
             min="0"
+            max="100"
             value={policy.minimumMonthlyFloorUsd}
-            onChange={(event) => onUpdatePolicy({ minimumMonthlyFloorUsd: Number(event.target.value) || 0 })}
+            onChange={(event) => onUpdatePolicy({ minimumMonthlyFloorUsd: Math.min(100, Math.max(0, Number(event.target.value) || 0)) })}
             className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
           />
 
