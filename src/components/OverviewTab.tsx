@@ -88,16 +88,27 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkWarning, setCheckWarning] = useState(false);
 
   const refresh = useCallback(async () => {
+    const attemptedAt = new Date().toISOString();
+    const keys = Object.keys(ENDPOINTS) as Array<keyof typeof ENDPOINTS>;
     setLoading(true);
     try {
-      const entries = await Promise.all(
-        Object.entries(ENDPOINTS).map(async ([key, path]) => [key, await readObservation(path)] as const),
+      const results = await Promise.allSettled(
+        keys.map(async (key) => [key, await readObservation(ENDPOINTS[key])] as const),
+      );
+      const entries = results.map((result, index) =>
+        result.status === 'fulfilled'
+          ? result.value
+          : [keys[index], { httpStatus: null, body: null }] as const,
       );
       setSnapshot(Object.fromEntries(entries));
-      setCheckedAt(new Date().toISOString());
+      setCheckWarning(results.some((result) => result.status === 'rejected'));
+    } catch {
+      setCheckWarning(true);
     } finally {
+      setCheckedAt(attemptedAt);
       setLoading(false);
     }
   }, []);
@@ -118,14 +129,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
   const revenueObservable = reportEvidence?.revenue === 'observable';
   const identityPayload = (observation('identity')?.body as any)?.identity;
 
-  const legacyRoutes = [
+  const legacyRoutes: ReadonlyArray<{ key: keyof typeof ENDPOINTS; name: string; path: string }> = [
     { key: 'assets', name: 'Asset custody and verification', path: ENDPOINTS.assets },
     { key: 'valuation', name: 'Valuation', path: ENDPOINTS.valuation },
     { key: 'economicOs', name: 'Economic operating system', path: ENDPOINTS.economicOs },
     { key: 'revenueControlPlane', name: 'Revenue control plane', path: ENDPOINTS.revenueControlPlane },
     { key: 'monetization', name: 'Monetization dashboard', path: ENDPOINTS.monetization },
     { key: 'workUnits', name: 'Work-unit summary', path: ENDPOINTS.workUnits },
-  ] as const;
+  ];
 
   return (
     <div className="space-y-6">
@@ -160,6 +171,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
           <span>•</span>
           <span>Operational report timestamp: {formatTimestamp(report?.generatedAt)}</span>
         </div>
+        {checkWarning && <p role="status" className="mt-2 text-[11px] text-amber-200">One or more checks could not be completed. Their status is shown as UNKNOWN rather than inferred.</p>}
       </section>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
