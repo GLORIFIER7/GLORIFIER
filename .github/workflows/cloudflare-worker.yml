@@ -147,7 +147,7 @@ jobs:
       - name: Smoke-test deployed Worker health endpoint
         run: |
           set -euo pipefail
-          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors https://glorifier.glorifier.workers.dev/api/health)"
+          response="$(curl --fail --silent --show-error --retry 5 --retry-delay 2 --retry-all-errors https://glorifier.pages.dev/api/health)"
           printf '%s' "$response" | node -e '
             let data = "";
             process.stdin.on("data", chunk => data += chunk);
@@ -163,7 +163,7 @@ jobs:
       - name: Smoke-test Worker-native business model endpoint
         run: |
           set -euo pipefail
-          response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors https://glorifier.glorifier.workers.dev/api/business-model)"
+          response="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors https://glorifier.pages.dev/api/business-model)"
           printf '%s' "$response" | node -e '
             let data = "";
             process.stdin.on("data", chunk => data += chunk);
@@ -181,7 +181,7 @@ jobs:
           set -euo pipefail
           output="$(mktemp)"
           trap 'rm -f "$output"' EXIT
-          status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' https://glorifier.glorifier.workers.dev/api/app-state)"
+          status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' https://glorifier.pages.dev/api/app-state)"
           printf '%s %s\n' "$status" "/api/app-state (unauthenticated)"
           STATUS="$status" node - "$output" <<'NODE'
           const fs = require("node:fs");
@@ -212,7 +212,7 @@ jobs:
             local output
             local status
             output="$(mktemp)"
-            status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' "https://glorifier.glorifier.workers.dev$path")"
+            status="$(curl --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --output "$output" --write-out '%{http_code}' "https://glorifier.pages.dev$path")"
             printf '%s %s\n' "$status" "$path"
             STATUS="$status" ALLOWED="$allowed_statuses" PATHNAME="$path" node - "$output" <<'NODE'
           const fs = require("node:fs");
