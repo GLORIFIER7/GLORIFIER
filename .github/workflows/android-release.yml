@@ -1,17 +1,9 @@
 name: Build Android App Bundle
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/android-release.yml'
   push:
     branches:
       - main
-    tags:
-      - 'android-v*'
 
 jobs:
   android:
@@ -148,7 +140,7 @@ jobs:
 
       - name: Prepare Android release signing
         id: signing
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -167,7 +159,7 @@ jobs:
           fi
 
       - name: Build signed Android App Bundle
-        if: steps.signing.outputs.available == 'true' && github.event_name != 'pull_request'
+        if: steps.signing.outputs.available == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: android
         env:
           'ORG_GRADLE_PROJECT_android.injected.signing.store.file': ${{ github.workspace }}/android/app/glorifier-release.jks
@@ -176,8 +168,12 @@ jobs:
           'ORG_GRADLE_PROJECT_android.injected.signing.key.password': ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew bundleRelease
 
+      - name: Remove Android release keystore
+        if: always()
+        run: rm -f android/app/glorifier-release.jks
+
       - name: Build unsigned Android App Bundle
-        if: steps.signing.outputs.available != 'true' || github.event_name == 'pull_request'
+        if: steps.signing.outputs.available != 'true'
         working-directory: android
         run: ./gradlew bundleRelease
 
@@ -190,6 +186,6 @@ jobs:
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
         with:
-          name: glorifier-ai-android-aab
+          name: ${{ steps.signing.outputs.available == 'true' && 'glorifier-ai-android-aab' || 'glorifier-ai-android-aab-unsigned' }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
