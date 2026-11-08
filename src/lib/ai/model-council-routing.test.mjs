@@ -313,7 +313,7 @@ test('both council UIs submit exact configured model pairs and expose provider f
   assert.match(managementSource, /submitAuthenticatedModelCouncilRequest/);
   assert.match(managementSource, /const agendaToRun = customAgenda\.trim\(\) \|\| selectedTopic;/);
   assert.match(managementSource, /setCouncilResult\(null\);\s*setStatusFeedback\(null\);/);
-  assert.match(managementSource, /Provider-backed Nodes/);
+  assert.match(managementSource, /Provider-Linked Configurations/);
   assert.match(managementSource, /Submit an agenda with \{activeProviderNodeCount\} enabled provider-backed nodes/);
   assert.match(managementSource, /formatModelCouncilFailures\(err\.failures\)/);
   assert.match(managementSource, /Council execution failed\. No provider fallback or synthetic response was substituted/);

@@ -125,8 +125,8 @@ export async function discoverConfiguredModelCouncilParticipants(
 export async function submitAuthenticatedModelCouncilRequest(input: {
   agenda: string;
   participants: ModelCouncilSelection[];
-  currentPolicy?: unknown;
-  footprints?: unknown[];
+  policyContext?: { minimumMonthlyFloorUsd?: number | null; globalEpsilon?: number | null };
+  footprintCount?: number;
   getToken: () => Promise<string | null | undefined>;
   fetcher?: typeof fetch;
 }): Promise<ModelCouncilApiResponse> {
@@ -147,8 +147,8 @@ export async function submitAuthenticatedModelCouncilRequest(input: {
     body: JSON.stringify({
       agenda: input.agenda,
       participants: input.participants,
-      currentPolicy: input.currentPolicy,
-      footprints: input.footprints || [],
+      policyContext: input.policyContext,
+      footprintCount: input.footprintCount ?? 0,
     }),
   });
 

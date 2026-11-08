@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:broker-console-truthfulness": "node --test scripts/broker-console-truthfulness.test.mjs",
     "prebuild:frontend": "npm run test:package-manifest-integrity",
     "build:frontend": "vite build",
     "prebuild:android": "npm run test:package-manifest-integrity",
