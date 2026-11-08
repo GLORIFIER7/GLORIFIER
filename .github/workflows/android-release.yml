@@ -49,13 +49,44 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # Capacitor generates Gradle 8.14.3 with the larger -all archive.
-      # The official service redirected to a GitHub Release that returned HTTP 504 twice.
-      # Use a pinned mirror and verify its bytes against Gradle's independently published SHA-256.
+      # Download from Gradle's official distribution service with bounded retry.
+      # Verify against Gradle's independently published SHA-256 before the wrapper uses it.
+      - name: Restore Gradle distribution cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/gradle-8.14.3-bin.zip
+          key: gradle-8.14.3-bin-${{ runner.os }}-v1
+
+      - name: Download and verify Gradle distribution
+        env:
+          GRADLE_DISTRIBUTION_URL: https://services.gradle.org/distributions/gradle-8.14.3-bin.zip
+          GRADLE_DISTRIBUTION_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gradle-8.14.3-bin.zip"
+          partial="$archive.part"
+
+          if [[ -f "$archive" ]] && printf '%s  %s\\n' "$GRADLE_DISTRIBUTION_SHA256" "$archive" | sha256sum --check --status; then
+            echo "Using the cached Gradle archive after SHA-256 verification."
+          else
+            rm -f "$archive" "$partial"
+            curl --fail --show-error --location \\
+              --retry 8 --retry-all-errors --retry-delay 10 --retry-max-time 300 \\
+              --connect-timeout 30 --max-time 1200 \\
+              --output "$partial" "$GRADLE_DISTRIBUTION_URL"
+            printf '%s  %s\\n' "$GRADLE_DISTRIBUTION_SHA256" "$partial" | sha256sum --check
+            mv "$partial" "$archive"
+          fi
+
+          echo "GRADLE_DISTRIBUTION_FILE=$archive" >> "$GITHUB_ENV"
+
       - name: Pin Android Gradle distribution and checksum
+        env:
+          GRADLE_DISTRIBUTION_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
         run: |
           set -euo pipefail
           python - <<'PY'
+          import os
           from pathlib import Path
 
           wrapper = Path("android/gradle/wrapper/gradle-wrapper.properties")
@@ -64,7 +95,6 @@ jobs:
 
           content = wrapper.read_text(encoding="utf-8")
           old_url = "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-all.zip"
-          new_url = "distributionUrl=https\\://mirror.spaceport.work/gradle/gradle-8.14.3-bin.zip"
           if content.count(old_url) != 1:
               raise SystemExit(
                   "Unexpected generated Gradle distribution URL; refusing an unreviewed version change."
@@ -72,34 +102,22 @@ jobs:
           if "distributionSha256Sum=" in content:
               raise SystemExit("A Gradle distribution checksum is already configured; review before replacing it.")
 
-          # Reject redirects so the mirror host that is pinned is the one serving the ZIP.
-          from urllib.request import Request, build_opener, HTTPRedirectHandler
-          from urllib.error import HTTPError
+          archive = Path(os.environ["GRADLE_DISTRIBUTION_FILE"]).resolve()
+          if not archive.is_file() or archive.stat().st_size == 0:
+              raise SystemExit("The checksum-verified Gradle archive is missing or empty.")
 
-          class RejectRedirects(HTTPRedirectHandler):
-              def redirect_request(self, request, file_pointer, code, message, headers, new_url):
-                  return None
-
-          download_url = "https://mirror.spaceport.work/gradle/gradle-8.14.3-bin.zip"
-          request = Request(download_url, method="HEAD")
-          try:
-              with build_opener(RejectRedirects).open(request, timeout=30) as response:
-                  if response.status != 200 or response.geturl() != download_url:
-                      raise SystemExit("Gradle mirror must return HTTP 200 directly without redirects.")
-          except HTTPError as error:
-              raise SystemExit(f"Gradle mirror preflight failed without following redirects: HTTP {error.code}") from error
-
+          new_url = f"distributionUrl={archive.as_uri()}"
           content = content.replace(old_url, new_url, 1)
           properties = content.rstrip().splitlines()
-          properties.append("distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531")
+          properties.append(f"distributionSha256Sum={os.environ['GRADLE_DISTRIBUTION_SHA256']}")
           properties = [line for line in properties if not line.startswith("networkTimeout=")]
           properties.append("networkTimeout=120000")
-          wrapper.write_text("\n".join(properties) + "\n", encoding="utf-8")
+          wrapper.write_text("\\n".join(properties) + "\\n", encoding="utf-8")
 
           verified = wrapper.read_text(encoding="utf-8")
-          if new_url not in verified or "distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531" not in verified:
+          if new_url not in verified or f"distributionSha256Sum={os.environ['GRADLE_DISTRIBUTION_SHA256']}" not in verified:
               raise SystemExit("Gradle wrapper URL/checksum configuration did not persist.")
-          print("Pinned Gradle 8.14.3 binary distribution with the official SHA-256 checksum.")
+          print("Pinned Gradle 8.14.3 to the locally verified binary archive.")
           PY
 
       - name: Prepare Android release signing
