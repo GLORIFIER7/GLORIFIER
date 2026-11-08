@@ -10,6 +10,16 @@ type Registry = { sources: RegistrySource[] };
 
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
+const workflowPath = '.github/workflows/geas-architecture-scan.yml';
+const workflowText = readFileSync(workflowPath, 'utf8');
+const pullRequestSectionStart = workflowText.indexOf('  pull_request:\\n');
+const scheduleSectionStart = workflowText.indexOf('\\n  schedule:', pullRequestSectionStart);
+const pullRequestSection = pullRequestSectionStart >= 0 && scheduleSectionStart > pullRequestSectionStart
+  ? workflowText.slice(pullRequestSectionStart, scheduleSectionStart)
+  : '';
+if (!pullRequestSection.includes("      - 'scripts/geas-source-catalog-parser.ts'")) {
+  throw new Error('GEAS architecture scan must trigger when its source catalog parser changes');
+}
 
 const isValidReviewCadenceDays = (value: unknown): value is number =>
   typeof value === 'number'
