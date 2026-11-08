@@ -29,21 +29,21 @@ export const Header: React.FC<HeaderProps> = ({
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Layers },
     { id: 'geas_architecture', label: 'Architecture', icon: BrainCircuit },
-    { id: 'autonomous_core', label: 'Autonomous Core', icon: ShieldCheck },
+    { id: 'autonomous_core', label: 'Autonomous Core (Design)', icon: ShieldCheck },
     { id: 'ai_ceo', label: 'AI CEO', icon: BrainCircuit },
     { id: 'integrations', label: 'Intelligence', icon: Globe2 },
-    { id: 'agent_network', label: 'AI Agent Network', icon: Network },
+    { id: 'agent_network', label: 'Agent Network', icon: Network },
     { id: 'token_branding', label: 'Token Branding Bridge', icon: Coins },
-    { id: 'discovery', label: '24/7 Discovery', icon: Zap },
-    { id: 'sentinel', label: 'Code Sentinel', icon: Bot },
+    { id: 'discovery', label: 'Opportunity Discovery', icon: Zap },
+    { id: 'sentinel', label: 'Code Sentinel Module', icon: Bot },
     { id: 'connections', label: 'Connections', icon: Lock },
-    { id: 'mobile', label: 'Android Device', icon: Smartphone },
+    { id: 'mobile', label: 'Android Integration', icon: Smartphone },
     { id: 'scientists', label: 'Scientists', icon: Atom },
     { id: 'agent_miner', label: 'Agent Miner', icon: Cpu },
     { id: 'compliance', label: 'Compliance', icon: ShieldAlert },
     { id: 'control', label: 'Data Control', icon: ShieldCheck },
     { id: 'footprints', label: 'Data Footprints', icon: Database },
-    { id: 'broker', label: 'AI Broker', icon: Scale },
+    { id: 'broker', label: 'AI Broker Module', icon: Scale },
   ];
 
   const primaryIds = new Set(['overview', 'ai_ceo', 'integrations', 'discovery', 'sentinel']);
@@ -109,11 +109,11 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-[15px] font-semibold tracking-[-0.03em] text-white flex items-center gap-1.5">
                 GLORIFIER
                 <span className="text-[10px] px-1.5 py-0.5 rounded-sm text-emerald-300 border border-slate-700 font-mono">
-                  GPT CONTROL PLANE
+                  GOVERNED AI ORCHESTRATION
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
-                Provider-Neutral Intelligence Orchestration
+                Provider-neutral orchestration · status shown per module
               </p>
             </div>
           </button>
