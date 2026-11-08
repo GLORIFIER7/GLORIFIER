@@ -127,11 +127,6 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   },
   {
     id: 'compliance-scientist',
-    name: 'AI Compliance Review Assistant',
-    provider: 'GLORIFIER configured assistant',
-    role: 'Regulatory research and privacy support (advisory)',
-    specialization: 'Research support for GDPR rights and DPIAs, CCPA/CPRA consumer rights, EU AI Act issue spotting, differential privacy concepts, and HIPAA de-identification standards',
-    badge: 'Qualified review required',
     name: 'A.I. Bot Compliance Scientist',
     provider: 'Local compliance role · no external provider',
     role: 'Regulatory Compliance & Statistical Privacy Science',
