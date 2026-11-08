@@ -46,6 +46,9 @@ jobs:
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
 
+      - name: Provider collaboration UI truthfulness regression tests
+        run: node --test scripts/provider-collaboration-truthfulness.test.mjs
+
       - name: Android release workflow signing-boundary regression tests
         run: node --test scripts/android-release-workflow-security.test.mjs
 

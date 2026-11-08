@@ -185,11 +185,11 @@ export const WorkTogetherWithGptStudio: React.FC<WorkTogetherWithGptStudioProps>
   };
 
   const handleDownloadArtifact = (session: CoWorkingSession) => {
-    const content = `# WORK TOGETHER WITH GPT & GEMINI — JOINT CO-AUTHORED ARTIFACT
+    const content = `# PROVIDER COLLABORATION OUTPUT — AGREEMENT NOT MEASURED
 **Date:** ${new Date().toISOString()}  
 **Domain:** ${session.domain.toUpperCase()}  
 **Task Goal:** ${session.userGoal}  
-**Consensus Attestation:** ${session.consensusScore === null ? 'NOT VERIFIED' : `${session.consensusScore}% backend-reported; not independently verified`}  
+**Agreement Status:** ${session.consensusScore === null ? 'NOT MEASURED' : `${session.consensusScore}% backend-reported; not independently verified`}  
 **Active Epsilon Budget:** ε = ${policy.globalEpsilon}  
 **Active Compensation Floor:** $${policy.minimumMonthlyFloorUsd}/mo  
 
@@ -197,14 +197,14 @@ export const WorkTogetherWithGptStudio: React.FC<WorkTogetherWithGptStudioProps>
 ${session.jointArtifact}
 
 ================================================================================
-### INDIVIDUAL MODEL CONTRIBUTIONS
+### PROVIDER RESPONSES
 
 ---
-#### 1. OpenAI GPT-4o (Lead Architect / Strategist)
+#### 1. OpenAI provider response
 ${session.gptContribution}
 
 ---
-#### 2. Google Gemini 3.8 Flash (Cryptographic Privacy & Peer Review)
+#### 2. Google Gemini provider response (cryptographic review NOT VERIFIED)
 ${session.geminiPeerReview}
 `;
     const blob = new Blob([content], { type: 'text/markdown' });
@@ -277,9 +277,9 @@ ${session.geminiPeerReview}
     code_engineering: [
       {
         title: 'Fix 503 Circuit Breaker',
-        prompt: 'Work together with GPT and Gemini to refactor callGeminiSafe to automatically failover to GPT-4o and Flash-Lite on 503 UNAVAILABLE.',
+        prompt: 'Work together on a provider-neutral failover policy that routes across configured OpenAI and Google Gemini models when a provider returns 503 UNAVAILABLE.',
         code: `async function callGeminiSafe(params) {
-  // Catch 503 and auto-route to GPT-4o
+  // Route only to an authorized, configured provider/model after a 503 response.
 }`
       },
       {
@@ -367,7 +367,7 @@ ${session.geminiPeerReview}
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Interactive Co-Working Studio
               </span>
               <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-mono">
-                OpenAI GPT-4o &bull; Google Gemini 3.8 Flash &bull; Dual-Consensus
+                OpenAI provider request &bull; Google Gemini provider request &bull; agreement NOT MEASURED
               </span>
               <span className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-mono">
                 Pair Programming &bull; Strategy &bull; Patent &bull; Privacy
@@ -385,14 +385,14 @@ ${session.geminiPeerReview}
             <button
               onClick={() => handleDownloadArtifact(currentSession)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-emerald-950/40"
-              title="Download joint co-authored artifact in Markdown format"
+              title="Download provider collaboration output in Markdown format"
             >
-              <Download className="w-4 h-4" /> Download Joint Artifact (.MD)
+              <Download className="w-4 h-4" /> Download Provider Output (.MD)
             </button>
             <button
               onClick={handleApplyDirectives}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 font-semibold text-xs transition-colors"
-              title="Apply proposed policy values; provider consensus and production enforcement are NOT VERIFIED"
+              title="Apply local policy preferences; provider agreement and production enforcement are NOT VERIFIED"
             >
               <CheckCircle2 className="w-4 h-4" /> Apply Directives to Policy
             </button>
@@ -498,8 +498,8 @@ ${session.geminiPeerReview}
             <span className="font-mono font-bold text-cyan-400">Schedule / heartbeat: NOT VERIFIED</span>
           </div>
           <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/50">
-            <span className="text-slate-400 block text-[10px]">Consensus Concordance</span>
-            <span className="font-mono font-bold text-amber-400">Consensus: NOT VERIFIED</span>
+            <span className="text-slate-400 block text-[10px]">Agreement Status</span>
+            <span className="font-mono font-bold text-amber-400">Agreement: NOT MEASURED</span>
           </div>
         </div>
 
@@ -729,7 +729,7 @@ ${session.geminiPeerReview}
                 Provider pairing configured · live execution NOT VERIFIED
               </span>
               <span>&bull;</span>
-              <span>Consensus attestation: NOT VERIFIED</span>
+              <span>Agreement: NOT MEASURED</span>
             </div>
 
             <button
@@ -762,7 +762,7 @@ ${session.geminiPeerReview}
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>{currentSession.id === 'sample-not-verified' ? 'Sample Session Placeholder' : 'Session Output · Provenance Not Independently Verified'}</span>
               <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                Consensus Score: {currentSession.consensusScore === null ? 'NOT VERIFIED' : `${currentSession.consensusScore}% backend-reported; not independently verified`}
+                Agreement score: {currentSession.consensusScore === null ? 'NOT MEASURED' : `${currentSession.consensusScore}% backend-reported; not independently verified`}
               </span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -779,7 +779,7 @@ ${session.geminiPeerReview}
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🤝 Joint Solution
+              🤝 Combined provider output
             </button>
             <button
               onClick={() => setActiveView('gpt')}
@@ -789,7 +789,7 @@ ${session.geminiPeerReview}
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🟢 OpenAI GPT-4o
+              🟢 OpenAI provider
             </button>
             <button
               onClick={() => setActiveView('gemini')}
@@ -810,7 +810,7 @@ ${session.geminiPeerReview}
             <div className="bg-slate-950 rounded-xl p-5 border border-slate-800/90 shadow-inner relative space-y-4 font-sans">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-emerald-400">{currentSession.id === 'sample-not-verified' ? 'Sample Artifact · NOT VERIFIED' : 'Backend-Returned Artifact · Consensus NOT VERIFIED'}</span>
+                  <span className="font-bold text-emerald-400">{currentSession.id === 'sample-not-verified' ? 'Sample Artifact · NOT VERIFIED' : 'Backend-Returned Output · Agreement NOT MEASURED'}</span>
                   <span className="font-mono text-[11px] text-slate-500">{currentSession.id === 'sample-not-verified' ? 'No verified model authorship' : 'Provider authorship not independently verified'}</span>
                 </div>
                 <button
@@ -833,14 +833,14 @@ ${session.geminiPeerReview}
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                  <span className="font-bold text-emerald-300">OpenAI GPT-4o Lead Architecture Proposal</span>
+                  <span className="font-bold text-emerald-300">OpenAI provider response</span>
                 </div>
                 <button
                   onClick={() => handleCopy(currentSession.gptContribution, 'gpt')}
                   className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 transition-colors"
                 >
                   {copiedId === 'gpt' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedId === 'gpt' ? 'Copied' : 'Copy GPT Proposal'}</span>
+                  <span>{copiedId === 'gpt' ? 'Copied' : 'Copy OpenAI Response'}</span>
                 </button>
               </div>
 
@@ -855,14 +855,14 @@ ${session.geminiPeerReview}
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                  <span className="font-bold text-cyan-300">Google Gemini 3.8 Flash Cryptographic Cross-Audit</span>
+                  <span className="font-bold text-cyan-300">Google Gemini provider response · cryptographic review NOT VERIFIED</span>
                 </div>
                 <button
                   onClick={() => handleCopy(currentSession.geminiPeerReview, 'gemini')}
                   className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 transition-colors"
                 >
                   {copiedId === 'gemini' ? <Check className="w-3 h-3 text-cyan-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedId === 'gemini' ? 'Copied' : 'Copy Gemini Audit'}</span>
+                  <span>{copiedId === 'gemini' ? 'Copied' : 'Copy Gemini Response'}</span>
                 </button>
               </div>
 
@@ -880,9 +880,9 @@ ${session.geminiPeerReview}
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white">Dual-Model Cross-Validation Enclave</div>
+              <div className="text-xs font-bold text-white">Provider response comparison</div>
               <div className="text-[11px] text-slate-400">
-                All code patches, valuation metrics, and statutory notices are co-signed by GPT-4o & Gemini.
+                Provider outputs are advisory text. No code patch, valuation, or statutory notice is co-signed, executed, or legally approved.
               </div>
             </div>
           </div>

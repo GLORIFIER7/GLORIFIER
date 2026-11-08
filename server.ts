@@ -1756,7 +1756,7 @@ ${conversationHistory.length > 0 ? `\nPrior Session Notes:\n${JSON.stringify(con
     const geminiLabel = geminiText && geminiRes.status === 'fulfilled'
       ? `Gemini (${geminiRes.value.modelUsed})`
       : 'Gemini provider unavailable';
-    const jointArtifact = `### Joint Co-Authored Artifact
+    const jointArtifact = `### Provider Collaboration Output
 **Task:** ${userGoal}
 **Domain:** ${chosenDomain}
 **Provider evidence:** Only the required provider responses returned by this request are included. Each contributor is labelled with its actual returned model. No agreement or verification is asserted unless both providers actually responded.
