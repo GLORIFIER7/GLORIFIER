@@ -45,7 +45,7 @@ test('Cloudflare app-state reads are scoped to the authenticated UID and preserv
     if (sql.includes('SELECT transaction_data FROM public.app_transactions')) return [{ transaction_data: { id: 'tx-1', amountUsd: 4, status: 'accepted' } }];
     if (sql.includes('SELECT footprint_data FROM public.app_footprints')) return [{ footprint_data: { id: 'fp-1', isMonetized: true, dataPointsMonthly: 12 } }];
     if (sql.includes('SELECT exposure_data FROM public.app_exposures')) return [{ exposure_data: { id: 'exposure-1' } }];
-    if (sql.includes('FROM marketplace_transactions')) return [
+    if (sql.includes('marketplace_transactions')) return [
       { id: 'paid-1', offer_id: 'offer-1', amount_minor: 1250, currency: 'USD', status: 'paid', created_at: '2026-11-01T00:00:00.000Z' },
       { id: 'accepted-1', offer_id: 'offer-2', amount_minor: 400, currency: 'USD', status: 'accepted', created_at: '2026-11-02T00:00:00.000Z' },
     ];
