@@ -1,54 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   buildTokenBrandingInspection,
-  type BrandingProvider,
-  type TokenBrandingRecord
+  type BrandingProvider
 } from '../lib/token-branding-bridge';
-
-const CANDIDATE_LOGO_URI = 'ipfs://bafybeige7flx4sbd4nbw5vlwgqdvbcethz3tucu6r3ij47vfrl6l34g6vrq';
-
-const tokens: TokenBrandingRecord[] = [
-  {
-    assetId: 'glr-ethereum',
-    network: 'Ethereum Mainnet',
-    chainId: 1,
-    standard: 'ERC-20',
-    contractOrMint: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
-    tokenSymbol: 'GLR',
-    evidenceStatus: 'VERIFIED',
-    logo: { uri: CANDIDATE_LOGO_URI, integrityStatus: 'PENDING' }
-  },
-  {
-    assetId: 'glr-bnb',
-    network: 'BNB Smart Chain',
-    chainId: 56,
-    standard: 'BEP-20',
-    contractOrMint: '0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804',
-    tokenSymbol: 'GLR',
-    evidenceStatus: 'VERIFIED',
-    logo: { uri: CANDIDATE_LOGO_URI, integrityStatus: 'PENDING' }
-  },
-  {
-    assetId: 'glr-base',
-    network: 'Base Mainnet',
-    chainId: 8453,
-    standard: 'ERC-20',
-    contractOrMint: '0x43b09fc339DA35117c966ceaCC3Ea8C8f83c11ce',
-    tokenSymbol: 'GLR',
-    evidenceStatus: 'NOT_VERIFIED',
-    logo: { uri: CANDIDATE_LOGO_URI, integrityStatus: 'PENDING' }
-  },
-  {
-    assetId: 'glr-solana-mainnet',
-    network: 'Solana Mainnet Beta',
-    chainId: 'solana:mainnet-beta',
-    standard: 'Token-2022',
-    contractOrMint: '7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9',
-    tokenSymbol: 'GLR',
-    evidenceStatus: 'PARTIALLY_VERIFIED',
-    logo: { uri: CANDIDATE_LOGO_URI, integrityStatus: 'PENDING' }
-  }
-];
+import { CANDIDATE_GLORIFIER_LOGO_URI, TOKEN_BRANDING_RECORDS } from '../lib/token-branding-records';
 
 const providers: BrandingProvider[] = [
   { id: 'etherscan', name: 'Etherscan', mode: 'manual', requirements: ['Provider-specific listing review'], feeStatus: 'UNKNOWN', enabled: true },
@@ -66,7 +21,7 @@ const statusClass = (status: string) => {
 export const TokenBrandingBridgeDashboard: React.FC = () => {
   const [refreshCount, setRefreshCount] = useState(0);
   const inspection = useMemo(
-    () => buildTokenBrandingInspection(tokens, providers),
+    () => buildTokenBrandingInspection(TOKEN_BRANDING_RECORDS, providers),
     [refreshCount]
   );
 
@@ -74,9 +29,9 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
     <section className="space-y-6" aria-labelledby="token-branding-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">GLORIFIER • Multi-chain asset operations</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">GLORIFIER • Multi-chain registry review</p>
           <h2 id="token-branding-title" className="mt-2 text-2xl font-bold text-white sm:text-3xl">Token Branding Bridge</h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">One owner-controlled branding reference, chain-aware validation, and separate provider publication evidence.</p>
+          <p className="mt-2 max-w-2xl text-sm text-slate-400">A proposed branding candidate and locally validated token identifiers; live chain state and provider publication are not checked here.</p>
         </div>
         <button type="button" onClick={() => setRefreshCount((value) => value + 1)} className="min-h-10 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400">
           Re-run local inspection
@@ -89,10 +44,10 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Registered production tokens', inspection.summary.tokenCount],
-          ['Provider targets', inspection.summary.providerCount],
+          ['Token registry entries', inspection.summary.tokenCount],
+          ['Provider targets listed', inspection.summary.providerCount],
           ['Blocked readiness checks', inspection.summary.blockedAssessments],
-          ['Explorer logos verified', inspection.summary.publishedCount]
+          ['Explorer publications confirmed', inspection.summary.publishedCount]
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
@@ -117,7 +72,7 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
             </div>
             <div className="min-w-0">
               <span className="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200">CANDIDATE — NOT CANONICAL</span>
-              <p className="mt-2 break-all font-mono text-xs text-slate-300">{CANDIDATE_LOGO_URI}</p>
+              <p className="mt-2 break-all font-mono text-xs text-slate-300">{CANDIDATE_GLORIFIER_LOGO_URI}</p>
               <p className="mt-1 text-xs text-slate-500">SHA-256 and retrieved bytes have not been reconciled.</p>
             </div>
           </div>
@@ -153,7 +108,8 @@ export const TokenBrandingBridgeDashboard: React.FC = () => {
       </div>
 
       <div className="space-y-3">
-        <h3 className="font-semibold text-white">Production token registry</h3>
+        <h3 className="font-semibold text-white">Recorded token identifiers · NOT VERIFIED</h3>
+        <p className="text-xs text-slate-500">These are locally recorded addresses and mint identifiers. This panel does not query a blockchain or explorer, verify contract code, supply, holder control, mint authorities, transaction finality, or network reachability.</p>
         {inspection.tokens.map((token) => (
             <article key={token.assetId} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">

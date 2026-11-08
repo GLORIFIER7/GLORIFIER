@@ -9,6 +9,7 @@ import {
   type BrandingProvider,
   type TokenBrandingRecord
 } from './token-branding-bridge';
+import { TOKEN_BRANDING_RECORDS } from './token-branding-records';
 
 const validToken: TokenBrandingRecord = {
   assetId: 'glr',
@@ -33,6 +34,12 @@ const freeManualProvider: BrandingProvider = {
   feeStatus: 'FREE',
   enabled: true
 };
+
+test('default token branding registry never claims live chain verification', () => {
+  assert.equal(TOKEN_BRANDING_RECORDS.length, 4);
+  assert.ok(TOKEN_BRANDING_RECORDS.every((token) => token.evidenceStatus === 'NOT_VERIFIED'));
+  assert.ok(TOKEN_BRANDING_RECORDS.every((token) => token.logo.integrityStatus === 'PENDING'));
+});
 
 test('accepts a valid EVM token and verified logo reference', () => {
   assert.deepEqual(validateTokenBrandingRecord(validToken), []);

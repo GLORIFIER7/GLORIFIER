@@ -477,7 +477,7 @@ export default function App() {
       />
 
       <aside role="status" aria-label="Evidence and sample-data notice" className="mx-auto mt-3 w-[calc(100%-2rem)] max-w-7xl rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-100">
-        <strong>Evidence notice:</strong> Some modules start with local sample values. Treat account, AI-provider, balance, revenue, and external-connection status as <strong>NOT VERIFIED</strong> unless the relevant panel shows a successful server-backed check. A displayed estimate or sample value is not proof of a real transaction or earning.
+        <strong>Evidence notice:</strong> This interface combines live read-only checks, architecture and policy views, local configuration, and sample data. A navigation module or configured integration is not proof that a production service is operating. Treat account access, provider inference, asset custody, balances, payments, revenue, valuation, and external integrations as <strong>NOT VERIFIED</strong> unless that specific function returns current server-backed evidence. The Overview reports endpoint results and their limits.
       </aside>
 
       {/* Main View Container */}

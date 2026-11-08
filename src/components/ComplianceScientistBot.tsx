@@ -104,14 +104,14 @@ AI-generated responses, when available, are advisory and require human review.`
   const handleExportAudit = () => {
     const header = `# COMPLIANCE AI SCIENTIST & REGULATORY PRIVACY AUDIT DOSSIER
 **Generated:** ${new Date().toISOString()}  
-**Lead Authority:** Compliance Review Assistant & Privacy Risk Checklist (CIPP/E, CIPP/US, Ph.D. Statistical Governance)  
+**Prepared by:** GLORIFIER compliance review assistant (AI-generated checklist; no professional certification, legal authority, or legal opinion is claimed)  
 **Governing Laws:** GDPR (EU 2016/679), CCPA/CPRA (Cal. Civ. Code § 1798), EU AI Act (Reg. 2024/1689), HIPAA § 164.514  
-**Active Epsilon Budget:** ε = ${policy?.globalEpsilon || 0.30}  
+**Configured epsilon target (runtime enforcement NOT VERIFIED):** ε = ${policy?.globalEpsilon ?? 'not configured'}  
 
 ================================================================================
 `;
     const transcript = aiHistory.map((msg, i) => {
-      const author = msg.role === 'user' ? 'COUNSEL / CLIENT QUERY' : 'A.I. BOT COMPLIANCE SCIENTIST OPINION';
+      const author = msg.role === 'user' ? 'USER QUERY' : 'AI-GENERATED REVIEW NOTE (NOT LEGAL ADVICE)';
       const meta = msg.mode ? `[Specialty: ${msg.mode}] [Engine: ${msg.modelUsed || 'Core'}] [${msg.timestamp || ''}]` : '';
       return `### ${i + 1}. ${author} ${meta}\n\n${msg.text}\n`;
     }).join('\n---\n\n');
@@ -651,10 +651,10 @@ AI-generated responses, when available, are advisory and require human review.`
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-emerald-400 font-mono">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                CIPP/E &bull; CIPP/US &bull; Ph.D. Statistical Governance Active
+                Regulatory and privacy framework references · no professional certification is claimed
               </span>
               <span>&bull;</span>
-              <span>GDPR Art. 17 / CCPA § 1798.105 Grounded</span>
+              <span>GDPR Art. 17 / CCPA § 1798.105 references · applicability not assessed</span>
             </div>
             <div>
               Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">Enter</kbd> to submit query
