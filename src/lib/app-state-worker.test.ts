@@ -104,7 +104,7 @@ test('Cloudflare app-state writes use only allowlisted tables and bind the authe
   assert.ok(calls.some(call => call.sql === 'COMMIT'));
 });
 
-test('Cloudflare session probe verifies the selected Neon role has app-state write privileges', async () => {
+test('Cloudflare session probe verifies app-state write grants and all read grants required by the API', async () => {
   const calls: QueryCall[] = [];
   const result = await getWorkerDatabaseSession(binding, factoryFor(calls, sql => {
     if (!sql.includes('has_table_privilege')) return [];
@@ -112,6 +112,8 @@ test('Cloudflare session probe verifies the selected Neon role has app-state wri
       database_name: 'glorifier',
       database_role: 'glorifier_worker_app_rw',
       database_time: '2026-11-08T14:00:00.000Z',
+      app_state_read_allowed: true,
+      finance_read_allowed: true,
       app_state_insert_allowed: true,
       app_state_update_allowed: true,
     }];
@@ -119,8 +121,40 @@ test('Cloudflare session probe verifies the selected Neon role has app-state wri
   assert.equal(result.connected, true);
   assert.equal(result.databaseName, 'glorifier');
   assert.equal(result.databaseRole, 'glorifier_worker_app_rw');
+  assert.equal(result.readCapabilityVerified, true);
   assert.equal(result.writeCapabilityVerified, true);
   assert.ok(calls.some(call => call.sql.includes("has_table_privilege(current_user, 'public.app_policies', 'INSERT')")));
+  assert.ok(calls.some(call => call.sql.includes("has_table_privilege(current_user, 'public.app_exposures', 'UPDATE')")));
+  assert.ok(calls.some(call => call.sql.includes("has_table_privilege(current_user, 'public.marketplace_transactions', 'SELECT')")));
+  assert.ok(calls.some(call => call.sql.includes("has_table_privilege(current_user, 'public.payout_requests', 'SELECT')")));
+});
+
+test('Cloudflare session probe does not claim write capability when any app-state table lacks UPDATE', async () => {
+  const result = await getWorkerDatabaseSession(binding, factoryFor([], sql => {
+    if (!sql.includes('has_table_privilege')) return [];
+    return [{
+      app_state_read_allowed: true,
+      finance_read_allowed: true,
+      app_state_insert_allowed: true,
+      app_state_update_allowed: false,
+    }];
+  }));
+  assert.equal(result.readCapabilityVerified, true);
+  assert.equal(result.writeCapabilityVerified, false);
+});
+
+test('Cloudflare session probe does not claim read capability when a finance table lacks SELECT', async () => {
+  const result = await getWorkerDatabaseSession(binding, factoryFor([], sql => {
+    if (!sql.includes('has_table_privilege')) return [];
+    return [{
+      app_state_read_allowed: true,
+      finance_read_allowed: false,
+      app_state_insert_allowed: true,
+      app_state_update_allowed: true,
+    }];
+  }));
+  assert.equal(result.readCapabilityVerified, false);
+  assert.equal(result.writeCapabilityVerified, true);
 });
 
 test('Cloudflare app-state rejects missing or blank authenticated identity before connecting', async () => {
