@@ -1425,7 +1425,6 @@ Active model preference: ${chosenModelLabel}. The provider's actual terms, data 
 
     if (!replyText) {
       return res.status(503).json({ ok: false, error: 'No verified AI/provider response is currently available.', providerStatus: 'No live broker response was returned; no synthetic answer was generated.' });
-    */
     }
 
     res.json({
@@ -1445,6 +1444,7 @@ Active model preference: ${chosenModelLabel}. The provider's actual terms, data 
       executionStatus: 'failed',
       providerStatus: 'unavailable'
     });
+  }
 });
 
 // 3. AI Offer Evaluator endpoint
