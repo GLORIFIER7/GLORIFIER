@@ -10,8 +10,9 @@ import { getGeasArchitectureManifest, validateGeasArchitectureManifest, getGeasD
 import { getAssetVerificationPolicy } from './lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-asset-verification';
 import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
+import { handleWorkerAppStateRequest, type WorkerAppStateRouteEnvironment } from './lib/worker-app-state-route';
 
-export type CloudflareEnv = {
+export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   CF_VERSION_METADATA?: {
     id: string;
     tag: string;
@@ -841,21 +842,7 @@ function normalizeBearerAuthorization(value: string | null): string | null {
   return `Bearer ${token}`;
 }
 
-const hasSessionCredential = (request: Request): boolean => {
-  const authorization = request.headers.get('authorization')?.trim() || '';
-  if (/^Bearer\s+\S+$/i.test(authorization)) return true;
-  const cookie = request.headers.get('cookie') || '';
-  return cookie.split(';').some((part) => {
-    const separator = part.indexOf('=');
-    if (separator <= 0) return false;
-    const name = part.slice(0, separator).trim();
-    const rawValue = part.slice(separator + 1).trim();
-    const value = rawValue.startsWith('"') && rawValue.endsWith('"')
-      ? rawValue.slice(1, -1).trim()
-      : rawValue;
-    return /^(session|auth-token|access-token)$/.test(name) && value.length > 0;
-  });
-};
+
 
 const apiError = (message: string, code: string, status = 502): Response =>
   Response.json(
@@ -1198,6 +1185,13 @@ export default {
       return neuralRoute(request, incomingUrl.pathname, env);
     }
 
+    // User-scoped app state and session checks are native Worker routes. They do
+    // not fall back to Railway or another legacy backend when identity or Neon
+    // configuration is missing.
+    if (incomingUrl.pathname === '/api/app-state' || incomingUrl.pathname === '/api/auth/session') {
+      return handleWorkerAppStateRequest(request, incomingUrl.pathname, env);
+    }
+
     // Public build provenance is safe to expose for this public repository. It is
     // deliberately unavailable unless the protected production workflow injects the
     // exact main-branch SHA and Cloudflare supplies the deployed version metadata.
@@ -1359,15 +1353,6 @@ export default {
 
     const configuredBackendOrigin = configured(env.GLORIFIER_BACKEND_ORIGIN);
     if (!configuredBackendOrigin) {
-      // Fail closed at the authentication boundary before reporting backend availability.
-      // This is not a substitute for session validation: credentialed requests still fail
-      // with 503 until the route is implemented natively or a reviewed backend is configured.
-      if (incomingUrl.pathname === '/api/app-state' && !hasSessionCredential(request)) {
-        return Response.json(
-          { ok: false, status: 'unauthenticated', error: 'Authentication is required for app state.', code: 'AUTHENTICATION_REQUIRED' },
-          { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } },
-        );
-      }
       return apiError(
         'No backend origin is configured. This route is not yet Worker-native; refusing to use a legacy provider implicitly.',
         'BACKEND_ORIGIN_NOT_CONFIGURED',

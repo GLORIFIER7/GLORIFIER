@@ -168,6 +168,41 @@ export const validateRuntimeVerification = (body) => {
   return body.checks;
 };
 
+export const validateNeuralHealth = (body) => {
+  assert.equal(body?.service, 'glorifier-neural',
+    'Neural health must identify the expected service');
+  assert.equal(typeof body?.status, 'string',
+    'Neural health must disclose its evidence status');
+  assert.equal(body?.checks?.process, 'VERIFIED',
+    'Neural health must prove process liveness');
+  return body;
+};
+
+export const validateNeuralReady = (body) => {
+  assert.equal(body?.status, 'READY',
+    'Neural readiness must report READY');
+  for (const key of ['providers', 'database', 'authentication', 'rate_limit']) {
+    assert.equal(body?.checks?.[key], 'VERIFIED',
+      'Neural readiness must verify ' + key);
+  }
+  assert.equal(body?.execution?.inference_performed, false,
+    'the read-only production smoke must not perform AI inference');
+  return body;
+};
+
+export const verifyNeuralBridge = async (fetchRequest = fetch) => {
+  console.log('GLORIFIER production smoke: checking Worker-to-Neural process liveness');
+  const healthResponse = await requestJson((options) =>
+    fetchRequest(new URL('/api/neural/health', PRODUCTION_PUBLIC_ORIGIN), options));
+  const health = validateNeuralHealth(healthResponse.body);
+
+  console.log('GLORIFIER production smoke: checking Worker-to-Neural readiness without task submission');
+  const readyResponse = await requestJson((options) =>
+    fetchRequest(new URL('/api/neural/ready', PRODUCTION_PUBLIC_ORIGIN), options));
+  const readiness = validateNeuralReady(readyResponse.body);
+  return { health, readiness };
+};
+
 export const validateMcpInitialize = (body) => {
   assert.equal(body?.jsonrpc, '2.0');
   assert.equal(body?.id, 1);
@@ -386,12 +421,14 @@ const verifyUnauthenticatedBoundary = async () => {
     'unauthenticated /api/app-state must return a structured authentication-required response');
 };
 
-const reportReadinessWarnings = (identity, runtime) => {
+const reportReadinessWarnings = (identity, runtime, neuralBridge) => {
   if (identity.body?.status !== 'ready') {
     console.warn('PRODUCTION READINESS WARNING: organizational domain/email identity is not configured or verified.');
   }
+  if (!neuralBridge?.readiness) {
+    console.warn('PRODUCTION READINESS WARNING: the Worker-to-Neural bridge did not pass its live readiness probe.');
+  }
   for (const [key, label] of [
-    ['neural', 'Neural execution origin'],
     ['authentication', 'Authentication integration probe'],
     ['ai', 'AI provider execution probe'],
   ]) {
@@ -400,7 +437,7 @@ const reportReadinessWarnings = (identity, runtime) => {
       console.warn(`PRODUCTION READINESS WARNING: ${label} requires setup or verification.`);
     }
   }
-};
+}
 
 const verifyIdentity = async () => {
   console.log('GLORIFIER production smoke: checking organizational identity readiness');
@@ -440,17 +477,19 @@ export const runProductionSmoke = async () => {
   const provenance = await verifyBuildProvenance();
   const { counts, runtime } = await verifyWorkerAndDatabase();
   await verifyUnauthenticatedBoundary();
+  const neuralBridge = await verifyNeuralBridge();
   const identity = await verifyIdentity();
   const publicReadModels = await verifyPublicReadModels();
   console.log('Deployed source commit verified: ' + provenance.git.commit + ' (Worker version ' + provenance.worker.versionId + ').');
   console.log('Neon exact operational counts verified for all six reporting tables.');
+  console.log('Worker-to-Neural liveness and readiness contracts verified; no task was submitted and no inference was performed.');
   console.log('Production public read models verified: ' + publicReadModels.integrations + ' integrations and ' + publicReadModels.dataRows + ' data records.');
   console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
-  reportReadinessWarnings(identity, runtime);
-  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: exact source provenance, Worker, Neon database, exact counts, unauthenticated boundary, public read models, and identity response contract.');
-  console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, Neural execution, user login, or AI-provider execution.');
-  return { counts, identityStatus: identity.body?.status, runtime, publicReadModels, provenance };
-};
+  reportReadinessWarnings(identity, runtime, neuralBridge);
+  console.log('PRODUCTION CRITICAL CONTRACTS VERIFIED: exact source provenance, Worker, Neon database, exact counts, unauthenticated boundary, Neural liveness/readiness, public read models, and identity response contract.');
+  console.log('This smoke test does not assert MCP protocol interoperability, organizational identity readiness, user login, or live GLORIFIER AI-provider inference.');
+  return { counts, identityStatus: identity.body?.status, runtime, neuralBridge, publicReadModels, provenance };
+}
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   try {

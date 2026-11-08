@@ -194,6 +194,12 @@ jobs:
 
       - name: Auth0 access-token validation regression tests
         run: npm run test:auth0-token
+      - name: Cloudflare Worker identity parity regression tests
+        run: npm run test:worker-auth
+      - name: Cloudflare Neon app-state regression tests
+        run: npm run test:worker-app-state
+      - name: Cloudflare authenticated app-state route tests
+        run: npm run test:worker-app-state-route
 
       - name: Shared PostgreSQL pool optional-connection regression tests
         run: npm run test:postgres-pool

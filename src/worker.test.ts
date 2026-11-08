@@ -104,6 +104,10 @@ const run = async (): Promise<void> => {
           'production must select the approved authoritative Neon database');
         const productionHyperdrive = wranglerConfig.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
         assert.ok(productionHyperdrive?.id, 'production must bind the approved Neon Hyperdrive resource');
+        const appStateHyperdrive = wranglerConfig.hyperdrive?.find((binding) => binding.binding === 'APP_STATE_HYPERDRIVE');
+        assert.ok(appStateHyperdrive?.id, 'production must bind the dedicated least-privilege Neon app-state Hyperdrive resource');
+        assert.notEqual(appStateHyperdrive.id, productionHyperdrive.id,
+          'user-state writes must use a separate least-privilege database role from read-only operational reporting');
         assert.equal(wranglerConfig.version_metadata?.binding, 'CF_VERSION_METADATA',
           'production must expose the deployed Cloudflare Worker version metadata for source-provenance verification');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
@@ -111,6 +115,9 @@ const run = async (): Promise<void> => {
         const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
         assert.equal(previewHyperdrive, undefined,
           'Cloudflare Previews must not bind the production Neon Hyperdrive resource; database access requires a separate non-production Hyperdrive configuration');
+        const previewAppStateHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'APP_STATE_HYPERDRIVE');
+        assert.equal(previewAppStateHyperdrive, undefined,
+          'Cloudflare Previews must not bind the production least-privilege app-state database resource');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_URL, undefined,
           'Preview configuration must not point to the production Supabase project');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_SUPABASE_SERVICE_ROLE_KEY, undefined,
@@ -1907,8 +1914,8 @@ const run = async (): Promise<void> => {
           }),
           { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
         );
-        assert.equal(exactSessionCookieWithoutBackend.status, 503, 'valid session credentials cannot make an unconfigured backend available');
-        assert.equal(await exactSessionCookieWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+        assert.equal(exactSessionCookieWithoutBackend.status, 401, 'session cookies are not accepted as verified bearer credentials by the Worker-native identity route');
+        assert.equal(await exactSessionCookieWithoutBackend.json().then((body: { code?: string }) => body.code), 'AUTHENTICATION_REQUIRED');
 
         const credentialedAppStateWithoutBackend = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/app-state', {
@@ -1916,8 +1923,8 @@ const run = async (): Promise<void> => {
           }),
           { ...env, GLORIFIER_BACKEND_ORIGIN: undefined },
         );
-        assert.equal(credentialedAppStateWithoutBackend.status, 503, 'authenticated app-state must report the unavailable backend as service unavailable');
-        assert.equal(await credentialedAppStateWithoutBackend.json().then((body: { code?: string }) => body.code), 'BACKEND_ORIGIN_NOT_CONFIGURED');
+        assert.equal(credentialedAppStateWithoutBackend.status, 503, 'app-state must remain unavailable until a Worker identity provider is configured');
+        assert.equal(await credentialedAppStateWithoutBackend.json().then((body: { code?: string }) => body.code), 'WORKER_AUTH_NOT_CONFIGURED');
 
         upstreamResponse = new Response('{"ok":true}', {
           status: 200,

@@ -57,6 +57,9 @@ jobs:
       - name: Test Cloudflare Worker proxy and fallback handling
         run: npm run test:cloudflare-worker
 
+      - name: Test authenticated Worker app-state routes
+        run: npm run test:worker-app-state-route
+
       - name: Test Worker integration registry and data truth contract
         run: npm run test:worker-integration-registry
 

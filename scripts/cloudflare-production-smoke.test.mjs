@@ -12,6 +12,9 @@ import {
   validateMcpReadOnlyTools,
   validateOperationalSummary,
   validateRuntimeVerification,
+  validateNeuralHealth,
+  validateNeuralReady,
+  verifyNeuralBridge,
   requestJson,
   verifyPublicReadModels,
   validateBuildInfo,
@@ -502,6 +505,83 @@ test('production build provenance uses a GET request and validates the live resp
 
   assert.deepEqual(requests, [{ pathname: '/api/build-info', method: 'GET' }]);
   assert.equal(result.git.commit, 'a'.repeat(40));
+});
+
+
+const neuralHealthFixture = {
+  status: 'PARTIALLY VERIFIED',
+  service: 'glorifier-neural',
+  checks: {
+    process: 'VERIFIED',
+    providers: 'NOT VERIFIED',
+    database: 'NOT VERIFIED',
+    pytorch: 'NOT VERIFIED',
+  },
+};
+
+const neuralReadyFixture = {
+  status: 'READY',
+  checks: {
+    providers: 'VERIFIED',
+    database: 'VERIFIED',
+    authentication: 'VERIFIED',
+    rate_limit: 'VERIFIED',
+    audit: 'NOT CONFIGURED (OPTIONAL)',
+    task_runs: 'NOT CONFIGURED (OPTIONAL)',
+  },
+  execution: { inference_performed: false },
+};
+
+test('Neural liveness validation proves only the process and does not inflate dependency status', () => {
+  assert.equal(validateNeuralHealth(neuralHealthFixture).checks.process, 'VERIFIED');
+  assert.equal(validateNeuralHealth(neuralHealthFixture).checks.providers, 'NOT VERIFIED');
+  assert.throws(() => validateNeuralHealth({
+    ...neuralHealthFixture,
+    checks: { ...neuralHealthFixture.checks, process: 'NOT VERIFIED' },
+  }), /process/);
+  assert.throws(() => validateNeuralHealth({
+    ...neuralHealthFixture,
+    service: 'another-service',
+  }), /service/);
+});
+
+test('Neural readiness validation requires provider, database, auth, rate limit, and no inference', () => {
+  assert.equal(validateNeuralReady(neuralReadyFixture).status, 'READY');
+  for (const key of ['providers', 'database', 'authentication', 'rate_limit']) {
+    assert.throws(() => validateNeuralReady({
+      ...neuralReadyFixture,
+      checks: { ...neuralReadyFixture.checks, [key]: 'NOT VERIFIED' },
+    }), new RegExp(key));
+  }
+  assert.throws(() => validateNeuralReady({
+    ...neuralReadyFixture,
+    execution: { inference_performed: true },
+  }), /inference/);
+});
+
+test('production Neural bridge smoke uses GET-only public Pages routes and performs no task inference', async () => {
+  const requests = [];
+  const result = await verifyNeuralBridge(async (url, options = {}) => {
+    requests.push({
+      url: new URL(url).href,
+      method: options.method || 'GET',
+    });
+    const body = new URL(url).pathname.endsWith('/health')
+      ? neuralHealthFixture
+      : neuralReadyFixture;
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  assert.deepEqual(requests, [
+    { url: 'https://glorifier.pages.dev/api/neural/health', method: 'GET' },
+    { url: 'https://glorifier.pages.dev/api/neural/ready', method: 'GET' },
+  ]);
+  assert.equal(result.health.checks.process, 'VERIFIED');
+  assert.equal(result.readiness.status, 'READY');
+  assert.equal(result.readiness.execution.inference_performed, false);
 });
 
 
