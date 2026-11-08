@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
+import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
@@ -35,7 +35,7 @@ function makeSignedAccessToken(
   subject: string,
   issuer: string,
   audience: string,
-  privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'],
+  privateKey: KeyObject,
   keyId: string,
 ): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
