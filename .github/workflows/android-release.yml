@@ -1,16 +1,12 @@
 name: Build Android App Bundle
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-    tags:
-      - 'android-v*'
 
 jobs:
   android:
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,7 +140,7 @@ jobs:
 
       - name: Prepare Android release signing
         id: signing
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -163,7 +159,7 @@ jobs:
           fi
 
       - name: Build signed Android App Bundle
-        if: steps.signing.outputs.available == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: steps.signing.outputs.available == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: android
         env:
           'ORG_GRADLE_PROJECT_android.injected.signing.store.file': ${{ github.workspace }}/android/app/glorifier-release.jks
