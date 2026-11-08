@@ -4,6 +4,7 @@ import { SovereignStats, DataFootprintSource, MonetizationPolicy, CompensationTr
 import {
   parseOperationalReport,
   summarizeEndpoint,
+  summarizeOperationalReportResponse,
   summarizeRuntime,
   type EndpointSummary,
   type OperationalReport,
@@ -121,6 +122,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
   const report: OperationalReport | null = parseOperationalReport(observation('reports')?.body);
   const runtime = summarizeRuntime(observation('runtime')?.body);
   const health = observationSummary(observation('health'));
+  const reportsStatus = summarizeOperationalReportResponse(observation('reports')?.httpStatus ?? null, observation('reports')?.body);
   const identity = observationSummary(observation('identity'));
   const authBoundary = observationSummary(observation('authBoundary'));
   const runtimePayload = observation('runtime')?.body as any;
@@ -183,11 +185,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Neon operational reporting</div>
-          <div className="mt-2"><StatusPill label={report ? 'EXACT COUNTS OBSERVED' : observationSummary(observation('reports')).label} tone={report ? 'good' : 'warn'} /></div>
+          <div className="mt-2"><StatusPill label={reportsStatus.label} tone={report ? 'good' : 'warn'} /></div>
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
             {report
               ? 'Six exact row counts returned through Neon Hyperdrive. This verifies this read-only reporting query, not every database table, write path or application workflow.'
-              : observationSummary(observation('reports')).detail}
+              : reportsStatus.detail}
           </p>
           {typeof databaseLatency === 'number' && <p className="mt-1 text-[10px] text-slate-500">Runtime probe latency: {databaseLatency.toLocaleString()} ms.</p>}
         </div>
