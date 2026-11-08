@@ -125,7 +125,7 @@ export async function discoverConfiguredModelCouncilParticipants(
 export async function submitAuthenticatedModelCouncilRequest(input: {
   agenda: string;
   participants: ModelCouncilSelection[];
-  policyContext?: { minimumMonthlyFloorUsd?: number; globalEpsilon?: number };
+  policyContext?: { minimumMonthlyFloorUsd?: number | null; globalEpsilon?: number | null };
   footprintCount?: number;
   getToken: () => Promise<string | null | undefined>;
   fetcher?: typeof fetch;
