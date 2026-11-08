@@ -60,14 +60,24 @@ test('Cloudflare app-state reads are scoped to the authenticated UID and preserv
   assert.deepEqual(state.telemetryEvents, [{ id: 'event-1' }]);
   assert.deepEqual(state.footprints, [{ id: 'fp-1', isMonetized: true, dataPointsMonthly: 12 }]);
   assert.deepEqual(state.exposures, [{ id: 'exposure-1' }]);
-  assert.deepEqual(state.transactions, [{
-    id: 'paid-1',
-    offerId: 'offer-1',
-    amountUsd: 12.5,
-    currency: 'USD',
-    status: 'paid',
-    createdAt: '2026-11-01T00:00:00.000Z',
-  }]);
+  assert.deepEqual(state.transactions, [
+    {
+      id: 'paid-1',
+      offerId: 'offer-1',
+      amountUsd: 12.5,
+      currency: 'USD',
+      status: 'paid',
+      createdAt: '2026-11-01T00:00:00.000Z',
+    },
+    {
+      id: 'accepted-1',
+      offerId: 'offer-2',
+      amountUsd: 4,
+      currency: 'USD',
+      status: 'accepted',
+      createdAt: '2026-11-02T00:00:00.000Z',
+    },
+  ]);
   assert.equal(state.stats.totalEarnedUsd, 25);
   assert.equal(state.stats.pendingSettlementUsd, 4);
   assert.equal(state.stats.activeDataStreamsCount, 1);
