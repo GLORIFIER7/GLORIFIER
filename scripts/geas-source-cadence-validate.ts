@@ -12,12 +12,25 @@ const registryPath = 'docs/architecture/geas-authoritative-source-registry.json'
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const workflowPath = '.github/workflows/geas-architecture-scan.yml';
 const workflowText = readFileSync(workflowPath, 'utf8');
-const pullRequestSectionStart = workflowText.indexOf('  pull_request:\n');
-const scheduleSectionStart = workflowText.indexOf('\n  schedule:', pullRequestSectionStart);
-const pullRequestSection = pullRequestSectionStart >= 0 && scheduleSectionStart > pullRequestSectionStart
-  ? workflowText.slice(pullRequestSectionStart, scheduleSectionStart)
-  : '';
-if (!pullRequestSection.includes("      - 'scripts/geas-source-catalog-parser.ts'")) {
+const parserPathEntry = "      - 'scripts/geas-source-catalog-parser.ts'";
+const extractPullRequestSection = (text: string): string => {
+  const pullRequestSectionStart = text.indexOf('  pull_request:\n');
+  const scheduleSectionStart = text.indexOf('\n  schedule:', pullRequestSectionStart);
+  return pullRequestSectionStart >= 0 && scheduleSectionStart > pullRequestSectionStart
+    ? text.slice(pullRequestSectionStart, scheduleSectionStart)
+    : '';
+};
+const workflowFixtures = [
+  `on:\n  pull_request:\n    paths:\n${parserPathEntry}\n`,
+  `on:\n  schedule:\n    - cron: "17 */6 * * *"\n  pull_request:\n    paths:\n${parserPathEntry}\n`,
+];
+for (const fixture of workflowFixtures) {
+  if (!extractPullRequestSection(fixture).includes(parserPathEntry)) {
+    throw new Error('GEAS parser trigger extraction must handle absent or preceding schedule sections');
+  }
+}
+const pullRequestSection = extractPullRequestSection(workflowText);
+if (!pullRequestSection.includes(parserPathEntry)) {
   throw new Error('GEAS architecture scan must trigger when its source catalog parser changes');
 }
 
