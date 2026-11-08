@@ -47,7 +47,7 @@ export interface ModelNodeConfig {
   status: 'not-verified';
   latencyMs: number | null;
   color: 'emerald' | 'teal' | 'cyan' | 'purple' | 'amber';
-  privacyBoundary: 'Zero-Knowledge Enclave' | 'Statutory PII Redaction' | 'Cryptographic Perturbation' | 'Sovereign Core Arbitrator';
+  privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence';
 }
 
 const INITIAL_NODES: ModelNodeConfig[] = [
@@ -64,7 +64,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'emerald',
-    privacyBoundary: 'Zero-Knowledge Enclave'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'claude',
@@ -79,7 +79,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'purple',
-    privacyBoundary: 'Sovereign Core Arbitrator'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'gemini-3.8-flash',
@@ -94,7 +94,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'teal',
-    privacyBoundary: 'Cryptographic Perturbation'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'llama-3.3',
@@ -109,7 +109,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'cyan',
-    privacyBoundary: 'Statutory PII Redaction'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'patent-attorney-scientist',
@@ -123,7 +123,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'purple',
-    privacyBoundary: 'Zero-Knowledge Enclave'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'compliance-scientist',
@@ -137,7 +137,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'amber',
-    privacyBoundary: 'Statutory PII Redaction'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   },
   {
     id: 'arbitrator-core',
@@ -151,7 +151,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     status: 'not-verified',
     latencyMs: null,
     color: 'emerald',
-    privacyBoundary: 'Sovereign Core Arbitrator'
+    privacyBoundary: 'NOT VERIFIED · No runtime boundary evidence'
   }
 ];
 
