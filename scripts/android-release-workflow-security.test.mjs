@@ -57,3 +57,12 @@ test('signed and unsigned artifacts have distinct names', () => {
   assert.equal(artifactName('true'), 'glorifier-ai-android-aab');
   assert.equal(artifactName(''), 'glorifier-ai-android-aab-unsigned');
 });
+
+test('temporary Android release keystore is removed even after a failed build', () => {
+  const cleanupStart = workflow.indexOf('      - name: Remove Android release keystore');
+  const unsignedStart = workflow.indexOf('      - name: Build unsigned Android App Bundle');
+  assert.ok(cleanupStart >= 0 && unsignedStart > cleanupStart);
+  const cleanup = workflow.slice(cleanupStart, unsignedStart);
+  assert.match(cleanup, /if: always\(\)/);
+  assert.match(cleanup, /rm -f android\/app\/glorifier-release\.jks/);
+});
