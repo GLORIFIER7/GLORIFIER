@@ -71,3 +71,18 @@ The GLORIFIER AI CEO is the executive orchestration layer above Gemini, Codex, G
 - The AI CEO has no independent financial or legal authority.
 - Consequential production, financial, legal, credential, or destructive actions require human approval.
 - Gemini and Codex remain bounded execution agents operating under this governance layer.
+
+
+## Required engineering collaboration
+
+Gemini is a first-class engineering collaborator in GLORIFIER, with a bounded and auditable role:
+
+- Scheduled and owner-dispatched coding runs may inspect and edit repository source and tests using restricted workspace file tools. They do not receive repository write credentials.
+- A separate publisher validates generated patches, rejects protected workflow, instruction, credential, signing, manifest, and deployment paths, runs independent checks, and opens a draft pull request. It does not merge or deploy.
+- Every non-draft pull request targeting main is intended to receive a Gemini advisory review through the Gemini PR review workflow. The review is published as a GitHub COMMENT review only; it is never an approval or a request-changes decision.
+- The review workflow reads the trusted base branch and retrieves the pull-request diff as untrusted data. It does not check out or execute contributor code. Gemini review tools are read-only.
+- Missing Gemini credentials, oversized review diffs, or empty review output must be reported as failed verification, not represented as a completed review.
+- Repository branch rules should require the Gemini review check before merge. A workflow existing in the repository does not by itself prove that the check is required by branch protection.
+- Independent CI and human review remain required. No agent may merge code or deploy production.
+
+The model job's tool allowlist, credential boundary, and separate publisher are security controls, not evidence that Gemini credentials are currently configured or that a Gemini run has succeeded.
