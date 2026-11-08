@@ -49,8 +49,8 @@ test('Cloudflare app-state reads are scoped to the authenticated UID and preserv
       { id: 'paid-1', offer_id: 'offer-1', amount_minor: 1250, currency: 'USD', status: 'paid', created_at: '2026-11-01T00:00:00.000Z' },
       { id: 'accepted-1', offer_id: 'offer-2', amount_minor: 400, currency: 'USD', status: 'accepted', created_at: '2026-11-02T00:00:00.000Z' },
     ];
-    if (sql.includes('FROM revenue_ledger')) return [{ paid_minor: '5000', refunded_minor: '1000', disputed_minor: '500' }];
-    if (sql.includes('FROM payout_requests')) return [{ reserved_minor: '1000' }];
+    if (sql.includes('revenue_ledger')) return [{ paid_minor: '5000', refunded_minor: '1000', disputed_minor: '500' }];
+    if (sql.includes('payout_requests')) return [{ reserved_minor: '1000' }];
     return [];
   }));
 
