@@ -110,6 +110,71 @@ test('Cloudflare Worker Auth0 verification validates signature and required clai
     env,
     { fetcher, nowSeconds },
   ), null, 'a key identifier absent from the issuer JWKS must be rejected');
+  assert.equal(jwksFetches, 1, 'unknown kids during the per-issuer cooldown must not trigger repeated JWKS requests');
+});
+
+test('Cloudflare Worker Auth0 verification refreshes a fresh JWKS cache when a new key identifier appears', async () => {
+  const originalKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const rotatedKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const originalJwk = {
+    ...originalKeys.publicKey.export({ format: 'jwk' }),
+    kid: 'auth0-rotation-old',
+    use: 'sig',
+    alg: 'RS256',
+  };
+  const rotatedJwk = {
+    ...rotatedKeys.publicKey.export({ format: 'jwk' }),
+    kid: 'auth0-rotation-new',
+    use: 'sig',
+    alg: 'RS256',
+  };
+  const rotationIssuer = 'https://glorifier-rotation-test.eu.auth0.com/';
+  const env: WorkerAuthEnvironment = {
+    AUTH0_ISSUER_BASE_URL: rotationIssuer,
+    AUTH0_AUDIENCE: audience,
+  };
+  const payload = {
+    iss: rotationIssuer,
+    sub: 'auth0|rotation-user',
+    aud: audience,
+    iat: nowSeconds - 10,
+    exp: nowSeconds + 300,
+  };
+  let jwksFetches = 0;
+  const originalDateNow = Date.now;
+  let nowMilliseconds = originalDateNow();
+  Date.now = () => nowMilliseconds;
+  try {
+    const fetcher: typeof fetch = async (input) => {
+      jwksFetches += 1;
+      assert.equal(String(input), new URL('.well-known/jwks.json', rotationIssuer).toString());
+      const keys = jwksFetches === 1 ? [originalJwk] : [originalJwk, rotatedJwk];
+      return new Response(JSON.stringify({ keys }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const originalPrincipal = await verifyWorkerBearerToken(
+      bearer(makeJwt(payload, originalKeys.privateKey, 'auth0-rotation-old')),
+      env,
+      { fetcher, nowSeconds },
+    );
+    assert.equal(originalPrincipal?.uid, 'auth0|rotation-user');
+    assert.equal(jwksFetches, 1);
+
+    // Keep the cached JWKS fresh but move beyond the per-issuer refresh cooldown.
+    nowMilliseconds += 30_001;
+    const rotatedPrincipal = await verifyWorkerBearerToken(
+      bearer(makeJwt(payload, rotatedKeys.privateKey, 'auth0-rotation-new')),
+      env,
+      { fetcher, nowSeconds },
+    );
+    assert.equal(rotatedPrincipal?.uid, 'auth0|rotation-user');
+    assert.equal(jwksFetches, 2, 'a missing kid in a fresh cache must trigger one bounded JWKS refresh');
+  } finally {
+    Date.now = originalDateNow;
+  }
 });
 
 test('Cloudflare Worker Firebase verification checks account status and token revocation', async () => {
