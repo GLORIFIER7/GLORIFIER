@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { routePagesRequest } from '../functions/_shared/proxy.mjs';
 
@@ -84,4 +85,22 @@ test('does not proxy unrelated routes or similarly prefixed path traversal strin
     assert.equal(await result.text(), 'pages-static-shell');
   }
   assert.equal(workerCalls, 0);
+});
+
+
+test('Pages Functions are invoked only for the explicit backend route allowlist', () => {
+  const routes = JSON.parse(readFileSync(new URL('../public/_routes.json', import.meta.url), 'utf8'));
+
+  assert.deepEqual(routes, {
+    version: 1,
+    include: [
+      '/api',
+      '/api/*',
+      '/auth',
+      '/auth/*',
+      '/mcp',
+      '/.well-known/agent-card.json',
+    ],
+    exclude: [],
+  });
 });

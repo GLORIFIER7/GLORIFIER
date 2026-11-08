@@ -63,8 +63,12 @@ jobs:
         env:
           CLOUDFLARE_BUILD: "true"
 
-      - name: Verify static output
-        run: test -s dist/index.html
+      - name: Verify static output and Pages Functions route manifest
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s public/_routes.json
+          cmp public/_routes.json dist/_routes.json
 
       - name: Install pinned Wrangler CLI without lifecycle scripts
         run: npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.151.1
