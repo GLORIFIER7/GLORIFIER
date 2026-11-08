@@ -108,10 +108,17 @@ test('council panel describes a request to configured providers, not all AI or l
   assert.doesNotMatch(client, /footprints: input\\.footprints/);
 
   const management = await readSource('src/components/AiModelsCollaborationManagement.tsx');
-  assert.doesNotMatch(management, /Convene All-AI Council|Enact Directives to Live Policy|CIPP \\/ Privacy Ph\\.D\\./);
-  assert.doesNotMatch(management, /currentPolicy:\\s*policy|footprints:\\s*footprints\\.map/);
-  assert.doesNotMatch(management, /aiModel:\\s*'all-models'|autoNegotiateHighBids:\\s*true/);
-  assert.doesNotMatch(management, /Zero-Knowledge Enclave|Statutory PII Redaction|Cryptographic Perturbation|Sovereign Core Arbitrator/);
+  assert.equal(management.includes('Convene All-AI Council'), false);
+  assert.equal(management.includes('Enact Directives to Live Policy'), false);
+  assert.equal(management.includes('CIPP / Privacy Ph.D.'), false);
+  assert.equal(management.includes('currentPolicy: policy'), false);
+  assert.equal(management.includes('footprints: footprints.map'), false);
+  assert.equal(management.includes("aiModel: 'all-models'"), false);
+  assert.equal(management.includes('autoNegotiateHighBids: true'), false);
+  assert.equal(management.includes('Zero-Knowledge Enclave'), false);
+  assert.equal(management.includes('Statutory PII Redaction'), false);
+  assert.equal(management.includes('Cryptographic Perturbation'), false);
+  assert.equal(management.includes('Sovereign Core Arbitrator'), false);
   assert.match(management, /Display Weight · Not Used by API/);
   assert.match(management, /Intended Boundary Target · NOT VERIFIED/);
   assert.match(management, /not sent to the council API/);
