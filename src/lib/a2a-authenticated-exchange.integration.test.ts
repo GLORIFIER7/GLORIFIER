@@ -145,10 +145,16 @@ test('A2A authenticated exchange verifies bearer identity and scopes task lifecy
   const previousAudience = process.env.AUTH0_AUDIENCE;
   process.env.AUTH0_ISSUER_BASE_URL = issuer;
   process.env.AUTH0_AUDIENCE = audience;
-  globalThis.fetch = async () => new Response(JSON.stringify({ keys: [jwk] }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  globalThis.fetch = async (input, init) => {
+    const requestUrl = input instanceof Request ? input.url : String(input);
+    if (new URL(requestUrl).href === new URL('.well-known/jwks.json', issuer).href) {
+      return new Response(JSON.stringify({ keys: [jwk] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return previousFetch(input, init);
+  };
 
   try {
     await withA2AServer(aliceToken, bobToken, async (origin) => {
