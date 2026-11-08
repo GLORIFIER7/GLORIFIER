@@ -224,6 +224,7 @@ test('Cloudflare Worker internal-service and owner authorization fail closed', a
     provider: 'firebase',
     email: null,
     emailVerified: false,
+    firebaseSignInProvider: null,
     claims: {},
   }, env), true);
   assert.equal(isWorkerOwner({
