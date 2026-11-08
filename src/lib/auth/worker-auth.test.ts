@@ -110,6 +110,7 @@ test('Cloudflare Worker Auth0 verification validates signature and required clai
     env,
     { fetcher, nowSeconds },
   ), null, 'a key identifier absent from the issuer JWKS must be rejected');
+  assert.equal(jwksFetches, 1, 'unknown kids during the per-issuer cooldown must not trigger repeated JWKS requests');
 });
 
 test('Cloudflare Worker Auth0 verification refreshes a fresh JWKS cache when a new key identifier appears', async () => {
