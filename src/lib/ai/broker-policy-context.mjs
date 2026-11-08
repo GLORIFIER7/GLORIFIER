@@ -16,7 +16,7 @@ export function normalizeBrokerPolicyContext(value) {
       ? source.brokerMode
       : 'balanced-protective',
     globalEpsilon:
-      typeof epsilon === 'number' && Number.isFinite(epsilon) && epsilon > 0 ? epsilon : 0.35,
+      typeof epsilon === 'number' && Number.isFinite(epsilon) && epsilon >= 0.1 && epsilon <= 1.0 ? epsilon : 0.35,
     allowAiModelPretraining: source.allowAiModelPretraining === true,
   };
 }
