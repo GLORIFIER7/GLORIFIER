@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   validateDataStatus,
@@ -480,8 +484,11 @@ test('production build provenance uses a GET request and validates the live resp
 
 
 
-test('full-stack smoke sends every probe only to the fixed public Pages origin', async () => {
-  const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
+test('full-stack smoke sends every probe only to the fixed public Pages origin', () => {
+  const smokePath = fileURLToPath(new URL('./full-stack-smoke.mjs', import.meta.url));
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'glorifier-smoke-targets-'));
+  const preloadPath = join(temporaryDirectory, 'preload.mjs');
+  const capturePath = join(temporaryDirectory, 'targets.jsonl');
   const responses = [
     { status: 200, type: 'text/html', body: '<!doctype html>' },
     { status: 200, type: 'application/json', body: { ok: true, status: 'worker-ready', layer: 'cloudflare-worker' } },
@@ -490,58 +497,72 @@ test('full-stack smoke sends every probe only to the fixed public Pages origin',
     { status: 200, type: 'application/json', body: { ok: true, status: 'operational-data-observed', evidence: { exactRowCounts: true } } },
     { status: 200, type: 'application/json', body: { ok: true, status: 'verified-for-probed-dependencies', checks: { database: { ok: true } } } },
   ];
-  const requests = [];
-  const messages = [];
-  const fetchStub = async (input, options) => {
-    const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
-    requests.push({ target, options });
-    const result = responses[requests.length - 1];
-    assert.ok(result, `unexpected extra probe: ${target.href}`);
-    return {
-      ok: result.status >= 200 && result.status < 300,
-      status: result.status,
-      headers: { get: (name) => name.toLowerCase() === 'content-type' ? result.type : null },
-      text: async () => typeof result.body === 'string' ? result.body : JSON.stringify(result.body),
+
+  try {
+    writeFileSync(capturePath, '');
+    const preloadSource = `
+      import { appendFileSync } from 'node:fs';
+      const responses = ${JSON.stringify(responses)};
+      let index = 0;
+      globalThis.fetch = async (input, options = {}) => {
+        const target = new URL(typeof input === 'string' ? input : input.url);
+        appendFileSync(process.env.SMOKE_CAPTURE_FILE, JSON.stringify({
+          target: target.href,
+          method: options.method || 'GET',
+        }) + '\\n');
+        const result = responses[index++];
+        if (!result) throw new Error('unexpected extra probe: ' + target.href);
+        const body = typeof result.body === 'string' ? result.body : JSON.stringify(result.body);
+        return new Response(body, {
+          status: result.status,
+          headers: { 'content-type': result.type },
+        });
+      };
+    `;
+    writeFileSync(preloadPath, preloadSource);
+
+    const execution = spawnSync(
+      process.execPath,
+      ['--import', preloadPath, smokePath],
+      {
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { ...process.env, SMOKE_CAPTURE_FILE: capturePath },
+      },
+    );
+    assert.equal(execution.error, undefined, execution.error?.message);
+    assert.equal(execution.status, 0,
+      `smoke process failed\\nstdout:\\n${execution.stdout}\\nstderr:\\n${execution.stderr}`);
+
+    const requests = readFileSync(capturePath, 'utf8')
+      .trim()
+      .split('\\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    const assertPublicProbeTargets = (targets) => {
+      for (const target of targets) {
+        const url = new URL(target);
+        assert.equal(url.origin, 'https://glorifier.pages.dev', `unexpected smoke target: ${url.href}`);
+        assert.equal(url.username, '', 'smoke targets must not embed credentials');
+        assert.equal(url.password, '', 'smoke targets must not embed credentials');
+        assert.notEqual(url.hostname, 'glorifier.glorifier.workers.dev');
+      }
     };
-  };
-  const consoleStub = Object.fromEntries(['log', 'warn', 'error'].map((level) => [
-    level,
-    (...parts) => messages.push([level, ...parts].join(' ')),
-  ]));
-  const processStub = {
-    exit: (code) => { throw new Error(`smoke script exited with code ${code}`); },
-  };
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-  await new AsyncFunction('fetch', 'URL', 'AbortSignal', 'console', 'process', 'Date', smokeSource)(
-    fetchStub,
-    URL,
-    { timeout: (milliseconds) => ({ milliseconds }) },
-    consoleStub,
-    processStub,
-    Date,
-  );
 
-  const assertPublicProbeTargets = (targets) => {
-    for (const target of targets) {
-      const url = target instanceof URL ? target : new URL(target);
-      assert.equal(url.origin, 'https://glorifier.pages.dev', `unexpected smoke target: ${url.href}`);
-      assert.equal(url.username, '', 'smoke targets must not embed credentials');
-      assert.equal(url.password, '', 'smoke targets must not embed credentials');
-      assert.notEqual(url.hostname, 'glorifier.glorifier.workers.dev');
-    }
-  };
-
-  assert.equal(requests.length, responses.length, 'every expected probe must execute exactly once');
-  assertPublicProbeTargets(requests.map(({ target }) => target));
-  assert.ok(requests.every(({ options }) => !options?.method || options.method.toUpperCase() === 'GET'),
-    'production smoke probes must remain read-only');
-  assert.ok(messages.some((message) => message.includes('CLOUDFLARE PRODUCTION VERIFICATION PASSED')));
-  assert.throws(
-    () => assertPublicProbeTargets(['https://glorifier.glorifier.workers.dev/api/health']),
-    /unexpected smoke target/,
-  );
-  assert.throws(
-    () => assertPublicProbeTargets(['https://attacker.example/api/health']),
-    /unexpected smoke target/,
-  );
+    assert.equal(requests.length, responses.length, 'every expected probe must execute exactly once');
+    assertPublicProbeTargets(requests.map(({ target }) => target));
+    assert.ok(requests.every(({ method }) => method === 'GET'),
+      'production smoke probes must remain read-only');
+    assert.match(execution.stdout, /CLOUDFLARE PRODUCTION VERIFICATION PASSED/);
+    assert.throws(
+      () => assertPublicProbeTargets(['https://glorifier.glorifier.workers.dev/api/health']),
+      /unexpected smoke target/,
+    );
+    assert.throws(
+      () => assertPublicProbeTargets(['https://attacker.example/api/health']),
+      /unexpected smoke target/,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
