@@ -255,7 +255,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 {isConvening ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Convening All AI Models...</span>
+                    <span>Requesting council responses from configured providers...</span>
                   </>
                 ) : (
                   <>

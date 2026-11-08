@@ -95,6 +95,8 @@ test('council panel describes a request to configured providers, not all AI or l
 
   assert.match(council, /Configured-Provider AI Council/);
   assert.match(council, /Request Council Responses/);
+  assert.doesNotMatch(council, /Convening All AI Models/);
+  assert.match(council, /Requesting council responses from configured providers/);
   assert.match(council, /This is advisory discussion only/i);
   assert.match(council, /up to eight/);
   assert.match(council, /source names, records, wallet details, and payment settings are not sent/i);
