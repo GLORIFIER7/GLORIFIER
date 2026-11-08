@@ -6,6 +6,7 @@ import {
   summarizeEndpoint,
   summarizeOperationalReportResponse,
   summarizeRevenueEvidence,
+  summarizeValuationEvidence,
   summarizeRuntime,
   type EndpointSummary,
   type OperationalReport,
@@ -56,7 +57,7 @@ const observationSummary = (observation?: Observation): EndpointSummary =>
   summarizeEndpoint(observation?.httpStatus ?? null, observation?.body);
 
 const formatTimestamp = (value: string | null | undefined): string =>
-  value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not supplied by the source';
+  value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(undefined, { timeZoneName: 'short' }) : 'Not supplied by the source';
 
 const StatusPill: React.FC<{ label: string; tone?: 'good' | 'warn' | 'neutral' }> = ({ label, tone = 'neutral' }) => {
   const toneClass = tone === 'good'
@@ -130,6 +131,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
   const databaseLatency = runtimePayload?.checks?.database?.latencyMs;
   const revenueEvidence = summarizeRevenueEvidence(report);
   const identityPayload = (observation('identity')?.body as any)?.identity;
+  const valuationEvidence = summarizeValuationEvidence(observation('valuation')?.httpStatus ?? null, observation('valuation')?.body);
 
   const legacyRoutes: ReadonlyArray<{ key: keyof typeof ENDPOINTS; name: string; path: string }> = [
     { key: 'assets', name: 'Asset custody and verification', path: ENDPOINTS.assets },
@@ -273,7 +275,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
           <h2 className="text-base font-bold text-white">Other Overview APIs</h2>
         </div>
         <p className="mt-1 text-[11px] text-slate-400">
-          These GET routes power asset, valuation, economic, monetization and work-unit panels. Their current response is shown individually; an unavailable route is not replaced with a guessed value.
+          These GET routes correspond to asset, valuation, economic, monetization and work-unit UI modules. Their current response is shown individually; an unavailable route is not replaced with a guessed value.
         </p>
         <div className="mt-2">
           {legacyRoutes.map((route) => (
@@ -302,8 +304,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
             <div className="text-[10px] uppercase text-slate-400">Company valuation</div>
-            <div className="mt-2 text-sm font-bold text-amber-200">{observationSummary(observation('valuation')).label === 'RESPONDING' ? 'Model endpoint responding; estimate is not market value' : 'NOT OBSERVABLE'}</div>
-            <p className="mt-1 text-[11px] text-slate-400">No company valuation or market price is inferred from software activity counts.</p>
+            <div className="mt-2 text-sm font-bold text-amber-200">{valuationEvidence.label}</div>
+            <p className="mt-1 text-[11px] text-slate-400">{valuationEvidence.detail} No company valuation or market price is inferred from software activity counts.</p>
           </div>
         </div>
       </section>

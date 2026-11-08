@@ -4,6 +4,7 @@ import {
   parseOperationalReport,
   summarizeEndpoint,
   summarizeOperationalReportResponse,
+  summarizeValuationEvidence,
   summarizeRevenueEvidence,
   summarizeRuntime,
 } from './public-evidence-overview';
@@ -26,6 +27,26 @@ const validReport = {
     revenue: 'not-observable-from-operational-tables',
   },
 };
+
+test('distinguishes an unavailable valuation endpoint from an unobservable valuation', () => {
+  const unavailable = summarizeValuationEvidence(503, {
+    ok: false,
+    status: 'unavailable',
+    code: 'BACKEND_ORIGIN_NOT_CONFIGURED',
+  });
+  assert.equal(unavailable.label, 'NOT VERIFIED — ENDPOINT UNAVAILABLE');
+
+  const responding = summarizeValuationEvidence(200, {
+    ok: true,
+    status: 'estimate-returned',
+    estimate: 125000,
+  });
+  assert.equal(responding.label, 'ENDPOINT RESPONDING · OUTPUT NOT VERIFIED');
+  assert.match(responding.detail, /does not establish a verified company valuation/);
+
+  const unknown = summarizeValuationEvidence(null, null);
+  assert.equal(unknown.label, 'NOT VERIFIED — NO RESPONSE');
+});
 
 test('does not infer revenue status when the operational report is missing', () => {
   const result = summarizeRevenueEvidence(null);
