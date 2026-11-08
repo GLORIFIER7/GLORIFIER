@@ -430,18 +430,6 @@ app.post('/api/ai/finance-scientists', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/ai/compliance-scientist', async (req: Request, res: Response) => {
-  try {
-    const objective = 'Analyze the supplied compliance context against evidence and identify controls, gaps, and uncertainties. Do not invent legal facts or claim legal representation. Context: ' + JSON.stringify(req.body || {});
-    const result = await runSpecialistCouncil({ objective, roles: ['compliance-scientist'], standingMission: false, temperature: 0.2 });
-    const findings = result.result?.findings || [];
-    if (!findings.length) return res.status(503).json({ ok: false, error: 'No verified compliance-scientist provider response was available.' });
-    res.json({ ok: true, result });
-  } catch (error: any) {
-    res.status(503).json({ ok: false, error: 'Compliance scientist execution unavailable' });
-  }
-});
-
 const integrationStatus = [
   { id: 'github', name: 'GitHub', category: 'code', status: 'connected', detail: 'Repository control and CI source', publicUrl: 'https://github.com/GLORIFIER7/GLORIFIER' },
   { id: 'npm', name: 'npm', category: 'package', status: 'connected', detail: 'Dependency and package monitoring', publicUrl: 'https://www.npmjs.com/~glorifier' },

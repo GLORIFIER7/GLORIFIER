@@ -61,3 +61,16 @@ test('privacy demonstrations do not imply production safe harbor or runtime prot
   assert.match(privacyLab, /no production privacy-budget accounting or zero-disclosure guarantee has been verified/i);
   assert.match(privacyLab, /not sent or sold/i);
 });
+
+
+test('compliance endpoint is registered once to the evidence-aware handler', () => {
+  const registrations = [...server.matchAll(/app\\.post\\(\\s*['"]\\/api\\/ai\\/compliance-scientist['"]/g)];
+  assert.equal(registrations.length, 1, 'the compliance endpoint must have exactly one Express registration');
+  assert.match(server, /app\\.post\\(\\s*['"]\\/api\\/ai\\/compliance-scientist['"]\\s*,\\s*handleComplianceScientistRequest\\s*\\)/);
+  assert.match(server, /success:\\s*true,\\s*content,/);
+});
+
+test('compliance model selection does not mislabel automatic routing as dual-provider consensus', () => {
+  assert.match(ui, /value="auto"[^>]*>Automatic provider routing \\(requested\\)<\\/option>/);
+  assert.doesNotMatch(ui, /Dual-provider consensus|dual-consensus engine/i);
+});

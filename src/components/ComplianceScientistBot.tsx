@@ -56,7 +56,7 @@ export const ComplianceScientistBot: React.FC<ComplianceScientistBotProps> = ({
   onOpenGptCoWorkTab
 }) => {
   const [specialtyMode, setSpecialtyMode] = useState<ComplianceSpecialtyMode>('gdpr_erasure_dpia');
-  const [aiModel, setAiModel] = useState<'gemini-3.8-flash' | 'gpt-4o' | 'consensus'>('gemini-3.8-flash');
+  const [aiModel, setAiModel] = useState<'gemini-3.8-flash' | 'gpt-4o' | 'auto'>('gemini-3.8-flash');
   const [aiQuestion, setAiQuestion] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
@@ -348,7 +348,7 @@ AI-generated responses, when available, are advisory and require human review.`
               >
                 <option value="gemini-3.8-flash" className="bg-slate-900 text-slate-200">Gemini 3.8 Flash (requested)</option>
                 <option value="gpt-4o" className="bg-slate-900 text-slate-200">OpenAI GPT-4o (requested)</option>
-                <option value="consensus" className="bg-slate-900 text-slate-200">Dual-provider consensus (requested)</option>
+                <option value="auto" className="bg-slate-900 text-slate-200">Automatic provider routing (requested)</option>
               </select>
             </div>
 
@@ -519,7 +519,7 @@ AI-generated responses, when available, are advisory and require human review.`
               'Classify the autonomous multi-provider AI orchestrator under the EU AI Act (Reg. 2024/1689)',
               'Verify Article 50 transparency obligations for AI-generated synthetic profiles',
               'Screen the described use against each potentially relevant Article 5 prohibited practice; identify missing facts and do not presume a clean result.',
-              'Draft GPAI (General Purpose AI) systemic risk assessment for our dual-consensus engine'
+              'Draft a GPAI (General Purpose AI) systemic-risk applicability checklist for a configured multi-provider AI system; do not assume consensus or execution.'
             ].map((q, i) => (
               <button
                 key={i}
