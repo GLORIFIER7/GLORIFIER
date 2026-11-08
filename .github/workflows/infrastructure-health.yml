@@ -79,11 +79,11 @@ jobs:
           status="$(curl -sS -o "$body" -w "%{http_code}" --max-time 15 "$url")"
           echo "Unauthenticated protected API HTTP status: $status"
           case "$status" in
-            401|403)
+            401)
               echo "Protected API correctly rejected an unauthenticated request"
               ;;
             *)
-              echo "::error::Expected HTTP 401 or 403 from the protected app-state endpoint; received HTTP $status"
+              echo "::error::Expected HTTP 401 from the protected app-state endpoint; received HTTP $status"
               exit 1
               ;;
           esac
