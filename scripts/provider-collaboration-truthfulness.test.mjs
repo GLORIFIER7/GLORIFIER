@@ -3,12 +3,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const studio = read('../src/components/WorkTogetherWithGptStudio.tsx');
-const server = read('../server.ts');
 
 test('work-together UI labels provider requests and reports agreement as unmeasured', () => {
-  assert.match(studio, /OpenAI provider request/);
-  assert.match(studio, /Google Gemini provider request/);
+  const studio = read('../src/components/WorkTogetherWithGptStudio.tsx');
+
+  assert.match(studio, /OpenAI \+ Google Gemini provider requests/);
   assert.match(studio, /agreement NOT MEASURED/i);
   assert.match(studio, /cryptographic review NOT VERIFIED/i);
 
@@ -26,16 +25,20 @@ test('work-together UI labels provider requests and reports agreement as unmeasu
   }
 });
 
-test('work-together backend requires separate provider responses and does not claim consensus', () => {
+test('work-together backend requires separate provider responses and does not claim consensus or joint authorship', () => {
+  const server = read('../server.ts');
   const start = server.indexOf("app.post('/api/ai/work-together-gpt'");
-  const end = server.indexOf('\napp.', start + 10);
-  assert.ok(start >= 0 && end > start, 'work-together route must exist');
+  const boundary = '\n// =========================================================================\n// 24/7 Standing Continuous Co-Working Autopilot Engine';
+  const end = server.indexOf(boundary, start);
+  assert.ok(start >= 0 && end > start, 'work-together route must end before the 24/7 engine section');
   const route = server.slice(start, end);
 
   assert.match(route, /requiredProvider: 'openai'/);
   assert.match(route, /requiredProvider: 'gemini'/);
   assert.match(route, /consensusScore: null/);
-  assert.match(route, /consensusStatus: 'NOT MEASURED/);
+  assert.match(route, /consensusStatus: 'NOT MEASURED'/);
   assert.match(route, /actual returned model/);
   assert.match(route, /No agreement or verification is asserted unless both providers actually responded/);
+  assert.match(route, /Provider Collaboration Output/);
+  assert.doesNotMatch(route, /Joint Co-Authored Artifact/);
 });
