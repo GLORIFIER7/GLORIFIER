@@ -90,12 +90,12 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: goal,
-          currentPolicy: policy,
-          footprintsSummary: JSON.stringify({
-            monthlyPacingUsd: stats.monthlyPacingUsd,
-            activeDataStreamsCount: stats.activeDataStreamsCount,
-            privacyShieldIndex: stats.privacyShieldIndex,
-          }),
+          policyContext: {
+            minimumMonthlyFloorUsd: policy.minimumMonthlyFloorUsd,
+            brokerMode: policy.brokerMode,
+            globalEpsilon: policy.globalEpsilon,
+            allowAiModelPretraining: policy.allowAiModelPretraining,
+          },
         }),
       });
       const data = await response.json();
