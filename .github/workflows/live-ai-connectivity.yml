@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_metered_probes:
-        description: 'Authorize one short inference request per configured provider and one two-provider AI Council canary. May incur charges.'
+        description: 'May incur charges: one inference call per configured provider (up to four), plus two AI Council participant calls and a possible third synthesis call (up to seven generation calls total).'
         required: true
         default: false
         type: boolean
