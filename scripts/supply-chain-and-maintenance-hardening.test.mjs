@@ -328,3 +328,12 @@ test('Gemini PR review fails visibly when the Gemini credential is unavailable',
   assert.match(geminiReviewWorkflow, /GEMINI_API_KEY is unavailable/);
   assert.match(geminiReviewWorkflow, /exit 1/);
 });
+
+
+test('NVIDIA patch generation disables reasoning so the bounded response budget produces patch text', () => {
+  const requestStart = nvidiaMaintenanceWorkflow.indexOf('payload={', nvidiaMaintenanceWorkflow.indexOf('- name: Request a constrained patch from Nemotron'));
+  const requestEnd = nvidiaMaintenanceWorkflow.indexOf('Path("request.json").write_text', requestStart);
+  assert.ok(requestStart >= 0 && requestEnd > requestStart, 'the Nemotron request payload must be extractable');
+  const payload = nvidiaMaintenanceWorkflow.slice(requestStart, requestEnd);
+  assert.match(payload, /"reasoning_effort"\s*:\s*"none"/);
+});
