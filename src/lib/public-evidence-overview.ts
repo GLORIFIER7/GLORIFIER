@@ -93,6 +93,35 @@ export function summarizeEndpoint(httpStatus: number | null, payload: unknown): 
   return { label: 'HTTP ' + httpStatus, detail: 'The endpoint did not return its required success contract.' };
 }
 
+export function summarizeValuationEvidence(
+  httpStatus: number | null,
+  payload: unknown,
+): EndpointSummary {
+  const endpoint = summarizeEndpoint(httpStatus, payload);
+  if (endpoint.label === 'RESPONDING') {
+    return {
+      label: 'ENDPOINT RESPONDING · OUTPUT NOT VERIFIED',
+      detail: 'The endpoint returned a success response, but this check does not establish a verified company valuation or market price.',
+    };
+  }
+  if (endpoint.label === 'NOT AVAILABLE') {
+    return {
+      label: 'NOT VERIFIED — ENDPOINT UNAVAILABLE',
+      detail: endpoint.detail,
+    };
+  }
+  if (endpoint.label === 'UNKNOWN') {
+    return {
+      label: 'NOT VERIFIED — NO RESPONSE',
+      detail: endpoint.detail,
+    };
+  }
+  return {
+    label: 'NOT VERIFIED',
+    detail: endpoint.detail,
+  };
+}
+
 export function summarizeOperationalReportResponse(
   httpStatus: number | null,
   payload: unknown,
