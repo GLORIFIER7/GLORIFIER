@@ -48,16 +48,12 @@ export const AiBrokerConsole: React.FC<AiBrokerConsoleProps> = ({
     {
       id: 'msg-welcome',
       sender: 'ai_broker',
-      content: `Welcome to the GLORIFIER broker console. This is static starter text, not a live AI response. Some panels use local sample policy values. Provider availability, real data streams, privacy enforcement, commercial bids, and revenue have not been verified. Changing a setting here does not earn, collect, or pay money.
+      content: `Welcome to the GLORIFIER broker console. This panel sends questions to a configured AI inference endpoint and displays returned text. It does not execute privacy transformations, external audits, buyer negotiations, statutory notices, data releases, cryptographic proofs, or payments. Provider availability, real data streams, privacy enforcement, commercial bids, and revenue have not been verified.
 
-Choose an action to request a backend response. Any returned claim must be checked against its source and evidence.`,
+Treat every response as AI-generated analysis or draft text, not evidence that an action occurred. Verify important claims against an independent source.`,
       timestamp: 'Template — not generated at runtime',
       modelUsed: 'Starter template (not an AI result)',
       provider: 'Not verified',
-      suggestedAction: {
-        label: 'Audit Active Tracker Exposure',
-        type: 'run_audit'
-      }
     }
   ]);
 
@@ -140,7 +136,7 @@ Choose an action to request a backend response. Any returned claim must be check
       content: `Local policy preferences updated from the selected optimizer proposal.\n\nProposal rationale: ${rationale}\n\n• Configured privacy target ε: ${optimizedPolicy.globalEpsilon ?? 'unchanged'}\n• Configured monthly floor: ${optimizedPolicy.minimumMonthlyFloorUsd ?? 'unchanged'}\n• Local mode setting: ${optimizedPolicy.brokerMode ?? 'unchanged'}\n• Runtime privacy enforcement, proof attestation, provider execution, and revenue impact: NOT VERIFIED.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       modelUsed: selectedModel,
-      provider: 'AI Policy Optimizer'
+      provider: 'Local policy preset'
     };
 
     setMessages(prev => [...prev, optimizerMsg]);
@@ -162,11 +158,11 @@ Choose an action to request a backend response. Any returned claim must be check
   };
 
   const quickPrompts = [
-    'Invite all artificial intelligence models to collaborate on my data strategy',
-    'Run AI Policy Optimizer to tune my epsilon and privacy tier',
-    'Ask the configured AI provider to propose a +25% rate for my developer code telemetry',
-    'Request a multi-provider audit of my search and browsing streams for quasi-identifiers',
-    'Draft a strict CCPA / GDPR statutory clawback demand letter',
+    'Ask configured AI providers to review my data-governance strategy (participation not guaranteed)',
+    'Compare local privacy presets for my stated risk tolerance (illustrative only)',
+    'Ask an AI provider to propose a +25% rate for my developer telemetry (no buyer contact)',
+    'Discuss a privacy-review checklist for search and browsing metadata (no data audit)',
+    'Draft a preliminary data-erasure request for legal review (jurisdiction and entitlement not assumed)',
   ];
 
   const handleSendMessage = async (customText?: string) => {
@@ -204,14 +200,17 @@ Choose an action to request a backend response. Any returned claim must be check
     setIsLoading(true);
 
     try {
-      const activeStreams = footprints.filter(f => f.isMonetized).map(f => f.name).join(', ');
-      const res = await fetch('/api/ai/broker-chat', {
+        const res = await fetch('/api/ai/broker-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: textToSend,
-          currentPolicy: { ...policy, aiModel: executableModel },
-          footprintsSummary: activeStreams,
+          policyContext: {
+            minimumMonthlyFloorUsd: policy.minimumMonthlyFloorUsd,
+            brokerMode: policy.brokerMode,
+            globalEpsilon: policy.globalEpsilon,
+            allowAiModelPretraining: policy.allowAiModelPretraining
+          },
           model: executableModel
         })
       });
@@ -223,10 +222,10 @@ Choose an action to request a backend response. Any returned claim must be check
       const brokerMsg: AiBrokerChatMessage = {
         id: newId('broker'),
         sender: 'ai_broker',
-        content: data.reply || 'The broker API returned no reply text. No audit, privacy enforcement, or revenue outcome is verified.',
+        content: data.reply ? `${String(data.reply)}\n\nExecution boundary: this endpoint returns AI-generated text only. It does not execute an audit, privacy transformation, buyer negotiation, data release, statutory notice, cryptographic proof, or payment.` : 'The broker API returned no reply text. No action was executed.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         suggestedAction: data.suggestedAction,
-        modelUsed: data.modelUsed || selectedModel,
+        modelUsed: data.modelUsed || 'Model not reported',
         provider: data.provider || 'Provider not reported'
       };
 
@@ -262,10 +261,10 @@ Choose an action to request a backend response. Any returned claim must be check
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">DataSovereign AI Broker</h3>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <h3 className="text-sm font-bold text-white">DataSovereign AI Assistant</h3>
+                  <span aria-label="Provider state not verified" className="w-2 h-2 rounded-full bg-amber-400"></span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                    {selectedModel === 'auto' ? 'AUTO PREFERENCE · NOT VERIFIED' : selectedModel.toUpperCase()}
+                    {selectedModel === 'auto' ? 'AUTO PREFERENCE · NOT VERIFIED' : 'MODEL PREFERENCE · NOT INFERENCE'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
@@ -322,7 +321,7 @@ Choose an action to request a backend response. Any returned claim must be check
                   : !hasUserSelectedModel.current && savedModelPreference.current !== 'auto' && selectedModel === 'auto'
                     ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; Auto is selected, but provider selection and inference are not verified.'
                     : discoveredModelOptions.length
-                      ? discoveredModelOptions.length + ' authenticated provider model IDs discovered. Discovery does not guarantee successful inference.'
+                      ? discoveredModelOptions.length + ' read-only model-list IDs discovered. Inference permission and execution are not verified.'
                       : 'No authenticated provider model IDs were discovered. No provider selection or inference is confirmed.'}
               </p>
               <button
@@ -381,17 +380,12 @@ Choose an action to request a backend response. Any returned claim must be check
                   <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
                     <button
                       onClick={() => {
-                        if (msg.suggestedAction?.type === 'maximize_yield') {
-                          onUpdatePolicy({ brokerMode: 'autonomous-maximize', globalEpsilon: 0.65 });
-                        } else if (msg.suggestedAction?.type === 'apply_policy') {
-                          onUpdatePolicy({ globalEpsilon: 0.2 });
-                        }
-                        handleSendMessage(`Action applied: ${msg.suggestedAction?.label}`);
+                        handleSendMessage(`Explain the recommended next steps for: ${msg.suggestedAction?.label}. This is a request for analysis only; do not claim that the action was executed.`);
                       }}
                       className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 underline underline-offset-2"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      {msg.suggestedAction.label}
+                      {`Ask about: ${msg.suggestedAction.label}`}
                     </button>
                   </div>
                 )}
@@ -420,7 +414,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 <span className="inline-block w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"></span>
                 <span className="inline-block w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                 <span className="inline-block w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                <span className="text-[11px]">Evaluating data valuation & privacy proofs...</span>
+                <span className="text-[11px]">Waiting for an AI text response. No data audit or privacy proof is being executed.</span>
               </div>
             </div>
           )}
@@ -455,7 +449,7 @@ Choose an action to request a backend response. Any returned claim must be check
               id="ai-broker-input"
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
-              placeholder="Ask your AI broker to audit streams, counter offers, or tighten privacy..."
+              placeholder="Ask for analysis or draft text. This chat does not audit streams, transform data, negotiate, or send notices..."
               className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
             <button
@@ -476,7 +470,7 @@ Choose an action to request a backend response. Any returned claim must be check
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Sliders className="w-4 h-4 text-emerald-400" />
-              Autonomous Policy Directives
+              Local Policy Preferences
             </h3>
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
@@ -489,7 +483,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 title="Request a multi-provider council review using the currently eligible provider registry"
               >
                 <Users className="w-3.5 h-3.5 fill-slate-950 group-hover:scale-110 transition-transform" />
-                <span>Invite All AI</span>
+                <span>Request Council Review</span>
               </button>
               <button
                 type="button"
@@ -499,7 +493,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 title="Calibrate optimal epsilon and privacy tier settings based on risk tolerance"
               >
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400 group-hover:rotate-12 transition-transform" />
-                <span>Optimizer</span>
+                <span>Policy Presets</span>
               </button>
             </div>
           </div>
@@ -511,7 +505,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 <Users className="w-4 h-4" />
               </div>
               <div className="text-[11px] text-slate-300 leading-tight">
-                <span className="font-semibold text-white">All-AI Collaboration Council: </span>
+                <span className="font-semibold text-white">Configured-Provider Council: </span>
                 <span className="text-slate-400">Request a multi-provider review; provider participation and consensus are reported only after a response.</span>
               </div>
             </div>
@@ -534,8 +528,8 @@ Choose an action to request a backend response. Any returned claim must be check
                 <Sparkles className="w-3.5 h-3.5" />
               </div>
               <div className="text-[11px] text-slate-300 leading-tight">
-                <span className="font-semibold text-white">Risk-Tuned Directives: </span>
-                <span>Calibrate optimal ε and privacy tiers for your risk tolerance.</span>
+                <span className="font-semibold text-white">Illustrative Policy Presets: </span>
+                <span>Compare local ε targets and buyer-purpose preferences. No optimization or enforcement runs.</span>
               </div>
             </div>
             <button
@@ -549,19 +543,19 @@ Choose an action to request a backend response. Any returned claim must be check
           </div>
 
           <p className="text-xs text-slate-400 mb-4">
-            Your AI broker automatically applies these governing thresholds to all incoming buyer bids and data license requests.
+            These controls store local policy preferences only. They are not a server-side authorization boundary: changing them does not accept, reject, counter, or block buyer bids. Runtime enforcement is NOT VERIFIED.
           </p>
 
           <div className="space-y-4">
             {/* Minimum Floor Slider */}
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="font-semibold text-slate-300">Minimum Monthly Compensation Floor</span>
+                <span className="font-semibold text-slate-300">Preferred Monthly Compensation Floor (Configuration Only)</span>
                 <span className="font-mono font-bold text-emerald-400">${policy.minimumMonthlyFloorUsd}/mo</span>
               </div>
               <input
                 type="range"
-                min="10"
+                min="0"
                 max="100"
                 step="5"
                 value={policy.minimumMonthlyFloorUsd}
@@ -569,16 +563,16 @@ Choose an action to request a backend response. Any returned claim must be check
                 className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
-                <span>$10/mo (Relaxed)</span>
-                <span>$35/mo (Standard)</span>
-                <span>$100/mo (Premium)</span>
+                <span>$0/mo (No minimum)</span>
+                <span>$35/mo (Illustrative)</span>
+                <span>$100/mo (Illustrative)</span>
               </div>
             </div>
 
             {/* Global Epsilon Slider */}
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="font-semibold text-slate-300">Global Privacy Ceiling (Max ε)</span>
+                <span className="font-semibold text-slate-300">Configured Maximum ε Target (Not Enforcement)</span>
                 <span className="font-mono font-bold text-emerald-400">ε = {policy.globalEpsilon}</span>
               </div>
               <input
@@ -591,15 +585,16 @@ Choose an action to request a backend response. Any returned claim must be check
                 className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
               />
               <p className="text-[10px] text-slate-500 mt-1">
-                Bids requesting higher epsilon (lower privacy noise) will be auto-rejected or countered.
+                Local configuration target only. This control does not transform data, enforce a privacy budget, or reject buyer requests; no differential-privacy mechanism is executed here.
               </p>
             </div>
 
             {/* Allowed Buyer Purposes Toggles */}
             <div className="pt-3 border-t border-slate-800 space-y-2.5">
               <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                Permitted Buyer Categories
+                Buyer-Purpose Preferences (Local Only)
               </label>
+              <p className="text-[10px] text-slate-500">These switches record application preferences only. They do not authorize or block an external data release.</p>
 
               {/* AI Pretraining */}
               <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
@@ -662,7 +657,7 @@ Choose an action to request a backend response. Any returned claim must be check
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
               <div>
                 <div className="text-xs font-semibold text-white">Auto-Counter High Value Bids</div>
-                <div className="text-[10px] text-slate-400">Negotiate +25% higher compensation if buyer reputation &gt; 90</div>
+                <div className="text-[10px] text-slate-400">Local preference only. This control does not contact buyers or send a counter-offer; negotiation execution is NOT VERIFIED.</div>
               </div>
               <input
                 type="checkbox"
@@ -719,7 +714,7 @@ Choose an action to request a backend response. Any returned claim must be check
             <div className="flex justify-between pt-0.5">
               <span>Negotiation Capability:</span>
               <span className="text-slate-200">
-                {selectedModel === 'auto' ? 'Automatic provider selection; actual provider is shown with each response' : 'Selected model preference; execution and provider availability are not guaranteed'}
+                'AI-generated text only; no buyer negotiation or commercial offer is executed by this console.'
               </span>
             </div>
           </div>
