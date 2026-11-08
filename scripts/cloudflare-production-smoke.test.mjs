@@ -530,7 +530,7 @@ test('full-stack smoke sends every probe only to the fixed public Pages origin',
         appendFileSync(process.env.SMOKE_CAPTURE_FILE, JSON.stringify({
           target: target.href,
           method,
-        }) + '\\\\n');
+        }) + '\\n');
         const result = responses.get(target.href);
         if (!result) throw new Error('unexpected probe URL: ' + target.href);
         const body = typeof result.body === 'string' ? result.body : JSON.stringify(result.body);
