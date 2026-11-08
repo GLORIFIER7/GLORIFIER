@@ -81,7 +81,7 @@ test('app-state route rejects missing bearer authentication before database acce
   );
 
   assert.equal(response.status, 401);
-  assert.equal(response.headers.get('www-authenticate'), 'Bearer');
+  assert.equal(response.headers.get('www-authenticate'), 'Bearer realm="GLORIFIER"');
   assert.equal((await response.json() as { code: string }).code, 'AUTHENTICATION_REQUIRED');
   assert.equal(databaseCalls, 0);
 });
@@ -107,7 +107,7 @@ test('app-state route rejects invalid bearer credentials', async () => {
   );
 
   assert.equal(response.status, 401);
-  assert.equal(response.headers.get('www-authenticate'), 'Bearer');
+  assert.equal(response.headers.get('www-authenticate'), 'Bearer realm="GLORIFIER"');
   assert.equal((await response.json() as { code: string }).code, 'AUTHENTICATION_REQUIRED');
 });
 
