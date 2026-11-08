@@ -85,7 +85,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          changed_files_json="$(gh api --paginate --slurp "repos/\${GH_REPO}/pulls/\${PR_NUMBER}/files?per_page=100")"
+          changed_files_json="$(gh api --paginate --slurp "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100")"
           changed_file_count="$(jq '[.[][]] | length' <<<"$changed_files_json")"
           changed_paths="$(jq -r '.[][] | .filename, (.previous_filename // empty)' <<<"$changed_files_json")"
           if (( changed_file_count >= 3000 )); then
