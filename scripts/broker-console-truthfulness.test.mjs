@@ -108,7 +108,9 @@ test('council panel describes a request to configured providers, not all AI or l
   assert.match(client, /policyContext: input\.policyContext/);
   assert.match(client, /footprintCount: input\.footprintCount/);
   assert.doesNotMatch(client, /currentPolicy: input\.currentPolicy/);
-  assert.doesNotMatch(client, /footprints: input\\.footprints/);
+  const forbiddenFootprintForwarding = /footprints: input\.footprints/;
+  assert.match('footprints: input.footprints', forbiddenFootprintForwarding);
+  assert.doesNotMatch(client, forbiddenFootprintForwarding);
 
   const management = await readSource('src/components/AiModelsCollaborationManagement.tsx');
   assert.equal(management.includes('Convene All-AI Council'), false);
