@@ -31,6 +31,10 @@
     {
       "binding": "HYPERDRIVE",
       "id": "eff847b6c3c64488a989f1fa67d966a0"
+    },
+    {
+      "binding": "APP_STATE_HYPERDRIVE",
+      "id": "e825078c7a1c4991a6290bdf9edb0e07"
     }
   ],
   "assets": {
