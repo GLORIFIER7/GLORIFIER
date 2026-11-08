@@ -231,18 +231,18 @@ export const requestJson = async (
   }
 };
 
-const fetchProductionHealth = (options) =>
-  fetch('https://glorifier.pages.dev/api/health', options);
-const fetchProductionReports = (options) =>
-  fetch('https://glorifier.pages.dev/api/reports/summary', options);
-const fetchProductionRuntime = (options) =>
-  fetch('https://glorifier.pages.dev/api/runtime-verification?probeAi=false', options);
-const fetchProductionAppState = (options) =>
-  fetch('https://glorifier.pages.dev/api/app-state', options);
-const fetchProductionIdentity = (options) =>
-  fetch('https://glorifier.pages.dev/api/identity', options);
-
 const PRODUCTION_PUBLIC_ORIGIN = 'https://glorifier.pages.dev';
+
+const fetchProductionHealth = (options) =>
+  fetch(new URL('/api/health', PRODUCTION_PUBLIC_ORIGIN), options);
+const fetchProductionReports = (options) =>
+  fetch(new URL('/api/reports/summary', PRODUCTION_PUBLIC_ORIGIN), options);
+const fetchProductionRuntime = (options) =>
+  fetch(new URL('/api/runtime-verification?probeAi=false', PRODUCTION_PUBLIC_ORIGIN), options);
+const fetchProductionAppState = (options) =>
+  fetch(new URL('/api/app-state', PRODUCTION_PUBLIC_ORIGIN), options);
+const fetchProductionIdentity = (options) =>
+  fetch(new URL('/api/identity', PRODUCTION_PUBLIC_ORIGIN), options);
 
 const fetchProductionBuildInfo = (fetchRequest = fetch) => (options) =>
   fetchRequest(new URL('/api/build-info', PRODUCTION_PUBLIC_ORIGIN), options);
