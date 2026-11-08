@@ -134,7 +134,7 @@ test('council panel describes a request to configured providers, not all AI or l
 
 test('broker policy context is normalized from allowlisted primitive fields', () => {
   assert.deepEqual(normalizeBrokerPolicyContext({
-    minimumMonthlyFloorUsd: 1250.5,
+    minimumMonthlyFloorUsd: 50,
     brokerMode: 'strict-sovereign',
     globalEpsilon: 0.35,
     allowAiModelPretraining: true,
