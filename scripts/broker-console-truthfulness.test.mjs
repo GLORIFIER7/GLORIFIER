@@ -209,6 +209,8 @@ test('broker monthly floor is constrained to the UI-supported range', () => {
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: -1 }).minimumMonthlyFloorUsd, 0);
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: 100.01 }).minimumMonthlyFloorUsd, 0);
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: '100' }).minimumMonthlyFloorUsd, 0);
+});
+
 test('reset display weights preserves enabled state and provider configuration', async () => {
   const current = [
     { id: 'openai', weight: 10, enabled: false, provider: 'OpenAI custom' },
