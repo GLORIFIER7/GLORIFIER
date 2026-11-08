@@ -152,11 +152,30 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
-  assert.match(scope, /services\/neural\//);
-  assert.ok(scope.includes("grep -Fqx '.github/workflows/neural-ci.yml'"));
+  assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
+  assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
+  assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
+  assert.ok(scope.includes('echo "required=true" >> "$GITHUB_OUTPUT"'));
+  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \'.github/workflows/neural-ci.yml\' <<<"$changed_paths"; then'));
   assert.match(policy, /needs: \[review-scope\]/);
   assert.match(policy, /always\(\)/);
   assert.match(policy, /needs\.review-scope\.result != 'success'/);
   assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
   assert.match(policy, /github\.event_name == 'pull_request'/);
+});
+
+test('NEURAL review events use unique concurrency groups and cannot cancel their own scope evaluation', () => {
+  const concurrencyStart = neuralCiWorkflow.indexOf('concurrency:');
+  const permissionsStart = neuralCiWorkflow.indexOf('permissions:', concurrencyStart);
+  assert.ok(concurrencyStart >= 0 && permissionsStart > concurrencyStart,
+    'NEURAL workflow must define concurrency before permissions');
+  const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
+
+  assert.ok(
+    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id"),
+    'each review event must have its own concurrency key',
+  );
+  assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
+  assert.ok(concurrency.includes('cancel-in-progress: true'),
+    'new branch updates may continue to supersede older branch-update runs');
 });
