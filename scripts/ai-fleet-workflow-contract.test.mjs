@@ -5,6 +5,7 @@ import test from 'node:test';
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publishMarker = '\n  publish-proposal:\n';
@@ -112,4 +113,50 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
     ciWorkflow,
     /- name: Claude direct CLI runner regression tests\s+run: node --test scripts\/run-claude-workflow\.test\.mjs/,
   );
+});
+
+
+function locateReviewJobs(source) {
+  const scope = /^  review-scope:[ \t]*\r?$/m.exec(source);
+  const policy = /^  ai-review-policy:[ \t]*\r?$/m.exec(source);
+  return {
+    scopeStart: scope?.index ?? -1,
+    policyStart: policy?.index ?? -1,
+  };
+}
+
+test('NEURAL review job boundaries handle LF, CRLF, and missing markers', () => {
+  const lf = [
+    '  review-scope:',
+    '    runs-on: ubuntu-latest',
+    '  ai-review-policy:',
+    '    runs-on: ubuntu-latest',
+  ].join('\n');
+  const crlf = lf.replaceAll('\n', '\r\n');
+  for (const source of [lf, crlf]) {
+    const { scopeStart, policyStart } = locateReviewJobs(source);
+    assert.ok(scopeStart >= 0 && policyStart > scopeStart);
+  }
+  assert.equal(locateReviewJobs('  ai-review-policy:\n').scopeStart, -1);
+});
+
+test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
+  const { scopeStart, policyStart } = locateReviewJobs(neuralCiWorkflow);
+  assert.ok(scopeStart >= 0 && policyStart > scopeStart,
+    'NEURAL review scope must be evaluated before the AI review policy');
+  const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
+  const policy = neuralCiWorkflow.slice(policyStart);
+
+  assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
+  assert.match(scope, /gh api --paginate/);
+  assert.match(scope, /previous_filename/);
+  assert.match(scope, /pull-requests: read/);
+  assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
+  assert.match(scope, /services\/neural\//);
+  assert.ok(scope.includes("grep -Fqx '.github/workflows/neural-ci.yml'"));
+  assert.match(policy, /needs: \[review-scope\]/);
+  assert.match(policy, /always\(\)/);
+  assert.match(policy, /needs\.review-scope\.result != 'success'/);
+  assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
+  assert.match(policy, /github\.event_name == 'pull_request'/);
 });

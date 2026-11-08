@@ -67,11 +67,50 @@ jobs:
       - name: Verify runtime image includes the Neon PostgreSQL driver
         run: docker run --rm --entrypoint python glorifier-neural:ci -c "import psycopg; assert psycopg.__version__"
 
+  review-scope:
+    if: github.event_name == 'pull_request_review'
+    name: NEURAL review scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - name: Determine whether the reviewed PR changes NEURAL
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          changed_paths="$(gh api --paginate "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100" --jq '.[] | [.filename, .previous_filename // empty] | .[]')"
+          if grep -Eq '^services/neural/' <<<"$changed_paths" || grep -Fqx '.github/workflows/neural-ci.yml' <<<"$changed_paths"; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "NEURAL review policy is required for this PR."
+          else
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            echo "Unrelated PR: NEURAL policy is not applicable."
+          fi
+
   ai-review-policy:
+    needs: [review-scope]
     defaults:
       run:
         working-directory: services/neural
-    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    if: >-
+      always() &&
+      (
+        github.event_name == 'pull_request' ||
+        (
+          github.event_name == 'pull_request_review' &&
+          (
+            needs.review-scope.result != 'success' ||
+            needs.review-scope.outputs.required == 'true'
+          )
+        )
+      )
     name: AI Review Policy
     runs-on: ubuntu-latest
     timeout-minutes: 30
