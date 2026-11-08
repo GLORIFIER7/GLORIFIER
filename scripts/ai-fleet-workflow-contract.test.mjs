@@ -156,7 +156,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
   assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
   assert.ok(scope.includes('echo "required=true" >> "$GITHUB_OUTPUT"'));
-  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \' .github/workflows/neural-ci.yml\' <<<"$changed_paths"; then') === false, 'placeholder guard');
+  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \'.github/workflows/neural-ci.yml\' <<<"$changed_paths"; then'));
   assert.match(policy, /needs: \[review-scope\]/);
   assert.match(policy, /always\(\)/);
   assert.match(policy, /needs\.review-scope\.result != 'success'/);
