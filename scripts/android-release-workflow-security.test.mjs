@@ -6,9 +6,13 @@ import test from 'node:test';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflow = readFileSync(resolve(root, '.github/workflows/android-release.yml'), 'utf8');
-const jobsStart = workflow.indexOf('\njobs:\n');
-assert.ok(jobsStart > 0, 'android-release.yml must contain a top-level jobs section');
-const eventSection = workflow.slice(0, jobsStart + 1);
+const eventStart = workflow.indexOf('\non:\n');
+const jobsStart = workflow.indexOf('\njobs:\n', eventStart);
+assert.ok(
+  eventStart >= 0 && jobsStart > eventStart,
+  'android-release.yml must declare an event section before its top-level jobs section',
+);
+const eventSection = workflow.slice(eventStart + 1, jobsStart).trimEnd();
 const prepareStart = workflow.indexOf('      - name: Prepare Android release signing');
 const signedStart = workflow.indexOf('      - name: Build signed Android App Bundle');
 const unsignedStart = workflow.indexOf('      - name: Build unsigned Android App Bundle');
