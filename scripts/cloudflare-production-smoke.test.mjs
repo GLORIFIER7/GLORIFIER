@@ -536,7 +536,7 @@ test('full-stack smoke sends every probe only to the fixed public Pages origin',
 
     const requests = readFileSync(capturePath, 'utf8')
       .trim()
-      .split('\\n')
+      .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => JSON.parse(line));
     const assertPublicProbeTargets = (targets) => {
