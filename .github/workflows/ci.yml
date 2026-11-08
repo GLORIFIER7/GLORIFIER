@@ -139,6 +139,9 @@ jobs:
           fi
           rm -f "${temp_identity}.full" "${temp_identity}.bad"
 
+      - name: Broker console truthfulness regression tests
+        run: npm run test:broker-console-truthfulness
+
       - name: Type-check
         run: npm run lint
 
