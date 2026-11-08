@@ -111,6 +111,7 @@ test('council panel describes a request to configured providers, not all AI or l
   assert.doesNotMatch(management, /Convene All-AI Council|Enact Directives to Live Policy|CIPP \\/ Privacy Ph\\.D\\./);
   assert.doesNotMatch(management, /currentPolicy:\\s*policy|footprints:\\s*footprints\\.map/);
   assert.doesNotMatch(management, /aiModel:\\s*'all-models'|autoNegotiateHighBids:\\s*true/);
+  assert.doesNotMatch(management, /Zero-Knowledge Enclave|Statutory PII Redaction|Cryptographic Perturbation|Sovereign Core Arbitrator/);
   assert.match(management, /Display Weight · Not Used by API/);
   assert.match(management, /Intended Boundary Target · NOT VERIFIED/);
   assert.match(management, /not sent to the council API/);
