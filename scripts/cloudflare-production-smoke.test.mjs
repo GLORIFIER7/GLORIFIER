@@ -480,26 +480,68 @@ test('production build provenance uses a GET request and validates the live resp
 
 
 
-test('full-stack smoke uses a fixed, public Pages origin', () => {
+test('full-stack smoke sends every probe only to the fixed public Pages origin', async () => {
   const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
-  const baseMatch = smokeSource.match(/^const base = '([^']+)';$/m);
-  assert.ok(baseMatch, 'production smoke must define one fixed base URL');
+  const responses = [
+    { status: 200, type: 'text/html', body: '<!doctype html>' },
+    { status: 200, type: 'application/json', body: { ok: true, status: 'worker-ready', layer: 'cloudflare-worker' } },
+    { status: 401, type: 'application/json', body: { ok: false, code: 'AUTHENTICATION_REQUIRED' } },
+    { status: 503, type: 'application/json', body: { ok: false, status: 'not-ready', identity: { ready: false, domainConfigured: false, domainStatus: 'not-configured' } } },
+    { status: 200, type: 'application/json', body: { ok: true, status: 'operational-data-observed', evidence: { exactRowCounts: true } } },
+    { status: 200, type: 'application/json', body: { ok: true, status: 'verified-for-probed-dependencies', checks: { database: { ok: true } } } },
+  ];
+  const requests = [];
+  const messages = [];
+  const fetchStub = async (input, options) => {
+    const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+    requests.push({ target, options });
+    const result = responses[requests.length - 1];
+    assert.ok(result, `unexpected extra probe: ${target.href}`);
+    return {
+      ok: result.status >= 200 && result.status < 300,
+      status: result.status,
+      headers: { get: (name) => name.toLowerCase() === 'content-type' ? result.type : null },
+      text: async () => typeof result.body === 'string' ? result.body : JSON.stringify(result.body),
+    };
+  };
+  const consoleStub = Object.fromEntries(['log', 'warn', 'error'].map((level) => [
+    level,
+    (...parts) => messages.push([level, ...parts].join(' ')),
+  ]));
+  const processStub = {
+    exit: (code) => { throw new Error(`smoke script exited with code ${code}`); },
+  };
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  await new AsyncFunction('fetch', 'URL', 'AbortSignal', 'console', 'process', 'Date', smokeSource)(
+    fetchStub,
+    URL,
+    { timeout: (milliseconds) => ({ milliseconds }) },
+    consoleStub,
+    processStub,
+    Date,
+  );
 
-  const base = new URL(baseMatch[1]);
-  assert.equal(base.origin, 'https://glorifier.pages.dev');
-  assert.equal(base.pathname, '/');
-  assert.equal(base.search, '');
-  assert.equal(base.hash, '');
-  assert.doesNotMatch(
-    smokeSource,
-    /\burl:\s*['"`]https?:\/\//,
-    'all probe URLs must be resolved from the fixed public base',
+  const assertPublicProbeTargets = (targets) => {
+    for (const target of targets) {
+      const url = target instanceof URL ? target : new URL(target);
+      assert.equal(url.origin, 'https://glorifier.pages.dev', `unexpected smoke target: ${url.href}`);
+      assert.equal(url.username, '', 'smoke targets must not embed credentials');
+      assert.equal(url.password, '', 'smoke targets must not embed credentials');
+      assert.notEqual(url.hostname, 'glorifier.glorifier.workers.dev');
+    }
+  };
+
+  assert.equal(requests.length, responses.length, 'every expected probe must execute exactly once');
+  assertPublicProbeTargets(requests.map(({ target }) => target));
+  assert.ok(requests.every(({ options }) => !options?.method || options.method.toUpperCase() === 'GET'),
+    'production smoke probes must remain read-only');
+  assert.ok(messages.some((message) => message.includes('CLOUDFLARE PRODUCTION VERIFICATION PASSED')));
+  assert.throws(
+    () => assertPublicProbeTargets(['https://glorifier.glorifier.workers.dev/api/health']),
+    /unexpected smoke target/,
   );
-  assert.doesNotMatch(
-    smokeSource,
-    /\bglorifier\.glorifier\.workers\.dev\b/i,
-    'the public full-stack smoke must never target the internal Worker hostname',
+  assert.throws(
+    () => assertPublicProbeTargets(['https://attacker.example/api/health']),
+    /unexpected smoke target/,
   );
-  assert.ok(!smokeSource.includes('process.env.FRONTEND_URL'),
-    'production smoke must not accept an arbitrary caller-controlled request origin');
 });
