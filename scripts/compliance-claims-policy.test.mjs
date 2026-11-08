@@ -76,3 +76,16 @@ test('compliance model selection does not mislabel automatic routing as dual-pro
   assert.equal(ui.includes('Dual-provider consensus (requested)'), false);
   assert.equal(ui.includes('dual-consensus engine'), false);
 });
+
+test('compliance scientist roster has one authoritative value for each display field', () => {
+  const start = roster.indexOf("id: 'compliance-scientist'");
+  const end = roster.indexOf("id: 'arbitrator-core'", start);
+  assert.notEqual(start, -1, 'compliance scientist roster entry must exist');
+  assert.notEqual(end, -1, 'compliance scientist roster entry must have a boundary');
+  const entry = roster.slice(start, end);
+  for (const field of ['name', 'provider', 'role', 'specialization', 'badge']) {
+    const count = entry.match(new RegExp(`\\\\b${field}:`, 'g'))?.length ?? 0;
+    assert.equal(count, 1, `compliance scientist must declare ${field} exactly once`);
+  }
+  assert.match(entry, /name: 'A\\.I\\. Bot Compliance Scientist'/);
+});
