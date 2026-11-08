@@ -17,7 +17,7 @@ import { DEFAULT_MODEL_COUNCIL_TIMEOUT_MS, resolveModelCouncilParticipants } fro
 import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
 import { normalizeBrokerPolicyContext } from './src/lib/ai/broker-policy-context.mjs';
 import { createModelCouncilRateLimit } from './src/lib/ai/model-council-rate-limit.mjs';
-import { isIndependentComputeFallbackAllowed, modelPreferenceLabel, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
+import { isIndependentComputeFallbackAllowed, normalizeSavedModelPreference } from './src/lib/ai/model-selection';
 import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, LlamaCloudIntegrationError } from './src/lib/llama-cloud';
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
