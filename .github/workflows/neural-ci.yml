@@ -86,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           changed_paths="$(gh api --paginate "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100" --jq '.[].filename')"
-          if grep -Eq '^(services/neural/|\.github/workflows/neural-ci\\.yml$)' <<<"$changed_paths"; then
+          if grep -Eq '^(services/neural/|\.github/workflows/neural-ci\.yml$)' <<<"$changed_paths"; then
             echo "required=true" >> "$GITHUB_OUTPUT"
             echo "NEURAL review policy is required for this PR."
           else
