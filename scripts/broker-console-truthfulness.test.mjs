@@ -191,6 +191,8 @@ test('Monetization Manager sends the allowlisted broker policy context without f
   assert.match(manager, /globalEpsilon:\s*policy\.globalEpsilon/);
   assert.match(manager, /allowAiModelPretraining:\s*policy\.allowAiModelPretraining/);
   assert.doesNotMatch(manager, /currentPolicy:\s*policy|footprintsSummary/);
+  assert.match(manager, /authenticatedFetch\(['"]\/api\/ai\/broker-chat['"]/);
+  assert.doesNotMatch(manager, /fetch\(['"]\/api\/ai\/broker-chat['"]/);
   assert.match(manager, /max="100"/);
   assert.match(manager, /minimumMonthlyFloorUsd:\s*Math\.min\(100,\s*Math\.max\(0,\s*Number\(event\.target\.value\)\s*\|\|\s*0\)\)/);
 });
