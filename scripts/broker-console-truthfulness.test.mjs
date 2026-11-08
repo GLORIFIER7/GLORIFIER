@@ -20,8 +20,9 @@ test('broker inference failure is reported as a failure, never synthetic success
   assert.equal(route.includes('*/'), false, 'broker route must not contain a stray block-comment terminator');
   assert.doesNotMatch(route, /let suggestedAction\s*=/);
   assert.doesNotMatch(route, /footprintsSummary|Browsing, E-Commerce, Developer, Health telemetry active/);
-  assert.match(route, /minimumMonthlyFloorUsd\s*\?\?/);
-  assert.match(route, /globalEpsilon\s*\?\?/);
+  assert.match(route, /normalizeBrokerPolicyContext\(policyContext\)/);
+  assert.match(route, /JSON\.stringify\(normalizedPolicyContext\)/);
+  assert.doesNotMatch(route, /policyContext\?\./);
 });
 
 test('broker system prompt limits the model to analysis and draft text', async () => {
