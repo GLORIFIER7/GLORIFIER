@@ -117,7 +117,7 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
 
 
 test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
-  const scopeStart = neuralCiWorkflow.indexOf('  review-scope:\\n');
+  const scopeStart = neuralCiWorkflow.indexOf('  review-scope:\n');
   const policyStart = neuralCiWorkflow.indexOf('  ai-review-policy:\\n');
   assert.ok(scopeStart >= 0 && policyStart > scopeStart,
     'NEURAL review scope must be evaluated before the AI review policy');
