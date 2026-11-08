@@ -191,3 +191,12 @@ test('Monetization Manager sends the allowlisted broker policy context without f
   assert.match(manager, /allowAiModelPretraining:\s*policy\.allowAiModelPretraining/);
   assert.doesNotMatch(manager, /currentPolicy:\s*policy|footprintsSummary/);
 });
+
+
+test('broker epsilon is constrained to the UI-supported range', () => {
+  assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: 0.1 }).globalEpsilon, 0.1);
+  assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: 1.0 }).globalEpsilon, 1.0);
+  assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: 0 }).globalEpsilon, 0.35);
+  assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: 1.01 }).globalEpsilon, 0.35);
+  assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: '0.5' }).globalEpsilon, 0.35);
+});
