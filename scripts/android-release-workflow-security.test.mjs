@@ -9,26 +9,20 @@ const workflow = readFileSync(resolve(root, '.github/workflows/android-release.y
 const jobsStart = workflow.indexOf('\njobs:\n');
 assert.ok(jobsStart > 0, 'android-release.yml must contain a top-level jobs section');
 const eventSection = workflow.slice(0, jobsStart + 1);
-const androidJobStart = workflow.indexOf('  android:\n');
-const stepsStart = workflow.indexOf('    steps:\n', androidJobStart);
 const prepareStart = workflow.indexOf('      - name: Prepare Android release signing');
 const signedStart = workflow.indexOf('      - name: Build signed Android App Bundle');
 const unsignedStart = workflow.indexOf('      - name: Build unsigned Android App Bundle');
 const verifyStart = workflow.indexOf('      - name: Verify release AAB exists');
 const uploadStart = workflow.indexOf('      - name: Upload AAB artifact');
-const mainOnlySigningGuard = /github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)/;
+const mainOnlySigningGuard = /github\.ref == 'refs\/heads\/main' && github\.event_name == 'push'/;
 
-test('Android release workflow does not execute on pull-request events', () => {
-  assert.doesNotMatch(eventSection, /^\s{2}pull_request(?:_target)?:/m);
+test('Android release workflow runs only on pushes to main', () => {
+  assert.match(eventSection, /^on:\s*\n\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main/m);
+  assert.doesNotMatch(eventSection, /^\s{2}(?:pull_request|pull_request_target|workflow_dispatch):/m);
+  assert.doesNotMatch(eventSection, /^\s{4}tags:/m);
 });
 
-test('manual dispatch is limited to the protected main ref', () => {
-  assert.ok(androidJobStart >= 0 && stepsStart > androidJobStart);
-  const jobHeader = workflow.slice(androidJobStart, stepsStart);
-  assert.match(jobHeader, /if: github\.event_name != 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main'/);
-});
-
-test('signing secrets are confined to steps guarded to protected main', () => {
+test('signing secrets are confined to main-push guarded steps', () => {
   assert.ok(prepareStart >= 0 && signedStart > prepareStart && unsignedStart > signedStart);
   const prepare = workflow.slice(prepareStart, signedStart);
   const signed = workflow.slice(signedStart, unsignedStart);
