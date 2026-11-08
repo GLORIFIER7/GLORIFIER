@@ -125,7 +125,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       {
         globalEpsilon: councilResult.recommendedEpsilon,
         minimumMonthlyFloorUsd: councilResult.recommendedFloorUsd,
-        autoNegotiateHighBids: true
+        autoNegotiateHighBids: false
       },
       `Council response received: ε = ${councilResult.recommendedEpsilon}, Floor = ${councilResult.recommendedFloorUsd}/mo. Provider participation, consensus, and production enforcement are NOT independently verified.`
     );
