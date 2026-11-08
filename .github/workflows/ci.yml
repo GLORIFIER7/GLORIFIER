@@ -258,6 +258,9 @@ jobs:
       - name: A2A 1.0 Express endpoint tests
         run: npm run test:a2a-v1-express
 
+      - name: A2A authenticated exchange integration tests
+        run: npm run test:a2a-authenticated-exchange
+
       - name: GEAS architecture controls
         run: npm run test:geas-controls
 
