@@ -15,10 +15,11 @@ const workflowText = readFileSync(workflowPath, 'utf8');
 const parserPathEntry = "      - 'scripts/geas-source-catalog-parser.ts'";
 const extractPullRequestSection = (text: string): string => {
   const pullRequestSectionStart = text.indexOf('  pull_request:\n');
+  if (pullRequestSectionStart < 0) return '';
   const scheduleSectionStart = text.indexOf('\n  schedule:', pullRequestSectionStart);
-  return pullRequestSectionStart >= 0 && scheduleSectionStart > pullRequestSectionStart
+  return scheduleSectionStart > pullRequestSectionStart
     ? text.slice(pullRequestSectionStart, scheduleSectionStart)
-    : '';
+    : text.slice(pullRequestSectionStart);
 };
 const workflowFixtures = [
   `on:\n  pull_request:\n    paths:\n${parserPathEntry}\n`,
