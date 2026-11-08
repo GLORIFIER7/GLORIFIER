@@ -160,3 +160,20 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
   assert.match(policy, /github\.event_name == 'pull_request'/);
 });
+
+test('NEURAL review events use unique concurrency groups and cannot cancel their own scope evaluation', () => {
+  const concurrencyStart = neuralCiWorkflow.indexOf('concurrency:');
+  const permissionsStart = neuralCiWorkflow.indexOf('\\npermissions:', concurrencyStart);
+  assert.ok(concurrencyStart >= 0 && permissionsStart > concurrencyStart,
+    'NEURAL workflow must define concurrency before permissions');
+  const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
+
+  assert.match(
+    concurrency,
+    /github\\.event_name == 'pull_request_review' && github\\.event\\.review\\.id/,
+    'each review event must have its own concurrency key',
+  );
+  assert.match(concurrency, /\\|\\| 'latest'/);
+  assert.match(concurrency, /cancel-in-progress: true/,
+    'new branch updates may continue to supersede older branch-update runs');
+});
