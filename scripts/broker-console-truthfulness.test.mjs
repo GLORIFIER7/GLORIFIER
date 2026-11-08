@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { resetDisplayWeights } from '../src/lib/ai/model-council-display-preferences.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 const readSource = (path) => readFile(new URL(path, repositoryRoot), 'utf8');
@@ -127,4 +128,26 @@ test('council panel describes a request to configured providers, not all AI or l
   assert.match(management, /Display Weight · Not Used by API/);
   assert.match(management, /Intended Boundary Target · NOT VERIFIED/);
   assert.match(management, /not sent to the council API/);
+});
+
+
+test('reset display weights preserves enabled state and provider configuration', async () => {
+  const current = [
+    { id: 'openai', weight: 10, enabled: false, provider: 'OpenAI custom' },
+    { id: 'gemini', weight: 90, enabled: true, provider: 'Google custom' },
+    { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+  ];
+  const initial = [
+    { id: 'openai', weight: 35 },
+    { id: 'gemini', weight: 35 },
+  ];
+  assert.deepEqual(resetDisplayWeights(current, initial), [
+    { id: 'openai', weight: 35, enabled: false, provider: 'OpenAI custom' },
+    { id: 'gemini', weight: 35, enabled: true, provider: 'Google custom' },
+    { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+  ]);
+
+  const management = await readSource('src/components/AiModelsCollaborationManagement.tsx');
+  assert.match(management, /resetDisplayWeights\(prev, INITIAL_NODES\)/);
+  assert.doesNotMatch(management, /setNodes\(INITIAL_NODES\)/);
 });
