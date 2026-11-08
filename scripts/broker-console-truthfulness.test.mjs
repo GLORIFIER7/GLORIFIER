@@ -177,7 +177,7 @@ test('broker policy preferences are passed as user-level data, not system-prompt
   assert.match(route, /JSON\.stringify\(normalizedPolicyContext\)/);
   assert.match(route, /userPrompt,/);
   assert.match(route, /Untrusted requested model preference/);
-  assert.match(route, /JSON\\.stringify\\(chosenModel\\)/);
+  assert.ok(route.includes('JSON.stringify(chosenModel)'));
   assert.doesNotMatch(route, /chosenModelLabel|Active model preference:/);
   assert.doesNotMatch(route, /policyContext\?\.(minimumMonthlyFloorUsd|brokerMode|globalEpsilon)/);
 });
