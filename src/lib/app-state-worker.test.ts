@@ -37,15 +37,15 @@ test('Cloudflare app-state reads are scoped to the authenticated UID and preserv
   const calls: QueryCall[] = [];
   const uid = 'firebase-user-123';
   const state = await readWorkerAppState(binding, uid, factoryFor(calls, (sql, values) => {
-    assert.equal(values[0], uid, 'every user-data query must use the authenticated UID');
-    if (sql.includes('SELECT policy FROM app_policies')) return [{ policy: { mode: 'strict' } }];
-    if (sql.includes('SELECT offer FROM app_offers')) return [{ offer: { id: 'offer-1' } }];
-    if (sql.includes('SELECT grant_data FROM app_grants')) return [{ grant_data: { id: 'grant-1' } }];
-    if (sql.includes('SELECT event_data FROM app_telemetry')) return [{ event_data: { id: 'event-1' } }];
-    if (sql.includes('SELECT transaction_data FROM app_transactions')) return [{ transaction_data: { id: 'tx-1', amountUsd: 4, status: 'accepted' } }];
-    if (sql.includes('SELECT footprint_data FROM app_footprints')) return [{ footprint_data: { id: 'fp-1', isMonetized: true, dataPointsMonthly: 12 } }];
-    if (sql.includes('SELECT exposure_data FROM app_exposures')) return [{ exposure_data: { id: 'exposure-1' } }];
-    if (sql.includes('FROM marketplace_transactions')) return [{ id: 'paid-1', offer_id: 'offer-1', amount_minor: 1250, currency: 'USD', status: 'paid', created_at: '2026-11-01T00:00:00.000Z' }];
+    if (sql.trimStart().toUpperCase().startsWith('SELECT')) assert.equal(values[0], uid, 'every user-data query must use the authenticated UID');
+    if (sql.includes('SELECT policy FROM public.app_policies')) return [{ policy: { mode: 'strict' } }];
+    if (sql.includes('SELECT offer FROM public.app_offers')) return [{ offer: { id: 'offer-1' } }];
+    if (sql.includes('SELECT grant_data FROM public.app_grants')) return [{ grant_data: { id: 'grant-1' } }];
+    if (sql.includes('SELECT event_data FROM public.app_telemetry')) return [{ event_data: { id: 'event-1' } }];
+    if (sql.includes('SELECT transaction_data FROM public.app_transactions')) return [{ transaction_data: { id: 'tx-1', amountUsd: 4, status: 'accepted' } }];
+    if (sql.includes('SELECT footprint_data FROM public.app_footprints')) return [{ footprint_data: { id: 'fp-1', isMonetized: true, dataPointsMonthly: 12 } }];
+    if (sql.includes('SELECT exposure_data FROM public.app_exposures')) return [{ exposure_data: { id: 'exposure-1' } }];
+    if (sql.includes('FROM marketplace_transactions')) return [\n      { id: 'paid-1', offer_id: 'offer-1', amount_minor: 1250, currency: 'USD', status: 'paid', created_at: '2026-11-01T00:00:00.000Z' },\n      { id: 'accepted-1', offer_id: 'offer-2', amount_minor: 400, currency: 'USD', status: 'accepted', created_at: '2026-11-02T00:00:00.000Z' },\n    ];
     if (sql.includes('FROM revenue_ledger')) return [{ paid_minor: '5000', refunded_minor: '1000', disputed_minor: '500' }];
     if (sql.includes('FROM payout_requests')) return [{ reserved_minor: '1000' }];
     return [];
