@@ -6,9 +6,19 @@ import test from 'node:test';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflow = readFileSync(resolve(root, '.github/workflows/android-release.yml'), 'utf8');
-const jobsStart = workflow.indexOf('\njobs:\n');
-assert.ok(jobsStart > 0, 'android-release.yml must contain a top-level jobs section');
-const eventSection = workflow.slice(0, jobsStart + 1);
+
+function extractEventSection(source) {
+  const eventStart = /^on:[ \t]*\r?$/m.exec(source);
+  const jobsStart = /^jobs:[ \t]*\r?$/m.exec(source);
+  if (!eventStart || !jobsStart || jobsStart.index <= eventStart.index) return null;
+  return source.slice(eventStart.index, jobsStart.index).trimEnd();
+}
+
+const eventSection = extractEventSection(workflow);
+assert.ok(
+  eventSection !== null,
+  'android-release.yml must declare a top-level event section before its top-level jobs section',
+);
 const prepareStart = workflow.indexOf('      - name: Prepare Android release signing');
 const signedStart = workflow.indexOf('      - name: Build signed Android App Bundle');
 const unsignedStart = workflow.indexOf('      - name: Build unsigned Android App Bundle');
@@ -18,10 +28,20 @@ const mainOnlySigningGuard = /github\.ref == 'refs\/heads\/main' && github\.even
 
 test('Android release workflow has exactly one trusted event: push to main', () => {
   assert.equal(
-    eventSection.trimEnd(),
+    eventSection,
     ['on:', '  push:', '    branches:', '      - main'].join('\n'),
     'the signing-capable workflow must not gain any additional event or ref trigger',
   );
+});
+
+test('event extraction supports an on key at byte zero and CRLF line endings', () => {
+  const expected = ['on:', '  push:', '    branches:', '      - main'].join('\n');
+  const fixture = expected + '\njobs:\n  build:\n';
+  for (const source of [fixture, fixture.replaceAll('\n', '\r\n')]) {
+    const extracted = extractEventSection(source);
+    assert.notEqual(extracted, null);
+    assert.equal(extracted.replaceAll('\r\n', '\n'), expected);
+  }
 });
 
 test('every step that references secrets is individually main-push guarded', () => {
