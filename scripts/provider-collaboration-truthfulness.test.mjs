@@ -7,7 +7,8 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 test('work-together UI labels provider requests and reports agreement as unmeasured', () => {
   const studio = read('../src/components/WorkTogetherWithGptStudio.tsx');
 
-  assert.match(studio, /OpenAI \+ Google Gemini provider requests/);
+  assert.match(studio, /OpenAI provider request/);
+  assert.match(studio, /Google Gemini provider request/);
   assert.match(studio, /agreement NOT MEASURED/i);
   assert.match(studio, /cryptographic review NOT VERIFIED/i);
 
@@ -36,7 +37,7 @@ test('work-together backend requires separate provider responses and does not cl
   assert.match(route, /requiredProvider: 'openai'/);
   assert.match(route, /requiredProvider: 'gemini'/);
   assert.match(route, /consensusScore: null/);
-  assert.match(route, /consensusStatus: 'NOT MEASURED'/);
+  assert.match(route, /consensusStatus: 'NOT MEASURED — provider agreement has not been independently tested'/);
   assert.match(route, /actual returned model/);
   assert.match(route, /No agreement or verification is asserted unless both providers actually responded/);
   assert.match(route, /Provider Collaboration Output/);
