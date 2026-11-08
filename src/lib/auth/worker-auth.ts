@@ -117,9 +117,12 @@ async function fetchJwks(
   issuer: string,
   fetcher: typeof fetch,
   nowMilliseconds: number,
+  requestedKid: string,
 ): Promise<Jwk[] | null> {
   const cached = jwksCache.get(issuer);
-  if (cached && cached.expiresAt > nowMilliseconds) return cached.keys;
+  const cacheIsFresh = Boolean(cached && cached.expiresAt > nowMilliseconds);
+  const requestedKeyIsCached = cacheIsFresh && cached?.keys.some(key => key.kid === requestedKid);
+  if (requestedKeyIsCached && cached) return cached.keys;
 
   const inFlight = jwksRefreshInFlight.get(issuer);
   if (inFlight) return inFlight;
@@ -178,7 +181,7 @@ async function verifyAuth0Token(
   if (!audiences.includes(audience) || !validTimeClaims(payload, dependencies.nowSeconds ?? Math.floor(Date.now() / 1000))) return null;
 
   const fetcher = dependencies.fetcher ?? fetch;
-  const keys = await fetchJwks(issuer, fetcher, Date.now());
+  const keys = await fetchJwks(issuer, fetcher, Date.now(), jwt.header.kid);
   const jwk = keys?.find(key => key.kid === jwt.header.kid);
   if (!jwk) return null;
 
