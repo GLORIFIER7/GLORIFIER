@@ -116,25 +116,32 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
 });
 
 
-function topLevelJobStart(source, jobName) {
-  const escapedName = jobName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-  return new RegExp(`^  ${escapedName}:[ \\t]*\\r?$`, 'm').exec(source)?.index ?? -1;
+function locateReviewJobs(source) {
+  const scope = /^  review-scope:[ \t]*\r?$/m.exec(source);
+  const policy = /^  ai-review-policy:[ \t]*\r?$/m.exec(source);
+  return {
+    scopeStart: scope?.index ?? -1,
+    policyStart: policy?.index ?? -1,
+  };
 }
 
 test('NEURAL review job boundaries handle LF, CRLF, and missing markers', () => {
-  const lf = '  review-scope:\\n    runs-on: ubuntu-latest\\n  ai-review-policy:\\n    runs-on: ubuntu-latest\\n';
-  const crlf = lf.replaceAll('\\n', '\\r\\n');
+  const lf = [
+    '  review-scope:',
+    '    runs-on: ubuntu-latest',
+    '  ai-review-policy:',
+    '    runs-on: ubuntu-latest',
+  ].join('\n');
+  const crlf = lf.replaceAll('\n', '\r\n');
   for (const source of [lf, crlf]) {
-    const scopeStart = topLevelJobStart(source, 'review-scope');
-    const policyStart = topLevelJobStart(source, 'ai-review-policy');
+    const { scopeStart, policyStart } = locateReviewJobs(source);
     assert.ok(scopeStart >= 0 && policyStart > scopeStart);
   }
-  assert.equal(topLevelJobStart(lf, 'missing'), -1);
+  assert.equal(locateReviewJobs('  ai-review-policy:\n').scopeStart, -1);
 });
 
 test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
-  const scopeStart = topLevelJobStart(neuralCiWorkflow, 'review-scope');
-  const policyStart = topLevelJobStart(neuralCiWorkflow, 'ai-review-policy');
+  const { scopeStart, policyStart } = locateReviewJobs(neuralCiWorkflow);
   assert.ok(scopeStart >= 0 && policyStart > scopeStart,
     'NEURAL review scope must be evaluated before the AI review policy');
   const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
