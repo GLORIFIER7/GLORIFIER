@@ -136,15 +136,18 @@ test('reset display weights preserves enabled state and provider configuration',
     { id: 'openai', weight: 10, enabled: false, provider: 'OpenAI custom' },
     { id: 'gemini', weight: 90, enabled: true, provider: 'Google custom' },
     { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+    { id: 'zero-weight', weight: 10, enabled: false, provider: 'Zero' },
   ];
   const initial = [
     { id: 'openai', weight: 35 },
     { id: 'gemini', weight: 35 },
+    { id: 'zero-weight', weight: 0 },
   ];
   assert.deepEqual(resetDisplayWeights(current, initial), [
     { id: 'openai', weight: 35, enabled: false, provider: 'OpenAI custom' },
     { id: 'gemini', weight: 35, enabled: true, provider: 'Google custom' },
     { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+    { id: 'zero-weight', weight: 0, enabled: false, provider: 'Zero' },
   ]);
 
   const management = await readSource('src/components/AiModelsCollaborationManagement.tsx');
