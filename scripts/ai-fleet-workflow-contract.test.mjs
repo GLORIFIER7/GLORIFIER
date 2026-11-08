@@ -163,7 +163,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
 
 test('NEURAL review events use unique concurrency groups and cannot cancel their own scope evaluation', () => {
   const concurrencyStart = neuralCiWorkflow.indexOf('concurrency:');
-  const permissionsStart = neuralCiWorkflow.indexOf('\\npermissions:', concurrencyStart);
+  const permissionsStart = neuralCiWorkflow.indexOf('permissions:', concurrencyStart);
   assert.ok(concurrencyStart >= 0 && permissionsStart > concurrencyStart,
     'NEURAL workflow must define concurrency before permissions');
   const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
