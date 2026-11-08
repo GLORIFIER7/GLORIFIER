@@ -19,6 +19,7 @@ on:
       - 'scripts/geas-architecture-*.ts'
       - 'scripts/geas-authority-*.ts'
       - 'scripts/geas-source-cadence-validate.ts'
+      - 'scripts/geas-source-catalog-parser.ts'
       - 'scripts/geas-evidence-policy-validate.ts'
       - 'docs/architecture/geas-*'
       - '.github/workflows/geas-architecture-scan.yml'
