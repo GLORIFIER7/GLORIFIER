@@ -200,3 +200,12 @@ test('broker epsilon is constrained to the UI-supported range', () => {
   assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: 1.01 }).globalEpsilon, 0.35);
   assert.equal(normalizeBrokerPolicyContext({ globalEpsilon: '0.5' }).globalEpsilon, 0.35);
 });
+
+
+test('broker monthly floor is constrained to the UI-supported range', () => {
+  assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: 0 }).minimumMonthlyFloorUsd, 0);
+  assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: 100 }).minimumMonthlyFloorUsd, 100);
+  assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: -1 }).minimumMonthlyFloorUsd, 0);
+  assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: 100.01 }).minimumMonthlyFloorUsd, 0);
+  assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: '100' }).minimumMonthlyFloorUsd, 0);
+});
