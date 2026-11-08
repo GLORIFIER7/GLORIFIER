@@ -102,6 +102,11 @@ export function isInternalServiceRequest(req: Request): boolean {
 
 export type TokenVerifier = (req: Request) => Promise<DecodedIdToken | null>;
 
+function respondAuthenticationRequired(res: Response, message: string) {
+  res.setHeader('WWW-Authenticate', 'Bearer');
+  return res.status(401).json({ ok: false, error: message });
+}
+
 export function createRequireAuthentication(verify: TokenVerifier = verifyBearerToken) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (isInternalServiceRequest(req)) {
@@ -109,10 +114,10 @@ export function createRequireAuthentication(verify: TokenVerifier = verifyBearer
       return next();
     }
     verify(req).then((decoded) => {
-      if (!decoded) return res.status(401).json({ ok: false, error: 'Authentication required' });
+      if (!decoded) return respondAuthenticationRequired(res, 'Authentication required');
       req.auth = decoded;
       next();
-    }).catch(() => res.status(401).json({ ok: false, error: 'Authentication unavailable' }));
+    }).catch(() => respondAuthenticationRequired(res, 'Authentication unavailable'));
   };
 }
 
