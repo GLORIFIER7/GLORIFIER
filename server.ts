@@ -1065,14 +1065,17 @@ function normalizeModelCouncilTopic(body: Record<string, unknown>): string {
 }
 
 function buildModelCouncilMessages(topic: string, body: Record<string, unknown>) {
-  const currentPolicy = body.currentPolicy && typeof body.currentPolicy === 'object'
-    ? body.currentPolicy as Record<string, unknown>
+  const submittedPolicyContext = body.policyContext && typeof body.policyContext === 'object'
+    ? body.policyContext as Record<string, unknown>
     : {};
-  const floorValue = currentPolicy.minimumMonthlyFloorUsd;
-  const epsilonValue = currentPolicy.globalEpsilon;
+  const floorValue = submittedPolicyContext.minimumMonthlyFloorUsd;
+  const epsilonValue = submittedPolicyContext.globalEpsilon;
   const floor = typeof floorValue === 'number' && Number.isFinite(floorValue) ? floorValue : null;
   const epsilon = typeof epsilonValue === 'number' && Number.isFinite(epsilonValue) ? epsilonValue : null;
-  const footprintCount = Array.isArray(body.footprints) ? body.footprints.length : 0;
+  const footprintCountValue = body.footprintCount;
+  const footprintCount = typeof footprintCountValue === 'number' && Number.isSafeInteger(footprintCountValue) && footprintCountValue >= 0
+    ? footprintCountValue
+    : 0;
   const policyContext = [
     floor === null ? 'Minimum monthly floor: not supplied.' : `Minimum monthly floor: $${floor}/month.`,
     epsilon === null ? 'Privacy epsilon: not supplied.' : `Privacy epsilon: ${epsilon}.`,
