@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { normalizeBrokerPolicyContext } from '../src/lib/ai/broker-policy-context.mjs';
+import { resetDisplayWeights } from '../src/lib/ai/model-council-display-preferences.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 const readSource = (path) => readFile(new URL(path, repositoryRoot), 'utf8');
@@ -208,4 +209,26 @@ test('broker monthly floor is constrained to the UI-supported range', () => {
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: -1 }).minimumMonthlyFloorUsd, 0);
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: 100.01 }).minimumMonthlyFloorUsd, 0);
   assert.equal(normalizeBrokerPolicyContext({ minimumMonthlyFloorUsd: '100' }).minimumMonthlyFloorUsd, 0);
+test('reset display weights preserves enabled state and provider configuration', async () => {
+  const current = [
+    { id: 'openai', weight: 10, enabled: false, provider: 'OpenAI custom' },
+    { id: 'gemini', weight: 90, enabled: true, provider: 'Google custom' },
+    { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+    { id: 'zero-weight', weight: 10, enabled: false, provider: 'Zero' },
+  ];
+  const initial = [
+    { id: 'openai', weight: 35 },
+    { id: 'gemini', weight: 35 },
+    { id: 'zero-weight', weight: 0 },
+  ];
+  assert.deepEqual(resetDisplayWeights(current, initial), [
+    { id: 'openai', weight: 35, enabled: false, provider: 'OpenAI custom' },
+    { id: 'gemini', weight: 35, enabled: true, provider: 'Google custom' },
+    { id: 'local', weight: 5, enabled: true, provider: 'Local' },
+    { id: 'zero-weight', weight: 0, enabled: false, provider: 'Zero' },
+  ]);
+
+  const management = await readSource('src/components/AiModelsCollaborationManagement.tsx');
+  assert.match(management, /resetDisplayWeights\(prev, INITIAL_NODES\)/);
+  assert.doesNotMatch(management, /setNodes\(INITIAL_NODES\)/);
 });

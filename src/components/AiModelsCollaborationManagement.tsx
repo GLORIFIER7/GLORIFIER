@@ -25,6 +25,7 @@ import { MonetizationPolicy, DataFootprintSource, CouncilConsensusResult, ModelC
 import { WorkTogetherWithGptStudio } from './WorkTogetherWithGptStudio';
 import { getIdToken } from '../lib/firebase';
 import { discoverConfiguredModelCouncilParticipants, formatModelCouncilFailures, ModelCouncilClientError, selectConfiguredParticipantsForProviders, submitAuthenticatedModelCouncilRequest } from '../lib/ai/model-council-client';
+import { resetDisplayWeights } from '../lib/ai/model-council-display-preferences.mjs';
 
 interface AiModelsCollaborationManagementProps {
   policy: MonetizationPolicy;
@@ -434,7 +435,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
               <button
                 type="button"
                 onClick={() => {
-                  setNodes(INITIAL_NODES);
+                  setNodes(prev => resetDisplayWeights(prev, INITIAL_NODES));
                   setStatusFeedback('Display weights reset; they do not affect provider council execution.');
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
