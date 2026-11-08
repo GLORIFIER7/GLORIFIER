@@ -232,20 +232,20 @@ export const requestJson = async (
 };
 
 const fetchProductionHealth = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/health', options);
+  fetch('https://glorifier.pages.dev/api/health', options);
 const fetchProductionReports = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/reports/summary', options);
+  fetch('https://glorifier.pages.dev/api/reports/summary', options);
 const fetchProductionRuntime = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/runtime-verification?probeAi=false', options);
+  fetch('https://glorifier.pages.dev/api/runtime-verification?probeAi=false', options);
 const fetchProductionAppState = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/app-state', options);
+  fetch('https://glorifier.pages.dev/api/app-state', options);
 const fetchProductionIdentity = (options) =>
-  fetch('https://glorifier.glorifier.workers.dev/api/identity', options);
+  fetch('https://glorifier.pages.dev/api/identity', options);
 
-const PRODUCTION_WORKER_ORIGIN = 'https://glorifier.glorifier.workers.dev';
+const PRODUCTION_PUBLIC_ORIGIN = 'https://glorifier.pages.dev';
 
 const fetchProductionBuildInfo = (fetchRequest = fetch) => (options) =>
-  fetchRequest(new URL('/api/build-info', PRODUCTION_WORKER_ORIGIN), options);
+  fetchRequest(new URL('/api/build-info', PRODUCTION_PUBLIC_ORIGIN), options);
 
 const isAsciiHex = (value, expectedLength) => {
   if (typeof value !== 'string' || value.length !== expectedLength) return false;
@@ -351,7 +351,7 @@ export const verifyBuildProvenance = async (
 export const verifyPublicReadModels = async (fetchRequest = fetch) => {
   console.log('GLORIFIER production smoke: checking public integration registry and data-status read models');
   const getEndpoint = (pathname) => (options) =>
-    fetchRequest(new URL(pathname, PRODUCTION_WORKER_ORIGIN), options);
+    fetchRequest(new URL(pathname, PRODUCTION_PUBLIC_ORIGIN), options);
   const [integrationsResponse, dataStatusResponse] = await Promise.all([
     requestJson(getEndpoint('/api/integrations')),
     requestJson(getEndpoint('/api/data-status')),
