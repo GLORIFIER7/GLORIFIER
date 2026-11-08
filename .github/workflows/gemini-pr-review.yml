@@ -7,35 +7,35 @@ permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: gemini-pr-review-${ github.event.pull_request.number }}
+  group: gemini-pr-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${ github.event.pull_request.draft == false }}
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      review: ${ steps.gemini.outputs.summary }}
+      review: ${{ steps.gemini.outputs.summary }}
     env:
-      HAS_GEMINI_API_KEY: ${ secrets.GEMINI_API_KEY != '' }}
+      HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
     steps:
       - name: Checkout trusted base branch only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${ github.event.repository.default_branch }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Require Gemini credential
-        if: ${ env.HAS_GEMINI_API_KEY != 'true' }}
+        if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
         run: |
           echo "::error::GEMINI_API_KEY is unavailable. This pull request has not received a Gemini review."
           exit 1
       - name: Retrieve pull request diff as untrusted data
         env:
-          GH_TOKEN: ${ github.token }}
-          PR_NUMBER: ${ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
@@ -64,12 +64,12 @@ jobs:
           JSON
       - name: Run Gemini advisory review
         id: gemini
-        if: ${ env.HAS_GEMINI_API_KEY == 'true' }}
+        if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         env:
-          GEMINI_CLI_SYSTEM_SETTINGS_PATH: ${ runner.temp }}/gemini-system-settings.json
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH: ${{ runner.temp }}/gemini-system-settings.json
         with:
-          gemini_api_key: ${ secrets.GEMINI_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_cli_version: latest
           prompt: |
             You are GLORIFIER's independent Gemini engineering reviewer.
@@ -87,9 +87,9 @@ jobs:
             This is an advisory review only. Never approve, request changes, merge, deploy,
             or authorize an action.
       - name: Require a non-empty Gemini review
-        if: ${ steps.gemini.outcome == 'success' }}
+        if: ${{ steps.gemini.outcome == 'success' }}
         env:
-          GEMINI_REVIEW: ${ steps.gemini.outputs.summary }}
+          GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
         run: |
           set -euo pipefail
           if [ -z "$GEMINI_REVIEW" ]; then
@@ -98,7 +98,7 @@ jobs:
           fi
   publish-review:
     needs: gemini-review
-    if: ${ needs.gemini-review.result == 'success' && needs.gemini-review.outputs.review != '' }}
+    if: ${{ needs.gemini-review.result == 'success' && needs.gemini-review.outputs.review != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -106,9 +106,9 @@ jobs:
     steps:
       - name: Publish Gemini COMMENT review only
         env:
-          GH_TOKEN: ${ github.token }}
-          PR_NUMBER: ${ github.event.pull_request.number }}
-          GEMINI_REVIEW: ${ needs.gemini-review.outputs.review }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GEMINI_REVIEW: ${{ needs.gemini-review.outputs.review }}
         shell: bash
         run: |
           set -euo pipefail
