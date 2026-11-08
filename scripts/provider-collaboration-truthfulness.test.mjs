@@ -19,6 +19,8 @@ test('work-together UI labels provider requests and reports agreement as unmeasu
     /Cryptographic Cross-Audit/,
     /JOINT CO-AUTHORED ARTIFACT/i,
     /INDIVIDUAL MODEL CONTRIBUTIONS/i,
+    /Dual-Model Cross-Validation Enclave/,
+    /co-signed by GPT-4o/i,
   ]) {
     assert.doesNotMatch(studio, unsupportedLabel, 'unsupported static collaboration label remains visible');
   }
