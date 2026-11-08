@@ -148,6 +148,7 @@ jobs:
 
       - name: Prepare Android release signing
         id: signing
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -165,87 +166,20 @@ jobs:
             echo "Android signing credentials are not configured; building an unsigned release AAB."
           fi
 
-      - name: Build Android App Bundle
+      - name: Build signed Android App Bundle
+        if: steps.signing.outputs.available == 'true' && github.event_name != 'pull_request'
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            gradle_user_home="${GRADLE_USER_HOME:-$HOME/.gradle}"
-            gradle_properties="$gradle_user_home/gradle.properties"
-            backup_properties="$RUNNER_TEMP/gradle.properties.before-signing"
-            had_properties=false
-            mkdir -p "$gradle_user_home"
+          'ORG_GRADLE_PROJECT_android.injected.signing.store.file': ${{ github.workspace }}/android/app/glorifier-release.jks
+          'ORG_GRADLE_PROJECT_android.injected.signing.store.password': ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          'ORG_GRADLE_PROJECT_android.injected.signing.key.alias': ${{ secrets.ANDROID_KEY_ALIAS }}
+          'ORG_GRADLE_PROJECT_android.injected.signing.key.password': ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease
 
-            if [[ -f "$gradle_properties" ]]; then
-              cp -p "$gradle_properties" "$backup_properties"
-              had_properties=true
-            fi
-
-            cleanup_gradle_signing() {
-              if [[ "$had_properties" == "true" ]]; then
-                cp -p "$backup_properties" "$gradle_properties"
-              else
-                rm -f "$gradle_properties"
-              fi
-              rm -f "$backup_properties" "$GITHUB_WORKSPACE/android/app/glorifier-release.jks"
-            }
-            trap cleanup_gradle_signing EXIT
-
-            GRADLE_PROPERTIES_FILE="$gradle_properties" python - <<'PY'
-            import os
-            from pathlib import Path
-
-            def escape_property(value: str) -> str:
-                escaped = []
-                for index, char in enumerate(value):
-                    codepoint = ord(char)
-                    if char == "\\":
-                        escaped.append("\\\\")
-                    elif char == "\t":
-                        escaped.append("\\t")
-                    elif char == "\n":
-                        escaped.append("\\n")
-                    elif char == "\r":
-                        escaped.append("\\r")
-                    elif char in "=:#!":
-                        escaped.append("\\" + char)
-                    elif char == " " and index == 0:
-                        escaped.append("\\ ")
-                    elif 0x20 <= codepoint <= 0x7E:
-                        escaped.append(char)
-                    elif codepoint <= 0xFFFF:
-                        escaped.append(f"\\u{codepoint:04x}")
-                    else:
-                        adjusted = codepoint - 0x10000
-                        high = 0xD800 + (adjusted >> 10)
-                        low = 0xDC00 + (adjusted & 0x3FF)
-                        escaped.append(f"\\u{high:04x}\\u{low:04x}")
-                return "".join(escaped)
-
-            workspace = Path(os.environ["GITHUB_WORKSPACE"])
-            values = {
-                "android.injected.signing.store.file": str(
-                    workspace / "android/app/glorifier-release.jks"
-                ),
-                "android.injected.signing.store.password": os.environ["ANDROID_KEYSTORE_PASSWORD"],
-                "android.injected.signing.key.alias": os.environ["ANDROID_KEY_ALIAS"],
-                "android.injected.signing.key.password": os.environ["ANDROID_KEY_PASSWORD"],
-            }
-            target = Path(os.environ["GRADLE_PROPERTIES_FILE"])
-            with target.open("a", encoding="ascii") as output:
-                for key, value in values.items():
-                    output.write(f"{key}={escape_property(value)}\n")
-            target.chmod(0o600)
-            PY
-
-            ./gradlew bundleRelease
-          else
-            ./gradlew bundleRelease
-          fi
+      - name: Build unsigned Android App Bundle
+        if: steps.signing.outputs.available != 'true' || github.event_name == 'pull_request'
+        working-directory: android
+        run: ./gradlew bundleRelease
 
       - name: Verify release AAB exists
         run: |
