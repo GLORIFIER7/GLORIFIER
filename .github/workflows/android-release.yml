@@ -44,6 +44,40 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      # Capacitor currently generates Gradle 8.14.3 with the larger -all archive.
+      # Use Gradle's official binary-only archive and independently published SHA-256.
+      - name: Pin Android Gradle distribution and checksum
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          wrapper = Path("android/gradle/wrapper/gradle-wrapper.properties")
+          if not wrapper.is_file():
+              raise SystemExit(f"Generated Gradle wrapper is missing: {wrapper}")
+
+          content = wrapper.read_text(encoding="utf-8")
+          old_url = "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-all.zip"
+          new_url = "distributionUrl=https\\://downloads.gradle.org/distributions/gradle-8.14.3-bin.zip"
+          if content.count(old_url) != 1:
+              raise SystemExit(
+                  "Unexpected generated Gradle distribution URL; refusing an unreviewed version change."
+              )
+          if "distributionSha256Sum=" in content:
+              raise SystemExit("A Gradle distribution checksum is already configured; review before replacing it.")
+
+          content = content.replace(old_url, new_url, 1)
+          properties = content.rstrip().splitlines()
+          properties.append("distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531")
+          properties.append("networkTimeout=120000")
+          wrapper.write_text("\\n".join(properties) + "\\n", encoding="utf-8")
+
+          verified = wrapper.read_text(encoding="utf-8")
+          if new_url not in verified or "distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531" not in verified:
+              raise SystemExit("Gradle wrapper URL/checksum configuration did not persist.")
+          print("Pinned Gradle 8.14.3 binary distribution with the official SHA-256 checksum.")
+          PY
+
       - name: Prepare Android release signing
         id: signing
         env:
@@ -72,14 +106,15 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            ./gradlew bundleRelease \
-              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/glorifier-release.jks" \
-              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
-              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            ./gradlew bundleRelease \\
+              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/glorifier-release.jks" \\
+              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \\
+              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \\
               -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
           else
             ./gradlew bundleRelease
           fi
+
       - name: Verify release AAB exists
         run: |
           set -euo pipefail
