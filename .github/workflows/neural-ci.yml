@@ -85,8 +85,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          changed_paths="$(gh api --paginate "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100" --jq '.[] | [.filename, .previous_filename // empty] | .[]')"
-          if grep -Eq '^services/neural/' <<<"$changed_paths" || grep -Fqx '.github/workflows/neural-ci.yml' <<<"$changed_paths"; then
+          changed_files_json="$(gh api --paginate --slurp "repos/\${GH_REPO}/pulls/\${PR_NUMBER}/files?per_page=100")"
+          changed_file_count="$(jq '[.[][]] | length' <<<"$changed_files_json")"
+          changed_paths="$(jq -r '.[][] | .filename, (.previous_filename // empty)' <<<"$changed_files_json")"
+          if (( changed_file_count >= 3000 )); then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "PR files API reached its 3,000-file cap; applying NEURAL review policy fail-closed."
+          elif grep -Eq '^services/neural/' <<<"$changed_paths" || grep -Fqx '.github/workflows/neural-ci.yml' <<<"$changed_paths"; then
             echo "required=true" >> "$GITHUB_OUTPUT"
             echo "NEURAL review policy is required for this PR."
           else
