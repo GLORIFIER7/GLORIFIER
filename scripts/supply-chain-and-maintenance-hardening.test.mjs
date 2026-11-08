@@ -232,3 +232,99 @@ test('Gemini development workflow has unique step-level keys', () => {
     }
   }
 });
+
+
+const geminiReviewWorkflow = readFileSync(
+  new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url),
+  'utf8',
+);
+
+function readGeminiSystemSettings(source) {
+  const match = source.match(
+    /cat > "\$RUNNER_TEMP\/gemini-system-settings\.json" <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
+  );
+  assert.ok(match, 'Gemini workflow must create its system settings outside the repository workspace');
+  return JSON.parse(match[1]);
+}
+
+function jobSection(source, jobName, nextJobName) {
+  const start = source.indexOf('  ' + jobName + ':');
+  assert.ok(start >= 0, 'missing ' + jobName + ' job');
+  const end = nextJobName ? source.indexOf('  ' + nextJobName + ':', start + 1) : source.length;
+  return source.slice(start, end < 0 ? source.length : end);
+}
+
+test('scheduled Gemini collaborator separates read-only model execution from PR publishing', () => {
+  const modelJob = jobSection(geminiWorkflow, 'gemini', 'publish');
+  const publisherJob = jobSection(geminiWorkflow, 'publish', null);
+
+  assert.match(geminiWorkflow, /permissions:\s*\n\s+contents:\s*read/);
+  assert.match(modelJob, /permissions:\s*\n\s+contents:\s*read/);
+  assert.doesNotMatch(modelJob, /contents:\s*write|pull-requests:\s*write/);
+  assert.match(publisherJob, /contents:\s*write/);
+  assert.match(publisherJob, /pull-requests:\s*write/);
+  assert.match(modelJob, /persist-credentials:\s*false/);
+  assert.match(modelJob, /actions\/upload-artifact@/);
+  assert.match(publisherJob, /actions\/download-artifact@/);
+  assert.match(publisherJob, /apply --whitespace=error/);
+  assert.match(publisherJob, /npm run lint/);
+  assert.match(publisherJob, /npm run build/);
+  assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
+});
+
+test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
+  for (const source of [geminiWorkflow, geminiDevelopmentWorkflow]) {
+    const settings = readGeminiSystemSettings(source);
+    assert.deepEqual(settings.tools.core, [
+      'read_file',
+      'glob',
+      'grep_search',
+      'list_directory',
+      'read_many_files',
+      'write_file',
+      'replace',
+    ]);
+    assert.equal(settings.general.defaultApprovalMode, 'auto_edit');
+    assert.equal(settings.security.disableYoloMode, true);
+    assert.equal(settings.security.environmentVariableRedaction.enabled, true);
+    assert.equal(settings.security.enableConseca, true);
+    assert.doesNotMatch(JSON.stringify(settings.tools.core), /run_shell_command/);
+    assert.match(source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:\s*\$\{\{\s*runner\.temp\s*\}\}\/gemini-system-settings\.json/);
+  }
+});
+
+test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can only publish a comment', () => {
+  const modelJob = jobSection(geminiReviewWorkflow, 'gemini-review', 'publish-review');
+  const publisherJob = jobSection(geminiReviewWorkflow, 'publish-review', null);
+  const settings = readGeminiSystemSettings(geminiReviewWorkflow);
+
+  assert.match(geminiReviewWorkflow, /pull_request_target:/);
+  assert.match(geminiReviewWorkflow, /contents:\s*read/);
+  assert.match(modelJob, /pull-requests:\s*read/);
+  assert.doesNotMatch(modelJob, /contents:\s*write|pull-requests:\s*write|issues:\s*write/);
+  assert.doesNotMatch(modelJob, /pull_request\.head\.sha/);
+  assert.match(modelJob, /pulls\/\$\{PR_NUMBER\}/);
+  assert.deepEqual(settings.tools.core, [
+    'read_file',
+    'glob',
+    'grep_search',
+    'list_directory',
+    'read_many_files',
+  ]);
+  assert.equal(settings.general.defaultApprovalMode, 'plan');
+  assert.equal(settings.security.disableYoloMode, true);
+  assert.equal(settings.security.environmentVariableRedaction.enabled, true);
+  assert.equal(settings.security.enableConseca, true);
+  assert.doesNotMatch(JSON.stringify(settings.tools.core), /write_file|replace|run_shell_command/);
+  assert.match(publisherJob, /pull-requests:\s*write/);
+  assert.doesNotMatch(publisherJob, /contents:\s*write/);
+  assert.match(publisherJob, /event:\s*"COMMENT"/);
+  assert.doesNotMatch(publisherJob, /event:\s*"(?:APPROVE|REQUEST_CHANGES)"/);
+  assert.doesNotMatch(publisherJob, /merge_pull_request|gh pr merge|git push/);
+});
+
+test('Gemini PR review fails visibly when the Gemini credential is unavailable', () => {
+  assert.match(geminiReviewWorkflow, /HAS_GEMINI_API_KEY/);
+  assert.match(geminiReviewWorkflow, /GEMINI_API_KEY is unavailable/);
+  assert.match(geminiReviewWorkflow, /exit 1/);
+});
