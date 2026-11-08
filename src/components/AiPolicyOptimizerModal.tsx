@@ -164,7 +164,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
                   <Cpu className="w-3 h-3 text-emerald-400" />
-                  LOCAL PRESET · NO MODEL CALL
+                  {activeModel === 'auto' ? 'LOCAL PRESET · NO MODEL CALL · AUTO PREFERENCE' : `LOCAL PRESET · NO MODEL CALL · ${activeModel} PREFERENCE`}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
