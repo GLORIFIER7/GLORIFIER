@@ -84,8 +84,8 @@ test('compliance scientist roster has one authoritative value for each display f
   assert.notEqual(end, -1, 'compliance scientist roster entry must have a boundary');
   const entry = roster.slice(start, end);
   for (const field of ['name', 'provider', 'role', 'specialization', 'badge']) {
-    const count = entry.match(new RegExp(`\\\\b${field}:`, 'g'))?.length ?? 0;
+    const count = entry.split(`${field}:`).length - 1;
     assert.equal(count, 1, `compliance scientist must declare ${field} exactly once`);
   }
-  assert.match(entry, /name: 'A\\.I\\. Bot Compliance Scientist'/);
+  assert.ok(entry.includes("name: 'A.I. Bot Compliance Scientist'"));
 });
