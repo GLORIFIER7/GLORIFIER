@@ -25,13 +25,15 @@ const runMiddleware = async (
   let nextCalled = false;
   let statusCode = 200;
   let body: unknown;
+  const responseHeaders = new Map<string, string>();
   const res = {
+    setHeader(name: string, value: string) { responseHeaders.set(name.toLowerCase(), value); return this; },
     status(code: number) { statusCode = code; return this; },
     json(value: unknown) { body = value; return this; },
   };
   middleware(req, res, () => { nextCalled = true; });
   await new Promise<void>((resolve) => setImmediate(resolve));
-  return { req, nextCalled, statusCode, body };
+  return { req, nextCalled, statusCode, body, headers: responseHeaders };
 };
 
 const fakeVerifier: TokenVerifier = async (req) => {
@@ -62,6 +64,7 @@ try {
   const unauthenticatedCreate = await runMiddleware(createRequireAuthentication(fakeVerifier), {});
   assert.equal(unauthenticatedCreate.statusCode, 401, 'payment-intent creation must reject unauthenticated requests');
   assert.equal(unauthenticatedCreate.nextCalled, false);
+  assert.equal(unauthenticatedCreate.headers.get('www-authenticate'), 'Bearer', '401 bearer responses must advertise the authentication scheme');
 
   const verifiedUserCreate = await runMiddleware(createRequireAuthentication(fakeVerifier), {
     authorization: 'Bearer user-token',
