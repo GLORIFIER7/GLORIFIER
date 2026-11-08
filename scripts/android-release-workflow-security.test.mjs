@@ -24,14 +24,21 @@ test('Android release workflow has exactly one trusted event: push to main', () 
   );
 });
 
-test('signing secrets are confined to main-push guarded steps', () => {
-  assert.ok(prepareStart >= 0 && signedStart > prepareStart && unsignedStart > signedStart);
-  const prepare = workflow.slice(prepareStart, signedStart);
-  const signed = workflow.slice(signedStart, unsignedStart);
-  const withoutSigningSteps = workflow.replace(prepare, '').replace(signed, '');
-  assert.match(prepare, mainOnlySigningGuard);
-  assert.match(signed, mainOnlySigningGuard);
-  assert.equal(withoutSigningSteps.includes('secrets.'), false);
+test('every step that references secrets is individually main-push guarded', () => {
+  const steps = workflow.split(/^      - name: /m).slice(1).map(block => {
+    const [name] = block.split('\n');
+    return { name, source: block };
+  });
+  const secretSteps = steps.filter(step => /\bsecrets\./.test(step.source));
+
+  assert.deepEqual(
+    secretSteps.map(step => step.name),
+    ['Prepare Android release signing', 'Build signed Android App Bundle'],
+    'signing secrets must appear only in the two explicitly approved signing steps',
+  );
+  for (const step of secretSteps) {
+    assert.match(step.source, mainOnlySigningGuard, `secret-bearing step "${step.name}" must be guarded`);
+  }
 });
 
 test('unsigned condition is attached to the unsigned build step itself', () => {
