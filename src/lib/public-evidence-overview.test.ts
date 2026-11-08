@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   parseOperationalReport,
   summarizeEndpoint,
+  summarizeOperationalReportResponse,
   summarizeRuntime,
 } from './public-evidence-overview';
 
@@ -42,6 +43,15 @@ test('rejects counts from an undeclared source or without exact-count evidence',
     ...validReport,
     evidence: { source: 'neon-hyperdrive', exactRowCounts: false },
   }), null);
+});
+
+test('does not promote a successful HTTP response to verified counts when the evidence contract fails', () => {
+  const result = summarizeOperationalReportResponse(200, {
+    ...validReport,
+    evidence: { source: 'supabase-postgrest', exactRowCounts: true },
+  });
+  assert.equal(result.label, 'EVIDENCE CONTRACT NOT MET');
+  assert.match(result.detail, /No counts are displayed/);
 });
 
 test('rejects missing, negative, fractional, and unsafe numeric counts', () => {
