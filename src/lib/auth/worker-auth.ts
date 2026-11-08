@@ -193,8 +193,8 @@ async function verifyAuth0Token(
     const validSignature = await crypto.subtle.verify(
       { name: 'RSASSA-PKCS1-v1_5' },
       publicKey,
-      jwt.signature,
-      textEncoder.encode(jwt.signingInput),
+      new Uint8Array(jwt.signature).buffer as ArrayBuffer,
+      textEncoder.encode(jwt.signingInput).buffer as ArrayBuffer,
     );
     if (!validSignature) return null;
   } catch {
