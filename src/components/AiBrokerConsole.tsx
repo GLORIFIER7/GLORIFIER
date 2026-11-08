@@ -320,7 +320,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 : providerCatalogStatus === 'unavailable'
                   ? 'Provider discovery unavailable. Automatic routing is not verified; explicit model selection is disabled.'
                   : !hasUserSelectedModel.current && savedModelPreference.current !== 'auto' && selectedModel === 'auto'
-                    ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; automatic routing is active.'
+                    ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; Auto is selected, but provider selection and inference are not verified.'
                     : discoveredModelOptions.length
                       ? discoveredModelOptions.length + ' authenticated provider model IDs discovered. Discovery does not guarantee successful inference.'
                       : 'No authenticated provider model IDs were discovered. No provider selection or inference is confirmed.'}
