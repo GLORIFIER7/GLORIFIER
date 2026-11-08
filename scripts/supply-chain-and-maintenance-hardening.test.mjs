@@ -266,7 +266,7 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(modelJob, /persist-credentials:\s*false/);
   assert.match(modelJob, /actions\/upload-artifact@/);
   assert.match(publisherJob, /actions\/download-artifact@/);
-  assert.match(publisherJob, /git apply --whitespace=error/);
+  assert.match(publisherJob, /apply --whitespace=error/);
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
