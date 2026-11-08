@@ -297,24 +297,50 @@ export async function getWorkerDatabaseSession(
   databaseName: string | null;
   databaseRole: string | null;
   serverTime: string | null;
+  readCapabilityVerified: boolean;
   writeCapabilityVerified: boolean;
 }> {
+  const appStateTables = [
+    'app_policies',
+    'app_offers',
+    'app_grants',
+    'app_telemetry',
+    'app_transactions',
+    'app_footprints',
+    'app_exposures',
+  ];
+  const appStateSelectChecks = appStateTables
+    .map(table => `has_table_privilege(current_user, 'public.${table}', 'SELECT')`)
+    .join(' AND ');
+  const appStateInsertChecks = appStateTables
+    .map(table => `has_table_privilege(current_user, 'public.${table}', 'INSERT')`)
+    .join(' AND ');
+  const appStateUpdateChecks = appStateTables
+    .map(table => `has_table_privilege(current_user, 'public.${table}', 'UPDATE')`)
+    .join(' AND ');
+
   return withClient(binding, async client => {
     const result = await client.query(
       `SELECT current_database() AS database_name,
               current_user AS database_role,
               NOW() AS database_time,
-              has_table_privilege(current_user, 'public.app_policies', 'INSERT') AS app_state_insert_allowed,
-              has_table_privilege(current_user, 'public.app_policies', 'UPDATE') AS app_state_update_allowed`,
+              (${appStateSelectChecks}) AS app_state_read_allowed,
+              (
+                has_table_privilege(current_user, 'public.marketplace_transactions', 'SELECT')
+                AND has_table_privilege(current_user, 'public.revenue_ledger', 'SELECT')
+                AND has_table_privilege(current_user, 'public.payout_requests', 'SELECT')
+              ) AS finance_read_allowed,
+              (${appStateInsertChecks}) AS app_state_insert_allowed,
+              (${appStateUpdateChecks}) AS app_state_update_allowed`,
     );
     const row = result.rows[0] ?? {};
-    const writeCapabilityVerified = row.app_state_insert_allowed === true && row.app_state_update_allowed === true;
     return {
       connected: true,
       databaseName: typeof row.database_name === 'string' ? row.database_name : null,
       databaseRole: typeof row.database_role === 'string' ? row.database_role : null,
       serverTime: row.database_time == null ? null : String(row.database_time),
-      writeCapabilityVerified,
+      readCapabilityVerified: row.app_state_read_allowed === true && row.finance_read_allowed === true,
+      writeCapabilityVerified: row.app_state_insert_allowed === true && row.app_state_update_allowed === true,
     };
   }, factory);
 }
