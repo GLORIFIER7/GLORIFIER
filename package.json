@@ -96,6 +96,7 @@
     "test:connection-approval": "tsx src/lib/connection-approval.test.ts",
     "test:governance-loop": "node --import tsx/esm --test src/lib/governance-loop.test.ts",
     "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",
+    "test:a2a-authenticated-exchange": "tsx src/lib/a2a-authenticated-exchange.integration.test.ts",
     "test:supabase-default-privileges": "node scripts/supabase-default-privileges.integration.test.mjs",
     "test:supabase-migration-source-fidelity": "node --test scripts/supabase-migration-source-fidelity.test.mjs",
     "test:ai-council-routing": "node --test src/lib/ai/model-council-routing.test.mjs",
