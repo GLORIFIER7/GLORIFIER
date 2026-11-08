@@ -232,6 +232,7 @@ test('Cloudflare Worker internal-service and owner authorization fail closed', a
     provider: 'firebase',
     email: 'owner@example.test',
     emailVerified: false,
+    firebaseSignInProvider: null,
     claims: {},
   }, env), false, 'an unverified email cannot establish owner authority');
 });
