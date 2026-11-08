@@ -17,7 +17,7 @@ test('broker inference failure is reported as a failure, never synthetic success
   assert.doesNotMatch(route, /I am enforcing your current privacy parameters/);
   assert.doesNotMatch(route, /Local Enclave/);
   assert.doesNotMatch(route, /let suggestedAction\s*=/);
-  assert.match(route, /No data stream names were supplied/);
+  assert.doesNotMatch(route, /footprintsSummary|Browsing, E-Commerce, Developer, Health telemetry active/);
   assert.match(route, /minimumMonthlyFloorUsd\s*\?\?/);
   assert.match(route, /globalEpsilon\s*\?\?/);
 });
@@ -30,9 +30,9 @@ test('broker system prompt limits the model to analysis and draft text', async (
 
   assert.match(route, /text-only AI assistant/i);
   assert.match(route, /does not execute privacy transformations/i);
-  assert.match(route, /does not contact buyers/i);
-  assert.match(route, /does not submit statutory notices/i);
-  assert.match(route, /does not verify legal compliance/i);
+  assert.match(route, /does not accept or reject buyer bids, contact buyers/i);
+  assert.match(route, /submit statutory notices/i);
+  assert.match(route, /verify legal compliance/i);
 });
 
 test('broker console labels controls as local preferences and does not imply execution', async () => {
@@ -41,7 +41,10 @@ test('broker console labels controls as local preferences and does not imply exe
   assert.match(consoleSource, /Local Policy Preferences/);
   assert.match(consoleSource, /not a server-side authorization boundary/i);
   assert.match(consoleSource, /configured maximum ε target \(not enforcement\)/i);
-  assert.match(consoleSource, /does not transform data or reject requests/i);
+  assert.match(consoleSource, /does not transform data, enforce a privacy budget, or reject buyer requests/i);
+  assert.doesNotMatch(consoleSource, /footprintsSummary/);
+  assert.match(consoleSource, /policyContext:\s*\{/);
+  assert.doesNotMatch(consoleSource, /currentPolicy:\s*\{\s*\.\.\.policy/);
   assert.match(consoleSource, /does not contact buyers or send a counter-offer/i);
   assert.match(consoleSource, /Model not reported/);
   assert.match(consoleSource, /Execution boundary: this endpoint returns AI-generated text only/i);
@@ -57,8 +60,10 @@ test('policy preset panel does not imply AI optimization or enclave execution', 
 
   assert.match(modal, /Policy Preset Comparator/);
   assert.match(modal, /Apply Local Preferences/);
-  assert.match(modal, /Applying local preferences/);
+  assert.match(modal, /LOCAL PRESET · NO MODEL CALL/);
   assert.doesNotMatch(modal, /Calibrating Enclave/);
+  assert.doesNotMatch(modal, /setTimeout\(/);
+  assert.match(modal, /autoNegotiateHighBids: false/);
 });
 
 test('council panel describes a request to configured providers, not all AI or live enforcement', async () => {
@@ -66,8 +71,15 @@ test('council panel describes a request to configured providers, not all AI or l
 
   assert.match(council, /Configured-Provider AI Council/);
   assert.match(council, /Request Council Responses/);
-  assert.match(council, /discussion only/i);
+  assert.match(council, /This is advisory discussion only/i);
+  assert.match(council, /source names, records, wallet details, and payment settings are not sent/i);
   assert.doesNotMatch(council, /All-AI Model Collaboration Council/);
   assert.doesNotMatch(council, /tracker quarantine\./i);
   assert.doesNotMatch(council, /Statutory Broker Clawback & Shadow Tracker Eradication/);
+
+  const client = await readSource('src/lib/ai/model-council-client.ts');
+  assert.match(client, /policyContext: input\.policyContext/);
+  assert.match(client, /footprintCount: input\.footprintCount/);
+  assert.doesNotMatch(client, /currentPolicy: input\.currentPolicy/);
+  assert.doesNotMatch(client, /footprints: input\.footprints/);
 });
