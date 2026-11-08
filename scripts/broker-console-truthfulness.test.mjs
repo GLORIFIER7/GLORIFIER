@@ -193,6 +193,7 @@ test('Monetization Manager sends the allowlisted broker policy context without f
   assert.doesNotMatch(manager, /currentPolicy:\s*policy|footprintsSummary/);
   assert.match(manager, /authenticatedFetch\(['"]\/api\/ai\/broker-chat['"]/);
   assert.doesNotMatch(manager, /fetch\(['"]\/api\/ai\/broker-chat['"]/);
+  assert.match(manager, /if \(!currentUser\) \{\s*setReply\('Sign in to run the monetization manager\.'\);\s*return;\s*\}/);
   assert.match(manager, /max="100"/);
   assert.match(manager, /minimumMonthlyFloorUsd:\s*Math\.min\(100,\s*Math\.max\(0,\s*Number\(event\.target\.value\)\s*\|\|\s*0\)\)/);
 });
