@@ -38,7 +38,7 @@ test('broker system prompt limits the model to analysis and draft text', async (
 test('broker console labels controls as local preferences and does not imply execution', async () => {
   const consoleSource = await readSource('src/components/AiBrokerConsole.tsx');
 
-  assert.match(consoleSource, /Local Policy Preferences/);
+  assert.match(consoleSource, /Configured Policy Preferences/);
   assert.match(consoleSource, /not a server-side authorization boundary/i);
   assert.match(consoleSource, /configured maximum ε target \(not enforcement\)/i);
   assert.match(consoleSource, /does not transform data, enforce a privacy budget, or reject buyer requests/i);
@@ -48,6 +48,9 @@ test('broker console labels controls as local preferences and does not imply exe
   assert.match(consoleSource, /does not contact buyers or send a counter-offer/i);
   assert.match(consoleSource, /Model not reported/);
   assert.match(consoleSource, /Execution boundary: this endpoint returns AI-generated text only/i);
+  assert.match(consoleSource, /four policy preferences/);
+  assert.match(consoleSource, /does not send source names, footprint records, wallet details, or payment settings/);
+  assert.match(consoleSource, /provider's retention and training terms are NOT VERIFIED/);
   assert.match(consoleSource, /Ask about:/);
   assert.doesNotMatch(consoleSource, /automatically applies these governing thresholds/i);
   assert.doesNotMatch(consoleSource, /Action applied:/);
@@ -92,6 +95,7 @@ test('council panel describes a request to configured providers, not all AI or l
   assert.match(council, /Configured-Provider AI Council/);
   assert.match(council, /Request Council Responses/);
   assert.match(council, /This is advisory discussion only/i);
+  assert.match(council, /up to eight/);
   assert.match(council, /source names, records, wallet details, and payment settings are not sent/i);
   assert.doesNotMatch(council, /All-AI Model Collaboration Council/);
   assert.doesNotMatch(council, /tracker quarantine\./i);
