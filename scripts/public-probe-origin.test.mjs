@@ -16,6 +16,9 @@ test('production and monitoring smoke checks use the public Pages origin', () =>
     assert.ok(infrastructureHealth.includes('url="' + publicOrigin + path + '"'),
       'infrastructure health must probe ' + path + ' through Pages');
   }
+  assert.match(infrastructureHealth, /Check Worker, assets, and Neon Hyperdrive operational readiness/);
+  assert.match(infrastructureHealth, /Neon Hyperdrive exact-count probe passed/);
+  assert.doesNotMatch(infrastructureHealth, /Supabase operational readiness|Supabase exact-count probe/);
   assert.doesNotMatch(infrastructureHealth, /https:\/\/glorifier\.glorifier\.workers\.dev/);
 
   const systemHealth = read('.github/workflows/system-health-guardian.yml');
@@ -23,6 +26,9 @@ test('production and monitoring smoke checks use the public Pages origin', () =>
     assert.ok(systemHealth.includes(publicOrigin + path),
       'system health guardian must probe ' + path + ' through Pages');
   }
+  assert.match(systemHealth, /Verify Cloudflare Worker and Neon Hyperdrive runtime state/);
+  assert.match(systemHealth, /Neon Hyperdrive probe verified/);
+  assert.doesNotMatch(systemHealth, /Supabase runtime state|Supabase probe verified/);
   assert.doesNotMatch(systemHealth, /https:\/\/glorifier\.glorifier\.workers\.dev/);
 
   const cloudflareWorkflow = read('.github/workflows/cloudflare-worker.yml');
