@@ -16,7 +16,7 @@ test('broker inference failure is reported as a failure, never synthetic success
   assert.match(route, /AI broker execution failed; no inference response was produced and no external action was executed/);
   assert.doesNotMatch(route, /I am enforcing your current privacy parameters/);
   assert.doesNotMatch(route, /Local Enclave/);
-  assert.doesNotMatch(route, /^\\s*\\*\\//m, 'broker route must not contain a stray block-comment terminator');
+  assert.equal(route.includes('*/'), false, 'broker route must not contain a stray block-comment terminator');
   assert.doesNotMatch(route, /let suggestedAction\s*=/);
   assert.doesNotMatch(route, /footprintsSummary|Browsing, E-Commerce, Developer, Health telemetry active/);
   assert.match(route, /minimumMonthlyFloorUsd\s*\?\?/);
