@@ -168,6 +168,10 @@ jobs:
           'ORG_GRADLE_PROJECT_android.injected.signing.key.password': ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew bundleRelease
 
+      - name: Remove Android release keystore
+        if: always()
+        run: rm -f android/app/glorifier-release.jks
+
       - name: Build unsigned Android App Bundle
         if: steps.signing.outputs.available != 'true'
         working-directory: android
