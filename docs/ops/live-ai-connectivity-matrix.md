@@ -37,7 +37,7 @@ The workflow can be run without provider secrets. Missing credentials are report
 
 1. Open Actions → Live AI Connectivity Matrix → Run workflow.
 2. Keep `allow_metered_probes=false` for non-inference connectivity checks.
-3. Set `allow_metered_probes=true` only when the owner explicitly authorizes short inference calls and possible provider charges. The workflow performs at most one short generation request per configured provider and one AI Council canary with at most two participants.
+3. Set `allow_metered_probes=true` only when the owner explicitly authorizes short inference calls and possible provider charges. The workflow performs at most one short generation request per configured provider (up to four), plus two AI Council participant generations and, when both participants succeed, one synthesis generation. The total upper bound is seven short generation calls.
 4. Download the `glorifier-live-ai-connectivity-*` artifact. It records UTC observation time, commit/ref, endpoint stages, HTTP status, latency, safe request IDs, model identifiers, and response digests.
 
 ## Evidence labels
