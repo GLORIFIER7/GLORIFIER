@@ -241,7 +241,7 @@ const geminiReviewWorkflow = readFileSync(
 
 function readGeminiSystemSettings(source) {
   const match = source.match(
-    /cat > "\$RUNNER_TEMP\/gemini-system-settings\.json" <<'JSON'\r?\n([\s\S]*?)\r?\nJSON/,
+    /cat > "\$RUNNER_TEMP\/gemini-system-settings\.json" <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
   );
   assert.ok(match, 'Gemini workflow must create its system settings outside the repository workspace');
   return JSON.parse(match[1]);
