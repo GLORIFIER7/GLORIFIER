@@ -31,23 +31,23 @@ interface AllAiCollaborationModalProps {
 const COUNCIL_AGENDAS = [
   {
     id: 'holistic',
-    title: 'Comprehensive Sovereign Footprint & Yield Audit',
-    description: 'All models evaluate your active streams, valuation ceiling, and tracker quarantine.'
+    title: 'Data-Governance Strategy Review',
+    description: 'Configured providers discuss supplied policy preferences and source metadata; no stream audit or tracker quarantine is performed.'
   },
   {
     id: 'ai-training',
-    title: 'Frontier AI Pre-Training Licensing & Zero-PII Enclave',
-    description: 'Determine safe terms, tokenization limits, and indemnification for AI lab buyers.'
+    title: 'AI Training Data Licensing Discussion',
+    description: 'Discuss possible licensing terms and risk questions. No buyer, contract, enclave, or data release is involved.'
   },
   {
     id: 'clawback',
-    title: 'Statutory Broker Clawback & Shadow Tracker Eradication',
-    description: 'Harmonize CCPA, GDPR, and California Delete Act enforcement against data brokers.'
+    title: 'Data-Erasure Request Drafting Review',
+    description: 'Discuss a preliminary request template for qualified legal review. No broker is contacted and no statutory action is submitted.'
   },
   {
     id: 'yield-pacing',
-    title: 'Maximized Monthly Pacing vs. Differential Privacy',
-    description: 'Calculate the mathematical equilibrium between Laplacian noise (ε) and passive yield.'
+    title: 'Illustrative Compensation and Privacy Trade-Offs',
+    description: 'Discuss conceptual trade-offs between configured ε targets and hypothetical compensation. No privacy mechanism or market valuation is calculated.'
   }
 ];
 
@@ -87,13 +87,16 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       const result = await submitAuthenticatedModelCouncilRequest({
         agenda: currentTopic,
         participants,
-        currentPolicy: policy,
-        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        policyContext: {
+          minimumMonthlyFloorUsd: policy.minimumMonthlyFloorUsd,
+          globalEpsilon: policy.globalEpsilon
+        },
+        footprintCount: footprints.length,
         getToken: getIdToken,
       });
       setProviderFailures(result.failures);
       setCouncilResult(result);
-      setStatusFeedback(`Received ${result.participantCount} response(s) from ${result.providerDiversity} provider(s). Exact registry model IDs were requested; live execution is evidenced only by returned participants.`);
+      setStatusFeedback(`Backend reported ${result.participantCount} response(s) from ${result.providerDiversity} provider(s). Returned participants document the reported request result; this is not independent verification or proof of consensus.`);
     } catch (err) {
       console.warn('Council endpoint unavailable; no consensus result was produced.', err);
       setCouncilResult(null);
@@ -122,7 +125,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       {
         globalEpsilon: councilResult.recommendedEpsilon,
         minimumMonthlyFloorUsd: councilResult.recommendedFloorUsd,
-        autoNegotiateHighBids: true
+        autoNegotiateHighBids: false
       },
       `Council response received: ε = ${councilResult.recommendedEpsilon}, Floor = ${councilResult.recommendedFloorUsd}/mo. Provider participation, consensus, and production enforcement are NOT independently verified.`
     );
@@ -147,7 +150,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  All-AI Model Collaboration Council
+                  Configured-Provider AI Council
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -155,7 +158,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                The shared council client selects configured provider/model pairs at request time. The endpoint validates them; actual participants and returned outputs are displayed after execution. No zero-knowledge enclave is claimed here.
+                The council requests responses from currently configured provider/model pairs (up to eight). It sends the agenda, the configured monthly floor and epsilon targets, and a footprint-record count; source names, records, wallet details, and payment settings are not sent in this request. This is advisory discussion only: it does not execute audits, privacy transformations, buyer outreach, statutory notices, data releases, or payments. Returned participants are backend-reported, not independent verification. No zero-knowledge enclave is claimed here.
               </p>
             </div>
           </div>
@@ -226,7 +229,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 type="text"
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Or specify custom question for all AI models to debate & solve..."
+                placeholder="Or specify a question for the currently configured providers..."
                 className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
               {customPrompt && (
@@ -252,12 +255,12 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 {isConvening ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Convening All AI Models...</span>
+                    <span>Requesting council responses from configured providers...</span>
                   </>
                 ) : (
                   <>
                     <Users className="w-4 h-4 fill-current" />
-                    <span>Convene All AI Models ({councilResult ? 'Re-run' : 'Start Collaboration'})</span>
+                    <span>Request Council Responses ({councilResult ? 'Re-run' : 'Start Collaboration'})</span>
                   </>
                 )}
               </button>
