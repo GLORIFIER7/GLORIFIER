@@ -70,7 +70,7 @@ jobs:
           properties = content.rstrip().splitlines()
           properties.append("distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531")
           properties.append("networkTimeout=120000")
-          wrapper.write_text("\\n".join(properties) + "\\n", encoding="utf-8")
+          wrapper.write_text("\n".join(properties) + "\n", encoding="utf-8")
 
           verified = wrapper.read_text(encoding="utf-8")
           if new_url not in verified or "distributionSha256Sum=bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531" not in verified:
@@ -106,10 +106,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.signing.outputs.available }}" = "true" ]; then
-            ./gradlew bundleRelease \\
-              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/glorifier-release.jks" \\
-              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \\
-              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \\
+            ./gradlew bundleRelease \
+              -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/glorifier-release.jks" \
+              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
               -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
           else
             ./gradlew bundleRelease
