@@ -66,15 +66,15 @@ jobs:
           archive="$RUNNER_TEMP/gradle-8.14.3-bin.zip"
           partial="$archive.part"
 
-          if [[ -f "$archive" ]] && printf '%s  %s\\n' "$GRADLE_DISTRIBUTION_SHA256" "$archive" | sha256sum --check --status; then
+          if [[ -f "$archive" ]] && printf '%s  %s\n' "$GRADLE_DISTRIBUTION_SHA256" "$archive" | sha256sum --check --status; then
             echo "Using the cached Gradle archive after SHA-256 verification."
           else
             rm -f "$archive" "$partial"
-            curl --fail --show-error --location \\
-              --retry 8 --retry-all-errors --retry-delay 10 --retry-max-time 300 \\
-              --connect-timeout 30 --max-time 1200 \\
+            curl --fail --show-error --location \
+              --retry 8 --retry-all-errors --retry-delay 10 --retry-max-time 300 \
+              --connect-timeout 30 --max-time 1200 \
               --output "$partial" "$GRADLE_DISTRIBUTION_URL"
-            printf '%s  %s\\n' "$GRADLE_DISTRIBUTION_SHA256" "$partial" | sha256sum --check
+            printf '%s  %s\n' "$GRADLE_DISTRIBUTION_SHA256" "$partial" | sha256sum --check
             mv "$partial" "$archive"
           fi
 
@@ -112,7 +112,7 @@ jobs:
           properties.append(f"distributionSha256Sum={os.environ['GRADLE_DISTRIBUTION_SHA256']}")
           properties = [line for line in properties if not line.startswith("networkTimeout=")]
           properties.append("networkTimeout=120000")
-          wrapper.write_text("\\n".join(properties) + "\\n", encoding="utf-8")
+          wrapper.write_text("\n".join(properties) + "\n", encoding="utf-8")
 
           verified = wrapper.read_text(encoding="utf-8")
           if new_url not in verified or f"distributionSha256Sum={os.environ['GRADLE_DISTRIBUTION_SHA256']}" not in verified:
