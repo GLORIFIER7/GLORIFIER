@@ -36,6 +36,13 @@ Evidence, Reconciliation, and Outcome Review
 
 The human owner retains final authority. High-impact or irreversible production changes, asset transfers, trading, and credential rotation require the appropriate explicit authorization and safeguards. An unobserved outcome is not considered verified.
 
+
+## Milestone: YOLO owner-delegated maintenance (2026-11-08)
+
+**“You want it? You merge it.”** GLORIFIER recorded the owner's delegation of routine, low-risk maintenance decisions to its maintenance operator. This is bounded authority: changes still require their applicable tests, successful required checks, review and branch-protection gates. Security, privacy, legal, financial, credential, destructive, and production-release decisions remain subject to explicit human approval.
+
+The milestone was merged into `main` in [PR #742](https://github.com/GLORIFIER7/GLORIFIER/pull/742). Read the [full historical record](docs/ops/merge-delegation-milestone-2026-11-08.md).
+
 ## Architecture
 
 The repository includes a web application, API/server code, AI-provider integrations, governance components, and blockchain-related contracts and evidence records.
