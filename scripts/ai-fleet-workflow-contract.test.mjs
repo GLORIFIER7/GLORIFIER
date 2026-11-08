@@ -124,13 +124,13 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
   const policy = neuralCiWorkflow.slice(policyStart);
 
-  assert.match(scope, /if: github\\.event_name == 'pull_request_review'/);
+  assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
   assert.match(scope, /gh api --paginate/);
-  assert.match(scope, /services\\/neural\\//);
-  assert.match(scope, /neural-ci\\.yml/);
-  assert.match(policy, /needs: \\[review-scope\\]/);
-  assert.match(policy, /always\\(\\)/);
-  assert.match(policy, /needs\\.review-scope\\.result != 'success'/);
-  assert.match(policy, /needs\\.review-scope\\.outputs\\.required == 'true'/);
-  assert.match(policy, /github\\.event_name == 'pull_request'/);
+  assert.match(scope, /services\/neural\//);
+  assert.match(scope, /neural-ci\.yml/);
+  assert.match(policy, /needs: \[review-scope\]/);
+  assert.match(policy, /always\(\)/);
+  assert.match(policy, /needs\.review-scope\.result != 'success'/);
+  assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
+  assert.match(policy, /github\.event_name == 'pull_request'/);
 });
