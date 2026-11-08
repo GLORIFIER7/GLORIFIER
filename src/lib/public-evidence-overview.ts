@@ -91,6 +91,28 @@ export function summarizeEndpoint(httpStatus: number | null, payload: unknown): 
   return { label: 'HTTP ' + httpStatus, detail: 'The endpoint did not return its required success contract.' };
 }
 
+export function summarizeOperationalReportResponse(
+  httpStatus: number | null,
+  payload: unknown,
+): EndpointSummary {
+  if (parseOperationalReport(payload)) {
+    return {
+      label: 'EXACT COUNTS OBSERVED',
+      detail: 'HTTP success with exact row counts from the declared Neon Hyperdrive source.',
+    };
+  }
+
+  const generic = summarizeEndpoint(httpStatus, payload);
+  if (httpStatus !== null && httpStatus >= 200 && httpStatus < 300 &&
+      isRecord(payload) && payload.ok === true) {
+    return {
+      label: 'EVIDENCE CONTRACT NOT MET',
+      detail: 'The endpoint responded, but the payload did not satisfy the Neon exact-count evidence contract. No counts are displayed.',
+    };
+  }
+  return generic;
+}
+
 export type RuntimeSummary = {
   worker: string;
   database: string;
