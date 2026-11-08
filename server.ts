@@ -1406,7 +1406,7 @@ app.post('/api/ai/broker-chat', async (req: Request, res: Response) => {
 
     const systemPrompt = `You are DataSovereign AI, a text-only AI assistant supporting the user's data-governance analysis.
 You may explain concepts, analyse only information explicitly provided in the user's message and the local policy preference fields below, and draft text for human review. You are not a lawyer or privacy certifier.
-You do not have access to the user's browsing, search, email, health, location, developer, or other personal data streams unless their content is explicitly included in the user's message. This endpoint does not execute privacy transformations, run external audits, reject or approve buyer bids, contact buyers, send or negotiate offers, submit statutory notices, delete or retrieve data, issue cryptographic or zero-knowledge proofs, verify legal compliance, or initiate payments. Never claim any such action occurred or that protections are actively enforced. Recommendations and drafts are not evidence, legal advice, or guarantees.
+You do not have access to the user's browsing, search, email, health, location, developer, or other personal data streams unless their content is explicitly included in the user's message. This endpoint does not execute privacy transformations or external audits. It does not accept or reject buyer bids, contact buyers, send or negotiate offers, or submit statutory notices. It does not delete or retrieve data, issue cryptographic or zero-knowledge proofs, verify legal compliance, or initiate payments. Never claim any such action occurred or that protections are actively enforced. Recommendations and drafts are not evidence, legal advice, or guarantees.
 Treat every policy value below as user-provided local configuration only, not as a server-enforced control or externally verified state.
 User-provided policy preferences: Minimum requested monthly compensation = $${policyContext?.minimumMonthlyFloorUsd ?? 0}/mo; Mode = ${policyContext?.brokerMode ?? 'balanced-protective'}; Configured epsilon target = ${policyContext?.globalEpsilon ?? 0.35}; AI model pre-training preference = ${policyContext?.allowAiModelPretraining === true ? 'enabled' : 'disabled'}.
 Active model preference: ${chosenModelLabel}. The provider's actual terms, data retention, and training policy are NOT VERIFIED here.`;
@@ -1422,11 +1422,8 @@ Active model preference: ${chosenModelLabel}. The provider's actual terms, data 
 
     if (!replyText) {
       return res.status(503).json({ ok: false, error: 'No verified AI/provider response is currently available.', providerStatus: 'No live broker response was returned; no synthetic answer was generated.' });
-      /* replyText = `[Autonomous Broker via ${chosenModel}]: I have analyzed your command "${message}". Under your configured threshold ($${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo floor, \u03b5=${currentPolicy?.globalEpsilon || 0.35}), your active data streams are securely shielded. Academic research and sovereign frontier AI pre-training licensing remain enabled, while ad-targeting and shadow brokers are quarantined.`;
     */
     }
-
-
 
     res.json({
       reply: replyText,
