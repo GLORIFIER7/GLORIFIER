@@ -154,7 +154,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
   assert.match(scope, /services\/neural\//);
   assert.ok(scope.includes("grep -Fqx '.github/workflows/neural-ci.yml'"));
-  assert.ok(scope.includes('gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq \' .changed_files\''));
+  assert.ok(scope.includes('gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq \'.changed_files\''));
   assert.ok(scope.includes('CHANGED_FILE_COUNT="$changed_file_count" node scripts/neural-review-scope.mjs'));
   assert.match(policy, /needs: \[review-scope\]/);
   assert.match(policy, /always\(\)/);
