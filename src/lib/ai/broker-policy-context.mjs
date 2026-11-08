@@ -11,7 +11,7 @@ export function normalizeBrokerPolicyContext(value) {
 
   return {
     minimumMonthlyFloorUsd:
-      typeof floor === 'number' && Number.isFinite(floor) && floor >= 0 ? floor : 0,
+      typeof floor === 'number' && Number.isFinite(floor) && floor >= 0 && floor <= 100 ? floor : 0,
     brokerMode: BROKER_POLICY_MODES.has(source.brokerMode)
       ? source.brokerMode
       : 'balanced-protective',
