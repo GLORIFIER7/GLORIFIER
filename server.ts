@@ -1397,16 +1397,19 @@ app.post('/api/ai/role', async (req: Request, res: Response) => {
 // 2. AI Broker Chat endpoint
 app.post('/api/ai/broker-chat', async (req: Request, res: Response) => {
   try {
-    const { message, currentPolicy, footprintsSummary, model } = req.body;
-    const chosenModel = normalizeSavedModelPreference(model ?? currentPolicy?.aiModel);
+    const { message, policyContext, model } = req.body;
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ ok: false, error: 'A non-empty message is required.' });
+    }
+    const chosenModel = normalizeSavedModelPreference(model ?? 'auto');
     const chosenModelLabel = modelPreferenceLabel(chosenModel);
 
-    const systemPrompt = `You are DataSovereign AI using ${chosenModelLabel}, an expert autonomous personal data broker and privacy agent representing the user.
-Your mission is to defend the user's digital sovereignty across the entire internet, enforce mathematical differential privacy (Laplacian noise, epsilon \u03b5 levels), calculate fair-market data compensation, negotiate with data buyers (e.g., AI frontier labs, market analytics, biomedical researchers), and eliminate unconsented broker tracking (Acxiom, Experian, Meta, Google).
-Respond directly, concisely (2-3 paragraphs max), strategically, and authoritatively. Highlight concrete dollar values, privacy risks, and specific action steps.
-User's current policy: Floor = $${currentPolicy?.minimumMonthlyFloorUsd || 35}/mo; Mode = ${currentPolicy?.brokerMode || 'balanced'}; Epsilon \u03b5 = ${currentPolicy?.globalEpsilon || 0.35}; AI pretraining allowed: ${currentPolicy?.allowAiModelPretraining ? 'YES' : 'NO'}.
-Active AI Model: ${chosenModelLabel}.
-Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, Health telemetry active'}.`;
+    const systemPrompt = `You are DataSovereign AI, a text-only AI assistant supporting the user's data-governance analysis.
+You may explain concepts, analyse only information explicitly provided in the user's message and the local policy preference fields below, and draft text for human review. You are not a lawyer or privacy certifier.
+You do not have access to the user's browsing, search, email, health, location, developer, or other personal data streams unless their content is explicitly included in the user's message. This endpoint does not execute privacy transformations, run external audits, reject or approve buyer bids, contact buyers, send or negotiate offers, submit statutory notices, delete or retrieve data, issue cryptographic or zero-knowledge proofs, verify legal compliance, or initiate payments. Never claim any such action occurred or that protections are actively enforced. Recommendations and drafts are not evidence, legal advice, or guarantees.
+Treat every policy value below as user-provided local configuration only, not as a server-enforced control or externally verified state.
+User-provided policy preferences: Minimum requested monthly compensation = $${policyContext?.minimumMonthlyFloorUsd ?? 0}/mo; Mode = ${policyContext?.brokerMode ?? 'balanced-protective'}; Configured epsilon target = ${policyContext?.globalEpsilon ?? 0.35}; AI model pre-training preference = ${policyContext?.allowAiModelPretraining === true ? 'enabled' : 'disabled'}.
+Active model preference: ${chosenModelLabel}. The provider's actual terms, data retention, and training policy are NOT VERIFIED here.`;
 
     const execution = await runModelExecution({
       model: chosenModel,
@@ -1415,7 +1418,7 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
       temperature: 0.4
     });
 
-    let replyText = execution.text;
+    const replyText = typeof execution.text === 'string' ? execution.text.trim() : '';
 
     if (!replyText) {
       return res.status(503).json({ ok: false, error: 'No verified AI/provider response is currently available.', providerStatus: 'No live broker response was returned; no synthetic answer was generated.' });
@@ -1423,20 +1426,10 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
     */
     }
 
-    // Determine context-driven suggested action
-    let suggestedAction = undefined;
-    const lower = message.toLowerCase();
-    if (lower.includes('clawback') || lower.includes('delete') || lower.includes('broker')) {
-      suggestedAction = { label: 'Dispatch Statutory Erasure Notices', type: 'opt_out_all' };
-    } else if (lower.includes('earn') || lower.includes('more') || lower.includes('maximize') || lower.includes('yield')) {
-      suggestedAction = { label: 'Optimize Yield Curve (+28% Comp)', type: 'maximize_yield' };
-    } else if (lower.includes('privacy') || lower.includes('shield') || lower.includes('strict')) {
-      suggestedAction = { label: 'Tighten Differential Privacy (\u03b5=0.2)', type: 'apply_policy' };
-    }
+
 
     res.json({
       reply: replyText,
-      suggestedAction,
       modelUsed: execution.modelUsed,
       provider: execution.provider,
       executionStatus: execution.executionStatus,
@@ -1446,13 +1439,12 @@ Data streams summary: ${footprintsSummary || 'Browsing, E-Commerce, Developer, H
     });
   } catch (error: any) {
     console.error('AI Broker Chat error:', error);
-    res.json({
-      reply: `[Broker Local Engine]: Acknowledged. I am enforcing your current privacy parameters across all internet data streams with zero raw unanonymized records shared.`,
-      suggestedAction: { label: 'Verify Privacy Proofs', type: 'apply_policy' },
-      modelUsed: 'gpt-4o-fallback',
-      provider: 'Local Enclave'
+    return res.status(503).json({
+      ok: false,
+      error: 'AI broker execution failed; no inference response was produced and no external action was executed.',
+      executionStatus: 'failed',
+      providerStatus: 'unavailable'
     });
-  }
 });
 
 // 3. AI Offer Evaluator endpoint
