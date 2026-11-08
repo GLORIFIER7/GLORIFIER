@@ -5,6 +5,7 @@ import test from 'node:test';
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publishMarker = '\n  publish-proposal:\n';
@@ -112,4 +113,24 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
     ciWorkflow,
     /- name: Claude direct CLI runner regression tests\s+run: node --test scripts\/run-claude-workflow\.test\.mjs/,
   );
+});
+
+
+test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
+  const scopeStart = neuralCiWorkflow.indexOf('  review-scope:\\n');
+  const policyStart = neuralCiWorkflow.indexOf('  ai-review-policy:\\n');
+  assert.ok(scopeStart >= 0 && policyStart > scopeStart,
+    'NEURAL review scope must be evaluated before the AI review policy');
+  const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
+  const policy = neuralCiWorkflow.slice(policyStart);
+
+  assert.match(scope, /if: github\\.event_name == 'pull_request_review'/);
+  assert.match(scope, /gh api --paginate/);
+  assert.match(scope, /services\\/neural\\//);
+  assert.match(scope, /neural-ci\\.yml/);
+  assert.match(policy, /needs: \\[review-scope\\]/);
+  assert.match(policy, /always\\(\\)/);
+  assert.match(policy, /needs\\.review-scope\\.result != 'success'/);
+  assert.match(policy, /needs\\.review-scope\\.outputs\\.required == 'true'/);
+  assert.match(policy, /github\\.event_name == 'pull_request'/);
 });
