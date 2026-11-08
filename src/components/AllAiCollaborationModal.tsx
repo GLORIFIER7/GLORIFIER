@@ -87,8 +87,11 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       const result = await submitAuthenticatedModelCouncilRequest({
         agenda: currentTopic,
         participants,
-        currentPolicy: policy,
-        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        policyContext: {
+          minimumMonthlyFloorUsd: policy.minimumMonthlyFloorUsd,
+          globalEpsilon: policy.globalEpsilon
+        },
+        footprintCount: footprints.length,
         getToken: getIdToken,
       });
       setProviderFailures(result.failures);
@@ -155,7 +158,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                The shared council client selects configured provider/model pairs at request time. The endpoint validates them; actual participants and returned outputs are displayed after execution. No zero-knowledge enclave is claimed here.
+                The council requests responses from currently configured provider/model pairs (up to eight). It sends the agenda, the configured monthly floor and epsilon targets, and a footprint-record count; source names, records, wallet details, and payment settings are not sent in this request. This is advisory discussion only: it does not execute audits, privacy transformations, buyer outreach, statutory notices, data releases, or payments. Returned participants are backend-reported, not independent verification. No zero-knowledge enclave is claimed here.
               </p>
             </div>
           </div>
