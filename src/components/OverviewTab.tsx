@@ -5,6 +5,7 @@ import {
   parseOperationalReport,
   summarizeEndpoint,
   summarizeOperationalReportResponse,
+  summarizeRevenueEvidence,
   summarizeRuntime,
   type EndpointSummary,
   type OperationalReport,
@@ -41,9 +42,9 @@ const ENDPOINTS = {
   workUnits: '/api/work-units/summary',
 } as const;
 
-const readObservation = async (path: string): Promise<Observation> => {
+const readObservation = async (path: string, credentials: RequestCredentials = 'same-origin'): Promise<Observation> => {
   try {
-    const response = await fetch(path, { cache: 'no-store' });
+    const response = await fetch(path, { cache: 'no-store', credentials });
     const body = await response.json().catch(() => null);
     return { httpStatus: response.status, body };
   } catch {
@@ -97,7 +98,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
     setLoading(true);
     try {
       const results = await Promise.allSettled(
-        keys.map(async (key) => [key, await readObservation(ENDPOINTS[key])] as const),
+        keys.map(async (key) => [key, await readObservation(ENDPOINTS[key], key === 'authBoundary' ? 'omit' : 'same-origin')] as const),
       );
       const entries = results.map((result, index) =>
         result.status === 'fulfilled'
@@ -127,8 +128,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
   const authBoundary = observationSummary(observation('authBoundary'));
   const runtimePayload = observation('runtime')?.body as any;
   const databaseLatency = runtimePayload?.checks?.database?.latencyMs;
-  const reportEvidence = (observation('reports')?.body as any)?.evidence;
-  const revenueObservable = reportEvidence?.revenue === 'observable';
+  const revenueEvidence = summarizeRevenueEvidence(report);
   const identityPayload = (observation('identity')?.body as any)?.identity;
 
   const legacyRoutes: ReadonlyArray<{ key: keyof typeof ENDPOINTS; name: string; path: string }> = [
@@ -263,7 +263,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
           ))}
         </div>
         <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-100">
-          The runtime request uses probeAi=false. It does not execute an AI model. The main GLORIFIER Worker currently reports its Neural origin as not configured. A successful Worker or database probe is not evidence of AI inference or end-to-end agent execution.
+          The runtime request uses probeAi=false and does not execute an AI model. Neural readiness is displayed from the current runtime response above. A successful Worker or database probe does not establish AI inference or end-to-end agent execution.
         </div>
       </section>
 
@@ -291,9 +291,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => 
         <h2 className="text-base font-bold text-white">Economic and asset truth</h2>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-            <div className="text-[10px] uppercase text-slate-400">Verified revenue</div>
-            <div className="mt-2 text-sm font-bold text-amber-200">{revenueObservable ? 'Source reports observable revenue' : 'NOT OBSERVABLE'}</div>
-            <p className="mt-1 text-[11px] text-slate-400">The operational report explicitly says revenue is not observable from its tables. This does not mean revenue is zero.</p>
+            <div className="text-[10px] uppercase text-slate-400">Revenue evidence</div>
+            <div className="mt-2 text-sm font-bold text-amber-200">{revenueEvidence.label}</div>
+            <p className="mt-1 text-[11px] text-slate-400">{revenueEvidence.detail}</p>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
             <div className="text-[10px] uppercase text-slate-400">Asset custody and holdings</div>
