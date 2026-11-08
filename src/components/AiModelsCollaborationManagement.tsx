@@ -42,7 +42,7 @@ export interface ModelNodeConfig {
   role: string;
   specialization: string;
   badge: string;
-  weight: number; // 0 to 100% influence in consensus
+  weight: number; // display-only preference; not sent to the provider council API
   enabled: boolean;
   status: 'not-verified';
   latencyMs: number | null;
@@ -54,11 +54,11 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'gpt-4o',
     providerId: 'openai',
-    name: 'OpenAI GPT-4o',
-    provider: 'OpenAI Frontier',
-    role: 'Commercial Valuation & Market Licensing',
-    specialization: 'High-stakes contract negotiations, data buyer valuation curves, +25% counter-offer strategies',
-    badge: 'OpenAI Flagship',
+    name: 'OpenAI provider configuration',
+    provider: 'OpenAI',
+    role: 'Commercial Valuation Discussion',
+    specialization: 'Advisory analysis of hypothetical compensation and draft negotiation language; no buyer outreach or pricing execution is implemented.',
+    badge: 'Provider link configured · NOT VERIFIED',
     weight: 35,
     enabled: true,
     status: 'not-verified',
@@ -69,11 +69,11 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'claude',
     providerId: 'anthropic',
-    name: 'Anthropic Claude',
+    name: 'Anthropic provider configuration',
     provider: 'Anthropic',
     role: 'Independent Engineering Review & Synthesis',
     specialization: 'Independent architecture review, code-quality analysis, failure analysis, and synthesis of verified evidence',
-    badge: 'Claude',
+    badge: 'Provider link configured · NOT VERIFIED',
     weight: 35,
     enabled: true,
     status: 'not-verified',
@@ -84,11 +84,11 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'gemini-3.8-flash',
     providerId: 'gemini',
-    name: 'Google Gemini 3.8 Flash',
-    provider: 'Google DeepMind',
-    role: 'Differential Privacy & Mathematical Integrity',
-    specialization: 'Laplace & Gaussian perturbation bounding, epsilon (ε) leakage audit, quasi-identifier scrubbing',
-    badge: 'DeepMind Core',
+    name: 'Google provider configuration',
+    provider: 'Google',
+    role: 'Differential-Privacy Discussion',
+    specialization: 'Conceptual review of differential-privacy mechanisms and quasi-identifiers; no transformation or epsilon accounting runs here.',
+    badge: 'Provider link configured · NOT VERIFIED',
     weight: 35,
     enabled: true,
     status: 'not-verified',
@@ -99,11 +99,11 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'llama-3.3',
     providerId: 'meta',
-    name: 'Meta LLaMA 3.3',
-    provider: 'Meta AI / Sovereign Enclave',
-    role: 'Decentralized Sovereignty & Anti-Monopoly Audit',
-    specialization: 'Shadow broker quarantine, CCPA/GDPR statutory erasure mandates, open-weights verifiable inference',
-    badge: 'Open Weights',
+    name: 'Meta provider configuration',
+    provider: 'Meta · enclave NOT VERIFIED',
+    role: 'Provider-Neutrality Discussion',
+    specialization: 'Advisory review of data-erasure and provider-neutrality questions; no tracker quarantine or statutory notices are executed.',
+    badge: 'Provider link configured · NOT VERIFIED',
     weight: 20,
     enabled: true,
     status: 'not-verified',
@@ -117,7 +117,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     provider: 'Local AI research role · provider/credentials NOT VERIFIED',
     role: 'Patent Prosecution, Claim Engineering & Scientific Enablement',
     specialization: 'Patent-draft research support only; legal accuracy and patentability NOT VERIFIED',
-    badge: 'USPTO / AI Scientist',
+    badge: 'Local role · credentials NOT VERIFIED',
     weight: 20,
     enabled: true,
     status: 'not-verified',
@@ -128,10 +128,10 @@ const INITIAL_NODES: ModelNodeConfig[] = [
   {
     id: 'compliance-scientist',
     name: 'A.I. Bot Compliance Scientist',
-    provider: 'EU GDPR & FTC Regulatory Core',
+    provider: 'Local compliance role · no external provider',
     role: 'Regulatory Compliance & Statistical Privacy Science',
-    specialization: 'GDPR Articles 17/25/35 DPIA, CCPA § 1798.105 automated clawbacks, EU AI Act conformity & HIPAA Expert Determination bounds',
-    badge: 'CIPP / Privacy Ph.D.',
+    specialization: 'Discussion of selected privacy-law topics for qualified human review; no certification, compliance determination, or enforcement is performed.',
+    badge: 'Local role · credentials NOT VERIFIED',
     weight: 20,
     enabled: true,
     status: 'not-verified',
@@ -144,7 +144,7 @@ const INITIAL_NODES: ModelNodeConfig[] = [
     name: 'Sovereign Arbitrator Core',
     provider: 'DataSovereign Local Protocol',
     role: 'Dispute Resolution & Consensus Synthesis',
-    specialization: 'Weighted voting synthesis, threshold reconciliation, automated policy enactment',
+    specialization: 'Local display of council settings; server-side voting, quorum enforcement, and policy enactment are not implemented.',
     badge: 'Autonomous Protocol',
     weight: 10,
     enabled: true,
@@ -225,8 +225,11 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
       const data = await submitAuthenticatedModelCouncilRequest({
         agenda: agendaToRun,
         participants,
-        currentPolicy: policy,
-        footprints: footprints.map(f => ({ name: f.name, category: f.category, isMonetized: f.isMonetized })),
+        policyContext: {
+          minimumMonthlyFloorUsd: policy.minimumMonthlyFloorUsd,
+          globalEpsilon: policy.globalEpsilon
+        },
+        footprintCount: footprints.length,
         getToken: getIdToken,
       });
       const failures = data.failures;
@@ -238,7 +241,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
         : '';
       const failureSummary = formatModelCouncilFailures(failures);
       const failureNotice = failureSummary ? ` Provider failures: ${failureSummary}.` : '';
-      setStatusFeedback(`Received ${responseCount} response(s) from ${providerCount} distinct provider(s), using explicitly selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain unverified.`);
+      setStatusFeedback(`Backend reported ${responseCount} response(s) from ${providerCount} distinct provider(s), using selected registry model IDs.${omittedSummary}${failureNotice} Numeric consensus and policy directives remain NOT VERIFIED.`);
     } catch (err) {
       console.warn('AI provider council request failed:', err);
       setCouncilResult(null);
@@ -278,10 +281,9 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
     onUpdatePolicy({
       globalEpsilon: epsilon,
       minimumMonthlyFloorUsd: monthlyFloorUsd,
-      aiModel: 'all-models',
-      autoNegotiateHighBids: true
+      // The current council endpoint does not implement model-selection changes or buyer negotiation.
     });
-    setStatusFeedback(`Policy update requested from backend-returned council values: ε = ${epsilon}, floor = ${monthlyFloorUsd}/mo. Persistence and enforcement are NOT VERIFIED.`);
+    setStatusFeedback(`Application preferences updated from backend-reported council recommendations: ε = ${epsilon}, floor = ${monthlyFloorUsd}/mo. Durable persistence, runtime enforcement, privacy impact, and any legal effect are NOT VERIFIED.`);
   };
 
   const activeNodeCount = nodes.filter(n => n.enabled).length;
@@ -310,7 +312,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
-                Configure provider roles and voting weights. The council resolves the exact configured model IDs from the server registry at request time; local-only research roles are not sent as provider participants. Live inference and consensus remain NOT VERIFIED.
+                Select provider configurations for an advisory request. Exact model IDs are resolved from the server registry at request time; local-only research roles are not sent as provider participants. Node roles, badges, boundary targets, weights, collaboration modes, and quorum settings are display preferences only and are not sent to the council API. The request sends only the agenda, configured floor/epsilon values, a footprint count, and selected provider/model IDs. Live inference, quorum enforcement, and consensus remain NOT VERIFIED.
               </p>
             </div>
           </div>
@@ -321,7 +323,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
               <div className="text-lg font-bold text-emerald-400 font-mono">{activeNodeCount} / {nodes.length}</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
-              <div className="text-[11px] text-slate-400 font-mono uppercase">Provider-backed Nodes</div>
+              <div className="text-[11px] text-slate-400 font-mono uppercase">Provider-Linked Configurations</div>
               <div className="text-lg font-bold text-teal-400 font-mono">{activeProviderNodeCount}</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
@@ -370,7 +372,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            Convene All-AI Council
+            Request Configured-Provider Council
           </button>
 
           <button
@@ -427,17 +429,17 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
               >
-                Enable All Models
+                Enable All Local Configurations
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setNodes(INITIAL_NODES);
-                  setStatusFeedback('Model weights reset to default equilibrium.');
+                  setStatusFeedback('Display weights reset; they do not affect provider council execution.');
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
               >
-                Reset Weights
+                Reset Display Weights
               </button>
             </div>
           </div>
@@ -506,7 +508,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                       </div>
 
                       <div className="flex items-center justify-between text-xs pt-1">
-                        <span className="text-slate-400 font-medium">Privacy Boundary:</span>
+                        <span className="text-slate-400 font-medium">Intended Boundary Target · NOT VERIFIED:</span>
                         <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-emerald-300">
                           {node.privacyBoundary}
                         </span>
@@ -517,7 +519,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                   {/* Weight Slider */}
                   <div className="mt-4 pt-3.5 border-t border-slate-800/80 space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate-400">Consensus Voting Weight:</span>
+                      <span className="text-slate-400">Display Weight · Not Used by API:</span>
                       <span className="text-emerald-400 font-bold">{node.weight}%</span>
                     </div>
                     <input
@@ -709,7 +711,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                     className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors flex items-center gap-2 shadow-md cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Enact Directives to Live Policy</span>
+                    <span>Apply Recommendations to App Preferences</span>
                   </button>
                 </div>
 
@@ -737,10 +739,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 space-y-4">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Scale className="w-4 h-4 text-emerald-400" />
-              Consensus Protocol Architecture
+              Council Display Preferences (Not Server-Enforced)
             </h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Configure how multiple AI perspectives are intended to be reconciled. Immutability and execution are NOT VERIFIED.
+              These collaboration modes, node weights, and quorum targets are application display preferences only. They are not included in the provider request and are not enforced by the current council API.
             </p>
 
             <div className="space-y-3 pt-2">
@@ -786,7 +788,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
             {/* Quorum Slider */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-400">Requested quorum (not enforced):</span>
+                <span className="text-slate-400">Display-only quorum target (not sent or enforced):</span>
                 <span className="text-teal-400 font-bold">{consensusThreshold}%</span>
               </div>
               <input
