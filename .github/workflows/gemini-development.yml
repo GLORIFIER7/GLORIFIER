@@ -32,6 +32,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure Gemini system-level tool policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/gemini-system-settings.json" <<'JSON'
+          {
+            "general": {"defaultApprovalMode": "auto_edit"},
+            "tools": {"core": ["read_file", "glob", "grep_search", "list_directory", "read_many_files", "write_file", "replace"]},
+            "security": {"disableYoloMode": true, "enableConseca": true, "environmentVariableRedaction": {"enabled": true}}
+          }
+          JSON
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -42,10 +53,15 @@ jobs:
       - name: Run Gemini CLI
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0
+        env:
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH: ${{ runner.temp }}/gemini-system-settings.json
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             Repository-owner task instructions:
+            Use only the restricted workspace file tools configured by the system policy.
+            Do not attempt shell execution, network access, credential inspection, or GitHub operations.
+            The isolated publisher runs all independent tests and builds; do not claim they ran here.
             Inspect AGENTS.md and relevant project instructions first. Implement one bounded,
             test-backed change. Run npm run lint and npm run build where relevant; run focused
             tests for changed behavior. Report exact commands and outcomes.
