@@ -12,8 +12,8 @@ const registryPath = 'docs/architecture/geas-authoritative-source-registry.json'
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const workflowPath = '.github/workflows/geas-architecture-scan.yml';
 const workflowText = readFileSync(workflowPath, 'utf8');
-const pullRequestSectionStart = workflowText.indexOf('  pull_request:\\n');
-const scheduleSectionStart = workflowText.indexOf('\\n  schedule:', pullRequestSectionStart);
+const pullRequestSectionStart = workflowText.indexOf('  pull_request:\n');
+const scheduleSectionStart = workflowText.indexOf('\n  schedule:', pullRequestSectionStart);
 const pullRequestSection = pullRequestSectionStart >= 0 && scheduleSectionStart > pullRequestSectionStart
   ? workflowText.slice(pullRequestSectionStart, scheduleSectionStart)
   : '';
