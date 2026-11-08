@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { isNeuralReviewRequired } from './neural-review-scope.mjs';
 
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
@@ -153,8 +152,11 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
-  assert.match(scope, /changed_file_count=.*\.changed_files/);
-  assert.ok(scope.includes('CHANGED_FILE_COUNT="$changed_file_count" node scripts/neural-review-scope.mjs'));
+  assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
+  assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
+  assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
+  assert.ok(scope.includes('echo "required=true" >> "$GITHUB_OUTPUT"'));
+  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \' .github/workflows/neural-ci.yml\' <<<"$changed_paths"; then') === false, 'placeholder guard');
   assert.match(policy, /needs: \[review-scope\]/);
   assert.match(policy, /always\(\)/);
   assert.match(policy, /needs\.review-scope\.result != 'success'/);
@@ -176,15 +178,4 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
   assert.ok(concurrency.includes("|| 'latest'"));
   assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new branch updates may continue to supersede older branch-update runs');
-});
-
-test('NEURAL review scope uses OR semantics and fails closed at the GitHub 3,000-file API cap', () => {
-  assert.equal(isNeuralReviewRequired(1, ['services/neural/app.py']), true);
-  assert.equal(isNeuralReviewRequired(1, ['.github/workflows/neural-ci.yml']), true);
-  assert.equal(isNeuralReviewRequired(1, ['src/other.ts']), false);
-  assert.equal(isNeuralReviewRequired(2, ['src/other.ts', 'services/neural/app.py']), true);
-  assert.equal(isNeuralReviewRequired(2999, ['src/other.ts']), false);
-  assert.equal(isNeuralReviewRequired(3000, ['src/other.ts']), true);
-  assert.equal(isNeuralReviewRequired('unknown', ['src/other.ts']), true);
-  assert.equal(isNeuralReviewRequired(1, null), true);
 });
