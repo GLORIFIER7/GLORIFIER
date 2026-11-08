@@ -84,8 +84,8 @@ test('shared model council client discovers, authenticates, validates, and norma
   const result = await submitAuthenticatedModelCouncilRequest({
     agenda: 'Review',
     participants: [{ providerId: 'openai', modelId: 'gpt-4o' }],
-    currentPolicy: { globalEpsilon: null },
-    footprints: [],
+    policyContext: { globalEpsilon: null },
+    footprintCount: 0,
     getToken: async () => 'verified-test-token',
     fetcher: async (url, init) => {
       capturedUrl = String(url);
@@ -99,7 +99,12 @@ test('shared model council client discovers, authenticates, validates, and norma
   const requestInit = capturedInit as RequestInit | undefined;
   assert.equal(capturedUrl, '/api/ai/council');
   assert.equal(requestInit?.headers && (requestInit.headers as Record<string, string>).Authorization, 'Bearer verified-test-token');
-  assert.deepEqual(JSON.parse(String(requestInit?.body)).participants, [{ providerId: 'openai', modelId: 'gpt-4o' }]);
+  const submittedBody = JSON.parse(String(requestInit?.body));
+  assert.deepEqual(submittedBody.participants, [{ providerId: 'openai', modelId: 'gpt-4o' }]);
+  assert.deepEqual(submittedBody.policyContext, { globalEpsilon: null });
+  assert.equal(submittedBody.footprintCount, 0);
+  assert.equal(Object.hasOwn(submittedBody, 'currentPolicy'), false);
+  assert.equal(Object.hasOwn(submittedBody, 'footprints'), false);
   assert.equal(result.participants[0].provider, 'openai');
 
   let normalizedError: ModelCouncilClientError | null = null;
