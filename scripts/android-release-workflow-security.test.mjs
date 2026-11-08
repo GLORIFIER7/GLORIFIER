@@ -16,10 +16,12 @@ const verifyStart = workflow.indexOf('      - name: Verify release AAB exists');
 const uploadStart = workflow.indexOf('      - name: Upload AAB artifact');
 const mainOnlySigningGuard = /github\.ref == 'refs\/heads\/main' && github\.event_name == 'push'/;
 
-test('Android release workflow runs only on pushes to main', () => {
-  assert.match(eventSection, /^on:\s*\n\s{2}push:\s*\n\s{4}branches:\s*\n\s{6}- main/m);
-  assert.doesNotMatch(eventSection, /^\s{2}(?:pull_request|pull_request_target|workflow_dispatch):/m);
-  assert.doesNotMatch(eventSection, /^\s{4}tags:/m);
+test('Android release workflow has exactly one trusted event: push to main', () => {
+  assert.equal(
+    eventSection.trimEnd(),
+    ['on:', '  push:', '    branches:', '      - main'].join('\n'),
+    'the signing-capable workflow must not gain any additional event or ref trigger',
+  );
 });
 
 test('signing secrets are confined to main-push guarded steps', () => {
