@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { test } from 'node:test';
 import {
   isWorkerInternalService,
@@ -18,7 +18,7 @@ function encode(value: unknown): string {
 
 function makeJwt(
   payload: Record<string, unknown>,
-  privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'],
+  privateKey: KeyObject,
   kid = 'test-key',
   alg = 'RS256',
 ): string {
