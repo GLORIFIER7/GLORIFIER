@@ -127,7 +127,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
   assert.match(scope, /gh api --paginate/);
   assert.match(scope, /services\/neural\//);
-  assert.match(scope, /neural-ci\.yml/);
+  assert.ok(scope.includes("grep -Fqx '.github/workflows/neural-ci.yml'"));
   assert.match(policy, /needs: \[review-scope\]/);
   assert.match(policy, /always\(\)/);
   assert.match(policy, /needs\.review-scope\.result != 'success'/);
