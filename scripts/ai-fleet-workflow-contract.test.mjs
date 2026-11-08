@@ -168,12 +168,11 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
     'NEURAL workflow must define concurrency before permissions');
   const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
 
-  assert.match(
-    concurrency,
-    /github\\.event_name == 'pull_request_review' && github\\.event\\.review\\.id/,
+  assert.ok(
+    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id"),
     'each review event must have its own concurrency key',
   );
-  assert.match(concurrency, /\\|\\| 'latest'/);
-  assert.match(concurrency, /cancel-in-progress: true/,
+  assert.ok(concurrency.includes("|| 'latest'"));
+  assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new branch updates may continue to supersede older branch-update runs');
 });
