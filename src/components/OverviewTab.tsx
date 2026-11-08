@@ -1,11 +1,13 @@
-import React, { useState, useEffect, Suspense } from 'react';
-import { ShieldCheck, Layers, Activity } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Activity, Database, RefreshCw, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { SovereignStats, DataFootprintSource, MonetizationPolicy, CompensationTransaction } from '../types';
-const LiveEconomicData = React.lazy(() => import('./LiveEconomicData').then((module) => ({ default: module.LiveEconomicData })));
-const BusinessModelPanel = React.lazy(() => import('./BusinessModelPanel').then((module) => ({ default: module.BusinessModelPanel })));
-const ValuationEnginePanel = React.lazy(() => import('./ValuationEnginePanel').then((module) => ({ default: module.ValuationEnginePanel })));
-const EconomicOperatingSystemPanel = React.lazy(() => import('./EconomicOperatingSystemPanel').then((module) => ({ default: module.EconomicOperatingSystemPanel })));
-const BusinessIntelligenceArchitecturePanel = React.lazy(() => import('./BusinessIntelligenceArchitecturePanel').then((module) => ({ default: module.BusinessIntelligenceArchitecturePanel })));
+import {
+  parseOperationalReport,
+  summarizeEndpoint,
+  summarizeRuntime,
+  type EndpointSummary,
+  type OperationalReport,
+} from '../lib/public-evidence-overview';
 
 interface OverviewTabProps {
   stats: SovereignStats;
@@ -17,207 +19,294 @@ interface OverviewTabProps {
   transactions: CompensationTransaction[];
 }
 
+type Observation = {
+  httpStatus: number | null;
+  body: unknown;
+};
+
+type Snapshot = Record<string, Observation>;
+
+const ENDPOINTS = {
+  health: '/api/health',
+  reports: '/api/reports/summary',
+  runtime: '/api/runtime-verification?probeAi=false',
+  identity: '/api/identity',
+  authBoundary: '/api/app-state',
+  assets: '/api/assets/verification',
+  valuation: '/api/valuation',
+  economicOs: '/api/economic-os',
+  revenueControlPlane: '/api/revenue/control-plane',
+  monetization: '/api/monetization/dashboard',
+  workUnits: '/api/work-units/summary',
+} as const;
+
+const readObservation = async (path: string): Promise<Observation> => {
+  try {
+    const response = await fetch(path, { cache: 'no-store' });
+    const body = await response.json().catch(() => null);
+    return { httpStatus: response.status, body };
+  } catch {
+    return { httpStatus: null, body: null };
+  }
+};
+
+const observationSummary = (observation?: Observation): EndpointSummary =>
+  summarizeEndpoint(observation?.httpStatus ?? null, observation?.body);
+
+const formatTimestamp = (value: string | null | undefined): string =>
+  value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not supplied by the source';
+
+const StatusPill: React.FC<{ label: string; tone?: 'good' | 'warn' | 'neutral' }> = ({ label, tone = 'neutral' }) => {
+  const toneClass = tone === 'good'
+    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+    : tone === 'warn'
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+      : 'border-slate-700 bg-slate-900 text-slate-300';
+  return <span className={'inline-flex rounded-full border px-2 py-1 text-[10px] font-semibold ' + toneClass}>{label}</span>;
+};
+
+const EndpointRow: React.FC<{ name: string; path: string; observation?: Observation }> = ({ name, path, observation }) => {
+  const summary = observationSummary(observation);
+  const tone = summary.label === 'RESPONDING' || summary.label === 'PROTECTED'
+    ? 'good'
+    : summary.label === 'NOT AVAILABLE' || summary.label === 'NOT READY' || summary.label === 'UNKNOWN'
+      ? 'warn'
+      : 'neutral';
+  return (
+    <div className="flex flex-col gap-1 border-b border-slate-800 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="min-w-0">
+        <div className="text-xs font-semibold text-slate-200">{name}</div>
+        <code className="text-[10px] text-slate-500">{path}</code>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{summary.detail}</p>
+      </div>
+      <StatusPill label={summary.label} tone={tone} />
+    </div>
+  );
+};
+
 export const OverviewTab: React.FC<OverviewTabProps> = ({ onNavigateToTab }) => {
-  const [controlPlane, setControlPlane] = useState<any>(null);
-  const [controlPlaneError, setControlPlaneError] = useState<string | null>(null);
-  const [governanceBusy, setGovernanceBusy] = useState(false);
-  const [assetVerification, setAssetVerification] = useState<any>(null);
-  const [assetVerificationError, setAssetVerificationError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const loadAssetVerification = async () => {
+  const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const response = await fetch('/api/assets/verification', { cache: 'no-store' });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Asset verification unavailable');
-      setAssetVerification(payload);
-      setAssetVerificationError(null);
-    } catch (error: any) {
-      setAssetVerificationError(error?.message || 'Asset verification unavailable');
-    }
-  };
-
-  const loadControlPlane = async () => {
-    try {
-      const response = await fetch('/api/revenue/control-plane');
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Control plane unavailable');
-      setControlPlane(payload.snapshot);
-      setControlPlaneError(null);
-    } catch (error: any) {
-      setControlPlaneError(error?.message || 'Control plane unavailable');
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const response = await fetch('/api/revenue/control-plane');
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Control plane unavailable');
-        if (!cancelled) {
-          setControlPlane(payload.snapshot);
-          setControlPlaneError(null);
-        }
-      } catch (error: any) {
-        if (!cancelled) setControlPlaneError(error?.message || 'Control plane unavailable');
-      }
-    };
-    load();
-    const timer = window.setInterval(load, 15000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
-
-  useEffect(() => {
-    loadAssetVerification();
-    const timer = window.setInterval(loadAssetVerification, 15000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const runGovernanceCheck = async () => {
-    setGovernanceBusy(true);
-    try {
-      const response = await fetch('/api/revenue/control-plane/govern', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          machine: 'opportunity-engine',
-          actionType: 'observe',
-          objective: 'Run a governed GLORIFIER Revenue Control Plane observation and record the evidence state.',
-          reversible: true,
-          actor: 'human-owner'
-        })
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Governance check failed');
-      await loadControlPlane();
-    } catch (error: any) {
-      setControlPlaneError(error?.message || 'Governance check failed');
+      const entries = await Promise.all(
+        Object.entries(ENDPOINTS).map(async ([key, path]) => [key, await readObservation(path)] as const),
+      );
+      setSnapshot(Object.fromEntries(entries));
+      setCheckedAt(new Date().toISOString());
     } finally {
-      setGovernanceBusy(false);
+      setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const observation = (key: keyof typeof ENDPOINTS): Observation | undefined => snapshot?.[key];
+  const report: OperationalReport | null = parseOperationalReport(observation('reports')?.body);
+  const runtime = summarizeRuntime(observation('runtime')?.body);
+  const health = observationSummary(observation('health'));
+  const identity = observationSummary(observation('identity'));
+  const authBoundary = observationSummary(observation('authBoundary'));
+  const runtimePayload = observation('runtime')?.body as any;
+  const databaseLatency = runtimePayload?.checks?.database?.latencyMs;
+  const reportEvidence = (observation('reports')?.body as any)?.evidence;
+  const revenueObservable = reportEvidence?.revenue === 'observable';
+  const identityPayload = (observation('identity')?.body as any)?.identity;
+
+  const legacyRoutes = [
+    { key: 'assets', name: 'Asset custody and verification', path: ENDPOINTS.assets },
+    { key: 'valuation', name: 'Valuation', path: ENDPOINTS.valuation },
+    { key: 'economicOs', name: 'Economic operating system', path: ENDPOINTS.economicOs },
+    { key: 'revenueControlPlane', name: 'Revenue control plane', path: ENDPOINTS.revenueControlPlane },
+    { key: 'monetization', name: 'Monetization dashboard', path: ENDPOINTS.monetization },
+    { key: 'workUnits', name: 'Work-unit summary', path: ENDPOINTS.workUnits },
+  ] as const;
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl bg-slate-950 border border-slate-800 p-5 md:p-6 shadow-lg">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <section className="rounded-2xl border border-slate-800 bg-slate-950 p-5 shadow-lg md:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <h1 className="text-xl md:text-2xl font-bold text-white">GLORIFIER Overview</h1>
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <h1 className="text-xl font-bold text-white md:text-2xl">GLORIFIER production evidence</h1>
             </div>
-            <p className="text-sm text-slate-400 mt-1">Unified asset, evidence, custody, ownership, valuation, and revenue verification.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
+              GLORIFIER is developing a provider-neutral AI orchestration and governance layer.
+              This deployment exposes a public frontend and a limited set of Worker-native APIs.
+              The checks below report only what the public production endpoints currently return;
+              they do not certify every module or intended capability.
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadAssetVerification} className="text-xs px-3 py-1.5 rounded-md border border-slate-700 text-slate-300 hover:text-white">Refresh</button>
-            <span className="text-[10px] font-mono px-2.5 py-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">GAV-1.1</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 disabled:opacity-50"
+          >
+            <RefreshCw className={'h-4 w-4 ' + (loading ? 'animate-spin' : '')} />
+            {loading ? 'Checking…' : 'Refresh evidence'}
+          </button>
         </div>
-
-        {assetVerificationError && <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">{assetVerificationError}</div>}
-
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><div className="text-[10px] uppercase font-bold tracking-wide text-emerald-300">Overall Verification</div><div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.verificationLabel || 'NOT OBSERVABLE'}</div><div className="text-[11px] text-slate-400 mt-1">FULLY VERIFIED only when all required checks pass.</div></div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Accounts</div><div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.accounts ?? '—'}</div><div className="text-[11px] text-slate-400 mt-1">Source and authorization state</div></div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Holdings</div><div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.holdings ?? '—'}</div><div className="text-[11px] text-slate-400 mt-1">Ownership/custody evidence</div></div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-[10px] uppercase font-bold tracking-wide text-slate-500">Evidence</div><div className="text-lg font-bold text-white mt-2">{assetVerification?.summary?.evidence ?? '—'}</div><div className="text-[11px] text-slate-400 mt-1">Source, hash, freshness</div></div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+          <span>Read-only GET checks</span>
+          <span>•</span>
+          <span>Checked: {formatTimestamp(checkedAt)}</span>
+          <span>•</span>
+          <span>Operational report timestamp: {formatTimestamp(report?.generatedAt)}</span>
         </div>
-
-        <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="flex items-center justify-between gap-3 mb-3"><div><h2 className="text-sm font-bold text-white">Verification Labels</h2><p className="text-[11px] text-slate-400 mt-1">Every observable record is explicitly classified.</p></div><span className="text-[10px] font-mono text-slate-500">NO FABRICATED EVIDENCE</span></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {[['FULLY VERIFIED','All required checks pass.'],['VERIFIED','The individual asset/evidence item meets its applicable evidence requirements.'],['PARTIALLY VERIFIED','Some evidence exists, but a required ownership/custody or other check is incomplete.'],['NOT VERIFIED','Insufficient qualifying evidence.'],['DEGRADED','Verification infrastructure/source is impaired.'],['NOT OBSERVABLE','GLORIFIER has no observable authorized/source data for the item.']].map(([label,description]) => <div key={label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3"><div className="text-[10px] font-bold text-emerald-300">{label}</div><div className="text-[11px] text-slate-400 mt-1 leading-relaxed">{description}</div></div>)}
-          </div>
-        </div>
-
-        <div className="mt-5 space-y-3">
-          <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-white">All Labeled Data</h2><span className="text-[10px] text-slate-500">Source → Observation → Evidence → Verification Status</span></div>
-          {[
-            ...(assetVerification?.completeLabeledData?.accounts || []).map((item:any)=>({kind:'ACCOUNT',id:item.id,detail:item.provider||'source account',label:item.label})),
-            ...(assetVerification?.completeLabeledData?.holdings || []).map((item:any)=>({kind:item.assetClass?.toUpperCase()||'HOLDING',id:item.id,detail:[item.symbol,item.quantity!=null?'qty '+item.quantity:null,item.marketValue!=null?'value '+item.marketValue:null].filter(Boolean).join(' • '),label:item.label})),
-            ...(assetVerification?.completeLabeledData?.evidence || []).map((item:any)=>({kind:'EVIDENCE',id:item.id,detail:[item.source,item.evidenceType,item.observedAt].filter(Boolean).join(' • '),label:item.label})),
-            {kind:'REVENUE',id:'verified-revenue',detail:assetVerification?.completeLabeledData?.revenue?.verified?'Qualifying economic/settlement evidence present':'Requires qualifying economic/settlement evidence',label:assetVerification?.completeLabeledData?.revenue?.label||'NOT VERIFIED'}
-          ].map((item:any)=><div key={item.kind+':'+item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2.5"><div className="min-w-0"><div className="flex items-center gap-2"><span className="text-[10px] font-mono text-slate-500">{item.kind}</span><span className="text-xs font-semibold text-slate-200 truncate">{item.id}</span></div><div className="text-[11px] text-slate-500 mt-1 break-words">{item.detail}</div></div><span className="shrink-0 text-[10px] font-bold font-mono px-2 py-1 rounded border border-emerald-500/20 bg-emerald-500/5 text-emerald-300">{item.label}</span></div>)}
-          {!assetVerification?.completeLabeledData && !assetVerificationError && <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-500">Waiting for the authoritative verification report.</div>}
-        </div>
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-[10px] text-slate-400">Economic truth remains separate: market value and estimates are not revenue. Revenue becomes VERIFIED only from qualifying economic and settlement evidence.</div>
       </section>
 
-      <Suspense fallback={<div role="status" className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400">Loading live economic data…</div>}>
-        <LiveEconomicData />
-      </Suspense>
-      <Suspense fallback={<div role="status" className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400">Loading business model panel…</div>}>
-        <BusinessModelPanel />
-      </Suspense>
-      <Suspense fallback={<div role="status" className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400">Loading valuation engine panel…</div>}>
-        <ValuationEnginePanel />
-      </Suspense>
-      <Suspense fallback={<div role="status" className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400">Loading economic operating system panel…</div>}>
-        <EconomicOperatingSystemPanel />
-      </Suspense>
-      <Suspense fallback={<div role="status" className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400">Loading business intelligence architecture panel…</div>}>
-        <BusinessIntelligenceArchitecturePanel />
-      </Suspense>
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Cloudflare Worker</div>
+          <div className="mt-2"><StatusPill label={health.label} tone={health.label === 'RESPONDING' ? 'good' : 'warn'} /></div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{health.detail}</p>
+          <p className="mt-2 text-[10px] text-slate-500">The health endpoint says backend, authentication and database are not probed by that route.</p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Neon operational reporting</div>
+          <div className="mt-2"><StatusPill label={report ? 'EXACT COUNTS OBSERVED' : observationSummary(observation('reports')).label} tone={report ? 'good' : 'warn'} /></div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+            {report
+              ? 'Six exact row counts returned through Neon Hyperdrive. This verifies this read-only reporting query, not every database table, write path or application workflow.'
+              : observationSummary(observation('reports')).detail}
+          </p>
+          {typeof databaseLatency === 'number' && <p className="mt-1 text-[10px] text-slate-500">Runtime probe latency: {databaseLatency.toLocaleString()} ms.</p>}
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Organizational identity</div>
+          <div className="mt-2"><StatusPill label={identity.label} tone={identity.label === 'RESPONDING' ? 'good' : 'warn'} /></div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{identity.detail}</p>
+          <p className="mt-1 text-[10px] text-slate-500">
+            Domain: {identityPayload?.domainConfigured === true ? 'configured' : 'not configured'} · Email: {identityPayload?.emailConfigured === true ? 'configured' : 'not configured'}
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Unauthenticated app-state boundary</div>
+          <div className="mt-2"><StatusPill label={authBoundary.label} tone={authBoundary.label === 'PROTECTED' ? 'good' : 'warn'} /></div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{authBoundary.detail}</p>
+        </div>
+      </section>
 
-            <section className="rounded-xl bg-slate-950 border border-slate-800 p-5">
-        <div className="flex items-center justify-between gap-4 mb-4"><div><h2 className="text-base font-bold text-white flex items-center gap-2"><Layers className="w-4 h-4 text-emerald-400" />GLORIFIER Revenue Control Plane</h2><p className="text-xs text-slate-400 mt-1">One governance boundary for every value-creation machine.</p></div><span className="text-[10px] font-mono px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">GRCP-1.0</span></div>
-        {controlPlaneError && <div className="text-xs text-amber-300 mb-3">Control plane: {controlPlaneError}</div>}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {[
-            {
-              label: 'Verified Revenue',
-              value: controlPlane?.economicTruth?.verifiedRevenue == null
-                ? 'NOT OBSERVABLE'
-                : Number(controlPlane.economicTruth.verifiedRevenue).toFixed(2),
-              badge: controlPlane?.economicTruth?.verifiedRevenueLabel || 'NOT VERIFIED',
-            },
-            { label: 'Pending Approvals', value: controlPlane?.governance?.pendingApprovals ?? '—', badge: 'HUMAN' },
-            { label: 'Blocked Actions', value: controlPlane?.governance?.blockedActions ?? '—', badge: 'GOVERNED' },
-            { label: 'Connections', value: controlPlane?.machines?.connections?.total ?? '—', badge: 'REGISTERED' },
-          ].map(({ label, value, badge }) => (
-            <div key={label} className="rounded-lg bg-slate-900 border border-slate-800 p-3">
-              <div className="text-[10px] uppercase font-bold text-slate-500">{label}</div>
-              <div className="text-lg font-bold text-white mt-1">{value}</div>
-              <div className="text-[9px] font-mono text-emerald-400 mt-1">{badge}</div>
+      <section className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-emerald-400" />
+          <h2 className="text-base font-bold text-white">Observed operational records</h2>
+        </div>
+        {report ? (
+          <>
+            <div className="mt-1 text-[11px] text-slate-400">
+              Source: Neon Hyperdrive · exact row-count query · generated {formatTimestamp(report.generatedAt)}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              {([
+                ['Connection approvals', report.counts.connectionApprovals],
+                ['Connection events', report.counts.connectionEvents],
+                ['Registered connections', report.counts.registeredConnections],
+                ['Intelligence analyses', report.counts.intelligenceAnalyses],
+                ['Intelligence evidence rows', report.counts.intelligenceEvidence],
+                ['Intelligence reports', report.counts.intelligenceReports],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+                  <div className="text-[10px] leading-relaxed text-slate-400">{label}</div>
+                  <div className="mt-2 text-xl font-bold tabular-nums text-white">{value.toLocaleString()}</div>
+                  <div className="mt-1 text-[9px] text-slate-500">Rows observed</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-[11px] leading-relaxed text-slate-400">
+              These are database row counts, not unique people, customers, active sessions, sales, payments, revenue, asset holdings or proof of business outcomes.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-xs text-amber-200">{observationSummary(observation('reports')).detail} No counts are displayed when the required Neon evidence contract is absent.</p>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-emerald-400" />
+          <h2 className="text-base font-bold text-white">Runtime checks and limits</h2>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {([
+            ['Worker', runtime.worker],
+            ['Neon database', runtime.database],
+            ['Neural integration', runtime.neural],
+            ['Authentication probe', runtime.authentication],
+            ['AI inference', runtime.ai],
+          ] as const).map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+              <div className="text-[10px] text-slate-400">{label}</div>
+              <div className="mt-2 text-xs font-semibold text-slate-200">{value}</div>
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">{Object.keys(controlPlane?.policy?.machines||{}).map(key=><div key={key} className="rounded-md bg-slate-900/80 border border-slate-800 px-3 py-2 text-[10px] text-slate-300"><span className="text-emerald-400 mr-1">●</span>{key}</div>)}</div>
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-900/60 p-3 text-[10px] text-slate-400">Economic truth: estimates and expected value are <span className="text-amber-300 font-semibold">NOT VERIFIED</span>. Market value is not revenue. Missing evidence is not zero. Consequential actions remain human-authorized.</div>
+        <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-100">
+          The runtime request uses probeAi=false. It does not execute an AI model. The main GLORIFIER Worker currently reports its Neural origin as not configured. A successful Worker or database probe is not evidence of AI inference or end-to-end agent execution.
+        </div>
       </section>
 
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5">
-        <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-white flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-400" />Governed Action Feed</h3><p className="text-xs text-slate-400">Recorded control-plane decisions, not simulated earnings.</p></div><div className="flex gap-2"><button onClick={loadControlPlane} className="text-[10px] px-2 py-1 rounded border border-slate-700 text-slate-300 hover:text-white">Refresh</button><button onClick={runGovernanceCheck} disabled={governanceBusy} className="text-[10px] px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 disabled:opacity-50">{governanceBusy?'Running…':'Run Check'}</button></div></div>
-        <div className="space-y-2">
-          {(controlPlane?.governance?.recentEvents || []).slice(0, 5).map((event: { id: string; machine: string; status: string; actionType: string; evidenceStatus: string }) => (
-            <div
-              key={event.id}
-              className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs"
-            >
-              <div className="flex justify-between gap-3">
-                <span className="font-semibold text-slate-200">{event.machine}</span>
-                <span className={event.status === 'blocked' ? 'text-amber-300' : 'text-emerald-300'}>
-                  {event.status}
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                {event.actionType} • evidence: {event.evidenceStatus}
-              </div>
-            </div>
-          ))}
-          {!controlPlane?.governance?.recentEvents?.length && (
-            <div className="text-xs text-slate-500 py-4">
-              No governance events recorded yet. Run a governance check or execute a governed action to create the first real event.
-            </div>
-          )}
+      <section className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-300" />
+          <h2 className="text-base font-bold text-white">Other Overview APIs</h2>
         </div>
-      </div>
+        <p className="mt-1 text-[11px] text-slate-400">
+          These GET routes power asset, valuation, economic, monetization and work-unit panels. Their current response is shown individually; an unavailable route is not replaced with a guessed value.
+        </p>
+        <div className="mt-2">
+          {legacyRoutes.map((route) => (
+            <EndpointRow
+              key={route.key}
+              name={route.name}
+              path={route.path}
+              observation={observation(route.key)}
+            />
+          ))}
+        </div>
+      </section>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-500">
-        Digital-footprint monetization controls remain available in the dedicated Footprints section.
-        <button onClick={()=>onNavigateToTab('footprints')} className="ml-1 text-emerald-400 hover:text-emerald-300">Open Footprints →</button>
-      </div>
+      <section className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+        <h2 className="text-base font-bold text-white">Economic and asset truth</h2>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+            <div className="text-[10px] uppercase text-slate-400">Verified revenue</div>
+            <div className="mt-2 text-sm font-bold text-amber-200">{revenueObservable ? 'Source reports observable revenue' : 'NOT OBSERVABLE'}</div>
+            <p className="mt-1 text-[11px] text-slate-400">The operational report explicitly says revenue is not observable from its tables. This does not mean revenue is zero.</p>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+            <div className="text-[10px] uppercase text-slate-400">Asset custody and holdings</div>
+            <div className="mt-2 text-sm font-bold text-amber-200">{observationSummary(observation('assets')).label === 'RESPONDING' ? 'Endpoint responding; inspect item-level evidence' : 'NOT VERIFIED'}</div>
+            <p className="mt-1 text-[11px] text-slate-400">No asset ownership or custody claim is made by the operational row counts.</p>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+            <div className="text-[10px] uppercase text-slate-400">Company valuation</div>
+            <div className="mt-2 text-sm font-bold text-amber-200">{observationSummary(observation('valuation')).label === 'RESPONDING' ? 'Model endpoint responding; estimate is not market value' : 'NOT OBSERVABLE'}</div>
+            <p className="mt-1 text-[11px] text-slate-400">No company valuation or market price is inferred from software activity counts.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+        <div className="text-xs font-semibold text-slate-200">Architecture intent versus deployed proof</div>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          Provider neutrality, governed agent workflows, broad interoperability and automated business execution are project objectives. This page verifies only the endpoints and evidence listed above. A navigation item, code module, configuration value, simulated example or passing unit test does not by itself establish a live integration, protocol conformance, production execution or economic outcome.
+        </p>
+        <button
+          type="button"
+          onClick={() => onNavigateToTab('integrations')}
+          className="mt-3 rounded-md border border-slate-700 px-3 py-2 text-[11px] text-slate-300 hover:text-white"
+        >
+          Open integration module
+        </button>
+      </section>
     </div>
   );
-}
+};
