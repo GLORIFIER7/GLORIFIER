@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 import './octopus-deploy-task-output.test.mjs';
@@ -330,10 +332,35 @@ test('Gemini PR review fails visibly when the Gemini credential is unavailable',
 });
 
 
-test('NVIDIA patch generation disables reasoning so the bounded response budget produces patch text', () => {
-  const requestStart = nvidiaMaintenanceWorkflow.indexOf('payload={', nvidiaMaintenanceWorkflow.indexOf('- name: Request a constrained patch from Nemotron'));
-  const requestEnd = nvidiaMaintenanceWorkflow.indexOf('Path("request.json").write_text', requestStart);
-  assert.ok(requestStart >= 0 && requestEnd > requestStart, 'the Nemotron request payload must be extractable');
-  const payload = nvidiaMaintenanceWorkflow.slice(requestStart, requestEnd);
-  assert.match(payload, /"reasoning_effort"\s*:\s*"none"/);
+test('NVIDIA patch generation disables reasoning only for its documented default model and endpoint', () => {
+  const requestStart = nvidiaMaintenanceWorkflow.indexOf('- name: Request a constrained patch from Nemotron');
+  const pythonStart = nvidiaMaintenanceWorkflow.indexOf('python3 - "$model" "$RUN_URL" "$base" <<\'PY\'', requestStart);
+  const pythonEnd = nvidiaMaintenanceWorkflow.indexOf('\n          PY', pythonStart);
+  assert.ok(requestStart >= 0 && pythonStart > requestStart && pythonEnd > pythonStart,
+    'the Nemotron request must pass its effective model and endpoint into the payload builder');
+  const script = nvidiaMaintenanceWorkflow
+    .slice(pythonStart + 'python3 - "$model" "$RUN_URL" "$base" <<\'PY\'\n'.length, pythonEnd)
+    .split(/\r?\n/)
+    .map(line => line.startsWith('          ') ? line.slice(10) : line)
+    .join('\n');
+  const directory = mkdtempSync(join(tmpdir(), 'glorifier-nvidia-request-'));
+  try {
+    writeFileSync(join(directory, 'logs.redacted'), 'bounded test failure context\n');
+    writeFileSync(join(directory, 'source-context.txt'), 'No eligible changed source files. Return NO_PATCH.\n');
+    const buildPayload = (model, base) => {
+      execFileSync('python3', ['-c', script, model, 'https://github.com/GLORIFIER7/GLORIFIER/actions/runs/1', base], {
+        cwd: directory,
+        encoding: 'utf8',
+      });
+      return JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+    };
+    const defaultPayload = buildPayload('nvidia/nemotron-3.5-super-vl-120b-a12b', 'https://integrate.api.nvidia.com/v1');
+    assert.equal(defaultPayload.reasoning_effort, 'none');
+    const customModelPayload = buildPayload('example/custom-model', 'https://integrate.api.nvidia.com/v1');
+    assert.equal(Object.hasOwn(customModelPayload, 'reasoning_effort'), false);
+    const customEndpointPayload = buildPayload('nvidia/nemotron-3.5-super-vl-120b-a12b', 'https://custom.example/v1');
+    assert.equal(Object.hasOwn(customEndpointPayload, 'reasoning_effort'), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
