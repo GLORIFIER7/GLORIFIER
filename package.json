@@ -110,7 +110,8 @@
     "test:ai-fleet-diff-gate": "node --import tsx/esm --test scripts/validate-ai-fleet-diff.test.mjs",
     "test:package-manifest-integrity": "node --test scripts/package-manifest-integrity.test.mjs",
     "test:public-evidence-overview": "node --import tsx/esm --test src/lib/public-evidence-overview.test.ts",
-    "test:compliance-claims-policy": "node --test scripts/compliance-claims-policy.test.mjs"
+    "test:compliance-claims-policy": "node --test scripts/compliance-claims-policy.test.mjs",
+    "test:worker-auth": "tsx --test src/lib/auth/worker-auth.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
