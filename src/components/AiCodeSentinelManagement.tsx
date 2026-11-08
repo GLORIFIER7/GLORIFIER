@@ -509,14 +509,14 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
         </div>
       </div>
 
-      {/* 24/7 Live Monitoring Activity Log */}
+      {/* Local UI event log; it is not a live monitoring activity stream. */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Recorded Sentinel Activity (execution not verified)</h3>
+            <h3 className="text-sm font-bold text-white">Recorded Sentinel issue activity (runtime execution not verified)</h3>
           </div>
-          <span className="text-[11px] text-slate-400 font-mono">Real-time internal logger</span>
+          <span className="text-[11px] text-slate-400 font-mono">Local UI event log · monitoring not verified</span>
         </div>
 
         <div className="space-y-2">
