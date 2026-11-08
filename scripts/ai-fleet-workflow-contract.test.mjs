@@ -149,6 +149,11 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
 
   assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
   assert.match(scope, /gh api --paginate/);
+  assert.match(scope, /gh api --paginate --slurp/);
+  assert.match(scope, /jq '\[\.\[\]\] \| length'/);
+  assert.match(scope, /changed_file_count >= 3000/);
+  assert.match(scope, /PR files API reached its 3,000-file cap/);
+  assert.ok(scope.includes("|| grep -Fqx '.github/workflows/neural-ci.yml'"));
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
@@ -159,4 +164,19 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(policy, /needs\.review-scope\.result != 'success'/);
   assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
   assert.match(policy, /github\.event_name == 'pull_request'/);
+});
+
+test('NEURAL review scope keeps path classes disjunctive and fails closed at the file cap', () => {
+  const requiresPolicy = (paths, fileCount) =>
+    fileCount >= 3000 ||
+    paths.some((path) =>
+      path.startsWith('services/neural/') ||
+      path === '.github/workflows/neural-ci.yml'
+    );
+
+  assert.equal(requiresPolicy(['src/app.ts'], 2999), false);
+  assert.equal(requiresPolicy(['services/neural/provider.py'], 1), true);
+  assert.equal(requiresPolicy(['.github/workflows/neural-ci.yml'], 1), true);
+  assert.equal(requiresPolicy(['src/app.ts'], 3000), true);
+  assert.equal(requiresPolicy(['src/app.ts', 'services/neural/old.py'], 2), true);
 });
