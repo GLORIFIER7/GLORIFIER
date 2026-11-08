@@ -482,9 +482,24 @@ test('production build provenance uses a GET request and validates the live resp
 
 test('full-stack smoke uses a fixed, public Pages origin', () => {
   const smokeSource = readFileSync(new URL('./full-stack-smoke.mjs', import.meta.url), 'utf8');
-  assert.ok(smokeSource.includes("const base = 'https://glorifier.pages.dev';"));
+  const baseMatch = smokeSource.match(/^const base = '([^']+)';$/m);
+  assert.ok(baseMatch, 'production smoke must define one fixed base URL');
+
+  const base = new URL(baseMatch[1]);
+  assert.equal(base.origin, 'https://glorifier.pages.dev');
+  assert.equal(base.pathname, '/');
+  assert.equal(base.search, '');
+  assert.equal(base.hash, '');
+  assert.doesNotMatch(
+    smokeSource,
+    /\burl:\s*['"`]https?:\/\//,
+    'all probe URLs must be resolved from the fixed public base',
+  );
+  assert.doesNotMatch(
+    smokeSource,
+    /\bglorifier\.glorifier\.workers\.dev\b/i,
+    'the public full-stack smoke must never target the internal Worker hostname',
+  );
   assert.ok(!smokeSource.includes('process.env.FRONTEND_URL'),
     'production smoke must not accept an arbitrary caller-controlled request origin');
-  assert.ok(!smokeSource.includes('https://glorifier.glorifier.workers.dev'),
-    'the public full-stack smoke must not target the internal Worker hostname');
 });
