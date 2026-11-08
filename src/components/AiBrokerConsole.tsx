@@ -48,7 +48,7 @@ export const AiBrokerConsole: React.FC<AiBrokerConsoleProps> = ({
     {
       id: 'msg-welcome',
       sender: 'ai_broker',
-      content: `Welcome to the GLORIFIER broker console. This panel sends questions to a configured AI inference endpoint and displays returned text. It does not execute privacy transformations, external audits, buyer negotiations, statutory notices, data releases, cryptographic proofs, or payments. Provider availability, real data streams, privacy enforcement, commercial bids, and revenue have not been verified.
+      content: `Welcome to the GLORIFIER broker console. This panel sends your message, model preference, and four policy preferences (monthly compensation floor, policy mode, epsilon target, and AI pre-training preference) to a configured AI provider. It does not send source names, footprint records, wallet details, or payment settings through this chat request. The provider's retention and training terms are NOT VERIFIED; do not include sensitive raw data. This console does not execute privacy transformations, external audits, buyer negotiations, statutory notices, data releases, cryptographic proofs, or payments. Provider availability, real data streams, privacy enforcement, commercial bids, and revenue have not been verified.
 
 Treat every response as AI-generated analysis or draft text, not evidence that an action occurred. Verify important claims against an independent source.`,
       timestamp: 'Template — not generated at runtime',
@@ -135,8 +135,8 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
       sender: 'ai_broker',
       content: `Local policy preferences updated from the selected optimizer proposal.\n\nProposal rationale: ${rationale}\n\n• Configured privacy target ε: ${optimizedPolicy.globalEpsilon ?? 'unchanged'}\n• Configured monthly floor: ${optimizedPolicy.minimumMonthlyFloorUsd ?? 'unchanged'}\n• Local mode setting: ${optimizedPolicy.brokerMode ?? 'unchanged'}\n• Runtime privacy enforcement, proof attestation, provider execution, and revenue impact: NOT VERIFIED.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      modelUsed: selectedModel,
-      provider: 'Local policy preset'
+      modelUsed: 'No model inference',
+      provider: 'Application policy preset'
     };
 
     setMessages(prev => [...prev, optimizerMsg]);
@@ -148,10 +148,10 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
     const councilMsg: AiBrokerChatMessage = {
       id: newId('council'),
       sender: 'ai_broker',
-      content: `**POLICY PROPOSAL APPLIED LOCALLY — NOT VERIFIED**\n\n${summary}\n\n• Configured privacy target ε: ${directives.globalEpsilon ?? 'unchanged'}\n• Configured monthly floor: ${directives.minimumMonthlyFloorUsd ?? 'unchanged'}\n• Local auto-negotiation setting: ${directives.autoNegotiateHighBids ?? 'unchanged'}\n• Multi-model consensus, signatures, privacy enforcement, tracker quarantine, and external execution: NOT VERIFIED.`,
+      content: `**POLICY PREFERENCES UPDATED IN APPLICATION STATE — RUNTIME ENFORCEMENT NOT VERIFIED**\n\n${summary}\n\n• Configured privacy target ε: ${directives.globalEpsilon ?? 'unchanged'}\n• Configured monthly floor: ${directives.minimumMonthlyFloorUsd ?? 'unchanged'}\n• Configured auto-negotiation preference: ${directives.autoNegotiateHighBids ?? 'unchanged'}\n• Multi-model consensus, signatures, privacy enforcement, tracker quarantine, and external execution: NOT VERIFIED.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       modelUsed: 'Council policy proposal (not a model inference result)',
-      provider: 'All-AI Sovereign Collaboration Council'
+      provider: 'Configured-provider council proposal'
     };
 
     setMessages(prev => [...prev, councilMsg]);
@@ -159,7 +159,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
 
   const quickPrompts = [
     'Ask configured AI providers to review my data-governance strategy (participation not guaranteed)',
-    'Compare local privacy presets for my stated risk tolerance (illustrative only)',
+    'Compare application policy presets for my stated risk tolerance (illustrative only)',
     'Ask an AI provider to propose a +25% rate for my developer telemetry (no buyer contact)',
     'Discuss a privacy-review checklist for search and browsing metadata (no data audit)',
     'Draft a preliminary data-erasure request for legal review (jurisdiction and entitlement not assumed)',
@@ -470,7 +470,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Sliders className="w-4 h-4 text-emerald-400" />
-              Local Policy Preferences
+              Configured Policy Preferences
             </h3>
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
@@ -585,7 +585,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
                 className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
               />
               <p className="text-[10px] text-slate-500 mt-1">
-                Local configuration target only. This control does not transform data, enforce a privacy budget, or reject buyer requests; no differential-privacy mechanism is executed here.
+                Configured target only. This control does not transform data, enforce a privacy budget, or reject buyer requests; no differential-privacy mechanism is executed here.
               </p>
             </div>
 
@@ -656,8 +656,8 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
             {/* Autonomous Counter-Offer feature */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
               <div>
-                <div className="text-xs font-semibold text-white">Auto-Counter High Value Bids</div>
-                <div className="text-[10px] text-slate-400">Local preference only. This control does not contact buyers or send a counter-offer; negotiation execution is NOT VERIFIED.</div>
+                <div className="text-xs font-semibold text-white">Counter-Offer Preference (Not Executed)</div>
+                <div className="text-[10px] text-slate-400">Application preference only. This control does not contact buyers or send a counter-offer; negotiation execution is NOT VERIFIED.</div>
               </div>
               <input
                 type="checkbox"
@@ -688,23 +688,23 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
               <Cpu className="w-4 h-4 text-emerald-400" />
-              Configured AI provider preference
+              Configured Model Preference
             </div>
             <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-              {selectedModel === 'auto' ? 'Automatic provider selection' : 'Model preference (not inference verification)'}
+              {selectedModel === 'auto' ? 'Auto preference · provider selection not verified' : 'Model preference (not inference verification)'}
             </span>
           </div>
           <div className="space-y-1.5 text-[11px] text-slate-400">
             <div className="flex justify-between border-b border-slate-800/60 pb-1">
-              <span>Selected provider configuration:</span>
+              <span>Selected model preference:</span>
               <span className="text-slate-200 font-mono font-medium">
                 {selectedModel === 'auto'
-                  ? 'Automatic provider routing'
+                  ? 'Auto preference · actual provider not verified'
                   : `${selectedModel} · ${discoveredModelOptions.find((option) => option.model === selectedModel)?.providers.join(', ') || 'not in current discovery'}`}
               </span>
             </div>
             <div className="flex justify-between border-b border-slate-800/60 pb-1">
-              <span>Autonomous Stance:</span>
+              <span>Configured Policy Mode:</span>
               <span className="text-emerald-400 font-mono capitalize">{policy.brokerMode}</span>
             </div>
             <div className="flex justify-between border-b border-slate-800/60 pb-1">
@@ -712,9 +712,9 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
               <span className="text-amber-300 font-mono">NOT VERIFIED · check active provider terms and account settings</span>
             </div>
             <div className="flex justify-between pt-0.5">
-              <span>Negotiation Capability:</span>
+              <span>Buyer Negotiation Execution:</span>
               <span className="text-slate-200">
-                'AI-generated text only; no buyer negotiation or commercial offer is executed by this console.'
+                AI-generated text only; no buyer negotiation or commercial offer is executed by this console.
               </span>
             </div>
           </div>
