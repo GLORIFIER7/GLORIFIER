@@ -66,6 +66,26 @@ test('policy preset panel does not imply AI optimization or enclave execution', 
   assert.match(modal, /autoNegotiateHighBids: false/);
 });
 
+
+test('council provider prompt receives only allowlisted policy values and a record count', async () => {
+  const server = await readSource('server.ts');
+  const helperStart = server.indexOf('function buildModelCouncilMessages');
+  const helperEnd = server.indexOf("app.post('/api/ai/council'", helperStart);
+  assert.notEqual(helperStart, -1);
+  assert.notEqual(helperEnd, -1);
+  const helper = server.slice(helperStart, helperEnd);
+  assert.match(helper, /body\.policyContext/);
+  assert.match(helper, /body\.footprintCount/);
+  assert.match(helper, /record contents are not forwarded to providers/);
+  assert.doesNotMatch(helper, /body\.currentPolicy|body\.footprints/);
+
+  const component = await readSource('src/components/AllAiCollaborationModal.tsx');
+  assert.match(component, /policyContext:\s*\{/);
+  assert.match(component, /footprintCount:\s*footprints\.length/);
+  assert.doesNotMatch(component, /currentPolicy:\s*policy/);
+  assert.doesNotMatch(component, /footprints:\s*footprints\.map/);
+});
+
 test('council panel describes a request to configured providers, not all AI or live enforcement', async () => {
   const council = await readSource('src/components/AllAiCollaborationModal.tsx');
 
