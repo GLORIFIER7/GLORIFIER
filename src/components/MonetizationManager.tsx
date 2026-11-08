@@ -83,9 +83,13 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
 
 
   const runManager = async () => {
+    if (!currentUser) {
+      setReply('Sign in to run the monetization manager.');
+      return;
+    }
     setLoading(true);
     try {
-      const response = await fetch('/api/ai/broker-chat', {
+      const response = await authenticatedFetch('/api/ai/broker-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
