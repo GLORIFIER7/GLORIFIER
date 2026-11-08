@@ -228,7 +228,7 @@ export const PrivacyTechLab: React.FC = () => {
 
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-500">Laplace-Perturbed Output (Seen by Buyer)</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500">Illustrative local output (not sent or sold)</div>
                 <div className="text-2xl font-black font-mono text-emerald-400">
                   {dpPerturbedResult}
                 </div>
@@ -262,11 +262,11 @@ export const PrivacyTechLab: React.FC = () => {
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Composition Theorem: Budgets are tracked so cumulative queries never leak identity.</span>
+                <span>Privacy-budget composition: concept only; no production privacy-budget accounting or zero-disclosure guarantee has been verified.</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Statutory Safe Harbor: Treated as fully non-PII under GDPR Recital 26 and CCPA.</span>
+                <span>No automatic legal safe harbor: identifiability and personal-information status depend on context and applicable law; no legal de-identification determination has been performed.</span>
               </li>
             </ul>
           </div>

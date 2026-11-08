@@ -165,12 +165,12 @@ export async function performGlobalGlorifierSync(deps?: {
     },
     {
       id: 'compliance-scientist',
-      name: 'A.I. Bot Chief Compliance Scientist',
-      role: 'Regulatory Privacy & Statutory Enforcement',
+      name: 'AI Compliance Review Assistant',
+      role: 'Regulatory research and privacy support (advisory)',
       tier: 'specialist',
       status: 'configured',
       lastHeartbeat: null,
-      capabilities: ['gdpr-art-17-erasure', 'ccpa-sb-362-clawbacks', 'eu-ai-act-class-1', 'hipaa-expert-determination'],
+      capabilities: ['gdpr-rights-research', 'ccpa-cpra-rights-research', 'eu-ai-act-risk-assessment-research', 'hipaa-deidentification-research'],
       consensusContribution: 'Configured role description only; no compliance audit or runtime privacy enforcement is verified.'
     }
   ];

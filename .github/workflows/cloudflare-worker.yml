@@ -46,6 +46,11 @@ jobs:
       - name: Test public Overview evidence labels and count validation
         run: npm run test:public-evidence-overview
 
+      - name: Test compliance legal-claim and evidence wording policy
+        run: npm run test:compliance-claims-policy
+      - name: Test compliance route over authenticated HTTP with providers disabled
+        run: node --test scripts/compliance-scientist-http.integration.test.mjs
+
       - name: Test read-only token branding truth defaults
         run: npm run test:token-branding-bridge
 

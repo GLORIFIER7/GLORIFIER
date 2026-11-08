@@ -327,26 +327,26 @@ ${session.geminiPeerReview}
     ],
     compliance_clawbacks: [
       {
-        title: 'Binding CCPA § 1798.105 Deletion Demand',
-        prompt: 'Draft a statutory deletion demand citing Cal. Civ. Code § 1798.105 and California SB 362 with a 30-day cure deadline and $7,500 penalty warning.'
+        title: 'CCPA consumer deletion-rights review',
+        prompt: 'Draft an informational consumer request letter for qualified review under Cal. Civ. Code § 1798.105 and assess possible California SB 362 relevance. Identify eligibility and missing facts; do not claim a general cure deadline or enforcement outcome.'
       },
       {
-        title: 'GDPR Article 35 DPIA Certification',
-        prompt: 'Conduct an executive Data Protection Impact Assessment (DPIA) under GDPR Article 35 for aggregate developer telemetry licensing.'
+        title: 'GDPR Article 35 DPIA scoping review',
+        prompt: 'Assess whether the described processing may require a DPIA under GDPR Article 35. Identify missing facts, risks, mitigations, and qualified-review steps; do not certify completion or compliance.'
       },
       {
-        title: 'EU AI Act Class 1 Conformity Attestation',
-        prompt: 'Draft a formal Article 50 transparency declaration confirming the system operates as Class 1 (Minimal Risk) with zero prohibited biometric practices.'
+        title: 'EU AI Act risk and transparency review',
+        prompt: 'Assess potentially applicable EU AI Act Article 5 prohibitions, Article 6/Annex III high-risk criteria, and Article 50 transparency duties from supplied facts. Do not pre-assign a risk class or assert that prohibited practices are absent.'
       }
     ],
     differential_privacy: [
       {
         title: 'Calibrate Laplace Scale (b = Δf / ε)',
-        prompt: 'Compute the exact noise parameter b for L1 sensitivity Δf = 1.0 when targeting ε = 0.30 and prove reconstruction risk is under 0.01%.'
+        prompt: 'For the stated assumptions, calculate the illustrative Laplace scale b = Δf/ε. Explain why this calculation alone does not quantify reconstruction risk or verify a production privacy guarantee.'
       },
       {
         title: 'HIPAA Expert Determination (§ 164.514)',
-        prompt: 'Formulate a mathematical proof that our differential privacy and k-anonymity (k ≥ 50) satisfy the HIPAA Expert Determination standard.'
+        prompt: 'Explain why differential privacy and k-anonymity are distinct from HIPAA Expert Determination. Identify dataset-specific evidence and qualified expert analysis required under 45 CFR § 164.514(b)(1).'
       },
       {
         title: 'Privacy Budget Composition',
@@ -570,7 +570,7 @@ ${session.geminiPeerReview}
             {
               id: 'compliance_clawbacks' as CollaborationDomain,
               title: 'Statutory Compliance',
-              desc: 'GDPR Art. 17, CCPA, EU AI Act Class 1',
+              desc: 'GDPR rights, CCPA/CPRA, EU AI Act risk and transparency review',
               icon: ShieldCheck,
               color: 'rose'
             },

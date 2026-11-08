@@ -56,7 +56,7 @@ export const ComplianceScientistBot: React.FC<ComplianceScientistBotProps> = ({
   onOpenGptCoWorkTab
 }) => {
   const [specialtyMode, setSpecialtyMode] = useState<ComplianceSpecialtyMode>('gdpr_erasure_dpia');
-  const [aiModel, setAiModel] = useState<'gemini-3.8-flash' | 'gpt-4o' | 'consensus'>('gemini-3.8-flash');
+  const [aiModel, setAiModel] = useState<'gemini-3.8-flash' | 'gpt-4o' | 'auto'>('gemini-3.8-flash');
   const [aiQuestion, setAiQuestion] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
@@ -94,7 +94,7 @@ AI-generated responses, when available, are advisory and require human review.`
       {
         role: 'assistant',
         mode: specialtyMode,
-        modelUsed: aiModel,
+        modelUsed: 'Requested model only — not executed',
         timestamp: new Date().toLocaleTimeString(),
         text: `Consultation session refreshed. Ready for statutory inquiries on GDPR, CCPA/CPRA, the EU AI Act, or statistical privacy verification.`
       }
@@ -120,7 +120,7 @@ AI-generated responses, when available, are advisory and require human review.`
     const url = URL.createObjectURL(fullBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `DataSovereign_Compliance_Audit_Memo_${new Date().toISOString().slice(0, 10)}.md`;
+    a.download = `GLORIFIER_Compliance_Review_Draft_${new Date().toISOString().slice(0, 10)}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -143,7 +143,7 @@ AI-generated responses, when available, are advisory and require human review.`
 
     try {
       const exposureDataSummary = includeExposureContext && exposures.length > 0
-        ? `Active shadow broker exposures: ${exposures.map(e => `${e.brokerName} (${e.complianceStatute}, ~${e.estimatedRecordsHeld} records)`).join(', ')}`
+        ? `Unverified UI-provided broker exposure context (may include sample records; do not treat as verified facts): ${exposures.map(e => `${e.brokerName} (${e.complianceStatute}, ~${e.estimatedRecordsHeld} records)`).join(', ')}`
         : undefined;
 
       const res = await fetch('/api/ai/compliance-scientist', {
@@ -155,7 +155,7 @@ AI-generated responses, when available, are advisory and require human review.`
           specialtyMode,
           regulatoryFramework: specialtyMode.replace(/_/g, ' ').toUpperCase(),
           exposureContext: exposureDataSummary,
-          dataCategory: 'Aggregated Internet Footprints & Developer Telemetry'
+          // No data category is asserted unless supplied and verified by the backend.
         })
       });
 
@@ -168,7 +168,7 @@ AI-generated responses, when available, are advisory and require human review.`
         role: 'assistant',
         text: data.content || 'No evaluation content was returned. No conclusion was verified.',
         mode: specialtyMode,
-        modelUsed: data.modelUsed || (aiModel === 'gpt-4o' ? 'OpenAI GPT-4o' : 'Google Gemini 3.8 Flash'),
+        modelUsed: data.modelUsed || 'Actual model not reported by backend — NOT VERIFIED',
         timestamp: new Date().toLocaleTimeString()
       };
       setAiHistory(prev => [...prev, assistantMsg]);
@@ -203,7 +203,7 @@ AI-generated responses, when available, are advisory and require human review.`
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              Chief Compliance Officer & Regulatory Data Privacy Scientist
+              AI Compliance Review Assistant
             </h2>
             <p className="text-sm text-slate-400 mt-1 max-w-3xl leading-relaxed">
               Assists with regulatory checklists and draft language only. This is not legal advice, legal counsel, a compliance certification, a completed conformity assessment, or a mathematical privacy verification. Qualified review and implementation evidence are required.
@@ -231,7 +231,7 @@ AI-generated responses, when available, are advisory and require human review.`
               <button
                 onClick={onOpenClawbackTab}
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs transition-colors"
-                title="Navigate to live data broker clawback audit"
+                title="Open broker exposure view; records and execution status may be unverified"
               >
                 <ShieldAlert className="w-4 h-4 text-amber-400" /> View Clawback Exposures
               </button>
@@ -260,7 +260,7 @@ AI-generated responses, when available, are advisory and require human review.`
           </div>
           <div className="text-xl font-bold text-white flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span>Articles 17 & 25</span>
+            <span>GDPR Art. 17 · CCPA § 1798.105</span>
           </div>
           <p className="text-[11px] text-slate-400">
             Deletion request processing, provider completion, and evidence immutability are NOT VERIFIED.
@@ -329,10 +329,10 @@ AI-generated responses, when available, are advisory and require human review.`
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
-                Regulatory Counsel & Data Privacy Science Terminal
+                Regulatory Research & Privacy Science Workspace
               </h3>
               <p className="text-xs text-slate-400">
-                Ground answers in GDPR, CCPA/CPRA, EU AI Act, HIPAA, and mathematical privacy proofs.
+                Provides informational issue-spotting and draft text. Legal applicability and implementation facts require source-backed review.
               </p>
             </div>
           </div>
@@ -340,15 +340,15 @@ AI-generated responses, when available, are advisory and require human review.`
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs">
               <Cpu className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-slate-400 text-[11px]">Engine:</span>
+              <span className="text-slate-400 text-[11px]">Requested model:</span>
               <select
                 value={aiModel}
                 onChange={(e) => setAiModel(e.target.value as any)}
                 className="bg-transparent text-amber-400 font-mono text-[11px] font-semibold focus:outline-none cursor-pointer"
               >
-                <option value="gemini-3.8-flash" className="bg-slate-900 text-slate-200">Gemini 3.8 Flash (DeepMind)</option>
-                <option value="gpt-4o" className="bg-slate-900 text-slate-200">OpenAI GPT-4o (Frontier)</option>
-                <option value="consensus" className="bg-slate-900 text-slate-200">Dual-Consensus (Gemini + GPT)</option>
+                <option value="gemini-3.8-flash" className="bg-slate-900 text-slate-200">Gemini 3.8 Flash (requested)</option>
+                <option value="gpt-4o" className="bg-slate-900 text-slate-200">OpenAI GPT-4o (requested)</option>
+                <option value="auto" className="bg-slate-900 text-slate-200">Automatic provider routing (requested)</option>
               </select>
             </div>
 
@@ -377,8 +377,8 @@ AI-generated responses, when available, are advisory and require human review.`
             {[
               {
                 id: 'gdpr_erasure_dpia' as ComplianceSpecialtyMode,
-                label: 'GDPR & DPIA (§ 17 & 35)',
-                subtitle: 'Statutory Erasure & Privacy-by-Design',
+                label: 'GDPR Articles 17, 25 & 35',
+                subtitle: 'Erasure, privacy by design, and DPIA',
                 icon: Globe,
                 color: 'emerald'
               },
@@ -399,14 +399,14 @@ AI-generated responses, when available, are advisory and require human review.`
               {
                 id: 'statistical_privacy_audit' as ComplianceSpecialtyMode,
                 label: 'Statistical Privacy & HIPAA',
-                subtitle: 'Expert Determination & Laplace Proofs',
+                subtitle: 'HIPAA de-identification & privacy engineering',
                 icon: Calculator,
                 color: 'teal'
               },
               {
                 id: 'regulatory_audit_memo' as ComplianceSpecialtyMode,
                 label: 'Regulatory Audit Memo',
-                subtitle: 'Formal DPA & CPPA Filing Opinions',
+                subtitle: 'Draft review memo for qualified counsel',
                 icon: FileText,
                 color: 'purple'
               }
@@ -438,27 +438,32 @@ AI-generated responses, when available, are advisory and require human review.`
           </div>
         </div>
 
-        {/* Mathematical & Statutory Reference Invariants */}
+        {/* Regulatory and technical reference notes — not assessments */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-950/80 border border-slate-800/80 p-3.5 rounded-xl">
           <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
-            <div className="text-[10px] font-mono text-emerald-400 font-bold uppercase">GDPR Article 25 Invariant</div>
-            <div className="text-xs font-mono text-slate-200 mt-1">Pr[M(D)] ≤ e^ε · Pr[M(D')]</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Privacy loss bounded by exp(ε) on adjacent databases</div>
+            <div className="text-[10px] font-mono text-emerald-400 font-bold uppercase">Pure ε-Differential Privacy</div>
+            <div className="text-xs font-mono text-slate-200 mt-1">Pr[M(D) ∈ S] ≤ e^ε · Pr[M(D') ∈ S]</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">For every output event S and adjacent datasets D, D'. Technical definition only; not a GDPR requirement. Runtime implementation NOT VERIFIED.</div>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
-            <div className="text-[10px] font-mono text-amber-400 font-bold uppercase">CCPA § 1798.155 Enforcement</div>
-            <div className="text-xs font-mono text-slate-200 mt-1">$7,500 / intentional breach</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Mandatory 30-day statutory cure period with SHA-256 logs</div>
+            <div className="text-[10px] font-mono text-amber-400 font-bold uppercase">GDPR Articles 17, 25 & 35</div>
+            <div className="text-xs font-mono text-slate-200 mt-1">Erasure · Design/default · DPIA</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Separate legal duties with conditions and exceptions. Applicability and operational compliance NOT ASSESSED.</div>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
-            <div className="text-[10px] font-mono text-cyan-400 font-bold uppercase">EU AI Act (2024/1689) Class 1</div>
-            <div className="text-xs font-mono text-slate-200 mt-1">Permitted + Art. 50 Disclosure</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Zero prohibited biometric categorizations under Art. 5</div>
+            <div className="text-[10px] font-mono text-cyan-400 font-bold uppercase">CCPA § 1798.155 Enforcement</div>
+            <div className="text-xs font-mono text-slate-200 mt-1">No general 30-day cure precondition</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">The general regulatory cure prerequisite ended January 1, 2023. The limited private-action rules in § 1798.150 are separate. Applicability NOT ASSESSED.</div>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
-            <div className="text-[10px] font-mono text-teal-400 font-bold uppercase">HIPAA Expert Method (§ 164.514)</div>
-            <div className="text-xs font-mono text-slate-200 mt-1">P(re-id) ≤ 0.0004 & k ≥ 50</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Statistical risk bounded below NIH/HHS thresholds</div>
+            <div className="text-[10px] font-mono text-teal-400 font-bold uppercase">EU AI Act · Regulation 2024/1689</div>
+            <div className="text-xs font-mono text-slate-200 mt-1">No generic “Class 1” classification</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Assess Article 5 prohibitions, Article 6/Annex III high-risk criteria, and applicable Article 50 transparency duties. No assessment performed.</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80">
+            <div className="text-[10px] font-mono text-purple-400 font-bold uppercase">HIPAA Expert Determination · § 164.514(b)(1)</div>
+            <div className="text-xs font-mono text-slate-200 mt-1">Very small risk — expert-specific</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">A qualified expert documents methods and results. HHS establishes no universal numerical risk or k-anonymity threshold. Assessment NOT PERFORMED.</div>
           </div>
         </div>
 
@@ -473,14 +478,14 @@ AI-generated responses, when available, are advisory and require human review.`
                 onChange={(e) => setIncludeExposureContext(e.target.checked)}
                 className="rounded border-slate-700 bg-slate-900 text-amber-600 focus:ring-0 w-3.5 h-3.5"
               />
-              <span>Include active broker exposure context</span>
+              <span>Include configured broker exposure context (may contain sample/unverified records)</span>
             </label>
           </div>
 
           <div className="flex flex-wrap gap-2">
             {specialtyMode === 'gdpr_erasure_dpia' && [
-              'Conduct comprehensive GDPR Article 35 DPIA on differential privacy telemetry monetization',
-              'Draft formal GDPR Article 17 statutory deletion notice for unconsented broker data',
+              'Assess whether the described processing may require a GDPR Article 35 DPIA; list missing facts, risks, and review steps without assuming implementation.',
+              'Review whether the supplied facts may support a GDPR Article 17 erasure request, including applicable exceptions and controller/processor roles.',
               'Evaluate cross-border transfer compliance under Chapter V and Schrems II',
               'Verify lawful basis under Article 6(1)(a) and data protection by design under Article 25'
             ].map((q, i) => (
@@ -497,7 +502,7 @@ AI-generated responses, when available, are advisory and require human review.`
             {specialtyMode === 'ccpa_cpra_clawbacks' && [
               'Draft statutory CCPA § 1798.105 mandatory deletion and accounting demand for shadow brokers',
               'Analyze California SB 362 (Delete Act) registry submission requirements',
-              'Formulate statutory penalty notice citing Cal. Civ. Code § 1798.155 ($7,500 per violation)',
+              'Explain potential CCPA enforcement penalties under the current text of § 1798.155 and distinguish regulatory enforcement from the limited private action under § 1798.150.',
               'Audit consumer opt-out of sale/sharing under § 1798.120 and CPRA regulations'
             ].map((q, i) => (
               <button
@@ -513,8 +518,8 @@ AI-generated responses, when available, are advisory and require human review.`
             {specialtyMode === 'eu_ai_act_governance' && [
               'Classify the autonomous multi-provider AI orchestrator under the EU AI Act (Reg. 2024/1689)',
               'Verify Article 50 transparency obligations for AI-generated synthetic profiles',
-              'Confirm zero prohibited AI practices under Article 5 (social scoring / biometric manipulation)',
-              'Draft GPAI (General Purpose AI) systemic risk assessment for our dual-consensus engine'
+              'Screen the described use against each potentially relevant Article 5 prohibited practice; identify missing facts and do not presume a clean result.',
+              'Draft a GPAI (General Purpose AI) systemic-risk applicability checklist for a configured multi-provider AI system; do not assume consensus or execution.'
             ].map((q, i) => (
               <button
                 key={i}
@@ -527,9 +532,9 @@ AI-generated responses, when available, are advisory and require human review.`
             ))}
 
             {specialtyMode === 'statistical_privacy_audit' && [
-              'Audit mathematical differential privacy noise scale against HIPAA Expert Determination criteria',
-              'Formulate mathematical proof that Laplace noise bounded by ε = 0.30 prevents membership inference',
-              'Verify k-anonymity (k ≥ 50) and quasi-identifier entropy across developer telemetry',
+              'Review differential privacy design parameters separately from the HIPAA Expert Determination standard; identify evidence needed for each.',
+              'Evaluate a proposed Laplace mechanism against pure or approximate differential privacy, requiring adjacency, sensitivity, mechanism, composition, and implementation evidence.',
+              'Evaluate a proposed k-anonymity design using dataset-specific quasi-identifiers; do not assume a universal k threshold or HIPAA equivalence.',
               'Calculate total privacy budget consumption across 10,000 research queries'
             ].map((q, i) => (
               <button
