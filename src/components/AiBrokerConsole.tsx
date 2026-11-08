@@ -265,12 +265,12 @@ Choose an action to request a backend response. Any returned claim must be check
                   <h3 className="text-sm font-bold text-white">DataSovereign AI Broker</h3>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                    {selectedModel === 'auto' ? 'AUTO ROUTING' : selectedModel.toUpperCase()}
+                    {selectedModel === 'auto' ? 'AUTO PREFERENCE · NOT VERIFIED' : selectedModel.toUpperCase()}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
                   {selectedModel === 'auto'
-                    ? 'Provider-neutral routing using eligible configured provider defaults'
+                    ? 'Auto is the selected model preference; actual provider selection and inference are not verified.'
                     : `Model preference: ${selectedModel} · successful inference is not guaranteed by discovery`}
                 </p>
               </div>
@@ -287,7 +287,7 @@ Choose an action to request a backend response. Any returned claim must be check
                 onChange={(e) => handleModelChange(e.target.value)}
                 className="max-w-[240px] bg-slate-950 border border-slate-700 rounded-md px-2 py-1.5 text-[10px] font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="auto">Auto — configured provider default</option>
+                <option value="auto">Auto preference (provider choice not verified)</option>
                 {discoveredModelOptions.map((option) => (
                   <option key={option.model} value={option.model}>
                     {option.model} — {option.providers.join(', ')}
@@ -318,12 +318,12 @@ Choose an action to request a backend response. Any returned claim must be check
               {providerCatalogStatus === 'loading'
                 ? 'Loading configured provider model discovery…'
                 : providerCatalogStatus === 'unavailable'
-                  ? 'Provider discovery unavailable. Automatic routing is active; explicit model selection is disabled.'
+                  ? 'Provider discovery unavailable. Automatic routing is not verified; explicit model selection is disabled.'
                   : !hasUserSelectedModel.current && savedModelPreference.current !== 'auto' && selectedModel === 'auto'
                     ? 'Saved preference "' + savedModelPreference.current + '" is not currently discovered; automatic routing is active.'
                     : discoveredModelOptions.length
                       ? discoveredModelOptions.length + ' authenticated provider model IDs discovered. Discovery does not guarantee successful inference.'
-                      : 'No authenticated provider model IDs were discovered. Auto routing may use eligible provider defaults.'}
+                      : 'No authenticated provider model IDs were discovered. No provider selection or inference is confirmed.'}
               </p>
               <button
                 type="button"
