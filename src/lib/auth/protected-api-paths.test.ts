@@ -41,6 +41,8 @@ const authenticationBypassCases: Array<[string, string, boolean]> = [
   ['GET', '/linux/runtimes/linux-123e4567-e89b-42d3-a456-426614174000/tasks', false],
   ['HEAD', '/A2A/TASKS/task-123', false],
   ['POST', '/public/status', false],
+  ['POST', '/ai/broker-chat', false],
+  ['POST', '/api/ai/broker-chat', false],
   ['PUT', '/public/status', false],
   ['DELETE', '/public/status', false],
   ['POST', '/linux/agent/linux-123e4567-e89b-42d3-a456-426614174000/heartbeat', true],
