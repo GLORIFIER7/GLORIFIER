@@ -254,7 +254,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <button
                 onClick={onOpenCoWorkingStudio}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950/40 transition-colors"
-                title="Open Interactive Work Together with GPT & Gemini Studio"
+                title="Open an AI-assisted analysis request; provider participation and patch execution are not verified."
               >
                 <Sparkles className="w-4 h-4 text-emerald-200" />
                 <span>Work Together with GPT</span>
@@ -481,7 +481,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition-colors"
                   >
                     <Zap className="w-4 h-4" />
-                    <span>Apply Collaborative Hot-Patch Now</span>
+                    <span>Request governed patch action</span>
                   </button>
                 ) : (
                   <div className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold text-center flex items-center justify-center gap-1.5">
@@ -580,7 +580,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div className="space-y-1.5">
-                <div className="text-xs font-bold text-cyan-400">Production Unified Patch:</div>
+                <div className="text-xs font-bold text-cyan-400">Proposed patch text · application and production fix NOT VERIFIED:</div>
                 <pre className="text-xs font-mono bg-slate-950 p-3 rounded-lg border border-slate-800 text-emerald-300 overflow-x-auto">
                   {gptGeminiCollaborationResult.patchDiff}
                 </pre>
