@@ -16,6 +16,8 @@ import urllib.request
 
 
 CANCELLATION_CLEANUP_BUDGET_SECONDS = 0.05
+MAX_PENDING_PROVIDER_CONNECT_THREADS = 4
+_CONNECT_THREAD_SLOTS = threading.BoundedSemaphore(MAX_PENDING_PROVIDER_CONNECT_THREADS)
 
 
 class ResponseBodyTooLargeError(ValueError):
@@ -499,6 +501,9 @@ class _DeadlineConnectionMixin:
         ):
             self.timeout = remaining
 
+        if not _CONNECT_THREAD_SLOTS.acquire(blocking=False):
+            raise TimeoutError("provider connection setup capacity is exhausted")
+
         finished = threading.Event()
         state_lock = threading.Lock()
         state = {"timed_out": False, "error": None}
@@ -522,13 +527,18 @@ class _DeadlineConnectionMixin:
                 if late_socket is not None:
                     with suppress(OSError):
                         late_socket.close()
+                _CONNECT_THREAD_SLOTS.release()
 
         worker = threading.Thread(
             target=establish_connection,
             name="provider-deadline-connect",
             daemon=True,
         )
-        worker.start()
+        try:
+            worker.start()
+        except Exception:
+            _CONNECT_THREAD_SLOTS.release()
+            raise
 
         remaining = self._request_deadline - time.monotonic()
         if remaining <= 0 or not finished.wait(timeout=remaining):
