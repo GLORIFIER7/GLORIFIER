@@ -158,7 +158,10 @@ def test_worker_task_endpoint_rejects_rate_limited_credentials():
 
     response = worker_client.post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "CF-Connecting-IP": "198.51.100.28",
+        },
         json={"task": "worker request", "require_approval": False},
     )
 
