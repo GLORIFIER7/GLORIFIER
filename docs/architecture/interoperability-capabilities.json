@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-09T15:48:44Z",
+  "updatedAt": "2026-11-09T15:52:00Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -244,7 +244,8 @@
         "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
         "The GLORIFIER-to-NEURAL public proxy remains degraded until the merged service binding is deployed and proxy health/readiness endpoints are re-probed.",
         "Optional audit and task-run persistence were not configured in the observed readiness response.",
-        "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN."
+        "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN.",
+        "A read-only Cloudflare Workers Builds configuration inspection found auto_build_enabled=true for the production main branch, with production deploy_command `bash ./worker-build.sh deploy`. This creates a second automatic production-release path outside the separate GitHub workflow_dispatch + protected environment gate. Do not provision the missing internal service token until this trigger is disabled or made validation-only; otherwise a later main push could deploy without the intended manual approval."
       ]
     },
     {
