@@ -11,6 +11,7 @@ import { getAssetVerificationPolicy } from './lib/asset-verification';
 import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-asset-verification';
 import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
 import { handleWorkerAppStateRequest, type WorkerAppStateRouteEnvironment } from './lib/worker-app-state-route';
+import { isWorkerInternalService } from './lib/auth/worker-auth';
 
 export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   CF_VERSION_METADATA?: {
@@ -731,8 +732,24 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   const route = mapping[pathname];
   if (!route) return Response.json({ ok: false, code: 'NEURAL_ROUTE_NOT_FOUND' }, { status: 404, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   if (!route.methods.includes(request.method)) return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { Allow: route.methods.join(', '), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-  if (pathname === '/api/neural/v1/tasks' && !/^Bearer\s+\S+$/i.test(request.headers.get('authorization')?.trim() || '')) {
-    return Response.json({ ok: false, code: 'AUTHENTICATION_REQUIRED' }, { status: 401, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (pathname === '/api/neural/v1/tasks') {
+    const internalServiceToken = env.GLORIFIER_INTERNAL_SERVICE_TOKEN?.trim() || '';
+    if (!internalServiceToken) {
+      return Response.json({ ok: false, code: 'NEURAL_INTERNAL_SERVICE_TOKEN_NOT_CONFIGURED' }, {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+    if (!isWorkerInternalService(request, env)) {
+      return Response.json({ ok: false, code: 'INTERNAL_SERVICE_AUTHENTICATION_REQUIRED' }, {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'WWW-Authenticate': 'Bearer realm="GLORIFIER internal service"',
+        },
+      });
+    }
   }
   if (pathname === '/api/neural/v1/tasks' && !isJsonContentType(request.headers.get('content-type') || '')) {
     return Response.json({ ok: false, code: 'UNSUPPORTED_MEDIA_TYPE' }, {
@@ -788,8 +805,11 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   const accept = request.headers.get('accept');
   if (accept) headers.set('accept', accept);
   if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
-  const authorization = request.headers.get('authorization');
-  if (authorization && pathname === '/api/neural/v1/tasks') headers.set('authorization', authorization);
+  if (pathname === '/api/neural/v1/tasks') {
+    // The incoming internal-service identity was validated above. Never forward
+    // caller credentials; use the server-held shared secret for NEURAL.
+    headers.set('authorization', `Bearer ${env.GLORIFIER_INTERNAL_SERVICE_TOKEN!.trim()}`);
+  }
   const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
   if (request.method === 'POST' && taskBody !== undefined) {
     init.body = taskBody;
