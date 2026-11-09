@@ -215,7 +215,7 @@ See [the Linux host-agent integration contract](./linux-host-agent.md) and [the 
 
 - The eleven first-party SDKs have bounded language-specific CI evidence; this does not establish all operating systems, architectures, runtime versions, or live Neural connectivity.
 - A2A and MCP remain **NOT VERIFIED** for external interoperability. Official conformance/TCK results and authorized external-client tests are still required.
-- The active production GLORIFIER Worker v994 already contains `GLORIFIER_NEURAL_ORIGIN` and the exact-host allowlist, but its deployed bindings omit `GLORIFIER_NEURAL`. PR #774 merged the service-binding repair to `main`; deploy it only through the protected production workflow, then re-probe `/api/neural/health` and `/api/neural/ready`. Direct standalone NEURAL `/ready` currently reports READY, but no authenticated task or model inference has been executed.
+- The active production GLORIFIER Worker v994 already contains `GLORIFIER_NEURAL_ORIGIN` and the exact-host allowlist, but its deployed bindings omit `GLORIFIER_NEURAL`. PR #774 merged the service-binding repair to `main`; deploy it only through the protected production workflow, then re-probe `/api/neural/health` and `/api/neural/ready`. The last recorded direct standalone NEURAL `/ready` probe at `2026-11-09T15:33:47Z` reported READY, but the current-main smoke for `92d209544c02a3bf9c6f45eeb9d459b4a468426b` failed before health/readiness probes; current live readiness is therefore NOT VERIFIED. No authenticated task or model inference has been executed.
 - Authentication and AI-provider execution were not included in the public infrastructure probe.
 - The canonical OpenAPI document covers the Neural adapter only; a complete versioned API/protocol schema inventory and drift gate remain outstanding.
 
@@ -260,14 +260,14 @@ The production release workflow [cloudflare-worker.yml](https://github.com/GLORI
 
 - PR #774 source-level validation, Build and Test, Cloudflare Worker build, NEURAL Cloudflare Worker build, CodeQL, dependency review, npm security, Snyk, DeepScan, and CircleCI Worker validation reported success on the merged PR workflow set.
 - The separate NEURAL Service CI run [#42632687338](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42632687338) passed Python 3.11 and 3.12 test jobs; its AI Review Policy job failed because the required formal current-head AI reviews were not present before timeout. Do not treat ordinary comments as formal reviews or weaken the policy.
-- Standalone upstream [NEURAL PR #83](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/83) remains open. Its application test, lint, dependency audit, container build, runtime driver check, Cloudflare Worker build, and CodeQL jobs passed on its recorded head; formal AI review policy remains the blocker.
+- Standalone upstream [NEURAL PR #83](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/83) merged at `2026-11-09T15:46:39Z` as main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b`. Its authentication/provider hardening is on NEURAL main, but the Cloudflare Workers Builds production attempt for that exact commit failed because `GLORIFIER_INTERNAL_SERVICE_TOKEN` is missing; its post-deploy smoke steps were skipped. GitHub reports all 8 PR-head commits unsigned while the active NEURAL ruleset requires signed commits; the merge commit itself is verified. Preserve this as a signature-policy audit item rather than an open-PR review gate.
 
 ### Remaining issue #471 gates
 
 1. Obtain explicit owner authorization for the protected production deployment, then deploy the already-merged main source through the guarded workflow.
 2. Re-probe GLORIFIER `/api/neural/health` and `/api/neural/ready`; verify their responses match the direct NEURAL endpoints. Do not claim task execution or model inference without a separately authorized benign authenticated test.
-3. Complete formal reviewer requirements for standalone NEURAL PR #83; preserve the current review policy.
-4. Refresh the Ethereum, BNB Chain, and Solana read-only RPC probes (the existing evidence is from 2026-11-03) and distinguish endpoint reachability from GLR token/transfer verification.
+3. Audit the required-signatures outcome for merged NEURAL PR #83: all 8 PR-head commits were unsigned, while merge commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` is verified; retain GitHub ruleset/audit evidence confirming the merge satisfied the active rule.
+4. Ethereum, BNB Chain and Solana read-only Alchemy RPC probes were refreshed at `2026-11-09T16:25:54Z`. Remaining: resolve the second same-deployer Ethereum GLORIFIER/GLR contract's canonical identity and obtain independently verified transfer receipts/payment-path evidence for each chain. These read-only probes establish chain/contract/mint metadata only; they do not verify transfers or authorize signing, minting, or funds movement.
 5. Keep broad external A2A/MCP conformance and Linux host-agent deployment marked NOT VERIFIED until authorized external-client/host evidence exists.
 
 No signing, minting, transaction, wallet operation, financial action, secret rotation, or database migration was performed.
