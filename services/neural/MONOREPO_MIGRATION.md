@@ -9,7 +9,7 @@
 - Synchronization target: PR #83 current source head; not yet merged to either repository's `main`
 - Previous upstream sync: PR #82 merged to NEURAL `main` at `3887e0b17504581a519335a9368f718e46be56c9`
 
-The standalone NEURAL repository remains the authoritative source for shared NEURAL service code. This directory is a content mirror and does not preserve the standalone repository's commit graph. The mirror should be re-synchronized to the standalone `main` commit after PR #82 is approved and merged; this PR snapshot must not be represented as an upstream-main sync before that happens.
+The standalone NEURAL repository remains the authoritative source for shared NEURAL service code. This directory is a content mirror and does not preserve the standalone repository's commit graph. The mirror should be re-synchronized to the standalone `main` commit after PR #83 is approved and merged; this PR snapshot must not be represented as an upstream-main sync before that happens.
 
 Repository-specific GitHub Actions workflows remain in the GLORIFIER root and are intentionally excluded from the mirror. Tests that assert standalone-only workflow contracts are adapted to the actual GLORIFIER root workflows. Monorepo-only extensions remain in place: in particular, the governed vLLM adapter and its registration are GLORIFIER-specific and are not removed by the NEURAL source synchronizer.
 
