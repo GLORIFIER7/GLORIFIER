@@ -64,6 +64,8 @@ test("secret-bearing live probe is gated to main and a protected environment", (
   const workflow = readFileSync(".github/workflows/live-ai-connectivity.yml", "utf8");
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /vars\.LIVE_AI_PROBE_ENABLED == 'true'/);
+  assert.match(workflow, /repository-level release switch/);
+  assert.match(workflow, /independent human-approval gate/);
   assert.match(workflow, /environment:\s*live-ai-probe/);
   assert.match(workflow, /ref:\s*refs\/heads\/main/);
 });
