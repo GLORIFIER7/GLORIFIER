@@ -42,6 +42,18 @@ const otelGenAiAgentSource = model.sources.find((source) => source.id === 'otel-
 if (otelGenAiAgentSource?.url !== 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md') {
   throw new Error('OpenTelemetry GenAI agent source must target the canonical agent-span specification');
 }
+const focus15Source = model.sources.find((source) => source.id === 'finops-focus-1-5-release-scope');
+if (focus15Source?.url !== 'https://focus.finops.org/focus-1-5-release-scope/' || focus15Source.cadenceHours !== 168) {
+  throw new Error('FOCUS 1.5 roadmap source must use its canonical URL and a seven-day review cadence');
+}
+const focus15Pattern = model.patterns.find((pattern) => pattern.id === 'focus-1-5-ai-cost-attribution');
+if (focus15Pattern?.sourceId !== 'finops-focus-1-5-release-scope'
+    || focus15Pattern.evidenceClass !== 'analysis'
+    || !focus15Pattern.pattern.toLowerCase().includes('working draft')
+    || !focus15Pattern.GLORIFIERMapping.includes('FOCUS 1.4')
+    || !focus15Pattern.GLORIFIERMapping.includes('ratified')) {
+  throw new Error('FOCUS 1.5 must remain forward-looking analysis until ratified; FOCUS 1.4 remains the current contract');
+}
 
 for (const source of model.sources) {
   if (!isTrustedArchitectureSourceUrl(source.url)) {
@@ -73,6 +85,7 @@ const approvedCuratedSourceUrls = [
   'https://airc.nist.gov/airmf-resources/playbook/',
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
   'https://focus.finops.org/docs/specification/v1-4/',
+  'https://focus.finops.org/focus-1-5-release-scope/',
 ];
 for (const sourceUrl of approvedCuratedSourceUrls) {
   if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
