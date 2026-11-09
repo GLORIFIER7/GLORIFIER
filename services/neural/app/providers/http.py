@@ -500,7 +500,7 @@ class _DeadlineConnectionMixin:
         def establish_connection() -> None:
             try:
                 super(_DeadlineConnectionMixin, self).connect()
-            except Exception as exc:  # propagate the original transport failure
+            except (OSError, http.client.HTTPException) as exc:  # propagate transport failures
                 state["error"] = exc
             finally:
                 late_socket = None
