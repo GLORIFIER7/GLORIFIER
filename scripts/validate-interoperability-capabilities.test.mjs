@@ -145,6 +145,7 @@ test('interoperability gap register reflects merged NEURAL PR and refreshed GLR 
   ]) {
     const capability = registry.capabilities.find((item) => item.id === id);
     assert.ok(capability, `missing capability ${id}`);
+    assert.ok(Array.isArray(capability.evidence), `${id} must expose an evidence array`);
     assert.ok(
       capability.evidence.some((item) => item.kind === 'live-probe' && item.observedAt === '2026-11-09T16:25:54Z'),
       `${id} must retain the refreshed read-only probe evidence`,
