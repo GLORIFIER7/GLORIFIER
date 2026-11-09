@@ -76,6 +76,7 @@ test("secret-bearing live probe is gated to main and a protected environment", (
   assert.match(workflow, /preflight:/);
   assert.match(workflow, /needs:\s*preflight/);
   assert.match(workflow, /verify-live-ai-probe-environment\.mjs/);
+  assert.match(workflow, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
 });
 
 test("authenticated catalogue access is not reported as live inference", async () => {

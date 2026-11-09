@@ -50,7 +50,8 @@ async function run() {
   const registryDoc = readFileSync('docs/canonical-asset-registry.md', 'utf8');
   assert.match(registryDoc, /glorifier-erc721[\s\S]*?Token #1 item/);
   assert.match(registryDoc, /glorifier-erc1155[\s\S]*?Token #1 item/);
-  assert.match(registryDoc, /PARTIALLY VERIFIED — item page observed/);
+  assert.match(registryDoc, /PARTIALLY VERIFIED — 2026-11-09 read-only Ethereum RPC confirms ERC-165\/ERC-721/);
+  assert.match(registryDoc, /PARTIALLY VERIFIED — 2026-11-09 read-only Ethereum RPC confirms ERC-165\/ERC-1155/);
   assert.match(registryDoc, /not substitutes for direct chain evidence/);
   assert.match(registryDoc, /owner-reported status, not chain-verified fact/);
   assert.match(registryDoc, /do not classify it as a Solana NFT without separate NFT-standard evidence/);
