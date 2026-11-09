@@ -248,9 +248,16 @@ def test_octopus_workflow_embedded_python_is_syntactically_valid():
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo Octopus workflow contract")
 def test_monorepo_octopus_deployment_requires_successful_main_source_and_current_sha():
+    docker_image_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+
     assert 'workflows: ["GLORIFIER Docker Image"]' in WORKFLOW
     assert "branches: [main]" in WORKFLOW
-    assert "github.event.workflow_run.event == 'push'" in WORKFLOW
+    assert 'workflows: ["GLORIFIER CI"]' in docker_image_workflow
+    assert "  workflow_run:" in docker_image_workflow
+    assert "  push:" not in docker_image_workflow
+    assert "github.event.workflow_run.event == 'workflow_run'" in WORKFLOW
     assert "github.event.workflow_run.conclusion == 'success'" in WORKFLOW
     assert "github.event.workflow_run.head_branch == 'main'" in WORKFLOW
     assert "github.event.workflow_run.head_sha == github.sha" in WORKFLOW
