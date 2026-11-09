@@ -3,6 +3,8 @@
 from pathlib import Path
 import re
 
+import pytest
+
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 IS_MONOREPO = SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
@@ -84,6 +86,10 @@ def test_octopus_preflight_rejects_stale_source_commit_before_oidc():
 
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_neural_octopus_only_deploys_a_successful_main_push():
     assert "github.event.workflow_run.event == 'push'" in WORKFLOW
     assert "github.event.workflow_run.head_branch == 'main'" in WORKFLOW
@@ -91,10 +97,18 @@ def test_neural_octopus_only_deploys_a_successful_main_push():
     assert 'if [[ "$current_main_sha" != "$SOURCE_COMMIT" ]]; then' in WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_both_octopus_release_paths_pin_package_version_to_ci_tested_source_commit():
     assert WORKFLOW.count("package_version: ${{ steps.verify-image.outputs.package_version }}") == 2
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_neural_main_ci_publishes_the_exact_image_that_passed_the_test_matrix():
     publish_start = CI_WORKFLOW.index("  publish-container:")
     job = CI_WORKFLOW[publish_start:]
@@ -111,11 +125,19 @@ def test_neural_main_ci_publishes_the_exact_image_that_passed_the_test_matrix():
     assert "matrix.python-version == '3.12'" in CI_WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_neural_octopus_requires_the_ci_image_publisher_to_succeed():
     assert "actions: read" in WORKFLOW
     assert 'job.get("name") == "Publish the CI-tested NEURAL image to GHCR"' in WORKFLOW
     assert 'step.get("name") == "Publish the CI-tested run-attempt image"' in WORKFLOW
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_manual_dispatch_requires_a_successful_image_publish_for_the_current_commit():
     assert 'elif event_name == "workflow_dispatch":' in WORKFLOW
     assert "actions/workflows/ci.yml/runs?" in WORKFLOW
@@ -125,6 +147,10 @@ def test_manual_dispatch_requires_a_successful_image_publish_for_the_current_com
 
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_octopus_release_uses_the_exact_verified_ci_run_attempt_image():
     assert 'run_attempt = upstream.get("run_attempt")' in WORKFLOW
     assert "isinstance(run_attempt, bool)" in WORKFLOW
@@ -134,6 +160,10 @@ def test_octopus_release_uses_the_exact_verified_ci_run_attempt_image():
     assert WORKFLOW.count("steps.verify-image.outputs.package_version") == 2
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_octopus_preflight_rejects_multiple_deployment_environments():
     preflight_start = WORKFLOW.index("      - name: Validate Octopus deployment configuration")
     verify_start = WORKFLOW.index("      - name: Verify the CI-tested NEURAL image publication succeeded for this commit")
@@ -153,6 +183,10 @@ def test_octopus_workflow_contains_exactly_one_release_and_deployment_sequence()
         assert WORKFLOW.count(step) == 1
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_octopus_service_account_secret_is_scoped_to_the_oidc_login_step():
     deploy = WORKFLOW[WORKFLOW.index("  deploy:"):]
     job_env = re.search(r"(?ms)^    env:\n(.*?)(?=^    steps:)", deploy)
@@ -191,6 +225,10 @@ def test_octopus_service_account_secret_has_a_step_scoped_presence_check():
     assert 'test -n "${OCTOPUS_SERVICE_ACCOUNT_ID:-}"' in step
     assert 'echo "::error::Missing environment secret OCTOPUS_SERVICE_ACCOUNT_ID."' in step
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone Octopus workflow contract is not used by the monorepo",
+)
 def test_octopus_jobs_api_fetches_every_page_and_validates_total_count():
     assert "total_count" in WORKFLOW
     assert "page += 1" in WORKFLOW
@@ -206,3 +244,19 @@ def test_octopus_workflow_embedded_python_is_syntactically_valid():
     assert match, "The workflow must contain the CI verification Python heredoc"
     ast.parse(textwrap.dedent(match.group(1)))
 
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo Octopus workflow contract")
+def test_monorepo_octopus_deployment_requires_successful_main_source_and_current_sha():
+    assert 'workflows: ["GLORIFIER Docker Image"]' in WORKFLOW
+    assert "branches: [main]" in WORKFLOW
+    assert "github.event.workflow_run.event == 'workflow_run'" in WORKFLOW
+    assert "github.event.workflow_run.conclusion == 'success'" in WORKFLOW
+    assert "github.event.workflow_run.head_branch == 'main'" in WORKFLOW
+    assert "github.event.workflow_run.head_sha == github.sha" in WORKFLOW
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha' in WORKFLOW
+    assert 'if [[ "$current_main_sha" != "$SOURCE_COMMIT" ]]; then' in WORKFLOW
+    assert "workflow_dispatch:" in WORKFLOW
+    assert "vars.OCTOPUS_ENABLED == 'true'" in WORKFLOW
+    assert "OCTOPUS_SERVICE_ACCOUNT_ID: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}" in WORKFLOW
+    assert "Authenticate to Octopus Deploy using GitHub OIDC" in WORKFLOW
