@@ -286,3 +286,33 @@ def test_worker_probe_fails_when_async_connection_cleanup_fails(monkeypatch):
         asyncio.run(probe.check_worker())
 
     assert "private cleanup detail" not in str(error.value)
+
+
+def test_worker_neon_probe_decodes_percent_encoded_dsn_credentials(monkeypatch):
+    calls = {}
+
+    class Connection:
+        async def fetchval(self, query):
+            calls["query"] = query
+            return 1
+
+        async def close(self, **kwargs):
+            calls["closed"] = True
+
+    async def connect(**kwargs):
+        calls["kwargs"] = kwargs
+        return Connection()
+
+    monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
+    probe = NeonConnectivityProbe(
+        "postgresql://agent%40service:p%3Ass%2Fword%25@example.neon.tech/neural"
+    )
+
+    asyncio.run(probe.check_worker())
+
+    assert calls["kwargs"]["user"] == "agent@service"
+    assert calls["kwargs"]["password"] == "p:ss/word%"
+    assert calls["kwargs"]["host"] == "example.neon.tech"
+    assert calls["kwargs"]["database"] == "neural"
+    assert calls["query"] == "SELECT 1"
+    assert calls["closed"] is True

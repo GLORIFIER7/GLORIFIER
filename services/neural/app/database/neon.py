@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Mapping
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 _LOGGER = logging.getLogger(__name__)
 WORKER_CONNECT_TIMEOUT_SECONDS = 15
@@ -56,8 +56,8 @@ async def _connect_worker_database(asyncpg, database_url, hyperdrive, timeout):
     import ssl
 
     return await asyncpg.connect(
-        user=parsed.username,
-        password=parsed.password,
+        user=unquote(parsed.username) if parsed.username is not None else None,
+        password=unquote(parsed.password) if parsed.password is not None else None,
         host=parsed.hostname,
         port=parsed.port or 5432,
         database=parsed.path.lstrip("/"),
