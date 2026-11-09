@@ -215,7 +215,7 @@ See [the Linux host-agent integration contract](./linux-host-agent.md) and [the 
 
 - The eleven first-party SDKs have bounded language-specific CI evidence; this does not establish all operating systems, architectures, runtime versions, or live Neural connectivity.
 - A2A and MCP remain **NOT VERIFIED** for external interoperability. Official conformance/TCK results and authorized external-client tests are still required.
-- `GLORIFIER_NEURAL_ORIGIN` is not configured; live Neural readiness and end-to-end task execution remain unavailable.
+- The active production GLORIFIER Worker v994 already contains `GLORIFIER_NEURAL_ORIGIN` and the exact-host allowlist, but its deployed bindings omit `GLORIFIER_NEURAL`. PR #774 merged the service-binding repair to `main`; deploy it only through the protected production workflow, then re-probe `/api/neural/health` and `/api/neural/ready`. Direct standalone NEURAL `/ready` currently reports READY, but no authenticated task or model inference has been executed.
 - Authentication and AI-provider execution were not included in the public infrastructure probe.
 - The canonical OpenAPI document covers the Neural adapter only; a complete versioned API/protocol schema inventory and drift gate remain outstanding.
 
