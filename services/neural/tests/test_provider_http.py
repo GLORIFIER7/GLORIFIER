@@ -479,7 +479,7 @@ def test_sync_response_reader_uses_a_decreasing_absolute_socket_deadline(monkeyp
 def test_sync_response_reader_respects_deadline_started_before_connection(monkeypatch):
     import app.providers.http as provider_http
 
-    readings = iter((0.75, 0.75, 0.9, 1.1))
+    readings = iter((0.75, 0.9, 1.1))
 
     class FakeSocket:
         def __init__(self):
