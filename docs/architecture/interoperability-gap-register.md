@@ -248,6 +248,14 @@ PR [#774](https://github.com/GLORIFIER7/GLORIFIER/pull/774) merged to `GLORIFIER
 
 The production release workflow [cloudflare-worker.yml](https://github.com/GLORIFIER7/GLORIFIER/blob/main/.github/workflows/cloudflare-worker.yml) requires a manual `workflow_dispatch` from `main`, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and the protected production environment. No workflow dispatch or Cloudflare deployment was performed in this checkpoint. Do not bypass that gate.
 
+
+### NEURAL deployment configuration blocker — 2026-11-09 15:48 UTC
+
+- NEURAL main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` passed Python 3.11/3.12 CI and CodeQL; the Cloudflare bundle preparation/validation step also succeeded.
+- The Cloudflare Workers Builds production deploy for the same commit failed because the required runtime secret `GLORIFIER_INTERNAL_SERVICE_TOKEN` is not configured. The workflow's post-deploy health/readiness smoke steps were skipped; this commit was not released by that build.
+- PR #83's merged authentication hardening requires this internal service credential to be different from the public `GLORIFIER_API_TOKEN`. Do not reuse the public token, commit a secret, or place a secret value in issue comments. An authorized owner must provision a unique value directly in the Cloudflare secret manager, then trigger/retry the approved deployment and verify the deployed version and smoke checks.
+- The last direct standalone NEURAL /health and /ready observations (version 33) predate this failed deployment attempt. They remain historical observations and do not prove that the newer main commit is deployed.
+
 ### CI and review status
 
 - PR #774 source-level validation, Build and Test, Cloudflare Worker build, NEURAL Cloudflare Worker build, CodeQL, dependency review, npm security, Snyk, DeepScan, and CircleCI Worker validation reported success on the merged PR workflow set.
