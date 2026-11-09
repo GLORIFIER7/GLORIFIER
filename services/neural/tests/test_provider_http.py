@@ -476,6 +476,42 @@ def test_sync_response_reader_uses_a_decreasing_absolute_socket_deadline(monkeyp
     assert response.chunks == [b"third"]
 
 
+def test_sync_response_reader_respects_deadline_started_before_connection(monkeypatch):
+    import app.providers.http as provider_http
+
+    readings = iter((0.75, 0.75, 0.9, 1.1))
+
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self.socket))
+            self.chunks = [b"first", b"second", b"third"]
+
+        def read1(self, limit):
+            return self.chunks.pop(0)[:limit]
+
+    monkeypatch.setattr(provider_http.time, "monotonic", lambda: next(readings))
+    response = FakeResponse()
+
+    with pytest.raises(TimeoutError, match="deadline"):
+        read_bounded_response_bytes(
+            response,
+            max_bytes=64,
+            timeout_seconds=1.0,
+            deadline=1.0,
+        )
+
+    assert response.socket.timeouts == [0.25, pytest.approx(0.1)]
+    assert response.chunks == [b"third"]
+
+
 def test_sync_response_reader_stops_after_maximum_plus_one_byte():
     class FakeSocket:
         def __init__(self):
