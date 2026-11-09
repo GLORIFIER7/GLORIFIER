@@ -2224,6 +2224,8 @@ const run = async (): Promise<void> => {
         assert.equal(neuralTaskNoAuth.status, 401);
         assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
+        upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        capturedRequest = null;
         const internalServiceToken = 'test-internal-neural-service-token';
         const neuralTaskWithInternalServiceAuth = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
