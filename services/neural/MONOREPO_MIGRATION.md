@@ -4,7 +4,9 @@
 - Mirror path: `services/neural/`
 - Upstream source repository: `GLORIFIER7/GLORIFIER-NEURAL`
 - Upstream ref: `fix/neural-auth-sync-regressions-2026-11-09` (PR #82; not merged)
-- Upstream source commit: `927041967504719cb4dddd341426d4c918493ef8`
+- Upstream source commit: `2ffece8423ede2a6622aca03b5336a0778a243ec`
+- Source commit timestamp (UTC): `2026-11-09T13:43:36Z`
+- Post-merge hardening is proposed in NEURAL PR branch `fix/neural-post-merge-hardening-2026-11-09`; not yet merged.
 - Source commit timestamp (UTC): `2026-11-09T13:07:54Z`
 - Synchronization target: PR #82 current head; exact-head checks and review pending; not merged to either repository's `main`
 
