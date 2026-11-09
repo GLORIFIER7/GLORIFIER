@@ -2354,7 +2354,7 @@ const run = async (): Promise<void> => {
         );
         assert.notEqual(
           getCapturedRequest().headers.get('authorization'),
-          internalServiceToken,
+          `Bearer ${internalServiceToken}`,
           'the GLORIFIER ingress service token must never be used as the NEURAL public task token',
         );
         assert.notEqual(
