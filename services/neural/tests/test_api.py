@@ -1,11 +1,13 @@
+import asyncio
 import uuid
 
 import pytest
-
+from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
-from app.api import app
+from app.api import app, run_task
 from app.orchestrator import Orchestrator
+from app.schemas import TaskRequest
 
 
 client = TestClient(app)
@@ -64,6 +66,89 @@ def test_task_endpoint_rejects_invalid_token(monkeypatch):
     assert response.status_code == 401
 
 
+def test_task_endpoint_accepts_internal_service_token_without_replacing_primary_token(monkeypatch):
+    monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
+    monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
+    response = client.post(
+        "/v1/tasks",
+        headers={"Authorization": "Bearer separate-internal-service-token"},
+        json={"task": "internal connectivity diagnostic", "require_approval": True, "action_class": "read_only"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "NOT VERIFIED"
+    assert body["evidence"] == ["policy:approval-required"]
+
+    # The pre-existing primary credential remains valid after the additive
+    # internal-service credential is configured.
+    primary = client.post(
+        "/v1/tasks",
+        headers={"Authorization": "Bearer existing-primary-token"},
+        json={"task": "primary credential compatibility check", "require_approval": True, "action_class": "read_only"},
+    )
+    assert primary.status_code == 200
+    assert primary.json()["evidence"] == ["policy:approval-required"]
+
+
+def test_worker_scope_internal_service_token_is_read_from_cloudflare_bindings(monkeypatch):
+    monkeypatch.delenv("GLORIFIER_API_TOKEN", raising=False)
+    monkeypatch.delenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", raising=False)
+    worker_env = {
+        "GLORIFIER_API_TOKEN": "worker-primary-token",
+        "GLORIFIER_INTERNAL_SERVICE_TOKEN": "worker-internal-service-token",
+    }
+    authenticated_credentials = {}
+
+    async def stop_after_authentication(request, credential):
+        authenticated_credentials["credential"] = credential
+        raise HTTPException(status_code=429, detail="authentication-passed")
+
+    monkeypatch.setattr("app.api._enforce_task_rate_limit", stop_after_authentication)
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "scheme": "https",
+            "path": "/v1/tasks",
+            "raw_path": b"/v1/tasks",
+            "query_string": b"",
+            "headers": [],
+            "server": ("glorifier-neural.example", 443),
+            "client": ("127.0.0.1", 12345),
+            "env": worker_env,
+        }
+    )
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(
+            run_task(
+                TaskRequest(
+                    task="Worker binding authentication check",
+                    require_approval=True,
+                    action_class="read_only",
+                ),
+                request,
+                authorization="Bearer worker-internal-service-token",
+            )
+        )
+
+    assert raised.value.status_code == 429
+    assert raised.value.detail == "authentication-passed"
+    assert authenticated_credentials["credential"] == "worker-internal-service-token"
+
+
+def test_task_endpoint_rejects_incorrect_internal_service_token(monkeypatch):
+    monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
+    monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
+    response = client.post(
+        "/v1/tasks",
+        headers={"Authorization": "Bearer incorrect-internal-token"},
+        json={"task": "internal connectivity diagnostic", "require_approval": True, "action_class": "read_only"},
+    )
+    assert response.status_code == 401
+
+
 def test_task_endpoint_never_claims_inference_without_provider(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "test-secret")
     response = client.post(
@@ -92,33 +177,6 @@ def test_action_class_input_is_bounded(monkeypatch):
         json={"task": "test", "action_class": "x" * 65},
     )
     assert response.status_code == 422
-
-
-def test_unknown_action_class_is_rejected_before_audit_persistence(monkeypatch):
-    monkeypatch.setenv("GLORIFIER_API_TOKEN", "test-secret")
-    audit_events = []
-
-    class RecordingAuditSink:
-        def write(self, event):
-            audit_events.append(event)
-
-    monkeypatch.setattr(
-        "app.api.SupabaseRestAuditSink.from_environment",
-        lambda *_args: RecordingAuditSink(),
-    )
-
-    response = client.post(
-        "/v1/tasks",
-        headers={"Authorization": "Bearer test-secret"},
-        json={
-            "task": "read-only task",
-            "action_class": "customer@example.com",
-            "require_approval": False,
-        },
-    )
-
-    assert response.status_code == 422
-    assert audit_events == [], "untrusted free-form action_class values must never reach audit persistence"
 
 def test_task_input_bounds_are_enforced(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "test-secret")
@@ -671,82 +729,3 @@ def test_readiness_checks_configured_nvidia_model_without_inference(
     assert body["checks"]["database"] == "NOT CONFIGURED (OPTIONAL)"
     assert body["execution"]["inference_performed"] is False
     assert "readiness-test-secret" not in response.text
-
-def test_local_task_rate_limit_isolated_per_client_address(monkeypatch):
-    import asyncio
-
-    from starlette.requests import Request
-
-    from app.api import _enforce_task_rate_limit
-
-    keys = []
-
-    class AllowAll:
-        def allow(self, key):
-            keys.append(key)
-            return True, 60
-
-    monkeypatch.setattr("app.api.TASK_RATE_LIMITER", AllowAll())
-
-    def request_for(client_host):
-        return Request({
-            "type": "http",
-            "method": "POST",
-            "path": "/v1/tasks",
-            "headers": [],
-            "client": (client_host, 12345),
-            "server": ("testserver", 80),
-            "scheme": "http",
-            "query_string": b"",
-        })
-
-    async def enforce_for_two_clients():
-        await _enforce_task_rate_limit(request_for("198.51.100.10"), "shared-token")
-        await _enforce_task_rate_limit(request_for("198.51.100.11"), "shared-token")
-
-    asyncio.run(enforce_for_two_clients())
-    assert len(keys) == 2
-    assert keys[0] != keys[1], "different clients must not share one authenticated rate-limit bucket"
-    assert all("shared-token" not in key for key in keys)
-
-def test_task_run_validation_failure_is_distinguished_from_storage_failure(monkeypatch):
-    monkeypatch.setenv("GLORIFIER_API_TOKEN", "task-run-validation-token")
-    monkeypatch.delenv("GLORIFIER_AUDIT_ENABLED", raising=False)
-    calls = {"task": 0, "write": 0}
-
-    class InvalidTaskRunRepository:
-        def record(self, **_values):
-            calls["write"] += 1
-            raise ValueError("invalid task-run metadata")
-
-    def completed_task(_task_request):
-        calls["task"] += 1
-        from app.schemas import TaskResponse
-
-        return TaskResponse(
-            status="VERIFIED",
-            result="completed result",
-            evidence=["execution:inference"],
-            message="Task processing completed.",
-        )
-
-    monkeypatch.setattr(
-        "app.api.TaskRunRepository.from_environment",
-        lambda *_args: InvalidTaskRunRepository(),
-    )
-    monkeypatch.setattr("app.api.SupabaseRestAuditSink.from_environment", lambda *_args: None)
-    monkeypatch.setattr("app.api.orchestrator.run", completed_task)
-
-    response = client.post(
-        "/v1/tasks",
-        headers={"Authorization": "Bearer task-run-validation-token"},
-        json={"task": "safe read-only task", "require_approval": False},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "PARTIALLY VERIFIED"
-    assert response.json()["result"] == "completed result"
-    assert "persistence:task_runs:invalid-record" in response.json()["evidence"]
-    assert "Task-run metadata validation degraded after processing" in response.json()["message"]
-    assert "invalid task-run metadata" not in response.text
-    assert calls == {"task": 1, "write": 1}

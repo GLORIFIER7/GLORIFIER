@@ -11,19 +11,6 @@ from typing import Literal
 from urllib.parse import urlparse
 
 
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Never forward privileged Supabase credentials to a redirect destination."""
-
-    def redirect_request(self, request, response, code, message, headers, new_url):
-        return None
-
-
-def _open_audit_request(request: urllib.request.Request, *, timeout: float):
-    """Open the configured Supabase origin without following redirects."""
-    opener = urllib.request.build_opener(_NoRedirectHandler())
-    return opener.open(request, timeout=timeout)
-
-
 AuditEventType = Literal[
     "task_received",
     "policy_denied",
@@ -204,7 +191,7 @@ class SupabaseRestAuditSink(AuditSink):
         )
         # Do not log request headers, payloads, or raw server error bodies.
         try:
-            with _open_audit_request(request, timeout=self._timeout) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
                 if response.status not in (200, 201, 204):
                     raise RuntimeError("Audit persistence returned an unexpected status")
         except urllib.error.HTTPError as exc:

@@ -169,7 +169,7 @@ jobs:
             echo "::error::Missing CLOUDFLARE_ACCOUNT_ID in the glorifier-neural-cloudflare-production environment variables"
             exit 1
           }
-      - name: Verify required Neural API token is provisioned before publishing
+      - name: Verify required Neural API and internal service tokens are provisioned before publishing
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -202,11 +202,14 @@ jobs:
               for item in payload.get("result", [])
               if isinstance(item, dict) and isinstance(item.get("name"), str)
           ]
-          if "GLORIFIER_API_TOKEN" not in names:
-              print("::error::Missing Cloudflare Worker secret GLORIFIER_API_TOKEN; provision it in the Cloudflare Worker secret manager before deployment.")
+          required_secrets = {"GLORIFIER_API_TOKEN", "GLORIFIER_INTERNAL_SERVICE_TOKEN"}
+          missing_secrets = sorted(required_secrets.difference(names))
+          if missing_secrets:
+              missing = ", ".join(missing_secrets)
+              print(f"::error::Missing Cloudflare Worker secret(s): {missing}; provision them in the Cloudflare Worker secret manager before deployment.")
               raise SystemExit(1)
 
-          print("Required Neural API token secret is present; its value was not read.")
+          print("Required Neural API and internal service token secrets are present; their values were not read.")
           PY
       - name: Deploy Neural Worker to Cloudflare
         working-directory: services/neural/cloudflare

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 BLOCKED_ACTIONS = frozenset({"financial", "wallet_signing", "minting", "destructive", "production_write"})
-ALLOWED_ACTION_CLASSES = frozenset({"read_only", *BLOCKED_ACTIONS})
 
 @dataclass(frozen=True)
 class PolicyDecision:

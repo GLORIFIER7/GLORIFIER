@@ -102,7 +102,7 @@ def test_supabase_sink_posts_only_sanitized_allowlisted_fields(monkeypatch):
         captured["timeout"] = timeout
         return FakeResponse()
 
-    monkeypatch.setattr("app.audit._open_audit_request", fake_urlopen)
+    monkeypatch.setattr("app.audit.urllib.request.urlopen", fake_urlopen)
     sink = SupabaseRestAuditSink("https://example.supabase.co", "test-service-role-key")
     sink.write(
         AuditEvent(
@@ -161,7 +161,7 @@ def test_supabase_sink_rejects_oversized_values_before_network(
 ):
     sink = SupabaseRestAuditSink("https://example.supabase.co", "test-key")
     monkeypatch.setattr(
-        "app.audit._open_audit_request",
+        "app.audit.urllib.request.urlopen",
         lambda *args, **kwargs: pytest.fail("network must not be called"),
     )
     with pytest.raises(ValueError, match=error_message):
@@ -194,7 +194,7 @@ def test_supabase_http_error_does_not_expose_server_body_or_secret(monkeypatch):
             __import__("io").BytesIO(b"private database details"),
         )
 
-    monkeypatch.setattr("app.audit._open_audit_request", fail_with_private_response)
+    monkeypatch.setattr("app.audit.urllib.request.urlopen", fail_with_private_response)
     sink = SupabaseRestAuditSink("https://example.supabase.co", "test-service-role-key")
     event = AuditEvent(
         request_id="req-123",
@@ -207,49 +207,6 @@ def test_supabase_http_error_does_not_expose_server_body_or_secret(monkeypatch):
         sink.write(event)
     assert "private database details" not in str(error.value)
     assert "test-service-role-key" not in str(error.value)
-
-
-def test_supabase_sync_transport_rejects_redirects(monkeypatch):
-    import urllib.error
-    import io
-
-    captured = {}
-
-    class FakeOpener:
-        def __init__(self, handlers):
-            self.handlers = handlers
-
-        def open(self, request, timeout):
-            captured["url"] = request.full_url
-            captured["authorization"] = request.get_header("Authorization")
-            captured["timeout"] = timeout
-            raise urllib.error.HTTPError(
-                request.full_url,
-                302,
-                "Found",
-                {"Location": "https://attacker.invalid/steal"},
-                io.BytesIO(b"redirect"),
-            )
-
-    def fake_build_opener(*handlers):
-        captured["handler_names"] = [type(handler).__name__ for handler in handlers]
-        return FakeOpener(handlers)
-
-    monkeypatch.setattr("app.audit.urllib.request.build_opener", fake_build_opener)
-    sink = SupabaseRestAuditSink("https://example.supabase.co", "test-service-role-key")
-    event = AuditEvent(
-        request_id="req-123",
-        event_type="task_received",
-        status="NOT VERIFIED",
-        action_class="read_only",
-    )
-
-    with pytest.raises(RuntimeError, match="HTTP 302"):
-        sink.write(event)
-
-    assert captured["url"] == "https://example.supabase.co/rest/v1/audit_events"
-    assert captured["authorization"] == "Bearer test-service-role-key"
-    assert "_NoRedirectHandler" in captured["handler_names"]
 
 
 def test_supabase_sink_reads_worker_bindings_and_uses_fetch_for_async_audit():

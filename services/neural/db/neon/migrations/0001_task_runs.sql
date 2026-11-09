@@ -20,7 +20,7 @@ CREATE TABLE glorifier.task_runs (
     ),
     created_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL CHECK (expires_at > created_at),
-    CONSTRAINT task_runs_retention_window CHECK (expires_at <= created_at + interval '720 hours')
+    CONSTRAINT task_runs_retention_window CHECK (expires_at <= created_at + interval '30 days')
 );
 
 CREATE INDEX task_runs_request_id_idx ON glorifier.task_runs (request_id);

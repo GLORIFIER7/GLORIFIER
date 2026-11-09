@@ -147,14 +147,15 @@ def test_cloudflare_worker_binds_existing_readonly_neon_hyperdrive():
     assert '"GLORIFIER_NEON_CONNECTIVITY_ENABLED": "true"' in config
 
 
-def test_cloudflare_workflow_preflights_api_secret_and_smokes_safe_mode_truthfully():
+def test_cloudflare_workflow_preflights_api_and_internal_service_secrets_and_smokes_safe_mode_truthfully():
     workflow_path = WORKFLOW_PATH
     workflow = workflow_path.read_text(encoding="utf-8")
 
-    assert "Verify required Neural API token is provisioned before publishing" in workflow
+    assert "Verify required Neural API and internal service tokens are provisioned before publishing" in workflow
     assert "/workers/scripts/glorifier-neural/secrets" in workflow
-    assert '"GLORIFIER_API_TOKEN" not in names' in workflow
-    assert "Required Neural API token secret is present; its value was not read." in workflow
+    assert 'required_secrets = {"GLORIFIER_API_TOKEN", "GLORIFIER_INTERNAL_SERVICE_TOKEN"}' in workflow
+    assert "missing_secrets = sorted(required_secrets.difference(names))" in workflow
+    assert "Required Neural API and internal service token secrets are present; their values were not read." in workflow
 
     assert "  smoke:" in workflow
     assert "needs: [validate, deploy]" in workflow

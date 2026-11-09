@@ -2,6 +2,10 @@
 
 A governed, provider-neutral AI orchestration API built with Python and FastAPI, deployed as a Cloudflare Python Worker. The latest successful production smoke on 2026-11-05 returned HTTP 200 from `/health` and `/ready`; provider access, read-only Neon connectivity, authentication, and rate limiting were VERIFIED. A direct Cloudflare settings read-back later that day confirmed `GLORIFIER_PROVIDER=openai`, external data egress enabled, Neon connectivity enabled, and `GLORIFIER_ENABLE_INFERENCE=true`. Optional audit and task-run persistence remain unconfigured. The smoke test did not submit a prompt or perform inference, so end-to-end model execution remains NOT VERIFIED.
 
+## License
+
+This project is distributed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the complete terms. The license does not grant rights to use GLORIFIER names, logos, or trademarks. Third-party dependencies and assets remain subject to their respective licenses and notices.
+
 ## Current capabilities
 
 - FastAPI liveness/status endpoint at `GET /health`.
@@ -10,9 +14,9 @@ A governed, provider-neutral AI orchestration API built with Python and FastAPI,
 - Enforces a 64 KiB request-body limit against both the declared `Content-Length` and streamed ASGI body chunks; keep a matching limit at the reverse proxy as defense in depth.
 - Deny-by-default policy for financial actions, wallet signing, minting, destructive operations, production writes, and unknown action classes.
 - Explicit provider adapter interface; OpenAI is the default provider selection. A provider may be registered for read-only readiness when external egress is explicitly enabled; task inference is separately gated by `GLORIFIER_ENABLE_INFERENCE` and external-egress consent. Local and newly provisioned environments default to inference disabled.
-- OpenAI Responses API adapter (`OPENAI_API_KEY` secret plus explicit `OPENAI_MODEL`; the checked-in Worker configuration and local example select `gpt-6-luna`), registered for read-only readiness when `GLORIFIER_PROVIDER=openai` (or unset), the API key is configured, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. Task inference additionally requires `GLORIFIER_ENABLE_INFERENCE=true`.
+- OpenAI Responses API adapter (`OPENAI_API_KEY`, optional `OPENAI_MODEL`, default `gpt-6-luna`), registered for read-only readiness when `GLORIFIER_PROVIDER=openai` (or unset), the API key is configured, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. Task inference additionally requires `GLORIFIER_ENABLE_INFERENCE=true`.
 - Optional NVIDIA NIM chat-completions adapter (`NVIDIA_NIM_API_KEY`, optional `NVIDIA_NIM_MODEL`), registered for read-only readiness when NVIDIA is explicitly selected, its API key is configured, and external-egress consent is enabled. Task inference separately requires `GLORIFIER_ENABLE_INFERENCE=true`.
-- Optional self-hosted vLLM adapter for an OpenAI-compatible `/v1` endpoint. Configure `GLORIFIER_VLLM_BASE_URL`, `GLORIFIER_VLLM_ALLOWED_ORIGIN` (an exact HTTPS origin, not a wildcard), `GLORIFIER_VLLM_API_KEY`, and `GLORIFIER_VLLM_MODEL`. It is registered only when `GLORIFIER_PROVIDER=vllm` and external-egress consent is enabled; inference also requires `GLORIFIER_ENABLE_INFERENCE=true`. The adapter blocks redirects, validates the exact origin, bounds request/response sizes and timeouts, and supports non-streaming chat completions. This adapter does not provision a GPU or prove that a vLLM endpoint is live.
+- Optional NVIDIA Dynamo OpenAI-compatible runtime adapter is implemented in the repository (merged in PR #67). It requires an exact HTTPS `/v1` API root, exact origin allowlist, ingress-validated bearer credential, model ID, explicit provider selection, and external-egress consent. No live GPU-backed Dynamo deployment or inference is verified; see [NVIDIA Dynamo operations and verification gates](docs/NVIDIA-DYNAMO.md).
 - Constant-time comparison for bearer-token validation and fail-closed behavior when the API token is absent.
 - Validated UUID-shaped `X-Correlation-ID` propagation: a valid caller-supplied value is echoed unchanged in `X-Correlation-ID` and stored as `details.correlation_id` on audit events. Invalid values are replaced with a server-generated UUID. Every response also carries a unique server-generated `X-Request-ID`, which is used as the audit-event `request_id`.
 - Optional PyTorch availability check.
@@ -41,13 +45,7 @@ pytest
 uvicorn app.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/docs`. The `/health` endpoint reports process status separately from external dependencies. `/ready` performs a bounded read-only model-access check against the explicitly configured provider; OpenAI uses `GET https://api.openai.com/v1/models/{model}`, NVIDIA NIM queries its model catalogue, and vLLM uses `GET {GLORIFIER_VLLM_BASE_URL}/models` to confirm the explicitly selected model ID. These checks do not submit a prompt or execute inference. The optional Neon `SELECT 1` probe is reported separately and blocks readiness only when explicitly enabled but failing. Provider readiness is independent of inference: `/ready` validates the selected provider's read-only model-access probe and other required checks; it does not execute inference even when `GLORIFIER_ENABLE_INFERENCE=true`. Without a configured, accessible provider, provider readiness remains `NOT VERIFIED` and `/ready` returns HTTP 503.
-
-## Self-hosted GPU worker
-
-An optional single-GPU vLLM worker template is maintained in `../../deployments/vllm/`. It uses an HTTPS ingress restricted to the authenticated `/v1` API and an exact-origin allowlist in the NEURAL adapter. See [the deployment runbook](../../deployments/vllm/README.md) for the Kubernetes prerequisites, external secret setup, runtime configuration, and verification gates.
-
-The template does not provision infrastructure. Keep GPU deployment and live inference **NOT VERIFIED** until an authorized GPU cluster, TLS endpoint, model availability, and a controlled inference request have all been independently checked.
+Open `http://127.0.0.1:8000/docs`. The `/health` endpoint reports process status separately from external dependencies. `/ready` performs a bounded read-only model-access check against the explicitly configured provider; OpenAI uses `GET https://api.openai.com/v1/models/{model}`, while NVIDIA NIM queries its model catalogue. These checks do not submit a prompt or execute inference. The optional Neon `SELECT 1` probe is reported separately and blocks readiness only when explicitly enabled but failing. Provider readiness is independent of inference: `/ready` validates the selected provider's read-only model-access probe and other required checks; it does not execute inference even when `GLORIFIER_ENABLE_INFERENCE=true`. Without a configured, accessible provider, provider readiness remains `NOT VERIFIED` and `/ready` returns HTTP 503.
 
 ## Cloudflare deployment
 
@@ -85,7 +83,7 @@ The `NVIDIA_NIM_API_KEY` binding is also present for the optional NVIDIA adapter
 but NVIDIA is not the selected production provider. External egress is enabled
 for the read-only provider readiness request. The production inference flag is
 now `true`, but the latest successful production smoke (GitHub Actions run
-[#41987341798](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41987341798),
+[#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798),
 2026-11-05T07:30Z) reported HTTP 200 from `/health` and `/ready`, with provider,
 read-only database connectivity, authentication, and rate limiting `VERIFIED`.
 Audit and task-run persistence remain `NOT CONFIGURED (OPTIONAL)`. The smoke
@@ -125,7 +123,7 @@ Direct Cloudflare configuration inventory was read at approximately 16:28 local 
 - Latest deployment: `77cace04-8c1b-4a26-82b6-b4504f920625`, created `2026-11-05T07:30:11.656407Z`; 100% traffic assigned to version `ecf822d5-745e-4c33-8fc2-5c10ca83baf7`.
 - Current non-secret Worker variables: `GLORIFIER_PROVIDER=openai`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`, `GLORIFIER_ENABLE_INFERENCE=true`, and `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`.
 - Secret-binding inventory includes `OPENAI_API_KEY`, `GLORIFIER_API_TOKEN`, and `NVIDIA_NIM_API_KEY`. Only binding names were inspected; secret values were not read.
-- The latest successful production smoke was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED`.
+- The latest successful production smoke was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED`.
 - That smoke response reported `inference_performed=false`. No prompt was submitted and no model inference was executed.
 - Audit and task-run persistence remain `NOT CONFIGURED (OPTIONAL)`; no optional persistence write was tested.
 
@@ -138,8 +136,7 @@ A PostgreSQL-compatible audit schema starter is in `db/supabase/migrations/0001_
 
 - OpenAI is the default provider selection, with `gpt-6-luna` as the configurable default model. The adapter is registered for read-only readiness when external egress is authorized and the secret stays server-side. Task inference still requires its independent enable flag.
 - OpenAI readiness uses a bounded, authenticated `GET /v1/models/{model}` request and verifies that the API key can access the selected model. This proves model-access reachability only, not inference quality, latency, capacity, SLA, or factual correctness. Actual inference remains a separate controlled staging check; readiness never sends task content.
-- NVIDIA NIM remains an optional explicitly selected alternative. Its readiness uses a bounded, authenticated model-catalogue request.
-- Self-hosted vLLM is an optional exact-origin-allowlisted OpenAI-compatible endpoint. The adapter and local contract tests do not establish that a GPU worker, model, HTTPS endpoint, or live inference path has been provisioned. Keep deployment and live-inference evidence NOT VERIFIED until a controlled staging deployment and harmless inference check succeed.
+- NVIDIA NIM remains an optional explicitly selected alternative. Its readiness uses a bounded, authenticated model-catalogue request. Live provider inference remains NOT VERIFIED until a controlled staging check succeeds.
 - Neon has an optional, read-only connectivity probe. Install `.[neon]` for local execution (the Docker image includes this extra), set `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true` and `NEON_DATABASE_URL` in the deployment secret manager to make `/ready` run a bounded `SELECT 1` using certificate-verified TLS (`sslmode=verify-full`, system trust roots) and required channel binding. This does not create schemas or write data. The probe is disabled by default and is not proof of application-data readiness. The audit database integration remains optional and must be separately verified before it is treated as operational.
 - No Supabase migration, Neon application-data schema, dual-write, or reconciliation is implemented.
 - Supabase audit writes are opt-in through `GLORIFIER_AUDIT_ENABLED=true`, `SUPABASE_URL`, and server-side `SUPABASE_SERVICE_ROLE_KEY`; the API writes a sanitized pre-execution event before processing and a result event afterward. Audit persistence has not been verified against a live project.
@@ -158,18 +155,19 @@ Use `FULLY VERIFIED`, `VERIFIED`, `PARTIALLY VERIFIED`, `NOT VERIFIED`, `DEGRADE
 - `app/providers/base.py`: provider adapter contract.
 - `app/neural/torch_status.py`: optional PyTorch status check.
 - `tests/`: policy and API regression tests.
-- `.github/workflows/neural-ci.yml`: lint, tests, and Docker build on Python 3.11/3.12.
+- `.github/workflows/ci.yml`: lint, tests, and Docker build on Python 3.11/3.12.
 - `.github/dependabot.yml`: weekly dependency update proposals.
+## Protected no-inference task-path diagnostic
 
+The Worker includes a private `POST /__internal/verify-task` diagnostic route. It is intentionally excluded from the public OpenAPI schema and accepts no request body or caller-supplied task content. Keep it behind a dedicated Cloudflare Access self-hosted application scoped to the exact path:
 
-## Monorepo location
+`glorifier-neural.glorifier.workers.dev/__internal/verify-task`
 
-This service is maintained in the GLORIFIER monorepo at `services/neural/`. The Python environment, dependency lock, database migrations, tests, Docker build context and Cloudflare Worker package remain isolated from the TypeScript application.
+The Access policy must allow only the dedicated Cloudflare Access service token; do not add a bypass or broaden the existing `All Workers` policy. The Worker also verifies `CF-Access-Client-Id` and `CF-Access-Client-Secret` against server-side secret bindings:
 
-Active GitHub Actions workflows are defined at the repository root:
+- `GLORIFIER_INTERNAL_SERVICE_CLIENT_ID`
+- `GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET`
 
-- `.github/workflows/neural-ci.yml`
-- `.github/workflows/neural-cloudflare-worker.yml`
-- `.github/workflows/neural-database-integration.yml`
+The handler reads the existing `GLORIFIER_API_TOKEN` binding inside the Worker and passes it through the same constant-time task-authentication and rate-limit path used by `POST /v1/tasks`. It submits one fixed `read_only` diagnostic request with `require_approval=true`. The policy therefore returns `policy:approval-required` before inference; no model request is made. This diagnostic skips optional audit and task-run persistence, does not write to Neon or Supabase, and never returns or logs secret values.
 
-The source snapshot and remaining cutover gates are recorded in [MONOREPO_MIGRATION.md](MONOREPO_MIGRATION.md).
+The response reports a diagnostic `task_id` equal to its unique `X-Request-ID`, the separate `X-Correlation-ID`, the policy response, and explicit evidence that inference and persistence were not performed. This proves the Worker-held task credential was accepted and the task policy path was reached; it does **not** prove provider inference, factual model output, or the public GLORIFIER proxy path. Treat the endpoint as a one-off operational probe. Provision the two Access identity bindings and Access application only for an authorized test, and remove the temporary service token and bindings after verification unless a separate long-lived operational use is approved.

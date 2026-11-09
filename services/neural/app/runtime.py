@@ -12,8 +12,10 @@ from typing import Any
 
 from app.orchestrator import Orchestrator
 from app.providers import NvidiaNimAdapter
+from app.providers.anthropic import AnthropicMessagesAdapter
+from app.providers.dynamo import NvidiaDynamoAdapter
+from app.providers.gemini import GeminiInteractionsAdapter
 from app.providers.openai import OpenAIResponsesAdapter
-from app.providers.vllm import VllmAdapter
 from app.providers.registry import ProviderRegistry
 
 
@@ -70,6 +72,34 @@ def build_orchestrator_from_environment(
                 fetch_fn=fetch_fn,
             )
         )
+    elif external_egress_allowed and provider_name == NvidiaDynamoAdapter.name:
+        registry.register(
+            NvidiaDynamoAdapter(
+                api_key=_environment_value(environment, "NVIDIA_DYNAMO_API_KEY"),
+                model=_environment_value(environment, "NVIDIA_DYNAMO_MODEL"),
+                base_url=_environment_value(environment, "NVIDIA_DYNAMO_BASE_URL"),
+                allowed_origin=_environment_value(
+                    environment, "NVIDIA_DYNAMO_ALLOWED_ORIGIN"
+                ),
+                fetch_fn=fetch_fn,
+            )
+        )
+    elif external_egress_allowed and provider_name == GeminiInteractionsAdapter.name:
+        adapter = GeminiInteractionsAdapter(
+            api_key=_environment_value(environment, "GEMINI_API_KEY"),
+            model=_environment_value(environment, "GEMINI_MODEL"),
+            fetch_fn=fetch_fn,
+        )
+        if adapter.is_configured():
+            registry.register(adapter)
+    elif external_egress_allowed and provider_name == AnthropicMessagesAdapter.name:
+        adapter = AnthropicMessagesAdapter(
+            api_key=_environment_value(environment, "ANTHROPIC_API_KEY"),
+            model=_environment_value(environment, "ANTHROPIC_MODEL"),
+            fetch_fn=fetch_fn,
+        )
+        if adapter.is_configured():
+            registry.register(adapter)
     elif external_egress_allowed and provider_name == OpenAIResponsesAdapter.name:
         registry.register(
             OpenAIResponsesAdapter(
@@ -77,28 +107,11 @@ def build_orchestrator_from_environment(
                 model=_environment_value(
                     environment,
                     "OPENAI_MODEL",
-                    "",
+                    OpenAIResponsesAdapter.default_model,
                 ),
                 fetch_fn=fetch_fn,
             )
         )
-
-    elif external_egress_allowed and provider_name == VllmAdapter.name:
-        try:
-            adapter = VllmAdapter(
-                base_url=_environment_value(environment, "GLORIFIER_VLLM_BASE_URL"),
-                allowed_origin=_environment_value(
-                    environment, "GLORIFIER_VLLM_ALLOWED_ORIGIN"
-                ),
-                api_key=_environment_value(environment, "GLORIFIER_VLLM_API_KEY"),
-                model=_environment_value(environment, "GLORIFIER_VLLM_MODEL"),
-                fetch_fn=fetch_fn,
-            )
-        except ValueError:
-            # Unsafe or mismatched endpoints are unavailable; never attempt egress.
-            adapter = None
-        if adapter is not None:
-            registry.register(adapter)
 
     return Orchestrator(
         providers=registry,

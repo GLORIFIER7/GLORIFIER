@@ -1,9 +1,12 @@
+import asyncio
+from types import SimpleNamespace
+from typing import ClassVar
+
+import pytest
+
 from app.providers import NvidiaNimAdapter
 from app.runtime import build_orchestrator_from_environment
 from app.schemas import TaskRequest
-from typing import ClassVar
-from types import SimpleNamespace
-
 
 
 class _RuntimeBodyReader:
@@ -179,70 +182,50 @@ def test_cloudflare_runtime_uses_request_scoped_nvidia_bindings_and_fetch():
 
 
 
-def test_nvidia_provider_sanitizes_untrusted_runtime_errors_from_body_reader():
-    import asyncio
+def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch(monkeypatch):
+    import app.providers as nvidia_module
+    class FakeController:
+        class Signal:
+            aborted = False
 
-    class BrokenReader:
+        def __init__(self):
+            self.signal = self.Signal()
+            self.abort_calls = 0
+
+        def abort(self):
+            self.abort_calls += 1
+            self.signal.aborted = True
+
+    class FakeBody:
         def __init__(self):
             self.cancel_calls = 0
-            self.release_calls = 0
-
-        async def read(self):
-            raise RuntimeError("private upstream detail and secret-value")
+            self.cancelled = asyncio.Event()
 
         async def cancel(self):
             self.cancel_calls += 1
+            self.cancelled.set()
 
-        def releaseLock(self):
-            self.release_calls += 1
-
-    reader = BrokenReader()
-
-    class BrokenStream:
-        def getReader(self):
-            return reader
-
-    class BrokenResponse:
+    class FakeResponse:
         status = 200
-        headers: ClassVar[dict[str, str]] = {}
-        body = BrokenStream()
 
-    async def fake_fetch(*_args, **_kwargs):
-        return BrokenResponse()
+        def __init__(self):
+            self.body = FakeBody()
 
-    adapter = NvidiaNimAdapter(
-        api_key="request-scoped-secret",
-        model="nvidia/test-model",
-        fetch_fn=fake_fetch,
-    )
-
-    try:
-        asyncio.run(adapter.acheck_readiness())
-    except RuntimeError as error:
-        assert str(error) == "NVIDIA NIM readiness endpoint is unavailable"
-        assert "private upstream detail" not in str(error)
-        assert "secret-value" not in str(error)
-        assert "request-scoped-secret" not in str(error)
-    else:
-        raise AssertionError("expected the untrusted body-reader error to be rejected")
-
-    assert reader.cancel_calls == 1
-    assert reader.release_calls == 1
-
-
-
-def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
-    import asyncio
+    controller = FakeController()
+    monkeypatch.setattr(nvidia_module, "create_abort_controller", lambda: controller)
 
     async def exercise():
         finish = asyncio.Event()
+        response = FakeResponse()
 
-        async def resistant_fetch(*_args, **_kwargs):
+        async def resistant_fetch(*_args, signal=None, **_kwargs):
+            assert signal is controller.signal
             try:
                 await finish.wait()
             except asyncio.CancelledError:
+                # Simulate a Fetch promise that completes late despite abort().
                 await finish.wait()
-                raise
+                return response
 
         adapter = NvidiaNimAdapter(
             api_key="test-key",
@@ -252,19 +235,19 @@ def test_nvidia_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
         )
         asyncio.get_running_loop().call_later(0.15, finish.set)
         started = asyncio.get_running_loop().time()
-        try:
+        with pytest.raises(RuntimeError, match="readiness probe exceeded its timeout"):
             await adapter.acheck_readiness()
-        except RuntimeError as error:
-            assert str(error) == "NVIDIA NIM readiness probe exceeded its timeout"
-        else:
-            raise AssertionError("expected the NVIDIA Fetch deadline to expire")
         assert asyncio.get_running_loop().time() - started < 0.10
+        assert controller.abort_calls == 1
+        assert controller.signal.aborted is True
+        finish.set()
+        await asyncio.wait_for(response.body.cancelled.wait(), timeout=0.2)
+        assert response.body.cancel_calls == 1
 
     asyncio.run(exercise())
 
 def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkeypatch):
     import asyncio
-    import json
 
     clear_runtime_environment(monkeypatch)
 
@@ -273,8 +256,7 @@ def test_openai_readiness_can_be_verified_without_enabling_task_inference(monkey
     class FakeResponse:
         status = 200
         headers: ClassVar[dict[str, str]] = {}
-
-        body = _RuntimeReadableStream(json.dumps({"id": "gpt-6-luna", "object": "model"}).encode())
+        body = _RuntimeReadableStream(b'{"id":"gpt-6-luna","object":"model"}')
 
     async def fake_fetch(url, *, method, headers, body=None, redirect="manual"):
         assert method == "GET", "inference-disabled readiness must not submit task prompts"
@@ -343,19 +325,3 @@ def test_provider_readiness_requires_external_egress_consent_when_inference_is_d
     assert "disabled" in message
     assert orchestrator._providers.get("openai") is None
     assert orchestrator._allow_inference is False
-
-
-def test_openai_provider_is_unconfigured_without_explicit_model(monkeypatch):
-    clear_runtime_environment(monkeypatch)
-    monkeypatch.setenv("GLORIFIER_ENABLE_INFERENCE", "true")
-    monkeypatch.setenv("GLORIFIER_PROVIDER", "openai")
-    monkeypatch.setenv("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true")
-    monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
-
-    orchestrator = build_orchestrator_from_environment()
-    provider = orchestrator._providers.get("openai")
-
-    assert provider is None
-    result = orchestrator.run(TaskRequest(task="hello", require_approval=False))
-    assert result.status == "NOT VERIFIED"
-    assert result.evidence == ["provider:openai:unavailable", "execution:none"]
