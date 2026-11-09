@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { evaluateLiveAiEnvironment } from "./verify-live-ai-probe-environment.mjs";
+import { evaluateLiveAiEnvironment, verifyLiveAiEnvironment } from "./verify-live-ai-probe-environment.mjs";
 import { isValidMcpToolResult, normalizeHttpsOrigin, parseModelIds, probeA2A, probeProvider } from "./live-ai-connectivity-matrix.mjs";
 
 test("normalizes the single approved GLORIFIER Pages origin", () => {
@@ -33,11 +33,13 @@ test("OpenAI-compatible and Anthropic catalogue IDs are parsed", () => {
   assert.deepEqual(parseModelIds({ kind: "anthropic" }, payload), ["m1", "m2"]);
 });
 
-test("MCP tool-call success requires a valid non-error result with content blocks", () => {
-  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text", text: "repository read" }] } }), true);
-  assert.equal(isValidMcpToolResult({ result: { content: [], isError: false } }), false);
-  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text" }], isError: true } }), false);
-  assert.equal(isValidMcpToolResult({ result: { isError: false } }), false);
+test("MCP 2026-07-28 read-only tool success requires an explicit complete result", () => {
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [{ type: "text", text: "repository read" }] } }), true);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "input_required", content: [{ type: "text", text: "approval required" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "task", content: [{ type: "text", text: "task created" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text", text: "ambiguous result" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [], isError: false } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [{ type: "text" }], isError: true } }), false);
   assert.equal(isValidMcpToolResult({ error: { code: -32603, message: "failed" } }), false);
 });
 
@@ -160,4 +162,41 @@ test("live AI environment preflight requires explicit independent protection", (
   assert.equal(evaluateLiveAiEnvironment(validEnvironment, {
     branch_policies: [{ id: 1, name: "main" }, { id: 2, name: "release/*" }],
   }).ok, false, "only main may deploy to the live probe environment");
+});
+test("live AI environment preflight encodes owner and repository path segments", async () => {
+  const original = globalThis.fetch;
+  const requests = [];
+  const validEnvironment = {
+    name: "live-ai-probe",
+    can_admins_bypass: false,
+    protection_rules: [{
+      type: "required_reviewers",
+      prevent_self_review: true,
+      reviewers: [{ type: "User", reviewer: { id: 123 } }],
+    }],
+    deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+  };
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    requests.push(parsed.pathname);
+    const payload = parsed.pathname.endsWith("/deployment-branch-policies")
+      ? { branch_policies: [{ id: 1, name: "main" }] }
+      : validEnvironment;
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const result = await verifyLiveAiEnvironment({
+      token: "test-token",
+      repository: "owner#unsafe/repo?name",
+      apiUrl: "https://api.github.com",
+    });
+    assert.equal(result.ok, true);
+    assert.ok(requests.includes("/repos/owner%23unsafe/repo%3Fname/environments/live-ai-probe"));
+    assert.ok(requests.includes("/repos/owner%23unsafe/repo%3Fname/environments/live-ai-probe/deployment-branch-policies"));
+  } finally {
+    globalThis.fetch = original;
+  }
 });
