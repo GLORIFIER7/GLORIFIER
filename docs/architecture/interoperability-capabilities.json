@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-09T15:33:47Z",
+  "updatedAt": "2026-11-09T15:48:44Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -229,6 +229,13 @@
           "targetEnvironment": "Production standalone GLORIFIER-NEURAL Cloudflare Worker; 100% traffic",
           "observedAt": "2026-11-09T11:40:45.754352Z",
           "notes": "Cloudflare deployment inventory showed version 33 receiving 100% of the standalone Neural Worker traffic. This is deployment metadata, not proof of task execution or inference."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42648068106",
+          "targetEnvironment": "Cloudflare Workers Builds production deployment for GLORIFIER7/GLORIFIER-NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b",
+          "observedAt": "2026-11-09T15:48:44Z",
+          "notes": "The Cloudflare bundle preparation and dry validation succeeded, but the production deploy step failed because the required runtime secret GLORIFIER_INTERNAL_SERVICE_TOKEN was not configured. The post-deploy health/readiness smoke steps were skipped; this is a secret-configuration blocker, not an application test failure. The new commit was not released by this build. The internal token must be provisioned securely and must differ from GLORIFIER_API_TOKEN; no secret value is stored here."
         }
       ],
       "limitations": [
@@ -236,7 +243,8 @@
         "The standalone /health response reports process liveness only; providers, database, and PyTorch were NOT VERIFIED in that response.",
         "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
         "The GLORIFIER-to-NEURAL public proxy remains degraded until the merged service binding is deployed and proxy health/readiness endpoints are re-probed.",
-        "Optional audit and task-run persistence were not configured in the observed readiness response."
+        "Optional audit and task-run persistence were not configured in the observed readiness response.",
+        "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN."
       ]
     },
     {
