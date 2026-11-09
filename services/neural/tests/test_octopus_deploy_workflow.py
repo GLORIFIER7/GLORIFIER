@@ -236,6 +236,10 @@ def test_octopus_jobs_api_fetches_every_page_and_validates_total_count():
     assert "len(jobs) >= total_count" in WORKFLOW
 
 
+@pytest.mark.skipif(
+    not IS_MONOREPO,
+    reason="monorepo Octopus release contract is not used by the standalone repository",
+)
 def test_monorepo_octopus_release_requires_current_main_and_the_exact_published_image():
     # The subscribed Docker Image workflow is itself triggered by workflow_run from GLORIFIER CI.
     docker_image_workflow = (
