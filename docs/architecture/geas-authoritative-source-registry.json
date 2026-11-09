@@ -114,6 +114,18 @@
       "scannerStatus": "active"
     },
     {
+      "id": "finops-focus-1-5-release-scope",
+      "authority": "FinOps Foundation",
+      "domain": "finops",
+      "url": "https://focus.finops.org/focus-1-5-release-scope/",
+      "claimsAllowed": [
+        "focus-1-5-ai-cost-attribution"
+      ],
+      "reviewCadenceDays": 7,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "finops-framework",
       "authority": "FinOps Foundation",
       "domain": "finops",
