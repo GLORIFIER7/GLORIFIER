@@ -409,7 +409,7 @@ def test_trusted_status_schedule_leaves_headroom_for_the_ten_minute_job():
         workflow = root_workflow.read_text(encoding="utf-8")
         assert 'cron: "23 2 * * *"' in workflow
         scheduled_test_job = re.search(
-            r"(?ms)^  test:\\n(.*?)(?=^  [a-z0-9_-]+:\\n|\\Z)",
+            r"(?ms)^  test:\n(.*?)(?=^  [a-z0-9_-]+:\n|\Z)",
             workflow,
         )
         assert scheduled_test_job, "The scheduled NEURAL test job must exist"
