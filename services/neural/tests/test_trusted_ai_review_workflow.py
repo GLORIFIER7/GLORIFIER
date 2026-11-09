@@ -106,3 +106,57 @@ def test_monorepo_neural_ci_uses_a_trusted_read_only_review_checkout():
     assert "github.event.pull_request.head.sha" not in WORKFLOW
     assert "gh pr merge" not in WORKFLOW
     assert "--auto" not in WORKFLOW
+
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo trusted-status publisher contract")
+def test_monorepo_has_a_separate_trusted_scheduled_status_publisher():
+    workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "neural-ai-review-status.yml"
+    ).read_text(encoding="utf-8")
+
+    triggers = workflow.partition("permissions:")[0]
+    assert "schedule:" in triggers
+    assert 'cron: "*/15 * * * *"' in triggers
+    assert 'workflows: ["NEURAL Service CI"]' in triggers
+    assert "workflow_run:" in triggers
+    assert "types: [completed]" in triggers
+    assert "branches: [main]" in triggers
+    assert "pull_request:" not in triggers
+    assert "pull_request_target:" not in triggers
+
+    assert "ref: main" in workflow
+    assert "path: trusted-main" in workflow
+    assert "persist-credentials: false" in workflow
+    assert "working-directory: trusted-main/services/neural" in workflow
+    assert "python -m app.ai_review_status" in workflow
+    assert "timeout-minutes: 10" in workflow
+    assert "gh pr merge" not in workflow
+    assert "--auto" not in workflow
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo trusted-status publisher contract")
+def test_monorepo_trusted_status_publisher_uses_least_privilege_permissions():
+    workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "neural-ai-review-status.yml"
+    ).read_text(encoding="utf-8")
+
+    top_level = re.search(
+        r"(?ms)^permissions:\\n((?:^  [a-z-]+: [a-z]+\\n)+)",
+        workflow,
+    )
+    job_level = re.search(
+        r"(?ms)^    permissions:\\n((?:^      [a-z-]+: [a-z]+\\n)+)",
+        workflow,
+    )
+    assert top_level
+    assert job_level
+    assert re.findall(r"(?m)^  ([a-z-]+): ([a-z]+)$", top_level.group(1)) == [
+        ("contents", "read")
+    ]
+    assert re.findall(r"(?m)^      ([a-z-]+): ([a-z]+)$", job_level.group(1)) == [
+        ("contents", "read"),
+        ("pull-requests", "read"),
+        ("statuses", "write"),
+    ]
+    assert not re.search(r"\\$\\{\\{\\s*secrets\\s*(?:\\.|\\[)", workflow, re.IGNORECASE)
