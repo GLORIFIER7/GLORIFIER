@@ -462,3 +462,25 @@ def test_monorepo_neural_ci_schedules_validation_without_running_review_policy()
     assert "github.event_name == 'pull_request'" in review_job.group(1)
     assert "github.event_name == 'pull_request_review'" in review_job.group(1)
     assert "github.event_name == 'schedule'" not in review_job.group(1)
+
+
+@pytest.mark.skipif(
+    not IS_MONOREPO,
+    reason="monorepo trusted-status publisher workflow contract",
+)
+def test_monorepo_neural_trusted_status_publisher_is_scheduled_from_main():
+    workflow = (
+        SERVICE_ROOT.parents[1]
+        / ".github"
+        / "workflows"
+        / "neural-ai-review-status.yml"
+    ).read_text(encoding="utf-8")
+
+    # The NEURAL CI cron runs validation only; trusted review diagnostics
+    # are published by a separate default-branch workflow.
+    assert 'cron: "*/15 * * * *"' in workflow
+    assert 'workflows: ["NEURAL Service CI"]' in workflow
+    assert "pull-requests: read" in workflow
+    assert "statuses: write" in workflow
+    assert "ref: main" in workflow
+    assert "run: python -m app.ai_review_status" in workflow
