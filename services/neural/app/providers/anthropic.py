@@ -17,6 +17,7 @@ from app.providers.http import (
     ResponseBodyTooLargeError,
     await_with_deadline,
     create_abort_controller,
+    read_bounded_response_bytes,
     read_bounded_response_text,
 )
 
@@ -168,7 +169,11 @@ class AnthropicMessagesAdapter(ProviderAdapter):
                     label = "readiness probe" if readiness else "request"
                     raise RuntimeError(f"Anthropic {label} failed with HTTP {response.status}")
                 request_id = self._request_id(response)
-                raw = response.read(max_bytes + 1)
+                raw = read_bounded_response_bytes(
+                    response,
+                    max_bytes=max_bytes,
+                    timeout_seconds=min(timeout_seconds, self._timeout),
+                )
         except urllib.error.HTTPError as exc:
             label = "readiness probe" if readiness else "request"
             raise RuntimeError(f"Anthropic {label} failed with HTTP {exc.code}") from None
