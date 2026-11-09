@@ -548,7 +548,7 @@ async def _persist_task_run(
                 provider=result.provider,
                 evidence=result.evidence[:20],
             )
-    except ValueError:  # noqa: PERF203 - retain distinct schema-validation diagnostics
+    except ValueError:
         _mark_persistence_degraded(
             result, "persistence:task_runs:invalid-record", "Task-run persistence"
         )
