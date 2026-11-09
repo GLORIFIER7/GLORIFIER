@@ -47,6 +47,8 @@ def test_openai_adapter_rejects_oversized_prompt_before_network():
 
 
 def test_openai_sync_inference_uses_responses_api_and_preserves_request_id(monkeypatch):
+    import app.providers.openai as provider_module
+
     captured = {}
 
     class FakeResponse:
@@ -59,33 +61,30 @@ def test_openai_sync_inference_uses_responses_api_and_preserves_request_id(monke
         def __exit__(self, *_args):
             return None
 
-        def read(self, limit):
-            captured["read_limit"] = limit
-            return json.dumps({
-                "id": "resp_test_123",
-                "output": [{
-                    "type": "message",
-                    "content": [{"type": "output_text", "text": "GPT result"}],
-                }],
-            }).encode()
+    def fake_open(request, *, timeout, deadline):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        captured["deadline"] = deadline
+        captured["body"] = json.loads(request.data.decode())
+        return FakeResponse()
 
-    class FakeOpener:
-        def open(self, request, *, timeout):
-            captured["url"] = request.full_url
-            captured["method"] = request.get_method()
-            captured["authorization"] = request.get_header("Authorization")
-            captured["timeout"] = timeout
-            captured["body"] = json.loads(request.data.decode())
-            return FakeResponse()
+    def fake_read(_response, *, max_bytes, timeout_seconds, deadline):
+        captured["max_bytes"] = max_bytes
+        captured["read_timeout"] = timeout_seconds
+        captured["read_deadline"] = deadline
+        return json.dumps({
+            "id": "resp_test_123",
+            "output": [{
+                "type": "message",
+                "content": [{"type": "output_text", "text": "GPT result"}],
+            }],
+        }).encode()
 
-    def fake_build_opener(handler):
-        captured["handler"] = handler
-        return FakeOpener()
-
-    monkeypatch.setattr(
-        "app.providers.openai.urllib.request.build_opener",
-        fake_build_opener,
-    )
+    monkeypatch.setattr(provider_module.time, "monotonic", lambda: 10.0)
+    monkeypatch.setattr(provider_module, "_open_openai_request", fake_open)
+    monkeypatch.setattr(provider_module, "read_bounded_response_bytes", fake_read)
     adapter = OpenAIResponsesAdapter(api_key="test-key", model="gpt-6-luna")
     result = adapter.infer("hello", timeout_seconds=5)
 
@@ -96,16 +95,22 @@ def test_openai_sync_inference_uses_responses_api_and_preserves_request_id(monke
     assert captured["method"] == "POST"
     assert captured["authorization"] == "Bearer test-key"
     assert captured["timeout"] == 5
+    assert captured["deadline"] == 15.0
+    assert captured["read_deadline"] == 15.0
+    assert captured["read_timeout"] == 5
+    assert captured["max_bytes"] == adapter.max_response_bytes
     assert captured["body"]["model"] == "gpt-6-luna"
     assert captured["body"]["input"] == [{"role": "user", "content": "hello"}]
     assert captured["body"]["store"] is False
     assert captured["body"]["max_output_tokens"] == adapter.max_output_tokens
-    assert captured["handler"].redirect_request(
+    assert provider_module._NoRedirectHandler().redirect_request(
         None, None, 302, "Found", {}, "https://attacker.example/"
     ) is None
 
 
 def test_openai_readiness_uses_read_only_model_endpoint(monkeypatch):
+    import app.providers.openai as provider_module
+
     captured = {}
 
     class FakeResponse:
@@ -117,21 +122,23 @@ def test_openai_readiness_uses_read_only_model_endpoint(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def read(self, limit):
-            return b'{"id":"gpt-6-luna","object":"model"}'
+    def fake_open(request, *, timeout, deadline):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["body"] = request.data
+        captured["timeout"] = timeout
+        captured["deadline"] = deadline
+        return FakeResponse()
 
-    class FakeOpener:
-        def open(self, request, *, timeout):
-            captured["url"] = request.full_url
-            captured["method"] = request.get_method()
-            captured["body"] = request.data
-            captured["timeout"] = timeout
-            return FakeResponse()
+    def fake_read(_response, *, max_bytes, timeout_seconds, deadline):
+        captured["max_bytes"] = max_bytes
+        captured["read_timeout"] = timeout_seconds
+        captured["read_deadline"] = deadline
+        return b'{"id":"gpt-6-luna","object":"model"}'
 
-    monkeypatch.setattr(
-        "app.providers.openai.urllib.request.build_opener",
-        lambda _handler: FakeOpener(),
-    )
+    monkeypatch.setattr(provider_module.time, "monotonic", lambda: 10.0)
+    monkeypatch.setattr(provider_module, "_open_openai_request", fake_open)
+    monkeypatch.setattr(provider_module, "read_bounded_response_bytes", fake_read)
     adapter = OpenAIResponsesAdapter(api_key="test-key", model="gpt-6-luna")
 
     adapter.check_readiness()
@@ -139,7 +146,11 @@ def test_openai_readiness_uses_read_only_model_endpoint(monkeypatch):
     assert captured["url"] == "https://api.openai.com/v1/models/gpt-6-luna"
     assert captured["method"] == "GET"
     assert captured["body"] is None
-    assert captured["timeout"] <= 5
+    assert captured["timeout"] == 5
+    assert captured["deadline"] == 15.0
+    assert captured["read_deadline"] == 15.0
+    assert captured["read_timeout"] == 5
+    assert captured["max_bytes"] == adapter.max_model_response_bytes
 
 
 def test_openai_async_readiness_and_inference_use_request_scoped_fetch():
