@@ -9,6 +9,7 @@ import functools
 import http.client
 import io
 import math
+import threading
 import time
 from typing import Any, NoReturn
 import urllib.request
@@ -479,7 +480,7 @@ class _DeadlineSocket:
 
 
 class _DeadlineConnectionMixin:
-    """Install deadline-aware socket I/O after TCP/TLS connection setup."""
+    """Bound DNS, TCP, TLS, and proxy-tunnel setup by the request deadline."""
 
     def __init__(self, *args: Any, deadline: float, **kwargs: Any) -> None:
         self._request_deadline = deadline
@@ -491,13 +492,67 @@ class _DeadlineConnectionMixin:
             raise TimeoutError("provider request exceeded its absolute deadline")
         if self.timeout is None or self.timeout > remaining:
             self.timeout = remaining
-        super().connect()
+
+        finished = threading.Event()
+        state_lock = threading.Lock()
+        state = {"timed_out": False, "error": None}
+
+        def establish_connection() -> None:
+            try:
+                super(_DeadlineConnectionMixin, self).connect()
+            except Exception as exc:  # propagate the original transport failure
+                state["error"] = exc
+            finally:
+                late_socket = None
+                with state_lock:
+                    if (
+                        state["timed_out"]
+                        or time.monotonic() >= self._request_deadline
+                    ):
+                        state["timed_out"] = True
+                        late_socket = self.sock
+                        self.sock = None
+                    finished.set()
+                if late_socket is not None:
+                    with suppress(OSError):
+                        late_socket.close()
+
+        worker = threading.Thread(
+            target=establish_connection,
+            name="provider-deadline-connect",
+            daemon=True,
+        )
+        worker.start()
+
         remaining = self._request_deadline - time.monotonic()
-        if remaining <= 0:
-            if self.sock is not None:
-                self.sock.close()
+        if remaining <= 0 or not finished.wait(timeout=remaining):
+            with state_lock:
+                state["timed_out"] = True
+                late_socket = self.sock
                 self.sock = None
+            if late_socket is not None:
+                with suppress(OSError):
+                    late_socket.close()
             raise TimeoutError("provider request exceeded its absolute deadline")
+
+        with state_lock:
+            expired = (
+                state["timed_out"]
+                or time.monotonic() >= self._request_deadline
+            )
+            if expired:
+                state["timed_out"] = True
+                late_socket = self.sock
+                self.sock = None
+            else:
+                late_socket = None
+        if late_socket is not None:
+            with suppress(OSError):
+                late_socket.close()
+        if expired:
+            raise TimeoutError("provider request exceeded its absolute deadline")
+        if state["error"] is not None:
+            raise state["error"]
         if self.sock is not None:
             self.sock = _DeadlineSocket(self.sock, self._request_deadline)
 
