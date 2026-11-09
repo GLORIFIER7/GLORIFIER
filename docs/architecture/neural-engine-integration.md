@@ -106,3 +106,18 @@ This migration intentionally preserves the service boundary:
 **ChatGPT client boundary:** custom MCP server connections and full MCP access are available on ChatGPT Business and Enterprise/Edu on web; Pro has read/fetch permissions only. The current Go plan is not eligible for custom MCP server connections. The existing GLORIFIER /mcp endpoint is also a fixed-scope, read-only GitHub bridge, not a model-inference gateway. See OpenAI's custom MCP availability documentation: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt.
 
 **Remaining verification:** deploy the merged current-main source through the protected release workflow, verify the active Worker version contains the Neural variables, then re-run read-only health/readiness checks. Separately implement and authorize OAuth 2.1 for any future ChatGPT MCP connection, and only then perform a bounded, explicitly approved inference test.
+
+
+## Live evidence reconciliation — 2026-11-09
+
+This checkpoint supersedes earlier statements in this document that the production Neural origin/allowlist were absent or that the public GLORIFIER proxy health routes returned only the old `NEURAL_ORIGIN_NOT_CONFIGURED` response. Earlier entries remain as historical observations.
+
+- **Standalone NEURAL deployment:** Cloudflare read-only deployment inventory shows `glorifier-neural` Worker version 33 at 100% traffic (deployment `3d97535a-efc5-45b3-b5a3-be2bb4afda5c`, created `2026-11-09T11:40:45.754352Z`).
+- **Direct process health:** unauthenticated `GET https://glorifier-neural.glorifier.workers.dev/health` returned HTTP 200 at `2026-11-09T15:33:43Z`, with process VERIFIED but provider, database, and PyTorch reported NOT VERIFIED on the health endpoint.
+- **Direct readiness:** unauthenticated `GET https://glorifier-neural.glorifier.workers.dev/ready` returned HTTP 200 and status READY at `2026-11-09T15:33:47Z`. Providers, database, authentication, and rate-limit configuration were reported VERIFIED; optional audit and task-run persistence were not configured. The response explicitly reported `inference_performed=false`.
+- **GLORIFIER proxy:** unauthenticated GETs to `/api/neural/health` and `/api/neural/ready` on the GLORIFIER Worker returned HTTP 404 with Cloudflare error 1042 at `2026-11-09T15:33:23Z` and `15:33:25Z`. Cloudflare documents 1042 as a same-zone Worker-to-Worker fetch restriction unless the documented compatibility behavior is enabled.
+- **Active GLORIFIER release:** Cloudflare inventory shows version 994 at 100% traffic, created `2026-11-09T01:53:21.985954Z`, associated with release commit `ba13862ac05ae26dc5096c4774c52a10a4e9d1ab`. It has the configured origin and exact-host allowlist but not the `GLORIFIER_NEURAL` service binding.
+- **Merged source repair:** [GLORIFIER PR #774](https://github.com/GLORIFIER7/GLORIFIER/pull/774) merged at `2026-11-09T14:48:42Z`. Current main declares the `GLORIFIER_NEURAL` Cloudflare service binding in `wrangler.jsonc`; `src/worker.ts` calls that binding's `fetch()`. This source repair is not reflected in active production version 994 yet.
+- **Release control:** Production deployment remains behind the protected manual workflow gate requiring `workflow_dispatch`, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and the production environment. No deployment was triggered as part of this checkpoint.
+
+**Current conclusion:** the standalone NEURAL service is directly reachable and reports readiness, but the public GLORIFIER-to-NEURAL proxy is still degraded because the active GLORIFIER production version predates the merged service-binding repair. Readiness does not mean model inference, authenticated task execution, or end-to-end interoperability has been tested.
