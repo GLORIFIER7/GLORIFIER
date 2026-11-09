@@ -97,6 +97,7 @@ const run = async (): Promise<void> => {
           vars?: Record<string, string>;
           hyperdrive?: Array<{ binding: string; id: string }>;
           version_metadata?: { binding: string };
+          secrets?: { required?: string[] };
           assets?: { run_worker_first?: string[] };
           previews?: {
             vars?: Record<string, string>;
@@ -113,6 +114,10 @@ const run = async (): Promise<void> => {
           'user-state writes must use a separate least-privilege database role from read-only operational reporting');
         assert.equal(wranglerConfig.version_metadata?.binding, 'CF_VERSION_METADATA',
           'production must expose the deployed Cloudflare Worker version metadata for source-provenance verification');
+        assert.ok(wranglerConfig.secrets?.required?.includes('GLORIFIER_INTERNAL_SERVICE_TOKEN'),
+          'the GLORIFIER Worker must retain its inbound internal-service identity secret');
+        assert.ok(wranglerConfig.secrets?.required?.includes('GLORIFIER_API_TOKEN'),
+          'the GLORIFIER Worker must provision a separate downstream NEURAL task API credential');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
           'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
         const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
