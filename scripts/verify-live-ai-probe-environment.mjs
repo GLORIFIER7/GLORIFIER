@@ -25,11 +25,18 @@ export const evaluateLiveAiEnvironment = (environment, branchPolicyResponse) => 
   const branchPolicies = Array.isArray(branchPolicyResponse?.branch_policies)
     ? branchPolicyResponse.branch_policies
     : [];
+  const reportedBranchPolicyCount = branchPolicyResponse?.total_count;
+  const branchPolicyPageComplete = Number.isInteger(reportedBranchPolicyCount)
+    && reportedBranchPolicyCount === branchPolicies.length
+    && reportedBranchPolicyCount === 1;
   const branchAllowlist = branchPolicies
     .map((policy) => policy?.name)
     .filter((name) => typeof name === "string")
     .sort();
 
+  if (!branchPolicyPageComplete) {
+    failures.push("the complete deployment branch policy set must contain exactly one policy");
+  }
   if (branchAllowlist.length !== 1 || branchAllowlist[0] !== "main") {
     failures.push("the only deployment branch policy must be exactly main");
   }
@@ -41,6 +48,8 @@ export const evaluateLiveAiEnvironment = (environment, branchPolicyResponse) => 
     preventSelfReview: reviewerRule?.prevent_self_review === true,
     adminBypassDisabled: environment?.can_admins_bypass === false,
     branchAllowlist,
+    branchPolicyCount: reportedBranchPolicyCount ?? null,
+    branchPolicyPageComplete,
     failures,
   };
 };
