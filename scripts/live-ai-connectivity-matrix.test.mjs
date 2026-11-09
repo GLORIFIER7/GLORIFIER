@@ -131,7 +131,7 @@ test("live AI environment preflight requires explicit independent protection", (
     }],
     deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
   };
-  const validPolicies = { branch_policies: [{ id: 1, name: "main" }] };
+  const validPolicies = { total_count: 1, branch_policies: [{ id: 1, name: "main" }] };
   const valid = evaluateLiveAiEnvironment(validEnvironment, validPolicies);
   assert.equal(valid.ok, true);
   assert.equal(valid.reviewerCount, 1);
@@ -160,8 +160,13 @@ test("live AI environment preflight requires explicit independent protection", (
     deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
   }, validPolicies).ok, false, "the policy must explicitly restrict deployment branches");
   assert.equal(evaluateLiveAiEnvironment(validEnvironment, {
+    total_count: 2,
     branch_policies: [{ id: 1, name: "main" }, { id: 2, name: "release/*" }],
   }).ok, false, "only main may deploy to the live probe environment");
+  assert.equal(evaluateLiveAiEnvironment(validEnvironment, {
+    total_count: 101,
+    branch_policies: [{ id: 1, name: "main" }],
+  }).ok, false, "an incomplete paginated branch-policy response must fail closed");
 });
 test("live AI environment preflight encodes owner and repository path segments", async () => {
   const original = globalThis.fetch;
@@ -180,7 +185,7 @@ test("live AI environment preflight encodes owner and repository path segments",
     const parsed = new URL(String(url));
     requests.push(parsed.pathname);
     const payload = parsed.pathname.endsWith("/deployment-branch-policies")
-      ? { branch_policies: [{ id: 1, name: "main" }] }
+      ? { total_count: 1, branch_policies: [{ id: 1, name: "main" }] }
       : validEnvironment;
     return new Response(JSON.stringify(payload), {
       status: 200,
