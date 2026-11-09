@@ -29,6 +29,32 @@ test('maintenance runs every four hours and uses the Laos publication hold', () 
   assert.match(workflow, /current_hhmm_decimal < 831/);
 });
 
+
+test('the publication window gates only the draft PR publisher, not maintenance analysis or validation', () => {
+  const providerStart = coding.indexOf('      - name: Check OpenAI credential availability');
+  const closedWindowStart = coding.indexOf('      - name: Report that the Laos publication window is closed');
+  assert.ok(providerStart >= 0 && closedWindowStart > providerStart,
+    'expected provider check before the publication-window report');
+  const maintenance = coding.slice(providerStart, closedWindowStart);
+  assert.ok(!maintenance.includes('steps.time_window.outputs.allowed'),
+    'provider checks, model execution, staging, and validation must not depend on the PR publication window');
+
+  assert.ok(workflow.includes('publication_allowed: ${{ steps.time_window.outputs.allowed }}'),
+    'the publication-window result must be exposed as a job output');
+  assert.ok(publish.includes("needs.coding-fleet.outputs.publication_allowed == 'true'"),
+    'the privileged publisher must fail closed until the publication window opens');
+
+  const windowStart = coding.indexOf('      - name: Enforce PR publication window (Laos)');
+  const boundaryStart = coding.indexOf('      - name: Verify Laos time-window boundaries', windowStart);
+  const windowStep = coding.slice(windowStart, boundaryStart);
+  assert.ok(!windowStep.includes('exit 1'),
+    'an unavailable clock must block publication without suppressing maintenance analysis');
+
+  assert.ok(coding.includes('PR publication is held until 08:31 Asia/Vientiane'),
+    'the closed-window notice must describe publication, not model execution');
+  assert.ok(!coding.includes('No model was invoked and no PR was created because it is before 08:31'));
+});
+
 test('scheduled and manual runs share the repository-level cost gate', () => {
   assert.equal(dispatchDeclaration.trim(), 'workflow_dispatch:');
   assert.doesNotMatch(workflow, /authorize_pull_request/);
