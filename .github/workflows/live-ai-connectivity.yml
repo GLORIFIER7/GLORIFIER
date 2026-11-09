@@ -68,9 +68,8 @@ jobs:
 
   live-probe:
     # LIVE_AI_PROBE_ENABLED is a repository-level release switch, not an environment variable.
-    # The environment adds an independent human-approval gate before the job starts.
-    # Configure required reviewers and main-only deployment policy before enabling the repository switch.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true'
+    # The preflight proves the configured reviewer and main-only rules; GitHub then enforces environment approval.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true' && needs.preflight.result == 'success'
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 15
