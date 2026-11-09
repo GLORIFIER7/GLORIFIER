@@ -45,6 +45,7 @@ const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
+  GLORIFIER_INTERNAL_SERVICE_TOKEN: 'test-internal-neural-service-token',
   ASSETS: {
     fetch() {
       assetCalls += 1;
@@ -2239,19 +2240,36 @@ const run = async (): Promise<void> => {
             GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken,
           },
         );
-        assert.equal(neuralTaskWithInternalServiceAuth.status, 202);
+        assert.equal(neuralTaskWithInternalServiceAuth.status, 200);
         assert.equal(
           getCapturedRequest().headers.get('authorization'),
           `Bearer ${internalServiceToken}`,
           'GLORIFIER must inject its server-held service credential, never forward a caller credential',
         );
 
+
+
+        capturedRequest = null;
+        const wrongInternalServiceIdentity = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+            method: 'POST',
+            headers: {
+              'X-Glorifier-Internal-Token': 'wrong-internal-token',
+              'Content-Type': 'application/json',
+            },
+            body: '{"task":"must be rejected","require_approval":true,"action_class":"read_only"}',
+          }),
+          { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' },
+        );
+        assert.equal(wrongInternalServiceIdentity.status, 401);
+        assert.equal(capturedRequest, null, 'invalid internal identities must be rejected before upstream forwarding');
+
         capturedRequest = null;
         const declaredOversizeBody = new Uint8Array(65_536 + 1);
         const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
           headers: {
-            Authorization: 'Bearer caller-token',
+            'X-Glorifier-Internal-Token': 'test-internal-neural-service-token',
             'Content-Type': 'application/json',
             'Content-Length': String(declaredOversizeBody.byteLength),
           },
@@ -2265,7 +2283,7 @@ const run = async (): Promise<void> => {
         const streamedOversizeBody = new Uint8Array(65_536 + 1);
         const streamedOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
-          headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+          headers: { 'X-Glorifier-Internal-Token': 'test-internal-neural-service-token', 'Content-Type': 'application/json' },
           body: streamedOversizeBody,
         }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(streamedOversizeTask.status, 413, 'actual streamed size must be enforced even without a trusted Content-Length');
@@ -2283,7 +2301,7 @@ const run = async (): Promise<void> => {
         });
         const cancellationAwareOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
-          headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+          headers: { 'X-Glorifier-Internal-Token': 'test-internal-neural-service-token', 'Content-Type': 'application/json' },
           body: cancellationAwareBody,
           duplex: 'half',
         } as RequestInit), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
@@ -2294,7 +2312,7 @@ const run = async (): Promise<void> => {
         capturedRequest = null;
         const unsupportedTaskMediaType = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
-          headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'text/plain' },
+          headers: { 'X-Glorifier-Internal-Token': 'test-internal-neural-service-token', 'Content-Type': 'text/plain' },
           body: '{"task":"summarize"}',
         }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(unsupportedTaskMediaType.status, 415, 'task requests must use JSON media types');
@@ -2304,7 +2322,7 @@ const run = async (): Promise<void> => {
         capturedRequest = null;
         const malformedJsonTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
-          headers: { Authorization: 'Bearer caller-token', 'Content-Type': 'application/json' },
+          headers: { 'X-Glorifier-Internal-Token': 'test-internal-neural-service-token', 'Content-Type': 'application/json' },
           body: '{"task":',
         }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(malformedJsonTask.status, 400, 'invalid JSON must be rejected locally');
@@ -2348,7 +2366,7 @@ const run = async (): Promise<void> => {
         const neuralTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
           headers: {
-            Authorization: 'Bearer caller-token',
+            'X-Glorifier-Internal-Token': 'test-internal-neural-service-token',
             'Content-Type': 'application/json',
             'X-Correlation-ID': callerCorrelationId,
           },
@@ -2358,7 +2376,7 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks');
         assert.equal(neuralTask.headers.get('x-correlation-id'), callerCorrelationId);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), callerCorrelationId, 'validated correlation ID must be forwarded unchanged');
-        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer caller-token', 'caller token must be forwarded unchanged');
+        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer test-internal-neural-service-token', 'GLORIFIER must inject only its server-held NEURAL credential');
         assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 
         const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
