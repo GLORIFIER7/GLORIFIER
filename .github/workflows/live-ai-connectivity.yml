@@ -14,9 +14,9 @@ on:
         default: false
         type: boolean
       public_base_url:
-        description: 'GLORIFIER HTTPS origin to probe; defaults to production Workers.dev.'
+        description: 'Approved GLORIFIER Pages HTTPS origin; other origins are rejected.'
         required: false
-        default: 'https://glorifier.glorifier.workers.dev'
+        default: 'https://glorifier.pages.dev'
         type: string
 
 permissions:
@@ -42,11 +42,15 @@ jobs:
         run: node --test scripts/live-ai-connectivity-matrix.test.mjs
 
   live-probe:
-    if: github.event_name == 'workflow_dispatch'
+    # LIVE_AI_PROBE_ENABLED is a repository-level release switch, not an environment variable.
+    # The environment adds an independent human-approval gate before the job starts.
+    # Configure required reviewers and main-only deployment policy before enabling the repository switch.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: live-ai-probe
     env:
-      GLORIFIER_PUBLIC_BASE_URL: ${{ inputs.public_base_url || 'https://glorifier.glorifier.workers.dev' }}
+      GLORIFIER_PUBLIC_BASE_URL: ${{ inputs.public_base_url || 'https://glorifier.pages.dev' }}
       ALLOW_METERED_PROBES: ${{ inputs.allow_metered_probes }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
@@ -63,6 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: refs/heads/main
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:

@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { normalizeHttpsOrigin, parseModelIds, probeProvider } from "./live-ai-connectivity-matrix.mjs";
+import { isValidMcpToolResult, normalizeHttpsOrigin, parseModelIds, probeA2A, probeProvider } from "./live-ai-connectivity-matrix.mjs";
 
-test("normalizes a clean HTTPS origin", () => {
-  assert.equal(normalizeHttpsOrigin("https://example.com/"), "https://example.com");
+test("normalizes the single approved GLORIFIER Pages origin", () => {
+  assert.equal(normalizeHttpsOrigin("https://glorifier.pages.dev/"), "https://glorifier.pages.dev");
 });
 
-test("rejects unsafe public origins", () => {
-  for (const value of ["http://example.com", "https://user:pass@example.com", "https://example.com/app", "https://example.com?token=x", "https://example.com/#x"]) {
+test("rejects unapproved or unsafe public origins", () => {
+  for (const value of ["http://glorifier.pages.dev", "https://example.com", "https://user:pass@glorifier.pages.dev", "https://glorifier.pages.dev/app", "https://glorifier.pages.dev?token=x", "https://glorifier.pages.dev/#x"]) {
     assert.throws(() => normalizeHttpsOrigin(value));
   }
 });
@@ -29,6 +30,44 @@ test("OpenAI-compatible and Anthropic catalogue IDs are parsed", () => {
   const payload = { data: [{ id: "m1" }, { id: 2 }, null, { id: "m2" }] };
   assert.deepEqual(parseModelIds({ kind: "openai" }, payload), ["m1", "m2"]);
   assert.deepEqual(parseModelIds({ kind: "anthropic" }, payload), ["m1", "m2"]);
+});
+
+test("MCP tool-call success requires a valid non-error result with content blocks", () => {
+  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text", text: "repository read" }] } }), true);
+  assert.equal(isValidMcpToolResult({ result: { content: [], isError: false } }), false);
+  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text" }], isError: true } }), false);
+  assert.equal(isValidMcpToolResult({ result: { isError: false } }), false);
+  assert.equal(isValidMcpToolResult({ error: { code: -32603, message: "failed" } }), false);
+});
+
+test("authenticated A2A v1 probe sends the required version header", async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method || "GET", headers: new Headers(init?.headers || {}) });
+    if (String(url).endsWith("/.well-known/agent-card.json")) {
+      return new Response(JSON.stringify({ supportedInterfaces: [{ protocolVersion: "1.0" }] }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: "live-list-tasks", result: { tasks: [] } }), { status: 200 });
+  };
+  try {
+    const result = await probeA2A("https://glorifier.pages.dev", "test-token");
+    assert.equal(result.status, "VERIFIED");
+    const rpc = calls.find((call) => call.url.endsWith("/api/a2a/v1"));
+    assert.ok(rpc);
+    assert.equal(rpc.headers.get("a2a-version"), "1.0");
+    assert.equal(rpc.headers.get("authorization"), "Bearer test-token");
+  } finally { globalThis.fetch = original; }
+});
+
+test("secret-bearing live probe is gated to main and a protected environment", () => {
+  const workflow = readFileSync(".github/workflows/live-ai-connectivity.yml", "utf8");
+  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /vars\.LIVE_AI_PROBE_ENABLED == 'true'/);
+  assert.match(workflow, /repository-level release switch/);
+  assert.match(workflow, /independent human-approval gate/);
+  assert.match(workflow, /environment:\s*live-ai-probe/);
+  assert.match(workflow, /ref:\s*refs\/heads\/main/);
 });
 
 test("authenticated catalogue access is not reported as live inference", async () => {
