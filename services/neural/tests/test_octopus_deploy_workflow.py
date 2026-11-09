@@ -4,18 +4,17 @@ from pathlib import Path
 import re
 
 
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+IS_MONOREPO = SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+REPOSITORY_ROOT = SERVICE_ROOT.parents[1] if IS_MONOREPO else SERVICE_ROOT
 WORKFLOW = (
-    Path(__file__).resolve().parents[1]
-    / ".github"
-    / "workflows"
-    / "octopus-deploy.yml"
+    REPOSITORY_ROOT / ".github" / "workflows" / "octopus-deploy.yml"
 ).read_text(encoding="utf-8")
-
 CI_WORKFLOW = (
-    Path(__file__).resolve().parents[1]
+    REPOSITORY_ROOT
     / ".github"
     / "workflows"
-    / "ci.yml"
+    / ("neural-ci.yml" if IS_MONOREPO else "ci.yml")
 ).read_text(encoding="utf-8")
 
 
