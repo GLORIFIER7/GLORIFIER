@@ -92,7 +92,7 @@
           "notes": "Merged source adds the GLORIFIER_NEURAL Cloudflare service binding in wrangler.jsonc and routes upstream requests through env.GLORIFIER_NEURAL.fetch. This repairs the same-zone fetch design in source; it is not production-deployment evidence."
         },
         {
-          "kind": "live-deployment",
+          "kind": "live-probe",
           "reference": "Cloudflare active Worker deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b; Worker version 994",
           "targetEnvironment": "Production Cloudflare Worker glorifier; 100% traffic",
           "observedAt": "2026-11-09T01:53:21.985954Z",
@@ -224,7 +224,7 @@
           "notes": "HTTP 200; status READY. Providers, database, authentication, and rate_limit were VERIFIED; optional audit and task_runs were NOT CONFIGURED. Response explicitly reported inference_performed=false; no task or inference was executed."
         },
         {
-          "kind": "live-deployment",
+          "kind": "live-probe",
           "reference": "Cloudflare active Worker deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c; Worker version 33",
           "targetEnvironment": "Production standalone GLORIFIER-NEURAL Cloudflare Worker; 100% traffic",
           "observedAt": "2026-11-09T11:40:45.754352Z",
@@ -1140,7 +1140,7 @@
           "notes": "HTTP 502. The release-provenance endpoint exists on the PR branch but has not been merged or deployed to production."
         },
         {
-          "kind": "live-deployment",
+          "kind": "live-probe",
           "reference": "Cloudflare active Worker deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b; Worker version 994",
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker; 100% traffic",
           "observedAt": "2026-11-09T01:53:21.985954Z",
