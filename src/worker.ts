@@ -39,6 +39,10 @@ export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
+  // Private same-account Worker-to-Worker route; never fall back to public fetch().
+  GLORIFIER_NEURAL?: {
+    fetch(request: Request): Promise<Response>;
+  };
   GLORIFIER_SUPABASE_URL?: string;
   GLORIFIER_SUPABASE_SERVICE_ROLE_KEY?: string;
   GLORIFIER_DATABASE_PROVIDER?: string;
@@ -828,8 +832,16 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   if (request.method === 'POST' && taskBody !== undefined) {
     init.body = taskBody;
   }
+  const neuralService = env.GLORIFIER_NEURAL;
+  if (!neuralService || typeof neuralService.fetch !== 'function') {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_SERVICE_BINDING_NOT_CONFIGURED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+
   try {
-    const upstream = await fetch(new Request(new URL(route.upstreamPath, origin), init));
+    const upstream = await neuralService.fetch(new Request(new URL(route.upstreamPath, origin), init));
     const responseHeaders = new Headers();
     const upstreamType = upstream.headers.get('content-type');
     if (upstreamType) responseHeaders.set('content-type', upstreamType);
