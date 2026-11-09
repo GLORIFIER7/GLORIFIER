@@ -45,6 +45,7 @@ const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
+  GLORIFIER_NEURAL: { fetch: (request: Request) => globalThis.fetch(request) },
   GLORIFIER_INTERNAL_SERVICE_TOKEN: 'test-internal-neural-service-token',
   ASSETS: {
     fetch() {
@@ -2254,6 +2255,19 @@ const run = async (): Promise<void> => {
         assert.equal(neuralHostNotAllowed.status, 503);
         assert.equal(await neuralHostNotAllowed.json().then((body: { code?: string }) => body.code), 'NEURAL_ORIGIN_NOT_ALLOWLISTED');
         assert.equal(capturedRequest, null, 'Neural requests must not reach hosts outside the exact allowlist');
+
+        capturedRequest = null;
+        const neuralMissingServiceBinding = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+          { ...env, GLORIFIER_NEURAL: undefined, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' },
+        );
+        assert.equal(neuralMissingServiceBinding.status, 503,
+          'Neural egress must fail closed when the internal Service Binding is missing');
+        assert.equal(
+          await neuralMissingServiceBinding.json().then((body: { code?: string }) => body.code),
+          'NEURAL_SERVICE_BINDING_NOT_CONFIGURED',
+        );
+        assert.equal(capturedRequest, null, 'a missing Service Binding must not fall back to public fetch');
 
         const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(neuralTaskNoAuth.status, 401);
