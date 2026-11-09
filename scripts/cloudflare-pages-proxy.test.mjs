@@ -168,3 +168,38 @@ test('does not grant CORS to unapproved browser origins', async () => {
   assert.equal(actual.headers.get('access-control-allow-origin'), null);
   assert.equal(workerCalls, 1);
 });
+
+
+test('preserves Worker cache policy on native responses while keeping preflight no-store', async () => {
+  const origin = 'https://localhost';
+  const actual = await routePagesRequest({
+    request: new Request('https://glorifier.pages.dev/api/health', {
+      headers: { Origin: origin },
+    }),
+    env: {
+      GLORIFIER_WORKER: {
+        fetch: async () => new Response('cacheable-worker-response', {
+          status: 200,
+          headers: { 'Cache-Control': 'public, max-age=60', Vary: 'Accept-Encoding' },
+        }),
+      },
+    },
+    next: async () => new Response('static'),
+  });
+  assert.equal(actual.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(actual.headers.get('vary'), 'Accept-Encoding, Origin');
+
+  const preflight = await routePagesRequest({
+    request: new Request('https://glorifier.pages.dev/api/health', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'GET',
+      },
+    }),
+    env: { GLORIFIER_WORKER: { fetch: async () => { throw new Error('preflight must not invoke Worker'); } } },
+    next: async () => new Response('static'),
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('cache-control'), 'no-store');
+});
