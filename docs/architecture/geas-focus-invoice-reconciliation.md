@@ -4,6 +4,14 @@
 
 This module reconciles caller-supplied CostAndUsage and InvoiceDetail rows. Its results are **analysis of provided-dataset consistency** only. They do not authenticate an invoice issuer, establish that a legal invoice was issued, validate a bank transfer, or prove that payment settled.
 
+## Forward-looking FOCUS 1.5 watch (non-normative)
+
+As of 2026-11-09, FOCUS 1.4 remains the current published version. The FinOps Foundation's [FOCUS 1.5 release-scope page](https://focus.finops.org/focus-1-5-release-scope/) identifies 3 December 2026 as the planned ratification date; until ratification and publication, its contents are a working draft rather than normative FOCUS requirements.
+
+The 1.5 scope includes proposed cross-provider AI billing dimensions for model identity, token direction, cached versus uncached tokens, provider-issued consumption currency, and requester attribution through `PrincipalId`, `CredentialId`, and `RequesterDetails`. A separate SKU Price dataset is also in final review. The working-group scope explicitly says principal and credential identifiers must not contain values that authenticate requests, such as API-key strings.
+
+GEAS therefore keeps this reconciler pinned to `FOCUS-1.4`. Do not change the parser, required columns, or reconciliation semantics based on the 1.5 working draft. Reassess only after the ratified specification, machine-readable requirements model, and migration guidance are published. The roadmap source is monitored as analysis and cannot establish that GLORIFIER implements or conforms to FOCUS 1.5.
+
 Authoritative references:
 
 - [FOCUS 1.4 Invoice Detail dataset](https://focus.finops.org/docs/specification/v1-4/datasets/invoice-detail/)
