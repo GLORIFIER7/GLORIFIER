@@ -20,8 +20,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Verify Android API origin and production smoke targets
-        run: node --test scripts/public-probe-origin.test.mjs
+      - name: Verify Android API origin and native CORS contract
+        run: node --test scripts/public-probe-origin.test.mjs scripts/cloudflare-pages-proxy.test.mjs
 
       - name: Setup Java
         uses: actions/setup-java@v6
