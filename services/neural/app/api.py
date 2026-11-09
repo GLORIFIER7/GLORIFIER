@@ -86,17 +86,26 @@ def _request_orchestrator(request: Request):
 
 
 async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
-    """Apply Cloudflare's credential-keyed limit; fail closed on errors.
+    """Apply a per-client credential-keyed limit; fail closed on identity or binding errors.
 
     Raises:
-        HTTPException: 429 when the task limit is exceeded; 503 when the
-            Cloudflare rate-limit binding is missing, invalid, or unavailable.
+        HTTPException: 429 when the task limit is exceeded; 503 when
+            the client identity or rate-limit infrastructure is unavailable.
     """
-    credential_key = hmac.new(
-        api_token.encode(), b"glorifier-rate-limit-v1", hashlib.sha256
-    ).hexdigest()
     worker_env = request.scope.get("env")
     if worker_env is None:
+        client = request.client
+        client_host = getattr(client, "host", None)
+        if not isinstance(client_host, str) or not client_host.strip():
+            raise HTTPException(
+                status_code=503, detail="Task client identity is unavailable"
+            )
+        client_identity = f"local:{client_host.strip()}"
+        credential_key = hmac.new(
+            api_token.encode("utf-8"),
+            f"glorifier-rate-limit-v1:{client_identity}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
         allowed, retry_after = TASK_RATE_LIMITER.allow(credential_key)
     else:
         rate_limit_binding = _request_worker_binding(request, "GLORIFIER_RATE_LIMITER")
@@ -110,6 +119,18 @@ async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
                 status_code=503,
                 detail="Task rate limiting is unavailable",
             )
+        raw_client_ip = request.headers.get("cf-connecting-ip", "").strip()
+        try:
+            client_ip = str(ipaddress.ip_address(raw_client_ip))
+        except ValueError:
+            raise HTTPException(
+                status_code=503, detail="Task client identity is unavailable"
+            ) from None
+        credential_key = hmac.new(
+            api_token.encode("utf-8"),
+            f"glorifier-rate-limit-v1:worker:{client_ip}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
         try:
             result = await rate_limit_binding.limit({"key": credential_key})
             success = (
@@ -527,6 +548,10 @@ async def _persist_task_run(
                 provider=result.provider,
                 evidence=result.evidence[:20],
             )
+    except ValueError:  # noqa: PERF203 - retain distinct schema-validation diagnostics
+        _mark_persistence_degraded(
+            result, "persistence:task_runs:invalid-record", "Task-run persistence"
+        )
     except Exception:  # noqa: BLE001 - task has already completed; do not invite retries
         _mark_persistence_degraded(
             result, "persistence:task_runs:degraded", "Task-run persistence"
@@ -649,18 +674,18 @@ async def verify_internal_task(request: Request) -> JSONResponse:
     )
     provided_client_id = request.headers.get("cf-access-client-id", "")
     provided_client_secret = request.headers.get("cf-access-client-secret", "")
-    if not expected_client_id or not expected_client_secret:
-        raise HTTPException(
-            status_code=503, detail="Internal service verification is not configured"
-        )
     if (
-        not secrets.compare_digest(
+        not expected_client_id
+        or not expected_client_secret
+        or not secrets.compare_digest(
             provided_client_id.encode("utf-8"), expected_client_id.encode("utf-8")
         )
         or not secrets.compare_digest(
             provided_client_secret.encode("utf-8"), expected_client_secret.encode("utf-8")
         )
     ):
+        # Do not disclose whether the Access identity is configured to an
+        # unauthenticated caller.
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     if await request.body():
@@ -670,6 +695,13 @@ async def verify_internal_task(request: Request) -> JSONResponse:
     if not api_token:
         raise HTTPException(
             status_code=503, detail="Task authentication is not configured"
+        )
+    internal_service_token = _request_environment_value(
+        request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
+    )
+    if not internal_service_token:
+        raise HTTPException(
+            status_code=503, detail="Internal task credential is not configured"
         )
 
     task_id = request.state.request_id
@@ -681,7 +713,7 @@ async def verify_internal_task(request: Request) -> JSONResponse:
         action_class="read_only",
     )
     result = await _process_authenticated_task(
-        probe, request, f"Bearer {api_token}", persist=False
+        probe, request, f"Bearer {internal_service_token}", persist=False
     )
     return JSONResponse(
         status_code=200,
