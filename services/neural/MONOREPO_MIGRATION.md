@@ -3,12 +3,11 @@
 - Mirror repository: `GLORIFIER7/GLORIFIER`
 - Mirror path: `services/neural/`
 - Upstream source repository: `GLORIFIER7/GLORIFIER-NEURAL`
-- Upstream ref: `fix/neural-auth-sync-regressions-2026-11-09` (PR #82; not merged)
-- Upstream source commit: `2ffece8423ede2a6622aca03b5336a0778a243ec`
-- Source commit timestamp (UTC): `2026-11-09T13:43:36Z`
-- Post-merge hardening is proposed in NEURAL PR branch `fix/neural-post-merge-hardening-2026-11-09`; not yet merged.
-- Source commit timestamp (UTC): `2026-11-09T13:07:54Z`
-- Synchronization target: PR #82 current head; exact-head checks and review pending; not merged to either repository's `main`
+- Upstream ref: `fix/neural-post-merge-hardening-2026-11-09` (PR #83; open)
+- Upstream source commit: `af828f6a5548cca55690d6181a5497db55d90da2`
+- Source commit timestamp (UTC): `2026-11-09T13:46:20Z`
+- Synchronization target: PR #83 current source head; not yet merged to either repository's `main`
+- Previous upstream sync: PR #82 merged to NEURAL `main` at `3887e0b17504581a519335a9368f718e46be56c9`
 
 The standalone NEURAL repository remains the authoritative source for shared NEURAL service code. This directory is a content mirror and does not preserve the standalone repository's commit graph. The mirror should be re-synchronized to the standalone `main` commit after PR #82 is approved and merged; this PR snapshot must not be represented as an upstream-main sync before that happens.
 
