@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-09T15:52:00Z",
+  "updatedAt": "2026-11-09T16:25:54Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -519,11 +519,18 @@
           "targetEnvironment": "PublicNode public Ethereum mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only eth_chainId returned 0x1 (HTTP 200, 412 ms) and eth_blockNumber returned 0x191d03e (HTTP 200). This verifies public endpoint reachability and Ethereum mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only eth_chainId, eth_blockNumber, eth_getCode, eth_call",
+          "targetEnvironment": "Ethereum mainnet; canonical GLR ERC-20 contract 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned chainId 0x1, block 0x1928107, non-empty contract bytecode, name GLORIFIER, symbol GLR, decimals 18, and totalSupply 1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state-changing call was performed. This does not resolve the second same-deployer GLORIFIER/GLR contract or establish a successful payment/transfer-verifier path."
         }
       ],
       "limitations": [
-        "The latest recorded live read-only RPC probe is from 2026-11-03 and is now historical/outside a 24-hour freshness window; it verified chain identity and block-height access only, not GLR token/transfer state or signing. No current fresh probe is recorded.",
-        "Signing, minting, transfers and contract writes are outside this verifier and remain gated."
+        "Signing, minting, transfers and contract writes are outside this verifier and remain gated.",
+        "Ethereum remains PARTIALLY VERIFIED: the fresh independent read-only contract metadata check confirms the owner-designated contract's code and token fields, but the second same-deployer GLORIFIER/GLR contract remains unresolved as a canonical-identity decision; no transfer transaction was verified."
       ]
     },
     {
@@ -571,11 +578,18 @@
           "targetEnvironment": "PublicNode public BNB Smart Chain mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only eth_chainId returned 0x38 (HTTP 200, 494 ms) and eth_blockNumber returned 0x7d51691 (HTTP 200). This verifies public endpoint reachability and BNB Smart Chain mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only eth_chainId, eth_blockNumber, eth_getCode, eth_call",
+          "targetEnvironment": "BNB Smart Chain mainnet; owner-designated GLR BEP-20 contract 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned chainId 0x38, block 0x7e78dec, non-empty contract bytecode, name GLORIFIER, symbol GLR, decimals 18, and totalSupply 1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state-changing call was performed; this does not test receipt verification for an actual transfer."
         }
       ],
       "limitations": [
-        "The latest recorded live read-only RPC probe is from 2026-11-03 and is now historical/outside a 24-hour freshness window; it verified chain identity and block-height access only, not GLR token/transfer state or signing. No current fresh probe is recorded.",
-        "EVM test coverage does not prove production RPC reachability."
+        "EVM test coverage does not prove production RPC reachability.",
+        "Fresh independent read-only RPC confirms the owner-designated GLR contract's code and token fields; it does not independently validate a new transfer receipt or the full production payment-verification path."
       ]
     },
     {
@@ -623,11 +637,19 @@
           "targetEnvironment": "PublicNode public Solana mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only getGenesisHash returned 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d (HTTP 200, 622 ms), matching Solana mainnet; getSlot at finalized commitment returned 464841204 (HTTP 200). This verifies public endpoint reachability and mainnet identity only; it does not verify GLR mint/transfer state or signing."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only getGenesisHash, getBlockHeight(finalized), getTokenSupply(finalized), getAccountInfo(finalized)",
+          "targetEnvironment": "Solana Mainnet Beta; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 467383832",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d, finalized height 445400982, mint supply 1,000,000,000 with 9 decimals, token name GLORIFIER, symbol GLR, null mint/freeze authorities, null metadata pointer/update authorities, and Token-2022 program owner TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb. No signing, transaction, or state mutation was performed; this does not independently review all provenance or verify a GLR transfer."
         }
       ],
       "limitations": [
         "The live read-only RPC probe verifies endpoint reachability and mainnet identity only; live GLR mint/transfer state and signing remain NOT VERIFIED.",
-        "EVM and Solana adapters are independently verified and are not interchangeable."
+        "EVM and Solana adapters are independently verified and are not interchangeable.",
+        "Fresh independent read-only Alchemy confirms the canonical Token-2022 mint state and revoked mint/freeze/metadata authorities at finalized context; independent reviewer and cross-file provenance gates still remain."
       ]
     },
     {
