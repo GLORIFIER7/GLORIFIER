@@ -224,7 +224,7 @@ def test_cloudflare_production_smoke_only_runs_after_authorized_manual_deploymen
     )
 
 
-def test_cloudflare_worker_enables_owner_authorized_openai_inference():
+def test_cloudflare_worker_keeps_external_egress_and_inference_disabled_by_default():
     config_path = (
         SERVICE_ROOT
         / "cloudflare"
@@ -234,5 +234,5 @@ def test_cloudflare_worker_enables_owner_authorized_openai_inference():
     variables = config.get("vars", {})
 
     assert variables.get("GLORIFIER_PROVIDER") == "openai"
-    assert variables.get("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") == "true"
-    assert variables.get("GLORIFIER_ENABLE_INFERENCE", "false").casefold() == "true"
+    assert variables.get("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") == "false"
+    assert variables.get("GLORIFIER_ENABLE_INFERENCE", "false").casefold() == "false"
