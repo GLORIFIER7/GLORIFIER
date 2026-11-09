@@ -6,13 +6,23 @@ import shutil
 import subprocess
 import sys
 
+import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "ai-maintenance.yml"
-CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
-TRUSTED_REVIEW_WORKFLOW = ROOT / ".github" / "workflows" / "trusted-ai-review-policy.yml"
-TRUSTED_POLICY_WORKFLOW = ROOT / ".github" / "workflows" / "trusted-ai-review-policy.yml"
-VALIDATOR = ROOT / "scripts" / "validate_ai_maintenance_scope.py"
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+IS_MONOREPO = SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+ROOT = SERVICE_ROOT.parents[1] if IS_MONOREPO else SERVICE_ROOT
+WORKFLOW = ROOT / ".github" / "workflows" / (
+    "nvidia-assisted-maintenance-pr.yml" if IS_MONOREPO else "ai-maintenance.yml"
+)
+CI_WORKFLOW = ROOT / ".github" / "workflows" / (
+    "neural-ci.yml" if IS_MONOREPO else "ci.yml"
+)
+TRUSTED_REVIEW_WORKFLOW = ROOT / ".github" / "workflows" / (
+    "neural-ci.yml" if IS_MONOREPO else "trusted-ai-review-policy.yml"
+)
+TRUSTED_POLICY_WORKFLOW = TRUSTED_REVIEW_WORKFLOW
+VALIDATOR = SERVICE_ROOT / "scripts" / "validate_ai_maintenance_scope.py"
 
 
 def _git(repository: Path, *args: str) -> None:
@@ -105,6 +115,10 @@ def test_scope_validator_rejects_symlinks_even_when_inside_app(tmp_path: Path):
     assert "symlink" in result.stderr.casefold()
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_codex_runs_in_an_isolated_app_and_tests_workspace():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -114,6 +128,10 @@ def test_codex_runs_in_an_isolated_app_and_tests_workspace():
     assert "find app tests -type l" in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_validates_scope_and_uses_credential_helper():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -123,6 +141,10 @@ def test_workflow_validates_scope_and_uses_credential_helper():
     assert "push --set-upstream origin" in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_publish_job_only_runs_when_a_validated_patch_artifact_exists():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     codex_section = workflow[workflow.index("  codex:"):workflow.index("  publish:")]
@@ -138,6 +160,10 @@ def test_publish_job_only_runs_when_a_validated_patch_artifact_exists():
     assert "steps.stage.outputs.changed == 'true' && steps.validation.outcome == 'success'" in upload_step
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_publish_job_holds_all_publication_until_after_0831_laos_time():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     publish_section = workflow[workflow.index("  publish:"):]
@@ -156,6 +182,10 @@ def test_publish_job_holds_all_publication_until_after_0831_laos_time():
     assert "--auto" not in publish_section
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_time_window_uses_decimal_hhmm_and_blocks_before_0831():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -164,6 +194,10 @@ def test_time_window_uses_decimal_hhmm_and_blocks_before_0831():
     assert workflow.count('[[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]') == 1
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_codex_engineering_cycle_is_not_gated_by_the_publication_window():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     codex_section = workflow[workflow.index("  codex:"):workflow.index("  publish:")]
@@ -179,6 +213,10 @@ def test_codex_engineering_cycle_is_not_gated_by_the_publication_window():
         step = codex_section[start:] if end < 0 else codex_section[start:end]
         assert "steps.time_window.outputs.allowed" not in step
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_uses_shallow_checkout_and_env_safe_run_id():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -188,6 +226,10 @@ def test_workflow_uses_shallow_checkout_and_env_safe_run_id():
     assert 'BRANCH="ai/maintenance/${{ github.run_id }}"' not in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_copy_back_does_not_preserve_hard_links():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -196,6 +238,10 @@ def test_copy_back_does_not_preserve_hard_links():
     assert 'rsync -a --delete' not in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_generated_pr_is_draft_and_never_auto_merges():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     publish_section = workflow[workflow.index("  publish:"):]
@@ -231,6 +277,10 @@ def test_scope_validator_validates_both_rename_source_and_destination(
     assert "README.md" in result.stderr
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_uses_hourly_schedule_and_never_auto_merges():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -240,6 +290,10 @@ def test_workflow_uses_hourly_schedule_and_never_auto_merges():
     assert "--auto" not in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_publication_is_after_0830_in_laos_timezone():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -251,6 +305,10 @@ def test_workflow_publication_is_after_0830_in_laos_timezone():
     assert "needs.codex.outputs.patch_ready == 'true'" in publish_job
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_publish_job_receives_only_a_validated_patch_artifact():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     codex_section = workflow[workflow.index("  codex:"):workflow.index("  publish:")]
@@ -307,6 +365,10 @@ def test_validated_git_patch_artifact_preserves_deleted_tracked_files(tmp_path: 
     assert status.startswith("D") and "app/service.py" in status
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_cost_control_uses_single_variable():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -314,6 +376,10 @@ def test_workflow_cost_control_uses_single_variable():
     assert "authorize_pull_request" not in workflow
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_codex_job_has_read_only_permissions():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     codex_start = workflow.index("  codex:")
@@ -326,6 +392,10 @@ def test_workflow_codex_job_has_read_only_permissions():
     assert "actions: write" not in codex_section
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_publish_job_has_minimal_write_permissions():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     publish_start = workflow.index("  publish:")
@@ -336,6 +406,10 @@ def test_workflow_publish_job_has_minimal_write_permissions():
     assert "actions: write" in publish_section
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_ci_workflow_dispatch_tests_exact_head_and_trusted_review_is_event_driven():
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")
     trusted_review = TRUSTED_REVIEW_WORKFLOW.read_text(encoding="utf-8")
@@ -352,6 +426,10 @@ def test_ci_workflow_dispatch_tests_exact_head_and_trusted_review_is_event_drive
     assert "ai-review-policy:" in trusted_review
     assert "github.event.pull_request.base.sha" in trusted_review
     assert "Enforce both AI reviewer findings on the exact current PR head" in trusted_review
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_ci_dispatch_uses_the_exact_current_pr_head_and_trusted_policy_runs_on_pr_events():
     ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
     policy_workflow = TRUSTED_POLICY_WORKFLOW.read_text(encoding="utf-8")
@@ -385,6 +463,10 @@ def test_ci_dispatch_uses_the_exact_current_pr_head_and_trusted_policy_runs_on_p
     assert dispatch_step.count('--field pull_request_number="$pr_number"') == 1
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_publish_job_dispatches_trusted_ci_after_creating_a_draft_pr():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     publish_section = workflow[workflow.index("  publish:"):]
@@ -528,6 +610,10 @@ def test_scope_validator_rejects_gitlinks_in_an_alternate_index(tmp_path: Path):
     assert "gitlink" in result.stderr.casefold()
     assert "app/vendor" in result.stderr
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_workflow_top_level_permissions_are_minimal():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     permissions_start = workflow.index("permissions:")
@@ -539,6 +625,10 @@ def test_workflow_top_level_permissions_are_minimal():
 
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone workflow contract is not used by the monorepo",
+)
 def test_manual_ci_dispatch_validates_pr_number_and_exact_head_before_checkout():
     ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
     policy_start = ci_workflow.index("  ai-review-policy:")
@@ -552,3 +642,24 @@ def test_manual_ci_dispatch_validates_pr_number_and_exact_head_before_checkout()
     assert "inputs.pull_request_head_sha" in policy_section
     assert "An exact PR head SHA is required for a dispatched policy run." in policy_section
     assert "The current PR head SHA does not match the dispatched commit." in policy_section
+
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo-specific maintenance contracts")
+def test_monorepo_nvidia_maintenance_proposals_remain_human_governed():
+    maintenance = WORKFLOW.read_text(encoding="utf-8")
+    neural_ci = CI_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "workflow_run:" in maintenance
+    assert 'branches: [main]' in maintenance
+    assert "gh pr create" in maintenance
+    assert "gh pr merge" not in maintenance
+    assert "--auto" not in maintenance
+    assert "No auto-merge, deployment, secret changes" in maintenance
+    assert "Production health: NOT VERIFIED" in maintenance
+
+    assert "pull_request_review:" in neural_ci
+    assert "ai-review-policy:" in neural_ci
+    assert "persist-credentials: false" in neural_ci
+    assert "github.event.pull_request.base.sha" in neural_ci
+    assert "pull-requests: read" in neural_ci
