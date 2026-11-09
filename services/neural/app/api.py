@@ -616,6 +616,13 @@ async def _process_authenticated_task(
         internal_service_token = _request_environment_value(
             request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
         )
+        if internal_service_token and hmac.compare_digest(
+            internal_service_token.encode("utf-8"), api_token.encode("utf-8")
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="Internal task credential must be distinct from the public API token",
+            )
         if internal_service_token:
             candidates.append(internal_service_token)
 
