@@ -18,6 +18,7 @@
     "required": [
       "GLORIFIER_SUPABASE_SERVICE_ROLE_KEY",
       "GLORIFIER_INTERNAL_SERVICE_TOKEN",
+      "GLORIFIER_API_TOKEN",
       "OPENSEA_API_KEY"
     ]
   },

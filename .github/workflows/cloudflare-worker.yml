@@ -162,7 +162,7 @@ jobs:
               print("::error::Cloudflare did not confirm GLORIFIER Worker secret bindings; deployment blocked.")
               raise SystemExit(1)
           names = {item.get("name") for item in payload.get("result", []) if isinstance(item, dict) and isinstance(item.get("name"), str)}
-          required = {"GLORIFIER_SUPABASE_SERVICE_ROLE_KEY", "GLORIFIER_INTERNAL_SERVICE_TOKEN", "OPENSEA_API_KEY"}
+          required = {"GLORIFIER_SUPABASE_SERVICE_ROLE_KEY", "GLORIFIER_INTERNAL_SERVICE_TOKEN", "GLORIFIER_API_TOKEN", "OPENSEA_API_KEY"}
           missing = sorted(required.difference(names))
           if missing:
               print("::error::Missing GLORIFIER Worker secret(s): " + ", ".join(missing) + "; provision them in Cloudflare Worker Secrets before deployment.")

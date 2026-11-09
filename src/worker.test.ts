@@ -46,6 +46,7 @@ const env: TestEnv = {
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
   GLORIFIER_NEURAL: { fetch: (request: Request) => globalThis.fetch(request) },
+  GLORIFIER_API_TOKEN: 'test-neural-public-api-token',
   GLORIFIER_INTERNAL_SERVICE_TOKEN: 'test-internal-neural-service-token',
   ASSETS: {
     fetch() {
@@ -96,6 +97,7 @@ const run = async (): Promise<void> => {
           vars?: Record<string, string>;
           hyperdrive?: Array<{ binding: string; id: string }>;
           version_metadata?: { binding: string };
+          secrets?: { required?: string[] };
           assets?: { run_worker_first?: string[] };
           previews?: {
             vars?: Record<string, string>;
@@ -112,6 +114,10 @@ const run = async (): Promise<void> => {
           'user-state writes must use a separate least-privilege database role from read-only operational reporting');
         assert.equal(wranglerConfig.version_metadata?.binding, 'CF_VERSION_METADATA',
           'production must expose the deployed Cloudflare Worker version metadata for source-provenance verification');
+        assert.ok(wranglerConfig.secrets?.required?.includes('GLORIFIER_INTERNAL_SERVICE_TOKEN'),
+          'the GLORIFIER Worker must retain its inbound internal-service identity secret');
+        assert.ok(wranglerConfig.secrets?.required?.includes('GLORIFIER_API_TOKEN'),
+          'the GLORIFIER Worker must provision a separate downstream NEURAL task API credential');
         assert.equal(wranglerConfig.previews?.vars?.GLORIFIER_DATABASE_PROVIDER, 'neon',
           'isolated Cloudflare Previews must use the approved Neon architecture without inheriting production provider settings');
         const previewHyperdrive = wranglerConfig.previews?.hyperdrive?.find((binding) => binding.binding === 'HYPERDRIVE');
@@ -2295,6 +2301,35 @@ const run = async (): Promise<void> => {
         capturedRequest = null;
         const internalServiceToken = 'test-internal-neural-server-token';
         const callerAuthorization = 'Bearer unrelated-caller-credential';
+
+        capturedRequest = null;
+        const neuralTaskMissingDownstreamApiToken = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+            method: 'POST',
+            headers: {
+              'X-Glorifier-Internal-Token': internalServiceToken,
+              Authorization: callerAuthorization,
+              'Content-Type': 'application/json',
+            },
+            body: '{"task":"internal safe task","require_approval":true,"action_class":"read_only"}',
+          }),
+          {
+            ...env,
+            GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
+            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken,
+            GLORIFIER_API_TOKEN: undefined,
+          },
+        );
+        assert.equal(neuralTaskMissingDownstreamApiToken.status, 503,
+          'internal task proxy must fail closed when its NEURAL API credential is not configured');
+        assert.equal(
+          await neuralTaskMissingDownstreamApiToken.json().then((body: { code?: string }) => body.code),
+          'NEURAL_API_TOKEN_NOT_CONFIGURED',
+        );
+        assert.equal(capturedRequest, null,
+          'NEURAL must not be contacted with the internal-service token as a substitute API credential');
+
+        capturedRequest = null;
         const neuralTaskWithInternalServiceAuth = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
             method: 'POST',
@@ -2314,8 +2349,13 @@ const run = async (): Promise<void> => {
         assert.equal(neuralTaskWithInternalServiceAuth.status, 200);
         assert.equal(
           getCapturedRequest().headers.get('authorization'),
-          `Bearer ${internalServiceToken}`,
-          'GLORIFIER must use its configured internal-service credential for NEURAL',
+          'Bearer test-neural-public-api-token',
+          'GLORIFIER must use its separate Worker-held NEURAL API credential',
+        );
+        assert.notEqual(
+          getCapturedRequest().headers.get('authorization'),
+          internalServiceToken,
+          'the GLORIFIER ingress service token must never be used as the NEURAL public task token',
         );
         assert.notEqual(
           getCapturedRequest().headers.get('authorization'),
@@ -2468,7 +2508,7 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks');
         assert.equal(neuralTask.headers.get('x-correlation-id'), callerCorrelationId);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), callerCorrelationId, 'validated correlation ID must be forwarded unchanged');
-        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer test-internal-neural-service-token', 'GLORIFIER must inject only its server-held NEURAL credential');
+        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer test-neural-public-api-token', 'GLORIFIER must inject its separate server-held NEURAL API credential, not its ingress service token');
         assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 
         const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });

@@ -39,6 +39,8 @@ export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
+  // Separate downstream API credential accepted by NEURAL /v1/tasks; never reuse the ingress service token.
+  GLORIFIER_API_TOKEN?: string;
   // Private same-account Worker-to-Worker route; never fall back to public fetch().
   GLORIFIER_NEURAL?: {
     fetch(request: Request): Promise<Response>;
@@ -819,9 +821,17 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
   if (pathname === '/api/neural/v1/tasks') {
     if (internalServiceAuthenticated) {
-      // A validated internal service request uses the Worker-held NEURAL credential.
-      // Do not forward the caller's Authorization header on this path.
-      headers.set('authorization', `Bearer ${env.GLORIFIER_INTERNAL_SERVICE_TOKEN!.trim()}`);
+      // The inbound internal-service identity is only for GLORIFIER ingress.
+      // NEURAL's public task API deliberately accepts GLORIFIER_API_TOKEN only.
+      // Never reuse the internal-service token or forward an unrelated caller bearer.
+      const neuralApiToken = configured(env.GLORIFIER_API_TOKEN);
+      if (!neuralApiToken) {
+        return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_API_TOKEN_NOT_CONFIGURED' }, {
+          status: 503,
+          headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+        });
+      }
+      headers.set('authorization', `Bearer ${neuralApiToken}`);
     } else {
       // Preserve the established SDK bearer path. NEURAL validates this caller token
       // against GLORIFIER_API_TOKEN; the proxy does not treat its presence as proof.
