@@ -9,7 +9,6 @@ const corsHeadersFor = (origin) => new Headers({
   'Access-Control-Allow-Methods': NATIVE_CORS_METHODS,
   'Access-Control-Allow-Headers': NATIVE_CORS_HEADERS,
   'Access-Control-Max-Age': '600',
-  'Cache-Control': 'no-store',
   Vary: 'Origin',
 });
 
@@ -67,7 +66,9 @@ export async function routePagesRequest(context) {
         'This origin is not allowed to access the GLORIFIER native API.',
       );
     }
-    return new Response(null, { status: 204, headers: corsHeadersFor(origin) });
+    const headers = corsHeadersFor(origin);
+    headers.set('Cache-Control', 'no-store');
+    return new Response(null, { status: 204, headers });
   }
 
   const worker = env?.GLORIFIER_WORKER;
