@@ -64,15 +64,57 @@ def test_worker_task_endpoint_uses_rate_limit_binding_and_hashed_credential():
     }
     worker_client = TestClient(_WorkerEnvironmentASGI(app, worker_env))
 
+    client_ip = "198.51.100.22"
     response = worker_client.post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "CF-Connecting-IP": client_ip,
+        },
         json={"task": "worker request", "require_approval": False},
     )
 
     assert response.status_code == 200
-    assert limiter.keys == [hmac.new(token.encode("utf-8"), b"glorifier-rate-limit-v1", hashlib.sha256).hexdigest()]
+    expected_key = hmac.new(
+        token.encode("utf-8"),
+        f"glorifier-rate-limit-v1:worker:{client_ip}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    assert limiter.keys == [expected_key]
     assert token not in limiter.keys[0]
+
+
+def test_worker_rate_limit_isolated_by_client_ip_for_a_shared_token():
+    class RateLimitBinding:
+        def __init__(self):
+            self.keys = []
+
+        async def limit(self, options):
+            self.keys.append(options["key"])
+            return {"success": True}
+
+    token = secrets.token_urlsafe(32)
+    limiter = RateLimitBinding()
+    worker_client = TestClient(
+        _WorkerEnvironmentASGI(
+            app,
+            {"GLORIFIER_API_TOKEN": token, "GLORIFIER_RATE_LIMITER": limiter},
+        )
+    )
+    for client_ip in ("198.51.100.23", "198.51.100.24"):
+        response = worker_client.post(
+            "/v1/tasks",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "CF-Connecting-IP": client_ip,
+            },
+            json={"task": "worker request", "require_approval": True},
+        )
+        assert response.status_code == 200
+
+    assert len(limiter.keys) == 2
+    assert limiter.keys[0] != limiter.keys[1]
+    assert token not in "".join(limiter.keys)
 
 
 def test_worker_task_endpoint_fails_closed_when_rate_limit_binding_is_missing():
@@ -85,7 +127,10 @@ def test_worker_task_endpoint_fails_closed_when_rate_limit_binding_is_missing():
 
     response = worker_client.post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "CF-Connecting-IP": "198.51.100.25",
+        },
         json={"task": "worker request", "require_approval": False},
     )
 
@@ -162,7 +207,10 @@ def test_worker_task_endpoint_persists_minimal_neon_task_run_metadata(monkeypatc
 
     response = TestClient(WorkerEnvironment(app)).post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {worker_token}"},
+        headers={
+            "Authorization": f"Bearer {worker_token}",
+            "CF-Connecting-IP": "198.51.100.26",
+        },
         json={"task": "safe metadata test", "require_approval": False},
     )
 
