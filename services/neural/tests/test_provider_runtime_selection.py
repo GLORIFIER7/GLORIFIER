@@ -137,3 +137,41 @@ def test_runtime_does_not_register_anthropic_without_explicit_model():
     orchestrator = build_orchestrator_from_environment(environment)
 
     assert orchestrator._providers.get("anthropic") is None
+
+
+
+def test_runtime_registers_vllm_only_with_exact_origin_egress_and_credentials():
+    from app.providers.vllm import VllmAdapter
+
+    environment = {
+        "GLORIFIER_PROVIDER": "vllm",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
+        "GLORIFIER_ENABLE_INFERENCE": "false",
+        "GLORIFIER_VLLM_BASE_URL": "https://vllm.example.test/v1",
+        "GLORIFIER_VLLM_ALLOWED_ORIGIN": "https://vllm.example.test",
+        "GLORIFIER_VLLM_API_KEY": "test-vllm-key",
+        "GLORIFIER_VLLM_MODEL": "controlled-model",
+    }
+
+    orchestrator = build_orchestrator_from_environment(environment)
+
+    adapter = orchestrator._providers.get("vllm")
+    assert isinstance(adapter, VllmAdapter)
+    assert orchestrator._provider_name == "vllm"
+    assert orchestrator._allow_inference is False
+
+
+def test_runtime_does_not_register_vllm_without_external_egress_consent():
+    environment = {
+        "GLORIFIER_PROVIDER": "vllm",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+        "GLORIFIER_ENABLE_INFERENCE": "true",
+        "GLORIFIER_VLLM_BASE_URL": "https://vllm.example.test/v1",
+        "GLORIFIER_VLLM_ALLOWED_ORIGIN": "https://vllm.example.test",
+        "GLORIFIER_VLLM_API_KEY": "test-vllm-key",
+        "GLORIFIER_VLLM_MODEL": "controlled-model",
+    }
+
+    orchestrator = build_orchestrator_from_environment(environment)
+
+    assert orchestrator._providers.get("vllm") is None
