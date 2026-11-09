@@ -490,7 +490,13 @@ class _DeadlineConnectionMixin:
         remaining = self._request_deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError("provider request exceeded its absolute deadline")
-        if self.timeout is None or self.timeout > remaining:
+        configured_timeout = self.timeout
+        if (
+            not isinstance(configured_timeout, (int, float))
+            or isinstance(configured_timeout, bool)
+            or not math.isfinite(float(configured_timeout))
+            or configured_timeout > remaining
+        ):
             self.timeout = remaining
 
         finished = threading.Event()
