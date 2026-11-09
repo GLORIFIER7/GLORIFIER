@@ -22,6 +22,7 @@ def read_bounded_response_bytes(
     *,
     max_bytes: int,
     timeout_seconds: float,
+    deadline: float | None = None,
 ) -> bytes:
     """Read urllib bytes under a hard size cap and absolute deadline.
 
@@ -60,10 +61,17 @@ def read_bounded_response_bytes(
             "provider response does not support deadline-bounded socket reads"
         )
 
-    deadline = time.monotonic() + timeout_value
+    if deadline is None:
+        deadline_value = time.monotonic() + timeout_value
+    else:
+        if isinstance(deadline, bool) or not isinstance(deadline, (int, float)):
+            raise TypeError("deadline must be a finite monotonic timestamp")
+        deadline_value = float(deadline)
+        if not math.isfinite(deadline_value):
+            raise ValueError("deadline must be a finite monotonic timestamp")
     collected = bytearray()
     while True:
-        remaining = deadline - time.monotonic()
+        remaining = deadline_value - time.monotonic()
         if remaining <= 0:
             raise TimeoutError("provider response body exceeded its absolute read deadline")
         response_socket.settimeout(remaining)
