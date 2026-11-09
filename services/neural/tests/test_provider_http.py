@@ -583,3 +583,35 @@ def test_urllib_open_enforces_absolute_deadline_during_slow_drip_headers():
     assert time.monotonic() - started < 0.5
     server.join(timeout=1.0)
     assert not server.is_alive()
+
+
+
+def test_urllib_connection_setup_returns_at_absolute_deadline(monkeypatch):
+    import http.client
+    import threading
+
+    from app.providers.http import _DeadlineHTTPConnection
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    def stalled_connect(_connection):
+        entered.set()
+        release.wait(timeout=1.0)
+
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", stalled_connect)
+    deadline = time.monotonic() + 0.1
+    connection = _DeadlineHTTPConnection(
+        "provider.example",
+        80,
+        deadline=deadline,
+    )
+    started = time.monotonic()
+    try:
+        with pytest.raises(TimeoutError, match="deadline"):
+            connection.connect()
+        assert entered.is_set()
+        assert time.monotonic() - started < 0.5
+    finally:
+        release.set()
+        connection.close()
