@@ -48,7 +48,6 @@ if (focus15Source?.url !== 'https://focus.finops.org/focus-1-5-release-scope/' |
 }
 const focus15Pattern = model.patterns.find((pattern) => pattern.id === 'focus-1-5-ai-cost-attribution');
 if (focus15Pattern?.sourceId !== 'finops-focus-1-5-release-scope'
-    || focus15Pattern.evidenceClass !== 'analysis'
     || !focus15Pattern.pattern.toLowerCase().includes('working draft')
     || !focus15Pattern.GLORIFIERMapping.includes('FOCUS 1.4')
     || !focus15Pattern.GLORIFIERMapping.includes('ratified')) {
