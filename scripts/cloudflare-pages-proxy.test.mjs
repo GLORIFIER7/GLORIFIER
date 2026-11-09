@@ -127,7 +127,7 @@ test('adds narrow CORS for Capacitor origins and handles preflight at the Pages 
         headers: {
           Origin: origin,
           'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'authorization,content-type',
+          'Access-Control-Request-Headers': 'authorization,content-type,a2a-version',
         },
       }),
       env: { GLORIFIER_WORKER: { fetch: async () => { workerCalls += 1; return response(); } } },
@@ -136,7 +136,7 @@ test('adds narrow CORS for Capacitor origins and handles preflight at the Pages 
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
     assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS');
-    assert.equal(preflight.headers.get('access-control-allow-headers'), 'Content-Type, Authorization, X-Requested-With');
+    assert.equal(preflight.headers.get('access-control-allow-headers'), 'Content-Type, Authorization, X-Requested-With, A2A-Version');
     assert.equal(preflight.headers.get('access-control-max-age'), '600');
     assert.equal(workerCalls, 1, 'preflight must be answered without invoking the Worker');
   }

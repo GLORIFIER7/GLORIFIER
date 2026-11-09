@@ -232,6 +232,7 @@ export function isValidMcpToolResult(payload) {
     result
       && typeof result === "object"
       && !Array.isArray(result)
+      && result.resultType === "complete"
       && result.isError !== true
       && Array.isArray(result.content)
       && result.content.length > 0

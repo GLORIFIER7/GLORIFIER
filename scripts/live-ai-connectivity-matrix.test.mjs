@@ -32,11 +32,13 @@ test("OpenAI-compatible and Anthropic catalogue IDs are parsed", () => {
   assert.deepEqual(parseModelIds({ kind: "anthropic" }, payload), ["m1", "m2"]);
 });
 
-test("MCP tool-call success requires a valid non-error result with content blocks", () => {
-  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text", text: "repository read" }] } }), true);
-  assert.equal(isValidMcpToolResult({ result: { content: [], isError: false } }), false);
-  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text" }], isError: true } }), false);
-  assert.equal(isValidMcpToolResult({ result: { isError: false } }), false);
+test("MCP 2026-07-28 read-only tool success requires an explicit complete result", () => {
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [{ type: "text", text: "repository read" }] } }), true);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "input_required", content: [{ type: "text", text: "approval required" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "task", content: [{ type: "text", text: "task created" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { content: [{ type: "text", text: "ambiguous result" }] } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [], isError: false } }), false);
+  assert.equal(isValidMcpToolResult({ result: { resultType: "complete", content: [{ type: "text" }], isError: true } }), false);
   assert.equal(isValidMcpToolResult({ error: { code: -32603, message: "failed" } }), false);
 });
 
@@ -67,7 +69,7 @@ test("secret-bearing live probe is gated to main and a protected environment", (
   assert.match(workflow, /repository-level release switch/);
   assert.match(workflow, /independent human-approval gate/);
   assert.match(workflow, /environment:\s*live-ai-probe/);
-  assert.match(workflow, /ref:\s*refs\/heads\/main/);
+  assert.match(workflow, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
 });
 
 test("authenticated catalogue access is not reported as live inference", async () => {
