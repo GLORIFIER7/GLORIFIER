@@ -2292,6 +2292,22 @@ const run = async (): Promise<void> => {
         assert.equal(capturedRequest, null, 'invalid internal identities must be rejected before upstream forwarding');
 
         capturedRequest = null;
+        const invalidInternalIdentityWithBearer = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+            method: 'POST',
+            headers: {
+              'X-Glorifier-Internal-Token': 'wrong-internal-token',
+              Authorization: 'Bearer existing-neural-api-token',
+              'Content-Type': 'application/json',
+            },
+            body: '{"task":"must reject invalid internal identity","require_approval":true,"action_class":"read_only"}',
+          }),
+          { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test', GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken },
+        );
+        assert.equal(invalidInternalIdentityWithBearer.status, 401, 'an invalid explicit internal identity must not downgrade to the legacy bearer path');
+        assert.equal(capturedRequest, null, 'invalid internal identities must never reach Neural even when a bearer header is also present');
+
+        capturedRequest = null;
         const declaredOversizeBody = new Uint8Array(65_536 + 1);
         const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
           method: 'POST',
