@@ -236,6 +236,33 @@ def test_octopus_jobs_api_fetches_every_page_and_validates_total_count():
     assert "len(jobs) >= total_count" in WORKFLOW
 
 
+@pytest.mark.skipif(
+    not IS_MONOREPO,
+    reason="monorepo Octopus release contract is not used by the standalone repository",
+)
+def test_monorepo_octopus_release_requires_current_main_and_the_exact_published_image():
+    # The subscribed Docker Image workflow is itself triggered by workflow_run from GLORIFIER CI.
+    docker_image_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    assert "workflow_run:" in docker_image_workflow
+    assert 'workflows: ["GLORIFIER CI"]' in docker_image_workflow
+    assert 'workflows: ["GLORIFIER Docker Image"]' in WORKFLOW
+    assert "branches: [main]" in WORKFLOW
+    assert "github.event_name == 'workflow_dispatch'" in WORKFLOW
+    assert "github.event.workflow_run.event == 'workflow_run'" in WORKFLOW
+    assert "github.event.workflow_run.conclusion == 'success'" in WORKFLOW
+    assert "github.event.workflow_run.head_branch == 'main'" in WORKFLOW
+    assert "github.event.workflow_run.head_sha == github.sha" in WORKFLOW
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha' in WORKFLOW
+    assert 'if [[ "$current_main_sha" != "$SOURCE_COMMIT" ]]; then' in WORKFLOW
+    assert "Verify the upstream Docker image publication succeeded" in WORKFLOW
+    assert 'job.get("name") == "publish-after-ci"' in WORKFLOW
+    assert 'step.get("name") == "Tag and publish verified image"' in WORKFLOW
+    assert "vars.OCTOPUS_ENABLED == 'true'" in WORKFLOW
+    assert "OCTOPUS_SERVICE_ACCOUNT_ID: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}" in WORKFLOW
+    assert "Authenticate to Octopus Deploy using GitHub OIDC" in WORKFLOW
+
 def test_octopus_workflow_embedded_python_is_syntactically_valid():
     import ast
     import textwrap
