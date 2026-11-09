@@ -6,6 +6,7 @@ import json
 import os
 import re
 import time
+from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -64,6 +65,87 @@ def _has_blocker(text: object) -> bool:
     return bool(BLOCKER_PATTERN.search(str(text or "")))
 
 
+def _parse_review_timestamp(value: object) -> datetime:
+    """Parse a GitHub review timestamp as an absolute timezone-aware instant."""
+    if not isinstance(value, str) or not value.strip():
+        raise TypeError("GitHub returned a review without a valid submission timestamp.")
+    normalized = value.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise TypeError("GitHub returned a malformed review submission timestamp.") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise TypeError("GitHub review submission timestamp must include a timezone.")
+    return parsed.astimezone(UTC)
+
+
+def _validate_review_record(item: object) -> None:
+    """Reject incomplete REST review records instead of silently ignoring them."""
+    if not isinstance(item, dict):
+        raise TypeError("GitHub returned a malformed pull request review.")
+    user = item.get("user")
+    if not isinstance(user, dict) or not isinstance(user.get("login"), str) or not user["login"]:
+        raise TypeError("GitHub returned a review without a valid author login.")
+    state = item.get("state")
+    if not isinstance(state, str) or not state:
+        raise TypeError("GitHub returned a review without a valid state.")
+    commit_id = item.get("commit_id")
+    if commit_id is not None and (
+        not isinstance(commit_id, str)
+        or not re.fullmatch(r"[0-9a-fA-F]{40,64}", commit_id)
+    ):
+        raise TypeError("GitHub returned a review with an invalid commit SHA.")
+    submitted_at = item.get("submitted_at")
+    if submitted_at is not None:
+        _parse_review_timestamp(submitted_at)
+    if state.upper() != "PENDING" and (
+        commit_id is None or submitted_at is None
+    ):
+        raise TypeError("GitHub returned an incomplete submitted review.")
+    body = item.get("body")
+    if body is not None and not isinstance(body, str):
+        raise TypeError("GitHub returned a review with a malformed body.")
+
+
+def _validate_review_thread(thread: object) -> None:
+    """Require complete GraphQL thread/comment fields before blocker evaluation."""
+    if not isinstance(thread, dict):
+        raise TypeError("GitHub GraphQL returned a malformed review thread.")
+    if not isinstance(thread.get("isResolved"), bool):
+        raise TypeError("GitHub GraphQL omitted the review-thread resolution state.")
+    if not isinstance(thread.get("isOutdated"), bool):
+        raise TypeError("GitHub GraphQL omitted the review-thread outdated state.")
+    comments = thread.get("comments")
+    if not isinstance(comments, dict):
+        raise TypeError("GitHub GraphQL returned malformed thread comments.")
+    nodes = comments.get("nodes")
+    page_info = comments.get("pageInfo")
+    if not isinstance(nodes, list) or not isinstance(page_info, dict):
+        raise TypeError("GitHub GraphQL returned malformed thread-comment pagination.")
+    if not isinstance(page_info.get("hasNextPage"), bool):
+        raise TypeError("GitHub GraphQL omitted thread-comment pagination state.")
+    if page_info["hasNextPage"]:
+        raise RuntimeError(
+            "A review thread has more than 100 comments; policy cannot verify it safely."
+        )
+    for comment in nodes:
+        if not isinstance(comment, dict):
+            raise TypeError("GitHub GraphQL returned a malformed review comment.")
+        author = comment.get("author")
+        if not isinstance(author, dict) or not isinstance(author.get("login"), str) or not author["login"]:
+            raise TypeError("GitHub GraphQL returned a review comment without an author.")
+        body = comment.get("body")
+        if not isinstance(body, str):
+            raise TypeError("GitHub GraphQL returned a review comment without a valid body.")
+        commit = comment.get("commit")
+        if not isinstance(commit, dict) or not isinstance(commit.get("oid"), str):
+            raise TypeError("GitHub GraphQL returned a review comment without a commit SHA.")
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", commit["oid"]):
+            raise TypeError("GitHub GraphQL returned a review comment with an invalid commit SHA.")
+
+
 def evaluate_reviews(
     reviews: list[dict],
     threads: list[dict],
@@ -72,6 +154,12 @@ def evaluate_reviews(
     """Return policy failures; only current-head AI reviews count."""
     if not re.fullmatch(r"[0-9a-fA-F]{40,64}", head_sha or ""):
         return ["The pull request head SHA is missing or invalid."]
+    if not isinstance(reviews, list) or not isinstance(threads, list):
+        raise TypeError("GitHub review evidence must be provided as lists.")
+    for item in reviews:
+        _validate_review_record(item)
+    for thread in threads:
+        _validate_review_thread(thread)
 
     failures: list[str] = []
     for reviewer in AI_REVIEWERS:
@@ -88,11 +176,26 @@ def evaluate_reviews(
             )
             continue
 
-        latest = max(
-            current_reviews,
-            key=lambda item: str(item.get("submitted_at", "")),
+        latest_timestamp = max(
+            _parse_review_timestamp(item["submitted_at"])
+            for item in current_reviews
         )
-        state = str(latest.get("state", "")).upper()
+        latest_reviews = [
+            item
+            for item in current_reviews
+            if _parse_review_timestamp(item["submitted_at"]) == latest_timestamp
+        ]
+        latest_states = {
+            str(item.get("state", "")).upper() for item in latest_reviews
+        }
+        if len(latest_states) != 1:
+            failures.append(
+                f"{reviewer} has conflicting review states at the latest "
+                "current-head timestamp."
+            )
+            continue
+
+        state = next(iter(latest_states))
         if state == "CHANGES_REQUESTED":
             failures.append(
                 f"{reviewer} submitted CHANGES_REQUESTED on the current head."
@@ -102,15 +205,13 @@ def evaluate_reviews(
                 f"{reviewer}'s latest current-head review is not active "
                 f"(state: {state or 'unknown'})."
             )
-        elif _has_blocker(latest.get("body")):
+        elif any(_has_blocker(item.get("body")) for item in latest_reviews):
             failures.append(
                 f"{reviewer} reported an explicit blocker in its current-head review."
             )
 
     for thread in threads:
-        # Only explicit resolution or outdated status removes an AI finding.
-        # A comment can remain actionable after unrelated commits advance the head.
-        if thread.get("isResolved") is True:
+        if thread.get("isResolved") is not False:
             continue
         if thread.get("isOutdated") is True:
             continue
@@ -118,12 +219,15 @@ def evaluate_reviews(
         comments = thread.get("comments", {}).get("nodes", [])
         for comment in comments:
             author = comment.get("author") or {}
+            commit = comment.get("commit") or {}
             login = _normalize_login(author.get("login"))
             if login not in AI_REVIEWERS:
                 continue
+            if commit.get("oid") != head_sha:
+                continue
             if _has_blocker(comment.get("body")):
                 failures.append(
-                    f"{login} has an unresolved blocking finding in a current review thread."
+                    f"{login} has an unresolved blocking finding on the current head."
                 )
 
     return failures
@@ -162,7 +266,9 @@ def _fetch_reviews(repo: str, pull_number: int, token: str) -> list[dict]:
         payload = _request_json(url, token)
         if not isinstance(payload, list):
             raise TypeError("GitHub API returned an invalid pull request reviews response.")
-        result.extend(item for item in payload if isinstance(item, dict))
+        for item in payload:
+            _validate_review_record(item)
+        result.extend(payload)
         if len(payload) < 100:
             return result
         page += 1
@@ -190,33 +296,33 @@ def _fetch_review_threads(repo: str, pull_number: int, token: str) -> list[dict]
             raise TypeError("GitHub GraphQL returned an invalid review-thread response.")
         if payload.get("errors"):
             raise RuntimeError("GitHub GraphQL could not read review threads.")
-        data = payload.get("data") or {}
-        repository = data.get("repository") or {}
-        pull_request = repository.get("pullRequest") or {}
-        connection = pull_request.get("reviewThreads") or {}
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise TypeError("GitHub GraphQL omitted review-thread data.")
+        repository = data.get("repository")
+        if not isinstance(repository, dict):
+            raise TypeError("GitHub GraphQL omitted the repository.")
+        pull_request = repository.get("pullRequest")
+        if not isinstance(pull_request, dict):
+            raise TypeError("GitHub GraphQL omitted the pull request.")
+        connection = pull_request.get("reviewThreads")
+        if not isinstance(connection, dict):
+            raise TypeError("GitHub GraphQL omitted the review-thread connection.")
         nodes = connection.get("nodes")
-        page_info = connection.get("pageInfo") or {}
+        page_info = connection.get("pageInfo")
         if not isinstance(nodes, list) or not isinstance(page_info, dict):
             raise TypeError("GitHub GraphQL returned malformed review-thread data.")
+        if not isinstance(page_info.get("hasNextPage"), bool):
+            raise TypeError("GitHub GraphQL omitted review-thread pagination state.")
 
         for thread in nodes:
-            if not isinstance(thread, dict):
-                raise TypeError("GitHub GraphQL returned a malformed review thread.")
-            comments = thread.get("comments") or {}
-            comment_nodes = comments.get("nodes")
-            comment_page = comments.get("pageInfo") or {}
-            if not isinstance(comment_nodes, list) or not isinstance(comment_page, dict):
-                raise TypeError("GitHub GraphQL returned malformed thread comments.")
-            if comment_page.get("hasNextPage") is True:
-                raise RuntimeError(
-                    "A review thread has more than 100 comments; policy cannot verify it safely."
-                )
+            _validate_review_thread(thread)
             result.append(thread)
 
-        if page_info.get("hasNextPage") is not True:
+        if page_info["hasNextPage"] is not True:
             return result
         cursor = page_info.get("endCursor")
-        if not cursor:
+        if not isinstance(cursor, str) or not cursor:
             raise RuntimeError("GitHub GraphQL omitted the next review-thread cursor.")
 
 

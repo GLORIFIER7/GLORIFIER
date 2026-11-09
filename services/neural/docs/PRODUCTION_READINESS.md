@@ -14,7 +14,7 @@ This runbook describes the controls required before declaring the Cloudflare Wor
 The Cloudflare deployment has two production paths. Cloudflare Workers Builds
 automatically builds and deploys commits on `main`, using the `/cloudflare` root
 and `bash ./worker-build.sh deploy`. The repository's
-`.github/workflows/neural-cloudflare-worker.yml` also provides a separate manual
+`.github/workflows/cloudflare-neural-worker.yml` also provides a separate manual
 `workflow_dispatch` path, gated by `deploy=true` on `main`. Pull-request and
 push runs in GitHub Actions validate or dry-run only; they do not deploy production.
 
@@ -83,6 +83,36 @@ Store the NVIDIA credential as a Worker secret:
 
 The readiness probe performs a read-only `GET /v1/models` request. It does not submit a prompt or run inference. The documented NVIDIA model ID is not proof that the user's API credential or hosted endpoint is enabled; that must be verified against the deployed Worker.
 
+### Gemini Interactions API (optional alternative provider)
+
+The service supports Gemini through Google's recommended Interactions API. The default model is `gemini-3.8-flash`; override it with `GEMINI_MODEL` when required by the account.
+
+Configure the following only after the owner has supplied a valid Gemini API key:
+
+- Set `GLORIFIER_PROVIDER=gemini`.
+- Explicitly set `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true` at deployment time to permit provider readiness and external requests; the tracked Worker configuration defaults this switch to `false`.
+- Separately set `GLORIFIER_ENABLE_INFERENCE=true` only after an authorized inference test is approved; the tracked Worker configuration defaults this switch to `false`.
+- Store `GEMINI_API_KEY` as a Cloudflare Worker secret.
+- Optionally set `GEMINI_MODEL`; the default is `gemini-3.8-flash`.
+
+Readiness uses a read-only `GET /v1beta/models/{model}` request and does not submit a prompt. Inference uses `POST /v1beta/interactions` with `store=false`, bounded output tokens, disabled redirects, a request deadline, and sanitized errors. This makes requests stateless at the Gemini Interactions resource layer; it does not replace Google's applicable service data-processing terms or billing controls.
+
+### Anthropic Claude Messages API (optional alternative provider)
+
+The service supports Claude through Anthropic's Messages API. The default model is `claude-sonnet-5`; override it with `ANTHROPIC_MODEL` when required by the account.
+
+Configure the following only after the owner has supplied a valid Anthropic API key:
+
+- Set `GLORIFIER_PROVIDER=anthropic`.
+- Explicitly set `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true` at deployment time to permit provider readiness and external requests; the tracked Worker configuration defaults this switch to `false`.
+- Separately set `GLORIFIER_ENABLE_INFERENCE=true` only after an authorized inference test is approved; the tracked Worker configuration defaults this switch to `false`.
+- Store `ANTHROPIC_API_KEY` as a Cloudflare Worker secret.
+- Optionally set `ANTHROPIC_MODEL`; the default is `claude-sonnet-5`.
+
+Readiness uses the read-only `GET /v1/models/{model_id}` endpoint and does not submit a message. Inference uses `POST /v1/messages` with a bounded `max_tokens`, the pinned `anthropic-version` header, disabled redirects, a request deadline, and sanitized errors. Requests may incur Anthropic API usage charges.
+
+These adapters are explicit alternatives, not automatic multi-provider failover. Only the provider named by `GLORIFIER_PROVIDER` is registered in the runtime. No provider is switched automatically when another provider is unavailable. Keep the deployed provider on its current selection until the selected provider's secret binding, read-only readiness, and a separately authorized inference test have been verified.
+
 ### Neon task-run writes (optional)
 
 The production Worker currently has the `glorifier-neon-readonly` Hyperdrive resource bound as `NEON_READONLY`. It is used only for the read-only `SELECT 1` readiness probe and must not be used for writes. The direct live `/ready` check on 2026-11-05 returned HTTP 200 with `status: READY` and `database: VERIFIED`; the Hyperdrive probe is read-only and does not test application-data writes. The probe remains read-only and does not verify application-data reads/writes. No writer-role `NEON_WRITE` binding is configured, and task-run persistence remains disabled.
@@ -110,7 +140,7 @@ Audit writes use the Cloudflare Fetch API and fail closed when explicitly enable
 
 `GET /ready` performs read-only/configuration checks. For Cloudflare Workers it requires:
 
-- Provider readiness verified through the selected provider adapter's bounded, read-only model-access probe. For the current OpenAI selection, this is `GET /v1/models/{model}`; the NVIDIA NIM catalogue probe applies only when NVIDIA NIM is explicitly selected.
+- Provider readiness verified through the selected provider adapter's bounded, read-only model-access probe: OpenAI uses `GET /v1/models/{model}`; Gemini uses `GET /v1beta/models/{model}`; Anthropic uses `GET /v1/models/{model_id}`; NVIDIA NIM uses its read-only model catalogue probe.
 - Neon connectivity verified through `NEON_READONLY`.
 - `GLORIFIER_API_TOKEN` configured.
 - The `GLORIFIER_RATE_LIMITER` and `GLORIFIER_READINESS_LIMITER` bindings present.

@@ -15,6 +15,7 @@ from app.providers.base import InferenceResult, ProviderAdapter
 from app.providers.http import (
     ResponseBodyTooLargeError,
     await_with_deadline,
+    create_abort_controller,
     read_bounded_response_text,
 )
 
@@ -174,10 +175,15 @@ class NvidiaNimAdapter(ProviderAdapter):
     ) -> str:
         """Fetch and bound the response text before JSON decoding."""
         deadline = time.monotonic() + min(timeout_seconds, self._timeout)
+        abort_controller = create_abort_controller()
+        fetch_options = dict(options)
+        if abort_controller is not None:
+            fetch_options["signal"] = abort_controller.signal
         try:
             response = await await_with_deadline(
-                fetch_fn(url, **options),
+                fetch_fn(url, **fetch_options),
                 deadline=deadline,
+                abort_controller=abort_controller,
             )
             status = int(response.status)
             if status != 200:

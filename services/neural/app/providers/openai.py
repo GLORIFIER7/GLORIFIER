@@ -16,6 +16,7 @@ from app.providers.base import InferenceResult, ProviderAdapter
 from app.providers.http import (
     ResponseBodyTooLargeError,
     await_with_deadline,
+    create_abort_controller,
     read_bounded_response_text,
 )
 
@@ -38,6 +39,7 @@ class OpenAIResponsesAdapter(ProviderAdapter):
     name = "openai"
     endpoint = "https://api.openai.com/v1/responses"
     models_endpoint = "https://api.openai.com/v1/models"
+    default_model = "gpt-6-luna"
     max_prompt_chars = 20_000
     max_output_chars = 20_000
     max_output_tokens = 1_024
@@ -57,7 +59,7 @@ class OpenAIResponsesAdapter(ProviderAdapter):
             api_key if api_key is not None else os.getenv("OPENAI_API_KEY", "")
         ).strip()
         configured_model = (
-            model if model is not None else os.getenv("OPENAI_MODEL", "")
+            model if model is not None else os.getenv("OPENAI_MODEL", self.default_model)
         )
         self._model = configured_model.strip()
         if not 0 < timeout_seconds <= 30:
@@ -246,10 +248,15 @@ class OpenAIResponsesAdapter(ProviderAdapter):
         """Fetch a bounded response and sanitize every upstream failure."""
         fetch_fn = self._resolve_fetch()
         deadline = time.monotonic() + timeout_seconds
+        abort_controller = create_abort_controller()
+        fetch_options = dict(options)
+        if abort_controller is not None:
+            fetch_options["signal"] = abort_controller.signal
         try:
             response = await await_with_deadline(
-                fetch_fn(url, **options),
+                fetch_fn(url, **fetch_options),
                 deadline=deadline,
+                abort_controller=abort_controller,
             )
         except TimeoutError:
             label = "readiness probe" if readiness else "request"

@@ -135,6 +135,41 @@ jobs:
       - name: Install pinned Wrangler CLI without lifecycle scripts
         run: npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.151.1
 
+      - name: Verify required GLORIFIER Worker secrets are provisioned before publishing
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          request = urllib.request.Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/glorifier/secrets",
+              headers={"Authorization": f"Bearer {os.environ['CLOUDFLARE_API_TOKEN']}"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  payload = json.load(response)
+          except (OSError, urllib.error.URLError, json.JSONDecodeError):
+              print("::error::Could not verify GLORIFIER Worker secret bindings; deployment blocked.")
+              raise SystemExit(1) from None
+          if payload.get("success") is not True:
+              print("::error::Cloudflare did not confirm GLORIFIER Worker secret bindings; deployment blocked.")
+              raise SystemExit(1)
+          names = {item.get("name") for item in payload.get("result", []) if isinstance(item, dict) and isinstance(item.get("name"), str)}
+          required = {"GLORIFIER_SUPABASE_SERVICE_ROLE_KEY", "GLORIFIER_INTERNAL_SERVICE_TOKEN", "OPENSEA_API_KEY"}
+          missing = sorted(required.difference(names))
+          if missing:
+              print("::error::Missing GLORIFIER Worker secret(s): " + ", ".join(missing) + "; provision them in Cloudflare Worker Secrets before deployment.")
+              raise SystemExit(1)
+          print("Required GLORIFIER Worker secrets are present; values were not read.")
+          PY
+
       - name: Deploy Cloudflare Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

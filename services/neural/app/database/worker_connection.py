@@ -18,12 +18,14 @@ def connect_worker_database(pg8000, database_url: str, hyperdrive, timeout: floa
             timeout=timeout,
         )
     parsed = urlparse(database_url)
+    username = unquote(parsed.username) if parsed.username is not None else None
+    password = unquote(parsed.password) if parsed.password is not None else None
     return pg8000.connect(
-        user=unquote(parsed.username or ""),
-        password=unquote(parsed.password or ""),
+        user=username,
+        password=password,
         host=parsed.hostname,
         port=parsed.port or 5432,
-        database=unquote(parsed.path.lstrip("/")),
+        database=parsed.path.lstrip("/"),
         ssl_context=ssl.create_default_context(),
         timeout=timeout,
     )

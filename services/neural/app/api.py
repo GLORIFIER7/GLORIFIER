@@ -86,11 +86,11 @@ def _request_orchestrator(request: Request):
 
 
 async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
-    """Apply a per-client Cloudflare/local limit; fail closed on identity or binding errors.
+    """Apply a per-client credential-keyed limit; fail closed on identity or binding errors.
 
     Raises:
-        HTTPException: 429 when the task limit is exceeded; 503 when the
-            client identity or rate-limit infrastructure is unavailable.
+        HTTPException: 429 when the task limit is exceeded; 503 when
+            the client identity or rate-limit infrastructure is unavailable.
     """
     worker_env = request.scope.get("env")
     if worker_env is None:
@@ -158,6 +158,7 @@ async def _enforce_task_rate_limit(request: Request, api_token: str) -> None:
             headers={"Retry-After": str(retry_after)},
         )
 
+
 async def _write_audit_event(sink, event: AuditEvent, *, worker_request: bool) -> None:
     """Persist audit events through Fetch on Workers and urllib in local deployments."""
     if worker_request:
@@ -220,10 +221,10 @@ def _worker_readiness_cache_key(request: Request) -> tuple[str, ...]:
         "GLORIFIER_ENABLE_INFERENCE",
         "GLORIFIER_PROVIDER",
         "NVIDIA_NIM_MODEL",
+        "NVIDIA_DYNAMO_MODEL",
+        "NVIDIA_DYNAMO_BASE_URL",
+        "NVIDIA_DYNAMO_ALLOWED_ORIGIN",
         "OPENAI_MODEL",
-        "GLORIFIER_VLLM_MODEL",
-        "GLORIFIER_VLLM_BASE_URL",
-        "GLORIFIER_VLLM_ALLOWED_ORIGIN",
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS",
         "GLORIFIER_NEON_CONNECTIVITY_ENABLED",
     )
@@ -231,8 +232,8 @@ def _worker_readiness_cache_key(request: Request) -> tuple[str, ...]:
     return (
         *values,
         "nvidia-key-present" if _request_environment_value(request, "NVIDIA_NIM_API_KEY") else "nvidia-key-absent",
+        "dynamo-key-present" if _request_environment_value(request, "NVIDIA_DYNAMO_API_KEY") else "dynamo-key-absent",
         "openai-key-present" if _request_environment_value(request, "OPENAI_API_KEY") else "openai-key-absent",
-        "vllm-key-present" if _request_environment_value(request, "GLORIFIER_VLLM_API_KEY") else "vllm-key-absent",
         "neon-readonly-bound" if _request_worker_binding(request, "NEON_READONLY") is not None else "neon-readonly-unbound",
     )
 
@@ -549,9 +550,7 @@ async def _persist_task_run(
             )
     except ValueError:
         _mark_persistence_degraded(
-            result,
-            "persistence:task_runs:invalid-record",
-            "Task-run metadata validation",
+            result, "persistence:task_runs:invalid-record", "Task-run persistence"
         )
     except Exception:  # noqa: BLE001 - task has already completed; do not invite retries
         _mark_persistence_degraded(
@@ -592,42 +591,149 @@ async def _persist_final_audit(
     return result
 
 
-@app.post("/v1/tasks", response_model=TaskResponse, tags=["orchestration"])
-async def run_task(
+async def _process_authenticated_task(
     task_request: TaskRequest,
     request: Request,
-    authorization: str | None = Header(default=None),
+    authorization: str | None,
+    *,
+    persist: bool,
 ) -> TaskResponse:
-    """Process a governed task only after authentication, rate and audit checks.
-
-    Raises:
-        HTTPException: 401 for an invalid bearer token; 429 when the task
-            rate limit is exceeded; 503 when authentication configuration or
-            required persistence/rate-limit infrastructure is unavailable.
-    """
+    """Authenticate and process one task; persistence is explicit at each entrypoint."""
     api_token = _request_environment_value(request, "GLORIFIER_API_TOKEN")
     if not api_token:
         raise HTTPException(
             status_code=503,
             detail="API token is not configured; execution endpoint is disabled",
         )
-    if not secrets.compare_digest(authorization or "", f"Bearer {api_token}"):
+
+    # The dedicated internal credential is additive: existing API clients keep
+    # using GLORIFIER_API_TOKEN, while GLORIFIER's Worker authenticates with its
+    # separately managed service token. Byte comparison rejects malformed
+    # non-ASCII header values without raising TypeError.
+    internal_service_token = _request_environment_value(
+        request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
+    )
+    supplied_authorization = (authorization or "").encode()
+    authenticated_token = None
+    for candidate in (api_token, internal_service_token):
+        if candidate and hmac.compare_digest(
+            supplied_authorization, f"Bearer {candidate}".encode()
+        ):
+            authenticated_token = candidate
+            break
+    if authenticated_token is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
     worker_env = request.scope.get("env")
     worker_request = worker_env is not None
-    await _enforce_task_rate_limit(request, api_token)
-    audit_sink, repository = _load_task_persistence(worker_env, worker_request)
+    await _enforce_task_rate_limit(request, authenticated_token)
     request_id = request.state.request_id
     correlation_id = request.state.correlation_id
-    await _write_initial_task_audit(
-        audit_sink, request_id, correlation_id, task_request, worker_request
-    )
+
+    audit_sink = repository = None
+    if persist:
+        audit_sink, repository = _load_task_persistence(worker_env, worker_request)
+        await _write_initial_task_audit(
+            audit_sink, request_id, correlation_id, task_request, worker_request
+        )
+
     result = await _execute_governed_task(request, task_request, worker_request)
-    result = await _persist_task_run(
-        repository, result, request_id, task_request, request, worker_request
+    if persist:
+        result = await _persist_task_run(
+            repository, result, request_id, task_request, request, worker_request
+        )
+        result = await _persist_final_audit(
+            audit_sink, result, request_id, correlation_id, task_request, worker_request
+        )
+    return result
+
+
+@app.post("/v1/tasks", response_model=TaskResponse, tags=["orchestration"])
+async def run_task(
+    task_request: TaskRequest,
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> TaskResponse:
+    """Process a governed task only after authentication, rate and audit checks."""
+    return await _process_authenticated_task(
+        task_request, request, authorization, persist=True
     )
-    return await _persist_final_audit(
-        audit_sink, result, request_id, correlation_id, task_request, worker_request
+
+
+@app.post("/__internal/verify-task", include_in_schema=False)
+async def verify_internal_task(request: Request) -> JSONResponse:
+    """Verify the Worker-held task credential through one fixed, no-inference task."""
+    if request.scope.get("env") is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    expected_client_id = _request_environment_value(
+        request, "GLORIFIER_INTERNAL_SERVICE_CLIENT_ID"
+    )
+    expected_client_secret = _request_environment_value(
+        request, "GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET"
+    )
+    provided_client_id = request.headers.get("cf-access-client-id", "")
+    provided_client_secret = request.headers.get("cf-access-client-secret", "")
+    if (
+        not expected_client_id
+        or not expected_client_secret
+        or not secrets.compare_digest(
+            provided_client_id.encode("utf-8"), expected_client_id.encode("utf-8")
+        )
+        or not secrets.compare_digest(
+            provided_client_secret.encode("utf-8"), expected_client_secret.encode("utf-8")
+        )
+    ):
+        # Do not disclose whether the Access identity is configured to an
+        # unauthenticated caller.
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if await request.body():
+        raise HTTPException(status_code=400, detail="Request body is not accepted")
+
+    api_token = _request_environment_value(request, "GLORIFIER_API_TOKEN")
+    if not api_token:
+        raise HTTPException(
+            status_code=503, detail="Task authentication is not configured"
+        )
+    internal_service_token = _request_environment_value(
+        request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
+    )
+    if not internal_service_token:
+        raise HTTPException(
+            status_code=503, detail="Internal task credential is not configured"
+        )
+
+    task_id = request.state.request_id
+    correlation_id = request.state.correlation_id
+    probe = TaskRequest(
+        task="GLORIFIER-NEURAL authenticated task-path verification",
+        purpose="connectivity_verification",
+        require_approval=True,
+        action_class="read_only",
+    )
+    result = await _process_authenticated_task(
+        probe, request, f"Bearer {internal_service_token}", persist=False
+    )
+    return JSONResponse(
+        status_code=200,
+        content={
+            "task_id": task_id,
+            "request_id": task_id,
+            "correlation_id": correlation_id,
+            "authentication": {
+                "service_identity": "VERIFIED",
+                "neural_task_token": "VERIFIED",
+            },
+            "response": result.model_dump(),
+            "execution_evidence": [
+                "auth:service-identity-verified",
+                "auth:task-secret-verified",
+                "policy:approval-required",
+                "inference:not-performed",
+                "persistence:not-written",
+            ],
+        },
     )
 
 

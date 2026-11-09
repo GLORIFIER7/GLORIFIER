@@ -1,15 +1,14 @@
-# NEURAL monorepo migration provenance
+# NEURAL monorepo mirror provenance
 
-- Destination repository: `GLORIFIER7/GLORIFIER`
-- Destination path: `services/neural/`
-- Source repository: `GLORIFIER7/GLORIFIER-NEURAL`
-- Imported source ref: `main`
-- Imported source commit: `9a32356ee4fa7d517e74db936b69312de488ae85`
-- Migration branch: `migration/neural-service-monorepo-2026-11-06`
-- Migration date: 2026-11-06
+- Mirror repository: `GLORIFIER7/GLORIFIER`
+- Mirror path: `services/neural/`
+- Upstream source repository: `GLORIFIER7/GLORIFIER-NEURAL`
+- Upstream ref: `main`
+- Upstream source commit: `a114e74438c5f22d546b5db19f5080e9a70851c9`
+- Synchronization snapshot (UTC): `2026-11-09T09:45:00.000Z`
 
-This directory is a content snapshot of the source repository at the exact commit above. Python runtime, dependencies, database migrations, tests, Docker context and Cloudflare Worker files are retained under this service directory. Active GitHub Actions workflows are located at the monorepo root in `.github/workflows/neural-*.yml`.
+The standalone NEURAL repository is the authoritative source for the mirrored service code. This directory is a content mirror and does not preserve the standalone repository's commit graph.
 
-The standalone source repository is not modified, archived or deleted by this migration. Existing open source-repository PRs #62 and #63 are not included in this snapshot and must be reconciled before final cutover.
+Repository-specific GitHub Actions workflows remain in the GLORIFIER root and are intentionally excluded from the mirror. Three tests under `services/neural/tests/` remain monorepo-specific adaptations of those root workflows and migration paths. Monorepo-only extensions are retained and are not deleted by the upstream synchronizer.
 
-This snapshot does not preserve the complete source commit graph. It records the source commit for traceability; a history-preserving subtree transfer, if required, is a separate cutover task.
+Synchronization changes are submitted as reviewed pull requests. No automatic merge, branch-protection bypass, or production deployment is permitted.

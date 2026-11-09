@@ -44,12 +44,19 @@
       "enabled": true
     }
   },
+  "secrets": {
+    "required": [
+      "GLORIFIER_API_TOKEN",
+      "GLORIFIER_INTERNAL_SERVICE_TOKEN"
+    ]
+  },
   "vars": {
     "GLORIFIER_NEON_CONNECTIVITY_ENABLED": "true",
     "GLORIFIER_PROVIDER": "openai",
-    "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
-    "GLORIFIER_ENABLE_INFERENCE": "true",
-    "OPENAI_MODEL": "gpt-6-luna"
+    "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+    "GLORIFIER_ENABLE_INFERENCE": "false",
+    "GEMINI_MODEL": "gemini-3.8-flash",
+    "ANTHROPIC_MODEL": "claude-sonnet-5"
   },
   "hyperdrive": [
     {

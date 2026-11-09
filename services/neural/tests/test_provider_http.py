@@ -3,7 +3,14 @@ import time
 
 import pytest
 
-from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
+from types import SimpleNamespace
+
+from app.providers.http import (
+    ResponseBodyTooLargeError,
+    await_with_deadline,
+    read_bounded_response_text,
+    read_bounded_response_bytes,
+)
 
 
 class FakeReadResult:
@@ -172,10 +179,11 @@ def test_stalled_cancellation_cannot_extend_absolute_deadline():
 
 
 
-def test_non_cooperative_read_cannot_extend_the_absolute_deadline():
+def test_reader_lock_is_released_only_after_cancelled_read_finishes():
     class ResistantReader(FakeReader):
         def __init__(self):
             super().__init__([])
+            self.started = asyncio.Event()
             self.finish = asyncio.Event()
             self.released = asyncio.Event()
 
@@ -185,115 +193,35 @@ def test_non_cooperative_read_cannot_extend_the_absolute_deadline():
 
         async def read(self):
             self.read_calls += 1
+            self.started.set()
             try:
                 await self.finish.wait()
             except asyncio.CancelledError:
-                # Model an FFI coroutine that delays cancellation completion.
+                # Simulate a Web Streams read whose Promise settles after cancellation.
                 await self.finish.wait()
-                raise
+            return FakeReadResult(done=True)
 
     response = FakeResponse([])
     response.body_reader = ResistantReader()
     response.body = FakeStream(response.body_reader)
 
-    async def run():
-        loop = asyncio.get_running_loop()
-        loop.call_later(0.20, response.body_reader.finish.set)
-        started = time.monotonic()
-        with pytest.raises(TimeoutError):
-            await read_bounded_response_text(
-                response, max_bytes=16, timeout_seconds=0.04
-            )
-        elapsed = time.monotonic() - started
-        response.body_reader.finish.set()
-        await asyncio.wait_for(response.body_reader.released.wait(), timeout=0.05)
-        assert elapsed < 0.15
-        assert response.body_reader.cancel_calls == 1
-        assert response.body_reader.release_calls == 1
-
-    asyncio.run(run())
-
-
-def test_stalled_cancellation_cleanup_does_not_wait_for_cancel_completion():
-    class ResistantCancelReader(FakeReader):
-        def __init__(self):
-            super().__init__([])
-            self.cancel_finish = asyncio.Event()
-
-        async def read(self):
-            self.read_calls += 1
-            await asyncio.sleep(1)
-            return FakeReadResult(done=True)
-
-        async def cancel(self):
-            self.cancel_calls += 1
-            try:
-                await self.cancel_finish.wait()
-            except asyncio.CancelledError:
-                # Cleanup must not await an uncooperative cancellation promise.
-                await self.cancel_finish.wait()
-                raise
-
-    response = FakeResponse([])
-    response.body_reader = ResistantCancelReader()
-    response.body = FakeStream(response.body_reader)
-
-    async def run():
-        loop = asyncio.get_running_loop()
-        loop.call_later(0.20, response.body_reader.cancel_finish.set)
-        started = time.monotonic()
-        with pytest.raises(TimeoutError):
-            await read_bounded_response_text(
-                response, max_bytes=16, timeout_seconds=0.06
-            )
-        elapsed = time.monotonic() - started
-        response.body_reader.cancel_finish.set()
-        await asyncio.sleep(0)
-        assert elapsed < 0.15
-        assert response.body_reader.cancel_calls == 1
-        assert response.body_reader.release_calls == 1
-
-    asyncio.run(run())
-
-
-def test_caller_cancellation_cancels_and_releases_the_response_stream():
-    class PendingReader(FakeReader):
-        def __init__(self):
-            super().__init__([])
-            self.started = asyncio.Event()
-
-        async def read(self):
-            self.read_calls += 1
-            self.started.set()
-            await asyncio.Event().wait()
-            return FakeReadResult(done=True)
-
-        async def cancel(self):
-            self.cancel_calls += 1
-            try:
-                await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                await asyncio.sleep(0.1)
-
-    response = FakeResponse([])
-    response.body_reader = PendingReader()
-    response.body = FakeStream(response.body_reader)
-
-    async def run():
+    async def exercise():
         task = asyncio.create_task(
             read_bounded_response_text(
-                response, max_bytes=16, timeout_seconds=1.0
+                response, max_bytes=16, timeout_seconds=0.05
             )
         )
         await response.body_reader.started.wait()
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        with pytest.raises(TimeoutError):
             await task
-        assert response.body_reader.cancel_calls == 1
+
+        # A real ReadableStream reader cannot release while a read request remains pending.
+        assert response.body_reader.release_calls == 0
+        response.body_reader.finish.set()
+        await asyncio.wait_for(response.body_reader.released.wait(), timeout=0.05)
         assert response.body_reader.release_calls == 1
 
-    asyncio.run(run())
-
+    asyncio.run(exercise())
 
 def test_rejects_oversized_typed_array_before_materializing_bytes():
     class OversizedUint8Array:
@@ -392,6 +320,13 @@ def test_caller_cancellation_cancels_reader_and_releases_lock():
             self.started.set()
             await asyncio.Event().wait()
             return FakeReadResult(done=True)
+
+        async def cancel(self):
+            self.cancel_calls += 1
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                await asyncio.sleep(0.1)
 
     async def exercise():
         response = FakeResponse([])
@@ -505,3 +440,64 @@ def test_reader_lock_release_is_deferred_until_cancelled_read_settles():
     assert elapsed < 0.10
     assert released_before_read_settled == 0
     assert response.body_reader.release_calls == 1
+
+
+
+def test_sync_response_reader_uses_a_decreasing_absolute_socket_deadline(monkeypatch):
+    import app.providers.http as provider_http
+
+    readings = iter((0.0, 0.0, 0.6, 1.2))
+
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(
+                raw=SimpleNamespace(_sock=self.socket)
+            )
+            self.chunks = [b"first", b"second", b"third"]
+
+        def read1(self, limit):
+            return self.chunks.pop(0)[:limit]
+
+    monkeypatch.setattr(provider_http.time, "monotonic", lambda: next(readings))
+    response = FakeResponse()
+
+    with pytest.raises(TimeoutError, match="deadline"):
+        read_bounded_response_bytes(response, max_bytes=64, timeout_seconds=1.0)
+
+    assert response.socket.timeouts == [1.0, 0.4]
+    assert response.chunks == [b"third"]
+
+
+def test_sync_response_reader_stops_after_maximum_plus_one_byte():
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self.socket))
+            self.calls = 0
+
+        def read1(self, limit):
+            self.calls += 1
+            return b"x" * limit
+
+    response = FakeResponse()
+    result = read_bounded_response_bytes(
+        response, max_bytes=4, timeout_seconds=1.0
+    )
+
+    assert result == b"xxxxx"
+    assert response.calls == 1

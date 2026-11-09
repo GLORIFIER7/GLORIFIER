@@ -151,7 +151,7 @@ def test_openai_async_readiness_and_inference_use_request_scoped_fetch():
 
         def __init__(self, payload):
             self.payload = payload
-            self.body = _FakeStream(json.dumps(payload).encode())
+            self.body = _FakeStream(json.dumps(payload).encode("utf-8"))
 
     async def fake_fetch(url, *, method, headers, body=None, redirect="manual"):
         calls.append({
@@ -197,18 +197,50 @@ def test_openai_async_readiness_and_inference_use_request_scoped_fetch():
 
 
 
-def test_openai_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
-    import asyncio
+def test_openai_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch(monkeypatch):
+    import app.providers.openai as openai_module
+    class FakeController:
+        class Signal:
+            aborted = False
+
+        def __init__(self):
+            self.signal = self.Signal()
+            self.abort_calls = 0
+
+        def abort(self):
+            self.abort_calls += 1
+            self.signal.aborted = True
+
+    class FakeBody:
+        def __init__(self):
+            self.cancel_calls = 0
+            self.cancelled = asyncio.Event()
+
+        async def cancel(self):
+            self.cancel_calls += 1
+            self.cancelled.set()
+
+    class FakeResponse:
+        status = 200
+
+        def __init__(self):
+            self.body = FakeBody()
+
+    controller = FakeController()
+    monkeypatch.setattr(openai_module, "create_abort_controller", lambda: controller)
 
     async def exercise():
         finish = asyncio.Event()
+        response = FakeResponse()
 
-        async def resistant_fetch(*_args, **_kwargs):
+        async def resistant_fetch(*_args, signal=None, **_kwargs):
+            assert signal is controller.signal
             try:
                 await finish.wait()
             except asyncio.CancelledError:
+                # Simulate a Fetch promise that completes late despite abort().
                 await finish.wait()
-                raise
+                return response
 
         adapter = OpenAIResponsesAdapter(
             api_key="test-key",
@@ -221,6 +253,11 @@ def test_openai_fetch_deadline_does_not_wait_for_cancellation_resistant_fetch():
         with pytest.raises(RuntimeError, match="request exceeded its timeout"):
             await adapter.ainfer("bounded deadline")
         assert asyncio.get_running_loop().time() - started < 0.10
+        assert controller.abort_calls == 1
+        assert controller.signal.aborted is True
+        finish.set()
+        await asyncio.wait_for(response.body.cancelled.wait(), timeout=0.2)
+        assert response.body.cancel_calls == 1
 
     asyncio.run(exercise())
 
@@ -339,19 +376,9 @@ def test_openai_runtime_requires_explicit_inference_egress_and_key(monkeypatch):
     monkeypatch.setenv("GLORIFIER_PROVIDER", "openai")
     monkeypatch.setenv("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
-    monkeypatch.setenv("OPENAI_MODEL", "configured-test-model")
 
     orchestrator = build_orchestrator_from_environment()
 
     assert orchestrator._provider_name == "openai"
     assert orchestrator._allow_inference is True
     assert orchestrator._providers.get("openai") is not None
-
-
-def test_openai_adapter_requires_an_explicit_model_when_environment_is_unset(monkeypatch):
-    monkeypatch.delenv("OPENAI_MODEL", raising=False)
-    adapter = OpenAIResponsesAdapter(api_key="test-key")
-
-    assert adapter.is_configured() is False
-    with pytest.raises(RuntimeError, match="OpenAI is not configured"):
-        adapter.check_readiness()

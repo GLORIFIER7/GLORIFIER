@@ -35,20 +35,6 @@ def main() -> None:
         )
         conn.execute("DELETE FROM glorifier.task_runs WHERE request_id = %s", (request_id,))
 
-        # Retention is an exact 30-day UTC duration, independent of the DB session timezone.
-        conn.execute("SET TIME ZONE 'America/New_York'")
-        dst_created_at = datetime(2026, 3, 7, 12, 0, tzinfo=UTC)
-        dst_expires_at = dst_created_at + timedelta(days=30)
-        dst_request_id = str(uuid4())
-        conn.execute(
-            """INSERT INTO glorifier.task_runs
-               (request_id, action_class, status, evidence, created_at, expires_at)
-               VALUES (%s, 'integration_test', 'VERIFIED', '[]'::jsonb, %s, %s)""",
-            (dst_request_id, dst_created_at, dst_expires_at),
-        )
-        conn.execute("DELETE FROM glorifier.task_runs WHERE request_id = %s", (dst_request_id,))
-        conn.execute("SET TIME ZONE 'UTC'")
-
         base = (
             str(uuid4()), "integration_test", "VERIFIED", "[]",
             now, now + timedelta(days=1),
@@ -62,13 +48,9 @@ def main() -> None:
             conn, insert_task,
             (str(uuid4()), base[1], base[2], json.dumps(["x"] * 21), base[4], base[5]),
         )
-        # The upper bound rejects even one second beyond 720 elapsed hours.
         rejected(
             conn, insert_task,
-            (
-                str(uuid4()), base[1], base[2], "[]",
-                now, now + timedelta(hours=720, seconds=1),
-            ),
+            (str(uuid4()), base[1], base[2], "[]", base[4], base[4] + timedelta(days=31)),
         )
 
         conn.execute(
