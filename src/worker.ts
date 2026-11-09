@@ -739,7 +739,7 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
     const internalServiceHeaderPresent = request.headers.has('x-glorifier-internal-token');
     internalServiceAuthenticated = isWorkerInternalService(request, env);
     callerAuthorization = request.headers.get('authorization')?.trim() || '';
-    const hasCallerBearer = /^Bearer\\s+\\S+$/i.test(callerAuthorization);
+    const hasCallerBearer = /^Bearer\s+\S+$/i.test(callerAuthorization);
 
     if (internalServiceHeaderPresent && !internalServiceToken) {
       return Response.json({ ok: false, code: 'NEURAL_INTERNAL_SERVICE_TOKEN_NOT_CONFIGURED' }, {
