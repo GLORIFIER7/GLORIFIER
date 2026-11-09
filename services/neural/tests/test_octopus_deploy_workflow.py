@@ -237,6 +237,12 @@ def test_octopus_jobs_api_fetches_every_page_and_validates_total_count():
 
 
 def test_monorepo_octopus_release_requires_current_main_and_the_exact_published_image():
+    # The subscribed Docker Image workflow is itself triggered by workflow_run from GLORIFIER CI.
+    docker_image_workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "docker-image.yml"
+    ).read_text(encoding="utf-8")
+    assert "workflow_run:" in docker_image_workflow
+    assert 'workflows: ["GLORIFIER CI"]' in docker_image_workflow
     assert 'workflows: ["GLORIFIER Docker Image"]' in WORKFLOW
     assert "branches: [main]" in WORKFLOW
     assert "github.event_name == 'workflow_dispatch'" in WORKFLOW
