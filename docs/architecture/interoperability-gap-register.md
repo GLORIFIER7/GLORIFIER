@@ -271,3 +271,14 @@ The production release workflow [cloudflare-worker.yml](https://github.com/GLORI
 5. Keep broad external A2A/MCP conformance and Linux host-agent deployment marked NOT VERIFIED until authorized external-client/host evidence exists.
 
 No signing, minting, transaction, wallet operation, financial action, secret rotation, or database migration was performed.
+
+
+### NEURAL production release-gate conflict — 2026-11-09
+
+A read-only Cloudflare Workers Builds configuration inspection confirms:
+- `auto_build_enabled=true` for Worker `glorifier-neural`;
+- production branch `main` is included by the active build trigger;
+- the production deploy command is `bash ./worker-build.sh deploy`;
+- the separate GitHub Actions workflow `.github/workflows/cloudflare-neural-worker.yml` deploys only on `workflow_dispatch`, with `deploy=true`, from `main`, through the protected `glorifier-neural-cloudflare-production` environment.
+
+The connected Cloudflare production build therefore provides an independent automatic deploy path on pushes to main. Its latest build was blocked by the missing `GLORIFIER_INTERNAL_SERVICE_TOKEN`, but supplying that secret before reconciling the trigger could enable an unapproved production deployment on a later push. **Required control:** disable the Cloudflare production auto-build trigger or change its production command to validation-only, while retaining the protected manual GitHub workflow as the only production deploy path. Keep previews separate. This account-level Workers Builds setting is not changed by this PR and requires owner authorization.
