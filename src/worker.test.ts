@@ -2223,6 +2223,29 @@ const run = async (): Promise<void> => {
         assert.equal(neuralTaskNoAuth.status, 401);
         assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
+        const internalServiceToken = 'test-internal-neural-service-token';
+        const neuralTaskWithInternalServiceAuth = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+            method: 'POST',
+            headers: {
+              'X-Glorifier-Internal-Token': internalServiceToken,
+              'Content-Type': 'application/json',
+            },
+            body: '{"task":"internal safe task","require_approval":true,"action_class":"read_only"}',
+          }),
+          {
+            ...env,
+            GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
+            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken,
+          },
+        );
+        assert.equal(neuralTaskWithInternalServiceAuth.status, 202);
+        assert.equal(
+          getCapturedRequest().headers.get('authorization'),
+          `Bearer ${internalServiceToken}`,
+          'GLORIFIER must inject its server-held service credential, never forward a caller credential',
+        );
+
         capturedRequest = null;
         const declaredOversizeBody = new Uint8Array(65_536 + 1);
         const declaredOversizeTask = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
