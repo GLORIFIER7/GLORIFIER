@@ -20,6 +20,9 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
+      - name: Verify Android API origin and production smoke targets
+        run: node --test scripts/public-probe-origin.test.mjs
+
       - name: Setup Java
         uses: actions/setup-java@v6
         with:
@@ -32,7 +35,7 @@ jobs:
       - name: Build web bundle for Android
         env:
           CAPACITOR_BUILD: 'true'
-          VITE_API_BASE_URL: https://glorifier-artificial-intelligence-production.up.railway.app
+          VITE_API_BASE_URL: https://glorifier.pages.dev
         run: npm run build:android
 
       - name: Add Android platform
