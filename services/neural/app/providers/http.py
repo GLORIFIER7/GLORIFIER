@@ -17,6 +17,63 @@ class ResponseBodyTooLargeError(ValueError):
     """Raised when a streamed provider response exceeds its configured byte limit."""
 
 
+def read_bounded_response_bytes(
+    response: Any,
+    *,
+    max_bytes: int,
+    timeout_seconds: float,
+) -> bytes:
+    """Read urllib bytes under a hard size cap and absolute deadline.
+
+    Socket timeouts are inactivity timeouts. Resetting the timeout to the
+    remaining wall-clock budget before each read1 call prevents a slow-drip
+    response from extending the total operation indefinitely.
+    """
+    if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 1:
+        raise ValueError("max_bytes must be a positive integer")
+    if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool):
+        raise TypeError("timeout_seconds must be a finite positive number")
+    timeout_value = float(timeout_seconds)
+    if not math.isfinite(timeout_value) or timeout_value <= 0:
+        raise ValueError("timeout_seconds must be a finite positive number")
+
+    reader = None
+    response_socket = None
+    current = response
+    for _depth in range(3):
+        if current is None:
+            break
+        if reader is None:
+            candidate_reader = getattr(current, "read1", None)
+            if callable(candidate_reader):
+                reader = candidate_reader
+        raw = getattr(current, "raw", None)
+        candidate_socket = getattr(raw, "_sock", None)
+        if callable(getattr(candidate_socket, "settimeout", None)):
+            response_socket = candidate_socket
+        if reader is not None and response_socket is not None:
+            break
+        current = getattr(current, "fp", None)
+
+    if reader is None or response_socket is None:
+        raise RuntimeError(
+            "provider response does not support deadline-bounded socket reads"
+        )
+
+    deadline = time.monotonic() + timeout_value
+    collected = bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("provider response body exceeded its absolute read deadline")
+        response_socket.settimeout(remaining)
+        chunk = reader(min(65_536, max_bytes + 1 - len(collected)))
+        if not chunk:
+            return bytes(collected)
+        collected.extend(chunk)
+        if len(collected) > max_bytes:
+            return bytes(collected)
+
 def _header(headers: Any, name: str) -> str | None:
     if headers is None:
         return None
