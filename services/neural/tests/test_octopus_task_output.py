@@ -8,11 +8,14 @@ import subprocess
 import tempfile
 
 
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = (
+    SERVICE_ROOT.parents[1]
+    if SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+    else SERVICE_ROOT
+)
 WORKFLOW = (
-    Path(__file__).resolve().parents[1]
-    / ".github"
-    / "workflows"
-    / "octopus-deploy.yml"
+    REPOSITORY_ROOT / ".github" / "workflows" / "octopus-deploy.yml"
 ).read_text(encoding="utf-8")
 
 
