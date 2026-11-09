@@ -1,4 +1,5 @@
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const REQUIRED_ENVIRONMENT = "live-ai-probe";
 
@@ -89,12 +90,12 @@ const run = async () => {
     repository: process.env.GITHUB_REPOSITORY,
     apiUrl: process.env.GITHUB_API_URL || "https://api.github.com",
   });
-  process.stdout.write(`${JSON.stringify(result)}\\n`);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 };
 
-if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run().catch((error) => {
-    process.stderr.write(`LIVE_AI_ENVIRONMENT_GUARD_FAILED: ${error instanceof Error ? error.message : "unknown error"}\\n`);
+    process.stderr.write(`${error instanceof Error ? error.message : "LIVE_AI_ENVIRONMENT_GUARD_FAILED: unknown error"}\n`);
     process.exitCode = 1;
   });
 }
