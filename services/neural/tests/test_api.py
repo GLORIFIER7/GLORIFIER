@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
-from app.api import _persist_task_run, app, run_task
+from app.api import _persist_task_run, _process_authenticated_task, app, run_task
 from app.orchestrator import Orchestrator
 from app.schemas import TaskRequest, TaskResponse
 
@@ -773,3 +773,45 @@ def test_task_run_persistence_value_error_keeps_specific_invalid_record_evidence
 
     assert persisted.status == "PARTIALLY VERIFIED"
     assert persisted.evidence[-1] == "persistence:task_runs:invalid-record"
+
+
+def test_internal_service_credential_must_differ_from_public_api_token(monkeypatch):
+    from starlette.requests import Request
+
+    token = "same-public-and-internal-token"
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "scheme": "https",
+            "path": "/__internal/verify-task",
+            "raw_path": b"/__internal/verify-task",
+            "query_string": b"",
+            "headers": [],
+            "server": ("glorifier-neural.example", 443),
+            "client": ("127.0.0.1", 12345),
+            "env": {
+                "GLORIFIER_API_TOKEN": token,
+                "GLORIFIER_INTERNAL_SERVICE_TOKEN": token,
+            },
+        }
+    )
+    task = TaskRequest(
+        task="internal credential separation check",
+        require_approval=True,
+        action_class="read_only",
+    )
+
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(
+            _process_authenticated_task(
+                task,
+                request,
+                f"Bearer {token}",
+                persist=False,
+                allow_internal_token=True,
+            )
+        )
+
+    assert rejected.value.status_code == 503
+    assert "must be distinct" in rejected.value.detail
