@@ -10,9 +10,9 @@ Keep `GLORIFIER7/GLORIFIER` as the single authoritative source repository and go
 - GLORIFIER-NEURAL exposes `GET /health`, `GET /ready`, and a protected `POST /v1/tasks`. The task endpoint returns 503 when `GLORIFIER_API_TOKEN` is absent, compares bearer tokens in constant time, rate-limits authenticated requests, and denies financial, wallet-signing, minting, destructive, production-write, and unknown action classes by default.
 - Read-only public probes on 2026-11-06 returned `/health` with process `VERIFIED`; provider, database, and PyTorch checks on that endpoint remained `NOT VERIFIED`. The separate `/ready` response reported overall `READY`, with provider access, database connectivity, authentication configuration, and rate limiting `VERIFIED`; optional audit and task-run persistence remained unconfigured.
 - The `/ready` response explicitly returned `inference_performed=false`. No prompt was submitted and no live inference or API charge was triggered.
-- The GLORIFIER public `/api/runtime-verification` response reported `checks.neural.status=not-configured`, and `/api/neural/health` returned HTTP 503 because the production Worker did not yet contain the Neural origin/allowlist settings.
+- Historical 2026-11-06 observation: GLORIFIER runtime verification reported Neural as not configured. This is superseded by the 2026-11-09 observation: active production Worker v994 contains the HTTPS origin and exact-host allowlist but lacks the `GLORIFIER_NEURAL` service binding; PR #774 merged the binding repair to `main`, pending the protected production release.
 
-The Neural service is deployed and ready for authenticated task execution, but its live inference path has not been exercised.
+The standalone NEURAL `/ready` endpoint reported READY on 2026-11-09, but no authenticated task or inference was executed. The GLORIFIER-to-NEURAL proxy remains degraded until the merged service-binding repair is deployed and the proxy endpoints pass read-only smoke tests.
 
 ## Proposed request flow
 
@@ -78,7 +78,7 @@ Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` es
 
 **Repository wiring:** PR #675 merged on 2026-11-06 at 04:18:31Z, merge commit 6075c598ec04475f5697f3e420d3cef173527b7a. The merged main Wrangler configuration now sets the production Neural origin to https://glorifier-neural.glorifier.workers.dev with an exact hostname allowlist. Preview origin and allowlist values are empty. The test contract is called by npm run test:cloudflare-worker.
 
-**Next steps:** diagnose CircleCI failure; run Worker contract tests and security checks; then configure a reviewed staging origin and perform the staging smoke tests listed above. Keep provider inference and consequential action classes disabled until separately approved and verified.
+**Historical next steps (2026-11-06):** the earlier CircleCI and origin-configuration checks predate the 2026-11-09 deployment observations. Current next step: deploy the already-merged PR #774 service-binding repair through the protected production workflow, then perform read-only proxy health/readiness smoke tests. Keep provider inference and consequential action classes disabled until separately approved and verified.
 
 
 ## Monorepo consolidation record — 2026-11-06
@@ -105,7 +105,7 @@ This migration intentionally preserves the service boundary:
 
 **ChatGPT client boundary:** custom MCP server connections and full MCP access are available on ChatGPT Business and Enterprise/Edu on web; Pro has read/fetch permissions only. The current Go plan is not eligible for custom MCP server connections. The existing GLORIFIER /mcp endpoint is also a fixed-scope, read-only GitHub bridge, not a model-inference gateway. See OpenAI's custom MCP availability documentation: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt.
 
-**Remaining verification:** deploy the merged current-main source through the protected release workflow, verify the active Worker version contains the Neural variables, then re-run read-only health/readiness checks. Separately implement and authorize OAuth 2.1 for any future ChatGPT MCP connection, and only then perform a bounded, explicitly approved inference test.
+**Remaining verification:** deploy the merged current-main source through the protected release workflow, verify the active Worker version contains the `GLORIFIER_NEURAL` service binding (the origin and exact-host allowlist are already present in the observed v994), then re-run read-only proxy health/readiness checks. Separately implement and authorize OAuth 2.1 for any future ChatGPT MCP connection, and only then perform a bounded, explicitly approved inference test.
 
 
 ## Live evidence reconciliation — 2026-11-09
