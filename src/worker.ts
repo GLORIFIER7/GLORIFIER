@@ -732,15 +732,23 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   const route = mapping[pathname];
   if (!route) return Response.json({ ok: false, code: 'NEURAL_ROUTE_NOT_FOUND' }, { status: 404, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
   if (!route.methods.includes(request.method)) return Response.json({ ok: false, code: 'METHOD_NOT_ALLOWED' }, { status: 405, headers: { Allow: route.methods.join(', '), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  let internalServiceAuthenticated = false;
+  let callerAuthorization = '';
   if (pathname === '/api/neural/v1/tasks') {
     const internalServiceToken = env.GLORIFIER_INTERNAL_SERVICE_TOKEN?.trim() || '';
-    if (!internalServiceToken) {
+    const internalServiceHeaderPresent = request.headers.has('x-glorifier-internal-token');
+    internalServiceAuthenticated = isWorkerInternalService(request, env);
+    callerAuthorization = request.headers.get('authorization')?.trim() || '';
+    const hasCallerBearer = /^Bearer\\s+\\S+$/i.test(callerAuthorization);
+
+    if (internalServiceHeaderPresent && !internalServiceToken) {
       return Response.json({ ok: false, code: 'NEURAL_INTERNAL_SERVICE_TOKEN_NOT_CONFIGURED' }, {
         status: 503,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
     }
-    if (!isWorkerInternalService(request, env)) {
+    if ((internalServiceHeaderPresent && !internalServiceAuthenticated) ||
+        (!internalServiceAuthenticated && !hasCallerBearer)) {
       return Response.json({ ok: false, code: 'INTERNAL_SERVICE_AUTHENTICATION_REQUIRED' }, {
         status: 401,
         headers: {
@@ -806,9 +814,15 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   if (accept) headers.set('accept', accept);
   if (pathname === '/api/neural/v1/tasks') headers.set('content-type', request.headers.get('content-type') || 'application/json');
   if (pathname === '/api/neural/v1/tasks') {
-    // The incoming internal-service identity was validated above. Never forward
-    // caller credentials; use the server-held shared secret for NEURAL.
-    headers.set('authorization', `Bearer ${env.GLORIFIER_INTERNAL_SERVICE_TOKEN!.trim()}`);
+    if (internalServiceAuthenticated) {
+      // A validated internal service request uses the Worker-held NEURAL credential.
+      // Do not forward the caller's Authorization header on this path.
+      headers.set('authorization', `Bearer ${env.GLORIFIER_INTERNAL_SERVICE_TOKEN!.trim()}`);
+    } else {
+      // Preserve the established SDK bearer path. NEURAL validates this caller token
+      // against GLORIFIER_API_TOKEN; the proxy does not treat its presence as proof.
+      headers.set('authorization', callerAuthorization);
+    }
   }
   const init: RequestInit = { method: request.method, headers, redirect: 'manual', signal: AbortSignal.timeout(8000) };
   if (request.method === 'POST' && taskBody !== undefined) {
