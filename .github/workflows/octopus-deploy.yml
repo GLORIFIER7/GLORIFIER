@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
 
+# The Docker Image workflow is triggered by workflow_run from GLORIFIER CI; its run event is workflow_run, not the earlier CI push.
+
 jobs:
   deploy:
     name: Create release and deploy through Octopus
@@ -23,7 +25,6 @@ jobs:
        vars.OCTOPUS_SPACE != '' &&
        vars.OCTOPUS_PROJECT != '' &&
        vars.OCTOPUS_ENVIRONMENT != '') ||
-# GLORIFIER Docker Image is triggered by workflow_run from GLORIFIER CI; its workflow_run.event is workflow_run, not the earlier CI run's push.
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'workflow_run' &&
