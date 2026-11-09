@@ -2508,7 +2508,7 @@ const run = async (): Promise<void> => {
         assert.equal(getCapturedRequest().url, 'https://neural.example.test/v1/tasks');
         assert.equal(neuralTask.headers.get('x-correlation-id'), callerCorrelationId);
         assert.equal(getCapturedRequest().headers.get('x-correlation-id'), callerCorrelationId, 'validated correlation ID must be forwarded unchanged');
-        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer test-internal-neural-service-token', 'GLORIFIER must inject only its server-held NEURAL credential');
+        assert.equal(getCapturedRequest().headers.get('authorization'), 'Bearer test-neural-public-api-token', 'GLORIFIER must inject its separate server-held NEURAL API credential, not its ingress service token');
         assert.deepEqual(JSON.parse(await getCapturedRequest().text()), { task: 'summarize' });
 
         const neuralUnknown = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/admin'), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
