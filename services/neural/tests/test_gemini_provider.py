@@ -46,6 +46,7 @@ def test_gemini_sync_request_shares_one_deadline_across_open_and_body_read(monke
     now = [10.0]
     monkeypatch.setattr(provider_module.time, "monotonic", lambda: now[0])
     opened = []
+    open_deadlines = []
     deadlines = []
 
     class FakeResponse:
@@ -60,8 +61,9 @@ def test_gemini_sync_request_shares_one_deadline_across_open_and_body_read(monke
         def __exit__(self, *_args):
             return False
 
-    def open_request(_request, *, timeout):
+    def open_request(_request, *, timeout, deadline):
         opened.append(timeout)
+        open_deadlines.append(deadline)
         now[0] += 0.4
         return FakeResponse()
 
@@ -82,6 +84,7 @@ def test_gemini_sync_request_shares_one_deadline_across_open_and_body_read(monke
     )
 
     assert opened == [1.0]
+    assert open_deadlines == [11.0]
     assert deadlines == [11.0]
 
 def test_gemini_adapter_requires_api_key_and_model():
