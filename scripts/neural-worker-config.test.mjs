@@ -7,6 +7,12 @@ assert.ok(config && typeof config === 'object' && !Array.isArray(config),
 
 const productionVars = config.vars;
 const previewVars = config.previews?.vars;
+const neuralServices = Array.isArray(config.services) ? config.services : [];
+assert.deepEqual(
+  neuralServices.filter((binding) => binding.binding === 'GLORIFIER_NEURAL'),
+  [{ binding: 'GLORIFIER_NEURAL', service: 'glorifier-neural' }],
+  'GLORIFIER must call the deployed NEURAL Worker through a same-account Service Binding',
+);
 assert.ok(productionVars && typeof productionVars === 'object' && !Array.isArray(productionVars),
   'production Wrangler variables must be present as an object');
 assert.ok(previewVars && typeof previewVars === 'object' && !Array.isArray(previewVars),
