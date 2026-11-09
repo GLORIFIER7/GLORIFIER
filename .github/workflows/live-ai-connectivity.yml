@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: refs/heads/main
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
