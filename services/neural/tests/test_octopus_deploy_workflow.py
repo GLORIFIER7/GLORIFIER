@@ -250,7 +250,7 @@ def test_octopus_workflow_embedded_python_is_syntactically_valid():
 def test_monorepo_octopus_deployment_requires_successful_main_source_and_current_sha():
     assert 'workflows: ["GLORIFIER Docker Image"]' in WORKFLOW
     assert "branches: [main]" in WORKFLOW
-    assert "github.event.workflow_run.event == 'workflow_run'" in WORKFLOW
+    assert "github.event.workflow_run.event == 'push'" in WORKFLOW
     assert "github.event.workflow_run.conclusion == 'success'" in WORKFLOW
     assert "github.event.workflow_run.head_branch == 'main'" in WORKFLOW
     assert "github.event.workflow_run.head_sha == github.sha" in WORKFLOW
