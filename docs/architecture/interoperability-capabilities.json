@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-07T19:35:00Z",
+  "updatedAt": "2026-11-09T16:25:54Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -14,7 +14,7 @@
       "title": "GLORIFIER Worker Neural route contract",
       "boundary": "GLORIFIER control plane to the separately deployed GLORIFIER-NEURAL execution plane",
       "scope": "mocked-contract-test",
-      "status": "PARTIALLY VERIFIED",
+      "status": "DEGRADED",
       "targetEnvironments": [
         "Mocked Worker test harness",
         "CircleCI Linux Docker executor",
@@ -69,11 +69,40 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; PR #628 head dac67d26a59b28ba167d1f5c5b90a3403bfb2177; Ubuntu 22.04/24.04 x86_64",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "Worker/interoperability boundary tests passed on both Ubuntu source-matrix targets. These tests use mocked upstreams; no live Neural HTTPS origin or authenticated Neural runtime was probed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/health",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker; unauthenticated read-only GET",
+          "observedAt": "2026-11-09T15:33:23Z",
+          "notes": "HTTP 404; response body was Cloudflare error code 1042. This is not a Neural health response; production proxy could not reach the same-zone Worker."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/ready",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker; unauthenticated read-only GET",
+          "observedAt": "2026-11-09T15:33:25Z",
+          "notes": "HTTP 404; response body was Cloudflare error code 1042. This is not an upstream readiness response."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/774",
+          "targetEnvironment": "GLORIFIER main commit ccc23357fd01a1fe519d3558917944828a4f0c60; merged PR head 14b51f4cf11923ee277474ff1b0ed5d6a3209a27",
+          "observedAt": "2026-11-09T14:48:42Z",
+          "notes": "Merged source adds the GLORIFIER_NEURAL Cloudflare service binding in wrangler.jsonc and routes upstream requests through env.GLORIFIER_NEURAL.fetch. This repairs the same-zone fetch design in source; it is not production-deployment evidence."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare active Worker deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b; Worker version 994",
+          "targetEnvironment": "Production Cloudflare Worker glorifier; 100% traffic",
+          "observedAt": "2026-11-09T01:53:21.985954Z",
+          "notes": "Active version 994 is tied by GLORIFIER_RELEASE_COMMIT to ba13862ac05ae26dc5096c4774c52a10a4e9d1ab and contains GLORIFIER_NEURAL_ORIGIN plus the exact-host allowlist, but its deployed bindings do not include GLORIFIER_NEURAL service binding. It predates merged PR #774."
         }
       ],
       "limitations": [
-        "The upstream is mocked in unit tests.",
-        "No live staging or production Neural origin has been probed."
+        "Production GLORIFIER proxy routes currently return HTTP 404 / Cloudflare error 1042; the active version 994 has the HTTPS origin and exact-host allowlist but lacks the GLORIFIER_NEURAL service binding.",
+        "PR #774 merged the service-binding implementation to GLORIFIER main, but its changes are not present in active production version 994. The guarded production release and a new live proxy smoke test remain required.",
+        "The standalone Neural Worker health and readiness results are separate from the GLORIFIER proxy result; process health does not prove inference or task execution."
       ]
     },
     {
@@ -146,7 +175,7 @@
       "title": "Live GLORIFIER-NEURAL health and readiness",
       "boundary": "Configured HTTPS origin from Worker to Neural service",
       "scope": "live-runtime-probe",
-      "status": "NOT OBSERVABLE",
+      "status": "DEGRADED",
       "targetEnvironments": [
         "Staging",
         "Production"
@@ -179,13 +208,44 @@
           "targetEnvironment": "Production Cloudflare Worker to GLORIFIER-NEURAL; read-only GET",
           "observedAt": "2026-11-03T07:01:19.186Z",
           "notes": "Fresh production GET returned HTTP 503; /api/runtime-verification reports neural status not-configured with NEURAL_ORIGIN_NOT_CONFIGURED. This is a fail-closed configuration result, not evidence that a Neural process is reachable or healthy. No origin, allowlist or secret was configured."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier-neural.glorifier.workers.dev/health",
+          "targetEnvironment": "Production standalone GLORIFIER-NEURAL Cloudflare Worker; unauthenticated read-only GET",
+          "observedAt": "2026-11-09T15:33:43Z",
+          "notes": "HTTP 200; service glorifier-neural reported PARTIALLY VERIFIED. Process was VERIFIED; providers, database, and PyTorch remained NOT VERIFIED on this health endpoint."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier-neural.glorifier.workers.dev/ready",
+          "targetEnvironment": "Production standalone GLORIFIER-NEURAL Cloudflare Worker; unauthenticated read-only GET",
+          "observedAt": "2026-11-09T15:33:47Z",
+          "notes": "HTTP 200; status READY. Providers, database, authentication, and rate_limit were VERIFIED; optional audit and task_runs were NOT CONFIGURED. Response explicitly reported inference_performed=false; no task or inference was executed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare active Worker deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c; Worker version 33",
+          "targetEnvironment": "Production standalone GLORIFIER-NEURAL Cloudflare Worker; 100% traffic",
+          "observedAt": "2026-11-09T11:40:45.754352Z",
+          "notes": "Cloudflare deployment inventory showed version 33 receiving 100% of the standalone Neural Worker traffic. This is deployment metadata, not proof of task execution or inference."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42648068106",
+          "targetEnvironment": "Cloudflare Workers Builds production deployment for GLORIFIER7/GLORIFIER-NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b",
+          "observedAt": "2026-11-09T15:48:44Z",
+          "notes": "The Cloudflare bundle preparation and dry validation succeeded, but the production deploy step failed because the required runtime secret GLORIFIER_INTERNAL_SERVICE_TOKEN was not configured. The post-deploy health/readiness smoke steps were skipped; this is a secret-configuration blocker, not an application test failure. The new commit was not released by this build. The internal token must be provisioned securely and must differ from GLORIFIER_API_TOKEN; no secret value is stored here."
         }
       ],
       "limitations": [
-        "No verified GLORIFIER_NEURAL_ORIGIN or authorized live probe was provided.",
-        "The Worker adapter must remain unavailable when its origin is missing or invalid.",
-        "Provider readiness is not implied by process health.",
-        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
+        "The capability remains DEGRADED because the defined GLORIFIER Worker-to-NEURAL proxy boundary returned HTTP 404 / Cloudflare error 1042. Direct standalone NEURAL health/readiness probes bypass that boundary and do not verify it.",
+        "The standalone /health response reports process liveness only; providers, database, and PyTorch were NOT VERIFIED in that response.",
+        "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
+        "The GLORIFIER-to-NEURAL public proxy remains degraded until the merged service binding is deployed and proxy health/readiness endpoints are re-probed.",
+        "Optional audit and task-run persistence were not configured in the observed readiness response.",
+        "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN.",
+        "A read-only Cloudflare Workers Builds configuration inspection found auto_build_enabled=true for the production main branch, with production deploy_command `bash ./worker-build.sh deploy`. This creates a second automatic production-release path outside the separate GitHub workflow_dispatch + protected environment gate. Do not provision the missing internal service token until this trigger is disabled or made validation-only; otherwise a later main push could deploy without the intended manual approval."
       ]
     },
     {
@@ -459,11 +519,18 @@
           "targetEnvironment": "PublicNode public Ethereum mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only eth_chainId returned 0x1 (HTTP 200, 412 ms) and eth_blockNumber returned 0x191d03e (HTTP 200). This verifies public endpoint reachability and Ethereum mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only eth_chainId, eth_blockNumber, eth_getCode, eth_call",
+          "targetEnvironment": "Ethereum mainnet; canonical GLR ERC-20 contract 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned chainId 0x1, block 0x1928107, non-empty contract bytecode, name GLORIFIER, symbol GLR, decimals 18, and totalSupply 1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state-changing call was performed. This does not resolve the second same-deployer GLORIFIER/GLR contract or establish a successful payment/transfer-verifier path."
         }
       ],
       "limitations": [
-        "No live RPC probe is recorded in this registry.",
-        "Signing, minting, transfers and contract writes are outside this verifier and remain gated."
+        "Signing, minting, transfers and contract writes are outside this verifier and remain gated.",
+        "Ethereum remains PARTIALLY VERIFIED: the fresh independent read-only contract metadata check confirms the owner-designated contract's code and token fields, but the second same-deployer GLORIFIER/GLR contract remains unresolved as a canonical-identity decision; no transfer transaction was verified."
       ]
     },
     {
@@ -511,11 +578,18 @@
           "targetEnvironment": "PublicNode public BNB Smart Chain mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only eth_chainId returned 0x38 (HTTP 200, 494 ms) and eth_blockNumber returned 0x7d51691 (HTTP 200). This verifies public endpoint reachability and BNB Smart Chain mainnet identity only; it does not verify a GLR transfer, token contract state, payment recipient, or signing path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only eth_chainId, eth_blockNumber, eth_getCode, eth_call",
+          "targetEnvironment": "BNB Smart Chain mainnet; owner-designated GLR BEP-20 contract 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned chainId 0x38, block 0x7e78dec, non-empty contract bytecode, name GLORIFIER, symbol GLR, decimals 18, and totalSupply 1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state-changing call was performed; this does not test receipt verification for an actual transfer."
         }
       ],
       "limitations": [
-        "No live RPC probe is recorded in this registry.",
-        "EVM test coverage does not prove production RPC reachability."
+        "EVM test coverage does not prove production RPC reachability.",
+        "Fresh independent read-only RPC confirms the owner-designated GLR contract's code and token fields; it does not independently validate a new transfer receipt or the full production payment-verification path."
       ]
     },
     {
@@ -563,11 +637,19 @@
           "targetEnvironment": "PublicNode public Solana mainnet JSON-RPC",
           "observedAt": "2026-11-03T09:02:31.399Z",
           "notes": "Unauthenticated read-only getGenesisHash returned 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d (HTTP 200, 622 ms), matching Solana mainnet; getSlot at finalized commitment returned 464841204 (HTTP 200). This verifies public endpoint reachability and mainnet identity only; it does not verify GLR mint/transfer state or signing."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only getGenesisHash, getBlockHeight(finalized), getTokenSupply(finalized), getAccountInfo(finalized)",
+          "targetEnvironment": "Solana Mainnet Beta; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 467383832",
+          "observedAt": "2026-11-09T16:25:54Z",
+          "notes": "Independent Alchemy read-only checks returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d, finalized height 445400982, mint supply 1,000,000,000 with 9 decimals, token name GLORIFIER, symbol GLR, null mint/freeze authorities, null metadata pointer/update authorities, and Token-2022 program owner TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb. No signing, transaction, or state mutation was performed; this does not independently review all provenance or verify a GLR transfer."
         }
       ],
       "limitations": [
         "The live read-only RPC probe verifies endpoint reachability and mainnet identity only; live GLR mint/transfer state and signing remain NOT VERIFIED.",
-        "EVM and Solana adapters are independently verified and are not interchangeable."
+        "EVM and Solana adapters are independently verified and are not interchangeable.",
+        "Fresh independent read-only Alchemy confirms the canonical Token-2022 mint state and revoked mint/freeze/metadata authorities at finalized context; independent reviewer and cross-file provenance gates still remain."
       ]
     },
     {
@@ -1088,12 +1170,20 @@
           "targetEnvironment": "Production Cloudflare Worker; read-only GET",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "HTTP 502. The release-provenance endpoint exists on the PR branch but has not been merged or deployed to production."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare active Worker deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b; Worker version 994",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker; 100% traffic",
+          "observedAt": "2026-11-09T01:53:21.985954Z",
+          "notes": "Active version metadata identifies release commit ba13862ac05ae26dc5096c4774c52a10a4e9d1ab. This supersedes the older version-880 deployment snapshot but does not independently verify /api/integrations, /api/data-status, or /api/build-info."
         }
       ],
       "limitations": [
-        "Cloudflare deployment metadata still assigns 100% of production traffic to deployment 3c5abfa9-91b3-4ee8-ade5-01b1305d4431, Worker version 880 (5a854d11-1f57-4401-80f9-fb39cf036cbf), built from older main commit 46b6f28.",
-        "PR #628 is open and unmerged. The production endpoint responses cannot become verified until the approved protected main-branch release is reviewed, merged, deployed and smoke-tested.",
-        "Do not upload/promote a preview directly or bypass the guarded workflow_dispatch and deploy_production=true release gate."
+        "The last endpoint-specific observations recorded here for /api/integrations, /api/data-status, and /api/build-info are historical HTTP 502 responses from 2026-11-03; no fresh endpoint-specific probe was performed in the 2026-11-09 checkpoint.",
+        "Cloudflare control-plane metadata shows active production Worker version 994 at 100% traffic, tied to release commit ba13862ac05ae26dc5096c4774c52a10a4e9d1ab. Deployment metadata alone does not establish the current behavior of those read-model routes.",
+        "PR #628 merged at 2026-11-03T07:54:06Z as merge commit cb910504c8ac153d84a587a56b3c6893c557907f; previous text describing PR #628 as open/unmerged is stale.",
+        "Do not promote this capability to VERIFIED until fresh production endpoint probes return the documented contracts and source provenance is reconciled."
       ]
     },
     {
@@ -1379,7 +1469,6 @@
       "scope": "Swift 5.9+; Foundation URLSession",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted macOS 14; Swift toolchain",
         "Swift 5.9+ / macOS 15 ARM64"
       ],
       "evidence": [
@@ -1388,14 +1477,14 @@
           "reference": "sdk/swift/Sources/GlorifierNeural/GlorifierNeuralClient.swift",
           "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
           "observedAt": null,
-          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification. The current CI verification target is macOS 15 ARM64; the earlier macOS 14 label is historical."
         },
         {
           "kind": "automated-test",
           "reference": "sdk/swift/Tests/GlorifierNeuralTests/GlorifierNeuralClientTests.swift",
           "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
           "observedAt": null,
-          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending. The current CI verification target is macOS 15 ARM64; the earlier macOS 14 label is historical."
         },
         {
           "kind": "ci-run",
@@ -1420,7 +1509,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
+        "Current GitHub Actions verification is limited to Swift 5.9+ on macOS 15 ARM64, exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad. The earlier macOS 14 run is historical and is superseded by this newer runner evidence.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."

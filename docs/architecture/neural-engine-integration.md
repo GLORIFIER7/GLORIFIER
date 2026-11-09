@@ -10,9 +10,9 @@ Keep `GLORIFIER7/GLORIFIER` as the single authoritative source repository and go
 - GLORIFIER-NEURAL exposes `GET /health`, `GET /ready`, and a protected `POST /v1/tasks`. The task endpoint returns 503 when `GLORIFIER_API_TOKEN` is absent, compares bearer tokens in constant time, rate-limits authenticated requests, and denies financial, wallet-signing, minting, destructive, production-write, and unknown action classes by default.
 - Read-only public probes on 2026-11-06 returned `/health` with process `VERIFIED`; provider, database, and PyTorch checks on that endpoint remained `NOT VERIFIED`. The separate `/ready` response reported overall `READY`, with provider access, database connectivity, authentication configuration, and rate limiting `VERIFIED`; optional audit and task-run persistence remained unconfigured.
 - The `/ready` response explicitly returned `inference_performed=false`. No prompt was submitted and no live inference or API charge was triggered.
-- The GLORIFIER public `/api/runtime-verification` response reported `checks.neural.status=not-configured`, and `/api/neural/health` returned HTTP 503 because the production Worker did not yet contain the Neural origin/allowlist settings.
+- Historical 2026-11-06 observation: GLORIFIER runtime verification reported Neural as not configured. This is superseded by the 2026-11-09 observation: active production Worker v994 contains the HTTPS origin and exact-host allowlist but lacks the `GLORIFIER_NEURAL` service binding; PR #774 merged the binding repair to `main`, pending the protected production release.
 
-The Neural service is deployed and ready for authenticated task execution, but its live inference path has not been exercised.
+The standalone NEURAL `/ready` endpoint reported READY on 2026-11-09, but no authenticated task or inference was executed. The GLORIFIER-to-NEURAL proxy remains degraded until the merged service-binding repair is deployed and the proxy endpoints pass read-only smoke tests.
 
 ## Proposed request flow
 
@@ -80,7 +80,7 @@ Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` es
 
 **Repository wiring:** PR #675 merged on 2026-11-06 at 04:18:31Z, merge commit 6075c598ec04475f5697f3e420d3cef173527b7a. The merged main Wrangler configuration now sets the production Neural origin to https://glorifier-neural.glorifier.workers.dev with an exact hostname allowlist. Preview origin and allowlist values are empty. The test contract is called by npm run test:cloudflare-worker.
 
-**Next steps:** diagnose CircleCI failure; run Worker contract tests and security checks; then configure a reviewed staging origin and perform the staging smoke tests listed above. Keep provider inference and consequential action classes disabled until separately approved and verified.
+**Historical next steps (2026-11-06):** the earlier CircleCI and origin-configuration checks predate the 2026-11-09 deployment observations. Current next step: deploy the already-merged PR #774 service-binding repair through the protected production workflow, then perform read-only proxy health/readiness smoke tests. Keep provider inference and consequential action classes disabled until separately approved and verified.
 
 
 ## Monorepo consolidation record — 2026-11-06
@@ -107,4 +107,37 @@ This migration intentionally preserves the service boundary:
 
 **ChatGPT client boundary:** custom MCP server connections and full MCP access are available on ChatGPT Business and Enterprise/Edu on web; Pro has read/fetch permissions only. The current Go plan is not eligible for custom MCP server connections. The existing GLORIFIER /mcp endpoint is also a fixed-scope, read-only GitHub bridge, not a model-inference gateway. See OpenAI's custom MCP availability documentation: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt.
 
-**Remaining verification:** deploy the merged current-main source through the protected release workflow, verify the active Worker version contains the Neural variables, then re-run read-only health/readiness checks. Separately implement and authorize OAuth 2.1 for any future ChatGPT MCP connection, and only then perform a bounded, explicitly approved inference test.
+**Remaining verification:** deploy the merged current-main source through the protected release workflow, verify the active Worker version contains the `GLORIFIER_NEURAL` service binding (the origin and exact-host allowlist are already present in the observed v994), then re-run read-only proxy health/readiness checks. Separately implement and authorize OAuth 2.1 for any future ChatGPT MCP connection, and only then perform a bounded, explicitly approved inference test.
+
+
+## Live evidence reconciliation — 2026-11-09
+
+This checkpoint supersedes earlier statements in this document that the production Neural origin/allowlist were absent or that the public GLORIFIER proxy health routes returned only the old `NEURAL_ORIGIN_NOT_CONFIGURED` response. Earlier entries remain as historical observations.
+
+- **Standalone NEURAL deployment:** Cloudflare read-only deployment inventory shows `glorifier-neural` Worker version 33 at 100% traffic (deployment `3d97535a-efc5-45b3-b5a3-be2bb4afda5c`, created `2026-11-09T11:40:45.754352Z`).
+- **Direct process health:** unauthenticated `GET https://glorifier-neural.glorifier.workers.dev/health` returned HTTP 200 at `2026-11-09T15:33:43Z`, with process VERIFIED but provider, database, and PyTorch reported NOT VERIFIED on the health endpoint.
+- **Direct readiness:** unauthenticated `GET https://glorifier-neural.glorifier.workers.dev/ready` returned HTTP 200 and status READY at `2026-11-09T15:33:47Z`. Providers, database, authentication, and rate-limit configuration were reported VERIFIED; optional audit and task-run persistence were not configured. The response explicitly reported `inference_performed=false`.
+- **GLORIFIER proxy:** unauthenticated GETs to `/api/neural/health` and `/api/neural/ready` on the GLORIFIER Worker returned HTTP 404 with Cloudflare error 1042 at `2026-11-09T15:33:23Z` and `15:33:25Z`. Cloudflare documents 1042 as a same-zone Worker-to-Worker fetch restriction unless the documented compatibility behavior is enabled.
+- **Active GLORIFIER release:** Cloudflare inventory shows version 994 at 100% traffic, created `2026-11-09T01:53:21.985954Z`, associated with release commit `ba13862ac05ae26dc5096c4774c52a10a4e9d1ab`. It has the configured origin and exact-host allowlist but not the `GLORIFIER_NEURAL` service binding.
+- **Merged source repair:** [GLORIFIER PR #774](https://github.com/GLORIFIER7/GLORIFIER/pull/774) merged at `2026-11-09T14:48:42Z`. Current main declares the `GLORIFIER_NEURAL` Cloudflare service binding in `wrangler.jsonc`; `src/worker.ts` calls that binding's `fetch()`. This source repair is not reflected in active production version 994 yet.
+- **Release control:** Production deployment remains behind the protected manual workflow gate requiring `workflow_dispatch`, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and the production environment. No deployment was triggered as part of this checkpoint.
+
+**Current conclusion:** the standalone NEURAL service is directly reachable and reports readiness, but the public GLORIFIER-to-NEURAL proxy is still degraded because the active GLORIFIER production version predates the merged service-binding repair. Readiness does not mean model inference, authenticated task execution, or end-to-end interoperability has been tested.
+
+
+## Post-merge deployment gate — 2026-11-09 15:48 UTC
+
+NEURAL main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` passed Python 3.11/3.12 CI and CodeQL, and Cloudflare bundle preparation/validation succeeded. The Cloudflare Workers Builds production deployment then failed because the required `GLORIFIER_INTERNAL_SERVICE_TOKEN` secret was not configured. The workflow skipped its post-deploy health/readiness smoke steps; the newer commit was not released by this build.
+
+The internal service token is a separate credential and must be different from `GLORIFIER_API_TOKEN` (the merged PR #83 code rejects equality). Provision a unique value directly in the Cloudflare secret manager using the authorized owner workflow; never commit or disclose its value. After provisioning, retry the approved Cloudflare deployment and verify the deployed version, /health, /ready, and the GLORIFIER service-binding proxy independently. Until then, retain the deployment and end-to-end integration status as DEGRADED / NOT VERIFIED.
+
+The six source/test files changed by NEURAL PR #83 were verified byte-for-byte identical to their counterparts under `GLORIFIER/services/neural/` on main. This verifies repository source synchronization, not the production release.
+
+
+## Production auto-deploy control — 2026-11-09
+
+A read-only Cloudflare Workers Builds API inspection found the `glorifier-neural` production build connected to repository branch `main`, with `auto_build_enabled=true` and production deploy command `bash ./worker-build.sh deploy`. This path attempted to deploy commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` on a push event.
+
+This is separate from the repository's guarded `workflow_dispatch` job, which requires `deploy=true`, branch `main`, and the protected `glorifier-neural-cloudflare-production` environment. The account-level auto-build configuration can therefore bypass that manual release gate if required secrets are later provisioned.
+
+Before provisioning `GLORIFIER_INTERNAL_SERVICE_TOKEN`, an authorized owner should change the Cloudflare Workers Builds production command to `bash ./worker-build.sh --prepare-only && npx wrangler versions upload` (or disable production auto-build). Cloudflare documents that `wrangler versions upload` creates a version without routing traffic; the separate protected GitHub `workflow_dispatch` should remain the only path to `wrangler versions deploy` / production traffic promotion. The main GLORIFIER Worker already uses `wrangler versions upload` in its Workers Builds production command. Preview builds may remain independently enabled. This external configuration is not mutated by this repository PR.

@@ -215,8 +215,70 @@ See [the Linux host-agent integration contract](./linux-host-agent.md) and [the 
 
 - The eleven first-party SDKs have bounded language-specific CI evidence; this does not establish all operating systems, architectures, runtime versions, or live Neural connectivity.
 - A2A and MCP remain **NOT VERIFIED** for external interoperability. Official conformance/TCK results and authorized external-client tests are still required.
-- `GLORIFIER_NEURAL_ORIGIN` is not configured; live Neural readiness and end-to-end task execution remain unavailable.
+- The active production GLORIFIER Worker v994 already contains `GLORIFIER_NEURAL_ORIGIN` and the exact-host allowlist, but its deployed bindings omit `GLORIFIER_NEURAL`. PR #774 merged the service-binding repair to `main`; deploy it only through the protected production workflow, then re-probe `/api/neural/health` and `/api/neural/ready`. Direct standalone NEURAL `/ready` currently reports READY, but no authenticated task or model inference has been executed.
 - Authentication and AI-provider execution were not included in the public infrastructure probe.
 - The canonical OpenAPI document covers the Neural adapter only; a complete versioned API/protocol schema inventory and drift gate remain outstanding.
 
 No production deployment, database setting change, privilege change, credential change, wallet signing, or financial action was performed in this checkpoint.
+
+
+## Live GLORIFIER–NEURAL production evidence checkpoint — 2026-11-09
+
+Observation window: **2026-11-09T15:33:23Z–15:33:47Z**. All requests in this checkpoint were unauthenticated, read-only GETs. No task POST, model inference, credential read/change, database mutation, or production deployment was performed.
+
+### Deployed state
+
+- Cloudflare reports the production `glorifier` Worker deployment `3292d6bf-d40c-4682-9b6d-ff5faf41aa1b` at **100% traffic**, Worker version **994**, created at `2026-11-09T01:53:21.985954Z`. Version metadata ties it to release commit `ba13862ac05ae26dc5096c4774c52a10a4e9d1ab`.
+- That active GLORIFIER version contains `GLORIFIER_NEURAL_ORIGIN=https://glorifier-neural.glorifier.workers.dev` and the exact-host allowlist, but its deployed version binding inventory does **not** contain the `GLORIFIER_NEURAL` service binding.
+- Cloudflare reports standalone `glorifier-neural` deployment `3d97535a-efc5-45b3-b5a3-be2bb4afda5c` at **100% traffic**, Worker version **33**, created at `2026-11-09T11:40:45.754352Z`.
+
+### Fresh live observations
+
+| Endpoint | Observation | Interpretation |
+| --- | --- | --- |
+| GLORIFIER `GET /api/neural/health` | HTTP 404, body `error code: 1042`, 2026-11-09T15:33:23Z | Production proxy cannot currently reach the same-zone Worker. |
+| GLORIFIER `GET /api/neural/ready` | HTTP 404, body `error code: 1042`, 2026-11-09T15:33:25Z | No upstream readiness result is being returned through the proxy. |
+| NEURAL `GET /health` | HTTP 200, `PARTIALLY VERIFIED`, 2026-11-09T15:33:43Z | Process is VERIFIED; provider, database, and PyTorch checks on this endpoint remain NOT VERIFIED. |
+| NEURAL `GET /ready` | HTTP 200, `READY`, 2026-11-09T15:33:47Z | Provider, database, authentication, and rate-limit checks report VERIFIED; optional audit/task-run persistence are not configured; `inference_performed=false`. |
+| GLORIFIER `GET /api/health` and `GET /api/runtime-verification?probeAi=false` | Cloudflare Access sign-in HTML was returned | HTTP 200 here is an Access interstitial, not application health or runtime-verification evidence. |
+
+### Source repair and deployment gate
+
+PR [#774](https://github.com/GLORIFIER7/GLORIFIER/pull/774) merged to `GLORIFIER7/GLORIFIER` main at `2026-11-09T14:48:42Z`. It adds the `GLORIFIER_NEURAL` Cloudflare service binding to `wrangler.jsonc` and changes `src/worker.ts` to call `env.GLORIFIER_NEURAL.fetch(...)` rather than ordinary public `fetch()` to the same-zone Worker. This is the appropriate source-level correction for the observed same-zone fetch failure; **it is not yet deployed** in active version 994.
+
+The production release workflow [cloudflare-worker.yml](https://github.com/GLORIFIER7/GLORIFIER/blob/main/.github/workflows/cloudflare-worker.yml) requires a manual `workflow_dispatch` from `main`, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and the protected production environment. No workflow dispatch or Cloudflare deployment was performed in this checkpoint. Do not bypass that gate.
+
+
+### NEURAL deployment configuration blocker — 2026-11-09 15:48 UTC
+
+- NEURAL main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` passed Python 3.11/3.12 CI and CodeQL; the Cloudflare bundle preparation/validation step also succeeded.
+- The Cloudflare Workers Builds production deploy for the same commit failed because the required runtime secret `GLORIFIER_INTERNAL_SERVICE_TOKEN` is not configured. The workflow's post-deploy health/readiness smoke steps were skipped; this commit was not released by that build.
+- PR #83's merged authentication hardening requires this internal service credential to be different from the public `GLORIFIER_API_TOKEN`. Do not reuse the public token, commit a secret, or place a secret value in issue comments. An authorized owner must provision a unique value directly in the Cloudflare secret manager, then trigger/retry the approved deployment and verify the deployed version and smoke checks.
+- The last direct standalone NEURAL /health and /ready observations (version 33) predate this failed deployment attempt. They remain historical observations and do not prove that the newer main commit is deployed.
+
+### CI and review status
+
+- PR #774 source-level validation, Build and Test, Cloudflare Worker build, NEURAL Cloudflare Worker build, CodeQL, dependency review, npm security, Snyk, DeepScan, and CircleCI Worker validation reported success on the merged PR workflow set.
+- The separate NEURAL Service CI run [#42632687338](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42632687338) passed Python 3.11 and 3.12 test jobs; its AI Review Policy job failed because the required formal current-head AI reviews were not present before timeout. Do not treat ordinary comments as formal reviews or weaken the policy.
+- Standalone upstream [NEURAL PR #83](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/83) remains open. Its application test, lint, dependency audit, container build, runtime driver check, Cloudflare Worker build, and CodeQL jobs passed on its recorded head; formal AI review policy remains the blocker.
+
+### Remaining issue #471 gates
+
+1. Obtain explicit owner authorization for the protected production deployment, then deploy the already-merged main source through the guarded workflow.
+2. Re-probe GLORIFIER `/api/neural/health` and `/api/neural/ready`; verify their responses match the direct NEURAL endpoints. Do not claim task execution or model inference without a separately authorized benign authenticated test.
+3. Complete formal reviewer requirements for standalone NEURAL PR #83; preserve the current review policy.
+4. Refresh the Ethereum, BNB Chain, and Solana read-only RPC probes (the existing evidence is from 2026-11-03) and distinguish endpoint reachability from GLR token/transfer verification.
+5. Keep broad external A2A/MCP conformance and Linux host-agent deployment marked NOT VERIFIED until authorized external-client/host evidence exists.
+
+No signing, minting, transaction, wallet operation, financial action, secret rotation, or database migration was performed.
+
+
+### NEURAL production release-gate conflict — 2026-11-09
+
+A read-only Cloudflare Workers Builds configuration inspection confirms:
+- `auto_build_enabled=true` for Worker `glorifier-neural`;
+- production branch `main` is included by the active build trigger;
+- the production deploy command is `bash ./worker-build.sh deploy`;
+- the separate GitHub Actions workflow `.github/workflows/cloudflare-neural-worker.yml` deploys only on `workflow_dispatch`, with `deploy=true`, from `main`, through the protected `glorifier-neural-cloudflare-production` environment.
+
+The connected Cloudflare production build therefore provides an independent automatic deploy path on pushes to main. Its latest build was blocked by the missing `GLORIFIER_INTERNAL_SERVICE_TOKEN`, but supplying that secret before reconciling the trigger could enable an unapproved production deployment on a later push. **Recommended control:** change the Cloudflare production deploy command to `bash ./worker-build.sh --prepare-only && npx wrangler versions upload` (or disable production auto-build), while retaining the protected manual GitHub workflow as the only traffic-promotion path. Cloudflare documents that `wrangler versions upload` uploads a version without deploying it; `wrangler versions deploy` is the separate promotion step. Keep previews separate. The GLORIFIER Worker already uses `wrangler versions upload` in its Workers Builds production command. This account-level setting is not changed by this PR and requires owner authorization.
