@@ -23,9 +23,10 @@ jobs:
        vars.OCTOPUS_SPACE != '' &&
        vars.OCTOPUS_PROJECT != '' &&
        vars.OCTOPUS_ENVIRONMENT != '') ||
+# GLORIFIER Docker Image is triggered by workflow_run from GLORIFIER CI; its workflow_run.event is workflow_run, not the earlier CI run's push.
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.event == 'workflow_run' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_sha == github.sha &&
        vars.OCTOPUS_ENABLED == 'true' &&
