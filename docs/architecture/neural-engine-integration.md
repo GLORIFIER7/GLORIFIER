@@ -130,3 +130,12 @@ NEURAL main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` passed Python 3.11
 The internal service token is a separate credential and must be different from `GLORIFIER_API_TOKEN` (the merged PR #83 code rejects equality). Provision a unique value directly in the Cloudflare secret manager using the authorized owner workflow; never commit or disclose its value. After provisioning, retry the approved Cloudflare deployment and verify the deployed version, /health, /ready, and the GLORIFIER service-binding proxy independently. Until then, retain the deployment and end-to-end integration status as DEGRADED / NOT VERIFIED.
 
 The six source/test files changed by NEURAL PR #83 were verified byte-for-byte identical to their counterparts under `GLORIFIER/services/neural/` on main. This verifies repository source synchronization, not the production release.
+
+
+## Production auto-deploy control — 2026-11-09
+
+A read-only Cloudflare Workers Builds API inspection found the `glorifier-neural` production build connected to repository branch `main`, with `auto_build_enabled=true` and production deploy command `bash ./worker-build.sh deploy`. This path attempted to deploy commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b` on a push event.
+
+This is separate from the repository's guarded `workflow_dispatch` job, which requires `deploy=true`, branch `main`, and the protected `glorifier-neural-cloudflare-production` environment. The account-level auto-build configuration can therefore bypass that manual release gate if required secrets are later provisioned.
+
+Before provisioning `GLORIFIER_INTERNAL_SERVICE_TOKEN`, an authorized owner must disable production auto-build or change its production deploy command to validation-only, preserving the separate protected manual workflow as the sole production release route. Preview builds may remain independently enabled. This external configuration is not mutated by this repository PR.
