@@ -9,6 +9,8 @@ const documents = [
   new URL('../docs/architecture/openapi/glorifier-neural-adapter.openapi.json', import.meta.url),
 ];
 
+const gapRegister = new URL('../docs/architecture/interoperability-gap-register.md', import.meta.url);
+
 test('interoperability registry, schema, and OpenAPI documents are valid JSON', async () => {
   for (const documentUrl of documents) {
     const content = await readFile(documentUrl, 'utf8');
@@ -119,6 +121,33 @@ test('interoperability JSON documents do not repeat keys in any nested object', 
       findDuplicateJsonKeys(content),
       [],
       `${fileURLToPath(documentUrl)} must not repeat keys in any JSON object`,
+    );
+  }
+});
+
+
+test('interoperability gap register reflects merged NEURAL PR and refreshed GLR chain evidence', async () => {
+  const content = await readFile(gapRegister, 'utf8');
+  assert.ok(content.includes('merged at `2026-11-09T15:46:39Z`'));
+  assert.ok(content.includes('main commit `92d209544c02a3bf9c6f45eeb9d459b4a468426b`'));
+  assert.ok(!content.includes('PR #83 remains open'));
+  assert.ok(!content.includes('existing evidence is from 2026-11-03'));
+  assert.ok(content.includes('read-only Alchemy RPC probes were refreshed at `2026-11-09T16:25:54Z`'));
+  assert.ok(content.includes('second same-deployer Ethereum GLORIFIER/GLR contract'));
+  assert.ok(content.includes('transfer receipts/payment-path evidence'));
+  assert.ok(content.includes('current live readiness is therefore NOT VERIFIED'));
+
+  const registry = JSON.parse(await readFile(documents[0], 'utf8'));
+  for (const id of [
+    'blockchain.ethereum-readonly-transfer-verifier',
+    'blockchain.bnb-readonly-transfer-verifier',
+    'blockchain.solana-readonly-transfer-verifier',
+  ]) {
+    const capability = registry.capabilities.find((item) => item.id === id);
+    assert.ok(capability, `missing capability ${id}`);
+    assert.ok(
+      capability.evidence.some((item) => item.kind === 'live-probe' && item.observedAt === '2026-11-09T16:25:54Z'),
+      `${id} must retain the refreshed read-only probe evidence`,
     );
   }
 });
