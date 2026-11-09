@@ -396,15 +396,24 @@ def test_publish_status_omits_target_url_when_no_safe_pr_link_exists(monkeypatch
 def test_trusted_status_schedule_leaves_headroom_for_the_ten_minute_job():
     from pathlib import Path
 
-    workflow = (
-        Path(__file__).resolve().parents[1]
-        / ".github"
-        / "workflows"
-        / "ai-review-policy-trusted.yml"
-    ).read_text(encoding="utf-8")
-
-    assert 'cron: "*/15 * * * *"' in workflow
-    assert "timeout-minutes: 10" in workflow
+    service_root = Path(__file__).resolve().parents[1]
+    repository_root = (
+        service_root.parents[1]
+        if service_root.parent.name == "services" and service_root.name == "neural"
+        else service_root
+    )
+    root_workflow = repository_root / ".github" / "workflows" / "neural-ci.yml"
+    if root_workflow.is_file():
+        workflow = root_workflow.read_text(encoding="utf-8")
+        assert 'cron: "23 2 * * *"' in workflow
+        assert "timeout-minutes: 30" in workflow
+    else:
+        standalone_workflow = (
+            service_root / ".github" / "workflows" / "ai-review-policy-trusted.yml"
+        )
+        workflow = standalone_workflow.read_text(encoding="utf-8")
+        assert 'cron: "*/15 * * * *"' in workflow
+        assert "timeout-minutes: 10" in workflow
 
 
 def test_malformed_commit_timestamp_has_a_descriptive_iso8601_error():
