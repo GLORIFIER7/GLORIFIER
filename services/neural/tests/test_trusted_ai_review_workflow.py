@@ -1,15 +1,24 @@
 import re
 from pathlib import Path
 
+import pytest
 
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+IS_MONOREPO = SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+REPOSITORY_ROOT = SERVICE_ROOT.parents[1] if IS_MONOREPO else SERVICE_ROOT
 WORKFLOW = (
-    Path(__file__).resolve().parents[1]
+    REPOSITORY_ROOT
     / ".github"
     / "workflows"
-    / "ai-review-policy-trusted.yml"
+    / ("neural-ci.yml" if IS_MONOREPO else "ai-review-policy-trusted.yml")
 ).read_text(encoding="utf-8")
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_runs_only_from_default_branch_events():
     assert "schedule:" in WORKFLOW
     assert "push:" in WORKFLOW
@@ -18,6 +27,10 @@ def test_trusted_policy_runs_only_from_default_branch_events():
     assert "pull_request_target:" not in WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_has_exact_least_privilege_permissions():
     top_level = re.search(
         r"(?ms)^permissions:\n((?:^  [a-z-]+: [a-z]+\n)+)",
@@ -40,6 +53,10 @@ def test_trusted_policy_has_exact_least_privilege_permissions():
     assert not re.search(r"\$\{\{\s*secrets\s*(?:\.|\[)", WORKFLOW, re.IGNORECASE)
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_does_not_checkout_or_execute_pull_request_code():
     assert "persist-credentials: false" in WORKFLOW
     assert "github.event.pull_request.head.sha" not in WORKFLOW
@@ -47,19 +64,45 @@ def test_trusted_policy_does_not_checkout_or_execute_pull_request_code():
     assert "python -m app.ai_review_status" in WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_sweeps_do_not_overlap():
     assert "group: trusted-ai-review-status-" in WORKFLOW
     assert "cancel-in-progress: false" in WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_rechecks_after_ci_completion():
     assert 'workflows: ["CI"]' in WORKFLOW
     assert "workflow_run:" in WORKFLOW
     assert "types: [completed]" in WORKFLOW
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-policy contract is not used by the monorepo",
+)
 def test_trusted_policy_workflow_run_is_limited_to_default_branch_ci():
     workflow_run = WORKFLOW.partition("  workflow_run:")[2].partition(
         "permissions:"
     )[0]
     assert "branches: [main]" in workflow_run
+
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo-specific policy contract")
+def test_monorepo_neural_ci_uses_a_trusted_read_only_review_checkout():
+    assert "pull_request:" in WORKFLOW
+    assert "pull_request_review:" in WORKFLOW
+    assert "  ai-review-policy:" in WORKFLOW
+    assert "pull-requests: read" in WORKFLOW
+    assert "persist-credentials: false" in WORKFLOW
+    assert "github.event.pull_request.base.sha" in WORKFLOW
+    assert "github.event.pull_request.head.sha" not in WORKFLOW
+    assert "gh pr merge" not in WORKFLOW
+    assert "--auto" not in WORKFLOW
