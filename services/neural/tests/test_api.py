@@ -775,7 +775,7 @@ def test_task_run_persistence_value_error_keeps_specific_invalid_record_evidence
     assert persisted.evidence[-1] == "persistence:task_runs:invalid-record"
 
 
-def test_internal_service_credential_must_differ_from_public_api_token(monkeypatch):
+def test_internal_service_credential_must_differ_from_public_api_token():
     from starlette.requests import Request
 
     token = "same-public-and-internal-token"
