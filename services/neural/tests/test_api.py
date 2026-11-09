@@ -5,9 +5,9 @@ import pytest
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
-from app.api import app, run_task
+from app.api import _persist_task_run, app, run_task
 from app.orchestrator import Orchestrator
-from app.schemas import TaskRequest
+from app.schemas import TaskRequest, TaskResponse
 
 
 client = TestClient(app)
@@ -729,3 +729,41 @@ def test_readiness_checks_configured_nvidia_model_without_inference(
     assert body["checks"]["database"] == "NOT CONFIGURED (OPTIONAL)"
     assert body["execution"]["inference_performed"] is False
     assert "readiness-test-secret" not in response.text
+
+
+
+def test_task_run_persistence_value_error_keeps_specific_invalid_record_evidence():
+    class InvalidTaskRunRepository:
+        def record(self, **_values):
+            raise ValueError("schema validation failed")
+
+    task_request = TaskRequest(task="safe persistence diagnostic")
+    result = TaskResponse(
+        status="VERIFIED",
+        provider=None,
+        message="The task completed.",
+        evidence=["execution:none"],
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/v1/tasks",
+            "headers": [],
+            "query_string": b"",
+        }
+    )
+
+    persisted = asyncio.run(
+        _persist_task_run(
+            InvalidTaskRunRepository(),
+            result,
+            "request-id",
+            task_request,
+            request,
+            worker_request=False,
+        )
+    )
+
+    assert persisted.status == "PARTIALLY VERIFIED"
+    assert persisted.evidence[-1] == "persistence:task_runs:invalid-record"
