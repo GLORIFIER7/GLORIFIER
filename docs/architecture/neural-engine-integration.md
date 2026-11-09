@@ -33,7 +33,7 @@ The Worker remains responsible for public routing, GLORIFIER identity, policy, a
 | --- | --- | --- | --- |
 | `/api/neural/health` | `/health` | GET, HEAD | Read-only process status only; must not imply provider/database readiness |
 | `/api/neural/ready` | `/ready` | GET, HEAD | Preserve 503 until Neural itself reports ready |
-| `/api/neural/v1/tasks` | `/v1/tasks` | POST | Require a non-empty caller bearer token; forward it unchanged; preserve upstream status and JSON body |
+| `/api/neural/v1/tasks` | `/v1/tasks` | POST | Legacy caller bearer tokens are forwarded unchanged. For an authenticated internal GLORIFIER service caller, validate the inbound service token at GLORIFIER and use the separate Worker-held `GLORIFIER_API_TOKEN` downstream; preserve upstream status and JSON body |
 
 Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact paths and methods, reject all other methods with 405, use an explicit HTTPS origin and an independent exact-host allowlist, and never silently fall back to Railway, Vercel, another provider, or an unconfigured host. Strip hop-by-hop headers, avoid caching responses, and use a bounded upstream timeout. The task endpoint accepts only `application/json` or `application/*+json`, buffers no more than 65,536 bytes (64 KiB), rejects oversized declared or observed request bodies with `413 REQUEST_BODY_TOO_LARGE`, and rejects unsupported media types with `415 UNSUPPORTED_MEDIA_TYPE`. The language-neutral schema is published in [the OpenAPI contract](./openapi/glorifier-neural-adapter.openapi.json); it must remain in sync with the separate Neural service's Pydantic task schema. Do not log authorization headers or task bodies. The corresponding branch tests must pass before this limit is considered verified.
 
@@ -42,8 +42,10 @@ Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact p
 - `GLORIFIER_NEURAL_ORIGIN`: server-side Cloudflare Worker variable containing only the reviewed HTTPS origin (scheme + host, no credentials, path, query, or fragment).
 - `GLORIFIER_NEURAL_ALLOWED_HOSTS`: comma-separated, exact-match hostnames authorized for Neural egress. The origin hostname must appear in this list; wildcards are not accepted. Missing or mismatched allowlists fail closed.
 - `GLORIFIER_BACKEND_ALLOWED_HOSTS`: comma-separated, exact-match hostnames authorized for the separately configured legacy backend. Missing or mismatched allowlists fail closed. Configure this alongside `GLORIFIER_BACKEND_ORIGIN` before enabling backend-dependent routes.
-- Neural deployment secret `GLORIFIER_API_TOKEN`: unique token configured in the Neural runtime secret manager; never commit it, put it in frontend code, or paste it into logs/chat.
-- The Worker adapter must not inject a global privileged token into unauthenticated public requests. Caller authorization is forwarded only when the caller supplies a bearer token, and Neural must validate it.
+- Neural deployment secret `GLORIFIER_API_TOKEN`: high-entropy bearer token configured in the Neural runtime secret manager; never commit it, put it in frontend code, or paste it into logs/chat.
+- GLORIFIER's Cloudflare Worker must also hold the same `GLORIFIER_API_TOKEN` value as a separate secret so its trusted internal-service path can authenticate to NEURAL's public `/v1/tasks` endpoint.
+- GLORIFIER's `GLORIFIER_INTERNAL_SERVICE_TOKEN` is ingress-only: validate it at the GLORIFIER Worker against `x-glorifier-internal-token`, but never use it as the NEURAL `Authorization` bearer. It must remain distinct from `GLORIFIER_API_TOKEN`.
+- The Worker adapter must not inject a global privileged token into unauthenticated public requests. Legacy caller authorization is forwarded only when the caller supplies a bearer token; an authenticated internal service caller uses the Worker-held NEURAL API token, and Neural validates that token.
 - Provider credentials (including NVIDIA NIM) remain in the Neural runtime secret manager. External data egress stays disabled unless the owner explicitly approves the data classification and configuration.
 - Do not configure Supabase or Neon for this bridge. The bridge must not run migrations, write to databases, or synchronize records.
 
@@ -72,7 +74,7 @@ Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` es
 
 ## Implementation status (updated 2026-11-06)
 
-**Worker adapter:** IMPLEMENTED in GLORIFIER source. It retains the fixed three-route mapping, exact HTTPS origin validation, exact-host allowlist, caller bearer-token forwarding, 64 KiB request cap, timeout, status preservation, correlation IDs, and no arbitrary-path proxy.
+**Worker adapter:** IMPLEMENTED in GLORIFIER source. It retains the fixed three-route mapping, exact HTTPS origin validation, exact-host allowlist, legacy caller bearer-token forwarding, separately authenticated internal-service ingress, server-held NEURAL API-token egress, 64 KiB request cap, timeout, status preservation, correlation IDs, and no arbitrary-path proxy.
 
 **NEURAL service:** public read-only probes on 2026-11-06 returned /health with process VERIFIED, and /ready with overall READY; provider access, database connectivity, authentication configuration, and rate limiting were VERIFIED. Optional audit and task-run persistence remained unconfigured. The readiness response explicitly reported inference_performed=false; no prompt was submitted.
 
