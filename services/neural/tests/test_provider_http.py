@@ -618,8 +618,9 @@ def test_urllib_connection_setup_returns_at_absolute_deadline(monkeypatch):
 
 
 def test_connection_setup_rejects_when_bounded_dns_worker_capacity_is_full(monkeypatch):
+    import http.client
+
     import app.providers.http as provider_http
-    import urllib.request
 
     class FullSlots:
         def __init__(self):
@@ -634,16 +635,19 @@ def test_connection_setup_rejects_when_bounded_dns_worker_capacity_is_full(monke
         def release(self):
             self.release_calls += 1
 
+    class DeadlineConnection(provider_http._DeadlineConnectionMixin, http.client.HTTPConnection):
+        pass
+
     slots = FullSlots()
     monkeypatch.setattr(provider_http, "_CONNECT_THREAD_SLOTS", slots)
-    request = urllib.request.Request("http://127.0.0.1:9/")
+    connection = DeadlineConnection(
+        "127.0.0.1",
+        deadline=time.monotonic() + 1.0,
+        timeout=1.0,
+    )
 
     with pytest.raises(TimeoutError, match="capacity is exhausted"):
-        provider_http.open_urllib_request_with_deadline(
-            request,
-            timeout_seconds=1.0,
-            deadline=time.monotonic() + 1.0,
-        )
+        connection.connect()
 
     assert slots.acquire_calls == 1
     assert slots.release_calls == 0
