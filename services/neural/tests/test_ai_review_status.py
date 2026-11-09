@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 import app.ai_review_status as publisher
 from app.ai_review_status import derive_status, parse_commit_timestamp
