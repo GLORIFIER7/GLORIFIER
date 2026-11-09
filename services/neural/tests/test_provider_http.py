@@ -476,6 +476,42 @@ def test_sync_response_reader_uses_a_decreasing_absolute_socket_deadline(monkeyp
     assert response.chunks == [b"third"]
 
 
+def test_sync_response_reader_respects_deadline_started_before_connection(monkeypatch):
+    import app.providers.http as provider_http
+
+    readings = iter((0.75, 0.9, 1.1))
+
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self.socket))
+            self.chunks = [b"first", b"second", b"third"]
+
+        def read1(self, limit):
+            return self.chunks.pop(0)[:limit]
+
+    monkeypatch.setattr(provider_http.time, "monotonic", lambda: next(readings))
+    response = FakeResponse()
+
+    with pytest.raises(TimeoutError, match="deadline"):
+        read_bounded_response_bytes(
+            response,
+            max_bytes=64,
+            timeout_seconds=1.0,
+            deadline=1.0,
+        )
+
+    assert response.socket.timeouts == [0.25, pytest.approx(0.1)]
+    assert response.chunks == [b"third"]
+
+
 def test_sync_response_reader_stops_after_maximum_plus_one_byte():
     class FakeSocket:
         def __init__(self):
@@ -501,3 +537,81 @@ def test_sync_response_reader_stops_after_maximum_plus_one_byte():
 
     assert result == b"xxxxx"
     assert response.calls == 1
+
+
+
+def test_urllib_open_enforces_absolute_deadline_during_slow_drip_headers():
+    import socket
+    import threading
+    import urllib.request
+
+    from app.providers.http import open_urllib_request_with_deadline
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    host, port = listener.getsockname()
+    response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+
+    def drip_headers():
+        try:
+            connection, _address = listener.accept()
+            with connection:
+                for byte in response:
+                    try:
+                        connection.sendall(bytes((byte,)))
+                    except OSError:
+                        break
+                    time.sleep(0.02)
+        except OSError:
+            pass
+        finally:
+            listener.close()
+
+    server = threading.Thread(target=drip_headers, daemon=True)
+    server.start()
+    deadline = time.monotonic() + 0.15
+    request = urllib.request.Request(f"http://{host}:{port}/")
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="deadline"):
+        open_urllib_request_with_deadline(
+            request,
+            timeout_seconds=1.0,
+            deadline=deadline,
+        )
+    assert time.monotonic() - started < 0.5
+    server.join(timeout=1.0)
+    assert not server.is_alive()
+
+
+
+def test_urllib_connection_setup_returns_at_absolute_deadline(monkeypatch):
+    import http.client
+    import threading
+
+    from app.providers.http import _DeadlineHTTPConnection
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    def stalled_connect(_connection):
+        entered.set()
+        release.wait(timeout=1.0)
+
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", stalled_connect)
+    deadline = time.monotonic() + 0.1
+    connection = _DeadlineHTTPConnection(
+        "provider.example",
+        80,
+        deadline=deadline,
+    )
+    started = time.monotonic()
+    try:
+        with pytest.raises(TimeoutError, match="deadline"):
+            connection.connect()
+        assert entered.is_set()
+        assert time.monotonic() - started < 0.5
+    finally:
+        release.set()
+        connection.close()

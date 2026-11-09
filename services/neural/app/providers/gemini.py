@@ -19,6 +19,7 @@ from app.providers.http import (
     ResponseBodyTooLargeError,
     await_with_deadline,
     create_abort_controller,
+    open_urllib_request_with_deadline,
     read_bounded_response_bytes,
     read_bounded_response_text,
 )
@@ -31,9 +32,15 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _open_gemini_request(request: urllib.request.Request, *, timeout: float):
-    opener = urllib.request.build_opener(_NoRedirectHandler())
-    return opener.open(request, timeout=timeout)
+def _open_gemini_request(
+    request: urllib.request.Request, *, timeout: float, deadline: float
+):
+    return open_urllib_request_with_deadline(
+        request,
+        timeout_seconds=timeout,
+        deadline=deadline,
+        handlers=(_NoRedirectHandler(),),
+    )
 
 
 class GeminiInteractionsAdapter(ProviderAdapter):
@@ -176,9 +183,14 @@ class GeminiInteractionsAdapter(ProviderAdapter):
             method=method,
             headers=headers,
         )
+        operation_timeout = min(timeout_seconds, self._timeout)
+        deadline = time.monotonic() + operation_timeout
         try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Gemini request exceeded its deadline")
             with _open_gemini_request(
-                request, timeout=min(timeout_seconds, self._timeout)
+                request, timeout=remaining, deadline=deadline
             ) as response:
                 if response.status != 200:
                     label = "readiness probe" if readiness else "request"
@@ -187,7 +199,8 @@ class GeminiInteractionsAdapter(ProviderAdapter):
                 raw = read_bounded_response_bytes(
                     response,
                     max_bytes=max_bytes,
-                    timeout_seconds=min(timeout_seconds, self._timeout),
+                    timeout_seconds=operation_timeout,
+                    deadline=deadline,
                 )
         except urllib.error.HTTPError as exc:
             label = "readiness probe" if readiness else "request"

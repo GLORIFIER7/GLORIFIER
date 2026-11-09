@@ -116,10 +116,18 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
 
     authenticated_credentials = []
 
-    async def record_internal_credential(task_request, request, authorization, *, persist):
-        authenticated_credentials.append(authorization)
+    async def record_internal_credential(
+        task_request, request, authorization, *, persist, allow_internal_token=False
+    ):
+        authenticated_credentials.append(
+            {"authorization": authorization, "allow_internal_token": allow_internal_token}
+        )
         return await _process_authenticated_task(
-            task_request, request, authorization, persist=persist
+            task_request,
+            request,
+            authorization,
+            persist=persist,
+            allow_internal_token=allow_internal_token,
         )
 
     monkeypatch.setattr(
@@ -143,7 +151,10 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
     )
 
     assert response.status_code == 200
-    assert authenticated_credentials == [f"Bearer {internal_task_token}"]
+    assert authenticated_credentials == [{
+        "authorization": f"Bearer {internal_task_token}",
+        "allow_internal_token": True,
+    }]
     body = response.json()
     assert body["task_id"] == response.headers["x-request-id"]
     assert body["request_id"] == response.headers["x-request-id"]

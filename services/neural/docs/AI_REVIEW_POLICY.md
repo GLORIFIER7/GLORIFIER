@@ -19,6 +19,8 @@ Human reviews do not substitute for either bot. The policy itself requires no hu
 
 `.github/workflows/ai-review-policy-trusted.yml` is the default-branch status publisher.
 
+When this service is embedded in `GLORIFIER7/GLORIFIER`, the corresponding trusted publisher is `.github/workflows/neural-ai-review-status.yml` at the monorepo root. It runs the same `services/neural/app/ai_review_status.py` implementation from a trusted `main` checkout; the service mirror does not copy repository-specific workflow files. The scheduled publisher remains diagnostic only and must not be configured as a required merge status.
+
 - It runs only from the default branch: on pushes to `main`, on completion of the trusted-base `CI` workflow (`workflow_run`), and on a 15-minute schedule as a fallback.
 - It reads open pull requests and their canonical head SHAs from the GitHub API, then reads formal reviews and review threads.
 - It never checks out or executes pull-request code. It checks out the trusted `main` revision with persisted credentials disabled.

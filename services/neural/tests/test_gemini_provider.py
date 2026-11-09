@@ -39,6 +39,54 @@ class FakeResponse:
         self.body = FakeStream(json.dumps(payload).encode("utf-8"))
 
 
+
+def test_gemini_sync_request_shares_one_deadline_across_open_and_body_read(monkeypatch):
+    import app.providers.gemini as provider_module
+
+    now = [10.0]
+    monkeypatch.setattr(provider_module.time, "monotonic", lambda: now[0])
+    opened = []
+    open_deadlines = []
+    deadlines = []
+
+    class FakeResponse:
+        status = 200
+
+        def __init__(self):
+            self.headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def open_request(_request, *, timeout, deadline):
+        opened.append(timeout)
+        open_deadlines.append(deadline)
+        now[0] += 0.4
+        return FakeResponse()
+
+    def read_response(_response, *, max_bytes, timeout_seconds, deadline=None):
+        deadlines.append(deadline)
+        return b"{}"
+
+    monkeypatch.setattr(provider_module, "_open_gemini_request", open_request)
+    monkeypatch.setattr(provider_module, "read_bounded_response_bytes", read_response)
+    adapter = GeminiInteractionsAdapter(api_key="test-key", model="gemini-3.8-flash")
+    adapter._sync_json_request(
+        "https://provider.example/models",
+        method="GET",
+        body=None,
+        timeout_seconds=1.0,
+        max_bytes=1024,
+        readiness=True,
+    )
+
+    assert opened == [1.0]
+    assert open_deadlines == [11.0]
+    assert deadlines == [11.0]
+
 def test_gemini_adapter_requires_api_key_and_model():
     assert GeminiInteractionsAdapter(api_key="", model="gemini-3.8-flash").is_configured() is False
     assert GeminiInteractionsAdapter(api_key="test-key", model="").is_configured() is False

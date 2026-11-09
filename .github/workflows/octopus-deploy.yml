@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
 
+# The Docker Image workflow is triggered by workflow_run from GLORIFIER CI; its run event is workflow_run, not the earlier CI push.
+
 jobs:
   deploy:
     name: Create release and deploy through Octopus
@@ -188,7 +190,7 @@ jobs:
           task_id="$(jq -er '
             if type == "array" and length == 1 and
               (.[0].serverTaskId |
-                type == "string" and startswith("ServerTasks-") and (.[12:] | length > 0 and (explode | all(.[]; . >= 48 and . <= 57))))
+                type == "string" and test("^ServerTasks-[0-9]+$"))
             then .[0].serverTaskId
             else error("expected exactly one safe Octopus deployment task ID")
             end

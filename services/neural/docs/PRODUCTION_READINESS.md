@@ -53,6 +53,7 @@ Configure the following in Workers & Pages → `glorifier-neural` → Settings �
 ### Required secret
 
 - `GLORIFIER_API_TOKEN`: a high-entropy bearer token used by authenticated `POST /v1/tasks` callers.
+- `GLORIFIER_INTERNAL_SERVICE_TOKEN`: a separate high-entropy credential used only by the internal GLORIFIER-to-NEURAL service-verification path. Keep it distinct from `GLORIFIER_API_TOKEN`; never publish either value.
 
 ### OpenAI (currently selected production provider)
 
@@ -151,7 +152,7 @@ The post-deploy smoke job requires HTTP 200 from `/health` and accepts either (a
 
 ## Rate limiting
 
-The Worker uses the Cloudflare-native `GLORIFIER_RATE_LIMITER` binding with a configured limit of 60 requests per 60-second window, keyed by an HMAC-SHA-256 digest of the bearer token. Cloudflare's native Workers rate-limit counters are approximate and per-location, not a strict global quota. Do not represent this as globally exact enforcement.
+The Worker uses the Cloudflare-native `GLORIFIER_RATE_LIMITER` binding with a configured limit of 60 requests per 60-second window. Its HMAC-SHA-256 key is derived from the bearer token plus the normalized client identity (`CF-Connecting-IP` on Workers, or the client host locally), so separate clients using the same token receive separate buckets. Cloudflare's native Workers rate-limit counters are approximate and per-location, not a strict global quota. Do not represent this as globally exact enforcement.
 
 ## Current production observation — 2026-11-05 (UTC+07:00)
 

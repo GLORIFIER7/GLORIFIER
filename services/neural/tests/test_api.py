@@ -66,22 +66,17 @@ def test_task_endpoint_rejects_invalid_token(monkeypatch):
     assert response.status_code == 401
 
 
-def test_task_endpoint_accepts_internal_service_token_without_replacing_primary_token(monkeypatch):
+def test_task_endpoint_rejects_internal_service_token_and_keeps_primary_token_valid(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
     monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
-    response = client.post(
+    internal = client.post(
         "/v1/tasks",
         headers={"Authorization": "Bearer separate-internal-service-token"},
         json={"task": "internal connectivity diagnostic", "require_approval": True, "action_class": "read_only"},
     )
+    assert internal.status_code == 401
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "NOT VERIFIED"
-    assert body["evidence"] == ["policy:approval-required"]
-
-    # The pre-existing primary credential remains valid after the additive
-    # internal-service credential is configured.
+    # The public endpoint continues to accept only the public API credential.
     primary = client.post(
         "/v1/tasks",
         headers={"Authorization": "Bearer existing-primary-token"},
@@ -91,17 +86,17 @@ def test_task_endpoint_accepts_internal_service_token_without_replacing_primary_
     assert primary.json()["evidence"] == ["policy:approval-required"]
 
 
-def test_worker_scope_internal_service_token_is_read_from_cloudflare_bindings(monkeypatch):
+def test_worker_scope_internal_service_token_cannot_authenticate_public_tasks(monkeypatch):
     monkeypatch.delenv("GLORIFIER_API_TOKEN", raising=False)
     monkeypatch.delenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", raising=False)
     worker_env = {
         "GLORIFIER_API_TOKEN": "worker-primary-token",
         "GLORIFIER_INTERNAL_SERVICE_TOKEN": "worker-internal-service-token",
     }
-    authenticated_credentials = {}
+    authenticated_credentials = []
 
     async def stop_after_authentication(request, credential):
-        authenticated_credentials["credential"] = credential
+        authenticated_credentials.append(credential)
         raise HTTPException(status_code=429, detail="authentication-passed")
 
     monkeypatch.setattr("app.api._enforce_task_rate_limit", stop_after_authentication)
@@ -119,23 +114,34 @@ def test_worker_scope_internal_service_token_is_read_from_cloudflare_bindings(mo
             "env": worker_env,
         }
     )
+    task = TaskRequest(
+        task="Worker binding authentication check",
+        require_approval=True,
+        action_class="read_only",
+    )
 
-    with pytest.raises(HTTPException) as raised:
+    with pytest.raises(HTTPException) as rejected:
         asyncio.run(
             run_task(
-                TaskRequest(
-                    task="Worker binding authentication check",
-                    require_approval=True,
-                    action_class="read_only",
-                ),
+                task,
                 request,
                 authorization="Bearer worker-internal-service-token",
             )
         )
+    assert rejected.value.status_code == 401
+    assert authenticated_credentials == []
 
-    assert raised.value.status_code == 429
-    assert raised.value.detail == "authentication-passed"
-    assert authenticated_credentials["credential"] == "worker-internal-service-token"
+    with pytest.raises(HTTPException) as accepted:
+        asyncio.run(
+            run_task(
+                task,
+                request,
+                authorization="Bearer worker-primary-token",
+            )
+        )
+    assert accepted.value.status_code == 429
+    assert accepted.value.detail == "authentication-passed"
+    assert authenticated_credentials == ["worker-primary-token"]
 
 
 def test_task_endpoint_rejects_incorrect_internal_service_token(monkeypatch):

@@ -1,9 +1,16 @@
+from pathlib import Path
 import re
 
 import pytest
 
 import app.ai_review_status as publisher
 from app.ai_review_status import derive_status, parse_commit_timestamp
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+IS_MONOREPO = (
+    SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+)
 
 
 def test_missing_reviews_remain_pending_before_the_review_deadline():
@@ -395,8 +402,11 @@ def test_publish_status_omits_target_url_when_no_safe_pr_link_exists(monkeypatch
     assert "target_url" not in payloads[0]
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-status workflow is not used by the monorepo",
+)
 def test_trusted_status_schedule_leaves_headroom_for_the_ten_minute_job():
-    from pathlib import Path
 
     service_root = Path(__file__).resolve().parents[1]
     repository_root = (
@@ -444,3 +454,49 @@ def test_missing_committer_and_author_dates_have_an_attributable_error(monkeypat
 
     with pytest.raises(ValueError, match="committer.date and author.date"):
         publisher._commit_age_seconds("example/repo", "token", "a" * 40)
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo scheduled validation workflow contract")
+def test_monorepo_neural_ci_schedules_validation_without_running_review_policy():
+    workflow = (
+        SERVICE_ROOT.parents[1] / ".github" / "workflows" / "neural-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    test_job = re.search(
+        r"(?ms)^  test:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        workflow,
+    )
+    review_job = re.search(
+        r"(?ms)^  ai-review-policy:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        workflow,
+    )
+    assert test_job is not None, "Scheduled NEURAL validation job must exist"
+    assert review_job is not None, "Pull-request review gate must exist"
+
+    assert 'cron: "23 2 * * *"' in workflow
+    assert "if: github.event_name != 'pull_request_review'" in test_job.group(1)
+    assert "github.event_name == 'pull_request'" in review_job.group(1)
+    assert "github.event_name == 'pull_request_review'" in review_job.group(1)
+    assert "github.event_name == 'schedule'" not in review_job.group(1)
+
+
+@pytest.mark.skipif(
+    not IS_MONOREPO,
+    reason="monorepo trusted-status publisher workflow contract",
+)
+def test_monorepo_neural_trusted_status_publisher_is_scheduled_from_main():
+    workflow = (
+        SERVICE_ROOT.parents[1]
+        / ".github"
+        / "workflows"
+        / "neural-ai-review-status.yml"
+    ).read_text(encoding="utf-8")
+
+    # The NEURAL CI cron runs validation only; trusted review diagnostics
+    # are published by a separate default-branch workflow.
+    assert 'cron: "*/15 * * * *"' in workflow
+    assert 'workflows: ["NEURAL Service CI"]' in workflow
+    assert "pull-requests: read" in workflow
+    assert "statuses: write" in workflow
+    assert "ref: main" in workflow
+    assert "run: python -m app.ai_review_status" in workflow

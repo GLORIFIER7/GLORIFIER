@@ -597,6 +597,7 @@ async def _process_authenticated_task(
     authorization: str | None,
     *,
     persist: bool,
+    allow_internal_token: bool = False,
 ) -> TaskResponse:
     """Authenticate and process one task; persistence is explicit at each entrypoint."""
     api_token = _request_environment_value(request, "GLORIFIER_API_TOKEN")
@@ -606,17 +607,22 @@ async def _process_authenticated_task(
             detail="API token is not configured; execution endpoint is disabled",
         )
 
-    # The dedicated internal credential is additive: existing API clients keep
-    # using GLORIFIER_API_TOKEN, while GLORIFIER's Worker authenticates with its
-    # separately managed service token. Byte comparison rejects malformed
+    # The internal service credential is accepted only by the dedicated
+    # Cloudflare-Access-protected verification route. Public task submissions
+    # must use GLORIFIER_API_TOKEN. Byte comparison rejects malformed
     # non-ASCII header values without raising TypeError.
-    internal_service_token = _request_environment_value(
-        request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
-    )
+    candidates = [api_token]
+    if allow_internal_token:
+        internal_service_token = _request_environment_value(
+            request, "GLORIFIER_INTERNAL_SERVICE_TOKEN"
+        )
+        if internal_service_token:
+            candidates.append(internal_service_token)
+
     supplied_authorization = (authorization or "").encode()
     authenticated_token = None
-    for candidate in (api_token, internal_service_token):
-        if candidate and hmac.compare_digest(
+    for candidate in candidates:
+        if hmac.compare_digest(
             supplied_authorization, f"Bearer {candidate}".encode()
         ):
             authenticated_token = candidate
@@ -713,7 +719,11 @@ async def verify_internal_task(request: Request) -> JSONResponse:
         action_class="read_only",
     )
     result = await _process_authenticated_task(
-        probe, request, f"Bearer {internal_service_token}", persist=False
+        probe,
+        request,
+        f"Bearer {internal_service_token}",
+        persist=False,
+        allow_internal_token=True,
     )
     return JSONResponse(
         status_code=200,

@@ -17,6 +17,8 @@ from app.providers.http import (
     ResponseBodyTooLargeError,
     await_with_deadline,
     create_abort_controller,
+    open_urllib_request_with_deadline,
+    read_bounded_response_bytes,
     read_bounded_response_text,
 )
 
@@ -28,9 +30,15 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _open_openai_request(request: urllib.request.Request, *, timeout: float):
-    opener = urllib.request.build_opener(_NoRedirectHandler())
-    return opener.open(request, timeout=timeout)
+def _open_openai_request(
+    request: urllib.request.Request, *, timeout: float, deadline: float
+):
+    return open_urllib_request_with_deadline(
+        request,
+        timeout_seconds=timeout,
+        deadline=deadline,
+        handlers=(_NoRedirectHandler(),),
+    )
 
 
 class OpenAIResponsesAdapter(ProviderAdapter):
@@ -159,13 +167,25 @@ class OpenAIResponsesAdapter(ProviderAdapter):
             method="GET",
             headers=self._request_headers(self._api_key),
         )
+        operation_timeout = min(self._timeout, 5.0)
+        deadline = time.monotonic() + operation_timeout
         try:
-            with _open_openai_request(request, timeout=min(self._timeout, 5.0)) as response:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("OpenAI readiness request exceeded its deadline")
+            with _open_openai_request(
+                request, timeout=remaining, deadline=deadline
+            ) as response:
                 if response.status != 200:
                     raise RuntimeError(
                         f"OpenAI readiness probe failed with HTTP {response.status}"
                     )
-                raw = response.read(self.max_model_response_bytes + 1)
+                raw = read_bounded_response_bytes(
+                    response,
+                    max_bytes=self.max_model_response_bytes,
+                    timeout_seconds=operation_timeout,
+                    deadline=deadline,
+                )
         except urllib.error.HTTPError as exc:
             raise RuntimeError(
                 f"OpenAI readiness probe failed with HTTP {exc.code}"
@@ -195,16 +215,26 @@ class OpenAIResponsesAdapter(ProviderAdapter):
                 "Content-Type": "application/json",
             },
         )
+        operation_timeout = min(timeout_seconds, self._timeout)
+        deadline = time.monotonic() + operation_timeout
         try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("OpenAI request exceeded its deadline")
             with _open_openai_request(
-                request, timeout=min(timeout_seconds, self._timeout)
+                request, timeout=remaining, deadline=deadline
             ) as response:
                 if response.status != 200:
                     raise RuntimeError(
                         f"OpenAI request failed with HTTP {response.status}"
                     )
                 request_id = self._request_id(response)
-                raw = response.read(self.max_response_bytes + 1)
+                raw = read_bounded_response_bytes(
+                    response,
+                    max_bytes=self.max_response_bytes,
+                    timeout_seconds=operation_timeout,
+                    deadline=deadline,
+                )
         except urllib.error.HTTPError as exc:
             raise RuntimeError(f"OpenAI request failed with HTTP {exc.code}") from None
         except (urllib.error.URLError, TimeoutError, OSError):
