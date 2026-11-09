@@ -175,7 +175,7 @@
       "title": "Live GLORIFIER-NEURAL health and readiness",
       "boundary": "Configured HTTPS origin from Worker to Neural service",
       "scope": "live-runtime-probe",
-      "status": "PARTIALLY VERIFIED",
+      "status": "DEGRADED",
       "targetEnvironments": [
         "Staging",
         "Production"
@@ -232,6 +232,7 @@
         }
       ],
       "limitations": [
+        "The capability remains DEGRADED because the defined GLORIFIER Worker-to-NEURAL proxy boundary returned HTTP 404 / Cloudflare error 1042. Direct standalone NEURAL health/readiness probes bypass that boundary and do not verify it.",
         "The standalone /health response reports process liveness only; providers, database, and PyTorch were NOT VERIFIED in that response.",
         "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
         "The GLORIFIER-to-NEURAL public proxy remains degraded until the merged service binding is deployed and proxy health/readiness endpoints are re-probed.",
@@ -1437,7 +1438,6 @@
       "scope": "Swift 5.9+; Foundation URLSession",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "GitHub-hosted macOS 14; Swift toolchain",
         "Swift 5.9+ / macOS 15 ARM64"
       ],
       "evidence": [
@@ -1446,14 +1446,14 @@
           "reference": "sdk/swift/Sources/GlorifierNeural/GlorifierNeuralClient.swift",
           "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
           "observedAt": null,
-          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification."
+          "notes": "Native SDK implementation added to the interoperability PR; exact-head automated CI execution is required before verification. The current CI verification target is macOS 15 ARM64; the earlier macOS 14 label is historical."
         },
         {
           "kind": "automated-test",
           "reference": "sdk/swift/Tests/GlorifierNeuralTests/GlorifierNeuralClientTests.swift",
           "targetEnvironment": "GitHub-hosted macOS 14; Swift toolchain",
           "observedAt": null,
-          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending."
+          "notes": "Language-specific contract tests are included for origin validation, canonical task fields, response handling, and caller credential boundaries where supported; execution evidence is pending. The current CI verification target is macOS 15 ARM64; the earlier macOS 14 label is historical."
         },
         {
           "kind": "ci-run",
@@ -1478,7 +1478,7 @@
         }
       ],
       "limitations": [
-        "Verification is limited to Swift toolchain / macOS 14 and the exact PR #658 head 23d18f5ecfbe2e4a1c788fa6fe8288e657e69e7e.",
+        "Current GitHub Actions verification is limited to Swift 5.9+ on macOS 15 ARM64, exact PR #728 head 319897d4316862f8c73726c6825c1b6ff7270aad. The earlier macOS 14 run is historical and is superseded by this newer runner evidence.",
         "Tests use local or mocked HTTP behavior; no live Neural origin, authenticated production task, or AI provider execution is implied.",
         "No A2A or MCP protocol certification is implied by this HTTP SDK.",
         "No runtime versions, operating systems, architectures, or language SDKs beyond the exact recorded matrix are implied."
