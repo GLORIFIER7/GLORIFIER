@@ -8,6 +8,12 @@
     "GLORIFIER_NEURAL_ORIGIN": "https://glorifier-neural.glorifier.workers.dev",
     "GLORIFIER_NEURAL_ALLOWED_HOSTS": "glorifier-neural.glorifier.workers.dev"
   },
+  "services": [
+    {
+      "binding": "GLORIFIER_NEURAL",
+      "service": "glorifier-neural"
+    }
+  ],
   "secrets": {
     "required": [
       "GLORIFIER_SUPABASE_SERVICE_ROLE_KEY",
