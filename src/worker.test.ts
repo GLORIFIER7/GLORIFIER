@@ -2226,13 +2226,14 @@ const run = async (): Promise<void> => {
 
         upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
         capturedRequest = null;
-        const internalServiceCallerToken = 'test-internal-neural-caller-token';
-        const internalServiceServerToken = 'test-internal-neural-server-token';
+        const internalServiceToken = 'test-internal-neural-server-token';
+        const callerAuthorization = 'Bearer unrelated-caller-credential';
         const neuralTaskWithInternalServiceAuth = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
             method: 'POST',
             headers: {
-              'X-Glorifier-Internal-Token': internalServiceCallerToken,
+              'X-Glorifier-Internal-Token': internalServiceToken,
+              Authorization: callerAuthorization,
               'Content-Type': 'application/json',
             },
             body: '{"task":"internal safe task","require_approval":true,"action_class":"read_only"}',
@@ -2240,19 +2241,19 @@ const run = async (): Promise<void> => {
           {
             ...env,
             GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
-            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceServerToken,
+            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken,
           },
         );
         assert.equal(neuralTaskWithInternalServiceAuth.status, 200);
         assert.equal(
           getCapturedRequest().headers.get('authorization'),
-          `Bearer ${internalServiceServerToken}`,
-          'GLORIFIER must inject its server-held service credential, never forward a caller credential',
+          `Bearer ${internalServiceToken}`,
+          'GLORIFIER must use its configured internal-service credential for NEURAL',
         );
         assert.notEqual(
           getCapturedRequest().headers.get('authorization'),
-          `Bearer ${internalServiceCallerToken}`,
-          'the caller token must never be forwarded to Neural as-is',
+          callerAuthorization,
+          'an unrelated caller Authorization header must never be forwarded upstream',
         );
 
 
