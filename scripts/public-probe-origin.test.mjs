@@ -46,3 +46,19 @@ test('production and monitoring smoke checks use the public Pages origin', () =>
     'parameterized deployment probes must use the public Pages origin');
   assert.doesNotMatch(cloudflareWorkflow, /https:\/\/glorifier\.glorifier\.workers\.dev/);
 });
+
+test('Android native bundle uses the public Pages API origin, not legacy Railway', () => {
+  const androidRelease = read('.github/workflows/android-release.yml');
+  assert.ok(androidRelease.includes('VITE_API_BASE_URL: https://glorifier.pages.dev'),
+    'Android native API requests must target the public Pages front door');
+  assert.ok(!androidRelease.includes('glorifier-artificial-intelligence-production.up.railway.app'),
+    'Android native API requests must not target the retired Railway origin');
+  assert.ok(androidRelease.includes('node --test scripts/public-probe-origin.test.mjs scripts/cloudflare-pages-proxy.test.mjs'),
+    'Android release must run the API-origin and native CORS regression tests before building');
+  const capacitorConfig = read('capacitor.config.ts');
+  assert.ok(capacitorConfig.includes("androidScheme: 'https'"),
+    'Android Capacitor origin must remain explicit for the CORS policy');
+  const pagesProxy = read('functions/_shared/proxy.mjs');
+  assert.ok(pagesProxy.includes("'https://localhost'") && pagesProxy.includes("'capacitor://localhost'"),
+    'Pages proxy must allow only the declared native Capacitor origins');
+});
