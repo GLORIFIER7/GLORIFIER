@@ -104,3 +104,67 @@ test('Pages Functions are invoked only for the explicit backend route allowlist'
     exclude: [],
   });
 });
+
+
+test('adds narrow CORS for Capacitor origins and handles preflight at the Pages boundary', async () => {
+  for (const origin of ['https://localhost', 'capacitor://localhost']) {
+    let workerCalls = 0;
+    const actual = await routePagesRequest({
+      request: new Request('https://glorifier.pages.dev/api/health', {
+        headers: { Origin: origin },
+      }),
+      env: { GLORIFIER_WORKER: { fetch: async () => { workerCalls += 1; return response(); } } },
+      next: async () => new Response('static'),
+    });
+    assert.equal(actual.status, 200);
+    assert.equal(actual.headers.get('access-control-allow-origin'), origin);
+    assert.equal(actual.headers.get('vary'), 'Origin');
+    assert.equal(await actual.text(), 'worker-response');
+
+    const preflight = await routePagesRequest({
+      request: new Request('https://glorifier.pages.dev/api/auth/session', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: origin,
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'authorization,content-type',
+        },
+      }),
+      env: { GLORIFIER_WORKER: { fetch: async () => { workerCalls += 1; return response(); } } },
+      next: async () => new Response('static'),
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+    assert.equal(preflight.headers.get('access-control-allow-methods'), 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS');
+    assert.equal(preflight.headers.get('access-control-allow-headers'), 'Content-Type, Authorization, X-Requested-With');
+    assert.equal(preflight.headers.get('access-control-max-age'), '600');
+    assert.equal(workerCalls, 1, 'preflight must be answered without invoking the Worker');
+  }
+});
+
+test('does not grant CORS to unapproved browser origins', async () => {
+  const origin = 'https://attacker.example';
+  let workerCalls = 0;
+  const preflight = await routePagesRequest({
+    request: new Request('https://glorifier.pages.dev/api/health', {
+      method: 'OPTIONS',
+      headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+    }),
+    env: { GLORIFIER_WORKER: { fetch: async () => { workerCalls += 1; return response(); } } },
+    next: async () => new Response('static'),
+  });
+  assert.equal(preflight.status, 403);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), null);
+  assert.equal(workerCalls, 0);
+
+  const actual = await routePagesRequest({
+    request: new Request('https://glorifier.pages.dev/api/health', {
+      headers: { Origin: origin },
+    }),
+    env: { GLORIFIER_WORKER: { fetch: async () => { workerCalls += 1; return response(); } } },
+    next: async () => new Response('static'),
+  });
+  assert.equal(actual.status, 200);
+  assert.equal(actual.headers.get('access-control-allow-origin'), null);
+  assert.equal(workerCalls, 1);
+});
