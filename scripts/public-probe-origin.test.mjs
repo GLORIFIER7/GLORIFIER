@@ -46,3 +46,11 @@ test('production and monitoring smoke checks use the public Pages origin', () =>
     'parameterized deployment probes must use the public Pages origin');
   assert.doesNotMatch(cloudflareWorkflow, /https:\/\/glorifier\.glorifier\.workers\.dev/);
 });
+
+test('Android native bundle uses the public Pages API origin, not legacy Railway', () => {
+  const androidRelease = read('.github/workflows/android-release.yml');
+  assert.match(androidRelease, /VITE_API_BASE_URL:\\s*https:\\/\\/glorifier\\.pages\\.dev/);
+  assert.doesNotMatch(androidRelease, /glorifier-artificial-intelligence-production\\.up\\.railway\\.app/);
+  assert.ok(androidRelease.includes('node --test scripts/public-probe-origin.test.mjs'),
+    'Android release must run the API-origin regression test before building');
+});
