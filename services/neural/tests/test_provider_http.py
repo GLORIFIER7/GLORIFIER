@@ -3,7 +3,14 @@ import time
 
 import pytest
 
-from app.providers.http import ResponseBodyTooLargeError, await_with_deadline, read_bounded_response_text
+from types import SimpleNamespace
+
+from app.providers.http import (
+    ResponseBodyTooLargeError,
+    await_with_deadline,
+    read_bounded_response_text,
+    read_bounded_response_bytes,
+)
 
 
 class FakeReadResult:
@@ -433,3 +440,64 @@ def test_reader_lock_release_is_deferred_until_cancelled_read_settles():
     assert elapsed < 0.10
     assert released_before_read_settled == 0
     assert response.body_reader.release_calls == 1
+
+
+
+def test_sync_response_reader_uses_a_decreasing_absolute_socket_deadline(monkeypatch):
+    import app.providers.http as provider_http
+
+    readings = iter((0.0, 0.0, 0.6, 1.2))
+
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(
+                raw=SimpleNamespace(_sock=self.socket)
+            )
+            self.chunks = [b"first", b"second", b"third"]
+
+        def read1(self, limit):
+            return self.chunks.pop(0)[:limit]
+
+    monkeypatch.setattr(provider_http.time, "monotonic", lambda: next(readings))
+    response = FakeResponse()
+
+    with pytest.raises(TimeoutError, match="deadline"):
+        read_bounded_response_bytes(response, max_bytes=64, timeout_seconds=1.0)
+
+    assert response.socket.timeouts == [1.0, 0.4]
+    assert response.chunks == [b"third"]
+
+
+def test_sync_response_reader_stops_after_maximum_plus_one_byte():
+    class FakeSocket:
+        def __init__(self):
+            self.timeouts = []
+
+        def settimeout(self, timeout):
+            self.timeouts.append(timeout)
+
+    class FakeResponse:
+        def __init__(self):
+            self.socket = FakeSocket()
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self.socket))
+            self.calls = 0
+
+        def read1(self, limit):
+            self.calls += 1
+            return b"x" * limit
+
+    response = FakeResponse()
+    result = read_bounded_response_bytes(
+        response, max_bytes=4, timeout_seconds=1.0
+    )
+
+    assert result == b"xxxxx"
+    assert response.calls == 1
