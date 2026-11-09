@@ -1299,6 +1299,41 @@ const run = async (): Promise<void> => {
         assert.equal(invalidHealthMethod.headers.get('allow'), 'GET, HEAD');
         assert.equal(capturedRequest, null, 'unsupported health methods must not fall through to an upstream backend');
 
+        // Worker readiness must use the Worker-native Neon probe, not require the retired backend proxy.
+        // Without a Hyperdrive binding it must fail closed with an explicit dependency reason.
+        const readinessAssetCallsBefore = assetCalls;
+        capturedRequest = null;
+        const readinessWithoutDatabase = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/health/ready'),
+          { ...env, GLORIFIER_DATABASE_PROVIDER: 'neon', HYPERDRIVE: undefined },
+        );
+        assert.equal(readinessWithoutDatabase.status, 503);
+        const readinessWithoutDatabaseBody = await readinessWithoutDatabase.json() as {
+          ok: boolean;
+          status: string;
+          checks?: { database?: { ok?: boolean; status?: string; code?: string } };
+        };
+        assert.equal(readinessWithoutDatabaseBody.ok, false);
+        assert.equal(readinessWithoutDatabaseBody.status, 'degraded');
+        assert.equal(readinessWithoutDatabaseBody.checks?.database?.code, 'NEON_HYPERDRIVE_NOT_CONFIGURED');
+        assert.equal(capturedRequest, null, 'Worker readiness must not proxy to the legacy backend');
+        assert.equal(assetCalls, readinessAssetCallsBefore, 'Worker readiness must not fall through to static assets');
+
+        const readinessHead = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/health/ready', { method: 'HEAD' }),
+          { ...env, GLORIFIER_DATABASE_PROVIDER: 'neon', HYPERDRIVE: undefined },
+        );
+        assert.equal(readinessHead.status, 503);
+        assert.equal(await readinessHead.text(), '');
+
+        const readinessPost = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/health/ready', { method: 'POST' }),
+          { ...env, GLORIFIER_DATABASE_PROVIDER: 'neon', HYPERDRIVE: undefined },
+        );
+        assert.equal(readinessPost.status, 405);
+        assert.equal(readinessPost.headers.get('allow'), 'GET, HEAD');
+        assert.equal(capturedRequest, null, 'unsupported readiness methods must not proxy to the legacy backend');
+
         const buildInfoUnavailable = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/build-info'),
           env,

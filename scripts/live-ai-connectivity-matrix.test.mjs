@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { evaluateLiveAiEnvironment, verifyLiveAiEnvironment } from "./verify-live-ai-probe-environment.mjs";
 import { isValidMcpToolResult, normalizeHttpsOrigin, parseModelIds, probeA2A, probeProvider } from "./live-ai-connectivity-matrix.mjs";
 
 test("normalizes the single approved GLORIFIER Pages origin", () => {
@@ -67,8 +68,14 @@ test("secret-bearing live probe is gated to main and a protected environment", (
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /vars\.LIVE_AI_PROBE_ENABLED == 'true'/);
   assert.match(workflow, /repository-level release switch/);
-  assert.match(workflow, /independent human-approval gate/);
+  assert.match(workflow, /preflight proves the configured reviewer and main-only rules/);
+  assert.doesNotMatch(workflow, /environment adds an independent human-approval gate/);
   assert.match(workflow, /environment:\s*live-ai-probe/);
+  assert.match(workflow, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/,
+    "secret-bearing probes must check out the exact workflow-dispatch SHA");
+  assert.match(workflow, /preflight:/);
+  assert.match(workflow, /needs:\s*preflight/);
+  assert.match(workflow, /verify-live-ai-probe-environment\.mjs/);
   assert.match(workflow, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
 });
 
@@ -111,4 +118,91 @@ test("metered inference stores only a response digest", async () => {
     assert.equal(calls.length, 2);
     assert.equal(calls[1].method, "POST");
   } finally { globalThis.fetch = original; }
+});
+
+
+test("live AI environment preflight requires explicit independent protection", () => {
+  const validEnvironment = {
+    name: "live-ai-probe",
+    can_admins_bypass: false,
+    protection_rules: [{
+      type: "required_reviewers",
+      prevent_self_review: true,
+      reviewers: [{ type: "User", reviewer: { id: 123 } }],
+    }],
+    deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+  };
+  const validPolicies = { total_count: 1, branch_policies: [{ id: 1, name: "main" }] };
+  const valid = evaluateLiveAiEnvironment(validEnvironment, validPolicies);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.reviewerCount, 1);
+  assert.deepEqual(valid.branchAllowlist, ["main"]);
+
+  assert.equal(evaluateLiveAiEnvironment(null, validPolicies).ok, false,
+    "missing environments must fail closed instead of being auto-created");
+  assert.equal(evaluateLiveAiEnvironment({
+    ...validEnvironment,
+    protection_rules: [],
+  }, validPolicies).ok, false, "a reviewer gate is mandatory");
+  assert.equal(evaluateLiveAiEnvironment({
+    ...validEnvironment,
+    protection_rules: [{ ...validEnvironment.protection_rules[0], reviewers: [] }],
+  }, validPolicies).ok, false, "at least one independent reviewer is mandatory");
+  assert.equal(evaluateLiveAiEnvironment({
+    ...validEnvironment,
+    protection_rules: [{ ...validEnvironment.protection_rules[0], prevent_self_review: false }],
+  }, validPolicies).ok, false, "the requester must not approve their own run");
+  assert.equal(evaluateLiveAiEnvironment({
+    ...validEnvironment,
+    can_admins_bypass: true,
+  }, validPolicies).ok, false, "administrators must not bypass the environment reviewer gate");
+  assert.equal(evaluateLiveAiEnvironment({
+    ...validEnvironment,
+    deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
+  }, validPolicies).ok, false, "the policy must explicitly restrict deployment branches");
+  assert.equal(evaluateLiveAiEnvironment(validEnvironment, {
+    total_count: 2,
+    branch_policies: [{ id: 1, name: "main" }, { id: 2, name: "release/*" }],
+  }).ok, false, "only main may deploy to the live probe environment");
+  assert.equal(evaluateLiveAiEnvironment(validEnvironment, {
+    total_count: 101,
+    branch_policies: [{ id: 1, name: "main" }],
+  }).ok, false, "an incomplete paginated branch-policy response must fail closed");
+});
+test("live AI environment preflight encodes owner and repository path segments", async () => {
+  const original = globalThis.fetch;
+  const requests = [];
+  const validEnvironment = {
+    name: "live-ai-probe",
+    can_admins_bypass: false,
+    protection_rules: [{
+      type: "required_reviewers",
+      prevent_self_review: true,
+      reviewers: [{ type: "User", reviewer: { id: 123 } }],
+    }],
+    deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+  };
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    requests.push(parsed.pathname);
+    const payload = parsed.pathname.endsWith("/deployment-branch-policies")
+      ? { total_count: 1, branch_policies: [{ id: 1, name: "main" }] }
+      : validEnvironment;
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const result = await verifyLiveAiEnvironment({
+      token: "test-token",
+      repository: "owner#unsafe/repo?name",
+      apiUrl: "https://api.github.com",
+    });
+    assert.equal(result.ok, true);
+    assert.ok(requests.includes("/repos/owner%23unsafe/repo%3Fname/environments/live-ai-probe"));
+    assert.ok(requests.includes("/repos/owner%23unsafe/repo%3Fname/environments/live-ai-probe/deployment-branch-policies"));
+  } finally {
+    globalThis.fetch = original;
+  }
 });

@@ -1238,6 +1238,13 @@ export default {
       return healthResponse(request.method, env);
     }
 
+    // Readiness is Worker-native: probe only the configured authoritative database
+    // and report unprobed dependencies explicitly. Never require or implicitly proxy
+    // to the retired legacy backend for this endpoint.
+    if (incomingUrl.pathname === '/api/health/ready') {
+      return runtimeVerificationResponse(request, env);
+    }
+
     // Integration and data-truth read models are Worker-native. They expose
     // configuration metadata only; credentials are never serialized and
     // configuration is never promoted to verified status.

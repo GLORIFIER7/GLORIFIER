@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/live-ai-connectivity-matrix.mjs'
       - 'scripts/live-ai-connectivity-matrix.test.mjs'
+      - 'scripts/verify-live-ai-probe-environment.mjs'
       - '.github/workflows/live-ai-connectivity.yml'
   workflow_dispatch:
     inputs:
@@ -41,11 +42,35 @@ jobs:
       - name: Test connectivity evidence and safety contracts
         run: node --test scripts/live-ai-connectivity-matrix.test.mjs
 
+  preflight:
+    # An environment reference alone does not prove that protection rules exist.
+    # Verify the existing owner-configured gate before any secret-bearing job can start.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify live AI environment protection before secrets are available
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: node scripts/verify-live-ai-probe-environment.mjs
+
   live-probe:
     # LIVE_AI_PROBE_ENABLED is a repository-level release switch, not an environment variable.
-    # The environment adds an independent human-approval gate before the job starts.
-    # Configure required reviewers and main-only deployment policy before enabling the repository switch.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true'
+    # The preflight proves the configured reviewer and main-only rules; GitHub then enforces environment approval.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.LIVE_AI_PROBE_ENABLED == 'true' && needs.preflight.result == 'success'
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: live-ai-probe
