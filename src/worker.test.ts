@@ -2226,12 +2226,13 @@ const run = async (): Promise<void> => {
 
         upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
         capturedRequest = null;
-        const internalServiceToken = 'test-internal-neural-service-token';
+        const internalServiceCallerToken = 'test-internal-neural-caller-token';
+        const internalServiceServerToken = 'test-internal-neural-server-token';
         const neuralTaskWithInternalServiceAuth = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
             method: 'POST',
             headers: {
-              'X-Glorifier-Internal-Token': internalServiceToken,
+              'X-Glorifier-Internal-Token': internalServiceCallerToken,
               'Content-Type': 'application/json',
             },
             body: '{"task":"internal safe task","require_approval":true,"action_class":"read_only"}',
@@ -2239,14 +2240,19 @@ const run = async (): Promise<void> => {
           {
             ...env,
             GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
-            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceToken,
+            GLORIFIER_INTERNAL_SERVICE_TOKEN: internalServiceServerToken,
           },
         );
         assert.equal(neuralTaskWithInternalServiceAuth.status, 200);
         assert.equal(
           getCapturedRequest().headers.get('authorization'),
-          `Bearer ${internalServiceToken}`,
+          `Bearer ${internalServiceServerToken}`,
           'GLORIFIER must inject its server-held service credential, never forward a caller credential',
+        );
+        assert.notEqual(
+          getCapturedRequest().headers.get('authorization'),
+          `Bearer ${internalServiceCallerToken}`,
+          'the caller token must never be forwarded to Neural as-is',
         );
 
 
