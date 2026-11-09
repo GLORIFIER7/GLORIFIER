@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 import app.ai_review_status as publisher
@@ -406,7 +408,14 @@ def test_trusted_status_schedule_leaves_headroom_for_the_ten_minute_job():
     if root_workflow.is_file():
         workflow = root_workflow.read_text(encoding="utf-8")
         assert 'cron: "23 2 * * *"' in workflow
-        assert "timeout-minutes: 30" in workflow
+        scheduled_test_job = re.search(
+            r"(?ms)^  test:\\n(.*?)(?=^  [a-z0-9_-]+:\\n|\\Z)",
+            workflow,
+        )
+        assert scheduled_test_job, "The scheduled NEURAL test job must exist"
+        job = scheduled_test_job.group(1)
+        assert "if: github.event_name != 'pull_request_review'" in job
+        assert "timeout-minutes: 15" in job
     else:
         standalone_workflow = (
             service_root / ".github" / "workflows" / "ai-review-policy-trusted.yml"
