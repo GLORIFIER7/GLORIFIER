@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Fail-closed path policy for autonomous NEURAL maintenance changes."""
 
 from __future__ import annotations
