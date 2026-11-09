@@ -2,7 +2,7 @@ name: GLORIFIER Governed AI Coding Fleet
 
 on:
   schedule:
-    # Every four hours; the Asia/Vientiane gate prevents model calls and publication before 08:31.
+    # Every four hours; the Asia/Vientiane gate limits PR publication to 08:31 onward.
     - cron: "17 */4 * * *"
   workflow_dispatch:
 
@@ -22,6 +22,7 @@ jobs:
     outputs:
       changed: ${{ steps.package.outputs.changed }}
       authorized: ${{ steps.authorization.outputs.enabled }}
+      publication_allowed: ${{ steps.time_window.outputs.allowed }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -56,17 +57,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"
-          if [[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]; then
-            echo "::error::The Asia/Vientiane clock did not return HHMM digits."
-            exit 1
-          fi
-          current_hhmm_decimal=$((10#$current_hhmm))
-          if (( current_hhmm_decimal < 831 )); then
+          if ! current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"; then
             echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::AI maintenance is held until 08:31 Asia/Vientiane."
+            echo "::warning::Asia/Vientiane clock is unavailable; PR publication remains blocked."
+          elif [[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::The Asia/Vientiane clock did not return HHMM digits; PR publication remains blocked."
           else
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            current_hhmm_decimal=$((10#$current_hhmm))
+            if (( current_hhmm_decimal < 831 )); then
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::PR publication is held until 08:31 Asia/Vientiane."
+            else
+              echo "allowed=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Verify Laos time-window boundaries
@@ -84,7 +88,7 @@ jobs:
 
       - name: Check OpenAI credential availability
         id: provider
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         shell: bash
@@ -96,7 +100,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -104,12 +108,12 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install locked validation dependencies
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex without GitHub write permissions
         id: codex
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.time_window.outputs.allowed == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # pinned action revision
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -129,7 +133,7 @@ jobs:
 
       - name: Stage AI-generated changes for review
         id: stage
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' && steps.time_window.outputs.allowed == 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -211,14 +215,14 @@ jobs:
 
       - name: Report that the Laos publication window is closed
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed != 'true' }}
-        run: echo "::notice::No model was invoked and no PR was created because it is before 08:31 Asia/Vientiane."
+        run: echo "::notice::PR publication is held until 08:31 Asia/Vientiane; maintenance analysis and validation are not blocked by this gate."
 
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
         run: echo "::notice::No AI model was invoked. Set AI_MAINTENANCE_AUTORUN=true to authorize recurring and manual maintenance."
 
       - name: Report missing API key
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed == 'true' && steps.provider.outputs.configured != 'true' }}
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured != 'true' }}
         run: echo "::warning::OPENAI_API_KEY is not configured. AI maintenance did not run."
 
       - name: Report Codex capacity limitation
@@ -227,7 +231,7 @@ jobs:
 
   publish-proposal:
     needs: coding-fleet
-    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' }}
+    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' && needs.coding-fleet.outputs.publication_allowed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
