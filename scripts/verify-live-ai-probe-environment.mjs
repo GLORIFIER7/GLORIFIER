@@ -71,10 +71,12 @@ export const verifyLiveAiEnvironment = async ({ token, repository, apiUrl = "htt
   }
 
   const base = apiUrl.replace(/\/+$/, "");
+  const [owner, repoName] = repository.split("/");
+  const encodedRepository = `${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`;
   const encodedEnvironment = encodeURIComponent(REQUIRED_ENVIRONMENT);
   const [environment, branchPolicyResponse] = await Promise.all([
-    readGitHubJson(new URL(`${base}/repos/${repository}/environments/${encodedEnvironment}`), token),
-    readGitHubJson(new URL(`${base}/repos/${repository}/environments/${encodedEnvironment}/deployment-branch-policies?per_page=100&page=1`), token),
+    readGitHubJson(new URL(`${base}/repos/${encodedRepository}/environments/${encodedEnvironment}`), token),
+    readGitHubJson(new URL(`${base}/repos/${encodedRepository}/environments/${encodedEnvironment}/deployment-branch-policies?per_page=100&page=1`), token),
   ]);
 
   const result = evaluateLiveAiEnvironment(environment, branchPolicyResponse);
