@@ -2,7 +2,7 @@ const WORKER_PATH_PREFIXES = ['/api', '/auth'];
 const WORKER_EXACT_PATHS = new Set(['/mcp', '/.well-known/agent-card.json']);
 const NATIVE_APP_ORIGINS = new Set(['https://localhost', 'capacitor://localhost']);
 const NATIVE_CORS_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS';
-const NATIVE_CORS_HEADERS = 'Content-Type, Authorization, X-Requested-With';
+const NATIVE_CORS_HEADERS = 'Content-Type, Authorization, X-Requested-With, A2A-Version';
 
 const corsHeadersFor = (origin) => new Headers({
   'Access-Control-Allow-Origin': origin,
