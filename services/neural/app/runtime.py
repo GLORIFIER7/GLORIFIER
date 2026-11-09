@@ -17,6 +17,7 @@ from app.providers.dynamo import NvidiaDynamoAdapter
 from app.providers.gemini import GeminiInteractionsAdapter
 from app.providers.openai import OpenAIResponsesAdapter
 from app.providers.registry import ProviderRegistry
+from app.providers.vllm import VllmAdapter
 
 
 def _environment_value(environment: Any, name: str, default: str = "") -> str:
@@ -96,6 +97,18 @@ def build_orchestrator_from_environment(
         adapter = AnthropicMessagesAdapter(
             api_key=_environment_value(environment, "ANTHROPIC_API_KEY"),
             model=_environment_value(environment, "ANTHROPIC_MODEL"),
+            fetch_fn=fetch_fn,
+        )
+        if adapter.is_configured():
+            registry.register(adapter)
+    elif external_egress_allowed and provider_name == VllmAdapter.name:
+        adapter = VllmAdapter(
+            base_url=_environment_value(environment, "GLORIFIER_VLLM_BASE_URL"),
+            allowed_origin=_environment_value(
+                environment, "GLORIFIER_VLLM_ALLOWED_ORIGIN"
+            ),
+            api_key=_environment_value(environment, "GLORIFIER_VLLM_API_KEY"),
+            model=_environment_value(environment, "GLORIFIER_VLLM_MODEL"),
             fetch_fn=fetch_fn,
         )
         if adapter.is_configured():
