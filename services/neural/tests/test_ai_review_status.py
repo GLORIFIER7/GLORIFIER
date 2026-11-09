@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 
@@ -446,11 +447,11 @@ def test_monorepo_neural_ci_schedules_validation_without_running_review_policy()
     ).read_text(encoding="utf-8")
 
     test_job = re.search(
-        r"(?ms)^  test:\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        r"(?ms)^  test:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         workflow,
     )
     review_job = re.search(
-        r"(?ms)^  ai-review-policy:\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        r"(?ms)^  ai-review-policy:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         workflow,
     )
     assert test_job is not None, "Scheduled NEURAL validation job must exist"
