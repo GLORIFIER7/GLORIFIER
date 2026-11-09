@@ -2225,6 +2225,24 @@ const run = async (): Promise<void> => {
         assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
 
         upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+        const legacyCallerAuthorization = 'Bearer existing-neural-api-token';
+        capturedRequest = null;
+        const neuralTaskWithLegacyApiToken = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+            method: 'POST',
+            headers: { Authorization: legacyCallerAuthorization, 'Content-Type': 'application/json' },
+            body: '{"task":"legacy SDK task","require_approval":true,"action_class":"read_only"}',
+          }),
+          {
+            ...env,
+            GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
+            GLORIFIER_INTERNAL_SERVICE_TOKEN: undefined,
+          },
+        );
+        assert.equal(neuralTaskWithLegacyApiToken.status, 200, 'existing bearer-authenticated SDK callers must remain supported');
+        assert.equal(getCapturedRequest().headers.get('authorization'), legacyCallerAuthorization, 'legacy caller bearer must be forwarded for NEURAL to validate against GLORIFIER_API_TOKEN');
+        assert.equal(getCapturedRequest().headers.get('x-glorifier-internal-token'), null, 'legacy caller credentials must not be converted into the internal-service header');
         capturedRequest = null;
         const internalServiceToken = 'test-internal-neural-server-token';
         const callerAuthorization = 'Bearer unrelated-caller-credential';
