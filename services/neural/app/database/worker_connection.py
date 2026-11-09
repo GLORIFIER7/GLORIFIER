@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import ssl
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 
 def connect_worker_database(pg8000, database_url: str, hyperdrive, timeout: float):
@@ -18,9 +18,11 @@ def connect_worker_database(pg8000, database_url: str, hyperdrive, timeout: floa
             timeout=timeout,
         )
     parsed = urlparse(database_url)
+    username = unquote(parsed.username) if parsed.username is not None else None
+    password = unquote(parsed.password) if parsed.password is not None else None
     return pg8000.connect(
-        user=parsed.username,
-        password=parsed.password,
+        user=username,
+        password=password,
         host=parsed.hostname,
         port=parsed.port or 5432,
         database=parsed.path.lstrip("/"),
