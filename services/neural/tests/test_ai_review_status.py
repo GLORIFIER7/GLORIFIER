@@ -1,7 +1,14 @@
 import pytest
+from pathlib import Path
 
 import app.ai_review_status as publisher
 from app.ai_review_status import derive_status, parse_commit_timestamp
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+IS_MONOREPO = (
+    SERVICE_ROOT.parent.name == "services" and SERVICE_ROOT.name == "neural"
+)
 
 
 def test_missing_reviews_remain_pending_before_the_review_deadline():
@@ -393,8 +400,11 @@ def test_publish_status_omits_target_url_when_no_safe_pr_link_exists(monkeypatch
     assert "target_url" not in payloads[0]
 
 
+@pytest.mark.skipif(
+    IS_MONOREPO,
+    reason="standalone trusted-status workflow is not used by the monorepo",
+)
 def test_trusted_status_schedule_leaves_headroom_for_the_ten_minute_job():
-    from pathlib import Path
 
     workflow = (
         Path(__file__).resolve().parents[1]
@@ -426,3 +436,15 @@ def test_missing_committer_and_author_dates_have_an_attributable_error(monkeypat
 
     with pytest.raises(ValueError, match="committer.date and author.date"):
         publisher._commit_age_seconds("example/repo", "token", "a" * 40)
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo trusted-review workflow contract")
+def test_monorepo_neural_ci_owns_the_trusted_review_schedule():
+    workflow = (
+        SERVICE_ROOT.parents[1] / ".github" / "workflows" / "neural-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'cron: "23 2 * * *"' in workflow
+    assert "pull_request_review:" in workflow
+    assert "  ai-review-policy:" in workflow
+    assert "timeout-minutes: 30" in workflow
