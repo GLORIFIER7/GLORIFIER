@@ -44,7 +44,10 @@ def test_cloudflare_worker_secret_authenticates_task_endpoint(monkeypatch):
 
     accepted = TestClient(CloudflareEnvironment(app, worker_token)).post(
         "/v1/tasks",
-        headers={"Authorization": f"Bearer {worker_token}"},
+        headers={
+            "Authorization": f"Bearer {worker_token}",
+            "CF-Connecting-IP": "198.51.100.27",
+        },
         json={"task": "safe read-only task", "require_approval": False},
     )
 
@@ -88,6 +91,7 @@ def test_cloudflare_environment_reads_mapping_style_bindings():
 def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(monkeypatch):
     """A narrowly scoped internal probe exercises task auth without persisting or inferring."""
     worker_token = secrets.token_urlsafe(32)
+    internal_task_token = secrets.token_urlsafe(32)
     client_id = "service-client-id"
     client_secret = secrets.token_urlsafe(32)
 
@@ -100,6 +104,7 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
             if scope["type"] == "http":
                 scope["env"] = SimpleNamespace(
                     GLORIFIER_API_TOKEN=worker_token,
+                    GLORIFIER_INTERNAL_SERVICE_TOKEN=internal_task_token,
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_ID=client_id,
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET=client_secret,
                     GLORIFIER_RATE_LIMITER=AllowRateLimitBinding(),
@@ -107,6 +112,19 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
             await app(scope, receive, send)
 
     monkeypatch.delenv("GLORIFIER_AUDIT_ENABLED", raising=False)
+    from app.api import _process_authenticated_task
+
+    authenticated_credentials = []
+
+    async def record_internal_credential(task_request, request, authorization, *, persist):
+        authenticated_credentials.append(authorization)
+        return await _process_authenticated_task(
+            task_request, request, authorization, persist=persist
+        )
+
+    monkeypatch.setattr(
+        "app.api._process_authenticated_task", record_internal_credential
+    )
 
     def _must_not_persist(*_args):
         raise AssertionError("diagnostic must not write persistence")
@@ -125,6 +143,7 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
     )
 
     assert response.status_code == 200
+    assert authenticated_credentials == [f"Bearer {internal_task_token}"]
     body = response.json()
     assert body["task_id"] == response.headers["x-request-id"]
     assert body["request_id"] == response.headers["x-request-id"]
@@ -170,6 +189,32 @@ def test_internal_task_verification_rejects_missing_or_invalid_service_identity(
 
     assert missing.status_code == 401
     assert invalid.status_code == 401
+
+
+def test_internal_task_verification_rejects_missing_internal_task_token():
+    client_id = "service-client-id"
+    client_secret = secrets.token_urlsafe(32)
+
+    class CloudflareEnvironment:
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            if scope["type"] == "http":
+                scope["env"] = SimpleNamespace(
+                    GLORIFIER_API_TOKEN=secrets.token_urlsafe(32),
+                    GLORIFIER_INTERNAL_SERVICE_CLIENT_ID=client_id,
+                    GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET=client_secret,
+                )
+            await app(scope, receive, send)
+
+    response = TestClient(CloudflareEnvironment()).post(
+        "/__internal/verify-task",
+        headers={
+            "CF-Access-Client-Id": client_id,
+            "CF-Access-Client-Secret": client_secret,
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Internal task credential is not configured"
 
 
 def test_internal_task_verification_fails_closed_without_worker_bindings():
