@@ -3,7 +3,8 @@ import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const MCP_VERSION = "2026-07-28";
-const DEFAULT_ORIGIN = "https://glorifier.glorifier.workers.dev";
+const DEFAULT_ORIGIN = "https://glorifier.pages.dev";
+const APPROVED_PUBLIC_ORIGINS = new Set([DEFAULT_ORIGIN]);
 const TIMEOUT_MS = 15000;
 const MAX_BYTES = 1000000;
 const PROBE = "GLORIFIER live provider connectivity probe. Reply with a short confirmation.";
@@ -18,6 +19,9 @@ export function normalizeHttpsOrigin(value) {
   const url = new URL(String(value || ""));
   if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Expected a clean public HTTPS origin.");
+  }
+  if (!APPROVED_PUBLIC_ORIGINS.has(url.origin)) {
+    throw new Error("Origin is not approved for authenticated GLORIFIER probes.");
   }
   return url.origin;
 }
@@ -222,6 +226,19 @@ function mcpMeta() {
   };
 }
 
+export function isValidMcpToolResult(payload) {
+  const result = payload?.result;
+  return Boolean(
+    result
+      && typeof result === "object"
+      && !Array.isArray(result)
+      && result.isError !== true
+      && Array.isArray(result.content)
+      && result.content.length > 0
+      && result.content.every((item) => item && typeof item === "object" && typeof item.type === "string"),
+  );
+}
+
 async function probeMcp(origin) {
   const endpoint = origin + "/mcp";
   const call = async (method, id, params, tool) => requestJson(endpoint, {
@@ -240,14 +257,14 @@ async function probeMcp(origin) {
   const read = await call("tools/call", "live-repository-read", {
     name: "github_get_repository", arguments: {},
   }, "github_get_repository");
-  if (!read.ok || read.payload?.error || read.payload?.result?.isError === true) {
-    return { status: "PARTIALLY_VERIFIED", stage: "tools-call", httpStatus: read.status };
+  if (!read.ok || read.payload?.error || !isValidMcpToolResult(read.payload)) {
+    return { status: "PARTIALLY_VERIFIED", stage: "tools-call", httpStatus: read.status, reason: "MCP_TOOL_RESULT_INVALID" };
   }
   return { status: "VERIFIED", stage: "discover-tools-list-read-only-call", toolCount: tools.length,
     readOnlyRepositoryCall: true, latencyMs: discovery.latencyMs + listing.latencyMs + read.latencyMs };
 }
 
-async function probeA2A(origin, token) {
+export async function probeA2A(origin, token) {
   if (!token) return { status: "NOT_CONFIGURED", reason: "A live owner/internal-service bearer token is absent." };
   const card = await requestJson(origin + "/.well-known/agent-card.json");
   if (!card.ok || !Array.isArray(card.payload?.supportedInterfaces)) {
@@ -255,7 +272,7 @@ async function probeA2A(origin, token) {
   }
   const rpc = await requestJson(origin + "/api/a2a/v1", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    headers: { "Content-Type": "application/json", "A2A-Version": "1.0", Authorization: "Bearer " + token },
     body: JSON.stringify({ jsonrpc: "2.0", id: "live-list-tasks", method: "ListTasks", params: { pageSize: 1 } }),
   });
   if (!rpc.ok || rpc.payload?.error || !rpc.payload?.result) {
@@ -319,7 +336,7 @@ export async function buildConnectivityMatrix(env = process.env) {
   let origin;
   try { origin = normalizeHttpsOrigin(env.GLORIFIER_PUBLIC_BASE_URL || DEFAULT_ORIGIN); }
   catch { return { schemaVersion: "1.0.0", observedAt: new Date().toISOString(), overallStatus: "BLOCKED",
-    error: "Invalid public HTTPS origin.", checks: [] }; }
+    error: "Invalid or unapproved public HTTPS origin.", checks: [] }; }
   const allowMetered = env.ALLOW_METERED_PROBES === "true";
   const token = (env.GLORIFIER_LIVE_PROBE_BEARER_TOKEN || "").trim();
   const providers = await Promise.all(PROVIDERS.map((p) => probeProvider(p, env, allowMetered)));
