@@ -13,3 +13,6 @@ The standalone NEURAL repository remains the authoritative source for shared NEU
 Repository-specific GitHub Actions workflows remain in the GLORIFIER root and are intentionally excluded from the mirror. Tests that assert standalone-only workflow contracts are adapted to the actual GLORIFIER root workflows. Monorepo-only extensions remain in place: in particular, the governed vLLM adapter and its registration are GLORIFIER-specific and are not removed by the NEURAL source synchronizer.
 
 Synchronization changes are submitted as reviewed pull requests. No automatic merge, branch-protection bypass, or production deployment is permitted.
+
+
+Source-to-mirror reconciliation at the recorded source head: the changed NEURAL README, shared application modules, migration, production-readiness document, and shared regression tests are blob-identical. The monorepo retains a local extension in `tests/test_migration_contracts.py` that documents the fixed 720-hour retention boundary across daylight-saving transitions; this extension preserves the upstream migration assertions.
