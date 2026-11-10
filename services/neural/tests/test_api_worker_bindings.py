@@ -104,7 +104,7 @@ def test_internal_task_verification_uses_worker_secret_and_never_runs_inference(
             if scope["type"] == "http":
                 scope["env"] = SimpleNamespace(
                     GLORIFIER_API_TOKEN=worker_token,
-                    GLORIFIER_INTERNAL_SERVICE_TOKEN=internal_task_token,
+                    NEURAL_INTERNAL_DIAGNOSTIC_TOKEN=internal_task_token,
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_ID=client_id,
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET=client_secret,
                     GLORIFIER_RATE_LIMITER=AllowRateLimitBinding(),
@@ -211,6 +211,7 @@ def test_internal_task_verification_rejects_missing_internal_task_token():
             if scope["type"] == "http":
                 scope["env"] = SimpleNamespace(
                     GLORIFIER_API_TOKEN=secrets.token_urlsafe(32),
+                    GLORIFIER_INTERNAL_SERVICE_TOKEN=secrets.token_urlsafe(32),
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_ID=client_id,
                     GLORIFIER_INTERNAL_SERVICE_CLIENT_SECRET=client_secret,
                 )
