@@ -55,6 +55,7 @@
     "GLORIFIER_PROVIDER": "openai",
     "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
     "GLORIFIER_ENABLE_INFERENCE": "false",
+    "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
     "GEMINI_MODEL": "gemini-3.8-flash",
     "ANTHROPIC_MODEL": "claude-sonnet-5"
   },
