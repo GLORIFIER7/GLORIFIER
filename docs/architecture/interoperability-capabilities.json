@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-10T01:42:41Z",
+  "updatedAt": "2026-11-10T07:35:24.894Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -112,7 +112,6 @@
       "scope": "mocked Worker request-validation and 65,536-byte body-size boundary tests on current main",
       "status": "VERIFIED",
       "targetEnvironments": [
-        "Mocked Worker unit tests",
         "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
       ],
       "evidence": [
@@ -404,6 +403,13 @@
           "targetEnvironment": "GitHub Actions Interoperability Linux validation run #1061; Ubuntu 24.04 x86_64 Docker builder",
           "observedAt": "2026-11-03T07:03:07.377Z",
           "notes": "Distroless and Ubuntu 24.04 production images both built successfully and passed /api/health and graceful-shutdown smoke tests. The tests do not establish live provider, database, Neural or blockchain RPC readiness."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42771527340/job/129680213409",
+          "targetEnvironment": "GitHub-hosted Ubuntu 24.04 x86_64; distroless Node.js 24 runtime image and Ubuntu 24.04 runtime image",
+          "observedAt": "2026-11-10T06:54:57.035Z",
+          "notes": "Main-branch container validation on commit a40dbe28581755bd598875d561a22068b3bce2fd built the distroless image from Dockerfile using node:24-trixie-slim and the Ubuntu 24.04 image from Dockerfile. Both images passed /api/health and graceful-shutdown smoke tests. This is CI evidence for the declared x86_64 build/runtime targets only; it does not establish production deployment or provider/database readiness."
         }
       ],
       "limitations": [
