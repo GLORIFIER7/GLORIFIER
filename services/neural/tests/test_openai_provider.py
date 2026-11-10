@@ -353,6 +353,7 @@ def test_openai_runtime_is_the_default_provider_but_inference_stays_disabled(mon
 
     for name in (
         "GLORIFIER_ENABLE_INFERENCE",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED",
         "GLORIFIER_PROVIDER",
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS",
         "OPENAI_API_KEY",
@@ -384,6 +385,7 @@ def test_openai_runtime_requires_explicit_inference_egress_and_key(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
     monkeypatch.setenv("GLORIFIER_ENABLE_INFERENCE", "true")
+    monkeypatch.setenv("GLORIFIER_PAID_INFERENCE_AUTHORIZED", "true")
     monkeypatch.setenv("GLORIFIER_PROVIDER", "openai")
     monkeypatch.setenv("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
