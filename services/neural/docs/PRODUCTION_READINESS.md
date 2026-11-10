@@ -219,12 +219,14 @@ Only binding names were inspected; secret values were not read. At the observati
 - GLORIFIER had `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`; it lacked `GLORIFIER_API_TOKEN` and `GLORIFIER_INTERNAL_SERVICE_TOKEN`.
 - NEURAL had `GLORIFIER_API_TOKEN`, `NVIDIA_NIM_API_KEY`, and `OPENAI_API_KEY`; it lacked `GLORIFIER_INTERNAL_SERVICE_TOKEN`.
 
+The `GLORIFIER_API_TOKEN` must be the **same secret value** in both the GLORIFIER and NEURAL Worker secret stores: the authenticated internal GLORIFIER path uses its Worker-held value as the downstream NEURAL `Authorization: Bearer` credential, and NEURAL validates against its own `GLORIFIER_API_TOKEN`. If these two values differ, proxied task requests fail bearer authentication. Provision or reconcile the same value in both stores; do not expose it in logs, Git, or chat.
+
 The internal service token must be a distinct high-entropy credential provisioned directly by the owner in the Cloudflare secret manager for both Worker boundaries. Never reuse `GLORIFIER_API_TOKEN`, commit a value, print a value, or place it in issue comments. The GLORIFIER Worker API token must also be provisioned through Cloudflare's secret manager before its protected release preflight can pass.
 
 ### Zero-budget recovery sequence
 
 1. Keep provider inference and external data egress disabled. The tracked Wrangler config is the source of truth for the default values; restore any drift through a reviewed source change and the protected manual release workflow.
-2. The owner provisions `GLORIFIER_API_TOKEN` on GLORIFIER and one unique `GLORIFIER_INTERNAL_SERVICE_TOKEN` on both GLORIFIER and NEURAL using Cloudflare's secret manager. Do not expose values to CI logs, Git, or chat.
+2. The owner provisions one identical `GLORIFIER_API_TOKEN` value on both GLORIFIER and NEURAL, plus one separate unique `GLORIFIER_INTERNAL_SERVICE_TOKEN` on both Workers, using Cloudflare's secret manager. The two credential types must never be conflated. Do not expose values to CI logs, Git, or chat.
 3. Reconcile any production Workers Builds trigger to validation-only so a push cannot bypass the protected release workflow.
 4. Validate and deploy NEURAL first through its protected manual workflow, then GLORIFIER through its protected manual workflow so the caller's service binding targets the deployed service.
 5. Verify exact active version IDs, traffic percentages, service binding names, required secret-name presence (never values), and non-secret runtime flags.
