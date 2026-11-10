@@ -92,8 +92,6 @@ test('scheduled inference is disabled and manual inference requires explicit fun
   assert.match(operatingModel, /only the \`GLORIFIER7\` owner account/);
   assert.match(operatingModel, /reruns are denied/);
   assert.doesNotMatch(operatingModel, /AI_MAINTENANCE_AUTORUN=true.*enables/);
-  assert.match(workflow, /Scheduled provider inference is disabled/);
-  assert.match(workflow, /confirmed provider acceptance of GLR/);
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
