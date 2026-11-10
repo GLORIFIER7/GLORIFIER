@@ -273,12 +273,41 @@ The production release workflow [cloudflare-worker.yml](https://github.com/GLORI
 No signing, minting, transaction, wallet operation, financial action, secret rotation, or database migration was performed.
 
 
-### NEURAL production release-gate conflict — 2026-11-09
+### NEURAL production release-gate mitigation — 2026-11-10
 
-A read-only Cloudflare Workers Builds configuration inspection confirms:
-- `auto_build_enabled=true` for Worker `glorifier-neural`;
-- production branch `main` is included by the active build trigger;
-- the production deploy command is `bash ./worker-build.sh deploy`;
-- the separate GitHub Actions workflow `.github/workflows/cloudflare-neural-worker.yml` deploys only on `workflow_dispatch`, with `deploy=true`, from `main`, through the protected `glorifier-neural-cloudflare-production` environment.
+A Cloudflare Workers Builds configuration update and fresh API read-back at
+`2026-11-10T01:29:19Z` confirm:
+- The `glorifier-neural` Workers Builds trigger remains attached to branch
+  `main`.
+- Its production command is now
+  `bash ./worker-build.sh --prepare-only`.
+- The repository script's `--prepare-only` mode prepares and validates the
+  Worker package, then exits before the final `exec npx wrangler "$mode"`;
+  it does not upload or promote a Worker version.
+- The Preview command remains `npx wrangler preview`.
+- The protected GitHub workflow
+  `.github/workflows/cloudflare-neural-worker.yml` remains the only configured
+  production-promotion path: manual `workflow_dispatch`, `deploy=true`, from
+  `main`, through the protected
+  `glorifier-neural-cloudflare-production` environment.
 
-The connected Cloudflare production build therefore provides an independent automatic deploy path on pushes to main. Its latest build was blocked by the missing `GLORIFIER_INTERNAL_SERVICE_TOKEN`, but supplying that secret before reconciling the trigger could enable an unapproved production deployment on a later push. **Recommended control:** change the Cloudflare production deploy command to `bash ./worker-build.sh --prepare-only && npx wrangler versions upload` (or disable production auto-build), while retaining the protected manual GitHub workflow as the only traffic-promotion path. Cloudflare documents that `wrangler versions upload` uploads a version without deploying it; `wrangler versions deploy` is the separate promotion step. Keep previews separate. The GLORIFIER Worker already uses `wrangler versions upload` in its Workers Builds production command. This account-level setting is not changed by this PR and requires owner authorization.
+The previous Workers Builds production command
+`bash ./worker-build.sh deploy` has been replaced with validation-only
+preparation. The latest deployment inventory still shows the prior NEURAL
+100%-traffic deployment created at `2026-11-09T11:40:45.754352Z`; no new
+version upload or production promotion was performed as part of this
+mitigation.
+
+The separate deployment blocker remains: NEURAL main commit
+`92d209544c02a3bf9c6f45eeb9d459b4a468426b` cannot pass the protected deployment
+preflight until an authorized owner provisions a unique
+`GLORIFIER_INTERNAL_SERVICE_TOKEN` directly in Cloudflare. It must differ from
+`GLORIFIER_API_TOKEN`; no secret value belongs in Git or evidence records.
+After the token is provisioned through the approved secret manager, a human
+must dispatch the protected workflow and verify the exact deployed version,
+standalone health/readiness, and GLORIFIER proxy health/readiness. Do not infer
+that this mitigation itself repaired live proxy reachability.
+
+No secrets were read or changed, no Worker version was uploaded or promoted,
+and no provider inference, authenticated task, database migration, signing,
+minting, transaction, or financial action was performed.
