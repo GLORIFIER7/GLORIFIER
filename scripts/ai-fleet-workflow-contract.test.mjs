@@ -79,7 +79,8 @@ test('maintenance authorization and paid-inference authorization are separate ga
 
   const providerStart = coding.indexOf('      - name: Check OpenAI credential availability');
   const setupStart = coding.indexOf('      - name: Setup Node.js', providerStart);
-  assert.ok(providerStart >= 0 && setupStart > providerStart);
+  assert.ok(providerStart >= 0);
+  assert.ok(setupStart > providerStart);
   assert.ok(coding.slice(providerStart, setupStart).includes("steps.inference_authorization.outputs.authorized == 'true'"));
   assert.ok(codex.includes("steps.inference_authorization.outputs.authorized == 'true'"));
   assert.ok(coding.includes('Report that paid inference is not authorized'));
@@ -87,7 +88,8 @@ test('maintenance authorization and paid-inference authorization are separate ga
 
   const missingKeyStart = coding.indexOf('      - name: Report missing API key');
   const capacityStart = coding.indexOf('      - name: Report Codex capacity limitation', missingKeyStart);
-  assert.ok(missingKeyStart >= 0 && capacityStart > missingKeyStart);
+  assert.ok(missingKeyStart >= 0);
+  assert.ok(capacityStart > missingKeyStart);
   assert.ok(coding.slice(missingKeyStart, capacityStart).includes("steps.inference_authorization.outputs.authorized == 'true'"));
 
   assert.ok(workflow.includes('scripts/ai-fleet-paid-inference-authorization.sh'));
