@@ -45,6 +45,10 @@ jobs:
 
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+      - name: AI fleet paid-inference authorization regression tests
+        run: bash scripts/ai-fleet-paid-inference-authorization.test.sh
+      - name: AI fleet paid-inference workflow contract tests
+        run: node --test scripts/ai-fleet-paid-inference-workflow-contract.test.mjs
       - name: Continuous improvement paid-inference authorization regression tests
         run: node --test scripts/continuous-improvement-workflow-contract.test.mjs
 
