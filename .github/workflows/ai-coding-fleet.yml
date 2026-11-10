@@ -237,9 +237,42 @@ jobs:
         if: ${{ failure() && steps.codex.outcome == 'failure' }}
         run: echo "::warning::Codex execution failed; inspect provider quota/capacity and do not retry aggressively."
 
-  publish-proposal:
+  publication-window:
     needs: coding-fleet
     if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Recheck publication window before requesting write-capable publisher
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Asia/Vientiane clock is unavailable; no write-capable publisher will start."
+            exit 0
+          fi
+          if [[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::The Asia/Vientiane clock returned an invalid HHMM value; no write-capable publisher will start."
+            exit 0
+          fi
+          current_hhmm_decimal=$((10#$current_hhmm))
+          if (( current_hhmm_decimal < 831 )); then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::The read-only gate is holding publication until 08:31 Asia/Vientiane."
+            exit 0
+          fi
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
+
+  publish-proposal:
+    needs: [coding-fleet, publication-window]
+    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' && needs.publication-window.outputs.allowed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

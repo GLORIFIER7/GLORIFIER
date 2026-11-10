@@ -10,13 +10,16 @@ const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.me
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
+const publicationWindowMarker = '\n  publication-window:\n';
 const publishMarker = '\n  publish-proposal:\n';
 const codingStart = workflow.indexOf('  coding-fleet:\n');
+const publicationWindowStart = workflow.indexOf(publicationWindowMarker);
 const publishStart = workflow.indexOf(publishMarker);
 const dispatchStart = workflow.indexOf(dispatchMarker);
-assert.ok(codingStart >= 0 && publishStart > codingStart && dispatchStart > publishStart,
-  'expected coding-fleet, publish-proposal, and dispatch-ci jobs in order');
-const coding = workflow.slice(codingStart, publishStart);
+assert.ok(codingStart >= 0 && publicationWindowStart > codingStart && publishStart > publicationWindowStart && dispatchStart > publishStart,
+  'expected coding-fleet, publication-window, publish-proposal, and dispatch-ci jobs in order');
+const coding = workflow.slice(codingStart, publicationWindowStart);
+const publicationWindow = workflow.slice(publicationWindowStart, publishStart);
 const codexStart = coding.indexOf('      - name: Run Codex without GitHub write permissions');
 const stageStart = coding.indexOf('\n      - name: Stage AI-generated changes for review', codexStart);
 assert.ok(codexStart >= 0 && stageStart > codexStart, 'expected one bounded Codex execution step');
@@ -45,6 +48,14 @@ test('the publication window gates only the draft PR publisher, not maintenance 
     'the publication-window result must be exposed as a job output');
   assert.ok(!publish.includes("needs.coding-fleet.outputs.publication_allowed == 'true'"),
     'the publisher must not trust the maintenance-start clock snapshot');
+  assert.match(publicationWindow, /needs: coding-fleet/);
+  assert.match(publicationWindow, /permissions:\n      contents: read/);
+  assert.doesNotMatch(publicationWindow, /(?:actions|contents|pull-requests):\s*write/);
+  assert.match(publicationWindow, /TZ=Asia\/Vientiane date \+%H%M/);
+  assert.match(publicationWindow, /current_hhmm_decimal < 831/);
+  assert.match(publicationWindow, /allowed=true/);
+  assert.ok(publish.includes('needs: [coding-fleet, publication-window]'));
+  assert.match(publish, /needs\.publication-window\.outputs\.allowed == 'true'/);
   const publishStepStart = publish.indexOf('      - name: Publish validated draft PR');
   const publishStep = publish.slice(publishStepStart);
   const publicationClock = publishStep.indexOf('current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"');
@@ -114,8 +125,10 @@ test('generated changes cross the privilege boundary only as a validated patch a
 });
 
 test('only the trusted publication and CI-dispatch jobs receive write permissions', () => {
+  assert.match(publicationWindow, /permissions:\n      contents: read/);
+  assert.doesNotMatch(publicationWindow, /(?:actions|contents|pull-requests):\s*write/);
   assert.match(publish, /permissions:\n      contents: write\n      pull-requests: write/);
-  assert.match(publish, /needs: coding-fleet/);
+  assert.ok(publish.includes('needs: [coding-fleet, publication-window]'));
   assert.match(publish, /outputs\.authorized/);
   assert.match(dispatch, /permissions:\n      actions: write\n      contents: read/);
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/);
