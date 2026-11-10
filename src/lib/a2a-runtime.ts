@@ -147,7 +147,7 @@ export function getA2AProtocolManifest() {
     discovery: '/.well-known/glorifier-agent.json',
     taskEndpoint: '/api/a2a/tasks',
     handoffEndpoint: '/api/a2a/handoffs',
-    lifecycle: ['queued','running','completed','failed','blocked','degraded'],
+    lifecycle: ['queued','running','completed','failed','blocked','degraded','canceled'],
     security: ['agent-identity','capability-authorization','HMAC-SHA256-signed-handoffs','expiry','nonce','audit-trail'],
     truthBoundary: 'A task result is not verified truth until linked to qualifying external evidence.',
     financialBoundary: 'No autonomous trading, withdrawal, transfer, or fund movement.',
@@ -331,7 +331,7 @@ function decodeA2ATaskPageCursor(token: string, request: A2ATaskPageRequest): A2
   if (!token || token.length > 2048) throw new Error('A2A page token is invalid.');
   try {
     const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as Partial<A2ATaskPageCursor>;
-    const knownStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded'];
+    const knownStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded', 'canceled'];
     if (decoded.version !== 1 || typeof decoded.requesterAgentId !== 'string' ||
         typeof decoded.updatedAt !== 'string' || !Number.isFinite(Date.parse(decoded.updatedAt)) ||
         typeof decoded.id !== 'string' || !decoded.id ||
