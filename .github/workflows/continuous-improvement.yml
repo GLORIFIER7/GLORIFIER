@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "17,47 * * * *"
   workflow_dispatch:
+    inputs:
+      allow_paid_inference:
+        description: "Authorize one paid model-inference run for this manual execution"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -28,8 +34,10 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: AI improvement analysis
         id: improve
+        if: github.event_name == 'workflow_dispatch' && inputs.allow_paid_inference == true
         continue-on-error: true
         env:
+          ALLOW_PAID_INFERENCE: ${{ inputs.allow_paid_inference }}
           GUARDIAN_PROVIDER: ${{ vars.GUARDIAN_PROVIDER }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
@@ -44,7 +52,9 @@ jobs:
       - name: Governed result
         if: always()
         run: |
-          if [ "${{ steps.improve.outcome }}" = "success" ]; then
+          if [ "${{ steps.improve.outcome }}" = "skipped" ]; then
+            echo "Paid inference was not authorized; no provider request was made."
+          elif [ "${{ steps.improve.outcome }}" = "success" ]; then
             echo "Improvement analysis completed. No direct push to main is permitted."
           else
             echo "Improvement analysis failed or provider was unavailable; no repository mutation was attempted."
