@@ -29,6 +29,7 @@ a Preview nor a production version. Worker preview URLs remain disabled in
 `cloudflare/wrangler.jsonc`. Do not describe a successful Workers Builds run as
 a production release; verify the protected GitHub deployment and active Worker
 version/traffic separately.
+
 ## GitHub deployment environment
 
 The `glorifier-neural-cloudflare-production` GitHub Environment must define:
