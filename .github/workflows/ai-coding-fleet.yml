@@ -49,10 +49,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
           source scripts/ai-fleet-authorization.sh
-          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION"; then
+          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
