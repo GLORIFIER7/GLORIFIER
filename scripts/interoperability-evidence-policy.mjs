@@ -104,11 +104,11 @@ function extractEnvironmentIdentity(value) {
 
 function versionMatches(declaredVersion, observedVersion) {
   if (declaredVersion === 'latest' || declaredVersion === 'lts') {
-    return observedVersion === declaredVersion || /^\\d/.test(observedVersion);
+    return observedVersion === declaredVersion || /^\d/.test(observedVersion);
   }
   if (declaredVersion.endsWith('+')) {
     const minimum = declaredVersion.slice(0, -1).split('.').map(Number);
-    const observed = observedVersion.replace(/\\+$/, '').split('.').map(Number);
+    const observed = observedVersion.replace(/\+$/, '').split('.').map(Number);
     if (minimum.some((value) => !Number.isInteger(value)) ||
         observed.some((value) => !Number.isInteger(value))) return false;
     for (let index = 0; index < Math.max(minimum.length, observed.length); index += 1) {
@@ -131,7 +131,7 @@ function versionMatches(declaredVersion, observedVersion) {
   if (declaredVersion.endsWith('.0') && observedVersion === declaredVersion.slice(0, -2)) {
     return true;
   }
-  if (!/^\\d/.test(declaredVersion) || !/^\\d/.test(observedVersion)) {
+  if (!/^\d/.test(declaredVersion) || !/^\d/.test(observedVersion)) {
     return declaredVersion === observedVersion;
   }
   return observedVersion === declaredVersion ||
