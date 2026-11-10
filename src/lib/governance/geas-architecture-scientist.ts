@@ -975,9 +975,9 @@ const TRUSTED_REDIRECT_CHECKS = [
 export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
   TRUSTED_REDIRECT_CHECKS.every((check) => check(nextUrl, originalUrl));
 
-/** Redacted redirect target descriptor for diagnostics; excludes credentials, query strings, and fragments. */
+/** Redacted redirect target descriptor; path segments can contain bearer tokens, so persist only the origin. */
 export const formatCuratedRedirectTargetDiagnostic = (target: URL): string =>
-  `${target.origin}${target.pathname}`;
+  target.origin;
 
 const resolveCuratedRedirectTarget = async (
   response: Response,
