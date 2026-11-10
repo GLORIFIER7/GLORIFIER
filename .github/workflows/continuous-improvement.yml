@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_paid_inference:
-        description: "Authorize one paid inference only after verified sponsor/monetization funding or confirmed provider acceptance of GLR, with owner approval"
+        description: "Authorize one paid inference for this manual run; the owner must separately verify funding or GLR acceptance outside this workflow. Enabling accepts provider charges; this workflow does not verify funding."
         required: true
         default: false
         type: boolean
