@@ -33,6 +33,11 @@ if (googleArchitectureSource?.url !== 'https://docs.cloud.google.com/architectur
   throw new Error('Google Cloud architecture source must use the verified canonical Well-Architected Framework URL');
 }
 
+const nistAiAgentsSource = model.sources.find((source) => source.id === 'nist-ai-agents');
+if (nistAiAgentsSource?.url !== 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative') {
+  throw new Error('NIST AI Agent Standards Initiative must use the current canonical SI Agent Standards Initiative URL');
+}
+
 const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
 if (owaspAgentControlSource?.url !== 'https://owaspacs.org/docs/acs/') {
   throw new Error('OWASP Agent Control Standard must use its canonical specification documentation');
@@ -79,6 +84,7 @@ if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A 
 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
+  'https://www.nist.gov/super-intelligence/si-agent-standards-initiative',
   'https://owaspacs.org/docs/acs/',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
