@@ -338,3 +338,25 @@ Cloudflare versioning treats code and configuration changes as version changes; 
 Cloudflare versioning treats code and configuration changes as version changes; a new version must be explicitly deployed before it serves production traffic. Therefore the safe correction is to restore inference and external egress to `false` in the reviewed Worker configuration, have the owner provision distinct required secrets directly in Cloudflare's secret manager, and then use the protected manual deployment workflow. Do not create a version upload/promotion outside that workflow. After owner-authorized deployment, verify exact version IDs, service-binding presence, standalone NEURAL health/readiness, and GLORIFIER proxy health/readiness. A successful configuration read alone does not verify runtime behavior.
 
 This observation does not authorize provider inference, production task submission, signing, minting, transfer, paid RPC, database migration, or financial actions.
+
+
+## Fresh production configuration inventory — 2026-11-10T23:42:17.818Z
+
+Observation time: 2026-11-10T23:42:17.818Z UTC / 2026-11-11T06:42:17.818+07:00 Asia/Vientiane. This was a read-only Cloudflare API inventory of active deployment IDs, traffic percentages, non-secret Worker settings, binding names, and secret names. Secret values were not read.
+
+### Active production state
+
+- GLORIFIER deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b routes 100% traffic to Worker version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f. The active version has GLORIFIER_NEURAL_ORIGIN and GLORIFIER_NEURAL_ALLOWED_HOSTS, but does not have the GLORIFIER_NEURAL service binding declared on current main c54c35e0353457f29cc966dea8db098978fcde1d.
+- NEURAL deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c routes 100% traffic to version cfef05f3-1729-4583-a523-9cf7d43d3860.
+- NEURAL non-secret settings still contain GLORIFIER_ENABLE_INFERENCE=true, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true, and GLORIFIER_PROVIDER=openai. The active bindings do not contain GLORIFIER_PAID_INFERENCE_AUTHORIZED.
+- GLORIFIER's active secret names do not include GLORIFIER_API_TOKEN or GLORIFIER_INTERNAL_SERVICE_TOKEN. NEURAL's secret names include GLORIFIER_API_TOKEN but not GLORIFIER_INTERNAL_SERVICE_TOKEN. No secret values were read.
+
+### Source and validation state
+
+- GLORIFIER main is c54c35e0353457f29cc966dea8db098978fcde1d. Current main check-runs are complete with no failures or pending runs. Six conditional/guarded checks are skipped and are not treated as passes; production deployment was skipped.
+- GLORIFIER has no open PRs at this inventory. Paid-inference default-deny and provider-recipe documentation changes are already merged to GLORIFIER main (PRs #796 and #797).
+- NEURAL main remains 92adf8c3dee0371b197edde8e1f64f5d2052d3f0. PR #86 contains the mirrored paid-inference authorization guard and runbook updates; Python 3.11 and 3.12 each passed 427 tests on its exact head, but the PR remains draft/blocked: all 15 commits are unsigned while the active ruleset requires signed commits, both AI review-policy checks failed, and there is no formal approval. Do not bypass the signature or review requirements.
+
+### Disposition
+
+The live GLORIFIER-to-NEURAL route remains DEGRADED because the active GLORIFIER version lacks its service binding. The production inference/egress state remains inconsistent with the zero-budget default-deny source policy. The missing internal service credentials and GLORIFIER API token block the protected production release. These are owner-managed release prerequisites; do not write secrets, edit live settings, upload/promote versions, or route traffic outside the approved deployment process. No provider request, paid inference, task submission, database migration, blockchain write, signing, mint, transfer, or financial operation was performed. This configuration inventory does not constitute an HTTP health probe or proof of model inference.
