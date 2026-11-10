@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-09T16:25:54Z",
+  "updatedAt": "2026-11-10T01:42:41Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -236,16 +236,31 @@
           "targetEnvironment": "Cloudflare Workers Builds production deployment for GLORIFIER7/GLORIFIER-NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b",
           "observedAt": "2026-11-09T15:48:44Z",
           "notes": "The Cloudflare bundle preparation and dry validation succeeded, but the production deploy step failed because the required runtime secret GLORIFIER_INTERNAL_SERVICE_TOKEN was not configured. The post-deploy health/readiness smoke steps were skipped; this is a secret-configuration blocker, not an application test failure. The new commit was not released by this build. The internal token must be provisioned securely and must differ from GLORIFIER_API_TOKEN; no secret value is stored here."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers Builds API read-back: GET /accounts/{account_id}/builds/workers/{script_tag} and /triggers",
+          "targetEnvironment": "Production Cloudflare Workers Builds configuration for GLORIFIER-NEURAL; non-secret metadata only",
+          "observedAt": "2026-11-10T01:29:19Z",
+          "notes": "Read-back confirmed production deploy_command is `bash ./worker-build.sh --prepare-only`, the main trigger remains attached with the same command, and preview deploy_command remains `npx wrangler preview`. The repository prepare-only mode exits before Wrangler. This verifies configuration only; it does not establish live Worker health or readiness."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare active GLORIFIER Worker version 994: 12b2bfdc-ef46-436b-8f54-bab5e246ec5f",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker version 994; 100% traffic; version metadata/binding inventory",
+          "observedAt": "2026-11-10T01:42:41Z",
+          "notes": "Cloudflare version metadata read-back confirms the active production version is still version 994, created 2026-11-09T01:53:21.489073Z. Its binding inventory contains GLORIFIER_NEURAL_ORIGIN and GLORIFIER_NEURAL_ALLOWED_HOSTS but does not contain the GLORIFIER_NEURAL service binding added by merged GLORIFIER PR #774. The source fix is not live on this deployed version; production proxy readiness remains DEGRADED."
         }
       ],
       "limitations": [
         "The capability remains DEGRADED because the defined GLORIFIER Worker-to-NEURAL proxy boundary returned HTTP 404 / Cloudflare error 1042. Direct standalone NEURAL health/readiness probes bypass that boundary and do not verify it.",
         "The standalone /health response reports process liveness only; providers, database, and PyTorch were NOT VERIFIED in that response.",
         "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
-        "The GLORIFIER-to-NEURAL public proxy remains degraded until the merged service binding is deployed and proxy health/readiness endpoints are re-probed.",
         "Optional audit and task-run persistence were not configured in the observed readiness response.",
         "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN.",
-        "A read-only Cloudflare Workers Builds configuration inspection found auto_build_enabled=true for the production main branch, with production deploy_command `bash ./worker-build.sh deploy`. This creates a second automatic production-release path outside the separate GitHub workflow_dispatch + protected environment gate. Do not provision the missing internal service token until this trigger is disabled or made validation-only; otherwise a later main push could deploy without the intended manual approval."
+        "A Cloudflare Workers Builds configuration update and fresh read-back at 2026-11-10T01:29:19Z confirmed that the main branch trigger remains attached but its production deploy_command is now `bash ./worker-build.sh --prepare-only`. The repository script exits before invoking Wrangler, so this trigger cannot upload or promote a Worker version. The preview deploy_command remains `npx wrangler preview`; the protected GitHub workflow remains the production-promotion path.",
+        "NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b still lacks the required GLORIFIER_INTERNAL_SERVICE_TOKEN in Cloudflare. Do not provision or reuse the public GLORIFIER_API_TOKEN; a human-authorized secret-manager update and protected manual workflow dispatch are required. Current production proxy health/readiness has not been re-probed after the source service-binding change.",
+        "The active production GLORIFIER Worker is still version 994 (version ID 12b2bfdc-ef46-436b-8f54-bab5e246ec5f) at 100% traffic, and its current Cloudflare version binding inventory lacks `GLORIFIER_NEURAL`. Merged source PR #774 is therefore not yet deployed; the protected production release and post-deployment proxy probes remain outstanding."
       ]
     },
     {
