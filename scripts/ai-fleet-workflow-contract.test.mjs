@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
+const authorization = readFileSync(new URL('./ai-fleet-authorization.sh', import.meta.url), 'utf8');
+const operatingModel = readFileSync(new URL('../docs/AUTONOMOUS_ENGINEERING_OPERATING_MODEL.md', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
@@ -79,9 +81,17 @@ test('scheduled inference is disabled and manual inference requires explicit fun
   assert.match(dispatchDeclaration, /allow_paid_inference:\s+description:.*\s+required: true\s+default: false\s+type: boolean/);
   assert.doesNotMatch(workflow, /AI_MAINTENANCE_AUTORUN|SCHEDULE_AUTHORIZATION/);
   assert.match(workflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ inputs\.allow_paid_inference \}\}/);
-  assert.match(workflow, /glorifier_ai_maintenance_authorized "\$EVENT_NAME" "\$MANUAL_PAID_INFERENCE_AUTHORIZATION"/);
+  assert.match(workflow, /OWNER_ACTOR_ID: \$\{\{ github\.actor_id \}\}/);
+  assert.match(workflow, /RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/);
+  assert.match(workflow, /glorifier_ai_maintenance_authorized "\$EVENT_NAME" "\$MANUAL_PAID_INFERENCE_AUTHORIZATION" "\$OWNER_ACTOR_ID" "\$RUN_ATTEMPT"/);
+  assert.match(authorization, /actor_id="\$\{3:-\}"/);
+  assert.match(authorization, /"\$actor_id" == "32674233"/);
+  assert.match(authorization, /"\$run_attempt" == "1"/);
   assert.match(workflow, /Scheduled provider inference is disabled/);
   assert.match(workflow, /confirmed provider acceptance of GLR/);
+  assert.match(operatingModel, /only when the .GLORIFIER7. owner account/);
+  assert.match(operatingModel, /reruns are denied/);
+  assert.doesNotMatch(operatingModel, /AI_MAINTENANCE_AUTORUN=true.*enables/);
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
