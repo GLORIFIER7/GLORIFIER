@@ -135,6 +135,31 @@ test('only the trusted publication and CI-dispatch jobs receive write permission
   assert.match(dispatch, /needs: publish-proposal/);
 });
 
+test('the write-capable publisher rechecks the Laos window before checkout or any other step', () => {
+  const gateMarker = '      - name: Recheck Laos publication window before checkout or any write-capable step';
+  const gateStart = publish.indexOf(gateMarker);
+  const checkoutStart = publish.indexOf('      - name: Checkout trusted main commit');
+  assert.ok(gateStart >= 0 && checkoutStart > gateStart,
+    'the publisher clock gate must be the first step, before checkout');
+
+  const gate = publish.slice(gateStart, checkoutStart);
+  assert.match(gate, /id: publisher_gate/);
+  assert.match(gate, /TZ=Asia\\/Vientiane date \\+%H%M/);
+  assert.match(gate, /current_hhmm_decimal < 831/);
+  assert.match(gate, /allowed=false/);
+  assert.match(gate, /allowed=true/);
+  assert.doesNotMatch(gate, /uses:|GH_TOKEN:|npm ci|git push|gh pr create/,
+    'the pre-check gate must not checkout code, install dependencies, or use write-capable commands');
+
+  const publisherSteps = publish.slice(checkoutStart);
+  const stepBlocks = publisherSteps.match(/^      - name: [\\s\\S]*?(?=^      - name: |$)/gm) || [];
+  assert.ok(stepBlocks.length >= 6, 'expected all publisher steps to be present');
+  for (const step of stepBlocks) {
+    assert.match(step, /^      - name: [^\\n]+\\n        if: \\$\\{\\{ steps\\.publisher_gate\\.outputs\\.allowed == 'true' \\}\\}/,
+      'every checkout, install, artifact, validation, and publish step must require the fresh publisher gate');
+  }
+});
+
 test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.match(publish, /gh pr create --draft/);
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
