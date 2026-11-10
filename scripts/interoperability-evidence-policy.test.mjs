@@ -75,3 +75,33 @@ test('VERIFIED environment matching treats an omitted .NET patch component as th
     true,
   );
 });
+
+test('VERIFIED Linux targets reject Windows evidence even when the Linux distribution is unspecified', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'Windows Server 2022 x86_64; Go 1.26.9',
+      ['Linux x86_64; Go 1.26.x'],
+    ),
+    false,
+  );
+});
+
+test('VERIFIED Linux distribution targets reject evidence from a different distribution', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'Alpine Linux 3.20 x86_64; Python 3.12',
+      ['Debian 12 x86_64; Python 3.12'],
+    ),
+    false,
+  );
+});
+
+test('generic Linux targets accept supported Linux distribution evidence', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'Ubuntu 24.04 x86_64; Python 3.12',
+      ['Linux x86_64; Python 3.12'],
+    ),
+    true,
+  );
+});
