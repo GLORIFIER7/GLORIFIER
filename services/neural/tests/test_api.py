@@ -68,7 +68,7 @@ def test_task_endpoint_rejects_invalid_token(monkeypatch):
 
 def test_task_endpoint_rejects_neural_diagnostic_token_and_keeps_primary_token_valid(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
-    monkeypatch.setenv("NEURAL_INTERNAL_DIAGNOSTIC_TOKEN", "separate-internal-service-token")
+    monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
     internal = client.post(
         "/v1/tasks",
         headers={"Authorization": "Bearer separate-internal-service-token"},
@@ -88,10 +88,10 @@ def test_task_endpoint_rejects_neural_diagnostic_token_and_keeps_primary_token_v
 
 def test_worker_scope_neural_diagnostic_token_cannot_authenticate_public_tasks(monkeypatch):
     monkeypatch.delenv("GLORIFIER_API_TOKEN", raising=False)
-    monkeypatch.delenv("NEURAL_INTERNAL_DIAGNOSTIC_TOKEN", raising=False)
+    monkeypatch.delenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", raising=False)
     worker_env = {
         "GLORIFIER_API_TOKEN": "worker-primary-token",
-        "NEURAL_INTERNAL_DIAGNOSTIC_TOKEN": "worker-internal-service-token",
+        "GLORIFIER_INTERNAL_SERVICE_TOKEN": "worker-internal-service-token",
     }
     authenticated_credentials = []
 
@@ -146,7 +146,7 @@ def test_worker_scope_neural_diagnostic_token_cannot_authenticate_public_tasks(m
 
 def test_task_endpoint_rejects_incorrect_neural_diagnostic_token(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
-    monkeypatch.setenv("NEURAL_INTERNAL_DIAGNOSTIC_TOKEN", "separate-internal-service-token")
+    monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
     response = client.post(
         "/v1/tasks",
         headers={"Authorization": "Bearer incorrect-internal-token"},
@@ -792,7 +792,7 @@ def test_neural_diagnostic_credential_must_differ_from_public_api_token():
             "client": ("127.0.0.1", 12345),
             "env": {
                 "GLORIFIER_API_TOKEN": token,
-                "NEURAL_INTERNAL_DIAGNOSTIC_TOKEN": token,
+                "GLORIFIER_INTERNAL_SERVICE_TOKEN": token,
             },
         }
     )
