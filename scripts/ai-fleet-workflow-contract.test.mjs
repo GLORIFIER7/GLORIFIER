@@ -28,6 +28,38 @@ const publish = workflow.slice(publishStart, dispatchStart);
 const dispatch = workflow.slice(dispatchStart);
 const dispatchDeclaration = workflow.slice(workflow.indexOf('  workflow_dispatch:'), workflow.indexOf('\n\npermissions:'));
 
+function publisherStepBlocks(job) {
+  const stepsMarker = '    steps:\\n';
+  const stepsStart = job.indexOf(stepsMarker);
+  assert.ok(stepsStart >= 0, 'publisher job must declare steps');
+  const body = job.slice(stepsStart + stepsMarker.length);
+  const starts = [...body.matchAll(/^      - /gm)].map((match) => match.index);
+  assert.ok(starts.length > 0, 'publisher job must contain YAML step items');
+  return starts.map((start, index) => body.slice(start, starts[index + 1] ?? body.length));
+}
+
+function assertPublisherStepGateContract(job) {
+  const steps = publisherStepBlocks(job);
+  assert.ok(
+    steps[0].startsWith('      - name: Recheck Laos publication window before checkout or any write-capable step\\n'),
+    'the fresh clock gate must be the first publisher step',
+  );
+  assert.match(steps[0], /^        id: publisher_gate$/m);
+  assert.ok(steps[0].includes('TZ=Asia/Vientiane date +%H%M'));
+  assert.ok(steps[0].includes('current_hhmm_decimal < 831'));
+  assert.ok(steps[0].includes('allowed=false'));
+  assert.ok(steps[0].includes('allowed=true'));
+  assert.doesNotMatch(steps[0], /^        (?:uses|env):/m);
+  for (const [index, step] of steps.slice(1).entries()) {
+    assert.match(
+      step,
+      /^        if: \\$\\{\\{ steps\\.publisher_gate\\.outputs\\.allowed == 'true' \\}\\}$/m,
+      `publisher step ${index + 2} must require the fresh clock gate`,
+    );
+  }
+  return steps;
+}
+
 test('maintenance runs every four hours and uses the Laos publication hold', () => {
   assert.match(workflow, /- cron: "17 \*\/4 \* \* \*"/);
   assert.match(workflow, /TZ=Asia\/Vientiane date \+%H%M/);
@@ -135,31 +167,29 @@ test('only the trusted publication and CI-dispatch jobs receive write permission
   assert.match(dispatch, /needs: publish-proposal/);
 });
 
-test('the write-capable publisher rechecks the Laos window before checkout or any other step', () => {
+test('the write-capable publisher gates every YAML step after a first-step clock check', () => {
+  const steps = assertPublisherStepGateContract(publish);
+  assert.ok(steps.length >= 8, 'the publisher must include the gate and all seven current work steps');
+});
+
+test('the publisher contract rejects an unnamed step inserted before the clock gate', () => {
   const gateMarker = '      - name: Recheck Laos publication window before checkout or any write-capable step';
-  const gateStart = publish.indexOf(gateMarker);
-  const checkoutStart = publish.indexOf('      - name: Checkout trusted main commit');
-  assert.ok(gateStart >= 0 && checkoutStart > gateStart,
-    'the publisher clock gate must be the first step, before checkout');
+  const mutated = publish.replace(gateMarker, '      - run: echo unguarded\\n' + gateMarker);
+  assert.notEqual(mutated, publish, 'the mutation fixture must insert an unnamed step');
+  assert.throws(
+    () => assertPublisherStepGateContract(mutated),
+    /fresh clock gate must be the first publisher step/,
+  );
+});
 
-  const gate = publish.slice(gateStart, checkoutStart);
-  assert.ok(gate.includes('id: publisher_gate'));
-  assert.ok(gate.includes('TZ=Asia/Vientiane date +%H%M'));
-  assert.ok(gate.includes('current_hhmm_decimal < 831'));
-  assert.ok(gate.includes('allowed=false'));
-  assert.ok(gate.includes('allowed=true'));
-  assert.doesNotMatch(gate, /uses:|GH_TOKEN:|npm ci|git push|gh pr create/,
-    'the pre-check gate must not checkout code, install dependencies, or use write-capable commands');
-
-  const publisherSteps = publish.slice(checkoutStart);
-  const stepStarts = [...publisherSteps.matchAll(/^      - name: /gm)].map((match) => match.index);
-  assert.ok(stepStarts.length >= 7, 'expected all publisher steps to be present');
-  for (const [index, stepStart] of stepStarts.entries()) {
-    const stepEnd = stepStarts[index + 1] ?? publisherSteps.length;
-    const stepHeader = publisherSteps.slice(stepStart, stepEnd).split(String.fromCharCode(10)).slice(0, 3).join(String.fromCharCode(10));
-    assert.ok(stepHeader.includes('if: ' + '$' + "{{ steps.publisher_gate.outputs.allowed == 'true' }}"),
-      'every checkout, install, artifact, validation, and publish step must require the fresh publisher gate');
-  }
+test('the publisher contract rejects an unnamed step inserted after the clock gate', () => {
+  const checkoutMarker = '      - name: Checkout trusted main commit';
+  const mutated = publish.replace(checkoutMarker, '      - run: echo unguarded\\n' + checkoutMarker);
+  assert.notEqual(mutated, publish, 'the mutation fixture must insert an unnamed step');
+  assert.throws(
+    () => assertPublisherStepGateContract(mutated),
+    /publisher step 2 must require the fresh clock gate/,
+  );
 });
 
 test('every action in the write-capable publisher is pinned to an immutable commit SHA', () => {
