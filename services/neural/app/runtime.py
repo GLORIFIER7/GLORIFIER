@@ -63,13 +63,9 @@ def build_orchestrator_from_environment(
             environment, "GLORIFIER_PAID_INFERENCE_AUTHORIZED"
         ).strip().casefold() == "true"
     )
-    # Provider readiness may use an explicitly approved read-only egress probe.
-    # Task completions additionally require a separate, default-deny spend gate.
-    enabled = (
-        inference_enabled
-        and external_egress_allowed
-        and paid_inference_authorized
-    )
+    # Provider registration/readiness remains separately gated by egress consent.
+    # Task inference needs its own explicit, default-deny spend authorization.
+    enabled = inference_enabled and paid_inference_authorized
 
     if external_egress_allowed and provider_name == NvidiaNimAdapter.name:
         api_key = _environment_value(environment, "NVIDIA_NIM_API_KEY")
