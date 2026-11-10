@@ -44,7 +44,7 @@ def build_orchestrator_from_environment(
     function can be injected in tests; production uses workers.fetch inside
     the request handler when the selected provider adapter executes.
     """
-    enabled = _environment_value(
+    inference_enabled = _environment_value(
         environment, "GLORIFIER_ENABLE_INFERENCE"
     ).strip().casefold() == "true"
     provider_name = (
@@ -57,6 +57,18 @@ def build_orchestrator_from_environment(
         _environment_value(
             environment, "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS"
         ).strip().casefold() == "true"
+    )
+    paid_inference_authorized = (
+        _environment_value(
+            environment, "GLORIFIER_PAID_INFERENCE_AUTHORIZED"
+        ).strip().casefold() == "true"
+    )
+    # Provider readiness may use an explicitly approved read-only egress probe.
+    # Task completions additionally require a separate, default-deny spend gate.
+    enabled = (
+        inference_enabled
+        and external_egress_allowed
+        and paid_inference_authorized
     )
 
     if external_egress_allowed and provider_name == NvidiaNimAdapter.name:
