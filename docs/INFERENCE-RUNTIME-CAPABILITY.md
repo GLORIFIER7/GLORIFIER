@@ -48,7 +48,7 @@ This document does NOT authorize:
 The NEURAL monorepo migration branch now contains an optional self-hosted vLLM adapter at `services/neural/app/providers/vllm.py`.
 
 - The adapter targets an OpenAI-compatible vLLM `/v1` API and requires an explicitly configured HTTPS base URL, an exact HTTPS origin allowlist, API key, and model ID.
-- Runtime registration requires `GLORIFIER_PROVIDER=vllm` and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`; inference separately requires `GLORIFIER_ENABLE_INFERENCE=true`.
+- Runtime registration requires `GLORIFIER_PROVIDER=vllm` and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`; inference separately requires `GLORIFIER_ENABLE_INFERENCE=true` and `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true`; the paid-inference flag defaults to false.
 - It supports authenticated model-catalogue readiness and bounded, non-streaming chat completions. Redirects are disabled. Unsafe or mismatched origins fail closed.
 - Contract tests cover origin validation, configuration and consent gates, readiness, inference wiring, redirect mode, and prompt bounds.
 

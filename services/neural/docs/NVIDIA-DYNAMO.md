@@ -21,6 +21,7 @@ Configure these values in the Cloudflare Worker secret/environment manager or th
 | `GLORIFIER_PROVIDER` | `nvidia_dynamo` |
 | `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS` | `true`, only after the exact destination and egress policy have been approved |
 | `GLORIFIER_ENABLE_INFERENCE` | Keep `false` until a real endpoint is ready and inference is separately authorized |
+| `GLORIFIER_PAID_INFERENCE_AUTHORIZED` | `false` by default; set `true` only for separately owner-authorized paid inference |
 | `NVIDIA_DYNAMO_BASE_URL` | Exact HTTPS API root, for example `https://dynamo.example.com/v1` |
 | `NVIDIA_DYNAMO_ALLOWED_ORIGIN` | Exact HTTPS origin only, for example `https://dynamo.example.com` |
 | `NVIDIA_DYNAMO_API_KEY` | Bearer credential for the approved ingress/authentication gateway |
@@ -30,7 +31,7 @@ The adapter rejects HTTP, URL credentials, query/fragment suffixes, non-`/v1` AP
 
 The ingress in front of Dynamo must actually validate the bearer credential and enforce TLS. Merely sending an Authorization header does not prove the Dynamo server or gateway enforces authentication. Do not expose an unauthenticated Dynamo frontend directly to the public internet.
 
-Readiness is authorized by explicit external-egress consent. Inference requires both external-egress consent and `GLORIFIER_ENABLE_INFERENCE=true`. The provider is never selected automatically.
+Readiness is authorized by explicit external-egress consent. Inference requires external-egress consent, `GLORIFIER_ENABLE_INFERENCE=true`, and the separate `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` spend authorization. The spend authorization defaults to false. The provider is never selected automatically.
 
 ## NVIDIA compatibility baseline
 

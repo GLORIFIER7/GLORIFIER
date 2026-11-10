@@ -60,6 +60,7 @@ def configured_environment(**overrides):
         "GLORIFIER_VLLM_MODEL": "Qwen/Qwen3-8B",
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
         "GLORIFIER_ENABLE_INFERENCE": "true",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "true",
     }
     values.update(overrides)
     return values
