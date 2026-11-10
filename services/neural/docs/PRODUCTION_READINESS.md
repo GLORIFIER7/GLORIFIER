@@ -11,22 +11,24 @@ This runbook describes the controls required before declaring the Cloudflare Wor
 - Task-run writes: a separately provisioned `NEON_WRITE` binding or a writer `NEON_DATABASE_URL` secret
 - Currently selected production provider: OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. NVIDIA NIM remains an optional alternative provider, not the current production selection.
 
-The Cloudflare deployment has two production paths. Cloudflare Workers Builds
-automatically builds and deploys commits on `main`, using the `/cloudflare` root
-and `bash ./worker-build.sh deploy`. The repository's
-`.github/workflows/cloudflare-neural-worker.yml` also provides a separate manual
-`workflow_dispatch` path, gated by `deploy=true` on `main`. Pull-request and
-push runs in GitHub Actions validate or dry-run only; they do not deploy production.
+The NEURAL production release path is the protected manual workflow
+`.github/workflows/neural-cloudflare-worker.yml`: it requires a manual
+`workflow_dispatch`, `deploy=true`, and the `main` branch, then uses the
+`glorifier-neural-cloudflare-production` GitHub Environment. The Cloudflare
+Workers Builds trigger for `main` is configured validation-only:
+`bash ./worker-build.sh --prepare-only`. That command prepares and validates the
+package and exits before Wrangler can upload or promote a Worker version.
+Pull-request and push runs in GitHub Actions also validate or dry-run only.
 
 The branch-specific Workers Builds triggers used for Dependabot PRs #38, #39, and
-#40 are separately scoped to their respective branches. They now run from
+#40 are separately scoped to their respective branches. They run from
 `/cloudflare`, prepare the Worker package with
 `bash ./worker-build.sh --prepare-only`, and run
-`npx wrangler deploy --dry-run`. All three corrected builds completed successfully
-and stopped at `--dry-run`; they published neither a Preview nor a production
-version. Worker preview URLs remain disabled in `cloudflare/wrangler.jsonc`. The
-main-branch production build configuration remains unchanged.
-
+`npx wrangler deploy --dry-run`. Those validation-only builds publish neither
+a Preview nor a production version. Worker preview URLs remain disabled in
+`cloudflare/wrangler.jsonc`. Do not describe a successful Workers Builds run as
+a production release; verify the protected GitHub deployment and active Worker
+version/traffic separately.
 ## GitHub deployment environment
 
 The `glorifier-neural-cloudflare-production` GitHub Environment must define:
