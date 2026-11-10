@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isEvidenceTimestampFresh, LIVE_EVIDENCE_MAX_AGE_MS } from './interoperability-evidence-policy.mjs';
+import {
+  hasEvidenceForDeclaredTargetEnvironment,
+  isEvidenceTimestampFresh,
+  LIVE_EVIDENCE_MAX_AGE_MS,
+} from './interoperability-evidence-policy.mjs';
 
 const now = Date.parse('2026-10-28T12:00:00.000Z');
 
@@ -25,3 +29,39 @@ test('missing and malformed timestamps are rejected', () => {
   assert.equal(isEvidenceTimestampFresh('not-a-date', { live: true, now }), false);
 });
 
+test('VERIFIED evidence must match a declared operating environment, not merely share a runtime version', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub Actions Windows Server 2022 x86_64; Go 1.26.9; exact CI run',
+      [
+        'GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9 on main',
+        'Go 1.26.x / macOS 15 ARM64',
+      ],
+    ),
+    false,
+    'Windows evidence must not substantiate a capability declared for Ubuntu or macOS',
+  );
+});
+
+test('VERIFIED evidence accepts a matching platform, architecture, and runtime family/version', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub Actions Ubuntu 24.04 x86_64; Go 1.26.9; exact CI run',
+      [
+        'GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.26.9 on main',
+        'Go 1.26.x / Windows Server 2022 x86_64',
+      ],
+    ),
+    true,
+  );
+});
+
+test('VERIFIED evidence matches a declared platform even when evidence adds run metadata', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'Ubuntu 22.04 x86_64; exact main commit a40dbe2',
+      ['GitHub-hosted ubuntu-22.04 x86_64', 'GitHub-hosted ubuntu-24.04 x86_64'],
+    ),
+    true,
+  );
+});
