@@ -322,3 +322,18 @@ that this mitigation itself repaired live proxy reachability.
 No secrets were read or changed, no Worker version was uploaded or promoted,
 and no provider inference, authenticated task, database migration, signing,
 minting, transaction, or financial action was performed.
+
+
+### Fresh production configuration drift — 2026-11-10T08:58:02Z
+
+Read-only Cloudflare API inspection was performed against the active production Worker deployments. The observation changed no settings, secrets, code, deployment, or traffic routing.
+
+- GLORIFIER deployment `3292d6bf-d40c-4682-9b6d-ff5faf41aa1b` continues to route 100% of traffic to version `12b2bfdc-ef46-436b-8f54-bab5e246ec5f`. Its active binding inventory does not contain the `GLORIFIER_NEURAL` service binding, although main commit `72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292` declares it in source.
+- NEURAL deployment `3d97535a-efc5-45b3-b5a3-be2bb4afda5c` continues to route 100% of traffic to version `cfef05f3-1729-4583-a523-9cf7d43d3860`.
+- NEURAL's deployed non-secret variables are `GLORIFIER_ENABLE_INFERENCE=true` and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. Checked-in `services/neural/cloudflare/wrangler.jsonc` on main defaults both to `false`. This is production configuration drift from the zero-budget default-deny posture.
+- Secret-name inventory only: NEURAL has `GLORIFIER_API_TOKEN`, `NVIDIA_NIM_API_KEY`, and `OPENAI_API_KEY`; GLORIFIER has `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`. The distinct `GLORIFIER_INTERNAL_SERVICE_TOKEN` is absent from both Workers; `GLORIFIER_API_TOKEN` is absent from GLORIFIER. No secret values were read.
+- GLORIFIER's configured Neural origin and exact allowed hostname are present, but the active version does not have the service binding required by the merged source route repair.
+
+Cloudflare versioning treats code and configuration changes as version changes; a new version must be explicitly deployed before it serves production traffic. Therefore the safe correction is to restore inference and external egress to `false` in the reviewed Worker configuration, have the owner provision distinct required secrets directly in Cloudflare's secret manager, and then use the protected manual deployment workflow. Do not create a version upload/promotion outside that workflow. After owner-authorized deployment, verify exact version IDs, service-binding presence, standalone NEURAL health/readiness, and GLORIFIER proxy health/readiness. A successful configuration read alone does not verify runtime behavior.
+
+This observation does not authorize provider inference, production task submission, signing, minting, transfer, paid RPC, database migration, or financial actions.
