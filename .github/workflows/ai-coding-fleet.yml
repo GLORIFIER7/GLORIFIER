@@ -148,7 +148,8 @@ jobs:
             defect or reliability weakness and make the smallest safe fix with a regression test.
             Prioritize security and correctness before feature work. Keep the change small and reviewable.
             Follow AGENTS.md. Never expose or modify secrets. Do not alter the trusted AI-fleet validator,
-            its tests, capability authorization, package manifests, lockfiles, or workflow files.
+            its tests, capability authorization, paid-inference authorization helper/tests, package manifests,
+            lockfiles, or workflow files.
             Run npm run lint and the relevant focused tests, then run npm run build when applicable.
             If there is no safe, evidence-backed improvement, make no code change.
             Do not attempt GitHub API writes, remote pushes, pull-request operations, deployments, or secret access.
@@ -173,7 +174,7 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' path; do
             case "$path" in
-              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|scripts/validate-ai-fleet-diff.test.mjs|scripts/ai-fleet-authorization.sh|scripts/ai-fleet-authorization.test.sh|scripts/ai-fleet-workflow-contract.test.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc|.github/workflows/*)
+              scripts/ai-fleet-diff-policy.mjs|scripts/ai-fleet-diff-policy.test.mjs|scripts/validate-ai-fleet-diff.mjs|scripts/validate-ai-fleet-diff.test.mjs|scripts/ai-fleet-authorization.sh|scripts/ai-fleet-authorization.test.sh|scripts/ai-fleet-workflow-contract.test.mjs|scripts/ai-fleet-paid-inference-authorization.sh|scripts/ai-fleet-paid-inference-authorization.test.sh|scripts/ai-fleet-paid-inference-workflow-contract.test.mjs|src/lib/capability-authorization.ts|package.json|package-lock.json|npm-shrinkwrap.json|.npmrc|.github/workflows/*)
                 echo "Protected validation dependency changed: $path"
                 exit 1
                 ;;
