@@ -156,8 +156,8 @@ test('the write-capable publisher rechecks the Laos window before checkout or an
   assert.ok(stepStarts.length >= 7, 'expected all publisher steps to be present');
   for (const [index, stepStart] of stepStarts.entries()) {
     const stepEnd = stepStarts[index + 1] ?? publisherSteps.length;
-    const stepHeader = publisherSteps.slice(stepStart, stepEnd).split('\\n').slice(0, 3).join('\\n');
-    assert.ok(stepHeader.includes("if: \${{ steps.publisher_gate.outputs.allowed == 'true' }}"),
+    const stepHeader = publisherSteps.slice(stepStart, stepEnd).split(String.fromCharCode(10)).slice(0, 3).join(String.fromCharCode(10));
+    assert.ok(stepHeader.includes('if: ' + '$' + "{{ steps.publisher_gate.outputs.allowed == 'true' }}"),
       'every checkout, install, artifact, validation, and publish step must require the fresh publisher gate');
   }
 });
