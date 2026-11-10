@@ -15,6 +15,7 @@ import {
   stripHtml,
   isTrustedArchitectureSourceUrl,
   isTrustedCuratedRedirectTarget,
+  formatCuratedRedirectTargetDiagnostic,
   findEarliestKeywordIndex,
   type ArchitectureDomain,
   type ArchitecturePattern,
@@ -154,6 +155,12 @@ for (const target of rejectedRedirectTargets) {
     throw new Error(`unsafe curated source redirect target was accepted: ${target.href}`);
   }
 }
+
+assert.equal(
+  formatCuratedRedirectTargetDiagnostic(new URL('https://user:secret@docs.cloud.google.com/architecture/framework?token=secret#overview')),
+  'https://docs.cloud.google.com/architecture/framework',
+  'redirect diagnostics must preserve the origin and path while excluding credentials, query strings, and fragments',
+);
 
 if (isClaimSupportedEvidence('content-matched')) throw new Error('keyword match must not count as claim verification');
 if (!isClaimSupportedEvidence('claim-supported')) throw new Error('claim-supported evidence state missing');

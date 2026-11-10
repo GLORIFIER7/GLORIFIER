@@ -975,6 +975,10 @@ const TRUSTED_REDIRECT_CHECKS = [
 export const isTrustedCuratedRedirectTarget = (nextUrl: URL, originalUrl: URL): boolean =>
   TRUSTED_REDIRECT_CHECKS.every((check) => check(nextUrl, originalUrl));
 
+/** Redacted redirect target descriptor for diagnostics; excludes credentials, query strings, and fragments. */
+export const formatCuratedRedirectTargetDiagnostic = (target: URL): string =>
+  `${target.origin}${target.pathname}`;
+
 const resolveCuratedRedirectTarget = async (
   response: Response,
   requestUrl: URL,
@@ -988,7 +992,7 @@ const resolveCuratedRedirectTarget = async (
 
   const nextUrl = new URL(location, requestUrl);
   if (!isTrustedCuratedRedirectTarget(nextUrl, originalUrl)) {
-    throw new Error('source redirect rejected: target is outside the source-specific curated redirect paths');
+    throw new Error(`source redirect rejected: target ${formatCuratedRedirectTargetDiagnostic(nextUrl)} is outside the source-specific curated redirect paths`);
   }
   return nextUrl;
 };
@@ -1001,7 +1005,7 @@ const fetchCuratedRedirectChain = async (
   let requestUrl = originalUrl;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
     if (!isTrustedCuratedRedirectTarget(requestUrl, originalUrl)) {
-      throw new Error('source fetch rejected: target is outside the source-specific curated redirect paths');
+      throw new Error(`source fetch rejected: target ${formatCuratedRedirectTargetDiagnostic(requestUrl)} is outside the source-specific curated redirect paths`);
     }
     const response = await fetch(requestUrl.toString(), {
       redirect: 'manual',
@@ -1022,7 +1026,7 @@ const validateCuratedFinalUrl = async (response: Response, requestUrl: URL, orig
   const finalUrl = new URL(response.url || requestUrl.toString());
   if (!isTrustedCuratedRedirectTarget(finalUrl, originalUrl)) {
     await response.body?.cancel().catch(() => undefined);
-    throw new Error('source redirect rejected: final URL must remain within the source-specific curated redirect paths');
+    throw new Error(`source redirect rejected: final URL ${formatCuratedRedirectTargetDiagnostic(finalUrl)} must remain within the source-specific curated redirect paths`);
   }
   return finalUrl;
 };
