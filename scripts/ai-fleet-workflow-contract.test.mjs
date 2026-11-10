@@ -52,7 +52,7 @@ test('the publication window gates only the draft PR publisher, not maintenance 
   assert.match(publicationWindow, /TZ=Asia\/Vientiane date \+%H%M/);
   assert.match(publicationWindow, /current_hhmm_decimal < 831/);
   assert.match(publicationWindow, /allowed=true/);
-  assert.match(publish, /needs: \[coding-fleet, publication-window\]/);
+  assert.ok(publish.includes('needs: [coding-fleet, publication-window]'));
   assert.match(publish, /needs\.publication-window\.outputs\.allowed == 'true'/);
   const publishStepStart = publish.indexOf('      - name: Publish validated draft PR');
   const publishStep = publish.slice(publishStepStart);
