@@ -73,6 +73,9 @@ function versionMatches(declaredVersion, observedVersion) {
     return observedVersion === declaredVersion.slice(0, -2) ||
       observedVersion.startsWith(`${declaredVersion.slice(0, -2)}.`);
   }
+  if (declaredVersion.endsWith('.0') && observedVersion === declaredVersion.slice(0, -2)) {
+    return true;
+  }
   return observedVersion === declaredVersion ||
     observedVersion.startsWith(`${declaredVersion}.`);
 }
