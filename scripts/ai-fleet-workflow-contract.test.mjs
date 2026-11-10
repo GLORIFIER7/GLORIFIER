@@ -29,7 +29,7 @@ const dispatch = workflow.slice(dispatchStart);
 const dispatchDeclaration = workflow.slice(workflow.indexOf('  workflow_dispatch:'), workflow.indexOf('\n\npermissions:'));
 
 function publisherStepBlocks(job) {
-  const stepsMarker = '    steps:\\n';
+  const stepsMarker = '    steps:\n';
   const stepsStart = job.indexOf(stepsMarker);
   assert.ok(stepsStart >= 0, 'publisher job must declare steps');
   const body = job.slice(stepsStart + stepsMarker.length);
@@ -41,7 +41,7 @@ function publisherStepBlocks(job) {
 function assertPublisherStepGateContract(job) {
   const steps = publisherStepBlocks(job);
   assert.ok(
-    steps[0].startsWith('      - name: Recheck Laos publication window before checkout or any write-capable step\\n'),
+    steps[0].startsWith('      - name: Recheck Laos publication window before checkout or any write-capable step\n'),
     'the fresh clock gate must be the first publisher step',
   );
   assert.match(steps[0], /^        id: publisher_gate$/m);
@@ -53,7 +53,7 @@ function assertPublisherStepGateContract(job) {
   for (const [index, step] of steps.slice(1).entries()) {
     assert.match(
       step,
-      /^        if: \\$\\{\\{ steps\\.publisher_gate\\.outputs\\.allowed == 'true' \\}\\}$/m,
+      /^        if: \$\{\{ steps\.publisher_gate\.outputs\.allowed == 'true' \}\}$/m,
       `publisher step ${index + 2} must require the fresh clock gate`,
     );
   }
@@ -174,7 +174,7 @@ test('the write-capable publisher gates every YAML step after a first-step clock
 
 test('the publisher contract rejects an unnamed step inserted before the clock gate', () => {
   const gateMarker = '      - name: Recheck Laos publication window before checkout or any write-capable step';
-  const mutated = publish.replace(gateMarker, '      - run: echo unguarded\\n' + gateMarker);
+  const mutated = publish.replace(gateMarker, '      - run: echo unguarded\n' + gateMarker);
   assert.notEqual(mutated, publish, 'the mutation fixture must insert an unnamed step');
   assert.throws(
     () => assertPublisherStepGateContract(mutated),
@@ -184,7 +184,7 @@ test('the publisher contract rejects an unnamed step inserted before the clock g
 
 test('the publisher contract rejects an unnamed step inserted after the clock gate', () => {
   const checkoutMarker = '      - name: Checkout trusted main commit';
-  const mutated = publish.replace(checkoutMarker, '      - run: echo unguarded\\n' + checkoutMarker);
+  const mutated = publish.replace(checkoutMarker, '      - run: echo unguarded\n' + checkoutMarker);
   assert.notEqual(mutated, publish, 'the mutation fixture must insert an unnamed step');
   assert.throws(
     () => assertPublisherStepGateContract(mutated),
