@@ -117,7 +117,7 @@ test('the model-execution job has no GitHub write permissions', () => {
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
   assert.match(coding, /git diff --cached --binary HEAD/);
   assert.match(coding, /uses: actions\/upload-artifact@v4/);
-  assert.match(publish, /uses: actions\/download-artifact@v8/);
+  assert.ok(publish.includes('uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2'));
   assert.match(publish, /git apply --check/);
   assert.match(publish, /node --import tsx\/esm scripts\/validate-ai-fleet-diff\.mjs/);
   assert.match(publish, /gh pr create --draft/);
@@ -133,6 +133,45 @@ test('only the trusted publication and CI-dispatch jobs receive write permission
   assert.match(dispatch, /permissions:\n      actions: write\n      contents: read/);
   assert.match(dispatch, /GH_REPO: \$\{\{ github\.repository \}\}/);
   assert.match(dispatch, /needs: publish-proposal/);
+});
+
+test('the write-capable publisher rechecks the Laos window before checkout or any other step', () => {
+  const gateMarker = '      - name: Recheck Laos publication window before checkout or any write-capable step';
+  const gateStart = publish.indexOf(gateMarker);
+  const checkoutStart = publish.indexOf('      - name: Checkout trusted main commit');
+  assert.ok(gateStart >= 0 && checkoutStart > gateStart,
+    'the publisher clock gate must be the first step, before checkout');
+
+  const gate = publish.slice(gateStart, checkoutStart);
+  assert.ok(gate.includes('id: publisher_gate'));
+  assert.ok(gate.includes('TZ=Asia/Vientiane date +%H%M'));
+  assert.ok(gate.includes('current_hhmm_decimal < 831'));
+  assert.ok(gate.includes('allowed=false'));
+  assert.ok(gate.includes('allowed=true'));
+  assert.doesNotMatch(gate, /uses:|GH_TOKEN:|npm ci|git push|gh pr create/,
+    'the pre-check gate must not checkout code, install dependencies, or use write-capable commands');
+
+  const publisherSteps = publish.slice(checkoutStart);
+  const stepStarts = [...publisherSteps.matchAll(/^      - name: /gm)].map((match) => match.index);
+  assert.ok(stepStarts.length >= 7, 'expected all publisher steps to be present');
+  for (const [index, stepStart] of stepStarts.entries()) {
+    const stepEnd = stepStarts[index + 1] ?? publisherSteps.length;
+    const stepHeader = publisherSteps.slice(stepStart, stepEnd).split(String.fromCharCode(10)).slice(0, 3).join(String.fromCharCode(10));
+    assert.ok(stepHeader.includes('if: ' + '$' + "{{ steps.publisher_gate.outputs.allowed == 'true' }}"),
+      'every checkout, install, artifact, validation, and publish step must require the fresh publisher gate');
+  }
+});
+
+test('every action in the write-capable publisher is pinned to an immutable commit SHA', () => {
+  const actionRefs = publish
+    .split(String.fromCharCode(10))
+    .filter((line) => line.trimStart().startsWith('uses:'))
+    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
+  assert.equal(actionRefs.length, 3, 'the publisher should use only the three reviewed GitHub actions');
+  for (const actionRef of actionRefs) {
+    assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
+      'write-capable publisher actions must use immutable 40-character commit SHAs: ' + actionRef);
+  }
 });
 
 test('automated changes remain draft PRs and are never auto-merged', () => {
