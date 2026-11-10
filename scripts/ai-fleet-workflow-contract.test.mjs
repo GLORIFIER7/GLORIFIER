@@ -49,10 +49,21 @@ test('the publication window gates only the draft PR publisher, not maintenance 
   const windowStep = coding.slice(windowStart, boundaryStart);
   assert.ok(!windowStep.includes('exit 1'),
     'an unavailable clock must block publication without suppressing maintenance analysis');
+  // The next step validates synthetic boundary fixtures; its exit 1 is intentional and is not the runtime clock-failure path.
+  const boundaryEnd = coding.indexOf('      - name: Check OpenAI credential availability', boundaryStart);
+  const boundaryStep = coding.slice(boundaryStart, boundaryEnd);
+  assert.ok(boundaryStep.includes('for sample in 0000 0830 0831 0917 2359;'));
+  assert.ok(boundaryStep.includes('exit 1'));
+  assert.ok(!boundaryStep.includes('steps.time_window.outputs.allowed'));
 
   assert.ok(coding.includes('PR publication is held until 08:31 Asia/Vientiane'),
     'the closed-window notice must describe publication, not model execution');
   assert.ok(!coding.includes('No model was invoked and no PR was created because it is before 08:31'));
+});
+
+test('a skipped patch-packaging step exports an explicit false changed value', () => {
+  assert.match(workflow, /changed: \\$\\{\\{ steps\\.package\\.outputs\\.changed == 'true' \\}\\}/);
+  assert.ok(publish.includes(\"needs.coding-fleet.outputs.changed == 'true'\"));
 });
 
 test('scheduled and manual runs share the repository-level cost gate', () => {
