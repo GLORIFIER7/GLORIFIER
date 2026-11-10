@@ -66,11 +66,15 @@ test('a skipped patch-packaging step exports an explicit false changed value', (
   assert.ok(publish.includes("needs.coding-fleet.outputs.changed == 'true'"));
 });
 
-test('scheduled and manual runs share the repository-level cost gate', () => {
-  assert.equal(dispatchDeclaration.trim(), 'workflow_dispatch:');
+test('maintenance authorization and paid-inference authorization are separate gates', () => {
+  assert.match(dispatchDeclaration, /workflow_dispatch:\\s+inputs:/);
+  assert.match(dispatchDeclaration, /allow_paid_inference:/);
+  assert.match(dispatchDeclaration, /default:\\s*false/);
+  assert.match(dispatchDeclaration, /type:\\s*boolean/);
   assert.doesNotMatch(workflow, /authorize_pull_request/);
-  assert.match(workflow, /SCHEDULE_AUTHORIZATION: \$\{\{ vars\.AI_MAINTENANCE_AUTORUN \}\}/);
-  assert.match(workflow, /glorifier_ai_maintenance_authorized "\$EVENT_NAME" "\$SCHEDULE_AUTHORIZATION"/);
+  assert.match(workflow, /SCHEDULE_AUTHORIZATION: \\$\\{\\{ vars\\.AI_MAINTENANCE_AUTORUN \\$\\}\\}/);
+  assert.match(workflow, /glorifier_ai_maintenance_authorized "\\$EVENT_NAME" "\\$SCHEDULE_AUTHORIZATION"/);
+  assert.match(workflow, /glorifier_ai_fleet_paid_inference_authorized "\\$EVENT_NAME" "\\$ALLOW_PAID_INFERENCE"/);
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
