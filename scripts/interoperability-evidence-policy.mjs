@@ -104,6 +104,11 @@ function versionMatches(declaredVersion, observedVersion) {
     return observedVersion === declaredVersion.slice(0, -2) ||
       observedVersion.startsWith(`${declaredVersion.slice(0, -2)}.`);
   }
+  if (observedVersion.endsWith('.x')) {
+    const observedPrefix = observedVersion.slice(0, -2);
+    return declaredVersion === observedPrefix ||
+      declaredVersion.startsWith(`${observedPrefix}.`);
+  }
   if (declaredVersion.endsWith('.0') && observedVersion === declaredVersion.slice(0, -2)) {
     return true;
   }
