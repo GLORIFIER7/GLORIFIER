@@ -287,7 +287,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/framework', ['federated-data-access'], 336),
   createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720),
   createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720),
-  createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative', ['agent-identity-delegation'], 336),
+  createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336),
   createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336),
   createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336),
   createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336),
