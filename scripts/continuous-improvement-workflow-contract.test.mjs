@@ -22,7 +22,7 @@ test('paid inference requires the owner-authorized first manual attempt', () => 
   const dispatch = workflow.slice(dispatchStart, permissionsStart);
   assert.match(dispatch, /allow_paid_inference:[\s\S]*?type:\s*boolean/);
   assert.match(dispatch, /default:\s*false/);
-  assert.match(dispatch, /Owner must separately verify funding or GLR acceptance outside this workflow/);
+  assert.match(dispatch, /owner must separately verify funding or GLR acceptance outside this workflow/i);
   assert.match(dispatch, /enabling accepts provider charges/);
   assert.match(dispatch, /does not verify funding/);
   assert.doesNotMatch(dispatch, /verified sponsor\/monetization funding or confirmed provider acceptance of GLR/);
