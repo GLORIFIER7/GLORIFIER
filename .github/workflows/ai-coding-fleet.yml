@@ -5,6 +5,12 @@ on:
     # Every four hours; the Asia/Vientiane gate limits PR publication to 08:31 onward.
     - cron: "17 */4 * * *"
   workflow_dispatch:
+    inputs:
+      allow_paid_inference:
+        description: "Authorize one paid model-inference run for this manual execution"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -22,6 +28,7 @@ jobs:
     outputs:
       changed: ${{ steps.package.outputs.changed == 'true' }}
       authorized: ${{ steps.authorization.outputs.enabled }}
+      inference_authorized: ${{ steps.inference_authorization.outputs.authorized }}
       publication_allowed: ${{ steps.time_window.outputs.allowed }}
     steps:
       - name: Checkout
@@ -52,6 +59,21 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve explicit paid-inference authorization
+        id: inference_authorization
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ALLOW_PAID_INFERENCE: ${{ inputs.allow_paid_inference }}
+          MAINTENANCE_AUTHORIZED: ${{ steps.authorization.outputs.enabled }}
+        run: |
+          set -euo pipefail
+          source scripts/ai-fleet-paid-inference-authorization.sh
+          if [[ "$MAINTENANCE_AUTHORIZED" == "true" ]] && glorifier_ai_fleet_paid_inference_authorized "$EVENT_NAME" "$ALLOW_PAID_INFERENCE"; then
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Enforce PR publication window (Laos)
         id: time_window
         shell: bash
@@ -88,7 +110,7 @@ jobs:
 
       - name: Check OpenAI credential availability
         id: provider
-        if: ${{ steps.authorization.outputs.enabled == 'true' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         shell: bash
@@ -100,7 +122,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' && steps.provider.outputs.configured == 'true' }}
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -108,12 +130,12 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install locked validation dependencies
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' && steps.provider.outputs.configured == 'true' }}
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run Codex without GitHub write permissions
         id: codex
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' && steps.provider.outputs.configured == 'true' }}
         uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # pinned action revision
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -133,7 +155,7 @@ jobs:
 
       - name: Stage AI-generated changes for review
         id: stage
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' && steps.provider.outputs.configured == 'true' && steps.codex.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -219,10 +241,13 @@ jobs:
 
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
-        run: echo "::notice::No AI model was invoked. Set AI_MAINTENANCE_AUTORUN=true to authorize recurring and manual maintenance."
+        run: echo "::notice::No AI model was invoked. Set AI_MAINTENANCE_AUTORUN=true to authorize workflow execution; paid inference remains separately disabled by default."
 
+      - name: Report that paid inference is not authorized
+        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.inference_authorization.outputs.authorized != 'true' }}
+        run: echo "::notice::No model was invoked. Paid inference requires a manual workflow_dispatch with allow_paid_inference=true; scheduled runs never invoke a provider."
       - name: Report missing API key
-        if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured != 'true' }}
+        if: ${{ steps.inference_authorization.outputs.authorized == 'true' && steps.provider.outputs.configured != 'true' }}
         run: echo "::warning::OPENAI_API_KEY is not configured. AI maintenance did not run."
 
       - name: Report Codex capacity limitation
