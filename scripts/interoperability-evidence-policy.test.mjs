@@ -177,3 +177,59 @@ test('runtime version shorthand covers every listed version in a CI matrix', () 
     'Go 1.27.x is included in the explicitly listed Go version matrix',
   );
 });
+
+test('unversioned operating-system targets match only their declared platform family', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Ubuntu 24.04 x86_64', ['GitHub-hosted ubuntu-latest x86_64']),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Windows Server 2022 x86_64', ['Windows Server x86_64']),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('macOS 15 ARM64', ['macOS ARM64']),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Darwin arm64', ['Darwin ARM64']),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Debian 12 x86_64', ['Unix x86_64']),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Windows Server 2022 x86_64', ['Unix x86_64']),
+    false,
+  );
+});
+
+test('Rust stable is a runtime channel and must be present in the evidence', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 24.04 x86_64; Rust 1.82.0',
+      ['GitHub-hosted Ubuntu 24.04 x86_64; Rust stable'],
+    ),
+    false,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 24.04 x86_64; Rust stable',
+      ['GitHub-hosted Ubuntu 24.04 x86_64; Rust stable'],
+    ),
+    true,
+  );
+});
+
+test('Swift minimum-version declarations accept newer evidence but reject older toolchains', () => {
+  const target = ['Swift 5.9+ / macOS 15 ARM64'];
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Swift 5.10 / macOS 15 ARM64', target),
+    true,
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment('Swift 5.8.9 / macOS 15 ARM64', target),
+    false,
+  );
+});
