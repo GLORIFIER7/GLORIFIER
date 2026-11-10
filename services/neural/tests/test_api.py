@@ -66,7 +66,7 @@ def test_task_endpoint_rejects_invalid_token(monkeypatch):
     assert response.status_code == 401
 
 
-def test_task_endpoint_rejects_neural_diagnostic_token_and_keeps_primary_token_valid(monkeypatch):
+def test_task_endpoint_rejects_internal_service_token_and_keeps_primary_token_valid(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
     monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
     internal = client.post(
@@ -86,7 +86,7 @@ def test_task_endpoint_rejects_neural_diagnostic_token_and_keeps_primary_token_v
     assert primary.json()["evidence"] == ["policy:approval-required"]
 
 
-def test_worker_scope_neural_diagnostic_token_cannot_authenticate_public_tasks(monkeypatch):
+def test_worker_scope_internal_service_token_cannot_authenticate_public_tasks(monkeypatch):
     monkeypatch.delenv("GLORIFIER_API_TOKEN", raising=False)
     monkeypatch.delenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", raising=False)
     worker_env = {
@@ -144,7 +144,7 @@ def test_worker_scope_neural_diagnostic_token_cannot_authenticate_public_tasks(m
     assert authenticated_credentials == ["worker-primary-token"]
 
 
-def test_task_endpoint_rejects_incorrect_neural_diagnostic_token(monkeypatch):
+def test_task_endpoint_rejects_incorrect_internal_service_token(monkeypatch):
     monkeypatch.setenv("GLORIFIER_API_TOKEN", "existing-primary-token")
     monkeypatch.setenv("GLORIFIER_INTERNAL_SERVICE_TOKEN", "separate-internal-service-token")
     response = client.post(
@@ -775,7 +775,7 @@ def test_task_run_persistence_value_error_keeps_specific_invalid_record_evidence
     assert persisted.evidence[-1] == "persistence:task_runs:invalid-record"
 
 
-def test_neural_diagnostic_credential_must_differ_from_public_api_token():
+def test_internal_service_credential_must_differ_from_public_api_token():
     from starlette.requests import Request
 
     token = "same-public-and-internal-token"
