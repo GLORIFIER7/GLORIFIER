@@ -17,9 +17,9 @@ export function isEvidenceTimestampFresh(observedAt, {
 
 const environmentPatterns = {
   platform: [
-    { family: 'ubuntu', pattern: /\bubuntu[-\s]?(\d{2}\.\d{2})\b/gi },
-    { family: 'debian', pattern: /\bdebian[-\s]?(\d+(?:\.\d+)*)\b/gi },
-    { family: 'alpine', pattern: /\balpine(?:\s+linux)?[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'ubuntu', pattern: /\bubuntu(?:[-\s]?(\d{2}\.\d{2}|latest|lts))?\b/gi },
+    { family: 'debian', pattern: /\bdebian(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'alpine', pattern: /\balpine(?:\s+linux)?(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
     { family: 'fedora', pattern: /\bfedora[-\s]?(\d+(?:\.\d+)*)\b/gi },
     { family: 'centos', pattern: /\bcentos[-\s]?(\d+(?:\.\d+)*)\b/gi },
     { family: 'rhel', pattern: /\b(?:rhel|red\s+hat\s+enterprise\s+linux)[-\s]?(\d+(?:\.\d+)*)\b/gi },
@@ -28,8 +28,10 @@ const environmentPatterns = {
     { family: 'opensuse', pattern: /\bopensuse(?:\s+(?:leap|tumbleweed))?\b/gi },
     { family: 'suse', pattern: /\bsuse\s+linux\s+enterprise(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
     { family: 'linux', pattern: /\blinux\b/gi },
-    { family: 'windows', pattern: /\bwindows(?:\s+server)?[-\s]?(\d{4}|1[01]|\d)\b/gi },
-    { family: 'macos', pattern: /\bmacos[-\s]?(\d{1,2})\b/gi },
+    { family: 'windows', pattern: /\bwindows(?:\s+server)?(?:[-\s]?(\d{4}|1[01]|\d|latest))?\b/gi },
+    { family: 'macos', pattern: /\bmacos(?:[-\s]?(\d{1,2}))?\b/gi },
+    { family: 'darwin', pattern: /\bdarwin(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'unix', pattern: /\bunix\b/gi },
     { family: 'android', pattern: /\bandroid(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
     { family: 'ios', pattern: /\bios(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
     { family: 'freebsd', pattern: /\bfreebsd[-\s]?(\d+(?:\.\d+)*)\b/gi },
@@ -45,8 +47,9 @@ const environmentPatterns = {
     { family: 'dotnet', pattern: /\.net\s*v?(\d+(?:\.\d+){0,2})\b/gi },
     { family: 'php', pattern: /\bphp\s*v?(\d+(?:\.\d+){0,2})\b/gi },
     { family: 'ruby', pattern: /\bruby\s*v?(\d+(?:\.\d+){0,2})\b/gi },
+    { family: 'rust', pattern: /\brust(?:c)?\s+(stable|beta|nightly|\d+(?:\.\d+){0,2})\b/gi },
     { family: 'dart', pattern: /\bdart\s*v?(\d+(?:\.\d+){0,2})\b/gi },
-    { family: 'swift', pattern: /\bswift\s*v?(\d+(?:\.\d+){0,2})\b/gi },
+    { family: 'swift', pattern: /\bswift\s*v?(\d+(?:\.\d+){0,2}\+?)(?=\b|\s|\/|,|;|$)/gi },
   ],
 };
 
@@ -100,6 +103,22 @@ function extractEnvironmentIdentity(value) {
 }
 
 function versionMatches(declaredVersion, observedVersion) {
+  if (declaredVersion === 'latest' || declaredVersion === 'lts') {
+    return observedVersion === declaredVersion || /^\\d/.test(observedVersion);
+  }
+  if (declaredVersion.endsWith('+')) {
+    const minimum = declaredVersion.slice(0, -1).split('.').map(Number);
+    const observed = observedVersion.replace(/\\+$/, '').split('.').map(Number);
+    if (minimum.some((value) => !Number.isInteger(value)) ||
+        observed.some((value) => !Number.isInteger(value))) return false;
+    for (let index = 0; index < Math.max(minimum.length, observed.length); index += 1) {
+      const minimumPart = minimum[index] ?? 0;
+      const observedPart = observed[index] ?? 0;
+      if (observedPart > minimumPart) return true;
+      if (observedPart < minimumPart) return false;
+    }
+    return true;
+  }
   if (declaredVersion.endsWith('.x')) {
     return observedVersion === declaredVersion.slice(0, -2) ||
       observedVersion.startsWith(`${declaredVersion.slice(0, -2)}.`);
@@ -111,6 +130,9 @@ function versionMatches(declaredVersion, observedVersion) {
   }
   if (declaredVersion.endsWith('.0') && observedVersion === declaredVersion.slice(0, -2)) {
     return true;
+  }
+  if (!/^\\d/.test(declaredVersion) || !/^\\d/.test(observedVersion)) {
+    return declaredVersion === observedVersion;
   }
   return observedVersion === declaredVersion ||
     observedVersion.startsWith(`${declaredVersion}.`);
@@ -154,6 +176,11 @@ export function hasEvidenceForDeclaredTargetEnvironment(
           if (platform === 'linux:') {
             return evidence.platforms.some((observed) =>
               /^(?:linux|ubuntu|debian|alpine|fedora|centos|rhel|amazon-linux|arch-linux|opensuse|suse):/.test(observed),
+            );
+          }
+          if (platform === 'unix:') {
+            return evidence.platforms.some((observed) =>
+              /^(?:linux|ubuntu|debian|alpine|fedora|centos|rhel|amazon-linux|arch-linux|opensuse|suse|macos|darwin|freebsd|openbsd|netbsd):/.test(observed),
             );
           }
           const [family, version] = platform.split(':');
