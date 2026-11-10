@@ -73,6 +73,11 @@ async function askMeta() {
   return (await response.json()).choices?.[0]?.message?.content || '';
 }
 
+if (process.env.ALLOW_PAID_INFERENCE !== 'true') {
+  console.log('GLORIFIER_AI_DEGRADED_MODE reason=paid_inference_not_authorized action=skip_improvement');
+  process.exit(0);
+}
+
 const candidates=availableProviders();
 const executive=candidates[0] || {id:'none',model:'',score:0};
 if (executive.id==='none') { console.log('GLORIFIER_AI_DEGRADED_MODE reason=no_provider_configured action=skip_improvement'); process.exit(0); }
