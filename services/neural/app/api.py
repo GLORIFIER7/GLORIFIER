@@ -219,6 +219,7 @@ def _worker_readiness_cache_key(request: Request) -> tuple[str, ...]:
     """Key cached probes by non-secret configuration, never by credential contents."""
     names = (
         "GLORIFIER_ENABLE_INFERENCE",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED",
         "GLORIFIER_PROVIDER",
         "NVIDIA_NIM_MODEL",
         "NVIDIA_DYNAMO_MODEL",
