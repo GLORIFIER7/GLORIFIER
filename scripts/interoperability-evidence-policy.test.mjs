@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasEvidenceForDeclaredTargetEnvironment,
+  hasEvidenceForEveryDeclaredTargetEnvironment,
   isEvidenceTimestampFresh,
   LIVE_EVIDENCE_MAX_AGE_MS,
 } from './interoperability-evidence-policy.mjs';
@@ -101,6 +102,58 @@ test('generic Linux targets accept supported Linux distribution evidence', () =>
     hasEvidenceForDeclaredTargetEnvironment(
       'Ubuntu 24.04 x86_64; Python 3.12',
       ['Linux x86_64; Python 3.12'],
+    ),
+    true,
+  );
+});
+
+test('VERIFIED capabilities require timestamped evidence for every declared target environment', () => {
+  const targets = [
+    'Python 3.12 / Windows Server 2022 x86_64',
+    'Python 3.12 / macOS 15 ARM64',
+  ];
+  const windowsEvidence = {
+    kind: 'ci-run',
+    reference: 'https://example.invalid/windows-run',
+    targetEnvironment: 'Python 3.12 / Windows Server 2022 x86_64',
+    observedAt: '2026-11-10T07:00:00.000Z',
+  };
+  const macEvidence = {
+    kind: 'ci-run',
+    reference: 'https://example.invalid/macos-run',
+    targetEnvironment: 'Python 3.12 / macOS 15 ARM64',
+    observedAt: '2026-11-10T07:00:00.000Z',
+  };
+
+  assert.equal(
+    hasEvidenceForEveryDeclaredTargetEnvironment([windowsEvidence], targets, {
+      now: Date.parse('2026-11-10T07:30:00.000Z'),
+    }),
+    false,
+    'one successful platform must not verify the other declared platform',
+  );
+  assert.equal(
+    hasEvidenceForEveryDeclaredTargetEnvironment([windowsEvidence, macEvidence], targets, {
+      now: Date.parse('2026-11-10T07:30:00.000Z'),
+    }),
+    true,
+  );
+});
+
+test('one evidence record covering an OS matrix must contain every declared platform version', () => {
+  const target = 'GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64';
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 22.04 x86_64; exact workflow run',
+      [target],
+    ),
+    false,
+    'Ubuntu 22.04 evidence alone must not verify the Ubuntu 24.04 matrix target',
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64; exact workflow run',
+      [target],
     ),
     true,
   );
