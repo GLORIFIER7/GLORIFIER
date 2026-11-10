@@ -57,6 +57,7 @@ Set these values in the NEURAL runtime's secret/configuration manager, not in so
 | `GLORIFIER_VLLM_API_KEY` | Same secret value as Kubernetes `api-key` |
 | `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS` | `true`, only after egress is reviewed and explicitly authorized |
 | `GLORIFIER_ENABLE_INFERENCE` | `true`, only after compute funding and inference use are authorized |
+| `GLORIFIER_PAID_INFERENCE_AUTHORIZED` | `false` by default; `true` only after explicit owner authorization for the paid request |
 
 The NEURAL Worker must be able to reach the HTTPS hostname. A private ClusterIP address is not reachable directly from Cloudflare Workers. Establish and test a properly authenticated, TLS-protected route before configuring the provider.
 
