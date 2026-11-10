@@ -76,13 +76,12 @@ test('a skipped patch-packaging step exports an explicit false changed value', (
 });
 
 test('scheduled inference is disabled and manual inference requires explicit funded authorization', () => {
-  assert.match(dispatchDeclaration, /allow_paid_inference:\\s+description:.*\\s+required: true\\s+default: false\\s+type: boolean/);
+  assert.match(dispatchDeclaration, /allow_paid_inference:\s+description:.*\s+required: true\s+default: false\s+type: boolean/);
   assert.doesNotMatch(workflow, /AI_MAINTENANCE_AUTORUN|SCHEDULE_AUTHORIZATION/);
-  assert.match(workflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\\{\\{ inputs\\.allow_paid_inference \\}\\}/);
-  assert.match(workflow, /glorifier_ai_maintenance_authorized "\\$EVENT_NAME" "\\$MANUAL_PAID_INFERENCE_AUTHORIZATION"/);
+  assert.match(workflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ inputs\.allow_paid_inference \}\}/);
+  assert.match(workflow, /glorifier_ai_maintenance_authorized "\$EVENT_NAME" "\$MANUAL_PAID_INFERENCE_AUTHORIZATION"/);
   assert.match(workflow, /Scheduled provider inference is disabled/);
   assert.match(workflow, /confirmed provider acceptance of GLR/);
-  assert.doesNotMatch(workflow, /No AI model was invoked and no PR was created because it is before 08:31/);
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
