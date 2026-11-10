@@ -291,7 +291,7 @@
       "id": "nist-ai-agents",
       "authority": "NIST",
       "domain": "ai",
-      "url": "https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative",
+      "url": "https://www.nist.gov/super-intelligence/si-agent-standards-initiative",
       "claimsAllowed": [
         "agent-identity-delegation"
       ],
