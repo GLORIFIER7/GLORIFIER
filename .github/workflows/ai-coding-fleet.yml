@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
-      changed: ${{ steps.package.outputs.changed }}
+      changed: ${{ steps.package.outputs.changed == 'true' }}
       authorized: ${{ steps.authorization.outputs.enabled }}
       publication_allowed: ${{ steps.time_window.outputs.allowed }}
     steps:
