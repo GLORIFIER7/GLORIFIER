@@ -20,7 +20,6 @@ const PROTECTED_PATHS = [
   /^scripts\/(?:ai-fleet-diff-policy|validate-ai-fleet-diff)(?:\.test)?\.mjs$/i,
   /^scripts\/(?:ai-fleet-authorization|ai-fleet-paid-inference-authorization)(?:\.test)?\.sh$/i,
   /^scripts\/(?:ai-fleet-workflow-contract|ai-fleet-paid-inference-workflow-contract)\.test\.mjs$/i,
-  /^scripts\/ai-fleet-paid-inference-workflow-contract\.test\.mjs$/i,
   /(^|\/)(?:Dockerfile|docker-compose\.ya?ml|\.npmrc|\.nvmrc|tsconfig(?:\.[^/]+)?\.json|vite\.config\.[^/]+)$/i,
 ];
 
