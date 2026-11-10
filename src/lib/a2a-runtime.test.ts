@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
+import { createA2ATask, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -173,5 +173,53 @@ void test('A2A cancellation is requester-scoped, queued-only, and prevents later
     running.status = 'running';
     const notCancelable = await cancelA2ATaskForRequesterProtocol(running.id, 'alice');
     assert.equal(notCancelable?.status, 'running', 'running provider work must not be falsely marked canceled');
+  });
+});
+
+void test('A2A canceled tasks remain filterable across pages and appear in the protocol lifecycle', async () => {
+  await withA2ATestEnvironment(async () => {
+    const requester = `a2a-canceled-page-${crypto.randomUUID()}`;
+    const created = [
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'canceled page one' }),
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'canceled page two' }),
+      createA2ATask({ requesterAgentId: requester, capability: 'research', objective: 'canceled page three' }),
+    ];
+
+    for (const task of created) {
+      const canceled = await cancelA2ATaskForRequesterProtocol(task.id, requester);
+      assert.equal(canceled?.status, 'canceled');
+    }
+
+    const first = await listA2ATaskPageForProtocol({
+      requesterAgentId: requester,
+      pageSize: 1,
+      statuses: ['canceled'],
+    });
+    const second = await listA2ATaskPageForProtocol({
+      requesterAgentId: requester,
+      pageSize: 1,
+      statuses: ['canceled'],
+      pageToken: first.nextPageToken,
+    });
+    const third = await listA2ATaskPageForProtocol({
+      requesterAgentId: requester,
+      pageSize: 1,
+      statuses: ['canceled'],
+      pageToken: second.nextPageToken,
+    });
+
+    assert.equal(first.totalSize, 3);
+    assert.equal(second.totalSize, 3);
+    assert.equal(third.totalSize, 3);
+    assert.deepEqual(
+      [first.tasks[0].id, second.tasks[0].id, third.tasks[0].id].sort(),
+      created.map((task) => task.id).sort(),
+      'all canceled tasks must be returned exactly once across pages',
+    );
+    assert.equal(third.nextPageToken, '');
+
+    const manifest = getA2AProtocolManifest();
+    assert.ok(manifest.lifecycle.includes('canceled'),
+      'the advertised A2A lifecycle must include the terminal canceled state');
   });
 });
