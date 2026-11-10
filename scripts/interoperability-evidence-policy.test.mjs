@@ -158,3 +158,22 @@ test('one evidence record covering an OS matrix must contain every declared plat
     true,
   );
 });
+
+test('runtime version shorthand covers every listed version in a CI matrix', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 24.04 x86_64; Python 3.10/3.11/3.12',
+      ['GitHub-hosted Ubuntu 24.04 x86_64 with Python 3.12'],
+    ),
+    true,
+    'Python 3.12 is included in the explicitly listed Python version matrix',
+  );
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      'GitHub-hosted Ubuntu 24.04 x86_64; Go 1.26.x/1.27.x',
+      ['GitHub-hosted Ubuntu 24.04 x86_64 with Go 1.27.3'],
+    ),
+    true,
+    'Go 1.27.x is included in the explicitly listed Go version matrix',
+  );
+});
