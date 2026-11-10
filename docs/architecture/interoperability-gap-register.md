@@ -286,7 +286,7 @@ A Cloudflare Workers Builds configuration update and fresh API read-back at
   it does not upload or promote a Worker version.
 - The Preview command remains `npx wrangler preview`.
 - The protected GitHub workflow
-  `.github/workflows/cloudflare-neural-worker.yml` remains the only configured
+  `.github/workflows/neural-cloudflare-worker.yml` remains the only configured
   production-promotion path: manual `workflow_dispatch`, `deploy=true`, from
   `main`, through the protected
   `glorifier-neural-cloudflare-production` environment.
