@@ -293,7 +293,18 @@ A Cloudflare Workers Builds configuration update and fresh API read-back at
 
 The previous Workers Builds production command
 `bash ./worker-build.sh deploy` has been replaced with validation-only
-preparation. The latest deployment inventory still shows the prior NEURAL
+preparation. A separate Cloudflare Worker-version metadata read-back at
+`2026-11-10T01:42:41Z` confirms that the active GLORIFIER production version
+is still version `994`
+(`12b2bfdc-ef46-436b-8f54-bab5e246ec5f`), created at
+`2026-11-09T01:53:21.489073Z`, and that its deployed binding inventory does
+**not** include `GLORIFIER_NEURAL`. It does include the configured origin and
+exact-host allowlist. Thus source PR #774 is merged on `main`, but its service
+binding correction is not deployed to the active 100%-traffic Worker. The
+proxy repair remains pending the protected GLORIFIER release path and post-release
+`/api/neural/health` and `/api/neural/ready` verification.
+
+The latest deployment inventory still shows the prior NEURAL
 100%-traffic deployment created at `2026-11-09T11:40:45.754352Z`; no new
 version upload or production promotion was performed as part of this
 mitigation.
