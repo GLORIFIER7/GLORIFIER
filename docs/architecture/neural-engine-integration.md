@@ -145,7 +145,7 @@ Before provisioning `GLORIFIER_INTERNAL_SERVICE_TOKEN`, an authorized owner shou
 
 ## Superseding production configuration observation — 2026-11-10T23:42:17.818Z
 
-Observation time: 2026-11-10T23:42:17.818Z UTC / 2026-11-11T06:42:17.818+07:00 Asia/Vientiane. This read-only inventory supersedes the 2026-11-10 binding/secret/variable snapshot below where values differ. Only active deployment metadata, non-secret settings, binding names, and secret names were read; no secret values were accessed.
+Observation time: 2026-11-10T23:42:17.818Z UTC / 2026-11-11T06:42:17.818+07:00 Asia/Vientiane. This read-only inventory updates the 2026-11-10 production configuration snapshot recorded in docs/architecture/interoperability-gap-register.md where values differ. Only active deployment metadata, non-secret settings, binding names, and secret names were read; no secret values were accessed.
 
 - GLORIFIER remains at 100% traffic on deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b, Worker version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f. It has the configured origin and exact-host allowlist but still lacks the GLORIFIER_NEURAL service binding declared on GLORIFIER main c54c35e0353457f29cc966dea8db098978fcde1d.
 - NEURAL remains at 100% traffic on deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c, Worker version cfef05f3-1729-4583-a523-9cf7d43d3860. Its active non-secret settings still have inference and external data egress enabled; the new paid-inference authorization variable is absent.
