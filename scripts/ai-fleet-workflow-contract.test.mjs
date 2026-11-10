@@ -143,19 +143,21 @@ test('the write-capable publisher rechecks the Laos window before checkout or an
     'the publisher clock gate must be the first step, before checkout');
 
   const gate = publish.slice(gateStart, checkoutStart);
-  assert.match(gate, /id: publisher_gate/);
-  assert.match(gate, /TZ=Asia\\/Vientiane date \\+%H%M/);
-  assert.match(gate, /current_hhmm_decimal < 831/);
-  assert.match(gate, /allowed=false/);
-  assert.match(gate, /allowed=true/);
+  assert.ok(gate.includes('id: publisher_gate'));
+  assert.ok(gate.includes('TZ=Asia/Vientiane date +%H%M'));
+  assert.ok(gate.includes('current_hhmm_decimal < 831'));
+  assert.ok(gate.includes('allowed=false'));
+  assert.ok(gate.includes('allowed=true'));
   assert.doesNotMatch(gate, /uses:|GH_TOKEN:|npm ci|git push|gh pr create/,
     'the pre-check gate must not checkout code, install dependencies, or use write-capable commands');
 
   const publisherSteps = publish.slice(checkoutStart);
-  const stepBlocks = publisherSteps.match(/^      - name: [\\s\\S]*?(?=^      - name: |$)/gm) || [];
-  assert.ok(stepBlocks.length >= 6, 'expected all publisher steps to be present');
-  for (const step of stepBlocks) {
-    assert.match(step, /^      - name: [^\\n]+\\n        if: \\$\\{\\{ steps\\.publisher_gate\\.outputs\\.allowed == 'true' \\}\\}/,
+  const stepStarts = [...publisherSteps.matchAll(/^      - name: /gm)].map((match) => match.index);
+  assert.ok(stepStarts.length >= 7, 'expected all publisher steps to be present');
+  for (const [index, stepStart] of stepStarts.entries()) {
+    const stepEnd = stepStarts[index + 1] ?? publisherSteps.length;
+    const stepHeader = publisherSteps.slice(stepStart, stepEnd).split('\\n').slice(0, 3).join('\\n');
+    assert.ok(stepHeader.includes("if: \${{ steps.publisher_gate.outputs.allowed == 'true' }}"),
       'every checkout, install, artifact, validation, and publish step must require the fresh publisher gate');
   }
 });
