@@ -162,6 +162,18 @@ test('the write-capable publisher rechecks the Laos window before checkout or an
   }
 });
 
+test('every action in the write-capable publisher is pinned to an immutable commit SHA', () => {
+  const actionRefs = publish
+    .split(String.fromCharCode(10))
+    .filter((line) => line.trimStart().startsWith('uses:'))
+    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
+  assert.equal(actionRefs.length, 3, 'the publisher should use only the three reviewed GitHub actions');
+  for (const actionRef of actionRefs) {
+    assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
+      'write-capable publisher actions must use immutable 40-character commit SHAs: ' + actionRef);
+  }
+});
+
 test('automated changes remain draft PRs and are never auto-merged', () => {
   assert.match(publish, /gh pr create --draft/);
   assert.doesNotMatch(workflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
