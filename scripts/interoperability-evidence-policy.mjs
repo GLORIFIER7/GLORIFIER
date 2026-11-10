@@ -18,8 +18,23 @@ export function isEvidenceTimestampFresh(observedAt, {
 const environmentPatterns = {
   platform: [
     { family: 'ubuntu', pattern: /\bubuntu[-\s]?(\d{2}\.\d{2})\b/gi },
-    { family: 'windows', pattern: /\bwindows(?:\s+server)?[-\s]?(\d{4})\b/gi },
+    { family: 'debian', pattern: /\bdebian[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'alpine', pattern: /\balpine(?:\s+linux)?[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'fedora', pattern: /\bfedora[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'centos', pattern: /\bcentos[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'rhel', pattern: /\b(?:rhel|red\s+hat\s+enterprise\s+linux)[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'amazon-linux', pattern: /\bamazon\s+linux(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'arch-linux', pattern: /\barch\s+linux\b/gi },
+    { family: 'opensuse', pattern: /\bopensuse(?:\s+(?:leap|tumbleweed))?\b/gi },
+    { family: 'suse', pattern: /\bsuse\s+linux\s+enterprise(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'linux', pattern: /\blinux\b/gi },
+    { family: 'windows', pattern: /\bwindows(?:\s+server)?[-\s]?(\d{4}|1[01]|\d)\b/gi },
     { family: 'macos', pattern: /\bmacos[-\s]?(\d{1,2})\b/gi },
+    { family: 'android', pattern: /\bandroid(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'ios', pattern: /\bios(?:[-\s]?(\d+(?:\.\d+)*))?\b/gi },
+    { family: 'freebsd', pattern: /\bfreebsd[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'openbsd', pattern: /\bopenbsd[-\s]?(\d+(?:\.\d+)*)\b/gi },
+    { family: 'netbsd', pattern: /\bnetbsd[-\s]?(\d+(?:\.\d+)*)\b/gi },
   ],
   runtime: [
     { family: 'python', pattern: /\bpython\s*v?(\d+(?:\.\d+){0,2}(?:\.x)?)\b/gi },
@@ -41,7 +56,7 @@ function extractEnvironmentIdentity(value) {
 
   for (const { family, pattern } of environmentPatterns.platform) {
     for (const match of source.matchAll(pattern)) {
-      identity.platforms.push(`${family}:${match[1]}`);
+      identity.platforms.push(`${family}:${match[1] ?? ''}`);
     }
   }
 
@@ -61,6 +76,12 @@ function extractEnvironmentIdentity(value) {
   }
 
   identity.platforms = [...new Set(identity.platforms)];
+  const specificLinuxDistribution = identity.platforms.some((platform) =>
+    /^(?:ubuntu|debian|alpine|fedora|centos|rhel|amazon-linux|arch-linux|opensuse|suse):/.test(platform),
+  );
+  if (specificLinuxDistribution) {
+    identity.platforms = identity.platforms.filter((platform) => platform !== 'linux:');
+  }
   identity.architectures = [...new Set(identity.architectures)];
   for (const family of Object.keys(identity.runtimes)) {
     identity.runtimes[family] = [...new Set(identity.runtimes[family])];
@@ -111,8 +132,23 @@ export function hasEvidenceForDeclaredTargetEnvironment(
         targetText.includes(evidenceText);
     }
 
-    const platformMatches = declared.platforms.length === 0 ||
-      declared.platforms.some((platform) => evidence.platforms.includes(platform));
+    const platformHints = /\b(?:linux|windows|macos|os\s+x|darwin|ubuntu|debian|alpine|fedora|centos|rhel|red\s+hat|amazon\s+linux|arch\s+linux|opensuse|suse\s+linux|android|ios|freebsd|openbsd|netbsd|unix)\b/i;
+    const targetNamesPlatform = platformHints.test(target);
+    const platformMatches = declared.platforms.length > 0
+      ? declared.platforms.some((platform) => {
+          if (platform === 'linux:') {
+            return evidence.platforms.some((observed) =>
+              /^(?:linux|ubuntu|debian|alpine|fedora|centos|rhel|amazon-linux|arch-linux|opensuse|suse):/.test(observed),
+            );
+          }
+          const [family, version] = platform.split(':');
+          return evidence.platforms.some((observed) => {
+            const [observedFamily, observedVersion] = observed.split(':');
+            return observedFamily === family &&
+              (!version || !observedVersion || versionMatches(version, observedVersion));
+          });
+        })
+      : !targetNamesPlatform;
     const architectureMatches = declared.architectures.length === 0 ||
       declared.architectures.some((architecture) => evidence.architectures.includes(architecture));
     const runtimeMatches = Object.entries(declared.runtimes).every(([family, versions]) => {
