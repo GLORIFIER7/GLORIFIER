@@ -70,6 +70,13 @@ For read-only provider readiness, configure:
 - `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`
 - Store `OPENAI_API_KEY` as a Worker secret.
 
+Read-only readiness does not authorize task inference. Only after the owner separately approves prompt transmission and applicable provider charges, task inference also requires:
+
+- `GLORIFIER_ENABLE_INFERENCE=true`
+- `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true`
+
+Keep the paid-inference authorization false in the zero-budget default.
+
 A direct Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC+07:00) confirmed `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. The `OPENAI_API_KEY` binding name is present; its value was not read. This is configuration evidence only. The latest production smoke performed read-only readiness checks and explicitly reported `inference_performed=false`; it did not submit a prompt or verify a live completion. Authenticated task requests can send prompt content to OpenAI and incur separate API usage charges. Current source also requires the independent, default-false `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` gate in addition to inference enablement and external-egress consent; a historical production flag snapshot does not prove that the new source guard has been deployed. A successful model-catalogue check establishes model access only; it does not prove inference quality, latency, capacity, or end-to-end task execution.
 
 ### NVIDIA NIM (optional alternative provider)
@@ -77,6 +84,7 @@ A direct Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC
 Set these plain-text variables only when the owner explicitly authorizes sending task prompts to NVIDIA:
 
 - `GLORIFIER_ENABLE_INFERENCE=true`
+- `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` (separate owner approval for paid inference; otherwise keep it `false`)
 - `GLORIFIER_PROVIDER=nvidia_nim`
 - `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`
 - `NVIDIA_NIM_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b`
@@ -96,6 +104,7 @@ Configure the following only after the owner has supplied a valid Gemini API key
 - Set `GLORIFIER_PROVIDER=gemini`.
 - Explicitly set `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true` at deployment time to permit provider readiness and external requests; the tracked Worker configuration defaults this switch to `false`.
 - Separately set `GLORIFIER_ENABLE_INFERENCE=true` only after an authorized inference test is approved; the tracked Worker configuration defaults this switch to `false`.
+- Separately set `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` only after the owner explicitly approves paid task inference; the tracked Worker configuration defaults this switch to `false`.
 - Store `GEMINI_API_KEY` as a Cloudflare Worker secret.
 - Optionally set `GEMINI_MODEL`; the default is `gemini-3.8-flash`.
 
@@ -110,6 +119,7 @@ Configure the following only after the owner has supplied a valid Anthropic API 
 - Set `GLORIFIER_PROVIDER=anthropic`.
 - Explicitly set `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true` at deployment time to permit provider readiness and external requests; the tracked Worker configuration defaults this switch to `false`.
 - Separately set `GLORIFIER_ENABLE_INFERENCE=true` only after an authorized inference test is approved; the tracked Worker configuration defaults this switch to `false`.
+- Separately set `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` only after the owner explicitly approves paid task inference; the tracked Worker configuration defaults this switch to `false`.
 - Store `ANTHROPIC_API_KEY` as a Cloudflare Worker secret.
 - Optionally set `ANTHROPIC_MODEL`; the default is `claude-sonnet-5`.
 
