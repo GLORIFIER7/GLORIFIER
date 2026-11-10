@@ -15,6 +15,7 @@ import {
   stripHtml,
   isTrustedArchitectureSourceUrl,
   isTrustedCuratedRedirectTarget,
+  formatCuratedRedirectTargetDiagnostic,
   findEarliestKeywordIndex,
   type ArchitectureDomain,
   type ArchitecturePattern,
@@ -31,6 +32,11 @@ const model = getGeasArchitectureModel();
 const googleArchitectureSource = model.sources.find((source) => source.id === 'google-architecture');
 if (googleArchitectureSource?.url !== 'https://docs.cloud.google.com/architecture/framework') {
   throw new Error('Google Cloud architecture source must use the verified canonical Well-Architected Framework URL');
+}
+
+const nistAiAgentsSource = model.sources.find((source) => source.id === 'nist-ai-agents');
+if (nistAiAgentsSource?.url !== 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative') {
+  throw new Error('NIST AI Agent Standards Initiative must use the current canonical SI Agent Standards Initiative URL');
 }
 
 const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
@@ -79,6 +85,7 @@ if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A 
 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
+  'https://www.nist.gov/super-intelligence/si-agent-standards-initiative',
   'https://owaspacs.org/docs/acs/',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
@@ -148,6 +155,12 @@ for (const target of rejectedRedirectTargets) {
     throw new Error(`unsafe curated source redirect target was accepted: ${target.href}`);
   }
 }
+
+assert.equal(
+  formatCuratedRedirectTargetDiagnostic(new URL('https://user:secret@docs.cloud.google.com/architecture/framework?token=secret#overview')),
+  'https://docs.cloud.google.com/architecture/framework',
+  'redirect diagnostics must preserve the origin and path while excluding credentials, query strings, and fragments',
+);
 
 if (isClaimSupportedEvidence('content-matched')) throw new Error('keyword match must not count as claim verification');
 if (!isClaimSupportedEvidence('claim-supported')) throw new Error('claim-supported evidence state missing');

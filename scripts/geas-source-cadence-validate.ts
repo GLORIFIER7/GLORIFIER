@@ -3,6 +3,7 @@ import { parseScannerSourceCatalog } from './geas-source-catalog-parser.ts';
 
 type RegistrySource = {
   id: string;
+  url: string;
   reviewCadenceDays: number;
   scannerStatus: 'active' | 'discovery-only';
 };
@@ -42,6 +43,21 @@ const isValidReviewCadenceDays = (value: unknown): value is number =>
   && Number.isSafeInteger(value * 24);
 const isValidScannerCadenceHours = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+
+const isMatchingSourceUrl = (registryUrl: string, scannerUrl: string): boolean =>
+  registryUrl === scannerUrl;
+
+const verifySourceUrlConsistency = (): void => {
+  const canonicalUrl = 'https://example.org/canonical';
+  if (!isMatchingSourceUrl(canonicalUrl, canonicalUrl)) {
+    throw new Error('identical registry and scanner source URLs must be accepted');
+  }
+  if (isMatchingSourceUrl(canonicalUrl, 'https://example.org/legacy')) {
+    throw new Error('divergent registry and scanner source URLs must be rejected');
+  }
+};
+
+verifySourceUrlConsistency();
 
 const verifyCadenceBounds = (): void => {
   if (!isValidReviewCadenceDays(14)) throw new Error('ordinary review cadence must remain valid');
@@ -217,6 +233,9 @@ for (const source of activeRegistry) {
   if (!entry) {
     failures.push(`active registry source ${source.id} is missing from scanner catalog`);
     continue;
+  }
+  if (!isMatchingSourceUrl(source.url, entry.url)) {
+    failures.push(`source ${source.id} URL mismatch: scanner=${entry.url} registry=${source.url}`);
   }
   if (!isValidScannerCadenceHours(entry.cadenceHours)) {
     failures.push(`scanner source ${source.id} has an invalid or unsafe cadenceHours value`);

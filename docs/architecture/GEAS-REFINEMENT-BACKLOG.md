@@ -56,3 +56,23 @@ Each result retains state evidence references and rationale; verifier ID/version
 - Avoid adding infrastructure without a documented requirement and measurable benefit.
 ## Safety invariant
 GEAS may observe, test within approved boundaries, compare, prioritize, and recommend. It must not autonomously perform irreversible production changes, transfer assets, trade, or rotate credentials. Controlled automation requires separately approved policy, bounded permissions, rollback plans, and human authorization where applicable.
+
+
+## Source URL and cadence consistency — 2026-11-10
+
+The GEAS scan artifact from run `42711324957` tested main commit `0163c45a9ef007e7f6cf0b47c6326431a6d32308` and recorded the `nist-ai-agents` source as `unavailable` because its former NIST path redirected outside the source-specific curated redirect allowlist. NIST's current canonical page is `https://www.nist.gov/super-intelligence/si-agent-standards-initiative` (page updated 2026-11-09). The registry and scanner catalog now use that canonical URL.
+
+The source-registry consistency validator now compares the exact canonical URL as well as the source ID and review cadence. This prevents an active source from silently using different URLs in the registry and scanner catalog. URL equality is a catalog-integrity check only; it does not verify source claims or GLORIFIER implementation.
+
+The same scan recorded `google-architecture` as unavailable due to a rejected redirect and `iso-42001` as not observed after HTTP 403. A subsequent PR scan (run `42748771833`, tested merge SHA `8d6ac58ca942de45ded16e20474b6a1e75710e7a`, source head `2808cba5060466a993beeef1d35e43f4085d75cd`) observed Google Cloud at HTTP 200 with `content-matched` status; the earlier redirect failure therefore recovered without broadening the redirect policy. ISO 42001 remains not observed after HTTP 403. Source availability and keyword matching remain discovery evidence only.
+
+
+## Follow-up scan observation — 2026-11-10T03:22:14.980Z
+
+The latest exact-head GEAS Architecture Science Scan is run `42748920898` (PR #782). Its provenance binds tested merge SHA `0b088038c08e507a6883058b1491c1dc1a97d927`, source head `180557a13ac2895f2b0b9e693d456c8ff8c53138`, and base SHA `4b93d61cfb91ca979923d6acf614f2f42dd6c2e5`. The uploaded artifact is `geas-architecture-scan-42748920898`; the downloaded ZIP SHA-256 is `9bfa2dff08eef49194e0e3541be22adc38775c983daea71e802fe51e3d362199`.
+
+Observed result: 41 discovered patterns, all 41 classified as analysis, zero claim-supported patterns, zero recommendations, 39 evidence records, and eight drift findings. All eight drift findings remain `UNKNOWN` with no evidence references. The artifact records `irreversibleChangesExecuted=false`.
+
+Source observations: 39 `content-matched`, two `source-available` (`microsoft-architecture` and `mitre-atlas`), one `unavailable` (`google-architecture`, rejected because the redirect target was outside its source-specific curated allowlist), and one `not-observed` (`iso-42001`, HTTP 403). The two `source-available` records are not content evidence. All 39 content matches remain discovery/analysis evidence, not claim verification.
+
+This later observation supersedes any inference that Google Cloud was durably recovered by the earlier run `42748771833`: one scan observed HTTP 200/content-matched, while this exact-head scan rejected a redirect. The public Google Cloud Well-Architected page is reachable at the configured canonical documentation path, but this artifact does not expose the rejected redirect target. Keep the source unavailable for this run and do not broaden the redirect allowlist until the exact target and its canonical ownership/path are independently captured. Source availability, content matching, and URL/cadence consistency do not establish GLORIFIER implementation or runtime conformance.
