@@ -215,7 +215,7 @@ jobs:
 
       - name: Report that the Laos publication window is closed
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.time_window.outputs.allowed != 'true' }}
-        run: echo "::notice::PR publication is held until 08:31 Asia/Vientiane; maintenance analysis and validation are not blocked by this gate."
+        run: echo "::notice::The initial publication check did not allow publication; the publisher will recheck the current clock immediately before any remote write."
 
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
@@ -231,7 +231,7 @@ jobs:
 
   publish-proposal:
     needs: coding-fleet
-    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' && needs.coding-fleet.outputs.publication_allowed == 'true' }}
+    if: ${{ needs.coding-fleet.result == 'success' && needs.coding-fleet.outputs.authorized == 'true' && needs.coding-fleet.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -289,6 +289,19 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
+          if ! current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"; then
+            echo "::warning::Asia/Vientiane clock is unavailable; no branch or PR was published."
+            exit 0
+          fi
+          if [[ ! "$current_hhmm" =~ ^[0-9]{4}$ ]]; then
+            echo "::warning::Asia/Vientiane clock returned an invalid HHMM value; no branch or PR was published."
+            exit 0
+          fi
+          current_hhmm_decimal=$((10#$current_hhmm))
+          if (( current_hhmm_decimal < 831 )); then
+            echo "::notice::PR publication is held until 08:31 Asia/Vientiane; the validated patch remains unpublished."
+            exit 0
+          fi
           branch="ai/maintainer/${RUN_ID}-${RUN_ATTEMPT}"
           git config user.name "GLORIFIER AI Fleet"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
