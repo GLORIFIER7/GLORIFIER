@@ -6,20 +6,25 @@ const workflow = await readFile(
   new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url),
   'utf8',
 );
-const publishStart = workflow.indexOf('\n  publish-proposal:\n');
-const dispatchStart = workflow.indexOf('\n  dispatch-ci:\n', publishStart);
-assert.ok(publishStart >= 0 && dispatchStart > publishStart,
-  'expected publish-proposal before dispatch-ci');
 
-const publish = workflow.slice(publishStart, dispatchStart);
-const stepsStart = publish.indexOf('\n    steps:\n');
-assert.ok(stepsStart > 0, 'expected publisher steps');
-const jobHeader = publish.slice(0, stepsStart);
-const publishStepStart = publish.indexOf('      - name: Publish validated draft PR');
-assert.ok(publishStepStart > stepsStart, 'expected final PR publication step');
-const publishStep = publish.slice(publishStepStart);
+function getPublisherSections() {
+  const publishStart = workflow.indexOf('\n  publish-proposal:\n');
+  const dispatchStart = workflow.indexOf('\n  dispatch-ci:\n', publishStart);
+  assert.ok(publishStart >= 0 && dispatchStart > publishStart,
+    'expected publish-proposal before dispatch-ci');
+
+  const publish = workflow.slice(publishStart, dispatchStart);
+  const stepsStart = publish.indexOf('\n    steps:\n');
+  assert.ok(stepsStart > 0, 'expected publisher steps');
+  const jobHeader = publish.slice(0, stepsStart);
+  const publishStepStart = publish.indexOf('      - name: Publish validated draft PR');
+  assert.ok(publishStepStart > stepsStart, 'expected final PR publication step');
+
+  return { jobHeader, publishStep: publish.slice(publishStepStart) };
+}
 
 test('the publisher does not trust the maintenance-start clock snapshot', () => {
+  const { jobHeader } = getPublisherSections();
   assert.doesNotMatch(
     jobHeader,
     /outputs\.publication_allowed/,
@@ -28,6 +33,7 @@ test('the publisher does not trust the maintenance-start clock snapshot', () => 
 });
 
 test('the current Laos clock is checked before any remote branch or PR write', () => {
+  const { publishStep } = getPublisherSections();
   const clockCheck = publishStep.indexOf('current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"');
   const remotePush = publishStep.indexOf('git -c core.hooksPath=/dev/null push');
   const createPr = publishStep.indexOf('gh pr create --draft');
