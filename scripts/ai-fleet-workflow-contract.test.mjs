@@ -5,6 +5,7 @@ import test from 'node:test';
 const workflow = readFileSync(new URL('../.github/workflows/ai-coding-fleet.yml', import.meta.url), 'utf8');
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const diffPolicy = readFileSync(new URL('./ai-fleet-diff-policy.mjs', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
@@ -75,6 +76,25 @@ test('maintenance authorization and paid-inference authorization are separate ga
   assert.match(workflow, /SCHEDULE_AUTHORIZATION: \$\{\{ vars\.AI_MAINTENANCE_AUTORUN \}\}/);
   assert.match(workflow, /glorifier_ai_maintenance_authorized "\$EVENT_NAME" "\$SCHEDULE_AUTHORIZATION"/);
   assert.match(workflow, /glorifier_ai_fleet_paid_inference_authorized "\$EVENT_NAME" "\$ALLOW_PAID_INFERENCE"/);
+
+  const providerStart = coding.indexOf('      - name: Check OpenAI credential availability');
+  const setupStart = coding.indexOf('      - name: Setup Node.js', providerStart);
+  assert.ok(providerStart >= 0 && setupStart > providerStart);
+  assert.ok(coding.slice(providerStart, setupStart).includes("steps.inference_authorization.outputs.authorized == 'true'"));
+  assert.ok(codex.includes("steps.inference_authorization.outputs.authorized == 'true'"));
+  assert.ok(coding.includes('Report that paid inference is not authorized'));
+  assert.ok(coding.includes('No model was invoked'));
+
+  const missingKeyStart = coding.indexOf('      - name: Report missing API key');
+  const capacityStart = coding.indexOf('      - name: Report Codex capacity limitation', missingKeyStart);
+  assert.ok(missingKeyStart >= 0 && capacityStart > missingKeyStart);
+  assert.ok(coding.slice(missingKeyStart, capacityStart).includes("steps.inference_authorization.outputs.authorized == 'true'"));
+
+  assert.ok(workflow.includes('scripts/ai-fleet-paid-inference-authorization.sh'));
+  assert.ok(workflow.includes('scripts/ai-fleet-paid-inference-authorization.test.sh'));
+  assert.ok(workflow.includes('paid-inference authorization helpers/tests'));
+  assert.ok(diffPolicy.includes('ai-fleet-paid-inference-authorization'));
+  assert.ok(ciWorkflow.includes('bash scripts/ai-fleet-paid-inference-authorization.test.sh'));
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
