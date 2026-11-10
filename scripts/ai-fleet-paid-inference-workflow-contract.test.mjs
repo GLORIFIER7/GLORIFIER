@@ -69,6 +69,8 @@ test('CI runs the shell and workflow-contract regression suites', () => {
 
 
 test('paid-inference authorization helpers and tests are protected from AI-generated diffs', () => {
+  assert.match(diffPolicy, /ai-fleet-authorization/);
+  assert.match(diffPolicy, /ai-fleet-workflow-contract/);
   assert.match(diffPolicy, /ai-fleet-paid-inference-authorization/);
   assert.match(diffPolicy, /ai-fleet-paid-inference-workflow-contract/);
   assert.match(workflow, /scripts\/ai-fleet-paid-inference-authorization\.sh/);
