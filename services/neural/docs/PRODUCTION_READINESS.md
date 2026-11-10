@@ -11,21 +11,24 @@ This runbook describes the controls required before declaring the Cloudflare Wor
 - Task-run writes: a separately provisioned `NEON_WRITE` binding or a writer `NEON_DATABASE_URL` secret
 - Currently selected production provider: OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. NVIDIA NIM remains an optional alternative provider, not the current production selection.
 
-The Cloudflare deployment has two production paths. Cloudflare Workers Builds
-automatically builds and deploys commits on `main`, using the `/cloudflare` root
-and `bash ./worker-build.sh deploy`. The repository's
-`.github/workflows/cloudflare-neural-worker.yml` also provides a separate manual
-`workflow_dispatch` path, gated by `deploy=true` on `main`. Pull-request and
-push runs in GitHub Actions validate or dry-run only; they do not deploy production.
+The NEURAL production release path is the protected manual workflow
+`.github/workflows/neural-cloudflare-worker.yml`: it requires a manual
+`workflow_dispatch`, `deploy=true`, and the `main` branch, then uses the
+`glorifier-neural-cloudflare-production` GitHub Environment. The Cloudflare
+Workers Builds trigger for `main` is configured validation-only:
+`bash ./worker-build.sh --prepare-only`. That command prepares and validates the
+package and exits before Wrangler can upload or promote a Worker version.
+Pull-request and push runs in GitHub Actions also validate or dry-run only.
 
 The branch-specific Workers Builds triggers used for Dependabot PRs #38, #39, and
-#40 are separately scoped to their respective branches. They now run from
+#40 are separately scoped to their respective branches. They run from
 `/cloudflare`, prepare the Worker package with
 `bash ./worker-build.sh --prepare-only`, and run
-`npx wrangler deploy --dry-run`. All three corrected builds completed successfully
-and stopped at `--dry-run`; they published neither a Preview nor a production
-version. Worker preview URLs remain disabled in `cloudflare/wrangler.jsonc`. The
-main-branch production build configuration remains unchanged.
+`npx wrangler deploy --dry-run`. Those validation-only builds publish neither
+a Preview nor a production version. Worker preview URLs remain disabled in
+`cloudflare/wrangler.jsonc`. Do not describe a successful Workers Builds run as
+a production release; verify the protected GitHub deployment and active Worker
+version/traffic separately.
 
 ## GitHub deployment environment
 
@@ -171,8 +174,65 @@ Conclusion: Cloudflare deployment and the configured read-only production readin
 
 1. Make code changes on a branch and open a pull request. The active repository ruleset targets `~DEFAULT_BRANCH`, requires the exact `AI Review Policy` status check with strict latest-commit enforcement, retains CodeQL/code-quality constraints, prohibits deletion and non-fast-forward updates, has zero required human approvals, and has no bypass actors. The AI policy workflow itself still has a PR-controlled workflow-definition trust limitation; see `docs/AI_REVIEW_POLICY.md`.
 2. Require the repository's CI, security checks, and Cloudflare dry-run validation to pass. Do not bypass the active ruleset or weaken quality thresholds to obtain a green result.
-3. After an approved merge to `main`, verify the automatic Cloudflare Workers Builds production build and active deployment. The separate GitHub Actions path can be manually dispatched with `deploy=true` using the configured GitHub Environment credentials. Verify the deployment job and intended Worker version/traffic before announcing release.
+3. After an approved merge to `main`, use the protected `.github/workflows/neural-cloudflare-worker.yml` workflow with a manual `workflow_dispatch` and `deploy=true` from `main` to promote NEURAL production. Workers Builds on `main` is validation-only (`--prepare-only`) and is not a production release. Verify the protected deployment job and exact active Worker version/traffic before announcing release.
 4. Require live `/health` and `/ready` checks. Expect `/ready` HTTP 200 when the selected provider, database, authentication, and rate-limit checks are verified. Accept HTTP 503 only for the explicit provider-disabled safe-mode response when the other required controls are verified and `inference_performed=false`; that response is not provider-ready.
 5. The production inference flag is currently configured `true`, but do not treat that as proof of live execution. Perform a controlled authenticated inference request only after confirming the selected provider credential is valid, approving transmission of task content, and accepting any applicable API usage charges. The automated readiness/smoke steps intentionally do not submit a prompt.
 
 Do not declare full AI production readiness until provider model-catalog readiness and a separately controlled inference check succeed. Enable audit writes or task-run persistence only after their own schema, least-privilege credentials, backup, and read/write verification steps have been approved and completed.
+
+
+## Superseding production configuration observation — 2026-11-10
+
+This section supersedes earlier descriptions in this runbook of the current Cloudflare deployment path and production Worker configuration. It is based on a read-only Cloudflare API inventory at 2026-11-10T08:58:02Z (UTC), not a change or deployment.
+
+### Actual deployment controls
+
+- The NEURAL Workers Builds trigger for the `main` branch was previously changed to `bash ./worker-build.sh --prepare-only`. The script prepares and validates the package and exits before invoking Wrangler. The preview command is `npx wrangler preview`. This trigger is validation-only; do not describe it as the production deployment path.
+- The protected GitHub workflow `.github/workflows/neural-cloudflare-worker.yml` is the configured production-promotion path. It requires a manual `workflow_dispatch`, `deploy=true`, the `main` branch, the `glorifier-neural-cloudflare-production` environment, and its required Cloudflare credentials.
+- GLORIFIER has its own protected manual release workflow at `.github/workflows/cloudflare-worker.yml`. Its production job is gated by manual dispatch, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, required secrets, and the protected production environment.
+- Cloudflare Workers Builds metadata and Worker deployment inventory are separate evidence. Do not infer production release or traffic promotion from a successful source build, dry-run, or validation-only trigger.
+
+### Current live Worker inventory
+
+Read-only Cloudflare API inspection showed:
+
+| Worker | Active deployment | Active version | Traffic |
+|---|---|---|---:|
+| `glorifier` | `3292d6bf-d40c-4682-9b6d-ff5faf41aa1b` | `12b2bfdc-ef46-436b-8f54-bab5e246ec5f` | 100% |
+| `glorifier-neural` | `3d97535a-efc5-45b3-b5a3-be2bb4afda5c` | `cfef05f3-1729-4583-a523-9cf7d43d3860` | 100% |
+
+GLORIFIER's active binding inventory does not contain the `GLORIFIER_NEURAL` service binding declared by the merged source configuration. The configured origin and exact allowed hostname are present, but they do not substitute for the missing binding. The source repair is not proof of a deployed repair.
+
+The NEURAL Worker currently reports these live non-secret values:
+
+- `GLORIFIER_ENABLE_INFERENCE=true`
+- `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`
+- `GLORIFIER_PROVIDER=openai`
+- `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`
+
+This differs from the checked-in `services/neural/cloudflare/wrangler.jsonc`, which defaults `GLORIFIER_ENABLE_INFERENCE` and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS` to `false`. Treat this as production configuration drift from the zero-budget default-deny posture. Do not submit prompts, trigger provider inference, or claim an external request is authorized merely because a credential binding exists.
+
+### Required secret-name inventory
+
+Only binding names were inspected; secret values were not read. At the observation time:
+
+- GLORIFIER had `GLORIFIER_SUPABASE_SERVICE_ROLE_KEY`, `OPENSEA_API_KEY`, and `OPENSEA_SCOPED_TOKEN`; it lacked `GLORIFIER_API_TOKEN` and `GLORIFIER_INTERNAL_SERVICE_TOKEN`.
+- NEURAL had `GLORIFIER_API_TOKEN`, `NVIDIA_NIM_API_KEY`, and `OPENAI_API_KEY`; it lacked `GLORIFIER_INTERNAL_SERVICE_TOKEN`.
+
+The `GLORIFIER_API_TOKEN` must be the **same secret value** in both the GLORIFIER and NEURAL Worker secret stores: the authenticated internal GLORIFIER path uses its Worker-held value as the downstream NEURAL `Authorization: Bearer` credential, and NEURAL validates against its own `GLORIFIER_API_TOKEN`. If these two values differ, proxied task requests fail bearer authentication. Provision or reconcile the same value in both stores; do not expose it in logs, Git, or chat.
+
+The internal service token must use a separate high-entropy value for each Worker boundary: one unique `GLORIFIER_INTERNAL_SERVICE_TOKEN` value on GLORIFIER and a different unique value on NEURAL. Never reuse this credential across Workers or with `GLORIFIER_API_TOKEN`. The shared `GLORIFIER_API_TOKEN` is a separate proxy contract and must match on both Workers. Never commit, print, or place any secret value in issue comments, CI output, Git, or chat.
+
+Secret changes are release-sensitive. Do not use Dashboard Deploy or `wrangler secret put` against an active production Worker until the owner has verified a version-safe staging procedure; do not assume secret provisioning is non-deploying. The protected deployment preflight currently requires the secret names to exist before deployment, so the safe staging/deployment sequence remains an owner decision. Do not bypass the protected workflow or manually promote a Worker to resolve this prerequisite.
+
+### Zero-budget recovery sequence
+
+1. Keep provider inference and external data egress disabled. The tracked Wrangler config is the source of truth for the default values; restore any drift through a reviewed source change and the protected manual release workflow.
+2. The owner must provision the same `GLORIFIER_API_TOKEN` value on both Workers for the authenticated proxy contract, plus two different high-entropy `GLORIFIER_INTERNAL_SERVICE_TOKEN` values (one per Worker). Do not apply secret changes to active production scripts until an owner-approved, version-safe staging procedure is verified. If no safe staging path is available, stop and obtain an owner-approved release design; do not use Dashboard Deploy, `wrangler secret put`, or a bypass to work around the preflight dependency.
+3. Reconcile any production Workers Builds trigger to validation-only so a push cannot bypass the protected release workflow.
+4. Validate and deploy NEURAL first through its protected manual workflow, then GLORIFIER through its protected manual workflow so the caller's service binding targets the deployed service.
+5. Verify exact active version IDs, traffic percentages, service binding names, required secret-name presence (never values), and non-secret runtime flags.
+6. Probe NEURAL `/health` and `/ready`, then GLORIFIER `/api/neural/health` and `/api/neural/ready`. Confirm that provider-disabled safe mode is reported as not ready for provider-backed execution and that `inference_performed=false`.
+7. Do not enable provider egress, perform inference, execute authenticated tasks, or enable write persistence until the owner has separately approved the provider cost/data-transmission boundary and the necessary least-privilege persistence design.
+
+No deployment, secret mutation, provider request, inference, authenticated task, database migration, wallet action, or financial operation was performed for this observation.

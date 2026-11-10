@@ -954,6 +954,7 @@
       "limitations": [
         "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
         "A hostname allowlist is not evidence that the target service is reachable or healthy.",
+        "GLORIFIER_NEURAL_ALLOWED_HOSTS was read and recorded in the 2026-11-10T08:58:02Z inventory above; GLORIFIER_BACKEND_ALLOWED_HOSTS was not independently reviewed. Neither allowlist value proves target reachability or health; the active GLORIFIER version still lacks the GLORIFIER_NEURAL service binding.",
         "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and GLORIFIER_NEURAL_ALLOWED_HOSTS values have not been reviewed; a green mocked test does not prove production configuration or target reachability.",
         "Fresh settings read at 2026-11-10T08:58:02Z confirms the configured Neural HTTPS origin and exact hostname, but the active GLORIFIER version still lacks the service binding. This remains a deployment/reachability blocker, not proof of a working upstream route."
       ]

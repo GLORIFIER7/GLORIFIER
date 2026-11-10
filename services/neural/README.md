@@ -71,8 +71,11 @@ The task endpoint reads `GLORIFIER_API_TOKEN` from the Cloudflare request-scoped
 Worker; its value is not read or stored in this repository or Wrangler configuration.
 The endpoint remains protected by Cloudflare Access and bearer-token validation.
 
-The current production Worker settings, read back directly from Cloudflare on
-2026-11-05 at approximately 16:28 (UTC+07:00), are
+The following 2026-11-05 settings are a historical snapshot and are superseded
+by the 2026-11-10 read-only production inventory in
+`docs/PRODUCTION_READINESS.md`. They must not be treated as current production
+state. The historical settings were read back directly from Cloudflare on
+2026-11-05 at approximately 16:28 (UTC+07:00):
 `GLORIFIER_PROVIDER=openai`,
 `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`,
 `GLORIFIER_ENABLE_INFERENCE=true`, and
@@ -91,13 +94,15 @@ response explicitly reported `inference_performed=false`; no prompt was
 submitted, no inference was run, and no optional persistence writes were tested.
 `/health` reports process liveness, not dependency readiness.
 
-Pull requests build and validate the Worker bundle in GitHub Actions dry-run mode.
-Cloudflare Workers Builds also has an automatic `main`-branch production deployment
-path configured under `/cloudflare` with `bash ./worker-build.sh deploy`. A separate
-manual GitHub Actions `workflow_dispatch` deployment path is available, gated by
-`deploy=true` on `main` and the `CLOUDFLARE_API_TOKEN` secret plus
-`CLOUDFLARE_ACCOUNT_ID` variable in the
-`glorifier-neural-cloudflare-production` GitHub Environment.
+Pull requests, pushes to `main`, and Cloudflare Workers Builds triggers are
+validation-only: they prepare the Worker with `bash ./worker-build.sh --prepare-only`
+and run a Wrangler dry-run. They do not upload or promote a production Worker version.
+The only production-promotion path is the protected GitHub Actions workflow
+`.github/workflows/neural-cloudflare-worker.yml`, dispatched manually from `main`
+with `deploy=true` and the `glorifier-neural-cloudflare-production` environment.
+Do not use `bash ./worker-build.sh deploy` from a local shell or Workers Builds
+trigger as a production release path. After an owner-authorized protected deployment,
+verify the exact active Worker version and traffic before announcing a release.
 
 The branch-specific Workers Builds triggers used for Dependabot PRs #38, #39, and
 #40 are corrected to run from `/cloudflare`, prepare the Worker package with
@@ -105,7 +110,7 @@ The branch-specific Workers Builds triggers used for Dependabot PRs #38, #39, an
 `npx wrangler deploy --dry-run`. All three corrected Cloudflare builds completed
 successfully and stopped at `--dry-run`; no Preview or production version was
 published. Worker preview URLs remain disabled in `cloudflare/wrangler.jsonc`.
-The main-branch production deployment configuration remains unchanged.
+The main-branch Workers Builds trigger is validation-only; production promotion requires the protected manual GitHub Actions workflow described above.
 ## API access
 
 The task endpoint is disabled unless `GLORIFIER_API_TOKEN` is configured. Set a strong, unique token in the deployment secret manager; never commit it to Git or paste it into chat. Send it as a bearer token in the Authorization header. The legacy `GLORIFIER_REQUIRE_API_TOKEN` flag cannot enable access when the token is missing.
