@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-10T08:58:02Z",
+  "updatedAt": "2026-11-10T23:50:49.681Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -104,13 +104,21 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker; active deployment at 100% traffic; non-secret binding metadata only",
           "observedAt": "2026-11-10T08:58:02Z",
           "notes": "Read-only settings and deployment inventory confirmed active version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f at 100% traffic. The active binding set still has no GLORIFIER_NEURAL service binding. Source main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292 declares the service binding, but that source configuration is not live-deployment evidence. No Worker version was uploaded or promoted."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API: deployment GET plus exact-version GET /accounts/{account_id}/workers/scripts/glorifier/versions/12b2bfdc-ef46-436b-8f54-bab5e246ec5f",
+          "targetEnvironment": "Production GLORIFIER Worker; deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b routes 100% traffic to exact Worker version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f",
+          "observedAt": "2026-11-10T23:50:49.681Z",
+          "notes": "The deployment record identifies version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f as receiving 100% traffic. The exact-version API response for that version returns its own bindings array; that array includes GLORIFIER_NEURAL_ORIGIN and GLORIFIER_NEURAL_ALLOWED_HOSTS but does not include GLORIFIER_NEURAL. Thus the missing-service-binding finding is confirmed against the deployed version itself, not inferred from the script settings endpoint. Its secret-type bindings also do not include GLORIFIER_API_TOKEN or GLORIFIER_INTERNAL_SERVICE_TOKEN. Secret values were not read. This is configuration evidence, not an HTTP health result. No settings, secrets, code, deployment, or traffic were changed."
         }
       ],
       "limitations": [
         "Production GLORIFIER proxy routes currently return HTTP 404 / Cloudflare error 1042; the active version 994 has the HTTPS origin and exact-host allowlist but lacks the GLORIFIER_NEURAL service binding.",
         "PR #774 merged the service-binding implementation to GLORIFIER main, but its changes are not present in active production version 994. The guarded production release and a new live proxy smoke test remain required.",
         "The standalone Neural Worker health and readiness results are separate from the GLORIFIER proxy result; process health does not prove inference or task execution.",
-        "Fresh read-only Cloudflare inventory at 2026-11-10T08:58:02Z confirms the active GLORIFIER Worker remains version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f at 100% traffic and still lacks the GLORIFIER_NEURAL service binding declared on main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292."
+        "Fresh read-only Cloudflare inventory at 2026-11-10T08:58:02Z confirms the active GLORIFIER Worker remains version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f at 100% traffic and still lacks the GLORIFIER_NEURAL service binding declared on main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292.",
+        "Exact-version read-back at 2026-11-10T23:50:49.681Z confirms production GLORIFIER version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f (the version assigned 100% traffic) lacks the GLORIFIER_NEURAL service binding declared on current main. This claim is based on the version-specific binding list, not the general script settings endpoint."
       ]
     },
     {
@@ -264,6 +272,13 @@
           "targetEnvironment": "Production GLORIFIER-NEURAL Cloudflare Worker; active deployment at 100% traffic; non-secret settings and binding names only",
           "observedAt": "2026-11-10T08:58:02Z",
           "notes": "Read-only inventory confirmed active version cfef05f3-1729-4583-a523-9cf7d43d3860 at 100% traffic. Runtime settings currently report GLORIFIER_ENABLE_INFERENCE=true and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true, while checked-in services/neural/cloudflare/wrangler.jsonc on main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292 defaults both to false. Secret-name inventory shows GLORIFIER_API_TOKEN, NVIDIA_NIM_API_KEY, and OPENAI_API_KEY; GLORIFIER_INTERNAL_SERVICE_TOKEN is absent. Secret values were not read. No provider call, inference, configuration write, or deployment was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API: deployment GET plus exact-version GET /accounts/{account_id}/workers/scripts/glorifier-neural/versions/cfef05f3-1729-4583-a523-9cf7d43d3860",
+          "targetEnvironment": "Production NEURAL Worker; deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c routes 100% traffic to exact Worker version cfef05f3-1729-4583-a523-9cf7d43d3860",
+          "observedAt": "2026-11-10T23:50:49.681Z",
+          "notes": "The deployment record identifies version cfef05f3-1729-4583-a523-9cf7d43d3860 (version 33) as receiving 100% traffic. The exact-version API response returns its own bindings array: GLORIFIER_ENABLE_INFERENCE=true, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true, GLORIFIER_PROVIDER=openai, GLORIFIER_API_TOKEN, OPENAI_API_KEY and NVIDIA_NIM_API_KEY are present; GLORIFIER_PAID_INFERENCE_AUTHORIZED and GLORIFIER_INTERNAL_SERVICE_TOKEN are absent. The exact active GLORIFIER version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f lacks GLORIFIER_NEURAL, GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN. Current GLORIFIER main defaults inference, egress and paid authorization to false and requires the separate paid flag in the mirrored runtime. Standalone NEURAL main remains at 92adf8c3dee0371b197edde8e1f64f5d2052d3f0; PR #86 contains the mirrored source correction but remains draft and blocked by 15 unsigned commits, failed AI review policy checks and missing formal approvals. These exact-version inventories prove configuration bindings, not runtime health or model inference. Secret values were not read; no configuration, secret, deployment, traffic, provider, or database mutation occurred."
         }
       ],
       "limitations": [
@@ -276,7 +291,11 @@
         "NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b still lacks the required GLORIFIER_INTERNAL_SERVICE_TOKEN in Cloudflare. Do not provision or reuse the public GLORIFIER_API_TOKEN; a human-authorized secret-manager update and protected manual workflow dispatch are required. Current production proxy health/readiness has not been re-probed after the source service-binding change.",
         "The active production GLORIFIER Worker is still version 994 (version ID 12b2bfdc-ef46-436b-8f54-bab5e246ec5f) at 100% traffic, and its current Cloudflare version binding inventory lacks `GLORIFIER_NEURAL`. Merged source PR #774 is therefore not yet deployed; the protected production release and post-deployment proxy probes remain outstanding.",
         "Fresh read-only inventory at 2026-11-10T08:58:02Z found live NEURAL inference and external data egress flags set true, although main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292 defaults both flags to false. Restore the zero-budget defaults through the protected release path before enabling any provider workload.",
-        "At 2026-11-10T08:58:02Z, GLORIFIER_INTERNAL_SERVICE_TOKEN is absent from both the GLORIFIER and GLORIFIER-NEURAL Worker secret-name inventories; GLORIFIER_API_TOKEN is also absent from the GLORIFIER Worker. The owner must provision distinct credentials in Cloudflare before the protected release can pass preflight."
+        "At 2026-11-10T08:58:02Z, GLORIFIER_INTERNAL_SERVICE_TOKEN is absent from both the GLORIFIER and GLORIFIER-NEURAL Worker secret-name inventories; GLORIFIER_API_TOKEN is also absent from the GLORIFIER Worker. The owner must provision distinct credentials in Cloudflare before the protected release can pass preflight.",
+        "Exact-version read-back at 2026-11-10T23:50:49.681Z confirms deployed NEURAL version cfef05f3-1729-4583-a523-9cf7d43d3860 (100% traffic) has inference and external egress true, provider openai, and no GLORIFIER_PAID_INFERENCE_AUTHORIZED binding. The deployed GLORIFIER version assigned 100% traffic also lacks GLORIFIER_NEURAL and the required proxy credentials.",
+        "Before any credential staging, the owner must use the protected release path to set GLORIFIER_ENABLE_INFERENCE=false and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, verify those values on the active version, and only then proceed with a separately approved version-safe secret-staging sequence. Do not provision or activate missing credentials while the observed true flags remain active.",
+        "The live GLORIFIER_PROVIDER=openai selection must be treated as an external-provider routing configuration, not proof of readiness or authorization. No task or prompt may be routed to OpenAI or another external provider until the NEURAL paid-inference guard is merged and deployed, the active configuration proves GLORIFIER_PAID_INFERENCE_AUTHORIZED=false by default, and the owner explicitly authorizes any later paid inference.",
+        "The active production configuration observation records GLORIFIER_PROVIDER=openai together with inference and external egress enabled. That provider selection must be audited and must not route task prompts to an external provider before the paid-inference guard is present in the deployed runtime and a separate owner authorization is granted."
       ]
     },
     {
