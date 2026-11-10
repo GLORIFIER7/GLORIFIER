@@ -72,6 +72,16 @@ function extractEnvironmentIdentity(value) {
     for (const match of source.matchAll(pattern)) {
       const versions = identity.runtimes[family] ??= [];
       versions.push(match[1].toLowerCase().replace(/\+$/, ''));
+
+      // Evidence labels often compress a runtime matrix as 3.10/3.11/3.12
+      // or 1.26.x/1.27.x after naming the runtime family once.
+      let cursor = match.index + match[0].length;
+      while (cursor < source.length) {
+        const continuation = /^\s*(?:\/|,|\band\b)\s*v?(\d+(?:\.\d+){0,2}(?:\.x)?)/i.exec(source.slice(cursor));
+        if (!continuation) break;
+        versions.push(continuation[1].toLowerCase().replace(/\+$/, ''));
+        cursor += continuation[0].length;
+      }
     }
   }
 
