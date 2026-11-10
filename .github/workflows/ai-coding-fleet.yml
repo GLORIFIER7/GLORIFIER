@@ -5,6 +5,12 @@ on:
     # Every four hours; the Asia/Vientiane gate limits PR publication to 08:31 onward.
     - cron: "17 */4 * * *"
   workflow_dispatch:
+    inputs:
+      allow_paid_inference:
+        description: "Authorize one paid model-inference run only after verified sponsor/monetization funding or confirmed provider acceptance of GLR, and owner approval"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -42,11 +48,11 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          SCHEDULE_AUTHORIZATION: ${{ vars.AI_MAINTENANCE_AUTORUN }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
         run: |
           set -euo pipefail
           source scripts/ai-fleet-authorization.sh
-          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$SCHEDULE_AUTHORIZATION"; then
+          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION"; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -219,7 +225,7 @@ jobs:
 
       - name: Report that AI maintenance is not enabled
         if: ${{ steps.authorization.outputs.enabled != 'true' }}
-        run: echo "::notice::No AI model was invoked. Set AI_MAINTENANCE_AUTORUN=true to authorize recurring and manual maintenance."
+        run: echo "::notice::No AI model was invoked. Scheduled provider inference is disabled; a manual run requires allow_paid_inference=true after verified funding or confirmed provider acceptance of GLR, plus owner approval."
 
       - name: Report missing API key
         if: ${{ steps.authorization.outputs.enabled == 'true' && steps.provider.outputs.configured != 'true' }}
