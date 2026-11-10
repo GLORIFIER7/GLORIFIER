@@ -344,7 +344,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
           if (parsed.contextId && parsed.contextId !== contextId) {
             return rpcError(id, -32001, 'Task not found.');
           }
-          if (['completed', 'failed', 'blocked'].includes(existing.status)) {
+          if (['completed', 'failed', 'blocked', 'canceled'].includes(existing.status)) {
             return rpcError(id, -32000, 'A task in a terminal state cannot accept additional messages.');
           }
           parentTaskId = contextId;

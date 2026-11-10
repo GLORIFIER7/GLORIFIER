@@ -298,6 +298,19 @@ void test('A2A SendMessage rejects foreign and terminal task continuations', asy
     params: { message: { messageId: 'terminal-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
   });
   assert.equal((rejected.error as { code: number }).code, -32000);
+
+  const canceledTask = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: () => { throw new Error('canceled tasks cannot be resumed'); },
+    getTask: () => ({ ...existing, status: 'canceled' }),
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+  });
+  const canceledFollowUp = await canceledTask({
+    jsonrpc: '2.0', id: 65, method: 'SendMessage',
+    params: { message: { messageId: 'canceled-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
+  });
+  assert.equal((canceledFollowUp.error as { code: number }).code, -32000,
+    'canceled tasks are terminal and must reject follow-up messages');
 });
 
 void test('A2A ListTasks returns a bounded requester-scoped page with stable result fields', async () => {
