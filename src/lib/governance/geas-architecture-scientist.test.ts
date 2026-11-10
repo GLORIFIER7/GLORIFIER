@@ -156,10 +156,18 @@ for (const target of rejectedRedirectTargets) {
   }
 }
 
+const sensitiveRedirectDiagnostic = formatCuratedRedirectTargetDiagnostic(
+  new URL('https://user:secret@docs.cloud.google.com/private/token-secret-123/architecture?token=query-secret#overview'),
+);
 assert.equal(
-  formatCuratedRedirectTargetDiagnostic(new URL('https://user:secret@docs.cloud.google.com/architecture/framework?token=secret#overview')),
-  'https://docs.cloud.google.com/architecture/framework',
-  'redirect diagnostics must preserve the origin and path while excluding credentials, query strings, and fragments',
+  sensitiveRedirectDiagnostic,
+  'https://docs.cloud.google.com',
+  'redirect diagnostics must expose only the origin',
+);
+assert.doesNotMatch(
+  sensitiveRedirectDiagnostic,
+  /private|token-secret-123|query-secret|secret|architecture/,
+  'redirect diagnostics must not expose path segments, credentials, queries, or fragments',
 );
 
 if (isClaimSupportedEvidence('content-matched')) throw new Error('keyword match must not count as claim verification');
