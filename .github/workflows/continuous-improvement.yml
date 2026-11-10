@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_paid_inference:
-        description: "Authorize one paid model-inference run for this manual execution"
+        description: "Authorize one paid inference only after verified sponsor/monetization funding or confirmed provider acceptance of GLR, with owner approval"
         required: true
         default: false
         type: boolean
@@ -26,18 +26,36 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Resolve paid inference authorization
+        id: authorization
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          source scripts/ai-fleet-authorization.sh
+          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v7
+        if: steps.authorization.outputs.enabled == 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: package.json
       - run: npm install --ignore-scripts --no-audit --no-fund
+        if: steps.authorization.outputs.enabled == 'true'
       - name: AI improvement analysis
         id: improve
-        if: github.event_name == 'workflow_dispatch' && inputs.allow_paid_inference == true
+        if: steps.authorization.outputs.enabled == 'true'
         continue-on-error: true
         env:
-          ALLOW_PAID_INFERENCE: ${{ inputs.allow_paid_inference }}
+          ALLOW_PAID_INFERENCE: ${{ steps.authorization.outputs.enabled }}
           GUARDIAN_PROVIDER: ${{ vars.GUARDIAN_PROVIDER }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
@@ -52,8 +70,8 @@ jobs:
       - name: Governed result
         if: always()
         run: |
-          if [ "${{ steps.improve.outcome }}" = "skipped" ]; then
-            echo "Paid inference was not authorized; no provider request was made."
+          if [ "${{ steps.authorization.outputs.enabled }}" != "true" ]; then
+            echo "Paid inference was not owner-authorized for this first manual attempt; no provider request was made."
           elif [ "${{ steps.improve.outcome }}" = "success" ]; then
             echo "Improvement analysis completed. No direct push to main is permitted."
           else
