@@ -148,7 +148,8 @@ jobs:
             defect or reliability weakness and make the smallest safe fix with a regression test.
             Prioritize security and correctness before feature work. Keep the change small and reviewable.
             Follow AGENTS.md. Never expose or modify secrets. Do not alter the trusted AI-fleet validator,
-            its tests, capability authorization, paid-inference authorization helper/tests, package manifests,
+            its tests, AI-maintenance and paid-inference authorization helpers/tests, capability authorization,
+            package manifests,
             lockfiles, or workflow files.
             Run npm run lint and the relevant focused tests, then run npm run build when applicable.
             If there is no safe, evidence-backed improvement, make no code change.
