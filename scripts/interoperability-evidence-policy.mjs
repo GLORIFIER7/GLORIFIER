@@ -135,7 +135,7 @@ export function hasEvidenceForDeclaredTargetEnvironment(
     const platformHints = /\b(?:linux|windows|macos|os\s+x|darwin|ubuntu|debian|alpine|fedora|centos|rhel|red\s+hat|amazon\s+linux|arch\s+linux|opensuse|suse\s+linux|android|ios|freebsd|openbsd|netbsd|unix)\b/i;
     const targetNamesPlatform = platformHints.test(target);
     const platformMatches = declared.platforms.length > 0
-      ? declared.platforms.some((platform) => {
+      ? declared.platforms.every((platform) => {
           if (platform === 'linux:') {
             return evidence.platforms.some((observed) =>
               /^(?:linux|ubuntu|debian|alpine|fedora|centos|rhel|amazon-linux|arch-linux|opensuse|suse):/.test(observed),
@@ -150,14 +150,46 @@ export function hasEvidenceForDeclaredTargetEnvironment(
         })
       : !targetNamesPlatform;
     const architectureMatches = declared.architectures.length === 0 ||
-      declared.architectures.some((architecture) => evidence.architectures.includes(architecture));
+      declared.architectures.every((architecture) => evidence.architectures.includes(architecture));
     const runtimeMatches = Object.entries(declared.runtimes).every(([family, versions]) => {
       const observedVersions = evidence.runtimes[family] ?? [];
-      return versions.some((declaredVersion) =>
+      return versions.every((declaredVersion) =>
         observedVersions.some((observedVersion) => versionMatches(declaredVersion, observedVersion)),
       );
     });
 
     return platformMatches && architectureMatches && runtimeMatches;
+  });
+}
+
+
+/**
+ * Requires qualifying, timestamped evidence for every declared environment.
+ * A single CI record must not implicitly verify sibling OS/runtime targets
+ * unless its targetEnvironment itself identifies the entire matrix.
+ */
+export function hasEvidenceForEveryDeclaredTargetEnvironment(
+  evidenceItems,
+  declaredTargetEnvironments,
+  { live = false, now } = {},
+) {
+  if (!Array.isArray(evidenceItems) || !Array.isArray(declaredTargetEnvironments) ||
+      declaredTargetEnvironments.length === 0) {
+    return false;
+  }
+
+  const freshnessOptions = Number.isFinite(now) ? { live, now } : { live };
+  return declaredTargetEnvironments.every((target) => {
+    if (typeof target !== 'string' || !target.trim()) return false;
+    return evidenceItems.some((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const acceptableKind = live
+        ? item.kind === 'live-probe'
+        : ['automated-test', 'ci-run', 'live-probe'].includes(item.kind);
+      return acceptableKind &&
+        isEvidenceTimestampFresh(item.observedAt, freshnessOptions) &&
+        typeof item.reference === 'string' && item.reference.trim().length > 0 &&
+        hasEvidenceForDeclaredTargetEnvironment(item.targetEnvironment, [target]);
+    });
   });
 }
