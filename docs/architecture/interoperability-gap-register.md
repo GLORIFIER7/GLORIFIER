@@ -360,3 +360,16 @@ Observation time: 2026-11-10T23:42:17.818Z UTC / 2026-11-11T06:42:17.818+07:00 A
 ### Disposition
 
 The live GLORIFIER-to-NEURAL route remains DEGRADED because the active GLORIFIER version lacks its service binding. The production inference/egress state remains inconsistent with the zero-budget default-deny source policy. The missing internal service credentials and GLORIFIER API token block the protected production release. Before any credential staging, the owner must first set GLORIFIER_ENABLE_INFERENCE=false and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false through the protected release path and verify those false values on the active version. GLORIFIER_PROVIDER=openai is a live external-provider selection and must not be used to route prompts or tasks until the paid-inference guard is deployed and any later inference receives separate owner authorization. These are owner-managed release prerequisites; do not write secrets, edit live settings, upload/promote versions, or route traffic outside the approved deployment process. No provider request, paid inference, task submission, database migration, blockchain write, signing, mint, transfer, or financial operation was performed. This configuration inventory does not constitute an HTTP health probe or proof of model inference.
+
+
+### Exact deployed-version binding confirmation — 2026-11-10T23:50:49.681Z
+
+Observation time: 2026-11-10T23:50:49.681Z UTC / 2026-11-11T06:50:49.681+07:00 Asia/Vientiane. To eliminate ambiguity between script settings and active versions, the Cloudflare deployment records were matched to the version-specific GET endpoint for each version assigned 100% traffic.
+
+- GLORIFIER deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b assigns 100% traffic to version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f (version number 994). The exact version response's own bindings array does not contain GLORIFIER_NEURAL. It does contain GLORIFIER_NEURAL_ORIGIN and GLORIFIER_NEURAL_ALLOWED_HOSTS. Its secret-type bindings do not include GLORIFIER_API_TOKEN or GLORIFIER_INTERNAL_SERVICE_TOKEN.
+- NEURAL deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c assigns 100% traffic to version cfef05f3-1729-4583-a523-9cf7d43d3860 (version number 33). The exact version response's own bindings array confirms GLORIFIER_ENABLE_INFERENCE=true, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true, and GLORIFIER_PROVIDER=openai. GLORIFIER_PAID_INFERENCE_AUTHORIZED and GLORIFIER_INTERNAL_SERVICE_TOKEN are absent; GLORIFIER_API_TOKEN, OPENAI_API_KEY, and NVIDIA_NIM_API_KEY appear as secret-type bindings.
+- These conclusions are based on the deployed versions' own binding arrays, not on the unversioned script-settings endpoint. Secret values were not read. This is configuration evidence only, not a health check or proof that inference was performed.
+
+### Corrective interpretation
+
+The route remains DEGRADED. Before any credential staging, the protected release sequence must first restore and verify false inference/egress flags. Keep the live openai provider selection from routing task prompts until the paid-inference guard is deployed and separate owner authorization is granted. No live configuration, secret, version, or traffic change was made.
