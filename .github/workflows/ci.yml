@@ -45,6 +45,8 @@ jobs:
 
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+      - name: AI fleet publication-time gate regression tests
+        run: node --test scripts/ai-fleet-publication-window-recheck.test.mjs
       - name: Continuous improvement paid-inference authorization regression tests
         run: node --test scripts/continuous-improvement-workflow-contract.test.mjs
 
