@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { isEvidenceTimestampFresh } from './interoperability-evidence-policy.mjs';
+import { hasEvidenceForDeclaredTargetEnvironment, isEvidenceTimestampFresh } from './interoperability-evidence-policy.mjs';
 
 const registryPath = new URL('../docs/architecture/interoperability-capabilities.json', import.meta.url);
 const schemaPath = new URL('../docs/architecture/interoperability-capabilities.schema.json', import.meta.url);
@@ -117,7 +117,8 @@ for (const [index, capability] of (registry.capabilities || []).entries()) {
       const acceptableKind = needsLiveProbe ? item.kind === 'live-probe' :
         ['automated-test', 'ci-run', 'live-probe'].includes(item.kind);
       const freshEnough = isEvidenceTimestampFresh(item.observedAt, { live: needsLiveProbe });
-      return acceptableKind && freshEnough &&
+      const targetMatches = hasEvidenceForDeclaredTargetEnvironment(item.targetEnvironment, capability.targetEnvironments);
+      return acceptableKind && freshEnough && targetMatches &&
         typeof item.reference === 'string' && item.reference.trim().length > 0;
     });
     if (!goodEvidence) {
