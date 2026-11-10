@@ -41,8 +41,17 @@ test('the publication window gates only the draft PR publisher, not maintenance 
 
   assert.ok(workflow.includes('publication_allowed: ${{ steps.time_window.outputs.allowed }}'),
     'the publication-window result must be exposed as a job output');
-  assert.ok(publish.includes("needs.coding-fleet.outputs.publication_allowed == 'true'"),
-    'the privileged publisher must fail closed until the publication window opens');
+  assert.ok(!publish.includes("needs.coding-fleet.outputs.publication_allowed == 'true'"),
+    'the publisher must not trust the maintenance-start clock snapshot');
+  const publishStepStart = publish.indexOf('      - name: Publish validated draft PR');
+  const publishStep = publish.slice(publishStepStart);
+  const publicationClock = publishStep.indexOf('current_hhmm="$(TZ=Asia/Vientiane date +%H%M)"');
+  const remotePush = publishStep.indexOf('git -c core.hooksPath=/dev/null push');
+  const createPr = publishStep.indexOf('gh pr create --draft');
+  assert.ok(publicationClock >= 0 && remotePush > publicationClock && createPr > publicationClock,
+    'the current clock must be rechecked before branch push and PR creation');
+  assert.match(publishStep, /if \(\( current_hhmm_decimal < 831 \)\); then/);
+  assert.match(publishStep, /if ! current_hhmm=/);
 
   const windowStart = coding.indexOf('      - name: Enforce PR publication window (Laos)');
   const boundaryStart = coding.indexOf('      - name: Verify Laos time-window boundaries', windowStart);
@@ -56,8 +65,8 @@ test('the publication window gates only the draft PR publisher, not maintenance 
   assert.ok(boundaryStep.includes('exit 1'));
   assert.ok(!boundaryStep.includes('steps.time_window.outputs.allowed'));
 
-  assert.ok(coding.includes('PR publication is held until 08:31 Asia/Vientiane'),
-    'the closed-window notice must describe publication, not model execution');
+  assert.ok(coding.includes('publisher will recheck the current clock immediately before any remote write'),
+    'the initial closed-window notice must explain that publication uses a fresh clock check');
   assert.ok(!coding.includes('No model was invoked and no PR was created because it is before 08:31'));
 });
 
