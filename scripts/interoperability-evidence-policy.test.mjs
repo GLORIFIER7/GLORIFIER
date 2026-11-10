@@ -65,3 +65,13 @@ test('VERIFIED evidence matches a declared platform even when evidence adds run 
     true,
   );
 });
+
+test('VERIFIED environment matching treats an omitted .NET patch component as the same major runtime', () => {
+  assert.equal(
+    hasEvidenceForDeclaredTargetEnvironment(
+      '.NET 8 / Ubuntu 24.04 x86_64; exact CI run',
+      ['GitHub-hosted Ubuntu 24.04 x86_64; .NET 8.0'],
+    ),
+    true,
+  );
+});
