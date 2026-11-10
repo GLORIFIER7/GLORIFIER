@@ -10,6 +10,10 @@ const ciWorkflow = await readFile(
   new URL('../.github/workflows/ci.yml', import.meta.url),
   'utf8',
 );
+const diffPolicy = await readFile(
+  new URL('./ai-fleet-diff-policy.mjs', import.meta.url),
+  'utf8',
+);
 
 const dispatchStart = workflow.indexOf('  workflow_dispatch:');
 const permissionsStart = workflow.indexOf('\n\npermissions:', dispatchStart);
@@ -61,4 +65,14 @@ test('unauthorized scheduled runs report no provider invocation and do not repor
 test('CI runs the shell and workflow-contract regression suites', () => {
   assert.match(ciWorkflow, /AI fleet paid-inference authorization regression tests[\s\S]*?bash scripts\/ai-fleet-paid-inference-authorization\.test\.sh/);
   assert.match(ciWorkflow, /AI fleet paid-inference workflow contract tests[\s\S]*?node --test scripts\/ai-fleet-paid-inference-workflow-contract\.test\.mjs/);
+});
+
+
+test('paid-inference authorization helpers and tests are protected from AI-generated diffs', () => {
+  assert.match(diffPolicy, /ai-fleet-paid-inference-authorization/);
+  assert.match(diffPolicy, /ai-fleet-paid-inference-workflow-contract/);
+  assert.match(workflow, /scripts\/ai-fleet-paid-inference-authorization\.sh/);
+  assert.match(workflow, /scripts\/ai-fleet-paid-inference-authorization\.test\.sh/);
+  assert.match(workflow, /scripts\/ai-fleet-paid-inference-workflow-contract\.test\.mjs/);
+  assert.match(workflow, /paid-inference authorization helper\/tests/);
 });
