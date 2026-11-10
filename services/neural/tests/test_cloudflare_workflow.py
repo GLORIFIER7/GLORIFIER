@@ -153,7 +153,7 @@ def test_cloudflare_workflow_preflights_api_and_internal_service_secrets_and_smo
 
     assert "Verify required Neural API and internal service tokens are provisioned before publishing" in workflow
     assert "/workers/scripts/glorifier-neural/secrets" in workflow
-    assert 'required_secrets = {"GLORIFIER_API_TOKEN", "GLORIFIER_INTERNAL_SERVICE_TOKEN"}' in workflow
+    assert 'required_secrets = {"GLORIFIER_API_TOKEN", "NEURAL_INTERNAL_DIAGNOSTIC_TOKEN"}' in workflow
     assert "missing_secrets = sorted(required_secrets.difference(names))" in workflow
     assert "Required Neural API and internal service token secrets are present; their values were not read." in workflow
 
