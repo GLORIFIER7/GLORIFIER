@@ -62,8 +62,8 @@ test('the publication window gates only the draft PR publisher, not maintenance 
 });
 
 test('a skipped patch-packaging step exports an explicit false changed value', () => {
-  assert.match(workflow, /changed: \\$\\{\\{ steps\\.package\\.outputs\\.changed == 'true' \\}\\}/);
-  assert.ok(publish.includes(\"needs.coding-fleet.outputs.changed == 'true'\"));
+  assert.match(workflow, /changed: \$\{\{ steps\.package\.outputs\.changed == 'true' \}\}/);
+  assert.ok(publish.includes("needs.coding-fleet.outputs.changed == 'true'"));
 });
 
 test('scheduled and manual runs share the repository-level cost gate', () => {
