@@ -38,6 +38,7 @@ class _RuntimeReadableStream:
 def clear_runtime_environment(monkeypatch):
     for name in (
         "GLORIFIER_ENABLE_INFERENCE",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED",
         "GLORIFIER_PROVIDER",
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS",
         "NVIDIA_NIM_API_KEY",
@@ -54,6 +55,23 @@ def test_runtime_disables_inference_by_default(monkeypatch):
     result = orchestrator.run(TaskRequest(task="hello", require_approval=False))
     assert result.status == "NOT VERIFIED"
     assert result.evidence == ["inference:disabled", "execution:none"]
+
+
+def test_paid_inference_requires_separate_authorization(monkeypatch):
+    clear_runtime_environment(monkeypatch)
+    worker_env = {
+        "GLORIFIER_ENABLE_INFERENCE": "true",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "true",
+        "GLORIFIER_PROVIDER": NvidiaNimAdapter.name,
+        "NVIDIA_NIM_API_KEY": "test-only-key",
+    }
+    orchestrator = build_orchestrator_from_environment(worker_env)
+
+    # Readiness may be explicitly authorized, but task inference needs its own
+    # separately authorized spend gate.
+    assert orchestrator._allow_inference is False
+    assert orchestrator._allow_provider_readiness is True
+    assert orchestrator._providers.get("nvidia_nim") is not None
 
 
 def test_provider_name_alone_does_not_enable_inference(monkeypatch):
