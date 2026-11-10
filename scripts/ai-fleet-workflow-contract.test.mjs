@@ -89,7 +89,7 @@ test('scheduled inference is disabled and manual inference requires explicit fun
   assert.match(authorization, /"\$run_attempt" == "1"/);
   assert.match(workflow, /Scheduled provider inference is disabled/);
   assert.match(workflow, /confirmed provider acceptance of GLR/);
-  assert.match(operatingModel, /only the \`GLORIFIER7\` owner account/);
+  assert.match(operatingModel, /only when the .GLORIFIER7. owner account/);
   assert.match(operatingModel, /reruns are denied/);
   assert.doesNotMatch(operatingModel, /AI_MAINTENANCE_AUTORUN=true.*enables/);
 });
