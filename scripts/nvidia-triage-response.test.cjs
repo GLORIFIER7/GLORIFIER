@@ -117,10 +117,9 @@ test('CLI writes redacted structural evidence, removes raw response, and fails c
 
 
 test('keeps the trusted triage parser checkout isolated from collected workspace logs', () => {
-  const workflow = fs.readFileSync(
-    path.join(__dirname, '..', '.github', 'workflows', 'nvidia-ci-triage.yml'),
-    'utf8',
-  );
+  // These repository-root-relative paths are fixed literals; no runtime value
+  // participates in selecting a workflow file.
+  const workflow = fs.readFileSync('.github/workflows/nvidia-ci-triage.yml', 'utf8');
   const pinnedCheckout = 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1';
   const checkoutRefs = workflow.split(String.fromCharCode(10))
     .map((line) => line.trim())
@@ -140,7 +139,7 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
   assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
 
   const maintenanceWorkflow = fs.readFileSync(
-    path.join(__dirname, '..', '.github', 'workflows', 'nvidia-assisted-maintenance-pr.yml'),
+    '.github/workflows/nvidia-assisted-maintenance-pr.yml',
     'utf8',
   );
   for (const [name, source] of [
