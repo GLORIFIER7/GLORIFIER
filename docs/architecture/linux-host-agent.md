@@ -1,6 +1,12 @@
 # GLORIFIER Linux Host-Agent Integration
 
-**Implementation status:** Source implementation on a feature branch; live operation remains **NOT VERIFIED**.
+**Implementation status:** Source implementation and offline contract tests are merged on main; live operation remains **NOT VERIFIED**.
+
+## Main-branch implementation and CI evidence — 2026-11-11
+
+The Linux host-agent implementation is present on GLORIFIER main. PR [#809](https://github.com/GLORIFIER7/GLORIFIER/pull/809) merged; exact-head [Build and Test run #42960538845](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42960538845) passed the Linux host-agent contract suite, interoperability protocol-boundary tests, evidence-policy tests, interoperability registry tests/validator, and polyglot SDK inventory tests/validator on GitHub-hosted Ubuntu 24.04 x86_64.
+
+This is offline source/contract evidence only. It does not prove an authorized host has been enrolled, installed, heartbeated, assigned a task, returned a receipt, had a lease expire, or been revoked. Keep live host status **NOT VERIFIED** until those owner-controlled checks are completed.
 
 ## Boundary
 
