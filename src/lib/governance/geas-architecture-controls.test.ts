@@ -46,3 +46,19 @@ console.log('GEAS architecture controls tests passed');
 test('existing assertions completed in setup hook', () => {
   assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
 });
+
+
+test('generic GEAS evidence admission rejects economic truth without a financial-integrity verifier', () => {
+  assert.throws(() => buildEvidenceRecord({
+    evidenceId: 'economic-claim-1',
+    contextId: 'ctx-economic-1',
+    truth: 'economically-verified',
+    state: 'pass',
+    source: 'caller-supplied',
+    observedAt: '2026-11-11T00:00:00.000Z',
+    producer: 'caller',
+    authoritative: true,
+    refs: ['provider-usage:1', 'provider-invoice:1'],
+    content: { status: 'RECONCILED', amount: '0.00', currency: 'USD' },
+  }), /GEAS financial-integrity gate/);
+});
