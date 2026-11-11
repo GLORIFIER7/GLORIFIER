@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-11T04:39:22Z",
+  "updatedAt": "2026-11-11T05:43:55.828Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -111,14 +111,42 @@
           "targetEnvironment": "Production GLORIFIER Worker; deployment 3292d6bf-d40c-4682-9b6d-ff5faf41aa1b routes 100% traffic to exact Worker version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f",
           "observedAt": "2026-11-10T23:50:49.681Z",
           "notes": "The deployment record identifies version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f as receiving 100% traffic. The exact-version API response for that version returns its own bindings array; that array includes GLORIFIER_NEURAL_ORIGIN and GLORIFIER_NEURAL_ALLOWED_HOSTS but does not include GLORIFIER_NEURAL. Thus the missing-service-binding finding is confirmed against the deployed version itself, not inferred from the script settings endpoint. Its secret-type bindings also do not include GLORIFIER_API_TOKEN or GLORIFIER_INTERNAL_SERVICE_TOKEN. Secret values were not read. This is configuration evidence, not an HTTP health result. No settings, secrets, code, deployment, or traffic were changed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
+          "observedAt": "2026-11-11T01:50:00Z",
+          "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare deployment/version inventory recorded in GLORIFIER7/GLORIFIER#471 comment 6787866632",
+          "targetEnvironment": "Production Cloudflare Workers; exact active versions assigned 100% traffic; binding names and non-secret variables only",
+          "observedAt": "2026-11-11T05:24:00Z",
+          "notes": "Exact-version inventory showed GLORIFIER Worker v1001 (version ID dedb9c68-908f-4242-ba03-9141424d3d2c; deployment 0d3cf454-3075-4875-9982-1a7adbb56277) and NEURAL Worker v36 (version ID f1a26f39-e46f-4d9d-b982-f66f21f2e115; deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca) at 100% traffic. Both active versions had GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. GLORIFIER v1001 had the GLORIFIER_NEURAL service binding to glorifier-neural; both versions had GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN secret binding names. Secret values were not read. GLORIFIER v1001 release provenance points to source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf and workflow run 42941575720."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.pages.dev",
+          "targetEnvironment": "Production public origin; unauthenticated GET-only probe attempt",
+          "observedAt": "2026-11-11T05:24:00Z",
+          "notes": "The 2026-11-11 05:24 UTC attempt did not yield a complete result: most endpoints timed out in the probe client and /api/neural/ready returned HTTP 503 without an available response body. The structured provider-disabled response therefore was not freshly confirmed by this attempt. No task POST or inference was performed."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/802",
+          "targetEnvironment": "GLORIFIER main c12b62b7d81c885cca2aa63cd579a07fceea02a7",
+          "observedAt": "2026-11-11T05:26:38Z",
+          "notes": "PR #802 is merged and current main now enables edge capabilities only when the environment value is exactly the literal string true; uppercase or malformed values are denied. The active GLORIFIER v1001 release remains tied to earlier source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf, so deployment of this post-release source hardening has not been demonstrated."
         }
       ],
       "limitations": [
-        "Production GLORIFIER proxy routes currently return HTTP 404 / Cloudflare error 1042; the active version 994 has the HTTPS origin and exact-host allowlist but lacks the GLORIFIER_NEURAL service binding.",
-        "PR #774 merged the service-binding implementation to GLORIFIER main, but its changes are not present in active production version 994. The guarded production release and a new live proxy smoke test remain required.",
-        "The standalone Neural Worker health and readiness results are separate from the GLORIFIER proxy result; process health does not prove inference or task execution.",
-        "Fresh read-only Cloudflare inventory at 2026-11-10T08:58:02Z confirms the active GLORIFIER Worker remains version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f at 100% traffic and still lacks the GLORIFIER_NEURAL service binding declared on main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292.",
-        "Exact-version read-back at 2026-11-10T23:50:49.681Z confirms production GLORIFIER version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f (the version assigned 100% traffic) lacks the GLORIFIER_NEURAL service binding declared on current main. This claim is based on the version-specific binding list, not the general script settings endpoint."
+        "The 2026-11-11 production smoke verified Worker-to-NEURAL liveness on GLORIFIER v1001 / NEURAL v36, but did not submit an authenticated task or perform inference.",
+        "The 05:24 UTC public-origin GET attempt was incomplete: endpoint timeouts occurred and the /api/neural/ready response body was unavailable. A fresh complete public-origin read-only smoke is still required.",
+        "Current GLORIFIER main c12b62b includes the exact-literal authorization guard from merged PR #802; active production v1001 is tied to earlier release source 3a2bb65 and has not been shown to contain that post-release change. Use only the protected manual production workflow for promotion.",
+        "The active versions' inference, external-egress, and paid-authorization flags are false. Readiness in this mode is intentionally provider-disabled and must not be changed to true merely to obtain HTTP 200.",
+        "External A2A/MCP client conformance, live Linux host task execution, and independent chain RPC reachability are separate acceptance gates and remain unverified."
       ]
     },
     {
@@ -279,23 +307,37 @@
           "targetEnvironment": "Production NEURAL Worker; deployment 3d97535a-efc5-45b3-b5a3-be2bb4afda5c routes 100% traffic to exact Worker version cfef05f3-1729-4583-a523-9cf7d43d3860",
           "observedAt": "2026-11-10T23:50:49.681Z",
           "notes": "The deployment record identifies version cfef05f3-1729-4583-a523-9cf7d43d3860 (version 33) as receiving 100% traffic. The exact-version API response returns its own bindings array: GLORIFIER_ENABLE_INFERENCE=true, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true, GLORIFIER_PROVIDER=openai, GLORIFIER_API_TOKEN, OPENAI_API_KEY and NVIDIA_NIM_API_KEY are present; GLORIFIER_PAID_INFERENCE_AUTHORIZED and GLORIFIER_INTERNAL_SERVICE_TOKEN are absent. The exact active GLORIFIER version 12b2bfdc-ef46-436b-8f54-bab5e246ec5f lacks GLORIFIER_NEURAL, GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN. Current GLORIFIER main defaults inference, egress and paid authorization to false and requires the separate paid flag in the mirrored runtime. Standalone NEURAL main remains at 92adf8c3dee0371b197edde8e1f64f5d2052d3f0; PR #86 contains the mirrored source correction but remains draft and blocked by 15 unsigned commits, failed AI review policy checks and missing formal approvals. These exact-version inventories prove configuration bindings, not runtime health or model inference. Secret values were not read; no configuration, secret, deployment, traffic, provider, or database mutation occurred."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
+          "observedAt": "2026-11-11T01:50:00Z",
+          "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare deployment/version inventory recorded in GLORIFIER7/GLORIFIER#471 comment 6787866632",
+          "targetEnvironment": "Production Cloudflare Workers; exact active versions assigned 100% traffic; binding names and non-secret variables only",
+          "observedAt": "2026-11-11T05:24:00Z",
+          "notes": "Exact-version inventory showed GLORIFIER Worker v1001 (version ID dedb9c68-908f-4242-ba03-9141424d3d2c; deployment 0d3cf454-3075-4875-9982-1a7adbb56277) and NEURAL Worker v36 (version ID f1a26f39-e46f-4d9d-b982-f66f21f2e115; deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca) at 100% traffic. Both active versions had GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. GLORIFIER v1001 had the GLORIFIER_NEURAL service binding to glorifier-neural; both versions had GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN secret binding names. Secret values were not read. GLORIFIER v1001 release provenance points to source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf and workflow run 42941575720."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.pages.dev",
+          "targetEnvironment": "Production public origin; unauthenticated GET-only probe attempt",
+          "observedAt": "2026-11-11T05:24:00Z",
+          "notes": "The 2026-11-11 05:24 UTC attempt did not yield a complete result: most endpoints timed out in the probe client and /api/neural/ready returned HTTP 503 without an available response body. The structured provider-disabled response therefore was not freshly confirmed by this attempt. No task POST or inference was performed."
         }
       ],
       "limitations": [
-        "The capability remains DEGRADED because the defined GLORIFIER Worker-to-NEURAL proxy boundary returned HTTP 404 / Cloudflare error 1042. Direct standalone NEURAL health/readiness probes bypass that boundary and do not verify it.",
-        "The standalone /health response reports process liveness only; providers, database, and PyTorch were NOT VERIFIED in that response.",
-        "The standalone /ready response reported READY with provider, database, authentication, and rate-limit checks VERIFIED, but inference_performed=false. No authenticated task was submitted and no model inference was executed.",
-        "Optional audit and task-run persistence were not configured in the observed readiness response.",
-        "The latest post-merge Cloudflare Workers Builds attempt for NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b failed at deployment because GLORIFIER_INTERNAL_SERVICE_TOKEN is not configured; health/readiness smoke steps were skipped. The secure runtime secret must be provisioned separately and must be distinct from GLORIFIER_API_TOKEN.",
-        "A Cloudflare Workers Builds configuration update and fresh read-back at 2026-11-10T01:29:19Z confirmed that the main branch trigger remains attached but its production deploy_command is now `bash ./worker-build.sh --prepare-only`. The repository script exits before invoking Wrangler, so this trigger cannot upload or promote a Worker version. The preview deploy_command remains `npx wrangler preview`; the protected GitHub workflow remains the production-promotion path.",
-        "NEURAL main commit 92d209544c02a3bf9c6f45eeb9d459b4a468426b still lacks the required GLORIFIER_INTERNAL_SERVICE_TOKEN in Cloudflare. Do not provision or reuse the public GLORIFIER_API_TOKEN; a human-authorized secret-manager update and protected manual workflow dispatch are required. Current production proxy health/readiness has not been re-probed after the source service-binding change.",
-        "The active production GLORIFIER Worker is still version 994 (version ID 12b2bfdc-ef46-436b-8f54-bab5e246ec5f) at 100% traffic, and its current Cloudflare version binding inventory lacks `GLORIFIER_NEURAL`. Merged source PR #774 is therefore not yet deployed; the protected production release and post-deployment proxy probes remain outstanding.",
-        "Fresh read-only inventory at 2026-11-10T08:58:02Z found live NEURAL inference and external data egress flags set true, although main 72ddd4ac7af4d7fe3156a0f9f42ea5fc4d01c292 defaults both flags to false. Restore the zero-budget defaults through the protected release path before enabling any provider workload.",
-        "At 2026-11-10T08:58:02Z, GLORIFIER_INTERNAL_SERVICE_TOKEN is absent from both the GLORIFIER and GLORIFIER-NEURAL Worker secret-name inventories; GLORIFIER_API_TOKEN is also absent from the GLORIFIER Worker. The owner must provision distinct credentials in Cloudflare before the protected release can pass preflight.",
-        "Exact-version read-back at 2026-11-10T23:50:49.681Z confirms deployed NEURAL version cfef05f3-1729-4583-a523-9cf7d43d3860 (100% traffic) has inference and external egress true, provider openai, and no GLORIFIER_PAID_INFERENCE_AUTHORIZED binding. The deployed GLORIFIER version assigned 100% traffic also lacks GLORIFIER_NEURAL and the required proxy credentials.",
-        "Before any credential staging, the owner must use the protected release path to set GLORIFIER_ENABLE_INFERENCE=false and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, verify those values on the active version, and only then proceed with a separately approved version-safe secret-staging sequence. Do not provision or activate missing credentials while the observed true flags remain active.",
-        "The live GLORIFIER_PROVIDER=openai selection must be treated as an external-provider routing configuration, not proof of readiness or authorization. No task or prompt may be routed to OpenAI or another external provider until the NEURAL paid-inference guard is merged and deployed, the active configuration proves GLORIFIER_PAID_INFERENCE_AUTHORIZED=false by default, and the owner explicitly authorizes any later paid inference.",
-        "The active production configuration observation records GLORIFIER_PROVIDER=openai together with inference and external egress enabled. That provider selection must be audited and must not route task prompts to an external provider before the paid-inference guard is present in the deployed runtime and a separate owner authorization is granted."
+        "NEURAL v36 is deployed at 100% traffic from main commit 042c50d5d570122eeb12036c7a68865330630da7; workflow run #629 passed validate, deploy, and smoke jobs.",
+        "The active NEURAL and GLORIFIER versions have inference, external data egress, and paid-inference authorization all set to false. Provider-disabled readiness is an intentional safe mode, not evidence of usable model inference.",
+        "The successful production smoke established Worker-to-NEURAL liveness and the expected default-deny readiness behavior only. No authenticated task POST, provider prompt, or model inference was performed.",
+        "Both active Workers show the required API/internal-service secret binding names, and GLORIFIER v1001 shows the GLORIFIER_NEURAL service binding. Secret values were not accessed; binding presence is not proof of token matching or authenticated task execution.",
+        "The later 05:24 UTC GET-only attempt did not return complete responses and cannot replace a complete fresh post-release smoke.",
+        "Current GLORIFIER main c12b62b contains additional strict-literal edge authorization hardening not identified in the deployed v1001 release provenance. A protected production release and exact-version read-back are still required.",
+        "External A2A/MCP conformance, real Linux host enrollment/task/revocation, fresh chain RPC evidence, cryptographic identity, sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo runtime, provider billing reconciliation, and independent economic outcomes remain NOT VERIFIED."
       ]
     },
     {
@@ -968,14 +1010,21 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker; active deployment at 100% traffic; non-secret origin/allowlist settings only",
           "observedAt": "2026-11-10T08:58:02Z",
           "notes": "Read-only settings showed GLORIFIER_NEURAL_ORIGIN=https://glorifier-neural.glorifier.workers.dev and GLORIFIER_NEURAL_ALLOWED_HOSTS=glorifier-neural.glorifier.workers.dev. The active Worker still has no GLORIFIER_NEURAL service binding, so exact-host configuration alone does not establish proxy reachability."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare deployment/version inventory recorded in GLORIFIER7/GLORIFIER#471 comment 6787866632",
+          "targetEnvironment": "Production Cloudflare Workers; exact active versions assigned 100% traffic; binding names and non-secret variables only",
+          "observedAt": "2026-11-11T05:24:00Z",
+          "notes": "Exact-version inventory showed GLORIFIER Worker v1001 (version ID dedb9c68-908f-4242-ba03-9141424d3d2c; deployment 0d3cf454-3075-4875-9982-1a7adbb56277) and NEURAL Worker v36 (version ID f1a26f39-e46f-4d9d-b982-f66f21f2e115; deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca) at 100% traffic. Both active versions had GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. GLORIFIER v1001 had the GLORIFIER_NEURAL service binding to glorifier-neural; both versions had GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN secret binding names. Secret values were not read. GLORIFIER v1001 release provenance points to source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf and workflow run 42941575720."
         }
       ],
       "limitations": [
-        "Before any reviewed rollout, an owner must configure exact hostnames matching the reviewed GLORIFIER_BACKEND_ORIGIN and GLORIFIER_NEURAL_ORIGIN; no secrets or production configuration are written by this PR.",
-        "A hostname allowlist is not evidence that the target service is reachable or healthy.",
-        "GLORIFIER_NEURAL_ALLOWED_HOSTS was read and recorded in the 2026-11-10T08:58:02Z inventory above; GLORIFIER_BACKEND_ALLOWED_HOSTS was not independently reviewed. Neither allowlist value proves target reachability or health; the active GLORIFIER version still lacks the GLORIFIER_NEURAL service binding.",
-        "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and GLORIFIER_NEURAL_ALLOWED_HOSTS values have not been reviewed; a green mocked test does not prove production configuration or target reachability.",
-        "Fresh settings read at 2026-11-10T08:58:02Z confirms the configured Neural HTTPS origin and exact hostname, but the active GLORIFIER version still lacks the service binding. This remains a deployment/reachability blocker, not proof of a working upstream route."
+        "The latest exact-version inventory shows the GLORIFIER_NEURAL service binding is present on v1001; this supersedes prior statements that the active v994 version lacked that binding.",
+        "The inventory records binding names and non-secret configuration only. It does not expose secret values or prove token matching, and it is not a substitute for authenticated task execution.",
+        "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and the exact configured allowlist values have not been independently reviewed in this checkpoint.",
+        "A hostname allowlist and a service binding do not by themselves prove target health or unrestricted network interoperability.",
+        "The current production version source SHA predates the latest main-branch exact-literal authorization hardening; protected promotion and exact-version read-back remain required."
       ]
     },
     {
@@ -1072,12 +1121,20 @@
           "observedAt": "2026-11-05T15:00:25.894Z",
           "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; Neon Hyperdrive",
           "notes": "HTTP 200; status verified-for-probed-dependencies. Worker/assets passed; Neon Hyperdrive exact-count query passed in 701 ms and connectionRegistryRows was 30. Neural origin returned not-configured; authentication and AI were not probed. This request succeeded immediately after the preceding /api/reports/summary request failed at the 5-second Hyperdrive connection boundary, so it does not prove reliable cold-start behavior."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
+          "observedAt": "2026-11-11T01:50:00Z",
+          "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
         }
       ],
       "limitations": [
-        "Evidence is one successful point probe of the exact endpoint and dependencies it explicitly probes; it does not prove continuous availability or reliable first-request behavior after Neon auto-suspend.",
-        "The same smoke sequence observed a preceding HTTP 502 from /api/reports/summary while Neon was waking. PR #669 contains a bounded timeout remediation; it has not been deployed or re-verified in production.",
-        "Neural origin is not configured; authentication and AI/provider calls were not probed. External A2A/MCP conformance, blockchain RPC reachability, and 24/7 availability remain unverified.",
+        "The 2026-11-11 successful read-only production smoke verified only the enumerated Worker, Neon Hyperdrive, NEURAL liveness/default-deny, and public read-model dependencies; it does not prove continuous availability or 24/7 assurance.",
+        "A prior 2026-11-05 production sequence observed a 502 while Neon was waking after auto-suspend; the later successful smoke is one successful observation and does not establish reliable cold-start behavior.",
+        "Authentication was not tested with a user session, and AI/provider execution was explicitly not performed. No task POST or inference is implied.",
+        "External A2A/MCP conformance, fresh EVM/BNB/Solana RPC reachability, and independent economic outcomes remain unverified.",
         "Operational row counts are not proof of revenue, users, business outcomes, or Supabase-to-Neon data parity."
       ]
     },
@@ -1119,13 +1176,21 @@
           "observedAt": "2026-11-05T15:00:25.921Z",
           "targetEnvironment": "Production Cloudflare Worker; unauthenticated read-only GET; Neon Hyperdrive",
           "notes": "HTTP 502 after 5068 ms; response code NEON_REPORTS_QUERY_FAILED. Cloudflare recorded a hyperdrive_connect span of approximately 5008 ms. The Neon main compute is configured to suspend immediately when idle; its compute wake-up timestamp coincided with this failure. The immediately following runtime-verification request succeeded against Neon in 701 ms. This is direct degradation evidence, not a successful report response."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
+          "observedAt": "2026-11-11T01:50:00Z",
+          "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
         }
       ],
       "limitations": [
-        "The public report endpoint is degraded: the latest recorded GET returned HTTP 502 after approximately 5.068 seconds at the Neon Hyperdrive connection boundary.",
-        "The Neon aggregate view and existing read-only role returned all six exact counts when queried after compute was awake; direct database readability does not establish public endpoint reliability.",
-        "PR #669 proposes a bounded 15-second connection timeout, preserves the 5-second per-statement SQL timeout, and gives only the reports smoke probe a 35-second deadline for the connect + read-only transaction sequence and transport margin. The current branch is under final-head CI review and has not been deployed.",
-        "Supabase-to-Neon schema/data parity and synchronization remain unverified. Operational counts do not prove revenue or independently verified economic outcomes."
+        "The latest successful production smoke on 2026-11-11 returned exact counts for all six operational tables from Neon Hyperdrive; the actual count values are retained in the run output rather than copied into this registry.",
+        "The earlier 2026-11-05 GET returned HTTP 502 after approximately 5.068 seconds at the Neon Hyperdrive connection boundary. One later success does not establish reliable cold-wake or repeated-query behavior.",
+        "Supabase-to-Neon schema/data parity and synchronization remain unverified.",
+        "Operational counts do not prove revenue or independently verified economic outcomes.",
+        "The 05:24 UTC public-origin attempt was incomplete and did not provide a second complete report response."
       ]
     },
     {
@@ -1243,13 +1308,20 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker; 100% traffic",
           "observedAt": "2026-11-09T01:53:21.985954Z",
           "notes": "Active version metadata identifies release commit ba13862ac05ae26dc5096c4774c52a10a4e9d1ab. This supersedes the older version-880 deployment snapshot but does not independently verify /api/integrations, /api/data-status, or /api/build-info."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720",
+          "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
+          "observedAt": "2026-11-11T01:50:00Z",
+          "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
         }
       ],
       "limitations": [
-        "The last endpoint-specific observations recorded here for /api/integrations, /api/data-status, and /api/build-info are historical HTTP 502 responses from 2026-11-03; no fresh endpoint-specific probe was performed in the 2026-11-09 checkpoint.",
-        "Cloudflare control-plane metadata shows active production Worker version 994 at 100% traffic, tied to release commit ba13862ac05ae26dc5096c4774c52a10a4e9d1ab. Deployment metadata alone does not establish the current behavior of those read-model routes.",
-        "PR #628 merged at 2026-11-03T07:54:06Z as merge commit cb910504c8ac153d84a587a56b3c6893c557907f; previous text describing PR #628 as open/unmerged is stale.",
-        "Do not promote this capability to VERIFIED until fresh production endpoint probes return the documented contracts and source provenance is reconciled."
+        "The successful 2026-11-11 production smoke verified the documented public read models and reported 11 integrations and 11 data records; this is one recorded production run, not a repeated availability SLO.",
+        "A later 05:24 UTC public-origin GET attempt timed out on most endpoints, so a fresh complete direct endpoint-by-endpoint verification remains outstanding.",
+        "The active v1001 release provenance is commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf, not current main c12b62b. Changes merged after that release require the protected manual production workflow before they can be described as deployed.",
+        "Do not infer production health of unprobed subsystems, user authentication, AI providers, or revenue from read-model responses."
       ]
     },
     {
@@ -1739,28 +1811,28 @@
       "scope": "Source implementation of per-host bearer enrollment, heartbeat, lease-token-bound task polling, bounded result receipts, and fixed read-only diagnostics; no live host evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "GLORIFIER main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1; GitHub-hosted Ubuntu 24.04 x86_64 CI",
-        "Linux hosts running the unprivileged Python 3 host agent; no host enrolled or probed"
+        "GLORIFIER main commit c12b62b7d81c885cca2aa63cd579a07fceea02a7; offline contract tests on GitHub-hosted Ubuntu 24.04 x86_64",
+        "An authorized Linux host running the unprivileged Python 3 host agent; no host enrolled or probed"
       ],
       "evidence": [
         {
           "kind": "source",
           "reference": "src/lib/linux-host-agent.ts",
-          "targetEnvironment": "GLORIFIER backend source on feature branch",
+          "targetEnvironment": "GLORIFIER main commit c12b62b7d81c885cca2aa63cd579a07fceea02a7",
           "observedAt": null,
           "notes": "Implements transactional enrollment, SHA-256 token storage, constant-time token verification, heartbeat freshness, owner-approved task creation, 45-second per-claim lease tokens stored only as SHA-256 digests, atomic task/audit transitions, canonical JSON receipt hashing, task history, and credential revocation. Source presence is not a live backend deployment."
         },
         {
           "kind": "source",
           "reference": "agents/linux-host-agent/agent.py",
-          "targetEnvironment": "Linux host-agent source on feature branch",
+          "targetEnvironment": "GLORIFIER main commit c12b62b7d81c885cca2aa63cd579a07fceea02a7",
           "observedAt": null,
           "notes": "Outbound HTTPS-only Python agent implements fixed host.info, memory.info, and disk.info diagnostics. It requires a claim-specific lease token for result submission and does not invoke a shell or execute caller-supplied commands."
         },
         {
           "kind": "documentation",
           "reference": "agents/linux-host-agent/README.md",
-          "targetEnvironment": "Operator installation documentation",
+          "targetEnvironment": "GLORIFIER main; operator installation documentation",
           "observedAt": null,
           "notes": "Documents one-time enrollment token handling, unprivileged systemd deployment, API routes, installation, and verification steps. No host installation was performed."
         },
@@ -1770,15 +1842,22 @@
           "targetEnvironment": "GLORIFIER PR #809 exact head 22de0bf25fd2bfebe951cb20919c149fd29c8054, merged as main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1; GitHub-hosted Ubuntu 24.04 x86_64",
           "observedAt": "2026-11-11T04:39:22Z",
           "notes": "The exact-head GLORIFIER Build and Test job passed the Linux host-agent contract tests, interoperability protocol-boundary tests, interoperability evidence-policy tests, interoperability registry regression tests, registry validator, polyglot SDK inventory regression tests and inventory validator. These are offline contract/schema tests. They do not prove a Linux host was enrolled, heartbeated, or used to execute a task."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42960538845",
+          "targetEnvironment": "GLORIFIER PR #809 exact head, merged into main as f1a7bcc70755a7bacd56e052bc6412f4e41e20d1; GitHub-hosted Ubuntu 24.04 x86_64",
+          "observedAt": "2026-11-11T04:39:22Z",
+          "notes": "The exact-head Build and Test job passed the Linux host-agent contract suite, protocol-boundary tests, evidence-policy tests, interoperability registry validation, and polyglot SDK inventory checks. This is offline CI evidence only; no real host was enrolled, heartbeated, assigned a task, or revoked."
         }
       ],
       "limitations": [
-        "No authorized Linux host has been enrolled, installed, heartbeated, or used to complete a task.",
-        "The backend routes require a deployed backend and a correctly configured Worker backend origin plus exact-host allowlist where the Worker is the public entry point.",
+        "No authorized Linux host has been enrolled, installed, heartbeated, or used to complete and return a task.",
+        "The backend routes require a deployed backend and correctly configured Worker backend origin plus exact-host allowlist where applicable.",
         "Only three fixed read-only diagnostics are implemented; arbitrary shell execution, sudo, service control, file writes, package installation, and privilege escalation are intentionally unsupported.",
-        "Universal Linux distribution and architecture compatibility is not claimed.",
+        "Universal Linux distribution and architecture compatibility is not claimed; the recorded Linux source/container matrix remains limited to Ubuntu 22.04/24.04 x86_64.",
         "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation.",
-        "PR #809 merged as main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1 after exact-head CI passed; the offline contracts are now exercised by main CI. This does not establish live host enrollment, heartbeat, or task execution."
+        "PR #809 and the Linux host-agent contract implementation are merged on main; the green offline CI does not establish live host enrollment, heartbeat, task receipt, expiry, or revocation."
       ]
     }
   ]
