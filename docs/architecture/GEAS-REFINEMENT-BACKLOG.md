@@ -76,3 +76,16 @@ Observed result: 41 discovered patterns, all 41 classified as analysis, zero cla
 Source observations: 39 `content-matched`, two `source-available` (`microsoft-architecture` and `mitre-atlas`), one `unavailable` (`google-architecture`, rejected because the redirect target was outside its source-specific curated allowlist), and one `not-observed` (`iso-42001`, HTTP 403). The two `source-available` records are not content evidence. All 39 content matches remain discovery/analysis evidence, not claim verification.
 
 This later observation supersedes any inference that Google Cloud was durably recovered by the earlier run `42748771833`: one scan observed HTTP 200/content-matched, while this exact-head scan rejected a redirect. The public Google Cloud Well-Architected page is reachable at the configured canonical documentation path, but this artifact does not expose the rejected redirect target. Keep the source unavailable for this run and do not broaden the redirect allowlist until the exact target and its canonical ownership/path are independently captured. Source availability, content matching, and URL/cadence consistency do not establish GLORIFIER implementation or runtime conformance.
+
+
+## Durable agent messaging source — 2026-11-11
+
+Observed public-source facts:
+- NATS JetStream documentation describes persistent streams, stateful consumers, acknowledgements, replay, and at-least-once delivery semantics: https://docs.nats.io/concepts/jetstream
+- CNCF announced NATS graduation on 2026-11-10 and described messaging and streaming across cloud, on-premises, and edge environments: https://www.cncf.io/announcements/2026/11/10/cncf-announces-nats-graduation-solidifying-a-production-ready-foundation-for-messaging-across-cloud-and-edge/
+
+GEAS refinement:
+- Register `nats-jetstream` as an active 14-day technical source and `cncf-nats-graduation` as a discovery-only 30-day maturity source.
+- Add `durable-agent-messaging` as an integration-domain analysis pattern covering asynchronous decoupling, persistence, acknowledgements, redelivery, replay, retention, replication, and idempotent consumers.
+- Keep the pattern explicitly analysis-only. Neither source proves that NATS is deployed, configured, or used by GLORIFIER; no messaging infrastructure is added by this refinement.
+- Add exact-URL trust, registry/cadence, source-to-pattern, and no-deployment-claim regression assertions.

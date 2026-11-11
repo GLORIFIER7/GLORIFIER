@@ -288,6 +288,30 @@
       "scannerStatus": "active"
     },
     {
+      "id": "cncf-nats-graduation",
+      "authority": "Cloud Native Computing Foundation",
+      "domain": "integration",
+      "url": "https://www.cncf.io/announcements/2026/11/10/cncf-announces-nats-graduation-solidifying-a-production-ready-foundation-for-messaging-across-cloud-and-edge/",
+      "claimsAllowed": [
+        "cncf-project-maturity"
+      ],
+      "reviewCadenceDays": 30,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "discovery-only"
+    },
+    {
+      "id": "nats-jetstream",
+      "authority": "NATS",
+      "domain": "integration",
+      "url": "https://docs.nats.io/concepts/jetstream",
+      "claimsAllowed": [
+        "durable-agent-messaging"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "nist-ai-agents",
       "authority": "NIST",
       "domain": "ai",
