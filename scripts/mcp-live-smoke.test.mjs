@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runMcpLiveSmoke } from './mcp-live-smoke.mjs';
 
@@ -164,5 +165,17 @@ test('rejects a malformed non-boolean MCP isError flag', async () => {
       fetchImpl: fixtureFetch([], { invalidIsError: true }),
     }),
     /isError/i,
+  );
+});
+
+
+test('legacy official MCP scenario requires both target validation and runner build success', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/external-mcp-conformance.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/- name: Run official MCP legacy tools-list scenario \\(2025-11-25\\)\\s+id: official_mcp_legacy\\s+if: ([^\\n]+)/);
+
+  assert.ok(step, 'legacy MCP scenario step and its guard must exist');
+  assert.equal(
+    step[1],
+    "${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}",
   );
 });
