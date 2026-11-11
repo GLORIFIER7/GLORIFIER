@@ -60,6 +60,25 @@ if (focus15Pattern?.sourceId !== 'finops-focus-1-5-release-scope'
   throw new Error('FOCUS 1.5 must remain forward-looking analysis until ratified; FOCUS 1.4 remains the current contract');
 }
 
+const natsJetStreamSource = model.sources.find((source) => source.id === 'nats-jetstream');
+if (!natsJetStreamSource
+    || natsJetStreamSource.url !== 'https://docs.nats.io/concepts/jetstream'
+    || natsJetStreamSource.cadenceHours !== 336
+    || !natsJetStreamSource.patternIds.includes('durable-agent-messaging')) {
+  throw new Error('NATS JetStream must use its exact official documentation URL and a 14-day source cadence');
+}
+const natsMessagingPattern = model.patterns.find((pattern) => pattern.id === 'durable-agent-messaging');
+if (!natsMessagingPattern
+    || natsMessagingPattern.sourceId !== 'nats-jetstream'
+    || natsMessagingPattern.domain !== 'integration'
+    || !natsMessagingPattern.GLORIFIERMapping.includes('Analysis only')
+    || !natsMessagingPattern.GLORIFIERMapping.includes('does not prove NATS is deployed')) {
+  throw new Error('NATS messaging must remain an analysis-only pattern and must not imply GLORIFIER deployment');
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('NATS source keyword matches must remain analysis, not claim verification');
+}
+
 for (const source of model.sources) {
   if (!isTrustedArchitectureSourceUrl(source.url)) {
     throw new Error(`model source is not covered by the curated hostname allowlist: ${source.id}`);
@@ -92,6 +111,7 @@ const approvedCuratedSourceUrls = [
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
   'https://focus.finops.org/docs/specification/v1-4/',
   'https://focus.finops.org/focus-1-5-release-scope/',
+  'https://docs.nats.io/concepts/jetstream',
 ];
 for (const sourceUrl of approvedCuratedSourceUrls) {
   if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
@@ -111,6 +131,7 @@ const rejectedCuratedSourceUrls = [
   'file:///etc/passwd',
   'https://www.nist.gov/internal',
   'https://owaspacs.org/docs/unregistered/',
+  'https://docs.nats.io/unregistered/',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/README.md',
   'https://airc.nist.gov/another-document',
   'https://raw.githubusercontent.com/attacker/repo/main/payload',
@@ -405,11 +426,30 @@ const authoritativeRegistry = JSON.parse(readFileSync(
   new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url),
   'utf8',
 )) as {
-  sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[] }>;
+  sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[]; reviewCadenceDays: number; implementationStatus: string }>;
 };
 const focusRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'finops-focus-1-4');
 if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || focusRegistryEntry.claimsAllowed.length !== 1 || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
   throw new Error('FOCUS 1.4 registry must explicitly allow only its active invoice-reconciliation source for that claim type');
+}
+
+const natsRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'nats-jetstream');
+if (!natsRegistryEntry
+    || natsRegistryEntry.scannerStatus !== 'active'
+    || natsRegistryEntry.reviewCadenceDays !== 14
+    || natsRegistryEntry.implementationStatus !== 'not-assessed'
+    || natsRegistryEntry.claimsAllowed.length !== 1
+    || natsRegistryEntry.claimsAllowed[0] !== 'durable-agent-messaging') {
+  throw new Error('NATS JetStream registry entry must remain active, 14-day, and not-assessed with a narrow claim allowance');
+}
+const cncfNatsRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'cncf-nats-graduation');
+if (!cncfNatsRegistryEntry
+    || cncfNatsRegistryEntry.scannerStatus !== 'discovery-only'
+    || cncfNatsRegistryEntry.reviewCadenceDays !== 30
+    || cncfNatsRegistryEntry.implementationStatus !== 'not-assessed'
+    || cncfNatsRegistryEntry.claimsAllowed.length !== 1
+    || cncfNatsRegistryEntry.claimsAllowed[0] !== 'cncf-project-maturity') {
+  throw new Error('CNCF NATS graduation announcement must remain discovery-only and not-assessed');
 }
 const discoveryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'owasp-agentic-applications-top10');
 if (!discoveryEntry
