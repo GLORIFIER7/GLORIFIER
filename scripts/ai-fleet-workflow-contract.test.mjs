@@ -438,8 +438,9 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const proposalStart = nvidiaMaintenanceWorkflow.indexOf('\n  propose-fix:\n');
   const validatorStart = nvidiaMaintenanceWorkflow.indexOf('\n  validate-fix:\n');
   const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
-  assert.ok(proposalStart >= 0 && validatorStart > proposalStart && publisherStart > validatorStart,
-    'expected proposal, validation, and publication jobs in order');
+  assert.ok(proposalStart >= 0, 'expected a provider proposal job');
+  assert.ok(validatorStart > proposalStart, 'expected read-only validation after proposal');
+  assert.ok(publisherStart > validatorStart, 'expected publication after validation');
 
   const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, validatorStart);
   const validator = nvidiaMaintenanceWorkflow.slice(validatorStart, publisherStart);
@@ -482,12 +483,7 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'publisher must verify it received the exact patch tested by the read-only validator');
   assert.match(publisher, /git -c core\.hooksPath=\/dev\/null .* apply/);
   assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
-  const publisherCommands = publisherStepBlocks(publisher)
-    .map((step) => {
-      const runIndex = step.indexOf('        run:');
-      return runIndex >= 0 ? step.slice(runIndex) : '';
-    })
-    .join('\n');
+  const publisherCommands = publisherStepBlocks(publisher).join('\n');
   assert.doesNotMatch(
     publisherCommands,
     /\b(?:npm|npx|yarn|pnpm)\s+(?:ci|install|test|audit|run|exec)\b|\bnode\s+\S+|\bpython3?\s+(?:-c\b|\S+\.py\b)|\b(?:bash|sh)\s+\S+|test:nvidia-provider|test:protected-api-paths/i,
