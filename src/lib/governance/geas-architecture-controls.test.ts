@@ -77,3 +77,18 @@ test('GEAS economic integrity policy remains closed until every source control i
     && control.implementationStatus === 'NOT IMPLEMENTED'));
   assert.ok(policy.controls.every((control) => control.evidenceStatus === 'NOT VERIFIED'));
 });
+
+
+test('GEAS evidence admission rejects unknown runtime truth values rather than admitting them', () => {
+  assert.throws(() => buildEvidenceRecord({
+    evidenceId: 'economic-claim-variant-1',
+    contextId: 'ctx-economic-variant-1',
+    truth: 'economically-verified ' as never,
+    state: 'pass',
+    source: 'caller-supplied',
+    observedAt: '2026-11-11T00:00:00.000Z',
+    producer: 'caller',
+    authoritative: true,
+    content: { status: 'RECONCILED' },
+  }), /Invalid GEAS evidence truth value/);
+});
