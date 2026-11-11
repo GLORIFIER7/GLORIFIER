@@ -178,9 +178,21 @@ export const validateNeuralHealth = (body) => {
   return body;
 };
 
-export const validateNeuralReady = (body) => {
+export const validateNeuralReady = (body, httpStatus = 200) => {
+  if (httpStatus === 503) {
+    assert.equal(body?.ok, false,
+      'provider-disabled Neural readiness must report ok=false');
+    assert.equal(body?.status, 'unavailable',
+      'provider-disabled Neural readiness must report unavailable');
+    assert.equal(body?.code, 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+      'HTTP 503 is accepted only for the explicit default-deny external-egress policy');
+    return body;
+  }
+
+  assert.equal(httpStatus, 200,
+    'Neural readiness must return HTTP 200 or the explicit provider-disabled HTTP 503');
   assert.equal(body?.status, 'READY',
-    'Neural readiness must report READY');
+    'Neural readiness must report READY when external egress is explicitly enabled');
   for (const key of ['providers', 'database', 'authentication', 'rate_limit']) {
     assert.equal(body?.checks?.[key], 'VERIFIED',
       'Neural readiness must verify ' + key);
@@ -198,8 +210,8 @@ export const verifyNeuralBridge = async (fetchRequest = fetch) => {
 
   console.log('GLORIFIER production smoke: checking Worker-to-Neural readiness without task submission');
   const readyResponse = await requestJson((options) =>
-    fetchRequest(new URL('/api/neural/ready', PRODUCTION_PUBLIC_ORIGIN), options));
-  const readiness = validateNeuralReady(readyResponse.body);
+    fetchRequest(new URL('/api/neural/ready', PRODUCTION_PUBLIC_ORIGIN), options), {}, [200, 503]);
+  const readiness = validateNeuralReady(readyResponse.body, readyResponse.status);
   return { health, readiness };
 };
 
@@ -425,7 +437,9 @@ const reportReadinessWarnings = (identity, runtime, neuralBridge) => {
   if (identity.body?.status !== 'ready') {
     console.warn('PRODUCTION READINESS WARNING: organizational domain/email identity is not configured or verified.');
   }
-  if (!neuralBridge?.readiness) {
+  if (neuralBridge?.readiness?.code === 'NEURAL_EXTERNAL_EGRESS_DISABLED') {
+    console.warn('PRODUCTION READINESS WARNING: Neural readiness is intentionally unavailable because external data egress is disabled by policy.');
+  } else if (!neuralBridge?.readiness) {
     console.warn('PRODUCTION READINESS WARNING: the Worker-to-Neural bridge did not pass its live readiness probe.');
   }
   for (const [key, label] of [
@@ -482,7 +496,11 @@ export const runProductionSmoke = async () => {
   const publicReadModels = await verifyPublicReadModels();
   console.log('Deployed source commit verified: ' + provenance.git.commit + ' (Worker version ' + provenance.worker.versionId + ').');
   console.log('Neon exact operational counts verified for all six reporting tables.');
-  console.log('Worker-to-Neural liveness and readiness contracts verified; no task was submitted and no inference was performed.');
+  if (neuralBridge.readiness?.code === 'NEURAL_EXTERNAL_EGRESS_DISABLED') {
+    console.log('Worker-to-Neural liveness verified; readiness is explicitly disabled by the default-deny policy; no task was submitted and no inference was performed.');
+  } else {
+    console.log('Worker-to-Neural liveness and readiness contracts verified; no task was submitted and no inference was performed.');
+  }
   console.log('Production public read models verified: ' + publicReadModels.integrations + ' integrations and ' + publicReadModels.dataRows + ' data records.');
   console.log('MCP was not probed: its protocol endpoint requires POST and is excluded from GET-only production smoke checks.');
   reportReadinessWarnings(identity, runtime, neuralBridge);
