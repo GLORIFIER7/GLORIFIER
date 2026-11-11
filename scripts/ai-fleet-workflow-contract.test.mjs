@@ -326,7 +326,8 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
 });
 
 function assertGeminiAuthorizationWorkflow(item) {
-  const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
+  const job = item.source.match(/^  [A-Za-z0-9_-]+:\r?\n([\s\S]*?)(?=^  [A-Za-z0-9_-]+:|\s*$)/m)?.[1] ?? '';
+  const condition = job.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
   assert.match(condition, /github.ref == 'refs\/heads\/main'/);
   assert.ok(condition.includes(item.authorizationCondition));
@@ -373,7 +374,7 @@ test('Gemini PR review requires per-run paid-inference consent and an explicit o
   assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\n    inputs:\n      pr_number:"));
   assert.ok(geminiPrReviewWorkflow.includes('allow_paid_inference:\n        description: "Explicit per-run consent to send the pull-request diff to Gemini; this may incur provider charges."\n        required: true\n        type: boolean\n        default: false'));
   assert.ok(geminiPrReviewWorkflow.includes('inputs.allow_paid_inference == true'));
-  assert.ok(geminiPrReviewWorkflow.includes("vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'"));
+  assert.ok(geminiPrReviewWorkflow.includes("github.actor_id == '32674233'"));
   assert.ok(geminiPrReviewWorkflow.includes('MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}'));
   assert.ok(geminiPrReviewWorkflow.includes('PR_NUMBER_INPUT: ${{ inputs.pr_number }}'));
   assert.ok(geminiPrReviewWorkflow.includes('gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}"'));
