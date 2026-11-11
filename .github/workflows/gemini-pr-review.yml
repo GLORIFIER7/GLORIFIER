@@ -10,6 +10,11 @@ on:
         required: true
         type: number
       allow_paid_inference:
+        description: "Explicit per-run authorization for external Gemini inference; provider charges and external data transmission may apply"
+        required: true
+        type: boolean
+        default: false
+      allow_paid_inference:
         description: "Explicit per-run consent to send the pull-request diff to Gemini; this may incur provider charges."
         required: true
         type: boolean
