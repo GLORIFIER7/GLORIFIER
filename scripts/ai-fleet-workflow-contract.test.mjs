@@ -326,8 +326,7 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
 });
 
 function assertGeminiAuthorizationWorkflow(item) {
-  const job = item.source.match(/^  [A-Za-z0-9_-]+:\r?\n([\s\S]*?)(?=^  [A-Za-z0-9_-]+:|\s*$)/m)?.[1] ?? '';
-  const condition = job.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
+  const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
   assert.match(condition, /github.ref == 'refs\/heads\/main'/);
   assert.ok(condition.includes(item.authorizationCondition));
@@ -372,7 +371,7 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 
 test('Gemini PR review requires per-run paid-inference consent and an explicit open main-target PR number', () => {
   assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\n    inputs:\n      pr_number:"));
-  assert.ok(geminiPrReviewWorkflow.includes('allow_paid_inference:\n        description: "Explicit per-run consent to send the pull-request diff to Gemini; this may incur provider charges."\n        required: true\n        type: boolean\n        default: false'));
+  assert.ok(geminiPrReviewWorkflow.includes('allow_paid_inference:\n        description: "Explicit per-run authorization for external Gemini inference; provider charges and external data transmission may apply"\n        required: true\n        type: boolean\n        default: false'));
   assert.ok(geminiPrReviewWorkflow.includes('inputs.allow_paid_inference == true'));
   assert.ok(geminiPrReviewWorkflow.includes("github.actor_id == '32674233'"));
   assert.ok(geminiPrReviewWorkflow.includes('MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}'));
