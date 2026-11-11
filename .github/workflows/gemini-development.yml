@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: "Inspect the repository and make one small, test-backed reliability improvement."
+      allow_paid_inference:
+        description: "Explicit owner authorization for external Gemini inference; provider charges and external data transmission may apply"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,7 +23,7 @@ concurrency:
 
 jobs:
   gemini:
-    if: ${{ github.actor == 'GLORIFIER7' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
     permissions:
       contents: read
     outputs:
@@ -32,17 +37,34 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Configure Gemini system-level tool policy
+
+      - name: Enforce shared owner-only paid-inference authorization
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/gemini-system-settings.json" <<'JSON'
+          source scripts/ai-fleet-authorization.sh
+          glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
+
+      - name: Configure root-owned Gemini system-level tool policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -o root -g root -m 755 /etc/glorifier
+          sudo tee /etc/glorifier/gemini-system-settings.json >/dev/null <<'JSON'
           {
             "general": {"defaultApprovalMode": "auto_edit"},
-            "tools": {"core": ["read_file", "glob", "grep_search", "list_directory", "read_many_files", "write_file", "replace"]},
+            "tools": {"core": ["read_file","glob","grep_search","list_directory","read_many_files","write_file","replace"]},
             "security": {"disableYoloMode": true, "enableConseca": true, "environmentVariableRedaction": {"enabled": true}}
           }
           JSON
+          sudo chown root:root /etc/glorifier/gemini-system-settings.json
+          sudo chmod 644 /etc/glorifier/gemini-system-settings.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -54,7 +76,7 @@ jobs:
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0
         env:
-          GEMINI_CLI_SYSTEM_SETTINGS_PATH: ${{ runner.temp }}/gemini-system-settings.json
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH: /etc/glorifier/gemini-system-settings.json
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
