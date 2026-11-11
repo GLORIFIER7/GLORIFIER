@@ -152,3 +152,39 @@ test('interoperability gap register reflects merged NEURAL PR and refreshed GLR 
     );
   }
 });
+
+
+test('latest production checkpoint reconciles the exact current main deployment without claiming external conformance', async () => {
+  const registry = JSON.parse(await readFile(documents[0], 'utf8'));
+  const gap = await readFile(gapRegister, 'utf8');
+  const evidenceIds = [
+    'worker.neural-route-contract',
+    'neural.runtime-live-readiness',
+    'worker.live-runtime-verification',
+    'worker.live-operational-report',
+    'worker.production-read-model-release',
+  ];
+
+  for (const id of evidenceIds) {
+    const capability = registry.capabilities.find((item) => item.id === id);
+    assert.ok(capability, `missing capability ${id}`);
+    assert.ok(
+      capability.evidence.some((item) =>
+        item.kind === 'live-probe' &&
+        item.reference === 'https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766' &&
+        item.targetEnvironment.includes('Worker v1002') &&
+        item.notes.includes('038fe738e9fdc5fbbb0472343198c19d75cd7643')),
+      `${id} must cite the exact current-main production smoke`,
+    );
+  }
+
+  const protocol = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
+  assert.equal(protocol.status, 'NOT VERIFIED');
+  assert.match(protocol.limitations.join(' '), /external MCP client\/server integration/);
+  assert.match(protocol.limitations.join(' '), /A2A 1\.0\.1/);
+  assert.match(gap, /Superseding production release and smoke checkpoint — 2026-11-11/);
+  assert.match(gap, /Worker v1002/);
+  assert.match(gap, /Worker-to-NEURAL liveness/);
+  assert.match(gap, /MCP was not probed/);
+  assert.match(gap, /Issue #471 remains OPEN/);
+});
