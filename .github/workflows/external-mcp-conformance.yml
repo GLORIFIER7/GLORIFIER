@@ -79,7 +79,7 @@ jobs:
 
       - name: Run official MCP legacy tools-list scenario (2025-11-25)
         id: official_mcp_legacy
-        if: ${{ always() && steps.validate_target.outcome == 'success' }}
+        if: ${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}
         env:
           MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
         run: |
