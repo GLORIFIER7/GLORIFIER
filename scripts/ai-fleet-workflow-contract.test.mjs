@@ -323,85 +323,39 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
     'new branch updates may continue to supersede older branch-update runs');
 });
 
-test('Gemini external inference requires explicit owner-only manual authorization and root-owned settings', () => {
-  const workflows = [
-    {
-      name: 'Gemini collaborator',
-      source: geminiCollaboratorWorkflow,
-      firstSensitiveStep: 'name: Require Gemini credential',
-      modelStep: 'name: Run Gemini engineering collaboration',
-    },
-    {
-      name: 'Gemini development',
-      source: geminiDevelopmentWorkflow,
-      firstSensitiveStep: 'name: Setup Node.js',
-      modelStep: 'name: Run Gemini CLI',
-    },
-    {
-      name: 'Gemini PR review',
-      source: geminiPrReviewWorkflow,
-      firstSensitiveStep: 'name: Require Gemini credential',
-      modelStep: 'name: Run Gemini advisory review',
-    },
-  ];
+function assertGeminiAuthorizationWorkflow(item) {
+  assert.match(item.source, /workflow_dispatch:/);
+  const dispatch = item.source.match(/workflow_dispatch:([^\\n]*(?:\\n[ \\t]+[^\\n]*)*)/)?.[0] ?? '';
+  assert.match(dispatch, /workflow_dispatch:\\s*(?:\\{\\}|\\n\\s*#)/);
+  const condition = item.source.match(/^    if:\\s*\\$\\{\\{([^\\r\\n]*?)\\}\\}\\s*$/m)?.[1] ?? '';
+  assert.match(condition, /github.event_name == 'workflow_dispatch'/);
+  assert.match(condition, /github.ref == 'refs\\/heads\\/main'/);
+  assert.match(condition, /github.actor_id == '32674233'/);
+  assert.match(condition, /github.run_attempt == 1/);
+  assert.doesNotMatch(condition, /inputs\\.|schedule|pull_request_target/);
+  const authorized = item.source.indexOf('glorifier_ai_maintenance_authorized');
+  assert.ok(authorized >= 0 && authorized < item.source.indexOf(item.firstSensitiveStep));
+  assert.ok(authorized < item.source.indexOf(item.modelStep));
+  assert.match(item.source, /sudo install -d -o root -g root -m 755 \\/etc\\/glorifier/);
+  assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \\/etc\\/glorifier\\/gemini-system-settings\\.json/);
+}
 
-  for (const item of workflows) {
-    assert.match(item.source,
-      /allow_paid_inference:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+boolean\n\s+default:\s+false/,
-      item.name + ' must default paid inference authorization to false');
-    const jobCondition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
-    assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/,
-      item.name + ' must run only from manual dispatch');
-    assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/,
-      item.name + ' must run only from main');
-    assert.match(jobCondition, /inputs\.allow_paid_inference == true/,
-      item.name + ' must require explicit owner opt-in');
-    assert.match(jobCondition, /github\.actor_id == '32674233'/,
-      item.name + ' must require the owner account');
-    assert.match(jobCondition, /github\.run_attempt == 1/,
-      item.name + ' must deny reruns');
-    assert.doesNotMatch(jobCondition, /schedule|pull_request_target/,
-      item.name + ' must deny automatic events');
+test('Gemini provider workflows require owner-initiated manual dispatch and trusted settings', () => {
+  for (const item of [
+    { name: 'Gemini collaborator', source: geminiCollaboratorWorkflow, firstSensitiveStep: 'name: Require Gemini credential', modelStep: 'name: Run Gemini engineering collaboration' },
+    { name: 'Gemini development', source: geminiDevelopmentWorkflow, firstSensitiveStep: 'name: Setup Node.js', modelStep: 'name: Run Gemini CLI' },
+    { name: 'Gemini PR review', source: geminiPrReviewWorkflow, firstSensitiveStep: 'name: Resolve the most recently updated open pull request', modelStep: 'name: Run Gemini advisory review' },
+  ]) assertGeminiAuthorizationWorkflow(item);
+  assert.match(geminiCollaboratorWorkflow, /schedule:/);
+});
 
-    const checkoutIndex = item.source.indexOf('name: Checkout');
-    const authorizationIndex = item.source.indexOf('glorifier_ai_maintenance_authorized');
-    const sensitiveIndex = item.source.indexOf(item.firstSensitiveStep);
-    const modelIndex = item.source.indexOf(item.modelStep);
-    assert.ok(checkoutIndex >= 0 && checkoutIndex < authorizationIndex,
-      item.name + ' must load trusted policy before authorization');
-    assert.ok(authorizationIndex < sensitiveIndex && authorizationIndex < modelIndex,
-      item.name + ' must authorize before credentials, dependencies, or model execution');
-    assert.match(item.source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/,
-      item.name + ' must use a root-owned trusted-settings directory');
-    assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \/etc\/glorifier\/gemini-system-settings\.json/,
-      item.name + ' must point Gemini to the root-owned settings file');
-  }
-
-  assert.match(geminiCollaboratorWorkflow, /schedule:/,
-    'scheduled collaborator events may remain declared but must be skipped by the job gate');
-
-  assert.ok(
-    geminiPrReviewWorkflow.includes('group: gemini-pr-review-${{ github.event_name }}-${{ inputs.pr_number || github.event.pull_request.number }}'),
-    'manual workflow dispatches and skipped pull_request_target events must use separate concurrency groups',
-  );
-  assert.match(geminiPrReviewWorkflow, /pull_request_target:/,
-    'automatic PR review events may remain declared but must be skipped by the job gate');
-  assert.match(geminiPrReviewWorkflow,
-    /pr_number:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+number/,
-    'manual Gemini PR review must require an explicit PR number');
-
-  assert.match(geminiPrReviewWorkflow,
-    /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/,
-    'manual Gemini PR review must not fall back to untrusted automatic-event data');
-  assert.match(geminiPrReviewWorkflow,
-    /if \[\[ ! "\$\{PR_NUMBER:-\}" =~ \^\[1-9\]\[0-9\]\*\$ \]\]; then/,
-    'Gemini PR review must reject non-positive or malformed PR numbers before API requests');
-  assert.match(geminiPrReviewWorkflow,
-    /name: Publish Gemini COMMENT review only[\s\S]*?PR_NUMBER: \$\{\{ inputs\.pr_number \}\}[\s\S]*?if \[\[ ! "\$\{PR_NUMBER:-\}" =~ \^\[1-9\]\[0-9\]\*\$ \]\]; then/,
-    'the write-capable review publisher must use and validate the explicit manual PR number');
-  const publishReviewJob = geminiPrReviewWorkflow.split('  publish-review:')[1] ?? '';
-  assert.ok(publishReviewJob.includes('PR_NUMBER: ${{ inputs.pr_number }}'),
-    'manual Gemini PR review must use the supplied PR number');
-  assert.ok(!publishReviewJob.includes('github.event.pull_request.number'),
-    'write-capable publisher must not derive its target from an automatic pull_request_target event');
+test('Gemini PR review uses empty dispatch inputs and resolves its target after owner authorization', () => {
+  assert.match(geminiPrReviewWorkflow, /workflow_dispatch: \\{\\}/);
+  assert.match(geminiPrReviewWorkflow, /group: gemini-pr-review-\\$\\{\\{ github.event_name \\}\\}-\\$\\{\\{ github.run_id \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /gh pr list --state open --limit 1 --json number/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ steps\\.resolve-pr\\.outputs\\.number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ needs\\.gemini-review\\.outputs\\.pr_number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /name: Publish Gemini COMMENT review only[\\s\\S]*?pull-requests: write/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\\.pr_number|inputs\\.allow_paid_inference/);
+  assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
 });
