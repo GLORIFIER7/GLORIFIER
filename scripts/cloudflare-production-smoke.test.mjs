@@ -559,6 +559,48 @@ test('Neural readiness validation requires provider, database, auth, rate limit,
   }), /inference/);
 });
 
+const neuralSafeModeFixture = {
+  ok: false,
+  status: 'unavailable',
+  code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+};
+
+test('Neural readiness accepts only the explicit provider-disabled safe-mode response', () => {
+  assert.equal(validateNeuralReady(neuralSafeModeFixture, 503).code,
+    'NEURAL_EXTERNAL_EGRESS_DISABLED');
+  assert.throws(() => validateNeuralReady(neuralSafeModeFixture, 200), /READY/);
+  assert.throws(() => validateNeuralReady({
+    ...neuralSafeModeFixture,
+    code: 'UPSTREAM_PROVIDER_UNAVAILABLE',
+  }, 503), /NEURAL_EXTERNAL_EGRESS_DISABLED/);
+  assert.throws(() => validateNeuralReady({
+    ...neuralSafeModeFixture,
+    status: 'forbidden',
+  }, 503), /unavailable/);
+});
+
+test('production Neural bridge smoke accepts explicit 503 safe mode without enabling egress or inference', async () => {
+  const requests = [];
+  const result = await verifyNeuralBridge(async (url, options = {}) => {
+    requests.push({
+      url: new URL(url).href,
+      method: options.method || 'GET',
+    });
+    const isHealth = new URL(url).pathname.endsWith('/health');
+    return new Response(JSON.stringify(isHealth ? neuralHealthFixture : neuralSafeModeFixture), {
+      status: isHealth ? 200 : 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  assert.deepEqual(requests, [
+    { url: 'https://glorifier.pages.dev/api/neural/health', method: 'GET' },
+    { url: 'https://glorifier.pages.dev/api/neural/ready', method: 'GET' },
+  ]);
+  assert.equal(result.health.checks.process, 'VERIFIED');
+  assert.equal(result.readiness.code, 'NEURAL_EXTERNAL_EGRESS_DISABLED');
+});
+
 test('production Neural bridge smoke uses GET-only public Pages routes and performs no task inference', async () => {
   const requests = [];
   const result = await verifyNeuralBridge(async (url, options = {}) => {
