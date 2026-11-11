@@ -143,7 +143,7 @@ jobs:
       - name: Publish Gemini COMMENT review only
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
           GEMINI_REVIEW: ${{ needs.gemini-review.outputs.review }}
         shell: bash
         run: |
