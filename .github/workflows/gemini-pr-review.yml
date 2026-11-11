@@ -3,15 +3,26 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Existing pull request number to review manually"
+        required: true
+        type: number
+      allow_paid_inference:
+        description: "Explicit owner authorization for external Gemini review; provider charges and PR data transmission may apply"
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: gemini-pr-review-${{ github.event.pull_request.number }}
+  group: gemini-pr-review-${{ inputs.pr_number || github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event.pull_request.draft == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -27,6 +38,19 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+
+      - name: Enforce shared owner-only paid-inference authorization
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/ai-fleet-authorization.sh
+          glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
+
       - name: Require Gemini credential
         if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
         run: |
@@ -35,7 +59,7 @@ jobs:
       - name: Retrieve pull request diff as untrusted data
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
         run: |
           set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
@@ -51,23 +75,27 @@ jobs:
           fi
           cp "$RUNNER_TEMP/gemini-pr.diff" "$GITHUB_WORKSPACE/GEMINI_PR_REVIEW.diff"
           chmod 600 "$GITHUB_WORKSPACE/GEMINI_PR_REVIEW.diff"
-      - name: Configure read-only Gemini system policy
+      - name: Configure root-owned Gemini system-level tool policy
         shell: bash
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/gemini-system-settings.json" <<'JSON'
-                    {
+          sudo install -d -o root -g root -m 755 /etc/glorifier
+          sudo tee /etc/glorifier/gemini-system-settings.json >/dev/null <<'JSON'
+          {
             "general": {"defaultApprovalMode": "plan"},
-            "tools": {"core": ["read_file", "glob", "grep_search", "list_directory", "read_many_files"]},
+            "tools": {"core": ["read_file","glob","grep_search","list_directory","read_many_files"]},
             "security": {"disableYoloMode": true, "enableConseca": true, "environmentVariableRedaction": {"enabled": true}}
           }
           JSON
+          sudo chown root:root /etc/glorifier/gemini-system-settings.json
+          sudo chmod 644 /etc/glorifier/gemini-system-settings.json
+
       - name: Run Gemini advisory review
         id: gemini
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         env:
-          GEMINI_CLI_SYSTEM_SETTINGS_PATH: ${{ runner.temp }}/gemini-system-settings.json
+          GEMINI_CLI_SYSTEM_SETTINGS_PATH: /etc/glorifier/gemini-system-settings.json
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_cli_version: latest
@@ -107,7 +135,7 @@ jobs:
       - name: Publish Gemini COMMENT review only
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
           GEMINI_REVIEW: ${{ needs.gemini-review.outputs.review }}
         shell: bash
         run: |
