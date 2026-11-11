@@ -16,7 +16,18 @@ const tools = [
   annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
 }));
 
-function fixtureFetch(calls) {
+function reverseObjectKeys(value) {
+  if (Array.isArray(value)) return value.map(reverseObjectKeys);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).reverse().map(([key, nested]) => [key, reverseObjectKeys(nested)]),
+    );
+  }
+  return value;
+}
+
+function fixtureFetch(calls, options = {}) {
+  let toolsListCount = 0;
   return async (url, init) => {
     const body = JSON.parse(init.body);
     calls.push({ url: String(url), init, body });
@@ -29,15 +40,20 @@ function fixtureFetch(calls) {
         _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo },
       };
     } else if (body.method === 'tools/list') {
+      toolsListCount += 1;
+      const responseTools = options.reorderToolObjectKeys && toolsListCount === 2
+        ? tools.map(reverseObjectKeys)
+        : tools;
       result = {
         resultType: 'complete',
         _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo },
-        tools,
+        tools: responseTools,
       };
     } else if (body.method === 'tools/call') {
       result = {
         resultType: 'complete',
         _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo },
+        ...(options.invalidIsError ? { isError: 'true' } : {}),
         content: [{ type: 'text', text: JSON.stringify({
           full_name: 'GLORIFIER7/GLORIFIER',
           name: 'GLORIFIER',
@@ -47,7 +63,14 @@ function fixtureFetch(calls) {
     } else {
       throw new Error(`Unexpected MCP method: ${body.method}`);
     }
-    return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }), {
+    const envelope = JSON.stringify({ jsonrpc: '2.0', id: body.id, result });
+    if (options.sseMethods?.includes(body.method)) {
+      return new Response(`event: message\r\ndata: ${envelope}\r\n\r\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      });
+    }
+    return new Response(envelope, {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -69,6 +92,7 @@ test('runs modern discovery, deterministic tool-list, and one read-only reposito
   assert.equal(result.readOnlyTool, 'github_get_repository');
   assert.equal(result.repository, 'GLORIFIER7/GLORIFIER');
   assert.equal(calls.length, 4);
+  assert(calls.every((entry) => entry.init.headers.Accept === 'application/json, text/event-stream'));
 
   const call = calls.find((entry) => entry.body.method === 'tools/call');
   assert.equal(call.body.params.name, 'github_get_repository');
@@ -103,5 +127,42 @@ test('fails closed when the server returns a JSON-RPC error envelope', async () 
       },
     }),
     /JSON-RPC error/,
+  );
+});
+
+test('accepts Streamable HTTP SSE responses for the fixed read-only requests', async () => {
+  const calls = [];
+  const result = await runMcpLiveSmoke({
+    targetUrl,
+    allowedHosts: 'glorifier.glorifier.workers.dev',
+    fetchImpl: fixtureFetch(calls, {
+      sseMethods: ['server/discover', 'tools/list', 'tools/call'],
+    }),
+  });
+
+  assert.equal(result.repository, 'GLORIFIER7/GLORIFIER');
+  assert.equal(calls.length, 4);
+  assert(calls.every((entry) => entry.init.headers.Accept === 'application/json, text/event-stream'));
+});
+
+test('compares deterministic tool contents independently of JSON object key order', async () => {
+  const calls = [];
+  const result = await runMcpLiveSmoke({
+    targetUrl,
+    allowedHosts: 'glorifier.glorifier.workers.dev',
+    fetchImpl: fixtureFetch(calls, { reorderToolObjectKeys: true }),
+  });
+
+  assert.equal(result.deterministicList, true);
+});
+
+test('rejects a malformed non-boolean MCP isError flag', async () => {
+  await assert.rejects(
+    runMcpLiveSmoke({
+      targetUrl,
+      allowedHosts: 'glorifier.glorifier.workers.dev',
+      fetchImpl: fixtureFetch([], { invalidIsError: true }),
+    }),
+    /isError/i,
   );
 });
