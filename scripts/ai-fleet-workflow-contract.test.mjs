@@ -388,6 +388,16 @@ test('Gemini external inference requires explicit owner-only manual authorizatio
   assert.match(geminiPrReviewWorkflow,
     /pr_number:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+number/,
     'manual Gemini PR review must require an explicit PR number');
+
+  assert.match(geminiPrReviewWorkflow,
+    /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/,
+    'manual Gemini PR review must not fall back to untrusted automatic-event data');
+  assert.match(geminiPrReviewWorkflow,
+    /if \[\[ ! "\$\{PR_NUMBER:-\}" =~ \^\[1-9\]\[0-9\]\*\$ \]\]; then/,
+    'Gemini PR review must reject non-positive or malformed PR numbers before API requests');
+  assert.match(geminiPrReviewWorkflow,
+    /name: Publish Gemini COMMENT review only[\s\S]*?if \[\[ ! "\$\{PR_NUMBER:-\}" =~ \^\[1-9\]\[0-9\]\*\$ \]\]; then/,
+    'the write-capable review publisher must independently validate the PR number');
   assert.match(geminiPrReviewWorkflow,
     /PR_NUMBER: \$\{\{ inputs\.pr_number \|\| github\.event\.pull_request\.number \}\}/,
     'manual Gemini PR review must use the supplied PR number');
