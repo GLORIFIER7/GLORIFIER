@@ -481,7 +481,7 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'read-only validator must verify the candidate digest produced before code execution');
 
   assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
-  assert.match(publisher, /needs\.propose-fix\.outputs\.patch_sha256/);
+  assert.match(publisher, /needs\.validate-fix\.outputs\.patch_sha256/);
   assert.match(publisher,
     /^    permissions:\n      actions: read\n      contents: write\n      pull-requests: write$/m,
     'only the publisher may hold the minimum GitHub write permissions');
