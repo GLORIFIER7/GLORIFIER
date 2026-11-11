@@ -42,7 +42,11 @@ jobs:
         run: |
           set -euo pipefail
           target="$(node scripts/mcp-conformance-target.mjs)"
-          printf 'url=%s\n' "$target" >> "$GITHUB_OUTPUT"
+          target_host="$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$target")"
+          {
+            printf 'url=%s\n' "$target"
+            printf 'allowed_host=%s\n' "$target_host"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout pinned official MCP conformance runner
         uses: actions/checkout@v4
@@ -79,7 +83,7 @@ jobs:
         if: ${{ always() && steps.validate_target.outcome == 'success' }}
         env:
           GLORIFIER_MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
-          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS }}
+          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ steps.validate_target.outputs.allowed_host }}
         shell: bash
         run: |
           set -euo pipefail
