@@ -1,6 +1,6 @@
 # GLORIFIER Interoperability and Execution Verification Matrix
 
-Date: 2026-11-06  
+Date: 2026-11-11 12:19 UTC  
 Scope: evidence gates for the ten requested verification targets.
 
 ## Status policy
