@@ -23,8 +23,8 @@ async function readSseEnvelope(response, expectedId, method) {
   const raw = await response.text();
   let matchingEnvelope;
 
-  for (const event of raw.split(/\\r?\\n\\r?\\n/)) {
-    const dataLines = event.split(/\\r?\\n/).flatMap((line) => {
+  for (const event of raw.split(/\r?\n\r?\n/)) {
+    const dataLines = event.split(/\r?\n/).flatMap((line) => {
       if (line.startsWith(':')) return [];
       const separator = line.indexOf(':');
       if (separator < 0 || line.slice(0, separator) !== 'data') return [];
@@ -36,7 +36,7 @@ async function readSseEnvelope(response, expectedId, method) {
 
     let envelope;
     try {
-      envelope = JSON.parse(dataLines.join('\\n'));
+      envelope = JSON.parse(dataLines.join('\n'));
     } catch {
       throw new Error(`MCP ${method} SSE stream contained invalid JSON data.`);
     }
