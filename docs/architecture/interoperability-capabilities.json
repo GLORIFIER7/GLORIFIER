@@ -1898,7 +1898,7 @@
           "notes": "PR #770 synchronized the embedded NEURAL provider from standalone main. The monorepo Dynamo adapter rejects wildcard characters in both the allowlisted hostname and configured API hostname and requires the exact HTTPS origin. Source presence is not live endpoint, authentication enforcement, GPU deployment, model readiness, or inference evidence."
         },
         {
-          "kind": "test",
+          "kind": "automated-test",
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/blob/5502af2db999db82caca99dc9d3b5bfa32fb4517/services/neural/tests/test_nvidia_dynamo_provider.py",
           "targetEnvironment": "GLORIFIER7/GLORIFIER merge commit 5502af2db999db82caca99dc9d3b5bfa32fb4517; offline provider regression tests",
           "observedAt": "2026-11-09T11:10:16Z",
