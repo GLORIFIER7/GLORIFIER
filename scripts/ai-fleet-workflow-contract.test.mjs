@@ -361,8 +361,8 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
       source: geminiPrReviewWorkflow,
       firstSensitiveStep: 'name: Validate explicitly selected pull request',
       modelStep: 'name: Run Gemini advisory review',
-      authorizationCondition: "vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'",
-      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}',
+      authorizationCondition: 'inputs.allow_paid_inference == true',
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
     },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
@@ -371,10 +371,7 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 
 test('Gemini PR review requires per-run paid-inference consent and an explicit open main-target PR number', () => {
   assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\n    inputs:\n      pr_number:"));
-  assert.ok(geminiPrReviewWorkflow.includes("allow_paid_inference:\n        description:"));
-  assert.ok(geminiPrReviewWorkflow.includes('required: true'));
-  assert.ok(geminiPrReviewWorkflow.includes('type: boolean'));
-  assert.ok(geminiPrReviewWorkflow.includes('default: false'));
+  assert.ok(geminiPrReviewWorkflow.includes('allow_paid_inference:\n        description: "Explicit per-run consent to send the pull-request diff to Gemini; this may incur provider charges."\n        required: true\n        type: boolean\n        default: false'));
   assert.ok(geminiPrReviewWorkflow.includes('inputs.allow_paid_inference == true'));
   assert.ok(geminiPrReviewWorkflow.includes("vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'"));
   assert.ok(geminiPrReviewWorkflow.includes('MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}'));

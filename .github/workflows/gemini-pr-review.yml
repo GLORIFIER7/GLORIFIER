@@ -9,6 +9,11 @@ on:
         description: "Open pull request number targeting main to review"
         required: true
         type: number
+      allow_paid_inference:
+        description: "Explicit per-run consent to send the pull-request diff to Gemini; this may incur provider charges."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
   pull-requests: read
@@ -17,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true' && github.actor_id == '32674233' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true' && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -38,7 +43,7 @@ jobs:
       - name: Enforce shared owner-only paid-inference authorization
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
           OWNER_ACTOR_ID: ${{ github.actor_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
