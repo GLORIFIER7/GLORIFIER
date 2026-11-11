@@ -427,3 +427,53 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
       item.name + ' may retain the automatic trigger only as a skipped, default-deny event');
   }
 });
+
+
+test('NVIDIA assisted maintenance isolates provider execution from repository publication permissions', () => {
+  const proposalStart = nvidiaMaintenanceWorkflow.indexOf('\n  propose-fix:\n');
+  const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
+  assert.ok(proposalStart >= 0, 'expected a dedicated provider proposal job');
+  assert.ok(publisherStart > proposalStart, 'expected a separate publisher job after provider execution');
+
+  const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, publisherStart);
+  const publisher = nvidiaMaintenanceWorkflow.slice(publisherStart);
+
+  assert.match(nvidiaMaintenanceWorkflow,
+    /^permissions:\n  actions: read\n  contents: read\n  pull-requests: read$/m,
+    'workflow defaults must be read-only');
+  assert.match(proposal,
+    /^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$/m,
+    'provider job must explicitly use read-only repository permissions');
+  assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write/,
+    'provider job must never hold repository write permissions');
+  assert.match(proposal, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/,
+    'provider job must hand off the validated patch as an artifact');
+  assert.match(proposal, /Request a constrained patch from Nemotron/);
+  assert.doesNotMatch(proposal, /gh pr create|git push/,
+    'provider job must not publish branches or pull requests');
+
+  assert.match(publisher, /needs: propose-fix/,
+    'publisher must depend on the provider proposal job');
+  assert.match(publisher,
+    /^\s+permissions:\n\s+actions: read\n\s+contents: write\n\s+pull-requests: write/m,
+    'only the isolated publisher may hold the minimum write permissions');
+  assert.match(publisher, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333/,
+    'publisher must download the exact patch artifact');
+  assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/,
+    'publisher must not receive provider credentials');
+  assert.match(publisher, /persist-credentials: false/,
+    'publisher checkout must not persist a write-capable checkout credential');
+
+  const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
+  assert.ok(createIndex >= 0, 'expected the final publication step');
+  const prePublication = publisher.slice(0, createIndex);
+  const publication = publisher.slice(createIndex);
+  assert.doesNotMatch(prePublication, /GH_TOKEN|github\.token/,
+    'patch application and validation must run without the write token');
+  assert.match(publication, /GH_TOKEN: \$\{\{ github\.token \}\}/,
+    'write token must be scoped only to the final PR publication step');
+  assert.ok(prePublication.indexOf('npm run build') >= 0,
+    'publisher must independently validate the applied patch before publishing');
+  assert.ok(publication.includes('gh pr create'),
+    'isolated publisher must create only a review pull request');
+});
