@@ -2295,6 +2295,7 @@ const run = async (): Promise<void> => {
 
         // Liveness is local process health and must remain available while provider egress
         // and task inference are disabled.
+        upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
         capturedRequest = null;
         const neuralHealthWithoutProviderEgress = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
