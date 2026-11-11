@@ -79,7 +79,7 @@ const resolveBackendOrigin = resolveHttpsOrigin;
 const configured = (value: string | undefined): string => (value || '').trim();
 
 // Only the literal string "true" enables an outbound capability; missing or malformed values deny.
-const explicitlyEnabled = (value: string | undefined): boolean => configured(value).toLowerCase() === 'true';
+const explicitlyEnabled = (value: string | undefined): boolean => value === 'true';
 
 // Host allowlists are exact-match only; wildcard suffixes and arbitrary URL prefixes
 // are intentionally unsupported. An absent allowlist fails closed.
