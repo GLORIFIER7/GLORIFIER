@@ -59,9 +59,13 @@ jobs:
       - name: Retrieve pull request diff as untrusted data
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
+          if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR_NUMBER must be a positive decimal pull request number."
+            exit 1
+          fi
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
             --header "Accept: application/vnd.github.v3.diff" > "$RUNNER_TEMP/gemini-pr.diff"
           SIZE="$(wc -c < "$RUNNER_TEMP/gemini-pr.diff")"
@@ -120,6 +124,10 @@ jobs:
           GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
         run: |
           set -euo pipefail
+          if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR_NUMBER must be a positive decimal pull request number."
+            exit 1
+          fi
           if [ -z "$GEMINI_REVIEW" ]; then
             echo "::error::Gemini completed without a review summary."
             exit 1
