@@ -434,13 +434,16 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
 });
 
 
-test('NVIDIA assisted maintenance isolates provider execution from repository publication permissions', () => {
+test('NVIDIA assisted maintenance validates generated code in a read-only job before static-only publication', () => {
   const proposalStart = nvidiaMaintenanceWorkflow.indexOf('\n  propose-fix:\n');
+  const validatorStart = nvidiaMaintenanceWorkflow.indexOf('\n  validate-fix:\n');
   const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
-  assert.ok(proposalStart >= 0, 'expected a dedicated provider proposal job');
-  assert.ok(publisherStart > proposalStart, 'expected a separate publisher job after provider execution');
+  assert.ok(proposalStart >= 0, 'expected a provider proposal job');
+  assert.ok(validatorStart > proposalStart, 'expected read-only validation after proposal');
+  assert.ok(publisherStart > validatorStart, 'expected publication after validation');
 
-  const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, publisherStart);
+  const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, validatorStart);
+  const validator = nvidiaMaintenanceWorkflow.slice(validatorStart, publisherStart);
   const publisher = nvidiaMaintenanceWorkflow.slice(publisherStart);
 
   assert.match(nvidiaMaintenanceWorkflow,
@@ -449,39 +452,60 @@ test('NVIDIA assisted maintenance isolates provider execution from repository pu
   assert.match(proposal,
     /^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$/m,
     'provider job must explicitly use read-only repository permissions');
-  assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write/,
-    'provider job must never hold repository write permissions');
+  assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write|gh pr create|git push/,
+    'provider execution must not receive write permissions or publish changes');
+  assert.match(proposal, /sha256sum/,
+    'proposal must hash the exact generated patch before handing it to downstream jobs');
+  assert.match(proposal, /patch_sha256=/,
+    'proposal must publish the generated patch digest as a job output');
   assert.match(proposal, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/,
-    'provider job must hand off the validated patch as an artifact');
-  assert.match(proposal, /Request a constrained patch from Nemotron/);
-  assert.doesNotMatch(proposal, /gh pr create|git push/,
-    'provider job must not publish branches or pull requests');
+    'provider job must hand off the candidate patch as an artifact');
 
-  assert.match(publisher, /needs: propose-fix/,
-    'publisher must depend on the provider proposal job');
+  assert.match(validator, /needs: propose-fix/);
+  assert.match(validator,
+    /^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$/m,
+    'generated code must execute only in a read-only validation job');
+  assert.match(validator, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333/);
+  assert.match(validator, /npm run build/);
+  assert.match(validator, /npm run test:nvidia-provider/);
+  assert.match(validator, /npm run test:protected-api-paths/);
+  assert.match(validator, /EXPECTED_PATCH_SHA256: \$\{\{ needs\.propose-fix\.outputs\.patch_sha256 \}\}/,
+    'read-only validator must verify the candidate digest produced before code execution');
+
+  assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
+  assert.match(publisher, /needs\.propose-fix\.outputs\.patch_sha256/);
   assert.match(publisher,
-    /^\s+permissions:\n\s+actions: read\n\s+contents: write\n\s+pull-requests: write/m,
-    'only the isolated publisher may hold the minimum write permissions');
-  assert.match(publisher, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333/,
-    'publisher must download the exact patch artifact');
-  assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/,
-    'publisher must not receive provider credentials');
-  assert.match(publisher, /persist-credentials: false/,
-    'publisher checkout must not persist a write-capable checkout credential');
+    /^    permissions:\n      actions: read\n      contents: write\n      pull-requests: write$/m,
+    'only the publisher may hold the minimum GitHub write permissions');
+  assert.match(publisher, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333/);
+  assert.match(publisher, /persist-credentials: false/);
+  assert.match(publisher, /sha256sum/,
+    'publisher must verify it received the exact patch tested by the read-only validator');
+  assert.match(publisher, /git -c core\.hooksPath=\/dev\/null .* apply/);
+  assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
+  const publisherCommands = publisherStepBlocks(publisher)
+    .map((step) => step.split('        run:').slice(1).join('\n'))
+    .join('\n');
+  assert.doesNotMatch(
+    publisherCommands,
+    /\b(?:npm|npx|yarn|pnpm)\s+(?:ci|install|test|audit|run|exec)\b|\bnode\s+\S+|\bpython3?\s+(?:-c\b|\S+\.py\b)|\b(?:bash|sh)\s+\S+|test:nvidia-provider|test:protected-api-paths/i,
+    'write-capable publisher must never execute model-generated code or project scripts, including inline commands',
+  );
 
   const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
   assert.ok(createIndex >= 0, 'expected the final publication step');
   const prePublication = publisher.slice(0, createIndex);
   const publication = publisher.slice(createIndex);
   assert.doesNotMatch(prePublication, /GH_TOKEN|github\.token/,
-    'patch application and validation must run without the write token');
+    'patch application and static checks must run without the write token');
   assert.match(publication, /GH_TOKEN: \$\{\{ github\.token \}\}/,
     'write token must be scoped only to the final PR publication step');
-  assert.ok(prePublication.indexOf('npm run build') >= 0,
-    'publisher must independently validate the applied patch before publishing');
   assert.ok(publication.includes('gh pr create'),
-    'isolated publisher must create only a review pull request');
+    'publisher must create only a review pull request');
+  assert.doesNotMatch(nvidiaMaintenanceWorkflow, /gh pr merge|enable-pull-request-auto-merge|--auto/,
+    'automation must never auto-merge');
 });
+
 test('Gemini diff retrieval, summary validation, and publication target the same resolved pull request', () => {
   const diffStart = geminiPrReviewWorkflow.indexOf('      - name: Retrieve pull request diff as untrusted data');
   const reviewStart = geminiPrReviewWorkflow.indexOf('      - name: Require a non-empty Gemini review');
