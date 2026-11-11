@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-11T06:53:06Z",
+  "updatedAt": "2026-11-11T12:19:51Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -982,6 +982,13 @@
           "targetEnvironment": "GitHub Actions CodeQL run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
           "observedAt": "2026-11-03T07:28:01.025Z",
           "notes": "CodeQL analysis completed successfully for the PR head. This is source-analysis evidence only and does not establish external protocol or production runtime behavior."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43019184537",
+          "targetEnvironment": "GitHub Actions main push; Node.js 24 Linux build job, exact GLORIFIER main commit 30573ff17d8b06f84004b9ec8f7f6575dcfde80f",
+          "observedAt": "2026-11-11T12:19:51Z",
+          "notes": "The exact-main build job passed A2A task-persistence SQL-binding validation, A2A 1.0 JSON-RPC contract tests, A2A durable-runtime regression tests, A2A 1.0 Express endpoint tests, and authenticated-exchange integration tests. The source/test contract supports requester-scoped cancellation of queued tasks only; running tasks remain unchanged because the executor has no provider-interruption signal. These are repository CI checks, not the official A2A 1.0.1 TCK, an external-client exchange, or a controlled two-agent staging test. The combined A2A/MCP capability remains NOT VERIFIED."
         }
       ],
       "limitations": [
