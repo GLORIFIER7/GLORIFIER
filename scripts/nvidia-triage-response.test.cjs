@@ -139,7 +139,7 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
     ['NVIDIA CI triage', workflow],
     ['NVIDIA assisted maintenance', maintenanceWorkflow],
   ]) {
-    const checkoutRefs = source.split('\\n')
+    const checkoutRefs = source.split(String.fromCharCode(10))
       .map((line) => line.trim())
       .filter((line) => line.startsWith('uses: actions/checkout@'))
       .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
