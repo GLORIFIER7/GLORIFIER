@@ -162,13 +162,14 @@ Before dispatch, an owner must configure these non-secret repository Actions var
 
 The target validator rejects non-HTTPS URLs, URL credentials, non-default ports, paths other than exactly `/mcp`, query strings, fragments, IP literals, reserved/local hostnames, and hosts absent from the explicit allowlist. It does not add or change Worker routes, secrets, bindings, egress policy, or deployment settings.
 
-### Bounded checks
+### Revision-pinned conformance checks
 
-1. The workflow checks out the official `modelcontextprotocol/conformance` runner at immutable commit `96a6f9478b7f2e125cf0360a213383cf57533893`.
-2. It runs only the official `tools-list` server scenario at protocol revision `2025-11-25`, exercising the supported legacy-compatible initialize/list flow.
-3. It then runs a separate scoped `2026-07-28` stateless smoke: `server/discover`, two `tools/list` calls to check deterministic order, and one `tools/call` for the fixed read-only `github_get_repository` tool. This is four bounded POST requests in total, with a 15-second per-request timeout, redirects disabled, and no caller-supplied arbitrary tool name.
-4. Result artifacts are retained for 14 days for inspection.
+1. The workflow checks out the official `modelcontextprotocol/conformance` runner at immutable commit `96a6f9478b7f2e125cf0360a213383cf57533893`. That pinned snapshot contains the frozen requirement set for MCP revision `2026-07-28`.
+2. It runs the official **server-side required scenarios** for the frozen `2026-07-28` revision using `server --requirements 2026-07-28`. This is the scored server requirement set for that specification revision, not merely a single tools-list smoke. The runner executes server scenarios sequentially, records scenario/check outcomes, and returns a failing exit code when any scored requirement fails. The 30-minute job ceiling accommodates the complete sequential suite while keeping the run bounded.
+3. It separately runs the official legacy `tools-list` server scenario at `2025-11-25`, exercising the supported initialize/list compatibility path.
+4. It then runs a separate scoped `2026-07-28` stateless smoke: `server/discover`, two `tools/list` calls to check deterministic order, and one `tools/call` for the fixed read-only `github_get_repository` tool. This smoke is four bounded POST requests, with a 15-second per-request timeout, redirects disabled, and no caller-supplied arbitrary tool name.
+5. Conformance reports and smoke evidence are retained as workflow artifacts for 14 days.
 
-The workflow does not run the full official MCP requirement set, resources/prompts/streaming scenarios, arbitrary tools, A2A tests, provider inference, or write operations. A successful run proves only the named scoped checks. **Full MCP 2026-07-28 conformance and independent external-client interoperability remain NOT VERIFIED** until the complete required feature set and independent client tests have their own evidence.
+The complete official server requirement set intentionally tests protocol surfaces beyond the current four-tool GitHub bridge, including resources, prompts, content variants, and streaming-related requirements. Those failures are findings, not reasons to widen the endpoint's scope or weaken the test. The TCK server leg does not test independent MCP clients. **Full MCP 2026-07-28 conformance and independent external-client interoperability remain NOT VERIFIED** until the scored server requirements pass and separate independent-client tests have their own evidence. The workflow still does not run A2A tests, provider inference, paid operations, or write operations.
 
 The PR and push CI paths run only the local validator/smoke regression tests; they do not contact an external endpoint. No production POST, inference, paid provider request, secret use, deployment, or configuration mutation is triggered by normal CI.
