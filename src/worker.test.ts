@@ -2293,6 +2293,17 @@ const run = async (): Promise<void> => {
         );
         assert.equal(capturedRequest, null, 'readiness must not reach NEURAL when external egress is disabled');
 
+        const neuralReadyWithMalformedEgress = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'),
+          { ...env, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'TRUE' },
+        );
+        assert.equal(neuralReadyWithMalformedEgress.status, 503);
+        assert.equal(
+          await neuralReadyWithMalformedEgress.json().then((body: { code?: string }) => body.code),
+          'NEURAL_EXTERNAL_EGRESS_DISABLED',
+        );
+        assert.equal(capturedRequest, null, 'malformed readiness authorization must not reach NEURAL');
+
         // Liveness is local process health and must remain available while provider egress
         // and task inference are disabled.
         upstreamResponse = new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -2344,6 +2355,18 @@ const run = async (): Promise<void> => {
             status: 503,
             code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
           },
+          ...([
+            { flag: 'GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS', status: 503, code: 'NEURAL_EXTERNAL_EGRESS_DISABLED' },
+            { flag: 'GLORIFIER_ENABLE_INFERENCE', status: 403, code: 'NEURAL_INFERENCE_DISABLED' },
+            { flag: 'GLORIFIER_PAID_INFERENCE_AUTHORIZED', status: 403, code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED' },
+          ] as const).flatMap(({ flag, status, code }) =>
+            ['TRUE', 'True', ' true '].map((value) => ({
+              name: `${flag} rejects malformed value ${JSON.stringify(value)}`,
+              flags: { [flag]: value } as Partial<CloudflareEnv>,
+              status,
+              code,
+            })),
+          ),
         ];
         for (const policyCase of neuralInferenceAuthorizationCases) {
           capturedRequest = null;
