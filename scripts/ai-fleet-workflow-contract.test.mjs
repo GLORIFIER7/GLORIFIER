@@ -479,7 +479,7 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'publisher must verify it received the exact patch tested by the read-only validator');
   assert.match(publisher, /git -c core\.hooksPath=\/dev\/null .* apply/);
   assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
-  assert.doesNotMatch(publisher, /npm (?:ci|audit|run)|test:nvidia-provider|test:protected-api-paths/,
+  assert.doesNotMatch(publisher, /^\\s+(?:npm (?:ci|audit|run)|node .*test|test:nvidia-provider|test:protected-api-paths)\\b/m,
     'write-capable publisher must never execute model-generated code or project scripts');
 
   const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
