@@ -76,9 +76,9 @@ jobs:
 
       - name: Run modern stateless read-only smoke (2026-07-28)
         id: modern_stateless_smoke
-        if: ${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}
+        if: ${{ always() && steps.validate_target.outcome == 'success' }}
         env:
-          GLORIFIER_MCP_CONFORMANCE_URL: ${{ vars.GLORIFIER_MCP_CONFORMANCE_URL }}
+          GLORIFIER_MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
           GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS }}
         shell: bash
         run: |
