@@ -121,13 +121,15 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
     path.join(__dirname, '..', '.github', 'workflows', 'nvidia-ci-triage.yml'),
     'utf8',
   );
-  const pinnedCheckout = 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1';
-  assert.equal((workflow.match(new RegExp(pinnedCheckout, 'g')) || []).length, 2,
-    'NVIDIA CI triage must declare exactly two immutable checkout actions');
-  assert.match(
-    workflow,
-    /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[\s\S]*?path: trusted/,
-  );
+  const checkoutRefs = workflow.split(String.fromCharCode(10))
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('uses: actions/checkout@'))
+    .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
+  assert.equal(checkoutRefs.length, 3, 'NVIDIA CI triage must declare exactly three checkout actions');
+  assert.ok(checkoutRefs.every((ref) => ref === '3d3c42e5aac5ba805825da76410c181273ba90b1'),
+    'NVIDIA CI triage must pin every checkout action to the reviewed immutable commit SHA');
+  assert.match(workflow, /name: Checkout trusted main-branch authorization policy[\\s\\S]*?uses: actions\\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[\\s\\S]*?path: authorization/);
+  assert.match(workflow, /name: Checkout trusted main-branch triage parser[\\s\\S]*?uses: actions\\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[\\s\\S]*?path: trusted/);
   assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
 
   const maintenanceWorkflow = fs.readFileSync(
