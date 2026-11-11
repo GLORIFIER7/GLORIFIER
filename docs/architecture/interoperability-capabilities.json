@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-11T05:43:55.828Z",
+  "updatedAt": "2026-11-11T06:04:17Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -139,14 +139,27 @@
           "targetEnvironment": "GLORIFIER main c12b62b7d81c885cca2aa63cd579a07fceea02a7",
           "observedAt": "2026-11-11T05:26:38Z",
           "notes": "PR #802 is merged and current main now enables edge capabilities only when the environment value is exactly the literal string true; uppercase or malformed values are denied. The active GLORIFIER v1001 release remains tied to earlier source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf, so deployment of this post-release source hardening has not been demonstrated."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766",
+          "targetEnvironment": "Cloudflare production GLORIFIER Worker v1002 at 100% traffic and NEURAL Worker v36 at 100%; guarded workflow_dispatch run 42969134766; read-only production smoke",
+          "observedAt": "2026-11-11T05:59:10Z",
+          "notes": "The guarded production deployment and GET-only smoke completed successfully from exact GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643. The smoke verified Worker health, business-model response, unauthenticated app-state HTTP 401, identity response contract (HTTP 503 not-ready), runtime verification HTTP 200, reports summary HTTP 200 with exact operational counts, Worker-to-NEURAL liveness, and public read models (11 integrations and 11 data records). NEURAL readiness was intentionally unavailable under the default-deny external-egress policy. No task POST, model inference, paid provider call, database write, or blockchain action was performed. MCP was not probed because its protocol endpoint requires POST and is excluded from the GET-only smoke."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API exact-version GET; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66; GLORIFIER version 3c93b20d-e602-4e9e-b3bb-3c139a311024",
+          "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
+          "observedAt": "2026-11-11T06:04:17Z",
+          "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
         }
       ],
       "limitations": [
-        "The 2026-11-11 production smoke verified Worker-to-NEURAL liveness on GLORIFIER v1001 / NEURAL v36, but did not submit an authenticated task or perform inference.",
-        "The 05:24 UTC public-origin GET attempt was incomplete: endpoint timeouts occurred and the /api/neural/ready response body was unavailable. A fresh complete public-origin read-only smoke is still required.",
-        "Current GLORIFIER main c12b62b includes the exact-literal authorization guard from merged PR #802; active production v1001 is tied to earlier release source 3a2bb65 and has not been shown to contain that post-release change. Use only the protected manual production workflow for promotion.",
-        "The active versions' inference, external-egress, and paid-authorization flags are false. Readiness in this mode is intentionally provider-disabled and must not be changed to true merely to obtain HTTP 200.",
-        "External A2A/MCP client conformance, live Linux host task execution, and independent chain RPC reachability are separate acceptance gates and remain unverified."
+        "The 2026-11-11 production workflow #42969134766 deployed exact main SHA 038fe738e9fdc5fbbb0472343198c19d75cd7643 as GLORIFIER Worker v1002 and verified Worker-to-NEURAL liveness in the GET-only smoke; it did not submit an authenticated task or perform inference.",
+        "The post-deployment smoke verified the expected default-deny NEURAL readiness result. Readiness being unavailable while external egress is false is intentional and must not be changed merely to obtain HTTP 200.",
+        "The exact active GLORIFIER v1002 and NEURAL v36 version records show external egress, inference, and paid-inference authorization are all false; GLORIFIER has the service binding to glorifier-neural. Secret values were not read.",
+        "External A2A/MCP client conformance, live Linux host task execution, and fresh independent chain RPC evidence remain separate acceptance gates and are not established by this production smoke."
       ]
     },
     {
@@ -328,15 +341,29 @@
           "targetEnvironment": "Production public origin; unauthenticated GET-only probe attempt",
           "observedAt": "2026-11-11T05:24:00Z",
           "notes": "The 2026-11-11 05:24 UTC attempt did not yield a complete result: most endpoints timed out in the probe client and /api/neural/ready returned HTTP 503 without an available response body. The structured provider-disabled response therefore was not freshly confirmed by this attempt. No task POST or inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766",
+          "targetEnvironment": "Cloudflare production GLORIFIER Worker v1002 at 100% traffic and NEURAL Worker v36 at 100%; guarded workflow_dispatch run 42969134766; read-only production smoke",
+          "observedAt": "2026-11-11T05:59:10Z",
+          "notes": "The guarded production deployment and GET-only smoke completed successfully from exact GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643. The smoke verified Worker health, business-model response, unauthenticated app-state HTTP 401, identity response contract (HTTP 503 not-ready), runtime verification HTTP 200, reports summary HTTP 200 with exact operational counts, Worker-to-NEURAL liveness, and public read models (11 integrations and 11 data records). NEURAL readiness was intentionally unavailable under the default-deny external-egress policy. No task POST, model inference, paid provider call, database write, or blockchain action was performed. MCP was not probed because its protocol endpoint requires POST and is excluded from the GET-only smoke."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API exact-version GET; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66; GLORIFIER version 3c93b20d-e602-4e9e-b3bb-3c139a311024",
+          "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
+          "observedAt": "2026-11-11T06:04:17Z",
+          "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
         }
       ],
       "limitations": [
-        "NEURAL v36 is deployed at 100% traffic from main commit 042c50d5d570122eeb12036c7a68865330630da7; workflow run #629 passed validate, deploy, and smoke jobs.",
+        "NEURAL v36 remains deployed at 100% traffic from main commit 042c50d5d570122eeb12036c7a68865330630da7; its deployment workflow run #629 passed validate, deploy, and smoke jobs.",
         "The active NEURAL and GLORIFIER versions have inference, external data egress, and paid-inference authorization all set to false. Provider-disabled readiness is an intentional safe mode, not evidence of usable model inference.",
-        "The successful production smoke established Worker-to-NEURAL liveness and the expected default-deny readiness behavior only. No authenticated task POST, provider prompt, or model inference was performed.",
+        "The successful production smoke in run #42969134766 established Worker-to-NEURAL liveness and the expected default-deny readiness behavior only. No authenticated task POST, provider prompt, or model inference was performed.",
         "Both active Workers show the required API/internal-service secret binding names, and GLORIFIER v1001 shows the GLORIFIER_NEURAL service binding. Secret values were not accessed; binding presence is not proof of token matching or authenticated task execution.",
-        "The later 05:24 UTC GET-only attempt did not return complete responses and cannot replace a complete fresh post-release smoke.",
-        "Current GLORIFIER main c12b62b contains additional strict-literal edge authorization hardening not identified in the deployed v1001 release provenance. A protected production release and exact-version read-back are still required.",
+        "The 05:59 UTC production smoke in run #42969134766 completed all declared GET-only checks on GLORIFIER v1002 from exact main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643; the exact Cloudflare version readback independently confirms that release is active at 100% traffic.",
+        "No authenticated task POST or model inference was performed. Authentication, inference, provider readiness, and the task exchange remain NOT VERIFIED by design while the three egress/inference/paid-authorization controls are false.",
         "External A2A/MCP conformance, real Linux host enrollment/task/revocation, fresh chain RPC evidence, cryptographic identity, sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo runtime, provider billing reconciliation, and independent economic outcomes remain NOT VERIFIED."
       ]
     },
@@ -1017,14 +1044,20 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active versions assigned 100% traffic; binding names and non-secret variables only",
           "observedAt": "2026-11-11T05:24:00Z",
           "notes": "Exact-version inventory showed GLORIFIER Worker v1001 (version ID dedb9c68-908f-4242-ba03-9141424d3d2c; deployment 0d3cf454-3075-4875-9982-1a7adbb56277) and NEURAL Worker v36 (version ID f1a26f39-e46f-4d9d-b982-f66f21f2e115; deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca) at 100% traffic. Both active versions had GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. GLORIFIER v1001 had the GLORIFIER_NEURAL service binding to glorifier-neural; both versions had GLORIFIER_API_TOKEN and GLORIFIER_INTERNAL_SERVICE_TOKEN secret binding names. Secret values were not read. GLORIFIER v1001 release provenance points to source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf and workflow run 42941575720."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API exact-version GET; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66; GLORIFIER version 3c93b20d-e602-4e9e-b3bb-3c139a311024",
+          "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
+          "observedAt": "2026-11-11T06:04:17Z",
+          "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
         }
       ],
       "limitations": [
-        "The latest exact-version inventory shows the GLORIFIER_NEURAL service binding is present on v1001; this supersedes prior statements that the active v994 version lacked that binding.",
-        "The inventory records binding names and non-secret configuration only. It does not expose secret values or prove token matching, and it is not a substitute for authenticated task execution.",
-        "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and the exact configured allowlist values have not been independently reviewed in this checkpoint.",
-        "A hostname allowlist and a service binding do not by themselves prove target health or unrestricted network interoperability.",
-        "The current production version source SHA predates the latest main-branch exact-literal authorization hardening; protected promotion and exact-version read-back remain required."
+        "The exact GLORIFIER v1002 version readback confirms the GLORIFIER_NEURAL service binding to glorifier-neural and records the exact NEURAL origin/allowed-host settings; all three inference/egress/paid-authorization controls are false.",
+        "The inventory records secret binding names and non-secret configuration only. It does not expose secret values or prove token matching, and it is not a substitute for authenticated task execution.",
+        "Production GLORIFIER_BACKEND_ALLOWED_HOSTS and its complete exact-host policy have not been independently reviewed in this checkpoint.",
+        "A hostname allowlist and a service binding do not by themselves prove target health, arbitrary network interoperability, or permission to enable provider egress."
       ]
     },
     {
@@ -1128,13 +1161,27 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
           "observedAt": "2026-11-11T01:50:00Z",
           "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766",
+          "targetEnvironment": "Cloudflare production GLORIFIER Worker v1002 at 100% traffic and NEURAL Worker v36 at 100%; guarded workflow_dispatch run 42969134766; read-only production smoke",
+          "observedAt": "2026-11-11T05:59:10Z",
+          "notes": "The guarded production deployment and GET-only smoke completed successfully from exact GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643. The smoke verified Worker health, business-model response, unauthenticated app-state HTTP 401, identity response contract (HTTP 503 not-ready), runtime verification HTTP 200, reports summary HTTP 200 with exact operational counts, Worker-to-NEURAL liveness, and public read models (11 integrations and 11 data records). NEURAL readiness was intentionally unavailable under the default-deny external-egress policy. No task POST, model inference, paid provider call, database write, or blockchain action was performed. MCP was not probed because its protocol endpoint requires POST and is excluded from the GET-only smoke."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API exact-version GET; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66; GLORIFIER version 3c93b20d-e602-4e9e-b3bb-3c139a311024",
+          "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
+          "observedAt": "2026-11-11T06:04:17Z",
+          "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
         }
       ],
       "limitations": [
-        "The 2026-11-11 successful read-only production smoke verified only the enumerated Worker, Neon Hyperdrive, NEURAL liveness/default-deny, and public read-model dependencies; it does not prove continuous availability or 24/7 assurance.",
+        "The 2026-11-11T05:59:10Z run #42969134766 deployed and verified GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643 as Worker v1002; its GET-only smoke verified the enumerated Worker, Neon Hyperdrive, NEURAL liveness/default-deny, and public read-model dependencies. It does not prove continuous availability or 24/7 assurance.",
         "A prior 2026-11-05 production sequence observed a 502 while Neon was waking after auto-suspend; the later successful smoke is one successful observation and does not establish reliable cold-start behavior.",
         "Authentication was not tested with a user session, and AI/provider execution was explicitly not performed. No task POST or inference is implied.",
-        "External A2A/MCP conformance, fresh EVM/BNB/Solana RPC reachability, and independent economic outcomes remain unverified.",
+        "External A2A/MCP conformance, live Linux host enrollment, fresh EVM/BNB/Solana RPC reachability, and independent economic outcomes remain unverified.",
         "Operational row counts are not proof of revenue, users, business outcomes, or Supabase-to-Neon data parity."
       ]
     },
@@ -1183,14 +1230,20 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
           "observedAt": "2026-11-11T01:50:00Z",
           "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766",
+          "targetEnvironment": "Cloudflare production GLORIFIER Worker v1002 at 100% traffic and NEURAL Worker v36 at 100%; guarded workflow_dispatch run 42969134766; read-only production smoke",
+          "observedAt": "2026-11-11T05:59:10Z",
+          "notes": "The guarded production deployment and GET-only smoke completed successfully from exact GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643. The smoke verified Worker health, business-model response, unauthenticated app-state HTTP 401, identity response contract (HTTP 503 not-ready), runtime verification HTTP 200, reports summary HTTP 200 with exact operational counts, Worker-to-NEURAL liveness, and public read models (11 integrations and 11 data records). NEURAL readiness was intentionally unavailable under the default-deny external-egress policy. No task POST, model inference, paid provider call, database write, or blockchain action was performed. MCP was not probed because its protocol endpoint requires POST and is excluded from the GET-only smoke."
         }
       ],
       "limitations": [
-        "The latest successful production smoke on 2026-11-11 returned exact counts for all six operational tables from Neon Hyperdrive; the actual count values are retained in the run output rather than copied into this registry.",
+        "The latest successful production smoke in run #42969134766 verified exact counts for all six operational tables from Neon Hyperdrive and the public read models (11 integrations / 11 data records); this is one observation, not a revenue or business-outcome claim.",
         "The earlier 2026-11-05 GET returned HTTP 502 after approximately 5.068 seconds at the Neon Hyperdrive connection boundary. One later success does not establish reliable cold-wake or repeated-query behavior.",
         "Supabase-to-Neon schema/data parity and synchronization remain unverified.",
-        "Operational counts do not prove revenue or independently verified economic outcomes.",
-        "The 05:24 UTC public-origin attempt was incomplete and did not provide a second complete report response."
+        "Operational counts do not prove revenue or independently verified economic outcomes."
       ]
     },
     {
@@ -1226,9 +1279,8 @@
         }
       ],
       "limitations": [
-        "Canonical domain and primary organization email remain intentionally unconfigured; do not bypass identity readiness or invent domain ownership.",
-        "No deployment or configuration change was performed; identity readiness remains unresolved until controlled identity configuration is available and verified.",
-        "Freshness checkpoint 2026-10-30T03:48:17Z: the latest recorded live probe is older than the 24-hour evidence window. Retain the historical observation above, but do not present it as current production state; a new approved read-only probe is required."
+        "Production run #42969134766 reports the identity endpoint as HTTP 503 / not-ready because canonical domain and primary organization email are not configured; do not bypass identity readiness or invent domain ownership.",
+        "Identity readiness remains unresolved until the owner supplies and verifies the canonical domain and organization email; no deployment or configuration change was made for this capability."
       ]
     },
     {
@@ -1315,12 +1367,18 @@
           "targetEnvironment": "Production GLORIFIER Cloudflare Worker v1001 and NEURAL Worker v36; guarded workflow_dispatch deployment and GET-only smoke",
           "observedAt": "2026-11-11T01:50:00Z",
           "notes": "The production workflow completed successfully from GLORIFIER release source commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf. The read-only smoke verified Worker health, Neon Hyperdrive, exact counts for six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations and 11 data records). No task was submitted and no model inference was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766",
+          "targetEnvironment": "Cloudflare production GLORIFIER Worker v1002 at 100% traffic and NEURAL Worker v36 at 100%; guarded workflow_dispatch run 42969134766; read-only production smoke",
+          "observedAt": "2026-11-11T05:59:10Z",
+          "notes": "The guarded production deployment and GET-only smoke completed successfully from exact GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643. The smoke verified Worker health, business-model response, unauthenticated app-state HTTP 401, identity response contract (HTTP 503 not-ready), runtime verification HTTP 200, reports summary HTTP 200 with exact operational counts, Worker-to-NEURAL liveness, and public read models (11 integrations and 11 data records). NEURAL readiness was intentionally unavailable under the default-deny external-egress policy. No task POST, model inference, paid provider call, database write, or blockchain action was performed. MCP was not probed because its protocol endpoint requires POST and is excluded from the GET-only smoke."
         }
       ],
       "limitations": [
-        "The successful 2026-11-11 production smoke verified the documented public read models and reported 11 integrations and 11 data records; this is one recorded production run, not a repeated availability SLO.",
-        "A later 05:24 UTC public-origin GET attempt timed out on most endpoints, so a fresh complete direct endpoint-by-endpoint verification remains outstanding.",
-        "The active v1001 release provenance is commit 3a2bb65d4fabc3c1a3171e8303f51246c49506bf, not current main c12b62b. Changes merged after that release require the protected manual production workflow before they can be described as deployed.",
+        "The 2026-11-11 production smoke run #42969134766 verified the deployed read-model contracts and returned 11 integrations and 11 data records. This is a point-in-time production observation, not a repeated availability SLO.",
+        "The deployment is now tied by exact-version readback to GLORIFIER main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643, Worker v1002 at 100% traffic. The earlier v1001 provenance is superseded.",
         "Do not infer production health of unprobed subsystems, user authentication, AI providers, or revenue from read-model responses."
       ]
     },
