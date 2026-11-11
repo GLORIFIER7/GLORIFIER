@@ -3,17 +3,7 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "Open pull request number targeting main to review"
-        required: true
-        type: number
-      allow_paid_inference:
-        description: "Explicit per-run authorization for external Gemini inference; provider charges and external data transmission may apply"
-        required: true
-        type: boolean
-        default: false
+  workflow_dispatch: {}
 permissions:
   contents: read
   pull-requests: read
@@ -22,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true' && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -43,7 +33,7 @@ jobs:
       - name: Enforce shared owner-only paid-inference authorization
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}
           OWNER_ACTOR_ID: ${{ github.actor_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
@@ -52,16 +42,15 @@ jobs:
           source scripts/ai-fleet-authorization.sh
           glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
 
-      - name: Validate explicitly selected pull request
+      - name: Resolve the latest open pull request targeting main
         id: resolve-pr
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
-          PR_NUMBER="${PR_NUMBER_INPUT:-}"
+          PR_NUMBER="$(gh pr list --state open --base main --limit 1 --json number --jq '.[0].number // empty')"
           if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::PR_NUMBER must be a positive decimal pull request number."
+            echo "::error::No open pull request targeting main is available for review."
             exit 1
           fi
           PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
