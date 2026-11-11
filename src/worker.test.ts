@@ -45,6 +45,9 @@ const env: TestEnv = {
   GLORIFIER_BACKEND_ORIGIN: 'https://api.example.test',
   GLORIFIER_BACKEND_ALLOWED_HOSTS: 'api.example.test',
   GLORIFIER_NEURAL_ALLOWED_HOSTS: 'neural.example.test',
+  GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true',
+  GLORIFIER_ENABLE_INFERENCE: 'true',
+  GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true',
   GLORIFIER_NEURAL: { fetch: (request: Request) => globalThis.fetch(request) },
   GLORIFIER_API_TOKEN: 'test-neural-public-api-token',
   GLORIFIER_INTERNAL_SERVICE_TOKEN: 'test-internal-neural-service-token',
@@ -2275,6 +2278,94 @@ const run = async (): Promise<void> => {
         );
         assert.equal(capturedRequest, null, 'a missing Service Binding must not fall back to public fetch');
 
+
+        // Provider readiness may make an outbound model-catalogue request. Keep it disabled
+        // unless the control plane explicitly authorizes external data egress.
+        capturedRequest = null;
+        const neuralReadyWithoutEgress = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/ready'),
+          { ...env, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false' },
+        );
+        assert.equal(neuralReadyWithoutEgress.status, 503);
+        assert.equal(
+          await neuralReadyWithoutEgress.json().then((body: { code?: string }) => body.code),
+          'NEURAL_EXTERNAL_EGRESS_DISABLED',
+        );
+        assert.equal(capturedRequest, null, 'readiness must not reach NEURAL when external egress is disabled');
+
+        // Liveness is local process health and must remain available while provider egress
+        // and task inference are disabled.
+        capturedRequest = null;
+        const neuralHealthWithoutProviderEgress = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
+          {
+            ...env,
+            GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+            GLORIFIER_ENABLE_INFERENCE: 'false',
+            GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+          },
+        );
+        assert.equal(neuralHealthWithoutProviderEgress.status, 200);
+        assert.equal(new URL(getCapturedRequest().url).pathname, '/health');
+
+        const neuralInferenceAuthorizationCases: Array<{
+          name: string;
+          flags: Partial<CloudflareEnv>;
+          status: number;
+          code: string;
+        }> = [
+          {
+            name: 'external egress disabled',
+            flags: { GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false' },
+            status: 503,
+            code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+          },
+          {
+            name: 'inference disabled',
+            flags: { GLORIFIER_ENABLE_INFERENCE: 'false' },
+            status: 403,
+            code: 'NEURAL_INFERENCE_DISABLED',
+          },
+          {
+            name: 'paid inference not authorized',
+            flags: { GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false' },
+            status: 403,
+            code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED',
+          },
+          {
+            name: 'missing authorization variables default to deny',
+            flags: {
+              GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: undefined,
+              GLORIFIER_ENABLE_INFERENCE: undefined,
+              GLORIFIER_PAID_INFERENCE_AUTHORIZED: undefined,
+            },
+            status: 503,
+            code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+          },
+        ];
+        for (const policyCase of neuralInferenceAuthorizationCases) {
+          capturedRequest = null;
+          const deniedTask = await worker.fetch(
+            new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', {
+              method: 'POST',
+              headers: {
+                'X-Glorifier-Internal-Token': 'test-internal-neural-service-token',
+                'Content-Type': 'application/json',
+              },
+              body: '{"task":"policy regression","require_approval":true,"action_class":"read_only"}',
+            }),
+            { ...env, ...policyCase.flags },
+          );
+          assert.equal(deniedTask.status, policyCase.status, policyCase.name);
+          assert.equal(
+            await deniedTask.json().then((body: { code?: string }) => body.code),
+            policyCase.code,
+            policyCase.name,
+          );
+          assert.equal(capturedRequest, null, `unauthorized task must not reach NEURAL: ${policyCase.name}`);
+        }
+
+        capturedRequest = null;
         const neuralTaskNoAuth = await worker.fetch(new Request('https://glorifier.glorifier.workers.dev/api/neural/v1/tasks', { method: 'POST', body: '{"task":"summarize"}' }), { ...env, GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test' });
         assert.equal(neuralTaskNoAuth.status, 401);
         assert.equal(capturedRequest, null, 'unauthenticated task requests must not reach Neural');
