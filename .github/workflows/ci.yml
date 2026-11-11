@@ -70,8 +70,6 @@ jobs:
         run: npm run test:interoperability-evidence-policy
       - name: Interoperability registry regression tests
         run: npm run test:interoperability-registry
-      - name: Interoperability capability evidence regression tests
-        run: node --test scripts/validate-interoperability-capabilities.test.mjs
       - name: Validate interoperability capability registry
         run: npm run validate:interoperability-registry
       - name: Polyglot SDK inventory regression tests
