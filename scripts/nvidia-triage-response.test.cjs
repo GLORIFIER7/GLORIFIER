@@ -139,8 +139,10 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
     ['NVIDIA CI triage', workflow],
     ['NVIDIA assisted maintenance', maintenanceWorkflow],
   ]) {
-    const checkoutRefs = [...source.matchAll(/^\\s+uses:\\s+actions\\/checkout@([^\\s#]+)/gm)]
-      .map((match) => match[1]);
+    const checkoutRefs = source.split('\\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('uses: actions/checkout@'))
+      .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
     assert.ok(checkoutRefs.length > 0, name + ' must declare checkout actions');
     assert.ok(
       checkoutRefs.every((ref) => /^[a-f0-9]{40}$/.test(ref)),
