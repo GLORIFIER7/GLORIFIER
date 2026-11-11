@@ -380,9 +380,10 @@ test('Gemini external inference requires explicit owner-only manual authorizatio
   assert.match(geminiCollaboratorWorkflow, /schedule:/,
     'scheduled collaborator events may remain declared but must be skipped by the job gate');
 
-  assert.match(geminiPrReviewWorkflow,
-    /group: gemini-pr-review-\$\{\{ github\.event_name \}-\$\{\{ inputs\.pr_number \|\| github\.event\.pull_request\.number \}\}/,
-    'manual workflow dispatches and skipped pull_request_target events must use separate concurrency groups');
+  assert.ok(
+    geminiPrReviewWorkflow.includes('group: gemini-pr-review-${{ github.event_name }}-${{ inputs.pr_number || github.event.pull_request.number }}'),
+    'manual workflow dispatches and skipped pull_request_target events must use separate concurrency groups',
+  );
   assert.match(geminiPrReviewWorkflow, /pull_request_target:/,
     'automatic PR review events may remain declared but must be skipped by the job gate');
   assert.match(geminiPrReviewWorkflow,
