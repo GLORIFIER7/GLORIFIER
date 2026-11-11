@@ -6,7 +6,10 @@
     "GLORIFIER_SUPABASE_URL": "https://ymbhbxrobfpqlxhyulbt.supabase.co",
     "GLORIFIER_DATABASE_PROVIDER": "neon",
     "GLORIFIER_NEURAL_ORIGIN": "https://glorifier-neural.glorifier.workers.dev",
-    "GLORIFIER_NEURAL_ALLOWED_HOSTS": "glorifier-neural.glorifier.workers.dev"
+    "GLORIFIER_NEURAL_ALLOWED_HOSTS": "glorifier-neural.glorifier.workers.dev",
+    "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+    "GLORIFIER_ENABLE_INFERENCE": "false",
+    "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false"
   },
   "services": [
     {
@@ -95,7 +98,10 @@
     "vars": {
       "GLORIFIER_DATABASE_PROVIDER": "neon",
       "GLORIFIER_NEURAL_ORIGIN": "",
-      "GLORIFIER_NEURAL_ALLOWED_HOSTS": ""
+      "GLORIFIER_NEURAL_ALLOWED_HOSTS": "",
+      "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+      "GLORIFIER_ENABLE_INFERENCE": "false",
+      "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false"
     }
   },
   "main": "./src/worker.ts",
