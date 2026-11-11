@@ -208,7 +208,7 @@ jobs:
 
   validate-fix:
     needs: propose-fix
-    if: ${{ needs.propose-fix.outputs.created == 'true' }}
+    if: ${{ needs.propose-fix.result == 'success' && needs.propose-fix.outputs.created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -340,7 +340,7 @@ jobs:
 
   publish-fix:
     needs: [propose-fix, validate-fix]
-    if: ${{ needs.propose-fix.outputs.created == 'true' && needs.validate-fix.result == 'success' }}
+    if: ${{ needs.propose-fix.result == 'success' && needs.propose-fix.outputs.created == 'true' && needs.validate-fix.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
