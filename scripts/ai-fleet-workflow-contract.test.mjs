@@ -369,18 +369,16 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
 });
 
-test('Gemini PR review requires per-run paid-inference consent and an explicit open main-target PR number', () => {
-  assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\n    inputs:\n      pr_number:"));
-  assert.ok(geminiPrReviewWorkflow.includes('allow_paid_inference:\n        description: "Explicit per-run authorization for external Gemini inference; provider charges and external data transmission may apply"\n        required: true\n        type: boolean\n        default: false'));
-  assert.ok(geminiPrReviewWorkflow.includes('inputs.allow_paid_inference == true'));
-  assert.ok(geminiPrReviewWorkflow.includes("github.actor_id == '32674233'"));
-  assert.ok(geminiPrReviewWorkflow.includes('MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}'));
-  assert.ok(geminiPrReviewWorkflow.includes('PR_NUMBER_INPUT: ${{ inputs.pr_number }}'));
-  assert.ok(geminiPrReviewWorkflow.includes('gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}"'));
-  assert.ok(geminiPrReviewWorkflow.includes("STATE=\"$(jq -r '.state // empty'"));
-  assert.ok(geminiPrReviewWorkflow.includes("BASE_REF=\"$(jq -r '.base.ref // empty'"));
-  assert.ok(geminiPrReviewWorkflow.includes('if [[ "$STATE" != "open" || "$BASE_REF" != "main" ]]'));
-  assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --limit 1/);
+test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
+  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\\s*\\{\\}/);
+  assert.match(geminiPrReviewWorkflow, /vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\\{\\{ vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ steps\\.resolve-pr\\.outputs\\.number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /STATE.*open/);
+  assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\\./);
+  assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
 });
 
 test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {
