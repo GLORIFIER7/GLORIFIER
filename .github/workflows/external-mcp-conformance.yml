@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           target="$(node scripts/mcp-conformance-target.mjs)"
-          echo "url=$target" >> "$GITHUB_OUTPUT"
+          printf 'url=%s\n' "$target" >> "$GITHUB_OUTPUT"
 
       - name: Checkout pinned official MCP conformance runner
         uses: actions/checkout@v4
