@@ -127,9 +127,26 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
   );
   assert.match(
     workflow,
-    /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@v7[\s\S]*?path: trusted/,
+    /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[\s\S]*?path: trusted/,
   );
   assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
+
+  const maintenanceWorkflow = fs.readFileSync(
+    path.join(__dirname, '..', '.github', 'workflows', 'nvidia-assisted-maintenance-pr.yml'),
+    'utf8',
+  );
+  for (const [name, source] of [
+    ['NVIDIA CI triage', workflow],
+    ['NVIDIA assisted maintenance', maintenanceWorkflow],
+  ]) {
+    const checkoutRefs = [...source.matchAll(/^\\s+uses:\\s+actions\\/checkout@([^\\s#]+)/gm)]
+      .map((match) => match[1]);
+    assert.ok(checkoutRefs.length > 0, name + ' must declare checkout actions');
+    assert.ok(
+      checkoutRefs.every((ref) => /^[a-f0-9]{40}$/.test(ref)),
+      name + ' must pin every checkout action to a full immutable commit SHA',
+    );
+  }
   const jobCondition = workflow.match(/^\s+if:\s*\$\{\{([\s\S]*?)\}\}/m)?.[1] ?? '';
   assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/);
   assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/);
