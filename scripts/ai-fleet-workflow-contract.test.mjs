@@ -440,6 +440,9 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
   assert.ok(proposalStart >= 0 && validatorStart > proposalStart && publisherStart > validatorStart,
     'expected proposal, validation, and publication jobs in order');
+  assert.ok(proposalStart >= 0, 'expected a provider proposal job');
+  assert.ok(validatorStart > proposalStart, 'expected read-only validation after proposal');
+  assert.ok(publisherStart > validatorStart, 'expected publication after validation');
 
   const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, validatorStart);
   const validator = nvidiaMaintenanceWorkflow.slice(validatorStart, publisherStart);
@@ -453,6 +456,10 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'provider job must explicitly use read-only repository permissions');
   assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write|gh pr create|git push/,
     'provider execution must not receive write permissions or publish changes');
+  assert.match(proposal, /sha256sum/,
+    'proposal must hash the exact generated patch before handing it to downstream jobs');
+  assert.match(proposal, /patch_sha256=/,
+    'proposal must publish the generated patch digest as a job output');
   assert.match(proposal, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/,
     'provider job must hand off the candidate patch as an artifact');
 
@@ -470,6 +477,11 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
 
   assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
   assert.match(publisher, /needs\.validate-fix\.outputs\.patch_sha256/);
+  assert.match(validator, /EXPECTED_PATCH_SHA256: \$\{\{ needs\.propose-fix\.outputs\.patch_sha256 \}\}/,
+    'read-only validator must verify the candidate digest produced before code execution');
+
+  assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
+  assert.match(publisher, /needs\.propose-fix\.outputs\.patch_sha256/);
   assert.match(publisher,
     /^    permissions:\n      actions: read\n      contents: write\n      pull-requests: write$/m,
     'only the publisher may hold the minimum GitHub write permissions');
@@ -481,6 +493,25 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
   assert.doesNotMatch(publisher, /^\\s+(?:npm (?:ci|audit|run)|node .*test|test:nvidia-provider|test:protected-api-paths)\\b/m,
     'write-capable publisher must never execute model-generated code or project scripts');
+  const publisherCommands = publisherStepBlocks(publisher)
+    .map((step) => step.split('        run:').slice(1).join('\n'))
+    .join('\n');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npm\s+(?:ci|install|test|audit|run|exec)\b/i,
+    'publisher must not execute npm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npx\s+\S+/i,
+    'publisher must not execute npx commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)yarn\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute yarn commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)pnpm\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute pnpm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)node\s+\S+/i,
+    'publisher must not run Node scripts');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)python3?\s+(?:-c\b|\S+\.py\b)/i,
+    'publisher must not execute dynamic Python or Python files');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)(?:bash|sh)\s+\S+/i,
+    'publisher must not launch shell scripts');
+  assert.doesNotMatch(publisherCommands, /test:nvidia-provider|test:protected-api-paths/i,
+    'publisher must not run project test scripts');
 
   const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
   assert.ok(createIndex >= 0, 'expected the final publication step');
@@ -511,4 +542,15 @@ test('Gemini diff retrieval, summary validation, and publication target the same
     'non-empty review validation must use the same resolved PR number');
   assert.ok(publisher.includes('PR_NUMBER: ${{ needs.gemini-review.outputs.pr_number }}'),
     'publication must use the validated job output rather than another PR source');
+});
+
+
+test('GLORIFIER CI runs static Linux host-agent and interoperability contract suites', () => {
+  assert.match(ciWorkflow, /run: npm run test:linux-host-agent-contract/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-protocol-boundaries/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-evidence-policy/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-registry/);
+  assert.match(ciWorkflow, /run: npm run test:polyglot-sdk-inventory/);
+  assert.match(ciWorkflow, /run: npm run validate:interoperability-registry/);
+  assert.match(ciWorkflow, /run: npm run validate:polyglot-sdk-inventory/);
 });
