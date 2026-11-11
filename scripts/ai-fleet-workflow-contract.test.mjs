@@ -327,9 +327,9 @@ function assertGeminiAuthorizationWorkflow(item) {
   const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
   assert.match(condition, /github.ref == 'refs\/heads\/main'/);
-  assert.match(condition, /github.actor_id == '32674233'/);
+  assert.match(condition, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);\n  assert.match(condition, /github.actor_id == '32674233'/);
   assert.match(condition, /github.run_attempt == 1/);
-  assert.doesNotMatch(condition, /inputs\.|schedule|pull_request_target/);
+  assert.doesNotMatch(condition, /inputs\.|schedule|pull_request_target/);\n  assert.match(item.source, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\{\\{ vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \\}\\}/);
   const authorization = item.source.indexOf('glorifier_ai_maintenance_authorized');
   assert.ok(authorization >= 0 && authorization < item.source.indexOf(item.firstSensitiveStep));
   assert.ok(authorization < item.source.indexOf(item.modelStep));
