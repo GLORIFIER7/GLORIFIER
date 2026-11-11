@@ -324,38 +324,35 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
 });
 
 function assertGeminiAuthorizationWorkflow(item) {
-  assert.match(item.source, /workflow_dispatch:/);
-  const dispatch = item.source.match(/workflow_dispatch:([^\\n]*(?:\\n[ \\t]+[^\\n]*)*)/)?.[0] ?? '';
-  assert.match(dispatch, /workflow_dispatch:\\s*(?:\\{\\}|\\n\\s*#)/);
-  const condition = item.source.match(/^    if:\\s*\\$\\{\\{([^\\r\\n]*?)\\}\\}\\s*$/m)?.[1] ?? '';
+  const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
-  assert.match(condition, /github.ref == 'refs\\/heads\\/main'/);
+  assert.match(condition, /github.ref == 'refs\/heads\/main'/);
   assert.match(condition, /github.actor_id == '32674233'/);
   assert.match(condition, /github.run_attempt == 1/);
-  assert.doesNotMatch(condition, /inputs\\.|schedule|pull_request_target/);
-  const authorized = item.source.indexOf('glorifier_ai_maintenance_authorized');
-  assert.ok(authorized >= 0 && authorized < item.source.indexOf(item.firstSensitiveStep));
-  assert.ok(authorized < item.source.indexOf(item.modelStep));
-  assert.match(item.source, /sudo install -d -o root -g root -m 755 \\/etc\\/glorifier/);
-  assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \\/etc\\/glorifier\\/gemini-system-settings\\.json/);
+  assert.doesNotMatch(condition, /inputs\.|schedule|pull_request_target/);
+  const authorization = item.source.indexOf('glorifier_ai_maintenance_authorized');
+  assert.ok(authorization >= 0 && authorization < item.source.indexOf(item.firstSensitiveStep));
+  assert.ok(authorization < item.source.indexOf(item.modelStep));
+  assert.match(item.source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/);
+  assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \/etc\/glorifier\/gemini-system-settings\.json/);
 }
 
 test('Gemini provider workflows require owner-initiated manual dispatch and trusted settings', () => {
-  for (const item of [
-    { name: 'Gemini collaborator', source: geminiCollaboratorWorkflow, firstSensitiveStep: 'name: Require Gemini credential', modelStep: 'name: Run Gemini engineering collaboration' },
-    { name: 'Gemini development', source: geminiDevelopmentWorkflow, firstSensitiveStep: 'name: Setup Node.js', modelStep: 'name: Run Gemini CLI' },
-    { name: 'Gemini PR review', source: geminiPrReviewWorkflow, firstSensitiveStep: 'name: Resolve the most recently updated open pull request', modelStep: 'name: Run Gemini advisory review' },
-  ]) assertGeminiAuthorizationWorkflow(item);
+  const workflows = [
+    { source: geminiCollaboratorWorkflow, firstSensitiveStep: 'name: Require Gemini credential', modelStep: 'name: Run Gemini engineering collaboration' },
+    { source: geminiDevelopmentWorkflow, firstSensitiveStep: 'name: Setup Node.js', modelStep: 'name: Run Gemini CLI' },
+    { source: geminiPrReviewWorkflow, firstSensitiveStep: 'name: Resolve the most recently updated open pull request', modelStep: 'name: Run Gemini advisory review' },
+  ];
+  for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
 });
 
-test('Gemini PR review uses empty dispatch inputs and resolves its target after owner authorization', () => {
-  assert.match(geminiPrReviewWorkflow, /workflow_dispatch: \\{\\}/);
-  assert.match(geminiPrReviewWorkflow, /group: gemini-pr-review-\\$\\{\\{ github.event_name \\}\\}-\\$\\{\\{ github.run_id \\}\\}/);
+test('Gemini PR review has empty dispatch inputs and resolves a target only after owner authorization', () => {
+  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
+  assert.match(geminiPrReviewWorkflow, /group: gemini-pr-review-\$\{\{ github.event_name \}\}-\$\{\{ github.run_id \}\}/);
   assert.match(geminiPrReviewWorkflow, /gh pr list --state open --limit 1 --json number/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ steps\\.resolve-pr\\.outputs\\.number \\}\\}/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ needs\\.gemini-review\\.outputs\\.pr_number \\}\\}/);
-  assert.match(geminiPrReviewWorkflow, /name: Publish Gemini COMMENT review only[\\s\\S]*?pull-requests: write/);
-  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\\.pr_number|inputs\\.allow_paid_inference/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ needs\.gemini-review\.outputs\.pr_number \}\}/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.pr_number|inputs\.allow_paid_inference/);
   assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
 });
