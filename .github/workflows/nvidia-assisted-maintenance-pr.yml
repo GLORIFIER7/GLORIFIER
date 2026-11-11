@@ -166,7 +166,6 @@ jobs:
           if [[ "$status" != "200" ]]; then rm -f request.json response.json; echo "::error::NVIDIA request failed with HTTP $status; response body withheld."; exit 1; fi
           node "$RUNNER_TEMP/validator/nvidia-patch-validator.cjs" response.json patch.diff
           rm -f request.json response.json
-      - name: Confirm candidate patch exists
       - name: Confirm candidate patch exists and record its digest
         if: steps.target.outputs.skip != 'true' && hashFiles('patch.diff') != ''
         id: verify
@@ -183,7 +182,6 @@ jobs:
             echo "::error::Unable to calculate a valid candidate patch digest."
             exit 1
           fi
-          echo "created=true" >> "$GITHUB_OUTPUT"
           echo "patch_sha256=$digest" >> "$GITHUB_OUTPUT"
       - name: Upload validated patch for isolated publication
         if: steps.verify.outputs.created == 'true'
@@ -231,7 +229,6 @@ jobs:
         with:
           name: nvidia-patch-${{ github.run_id }}
           path: ${{ runner.temp }}/nvidia-artifact
-      - name: Validate scope and apply candidate patch
       - name: Verify candidate digest and validate scope
         env:
           EXPECTED_PATCH_SHA256: ${{ needs.propose-fix.outputs.patch_sha256 }}
@@ -239,8 +236,6 @@ jobs:
         run: |
           set -euo pipefail
           patch="$RUNNER_TEMP/nvidia-artifact/patch.diff"
-          if [[ ! -s "$patch" ]]; then
-            echo "::error::The candidate patch artifact is missing or empty."
           if [[ ! -s "$patch" || ! "$EXPECTED_PATCH_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
             echo "::error::The candidate patch or its expected SHA-256 digest is missing."
             exit 1
@@ -269,7 +264,6 @@ jobs:
               if old != new or old.startswith("/") or ".." in old.split("/"):
                   raise SystemExit("Patch path changes, absolute paths, and traversal are forbidden.")
               if not old.startswith(allowed) or any(part in old.lower() for part in denied):
-                  raise SystemExit("Patch path is outside the approved maintenance scope: "+old)
                   raise SystemExit("Patch path is outside the approved validation scope: "+old)
           changes=sum(1 for line in patch.splitlines()
               if (line.startswith("+") and not line.startswith("+++")) or
@@ -299,13 +293,11 @@ jobs:
           )
           blocked=[path for path in paths if path and protected.search(path)]
           if blocked:
-              print("::error::Blocked protected paths before staging: "+", ".join(repr(path) for path in blocked))
               print("::error::Blocked protected paths before testing: "+", ".join(repr(path) for path in blocked))
               sys.exit(1)
           if len([path for path in paths if path])>2:
               raise SystemExit("Patch changes more than two paths after application.")
           PY
-      - name: Independently validate the generated patch in read-only job
       - name: Run tests on generated code in the read-only job
         shell: bash
         run: |
@@ -332,7 +324,6 @@ jobs:
             exit 1
           fi
           echo "patch_sha256=$digest" >> "$GITHUB_OUTPUT"
-      - name: Summarize validation
       - name: Summarize isolated validation
         if: always()
         run: |
@@ -374,7 +365,6 @@ jobs:
       - name: Verify digest, recheck static scope, and apply without executing patch code
         env:
           EXPECTED_PATCH_SHA256: ${{ needs.validate-fix.outputs.patch_sha256 }}
-          EXPECTED_PATCH_SHA256: ${{ needs.propose-fix.outputs.patch_sha256 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -385,14 +375,11 @@ jobs:
           fi
           if [[ ! "$EXPECTED_PATCH_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
             echo "::error::The validator did not provide a valid patch digest."
-          if [[ ! -s "$patch" || ! "$EXPECTED_PATCH_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
-            echo "::error::The validated patch or its expected SHA-256 digest is missing."
             exit 1
           fi
           actual="$(sha256sum "$patch" | awk '{print $1}')"
           if [[ "$actual" != "$EXPECTED_PATCH_SHA256" ]]; then
             echo "::error::Patch digest differs from the exact candidate tested in the read-only job."
-            echo "::error::Patch digest differs from the exact candidate generated and validated."
             exit 1
           fi
           python3 - "$patch" <<'PY'
@@ -471,7 +458,6 @@ jobs:
           gh auth setup-git
           git push origin "$branch"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation (npm audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation). Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation and project-specific security and regression checks. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
       - name: Summarize isolated publication
         if: always()
         env:
