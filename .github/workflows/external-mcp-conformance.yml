@@ -1,0 +1,100 @@
+name: External MCP conformance (opt-in)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_external_mcp_checks:
+        description: Run bounded, read-only MCP checks against the explicitly allowlisted endpoint
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-mcp-conformance
+  cancel-in-progress: false
+
+jobs:
+  external-mcp:
+    if: ${{ inputs.run_external_mcp_checks }}
+    name: Read-only external MCP checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout GLORIFIER
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Validate HTTPS endpoint and exact hostname allowlist
+        id: validate_target
+        env:
+          GLORIFIER_MCP_CONFORMANCE_URL: ${{ vars.GLORIFIER_MCP_CONFORMANCE_URL }}
+          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$(node scripts/mcp-conformance-target.mjs)"
+          target_host="$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$target")"
+          {
+            printf 'url=%s\n' "$target"
+            printf 'allowed_host=%s\n' "$target_host"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout pinned official MCP conformance runner
+        uses: actions/checkout@v4
+        with:
+          repository: modelcontextprotocol/conformance
+          ref: 96a6f9478b7f2e125cf0360a213383cf57533893
+          path: .mcp-conformance
+          persist-credentials: false
+
+      - name: Install and build official conformance runner
+        id: build_official_runner
+        working-directory: .mcp-conformance
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm run build
+
+      - name: Run official MCP tools-list scenario (2025-11-25)
+        id: official_tck
+        env:
+          MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/mcp-conformance-results"
+          node .mcp-conformance/dist/index.js server \
+            --url "$MCP_CONFORMANCE_URL" \
+            --scenario tools-list \
+            --spec-version 2025-11-25 \
+            --timeout 30000 \
+            --output-dir "$GITHUB_WORKSPACE/mcp-conformance-results" \
+            --verbose
+
+      - name: Run modern stateless read-only smoke (2026-07-28)
+        id: modern_stateless_smoke
+        if: ${{ always() && steps.validate_target.outcome == 'success' }}
+        env:
+          GLORIFIER_MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
+          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ steps.validate_target.outputs.allowed_host }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/mcp-conformance-results"
+          node scripts/mcp-live-smoke.mjs | tee "$GITHUB_WORKSPACE/mcp-conformance-results/modern-stateless-smoke.json"
+
+      - name: Upload conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-conformance-${{ github.run_id }}
+          path: mcp-conformance-results/
+          if-no-files-found: warn
+          retention-days: 14
