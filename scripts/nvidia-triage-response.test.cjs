@@ -126,7 +126,7 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
     .map((line) => line.trim())
     .filter((line) => line.startsWith('uses: actions/checkout@'))
     .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
-  assert.equal(checkoutRefs.length, 3, 'NVIDIA CI triage must declare exactly three checkout actions');
+  assert.equal(checkoutRefs.length, 2, 'NVIDIA CI triage must declare exactly two checkout actions');
   assert.ok(checkoutRefs.every((ref) => ref === pinnedCheckout.slice('uses: actions/checkout@'.length)),
     'NVIDIA CI triage must pin every checkout action to the reviewed immutable commit SHA');
   const authStep = workflow.indexOf('name: Checkout trusted main-branch authorization policy');
