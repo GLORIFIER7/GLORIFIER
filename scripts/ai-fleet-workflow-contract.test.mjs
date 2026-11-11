@@ -486,11 +486,19 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const publisherCommands = publisherStepBlocks(publisher)
     .map((step) => step.split('        run:').slice(1).join('\n'))
     .join('\n');
-  assert.doesNotMatch(
-    publisherCommands,
-    /\b(?:npm|npx|yarn|pnpm)\s+(?:ci|install|test|audit|run|exec)\b|\bnode\s+\S+|\bpython3?\s+(?:-c\b|\S+\.py\b)|\b(?:bash|sh)\s+\S+|test:nvidia-provider|test:protected-api-paths/i,
-    'write-capable publisher must never execute model-generated code or project scripts, including inline commands',
-  );
+  assert.doesNotMatch(publisherCommands, /\bnpm\b/i, 'publisher must not invoke npm');
+  assert.doesNotMatch(publisherCommands, /\bnpx\b/i, 'publisher must not invoke npx');
+  assert.doesNotMatch(publisherCommands, /\byarn\b/i, 'publisher must not invoke yarn');
+  assert.doesNotMatch(publisherCommands, /\bpnpm\b/i, 'publisher must not invoke pnpm');
+  assert.doesNotMatch(publisherCommands, /\bnode\s+\S+/i, 'publisher must not run Node scripts');
+  assert.doesNotMatch(publisherCommands, /\bpython\s+-c\b/i, 'publisher must not execute dynamic Python');
+  assert.doesNotMatch(publisherCommands, /\bpython3\s+-c\b/i, 'publisher must not execute dynamic Python');
+  assert.doesNotMatch(publisherCommands, /\bpython\s+\S+\.py\b/i, 'publisher must not execute Python files');
+  assert.doesNotMatch(publisherCommands, /\bpython3\s+\S+\.py\b/i, 'publisher must not execute Python files');
+  assert.doesNotMatch(publisherCommands, /\bbash\s+\S+/i, 'publisher must not launch shell scripts');
+  assert.doesNotMatch(publisherCommands, /\bsh\s+\S+/i, 'publisher must not launch shell scripts');
+  assert.doesNotMatch(publisherCommands, /test:nvidia-provider|test:protected-api-paths/i,
+    'publisher must not run project test scripts');
 
   const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
   assert.ok(createIndex >= 0, 'expected the final publication step');
