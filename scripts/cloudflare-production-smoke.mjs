@@ -190,6 +190,14 @@ export const validateNeuralReady = (body) => {
   return body;
 };
 
+export const validateNeuralSafeMode = (body) => {
+  assert.equal(body?.ok, false, 'provider-disabled safe mode must report ok=false');
+  assert.equal(body?.status, 'unavailable', 'provider-disabled safe mode must report unavailable');
+  assert.equal(body?.code, 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+    'only the explicit provider-egress-disabled response is an acceptable safe mode');
+  return body;
+};
+
 export const verifyNeuralBridge = async (fetchRequest = fetch) => {
   console.log('GLORIFIER production smoke: checking Worker-to-Neural process liveness');
   const healthResponse = await requestJson((options) =>
@@ -198,9 +206,14 @@ export const verifyNeuralBridge = async (fetchRequest = fetch) => {
 
   console.log('GLORIFIER production smoke: checking Worker-to-Neural readiness without task submission');
   const readyResponse = await requestJson((options) =>
-    fetchRequest(new URL('/api/neural/ready', PRODUCTION_PUBLIC_ORIGIN), options));
-  const readiness = validateNeuralReady(readyResponse.body);
-  return { health, readiness };
+    fetchRequest(new URL('/api/neural/ready', PRODUCTION_PUBLIC_ORIGIN), options), {}, [200, 503]);
+  const readiness = readyResponse.status === 503
+    ? validateNeuralSafeMode(readyResponse.body)
+    : validateNeuralReady(readyResponse.body);
+  const readinessMode = readyResponse.status === 503
+    ? 'provider-egress-disabled'
+    : 'provider-ready';
+  return { health, readiness, readinessMode };
 };
 
 export const validateMcpInitialize = (body) => {
