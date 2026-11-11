@@ -3,7 +3,12 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Open pull request number targeting main to review"
+        required: true
+        type: number
 permissions:
   contents: read
   pull-requests: read
@@ -42,15 +47,23 @@ jobs:
           source scripts/ai-fleet-authorization.sh
           glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
 
-      - name: Resolve the most recently updated open pull request
+      - name: Validate explicitly selected pull request
         id: resolve-pr
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
-          PR_NUMBER="$(gh pr list --state open --limit 1 --json number --jq '.[0].number // empty')"
-          if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::No open pull request with a valid number was found."
+          PR_NUMBER="${PR_NUMBER_INPUT:-}"
+          if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::PR_NUMBER must be a positive decimal pull request number."
+            exit 1
+          fi
+          PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          STATE="$(jq -r '.state // empty' <<<"$PR_JSON")"
+          BASE_REF="$(jq -r '.base.ref // empty' <<<"$PR_JSON")"
+          if [[ "$STATE" != "open" || "$BASE_REF" != "main" ]]; then
+            echo "::error::The selected pull request must be open and target main."
             exit 1
           fi
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
