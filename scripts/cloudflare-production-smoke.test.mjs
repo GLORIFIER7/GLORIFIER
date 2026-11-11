@@ -14,6 +14,7 @@ import {
   validateRuntimeVerification,
   validateNeuralHealth,
   validateNeuralReady,
+  validateNeuralSafeMode,
   verifyNeuralBridge,
   requestJson,
   verifyPublicReadModels,
@@ -559,6 +560,18 @@ test('Neural readiness validation requires provider, database, auth, rate limit,
   }), /inference/);
 });
 
+test('Neural provider-disabled safe mode accepts only the explicit egress-disabled response', () => {
+  const safeMode = {
+    ok: false,
+    status: 'unavailable',
+    code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+  };
+  assert.equal(validateNeuralSafeMode(safeMode).code, 'NEURAL_EXTERNAL_EGRESS_DISABLED');
+  assert.throws(() => validateNeuralSafeMode({ ...safeMode, code: 'NEURAL_ORIGIN_NOT_CONFIGURED' }), /explicit provider-egress-disabled/);
+  assert.throws(() => validateNeuralSafeMode({ ...safeMode, status: 'READY' }), /unavailable/);
+  assert.throws(() => validateNeuralSafeMode({ ...safeMode, ok: true }), /ok=false/);
+});
+
 test('production Neural bridge smoke uses GET-only public Pages routes and performs no task inference', async () => {
   const requests = [];
   const result = await verifyNeuralBridge(async (url, options = {}) => {
@@ -582,6 +595,39 @@ test('production Neural bridge smoke uses GET-only public Pages routes and perfo
   assert.equal(result.health.checks.process, 'VERIFIED');
   assert.equal(result.readiness.status, 'READY');
   assert.equal(result.readiness.execution.inference_performed, false);
+});
+
+test('production Neural bridge smoke accepts explicit provider-disabled safe mode without inference', async () => {
+  const requests = [];
+  const safeMode = {
+    ok: false,
+    status: 'unavailable',
+    code: 'NEURAL_EXTERNAL_EGRESS_DISABLED',
+  };
+  const result = await verifyNeuralBridge(async (url, options = {}) => {
+    requests.push({
+      url: new URL(url).href,
+      method: options.method || 'GET',
+    });
+    if (new URL(url).pathname.endsWith('/health')) {
+      return new Response(JSON.stringify(neuralHealthFixture), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify(safeMode), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  assert.deepEqual(requests, [
+    { url: 'https://glorifier.pages.dev/api/neural/health', method: 'GET' },
+    { url: 'https://glorifier.pages.dev/api/neural/ready', method: 'GET' },
+  ]);
+  assert.equal(result.health.checks.process, 'VERIFIED');
+  assert.equal(result.readiness.code, 'NEURAL_EXTERNAL_EGRESS_DISABLED');
+  assert.equal(result.readinessMode, 'provider-egress-disabled');
 });
 
 
