@@ -49,7 +49,7 @@ function parseAllowedHosts(rawAllowedHosts) {
   }
 
   const entries = rawAllowedHosts.trim().split(/[\n,]/).map((entry) => entry.trim());
-  if (entries.length === 0 || entries.some((entry) => entry.length === 0)) {
+  if (entries.some((entry) => entry.length === 0)) {
     throw new Error('MCP conformance hostname allowlist contains an empty entry.');
   }
 
