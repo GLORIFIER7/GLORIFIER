@@ -22,6 +22,7 @@ on:
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
       - "scripts/validate-interoperability-capabilities.mjs"
+      - "scripts/validate-interoperability-capabilities.test.mjs"
       - "scripts/interoperability-evidence-policy.mjs"
       - "scripts/interoperability-evidence-policy.test.mjs"
       - "src/lib/linux-host-agent*.ts"
@@ -57,6 +58,7 @@ on:
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
       - "scripts/validate-interoperability-capabilities.mjs"
+      - "scripts/validate-interoperability-capabilities.test.mjs"
       - "scripts/interoperability-evidence-policy.mjs"
       - "scripts/interoperability-evidence-policy.test.mjs"
       - "src/lib/linux-host-agent*.ts"
@@ -112,6 +114,8 @@ jobs:
         run: npm run test:interoperability-protocol-boundaries
       - name: Validate MCP interoperability registry
         run: npm run validate:interoperability-registry
+      - name: Test capability registry evidence assertions
+        run: node --test scripts/validate-interoperability-capabilities.test.mjs
       - name: Validate capability registry and evidence
         run: node scripts/validate-interoperability-capabilities.mjs
       - name: Type-check

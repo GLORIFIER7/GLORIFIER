@@ -188,3 +188,42 @@ test('latest production checkpoint reconciles the exact current main deployment 
   assert.match(gap, /MCP was not probed/);
   assert.match(gap, /Issue #471 remains OPEN/);
 });
+
+
+test('fresh independent read-only GLR chain probes are recorded without overstating transfer verification', async () => {
+  const registry = JSON.parse(await readFile(documents[0], 'utf8'));
+  const observedAt = '2026-11-11T06:53:06Z';
+  const expectations = [
+    {
+      id: 'blockchain.ethereum-readonly-transfer-verifier',
+      target: 'Ethereum Mainnet',
+      markers: ['eth_chainId returned 0x1', 'eth_blockNumber returned 0x192adf7', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR)'],
+    },
+    {
+      id: 'blockchain.bnb-readonly-transfer-verifier',
+      target: 'BNB Smart Chain Mainnet',
+      markers: ['eth_chainId returned 0x38', 'eth_blockNumber returned 0x7ec40ae', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR)'],
+    },
+    {
+      id: 'blockchain.solana-readonly-transfer-verifier',
+      target: 'Solana Mainnet',
+      markers: ['mainnet genesis hash', 'getBlockHeight(finalized) returned 446046054', 'getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals', 'Token-2022 mint named GLORIFIER / GLR', 'null mintAuthority', 'null freezeAuthority', 'null metadata-pointer authority', 'null metadata updateAuthority'],
+    },
+  ];
+
+  for (const expectation of expectations) {
+    const capability = registry.capabilities.find((item) => item.id === expectation.id);
+    assert.ok(capability, `missing capability ${expectation.id}`);
+    assert.ok(Array.isArray(capability.evidence), `${expectation.id} must expose an evidence array`);
+    assert.equal(capability.status, 'PARTIALLY VERIFIED',
+      'read-only chain reachability and token metadata must not imply a verified transfer/payment path');
+    const evidence = capability.evidence.find((item) =>
+      item.kind === 'live-probe' && item.observedAt === observedAt);
+    assert.ok(evidence, `${expectation.id} must retain the fresh timestamped probe`);
+    assert.ok(evidence.targetEnvironment.includes(expectation.target));
+    for (const marker of expectation.markers) {
+      assert.ok(evidence.notes.includes(marker), `${expectation.id} evidence must include ${marker}`);
+    }
+    assert.match(evidence.notes, /No signing, transaction, transfer, or state mutation/);
+  }
+});
