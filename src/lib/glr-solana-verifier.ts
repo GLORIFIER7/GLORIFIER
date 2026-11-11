@@ -1,7 +1,7 @@
 import { amountToBaseUnits, createRpcClient, parseSecureRpcUrl, type GLRTransferVerifierInput } from './glr-rpc-verifier-common';
 export const SOLANA_GLR_MINT = '7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9';
 export const SOLANA_TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
-const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 
 export interface SolanaGLRVerification {
   verified: true;
