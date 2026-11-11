@@ -96,6 +96,24 @@ def test_vllm_rejects_unsafe_or_mismatched_origins(base_url, allowed_origin):
         )
 
 
+
+@pytest.mark.parametrize(
+    ("base_url", "allowed_origin"),
+    [
+        ("https://*.gpu.example.test/v1", "https://*.gpu.example.test"),
+        ("https://gpu.*.example.test/v1", "https://gpu.*.example.test"),
+    ],
+)
+def test_vllm_rejects_wildcard_hostnames_in_base_url_and_allowlist(base_url, allowed_origin):
+    with pytest.raises(ValueError):
+        VllmAdapter(
+            base_url=base_url,
+            allowed_origin=allowed_origin,
+            api_key="test-only-key",
+            model="Qwen/Qwen3-8B",
+        )
+
+
 def test_vllm_requires_model_and_api_key():
     adapter = VllmAdapter(
         base_url="https://gpu.example.test/v1",
