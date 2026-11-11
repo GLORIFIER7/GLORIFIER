@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-10T23:50:49.681Z",
+  "updatedAt": "2026-11-11T04:39:22Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -1739,7 +1739,7 @@
       "scope": "Source implementation of per-host bearer enrollment, heartbeat, lease-token-bound task polling, bounded result receipts, and fixed read-only diagnostics; no live host evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Feature branch feat/linux-host-agent-pull-runtime-20261108",
+        "GLORIFIER main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1; GitHub-hosted Ubuntu 24.04 x86_64 CI",
         "Linux hosts running the unprivileged Python 3 host agent; no host enrolled or probed"
       ],
       "evidence": [
@@ -1763,15 +1763,22 @@
           "targetEnvironment": "Operator installation documentation",
           "observedAt": null,
           "notes": "Documents one-time enrollment token handling, unprivileged systemd deployment, API routes, installation, and verification steps. No host installation was performed."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42960538845",
+          "targetEnvironment": "GLORIFIER PR #809 exact head 22de0bf25fd2bfebe951cb20919c149fd29c8054, merged as main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1; GitHub-hosted Ubuntu 24.04 x86_64",
+          "observedAt": "2026-11-11T04:39:22Z",
+          "notes": "The exact-head GLORIFIER Build and Test job passed the Linux host-agent contract tests, interoperability protocol-boundary tests, interoperability evidence-policy tests, interoperability registry regression tests, registry validator, polyglot SDK inventory regression tests and inventory validator. These are offline contract/schema tests. They do not prove a Linux host was enrolled, heartbeated, or used to execute a task."
         }
       ],
       "limitations": [
         "No authorized Linux host has been enrolled, installed, heartbeated, or used to complete a task.",
         "The backend routes require a deployed backend and a correctly configured Worker backend origin plus exact-host allowlist where the Worker is the public entry point.",
         "Only three fixed read-only diagnostics are implemented; arbitrary shell execution, sudo, service control, file writes, package installation, and privilege escalation are intentionally unsupported.",
-        "The agent protocol and contract tests still require successful exact-head CI and review before merge.",
         "Universal Linux distribution and architecture compatibility is not claimed.",
-        "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation."
+        "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation.",
+        "PR #809 merged as main commit f1a7bcc70755a7bacd56e052bc6412f4e41e20d1 after exact-head CI passed; the offline contracts are now exercised by main CI. This does not establish live host enrollment, heartbeat, or task execution."
       ]
     }
   ]
