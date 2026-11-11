@@ -351,14 +351,16 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
 });
 
-test('Gemini PR review has empty dispatch inputs and resolves a target only after owner authorization', () => {
-  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
-  assert.match(geminiPrReviewWorkflow, /group: gemini-pr-review-\$\{\{ github.event_name \}\}-\$\{\{ github.run_id \}\}/);
-  assert.match(geminiPrReviewWorkflow, /gh pr list --state open --limit 1 --json number/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ needs\.gemini-review\.outputs\.pr_number \}\}/);
-  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.pr_number|inputs\.allow_paid_inference/);
-  assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
+test('Gemini PR review requires an explicit open main-target PR number', () => {
+  assert.match(geminiPrReviewWorkflow,
+    /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+pr_number:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+number/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER_INPUT: \$\{\{ inputs\.pr_number \}\}/);
+  assert.match(geminiPrReviewWorkflow, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/pulls\/\$\{PR_NUMBER\}"/);
+  assert.match(geminiPrReviewWorkflow, /STATE.*open/);
+  assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --limit 1/);
+});
+
 test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {
   const workflows = [
     {
