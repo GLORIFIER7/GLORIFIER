@@ -123,11 +123,22 @@ test('keeps the trusted triage parser checkout isolated from collected workspace
   );
   assert.match(
     workflow,
+    /name: Checkout trusted main-branch authorization policy[\s\S]*?uses: actions\/checkout@[a-f0-9]{40}[\s\S]*?path: authorization/,
+  );
+  assert.match(
+    workflow,
     /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@v7[\s\S]*?path: trusted/,
   );
   assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
-  assert.ok(workflow.includes("github.ref == 'refs/heads/main' &&"));
-  assert.ok(workflow.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
+  const jobCondition = workflow.match(/^\s+if:\s*\$\{\{([\s\S]*?)\}\}/m)?.[1] ?? '';
+  assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(jobCondition, /inputs\.allow_paid_inference == true/);
+  assert.match(jobCondition, /github\.actor_id == '32674233'/);
+  assert.match(jobCondition, /github\.run_attempt == 1/);
+  assert.doesNotMatch(jobCondition, /workflow_run/);
+  const authorizationIndex = workflow.indexOf('glorifier_ai_maintenance_authorized');
+  assert.ok(authorizationIndex >= 0 && authorizationIndex < workflow.indexOf('name: Require NVIDIA credential'));
   assert.match(workflow, /"chat_template_kwargs"\s*:\s*\{\s*"enable_thinking"\s*:\s*False\s*\}/);
 });
 
