@@ -359,10 +359,10 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
     },
     {
       source: geminiPrReviewWorkflow,
-      firstSensitiveStep: 'name: Validate explicitly selected pull request',
+      firstSensitiveStep: 'name: Resolve the latest open pull request targeting main',
       modelStep: 'name: Run Gemini advisory review',
-      authorizationCondition: 'inputs.allow_paid_inference == true',
-      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
+      authorizationCondition: "vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'",
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}',
     },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
