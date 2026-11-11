@@ -39,6 +39,10 @@ export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   GLORIFIER_BACKEND_REDIRECT_ALLOWED_HOSTS?: string;
   GLORIFIER_NEURAL_ORIGIN?: string;
   GLORIFIER_NEURAL_ALLOWED_HOSTS?: string;
+  // Control-plane gates mirrored from NEURAL; missing values always deny provider egress and task inference.
+  GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS?: string;
+  GLORIFIER_ENABLE_INFERENCE?: string;
+  GLORIFIER_PAID_INFERENCE_AUTHORIZED?: string;
   // Separate downstream API credential accepted by NEURAL /v1/tasks; never reuse the ingress service token.
   GLORIFIER_API_TOKEN?: string;
   // Private same-account Worker-to-Worker route; never fall back to public fetch().
@@ -73,6 +77,9 @@ const resolveHttpsOrigin = (value?: string): string | null => {
 const resolveBackendOrigin = resolveHttpsOrigin;
 
 const configured = (value: string | undefined): string => (value || '').trim();
+
+// Only the literal string "true" enables an outbound capability; missing or malformed values deny.
+const explicitlyEnabled = (value: string | undefined): boolean => configured(value).toLowerCase() === 'true';
 
 // Host allowlists are exact-match only; wildcard suffixes and arbitrary URL prefixes
 // are intentionally unsupported. An absent allowlist fails closed.
@@ -762,6 +769,35 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
           'X-Content-Type-Options': 'nosniff',
           'WWW-Authenticate': 'Bearer realm="GLORIFIER internal service"',
         },
+      });
+    }
+  }
+
+  // Readiness may contact the selected provider to enumerate models. Keep that outbound
+  // probe disabled unless the control plane explicitly permits external data egress.
+  if (pathname === '/api/neural/ready' && !explicitlyEnabled(env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_EGRESS_DISABLED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (pathname === '/api/neural/v1/tasks') {
+    if (!explicitlyEnabled(env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS)) {
+      return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_EGRESS_DISABLED' }, {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+    if (!explicitlyEnabled(env.GLORIFIER_ENABLE_INFERENCE)) {
+      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_INFERENCE_DISABLED' }, {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+    if (!explicitlyEnabled(env.GLORIFIER_PAID_INFERENCE_AUTHORIZED)) {
+      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED' }, {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
     }
   }

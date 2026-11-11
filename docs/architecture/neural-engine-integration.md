@@ -41,6 +41,9 @@ Do not add a generic arbitrary-path proxy. Restrict the adapter to these exact p
 
 - `GLORIFIER_NEURAL_ORIGIN`: server-side Cloudflare Worker variable containing only the reviewed HTTPS origin (scheme + host, no credentials, path, query, or fragment).
 - `GLORIFIER_NEURAL_ALLOWED_HOSTS`: comma-separated, exact-match hostnames authorized for Neural egress. The origin hostname must appear in this list; wildcards are not accepted. Missing or mismatched allowlists fail closed.
+- `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS`: explicit string `true` required before `/api/neural/ready` may proxy a provider-readiness probe or a task request may leave the control plane. Missing, false, or malformed values deny.
+- `GLORIFIER_ENABLE_INFERENCE`: explicit string `true` required before the task route can forward a request to NEURAL. This flag alone does not authorize provider egress or paid inference.
+- `GLORIFIER_PAID_INFERENCE_AUTHORIZED`: independent owner-controlled spend authorization. Explicit string `true` is also required before the task route forwards a request; it defaults to false in production, preview, and local examples.
 - `GLORIFIER_BACKEND_ALLOWED_HOSTS`: comma-separated, exact-match hostnames authorized for the separately configured legacy backend. Missing or mismatched allowlists fail closed. Configure this alongside `GLORIFIER_BACKEND_ORIGIN` before enabling backend-dependent routes.
 - Neural deployment secret `GLORIFIER_API_TOKEN`: high-entropy bearer token configured in the Neural runtime secret manager; never commit it, put it in frontend code, or paste it into logs/chat.
 - GLORIFIER's Cloudflare Worker must also hold the same `GLORIFIER_API_TOKEN` value as a separate secret so its trusted internal-service path can authenticate to NEURAL's public `/v1/tasks` endpoint.
@@ -61,7 +64,7 @@ The Worker `/api/runtime-verification` response includes a `checks.neural` objec
 | `not-allowlisted` | Origin host is absent from the exact-host allowlist | `false` |
 | `configured-not-probed` | Origin and exact-host allowlist are syntactically configured | `null` |
 
-Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` establish upstream reachability and readiness. A 200 health response proves process liveness only; readiness remains 503 until Neural integrations are actually verified. The runtime verification endpoint deliberately does not test the task endpoint because doing so would require a caller credential and could trigger processing.
+Only separate read-only calls to `/api/neural/health` and `/api/neural/ready` establish upstream reachability and readiness. A 200 health response proves process liveness only and remains available when provider egress is disabled. The GLORIFIER edge blocks `/api/neural/ready` with `503 NEURAL_EXTERNAL_EGRESS_DISABLED` unless external egress is explicitly authorized. Task POSTs are blocked at the edge unless egress, inference enablement, and the independent paid-inference authorization are all explicitly true. After those edge gates, NEURAL still enforces its own matching default-deny controls. A readiness response must not be treated as proof of live inference. The runtime verification endpoint deliberately does not test the task endpoint because doing so would require a caller credential and could trigger processing.
 
 ## Required implementation and release gates
 
