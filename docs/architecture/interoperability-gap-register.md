@@ -400,3 +400,40 @@ The route remains DEGRADED. Before any credential staging, the protected release
 
 No production configuration, secrets, database records, provider settings, wallet, or blockchain state was changed by this documentation update.
 
+
+
+## Superseding production configuration and source checkpoint — 2026-11-11 05:24 UTC
+
+This checkpoint supersedes the historical 2026-11-10 statements above that production was still serving GLORIFIER v994 / NEURAL v33, that the GLORIFIER service binding or shared secret binding names were absent, that the active NEURAL inference/egress flags were true, or that NEURAL PR #86 was blocked.
+
+### Exact active production versions
+
+A read-only Cloudflare version/deployment inventory at 2026-11-11 05:24 UTC recorded:
+
+- GLORIFIER Worker `glorifier`: version **1001**, version ID `dedb9c68-908f-4242-ba03-9141424d3d2c`, deployment `0d3cf454-3075-4875-9982-1a7adbb56277`, 100% traffic. Release provenance identifies source commit `3a2bb65d4fabc3c1a3171e8303f51246c49506bf` and workflow run [#42941575720](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720).
+- NEURAL Worker `glorifier-neural`: version **36**, version ID `f1a26f39-e46f-4d9d-b982-f66f21f2e115`, deployment `ab78475f-dcf6-46a1-b7a4-e823bd1559ca`, 100% traffic. NEURAL main is `042c50d5d570122eeb12036c7a68865330630da7`; PR [#86](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/86) merged at 2026-11-11 00:07 UTC. Its validate, deploy, and smoke jobs passed in [workflow run #629](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42938988897).
+- Both exact active versions report `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false`, `GLORIFIER_ENABLE_INFERENCE=false`, and `GLORIFIER_PAID_INFERENCE_AUTHORIZED=false`.
+- GLORIFIER v1001 has the `GLORIFIER_NEURAL` service binding to `glorifier-neural`. Both versions expose the required secret binding **names** `GLORIFIER_API_TOKEN` and `GLORIFIER_INTERNAL_SERVICE_TOKEN`. No secret values were read. Binding presence does not prove values match or that an authenticated task succeeds.
+- Both services report Neon/Hyperdrive bindings. This is configuration evidence, not proof of database parity or arbitrary data-store health.
+
+### Production smoke and incomplete repeat probe
+
+- Guarded production workflow [#42941575720](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720) completed successfully at 2026-11-11 01:50 UTC from GLORIFIER release commit `3a2bb65d4fabc3c1a3171e8303f51246c49506bf`. Its read-only smoke verified Worker health, Neon Hyperdrive, exact counts for the six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations / 11 data records). No task POST or inference was performed.
+- A subsequent public-origin GET-only attempt at 05:24 UTC did not return a complete result: most endpoints timed out in the probe client; `/api/neural/ready` returned HTTP 503 but its response body was unavailable. Do not treat this attempt as a successful full smoke or as confirmation of the structured provider-disabled response.
+
+### Source and release reconciliation
+
+- GLORIFIER current main is `c12b62b7d81c885cca2aa63cd579a07fceea02a7`. PR [#802](https://github.com/GLORIFIER7/GLORIFIER/pull/802) merged the stricter exact-literal edge authorization check, so only the literal string `true` enables the gated edge behavior. Main CI on this commit passed the GLORIFIER CI, Cloudflare validation/dry-run, Build and Test, CodeQL JavaScript/TypeScript and Python, frontend, npm security, Android, GEAS, and E2E checks observed in the run inventory.
+- The active GLORIFIER v1001 deployment still carries release provenance for earlier commit `3a2bb65d4fabc3c1a3171e8303f51246c49506bf`; it has not been demonstrated to contain the post-release PR #802 exact-literal guard. The main-branch push correctly skipped production deployment. Promotion remains gated by the manual `workflow_dispatch`, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, and protected `production` environment in `.github/workflows/cloudflare-worker.yml`.
+- PR [#811](https://github.com/GLORIFIER7/GLORIFIER/pull/811) merged at 2026-11-11 05:26 UTC as main commit `c12b62b7d81c885cca2aa63cd579a07fceea02a7`, repairing NVIDIA maintenance workflow validation/publication isolation and its regression contracts. Its successful source checks do not constitute a production deployment.
+
+### Remaining #471 acceptance gates
+
+1. Run the protected GLORIFIER production workflow against the intended current main source after confirming the environment is still default-deny; then read back the exact active version and repeat complete GET-only smoke. Do not enable inference or egress to make readiness return 200.
+2. Perform a separately authorized harmless authenticated GLORIFIER-to-NEURAL task test only when the safe-mode policy and owner authorization are explicitly satisfied. Until then task execution and model inference remain NOT VERIFIED.
+3. Complete external MCP client handshake/discovery/list/call and the official revision-pinned conformance suite; complete external A2A 1.0.1 authenticated two-agent/task lifecycle tests.
+4. Enroll an authorized Linux host and verify heartbeat, fixed read-only task claim/result receipt, lease expiry, and revocation. GitHub-hosted Ubuntu source/container CI does not prove a live host is connected.
+5. Refresh independent, timestamped read-only RPC evidence for Ethereum, BNB Chain, and Solana. Keep signing, minting, transfers, and contract writes disabled.
+6. Keep cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independent economic outcomes NOT VERIFIED until their dedicated evidence is recorded.
+
+No task, provider prompt, inference, paid call, credential value read, production setting mutation, database migration/write, deployment after the identified v1001 release, chain signing, mint, transfer, or financial action was performed during this evidence reconciliation.
