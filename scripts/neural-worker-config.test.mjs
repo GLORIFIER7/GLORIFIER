@@ -18,6 +18,16 @@ assert.ok(productionVars && typeof productionVars === 'object' && !Array.isArray
 assert.ok(previewVars && typeof previewVars === 'object' && !Array.isArray(previewVars),
   'preview Wrangler variables must be present as an object');
 
+const inferenceAuthorizationFlags = [
+  'GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS',
+  'GLORIFIER_ENABLE_INFERENCE',
+  'GLORIFIER_PAID_INFERENCE_AUTHORIZED',
+];
+for (const flag of inferenceAuthorizationFlags) {
+  assert.equal(productionVars[flag], 'false', `production must default ${flag} to false`);
+  assert.equal(previewVars[flag], 'false', `previews must default ${flag} to false`);
+}
+
 const expectedOrigin = 'https://glorifier-neural.glorifier.workers.dev';
 const expectedHostname = 'glorifier-neural.glorifier.workers.dev';
 
