@@ -117,17 +117,54 @@ test('CLI writes redacted structural evidence, removes raw response, and fails c
 
 
 test('keeps the trusted triage parser checkout isolated from collected workspace logs', () => {
-  const workflow = fs.readFileSync(
-    path.join(__dirname, '..', '.github', 'workflows', 'nvidia-ci-triage.yml'),
+  // These repository-root-relative paths are fixed literals; no runtime value
+  // participates in selecting a workflow file.
+  const workflow = fs.readFileSync('.github/workflows/nvidia-ci-triage.yml', 'utf8');
+  const pinnedCheckout = 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1';
+  const checkoutRefs = workflow.split(String.fromCharCode(10))
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('uses: actions/checkout@'))
+    .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
+  assert.equal(checkoutRefs.length, 2, 'NVIDIA CI triage must declare exactly two checkout actions');
+  assert.ok(checkoutRefs.every((ref) => ref === pinnedCheckout.slice('uses: actions/checkout@'.length)),
+    'NVIDIA CI triage must pin every checkout action to the reviewed immutable commit SHA');
+  const authStep = workflow.indexOf('name: Checkout trusted main-branch authorization policy');
+  const parserStep = workflow.indexOf('name: Checkout trusted main-branch triage parser');
+  assert.ok(authStep >= 0 && parserStep > authStep, 'trusted authorization and parser checkouts must be present in order');
+  const authCheckout = workflow.indexOf(pinnedCheckout, authStep);
+  const parserCheckout = workflow.indexOf(pinnedCheckout, parserStep);
+  assert.ok(authCheckout > authStep && parserCheckout > parserStep, 'authorization and parser checkouts must use the immutable pin');
+  assert.ok(workflow.indexOf('path: authorization', authCheckout) > authCheckout);
+  assert.ok(workflow.indexOf('path: trusted', parserCheckout) > parserCheckout);
+  assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
+
+  const maintenanceWorkflow = fs.readFileSync(
+    '.github/workflows/nvidia-assisted-maintenance-pr.yml',
     'utf8',
   );
-  assert.match(
-    workflow,
-    /name: Checkout trusted main-branch triage parser[\s\S]*?uses: actions\/checkout@v7[\s\S]*?path: trusted/,
-  );
-  assert.match(workflow, /node trusted\/scripts\/nvidia-triage-response\.cjs/);
-  assert.ok(workflow.includes("github.ref == 'refs/heads/main' &&"));
-  assert.ok(workflow.includes("github.event.workflow_run.head_repository.full_name == github.repository"));
+  for (const [name, source] of [
+    ['NVIDIA CI triage', workflow],
+    ['NVIDIA assisted maintenance', maintenanceWorkflow],
+  ]) {
+    const checkoutRefs = source.split(String.fromCharCode(10))
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('uses: actions/checkout@'))
+      .map((line) => line.slice('uses: actions/checkout@'.length).split(' ')[0]);
+    assert.ok(checkoutRefs.length > 0, name + ' must declare checkout actions');
+    assert.ok(
+      checkoutRefs.every((ref) => /^[a-f0-9]{40}$/.test(ref)),
+      name + ' must pin every checkout action to a full immutable commit SHA',
+    );
+  }
+  const jobCondition = workflow.match(/^\s+if:\s*\$\{\{([\s\S]*?)\}\}/m)?.[1] ?? '';
+  assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(jobCondition, /inputs\.allow_paid_inference == true/);
+  assert.match(jobCondition, /github\.actor_id == '32674233'/);
+  assert.match(jobCondition, /github\.run_attempt == 1/);
+  assert.doesNotMatch(jobCondition, /workflow_run/);
+  const authorizationIndex = workflow.indexOf('glorifier_ai_maintenance_authorized');
+  assert.ok(authorizationIndex >= 0 && authorizationIndex < workflow.indexOf('name: Require NVIDIA credential'));
   assert.match(workflow, /"chat_template_kwargs"\s*:\s*\{\s*"enable_thinking"\s*:\s*False\s*\}/);
 });
 

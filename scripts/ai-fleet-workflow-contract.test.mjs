@@ -11,6 +11,8 @@ const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.ym
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
 const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
 const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
+const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
+const nvidiaMaintenanceWorkflow = readFileSync(new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publicationWindowMarker = '\n  publication-window:\n';
@@ -357,4 +359,49 @@ test('Gemini PR review has empty dispatch inputs and resolves a target only afte
   assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ needs\.gemini-review\.outputs\.pr_number \}\}/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.pr_number|inputs\.allow_paid_inference/);
   assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
+test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {
+  const workflows = [
+    {
+      name: 'NVIDIA CI triage',
+      source: nvidiaTriageWorkflow,
+      credentialStep: 'Require NVIDIA credential',
+      providerStep: 'Ask NVIDIA NIM for a diagnostic',
+    },
+    {
+      name: 'NVIDIA assisted maintenance',
+      source: nvidiaMaintenanceWorkflow,
+      credentialStep: 'Require NVIDIA credential',
+      providerStep: 'Request a constrained patch from Nemotron',
+    },
+  ];
+
+  for (const item of workflows) {
+    assert.match(item.source,
+      /allow_paid_inference:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+boolean\n\s+default:\s+false/,
+      item.name + ' must default paid inference authorization to false');
+    const jobCondition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? ''
+    assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/,
+      item.name + ' must run only from manual dispatch');
+    assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/,
+      item.name + ' must run only from main');
+    assert.match(jobCondition, /inputs\.allow_paid_inference == true/,
+      item.name + ' must require explicit paid-inference opt-in');
+    assert.match(jobCondition, /github\.actor_id == '32674233'/,
+      item.name + ' must require the owner account');
+    assert.match(jobCondition, /github\.run_attempt == 1/,
+      item.name + ' must deny reruns');
+    assert.doesNotMatch(jobCondition, /workflow_run/,
+      item.name + ' must never invoke a provider from an automatic workflow_run event');
+
+    const checkoutIndex = item.source.indexOf('name: Checkout trusted main-branch authorization policy');
+    const authorizationIndex = item.source.indexOf('glorifier_ai_maintenance_authorized');
+    const credentialIndex = item.source.indexOf('name: ' + item.credentialStep);
+    const providerIndex = item.source.indexOf('name: ' + item.providerStep);
+    assert.ok(checkoutIndex >= 0 && checkoutIndex < authorizationIndex,
+      item.name + ' must load the trusted shared authorization helper first');
+    assert.ok(authorizationIndex < credentialIndex && authorizationIndex < providerIndex,
+      item.name + ' must authorize before reading provider credentials or making provider requests');
+    assert.match(item.source, /workflow_run:/,
+      item.name + ' may retain the automatic trigger only as a skipped, default-deny event');
+  }
 });

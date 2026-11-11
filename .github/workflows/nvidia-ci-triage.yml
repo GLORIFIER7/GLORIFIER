@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ""
+      allow_paid_inference:
+        description: "Explicit owner authorization to send redacted CI logs to NVIDIA; provider charges and external data transmission may apply"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -24,13 +29,32 @@ concurrency:
 jobs:
   triage:
     name: Analyze failed CI with NVIDIA NIM
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
     steps:
+      - name: Checkout trusted main-branch authorization policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: authorization
+          persist-credentials: false
+
+      - name: Enforce shared owner-only paid-inference authorization
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source authorization/scripts/ai-fleet-authorization.sh
+          glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
+
       - name: Require NVIDIA credential
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
@@ -122,7 +146,7 @@ jobs:
           PY
 
       - name: Checkout trusted main-branch triage parser
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           path: trusted
