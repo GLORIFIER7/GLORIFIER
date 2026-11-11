@@ -8,6 +8,9 @@ const operatingModel = readFileSync(new URL('../docs/AUTONOMOUS_ENGINEERING_OPER
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
+const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
+const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publicationWindowMarker = '\n  publication-window:\n';
@@ -318,4 +321,70 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
   assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
   assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new branch updates may continue to supersede older branch-update runs');
+});
+
+test('Gemini external inference requires explicit owner-only manual authorization and root-owned settings', () => {
+  const workflows = [
+    {
+      name: 'Gemini collaborator',
+      source: geminiCollaboratorWorkflow,
+      firstSensitiveStep: 'name: Require Gemini credential',
+      modelStep: 'name: Run Gemini engineering collaboration',
+    },
+    {
+      name: 'Gemini development',
+      source: geminiDevelopmentWorkflow,
+      firstSensitiveStep: 'name: Setup Node.js',
+      modelStep: 'name: Run Gemini CLI',
+    },
+    {
+      name: 'Gemini PR review',
+      source: geminiPrReviewWorkflow,
+      firstSensitiveStep: 'name: Require Gemini credential',
+      modelStep: 'name: Run Gemini advisory review',
+    },
+  ];
+
+  for (const item of workflows) {
+    assert.match(item.source,
+      /allow_paid_inference:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+boolean\n\s+default:\s+false/,
+      item.name + ' must default paid inference authorization to false');
+    const jobCondition = item.source.match(/^\s+if:\s*\$\{\{([\s\S]*?)\}\}/m)?.[1] ?? '';
+    assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/,
+      item.name + ' must run only from manual dispatch');
+    assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/,
+      item.name + ' must run only from main');
+    assert.match(jobCondition, /inputs\.allow_paid_inference == true/,
+      item.name + ' must require explicit owner opt-in');
+    assert.match(jobCondition, /github\.actor_id == '32674233'/,
+      item.name + ' must require the owner account');
+    assert.match(jobCondition, /github\.run_attempt == 1/,
+      item.name + ' must deny reruns');
+    assert.doesNotMatch(jobCondition, /schedule|pull_request_target/,
+      item.name + ' must deny automatic events');
+
+    const checkoutIndex = item.source.indexOf('name: Checkout');
+    const authorizationIndex = item.source.indexOf('glorifier_ai_maintenance_authorized');
+    const sensitiveIndex = item.source.indexOf(item.firstSensitiveStep);
+    const modelIndex = item.source.indexOf(item.modelStep);
+    assert.ok(checkoutIndex >= 0 && checkoutIndex < authorizationIndex,
+      item.name + ' must load trusted policy before authorization');
+    assert.ok(authorizationIndex < sensitiveIndex && authorizationIndex < modelIndex,
+      item.name + ' must authorize before credentials, dependencies, or model execution');
+    assert.match(item.source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/,
+      item.name + ' must use a root-owned trusted-settings directory');
+    assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \/etc\/glorifier\/gemini-system-settings\.json/,
+      item.name + ' must point Gemini to the root-owned settings file');
+  }
+
+  assert.match(geminiCollaboratorWorkflow, /schedule:/,
+    'scheduled collaborator events may remain declared but must be skipped by the job gate');
+  assert.match(geminiPrReviewWorkflow, /pull_request_target:/,
+    'automatic PR review events may remain declared but must be skipped by the job gate');
+  assert.match(geminiPrReviewWorkflow,
+    /pr_number:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+number/,
+    'manual Gemini PR review must require an explicit PR number');
+  assert.match(geminiPrReviewWorkflow,
+    /PR_NUMBER: \$\{\{ inputs\.pr_number \|\| github\.event\.pull_request\.number \}\}/,
+    'manual Gemini PR review must use the supplied PR number');
 });
