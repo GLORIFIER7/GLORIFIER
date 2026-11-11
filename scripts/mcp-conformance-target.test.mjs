@@ -73,3 +73,14 @@ test('rejects IP literals and local-only target hosts even when allowlisted', ()
     );
   }
 });
+
+test('rejects empty entries in comma- and newline-separated allowlists', () => {
+  for (const invalid of [
+    'glorifier.glorifier.workers.dev,',
+    'glorifier.glorifier.workers.dev,,other.example.net',
+    'glorifier.glorifier.workers.dev\n\nother.example.net',
+    ',,',
+  ]) {
+    assert.throws(() => validateMcpConformanceTarget(target, invalid), /empty entry/i);
+  }
+});
