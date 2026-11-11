@@ -473,3 +473,24 @@ This checkpoint supersedes earlier statements in this register that GLORIFIER pr
 7. Keep cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independently verified economic outcomes as NOT VERIFIED until their dedicated evidence exists.
 
 **Decision:** Issue #471 remains OPEN. Production synchronization to current main and the enumerated GET-only smoke are verified. The external protocol, real-host, fresh-chain, identity, and authenticated execution gates are not complete.
+
+
+## Fresh independent GLR chain RPC checkpoint — 2026-11-11 06:53:06 UTC / 13:53:06 Asia/Vientiane
+
+A new read-only probe was performed through the existing GLORIFIER Alchemy app. The app's usage summary immediately after these probes reported 1,072 compute units for the current billing period and **USD 0.00** month-to-date. No application, allowlist, billing, or provider configuration was changed.
+
+| Network | Read-only observations | Result |
+|---|---|---|
+| Ethereum Mainnet | `eth_chainId`, `eth_blockNumber`, `eth_getCode`, and `eth_call` for `name()`, `symbol()`, `decimals()`, and `totalSupply()` | Chain ID `0x1`; block `0x192adf7` (26,390,007); non-empty code; GLORIFIER / GLR; 18 decimals; 1,000,000,000 GLR total supply |
+| BNB Smart Chain Mainnet | Same read-only EVM methods against the owner-designated GLR BEP-20 contract | Chain ID `0x38`; block `0x7ec40ae` (132,923,566); non-empty code; GLORIFIER / GLR; 18 decimals; 1,000,000,000 GLR total supply |
+| Solana Mainnet Beta | `getGenesisHash`, `getBlockHeight(finalized)`, `getTokenSupply(finalized)`, and `getAccountInfo(jsonParsed, finalized)` | Mainnet genesis hash matched; finalized height 446,046,054; GLORIFIER / GLR Token-2022 mint; 9 decimals; 1,000,000,000 GLR; mint, freeze, metadata-pointer, and metadata-update authorities are null |
+
+### Evidence boundary
+
+- This refresh closes the **fresh read-only network/contract-state observation gap** for the three named networks as of the timestamp above.
+- Ethereum and BNB contract observations are against the owner-designated GLR contracts recorded in the capability registry. Ethereum's second same-deployer GLORIFIER/GLR contract canonical-identity question remains unresolved.
+- The Solana observations verify the configured mint at finalized context slot 468029566, but do not substitute for an independent provenance review or a transfer verification.
+- All three transfer-verifier capabilities remain **PARTIALLY VERIFIED**. No actual transfer, receipt validation, payment-path test, signing, minting, transaction, or state mutation was performed.
+- These RPC results do not verify general blockchain interoperability, cross-chain asset equivalence, or any transaction/write capability.
+
+Issue #471 remains OPEN. The external A2A/MCP, live Linux host, authenticated GLORIFIER–NEURAL task, owner identity, cryptographic identity, sandbox, GPU/Kubernetes/NVIDIA Dynamo, provider billing, and independently verifiable economic-outcome gates remain separate and unverified.
