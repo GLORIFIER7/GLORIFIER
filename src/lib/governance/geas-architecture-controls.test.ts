@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { buildEvidenceRecord, canonicalActionHash, evaluateVerificationState, problemDetails } from './geas-architecture-controls';
+import { buildEvidenceRecord, canonicalActionHash, evaluateVerificationState, getEconomicIntegrityPolicy, problemDetails } from './geas-architecture-controls';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
@@ -61,4 +61,19 @@ test('generic GEAS evidence admission rejects economic truth without a financial
     refs: ['provider-usage:1', 'provider-invoice:1'],
     content: { status: 'RECONCILED', amount: '0.00', currency: 'USD' },
   }), /GEAS financial-integrity gate/);
+});
+
+
+test('GEAS economic integrity policy remains closed until every source control is verified', () => {
+  const policy = getEconomicIntegrityPolicy();
+  assert.equal(policy.version, 'GEAS-FININT-1.0');
+  assert.equal(policy.status, 'NOT VERIFIED');
+  assert.equal(policy.mayClaimEconomicallyVerified, false);
+  assert.equal(policy.genericEvidenceAdmission, 'BLOCKED');
+  assert.ok(policy.controls.some((control) => control.id === 'focus-1-4-usage-invoice-reconciliation'
+    && control.implementationStatus === 'IMPLEMENTED'
+    && control.evidenceStatus === 'NOT VERIFIED'));
+  assert.ok(policy.controls.some((control) => control.id === 'provider-issued-usage-authenticity'
+    && control.implementationStatus === 'NOT IMPLEMENTED'));
+  assert.ok(policy.controls.every((control) => control.evidenceStatus === 'NOT VERIFIED'));
 });
