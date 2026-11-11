@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true' && github.actor_id == '32674233' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
