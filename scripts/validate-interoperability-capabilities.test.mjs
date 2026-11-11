@@ -197,12 +197,12 @@ test('fresh independent read-only GLR chain probes are recorded without overstat
     {
       id: 'blockchain.ethereum-readonly-transfer-verifier',
       target: 'Ethereum Mainnet',
-      markers: ['eth_chainId returned 0x1', 'eth_blockNumber returned 0x192adf7', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
+      markers: ['eth_chainId returned 0x1', 'eth_blockNumber returned 0x192adf7', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR)'],
     },
     {
       id: 'blockchain.bnb-readonly-transfer-verifier',
       target: 'BNB Smart Chain Mainnet',
-      markers: ['eth_chainId returned 0x38', 'eth_blockNumber returned 0x7ec40ae', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
+      markers: ['eth_chainId returned 0x38', 'eth_blockNumber returned 0x7ec40ae', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR)'],
     },
     {
       id: 'blockchain.solana-readonly-transfer-verifier',
@@ -214,6 +214,7 @@ test('fresh independent read-only GLR chain probes are recorded without overstat
   for (const expectation of expectations) {
     const capability = registry.capabilities.find((item) => item.id === expectation.id);
     assert.ok(capability, `missing capability ${expectation.id}`);
+    assert.ok(Array.isArray(capability.evidence), `${expectation.id} must expose an evidence array`);
     assert.equal(capability.status, 'PARTIALLY VERIFIED',
       'read-only chain reachability and token metadata must not imply a verified transfer/payment path');
     const evidence = capability.evidence.find((item) =>
