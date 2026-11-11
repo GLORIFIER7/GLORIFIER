@@ -2300,6 +2300,7 @@ const run = async (): Promise<void> => {
           new Request('https://glorifier.glorifier.workers.dev/api/neural/health'),
           {
             ...env,
+            GLORIFIER_NEURAL_ORIGIN: 'https://neural.example.test',
             GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
             GLORIFIER_ENABLE_INFERENCE: 'false',
             GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
