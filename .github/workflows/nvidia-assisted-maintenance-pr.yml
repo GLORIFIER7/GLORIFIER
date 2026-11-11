@@ -437,7 +437,7 @@ jobs:
           git -c core.hooksPath=/dev/null commit -m "fix: propose verified repair for CI run $TARGET_RUN_ID"
           gh auth setup-git
           git push origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation (npm audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation). Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation and project-specific security and regression checks. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
       - name: Summarize isolated publication
         if: always()
         env:
