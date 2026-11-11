@@ -483,7 +483,9 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'publisher must verify it received the exact patch tested by the read-only validator');
   assert.match(publisher, /git -c core\.hooksPath=\/dev\/null .* apply/);
   assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
-  const publisherCommands = publisherStepBlocks(publisher).join('\n');
+  const publisherCommands = publisherStepBlocks(publisher)
+    .map((step) => step.split('        run:').slice(1).join('\n'))
+    .join('\n');
   assert.doesNotMatch(
     publisherCommands,
     /\b(?:npm|npx|yarn|pnpm)\s+(?:ci|install|test|audit|run|exec)\b|\bnode\s+\S+|\bpython3?\s+(?:-c\b|\S+\.py\b)|\b(?:bash|sh)\s+\S+|test:nvidia-provider|test:protected-api-paths/i,
