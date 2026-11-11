@@ -453,6 +453,10 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'provider job must explicitly use read-only repository permissions');
   assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write|gh pr create|git push/,
     'provider execution must not receive write permissions or publish changes');
+  assert.match(proposal, /sha256sum/,
+    'proposal must hash the exact generated patch before handing it to downstream jobs');
+  assert.match(proposal, /patch_sha256=/,
+    'proposal must publish the generated patch digest as a job output');
   assert.match(proposal, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/,
     'provider job must hand off the candidate patch as an artifact');
 
@@ -464,12 +468,11 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   assert.match(validator, /npm run build/);
   assert.match(validator, /npm run test:nvidia-provider/);
   assert.match(validator, /npm run test:protected-api-paths/);
-  assert.match(validator, /sha256sum/);
-  assert.match(validator, /patch_sha256=/,
-    'validator must export the digest of the exact patch it tested');
+  assert.match(validator, /EXPECTED_PATCH_SHA256: \$\{\{ needs\.propose-fix\.outputs\.patch_sha256 \}\}/,
+    'read-only validator must verify the candidate digest produced before code execution');
 
   assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
-  assert.match(publisher, /needs\.validate-fix\.outputs\.patch_sha256/);
+  assert.match(publisher, /needs\.propose-fix\.outputs\.patch_sha256/);
   assert.match(publisher,
     /^    permissions:\n      actions: read\n      contents: write\n      pull-requests: write$/m,
     'only the publisher may hold the minimum GitHub write permissions');
