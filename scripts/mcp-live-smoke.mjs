@@ -19,6 +19,34 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
+async function readSseEnvelope(response, expectedId, method) {
+  const raw = await response.text();
+  let matchingEnvelope;
+
+  for (const event of raw.split(/\\r?\\n\\r?\\n/)) {
+    const dataLines = event.split(/\\r?\\n/).flatMap((line) => {
+      if (line.startsWith(':')) return [];
+      const separator = line.indexOf(':');
+      if (separator < 0 || line.slice(0, separator) !== 'data') return [];
+      const value = line.slice(separator + 1);
+      return [value.startsWith(' ') ? value.slice(1) : value];
+    });
+
+    if (dataLines.length === 0) continue;
+
+    let envelope;
+    try {
+      envelope = JSON.parse(dataLines.join('\\n'));
+    } catch {
+      throw new Error(`MCP ${method} SSE stream contained invalid JSON data.`);
+    }
+    if (envelope?.id === expectedId) matchingEnvelope = envelope;
+  }
+
+  assert(matchingEnvelope, `MCP ${method} SSE stream did not contain response ID ${expectedId}.`);
+  return matchingEnvelope;
+}
+
 function buildMeta() {
   return {
     [PROTOCOL_VERSION_META_KEY]: MCP_PROTOCOL_VERSION,
@@ -30,7 +58,7 @@ function buildMeta() {
 async function postRpc({ endpoint, method, id, params = {}, fetchImpl }) {
   const url = new URL(endpoint);
   const headers = {
-    Accept: 'application/json',
+    Accept: 'application/json, text/event-stream',
     'Content-Type': 'application/json',
     Origin: url.origin,
     'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
@@ -56,14 +84,18 @@ async function postRpc({ endpoint, method, id, params = {}, fetchImpl }) {
   }
 
   assert(response.status === 200, `MCP ${method} returned HTTP ${response.status}; expected HTTP 200.`);
-  const contentType = response.headers.get('content-type') || '';
-  assert(contentType.toLowerCase().includes('application/json'), `MCP ${method} returned non-JSON content type.`);
-
+  const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase();
   let envelope;
-  try {
-    envelope = await response.json();
-  } catch {
-    throw new Error(`MCP ${method} response was not valid JSON.`);
+  if (contentType === 'application/json') {
+    try {
+      envelope = await response.json();
+    } catch {
+      throw new Error(`MCP ${method} response was not valid JSON.`);
+    }
+  } else if (contentType === 'text/event-stream') {
+    envelope = await readSseEnvelope(response, id, method);
+  } else {
+    throw new Error(`MCP ${method} returned unsupported content type: ${contentType || 'missing'}.`);
   }
   assert(envelope?.jsonrpc === '2.0', `MCP ${method} response is not a JSON-RPC 2.0 envelope.`);
   assert(envelope.id === id, `MCP ${method} response ID does not match the request.`);
@@ -100,6 +132,10 @@ function validateTools(result) {
 }
 
 function parseRepositoryToolResult(result) {
+  assert(
+    result.isError === undefined || typeof result.isError === 'boolean',
+    'MCP github_get_repository returned a malformed isError flag.',
+  );
   assert(result.isError !== true, 'MCP github_get_repository tool call returned isError=true.');
   assert(Array.isArray(result.content), 'MCP github_get_repository result is missing content.');
   const textContent = result.content.find((item) => item?.type === 'text' && typeof item.text === 'string');
@@ -116,6 +152,19 @@ function parseRepositoryToolResult(result) {
   return repository;
 }
 
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.keys(value).sort().map(
+      (key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`,
+    );
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export async function runMcpLiveSmoke({ targetUrl, allowedHosts, fetchImpl = globalThis.fetch }) {
   assert(typeof fetchImpl === 'function', 'A Fetch implementation is required.');
   const endpoint = validateMcpConformanceTarget(targetUrl, allowedHosts);
@@ -127,7 +176,7 @@ export async function runMcpLiveSmoke({ targetUrl, allowedHosts, fetchImpl = glo
   validateTools(firstTools);
   const secondTools = await postRpc({ endpoint, method: 'tools/list', id: 3, fetchImpl });
   validateTools(secondTools);
-  const deterministicList = JSON.stringify(firstTools.tools) === JSON.stringify(secondTools.tools);
+  const deterministicList = stableStringify(firstTools.tools) === stableStringify(secondTools.tools);
   assert(deterministicList, 'MCP tools/list order or contents changed between consecutive requests.');
 
   const repositoryResult = await postRpc({
