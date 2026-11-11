@@ -33,7 +33,7 @@ A billing reconciliation must not silently collapse distinct currencies. Cost am
 - `RECONCILED`: authenticated provider usage and invoice sources match complete GLORIFIER metering for the exact period, including supported credits and adjustments, within an explicit policy tolerance.
 - `DISCREPANCY`: unexplained variance, missing usage, duplicate charges, invalid mapping, or conflicting source records exist.
 
-Only the last state, with all mandatory controls satisfied and evidence retained, can be considered by a future dedicated server-side GEAS verifier. The generic record endpoint is not that verifier and must remain blocked for economic truth. A dataset reconciler's status alone cannot promote the claim.
+Only a `RECONCILED` state, with all mandatory controls satisfied and evidence retained, may be considered by a future dedicated server-side GEAS verifier. A `DISCREPANCY` state is never eligible and must remain blocked pending investigation and reconciliation. The generic record endpoint is not that verifier and must remain blocked for economic truth. A dataset reconciler's status alone cannot promote the claim.
 
 Provider cost reconciliation is also distinct from verified revenue or independently verified economic outcomes. Revenue and settlement claims require their own authoritative external settlement evidence and verification path.
 
