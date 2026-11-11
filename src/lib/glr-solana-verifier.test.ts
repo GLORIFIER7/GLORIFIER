@@ -26,11 +26,14 @@ const transaction = {
   meta: { err: null, innerInstructions: [] },
 };
 
-const mockFetch: typeof fetch = async (_input, init) => {
+const MAINNET_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
+const TRUNCATED_GENESIS_HASH = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+
+const createMockFetch = (genesisHash: string): typeof fetch => async (_input, init) => {
   const body = JSON.parse(String(init?.body || '{}'));
   let result: unknown;
   switch (body.method) {
-    case 'getGenesisHash': result = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'; break;
+    case 'getGenesisHash': result = genesisHash; break;
     case 'getSignatureStatuses': result = { value: [{ err: null, confirmationStatus: 'finalized' }] }; break;
     case 'getTransaction': result = transaction; break;
     case 'getAccountInfo': result = { value: { data: { parsed: { type: 'account', info: { mint: SOLANA_GLR_MINT, owner: recipient } } } } }; break;
@@ -39,10 +42,22 @@ const mockFetch: typeof fetch = async (_input, init) => {
   return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 
+const mockFetch = createMockFetch(MAINNET_GENESIS_HASH);
+
 test('Solana GLR amount conversion enforces nine-decimal Token-2022 precision', () => {
   assert.equal(solanaGLRAmountToBaseUnits('1'), 1000000000n);
   assert.equal(solanaGLRAmountToBaseUnits('0.000000001'), 1n);
   assert.throws(() => solanaGLRAmountToBaseUnits('0.0000000001'));
+});
+
+test('truncated Solana mainnet genesis hashes are rejected', async () => {
+  await assert.rejects(verifySolanaGLRTransfer({
+    transactionHash: signature,
+    expectedAmount: '1',
+    expectedPayerWallet: payer,
+    fetchImpl: createMockFetch(TRUNCATED_GENESIS_HASH),
+    env: { GLR_SOLANA_PAYMENT_RECIPIENT: recipient },
+  }), /Configured RPC is not Solana mainnet-beta/);
 });
 
 test('a finalized Token-2022 GLR transfer verifies and redacts RPC credentials', async () => {
