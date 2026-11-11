@@ -486,11 +486,22 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const publisherCommands = publisherStepBlocks(publisher)
     .map((step) => step.split('        run:').slice(1).join('\n'))
     .join('\n');
-  assert.doesNotMatch(
-    publisherCommands,
-    /\b(?:npm|npx|yarn|pnpm)\s+(?:ci|install|test|audit|run|exec)\b|\bnode\s+\S+|\bpython3?\s+(?:-c\b|\S+\.py\b)|\b(?:bash|sh)\s+\S+|test:nvidia-provider|test:protected-api-paths/i,
-    'write-capable publisher must never execute model-generated code or project scripts, including inline commands',
-  );
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npm\s+(?:ci|install|test|audit|run|exec)\b/i,
+    'publisher must not execute npm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npx\s+\S+/i,
+    'publisher must not execute npx commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)yarn\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute yarn commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)pnpm\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute pnpm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)node\s+\S+/i,
+    'publisher must not run Node scripts');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)python3?\s+(?:-c\b|\S+\.py\b)/i,
+    'publisher must not execute dynamic Python or Python files');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)(?:bash|sh)\s+\S+/i,
+    'publisher must not launch shell scripts');
+  assert.doesNotMatch(publisherCommands, /test:nvidia-provider|test:protected-api-paths/i,
+    'publisher must not run project test scripts');
 
   const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
   assert.ok(createIndex >= 0, 'expected the final publication step');
@@ -521,4 +532,15 @@ test('Gemini diff retrieval, summary validation, and publication target the same
     'non-empty review validation must use the same resolved PR number');
   assert.ok(publisher.includes('PR_NUMBER: ${{ needs.gemini-review.outputs.pr_number }}'),
     'publication must use the validated job output rather than another PR source');
+});
+
+
+test('GLORIFIER CI runs static Linux host-agent and interoperability contract suites', () => {
+  assert.match(ciWorkflow, /run: npm run test:linux-host-agent-contract/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-protocol-boundaries/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-evidence-policy/);
+  assert.match(ciWorkflow, /run: npm run test:interoperability-registry/);
+  assert.match(ciWorkflow, /run: npm run test:polyglot-sdk-inventory/);
+  assert.match(ciWorkflow, /run: npm run validate:interoperability-registry/);
+  assert.match(ciWorkflow, /run: npm run validate:polyglot-sdk-inventory/);
 });

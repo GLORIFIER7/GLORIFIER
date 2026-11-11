@@ -62,6 +62,21 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
 
+      - name: Linux host-agent contract tests
+        run: npm run test:linux-host-agent-contract
+      - name: Interoperability protocol-boundary tests
+        run: npm run test:interoperability-protocol-boundaries
+      - name: Interoperability evidence-policy tests
+        run: npm run test:interoperability-evidence-policy
+      - name: Interoperability registry regression tests
+        run: npm run test:interoperability-registry
+      - name: Validate interoperability capability registry
+        run: npm run validate:interoperability-registry
+      - name: Polyglot SDK inventory regression tests
+        run: npm run test:polyglot-sdk-inventory
+      - name: Validate polyglot SDK inventory
+        run: npm run validate:polyglot-sdk-inventory
+
       - name: Safe external integration URL regression tests
         run: npm run test:safe-external-url
       - name: Safe external integration link rendering tests
