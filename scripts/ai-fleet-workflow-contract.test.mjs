@@ -370,8 +370,8 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 });
 
 test('Gemini PR review requires per-run paid-inference consent and an explicit open main-target PR number', () => {
-  assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\\n    inputs:\\n      pr_number:"));
-  assert.ok(geminiPrReviewWorkflow.includes("allow_paid_inference:\\n        description:"));
+  assert.ok(geminiPrReviewWorkflow.includes("workflow_dispatch:\n    inputs:\n      pr_number:"));
+  assert.ok(geminiPrReviewWorkflow.includes("allow_paid_inference:\n        description:"));
   assert.ok(geminiPrReviewWorkflow.includes('required: true'));
   assert.ok(geminiPrReviewWorkflow.includes('type: boolean'));
   assert.ok(geminiPrReviewWorkflow.includes('default: false'));
