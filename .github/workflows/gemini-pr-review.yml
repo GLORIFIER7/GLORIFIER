@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true' && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -33,7 +33,7 @@ jobs:
       - name: Enforce shared owner-only paid-inference authorization
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_PAID_INFERENCE_AUTHORIZATION: 'true'
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}
           OWNER_ACTOR_ID: ${{ github.actor_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
