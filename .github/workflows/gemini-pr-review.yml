@@ -18,7 +18,7 @@ permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: gemini-pr-review-${{ inputs.pr_number || github.event.pull_request.number }}
+  group: gemini-pr-review-${{ github.event_name }}-${{ inputs.pr_number || github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   gemini-review:
