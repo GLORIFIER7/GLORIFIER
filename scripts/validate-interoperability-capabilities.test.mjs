@@ -183,7 +183,7 @@ test('latest production checkpoint reconciles the exact current main deployment 
   assert.match(protocol.limitations.join(' '), /external MCP client\/server integration/);
   assert.match(protocol.limitations.join(' '), /A2A 1\.0\.1/);
   assert.match(gap, /Superseding production release and smoke checkpoint — 2026-11-11/);
-  assert.match(gap, /Worker v1002/);
+  assert.match(gap, /Cloudflare Worker `glorifier` version \\*\\*1002\\*\\*/);
   assert.match(gap, /Worker-to-NEURAL liveness/);
   assert.match(gap, /MCP was not probed/);
   assert.match(gap, /Issue #471 remains OPEN/);
