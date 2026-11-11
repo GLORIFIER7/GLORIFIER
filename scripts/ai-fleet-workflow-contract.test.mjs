@@ -342,7 +342,7 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
     assert.match(item.source,
       /allow_paid_inference:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+boolean\n\s+default:\s+false/,
       item.name + ' must default paid inference authorization to false');
-    const jobCondition = item.source.match(/^\s+if:\s*\$\{\{([\s\S]*?)\}\}/m)?.[1] ?? '';
+    const jobCondition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? ''
     assert.match(jobCondition, /github\.event_name == 'workflow_dispatch'/,
       item.name + ' must run only from manual dispatch');
     assert.match(jobCondition, /github\.ref == 'refs\/heads\/main'/,
