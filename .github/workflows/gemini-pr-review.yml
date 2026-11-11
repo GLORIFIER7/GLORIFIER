@@ -125,6 +125,7 @@ jobs:
       - name: Require a non-empty Gemini review
         if: ${{ steps.gemini.outcome == 'success' }}
         env:
+          PR_NUMBER: ${{ steps.resolve-pr.outputs.number }}
           GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
         run: |
           set -euo pipefail
