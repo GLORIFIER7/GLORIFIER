@@ -18,18 +18,25 @@ on:
         default: false
 permissions:
   actions: read
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 concurrency:
   group: nvidia-assisted-maintenance-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
   cancel-in-progress: false
 jobs:
   propose-fix:
+    outputs:
+      run_id: ${{ steps.target.outputs.run_id }}
+      run_url: ${{ steps.target.outputs.run_url }}
+      created: ${{ steps.verify.outputs.created }}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
     steps:
       - name: Checkout trusted main-branch authorization policy
@@ -51,6 +58,8 @@ jobs:
           glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
       - name: Validate failed CI run
         id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -90,6 +99,7 @@ jobs:
       - name: Gather bounded failure logs and changed source
         if: steps.target.outputs.skip != 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.target.outputs.head_sha }}
           TARGET_RUN_ID: ${{ steps.target.outputs.run_id }}
         run: |
@@ -175,24 +185,14 @@ jobs:
           npm run test:geas-claim-verification
           npm run test:geas-state-reconciliation
           if git diff --quiet; then echo "created=false" >> "$GITHUB_OUTPUT"; else echo "created=true" >> "$GITHUB_OUTPUT"; fi
-      - name: Push fix branch and open PR
-        if: steps.target.outputs.skip != 'true' && steps.verify.outputs.created == 'true'
-        env:
-          TARGET_RUN_ID: ${{ steps.target.outputs.run_id }}
-          TARGET_RUN_URL: ${{ steps.target.outputs.run_url }}
-        run: |
-          set -euo pipefail
-          branch="nvidia/auto-fix-$TARGET_RUN_ID"
-          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq 'length')"
-          if [[ "$existing" != "0" ]]; then echo "::notice::PR already exists; refusing duplicate."; exit 0; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git add -u
-          git commit -m "fix: propose verified repair for CI run $TARGET_RUN_ID"
-          gh auth setup-git
-          git push origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed structural checks, npm audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
+      - name: Upload validated patch for isolated publication
+        if: steps.verify.outputs.created == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nvidia-patch-${{ github.run_id }}
+          path: patch.diff
+          if-no-files-found: error
+          retention-days: 1
       - name: Summarize and clean up
         if: always()
         env:
@@ -207,3 +207,141 @@ jobs:
             echo "- Production health: NOT VERIFIED by this workflow"
           } >> "$GITHUB_STEP_SUMMARY"
           rm -f logs.raw logs.redacted source-context.txt request.json response.json patch.diff
+
+  publish-fix:
+    needs: propose-fix
+    if: ${{ needs.propose-fix.outputs.created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    env:
+      TARGET_RUN_ID: ${{ needs.propose-fix.outputs.run_id }}
+      TARGET_RUN_URL: ${{ needs.propose-fix.outputs.run_url }}
+    steps:
+      - name: Fresh checkout for isolated publication
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download validated patch artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nvidia-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/nvidia-artifact
+      - name: Validate and apply patch in clean checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="$RUNNER_TEMP/nvidia-artifact/patch.diff"
+          if [[ ! -s "$patch" ]]; then
+            echo "::error::The validated patch artifact is missing or empty."
+            exit 1
+          fi
+          python3 - "$patch" <<'PY'
+          import re,sys
+          from pathlib import Path
+          patch=Path(sys.argv[1]).read_text(encoding="utf-8")
+          if len(patch.encode("utf-8")) > 12000:
+              raise SystemExit("Patch exceeds the 12,000-byte publication limit.")
+          headers=re.findall(r"^diff --git a/(.+) b/(.+)$",patch,re.MULTILINE)
+          if not headers or len(headers)>2:
+              raise SystemExit("Patch must edit one or two existing files.")
+          allowed=("src/","docs/","scripts/","tests/")
+          denied=("src/lib/auth/","src/lib/ai/","src/lib/governance/","src/lib/glr-",
+              "src/lib/blockchain/","src/lib/crypto/","solana/","ethereum/","contracts/",
+              "deploy","payment","wallet","secret",".env","package.json","package-lock.json",
+              ".github/","server.ts","wrangler","railway","dockerfile",
+              "scripts/nvidia-patch-validator")
+          for old,new in headers:
+              if old != new or old.startswith("/") or ".." in old.split("/"):
+                  raise SystemExit("Patch path changes, absolute paths, and traversal are forbidden.")
+              if not old.startswith(allowed) or any(part in old.lower() for part in denied):
+                  raise SystemExit("Patch path is outside the approved maintenance scope: "+old)
+          changes=sum(1 for line in patch.splitlines()
+              if (line.startswith("+") and not line.startswith("+++")) or
+                 (line.startswith("-") and not line.startswith("---")))
+          if changes>100:
+              raise SystemExit("Patch exceeds the 100 changed-line publication limit.")
+          if re.search(r"^(new file mode|deleted file mode|old mode|new mode|rename from|rename to|copy from|copy to|GIT binary patch)",patch,re.MULTILINE):
+              raise SystemExit("Patch may not create, delete, rename, copy, or change binary/mode metadata.")
+          PY
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false apply --check --whitespace=error "$patch"
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false apply --whitespace=error "$patch"
+          git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --check
+          python3 - <<'PY'
+          import re,subprocess,sys
+          git=["git","-c","core.hooksPath=/dev/null","-c","core.fsmonitor=false"]
+          changed=subprocess.check_output(git+["diff","--name-only","-z"])
+          untracked=subprocess.check_output(git+["ls-files","--others","--exclude-standard","-z"])
+          paths=(changed+untracked).decode("utf-8","surrogateescape").split("\0")
+          protected=re.compile(
+              r"(^|/)\.github/workflows/|(^|/)\.env(?:$|[./])|"
+              r"(^|/)package\.json$|(^|/)package-lock\.json$|"
+              r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
+              r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
+              r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|"
+              r"p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              re.IGNORECASE,
+          )
+          blocked=[path for path in paths if path and protected.search(path)]
+          if blocked:
+              print("::error::Blocked protected paths before staging: "+", ".join(repr(path) for path in blocked))
+              sys.exit(1)
+          if len([path for path in paths if path])>2:
+              raise SystemExit("Patch changes more than two paths after application.")
+          PY
+      - name: Independently validate the generated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm audit --audit-level=low
+          npm run lint
+          npm run build
+          npm run test:nvidia-provider
+          npm run test:protected-api-paths
+          npm run test:harness
+          npm run test:architecture
+          npm run test:geas-claim-verification
+          npm run test:geas-state-reconciliation
+      - name: Create review branch and pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN_ID: ${{ needs.propose-fix.outputs.run_id }}
+          TARGET_RUN_URL: ${{ needs.propose-fix.outputs.run_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="nvidia/auto-fix-$TARGET_RUN_ID"
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq 'length')"
+          if [[ "$existing" != "0" ]]; then
+            echo "::notice::PR already exists; refusing duplicate."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -u
+          git commit -m "fix: propose verified repair for CI run $TARGET_RUN_ID"
+          gh auth setup-git
+          git push origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed structural checks, npm audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
+      - name: Summarize isolated publication
+        if: always()
+        env:
+          TARGET_RUN_ID: ${{ needs.propose-fix.outputs.run_id || 'not-selected' }}
+        run: |
+          {
+            echo "# NVIDIA-assisted maintenance publication"
+            echo
+            echo "- Run ID: $TARGET_RUN_ID"
+            echo "- Provider credentials in this job: none"
+            echo "- Provider execution: completed in a separate read-only job"
+            echo "- Auto-merge: disabled"
+            echo "- Deployment: not performed"
+            echo "- Production health: NOT VERIFIED by this workflow"
+          } >> "$GITHUB_STEP_SUMMARY"

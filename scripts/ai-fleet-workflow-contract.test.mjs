@@ -370,14 +370,14 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 });
 
 test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
-  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\\s*\\{\\}/);
-  assert.match(geminiPrReviewWorkflow, /vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
-  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\\{\\{ vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
+  assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \}\}/);
   assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ steps\\.resolve-pr\\.outputs\\.number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
-  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\\./);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
   assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
 });
 
@@ -388,12 +388,14 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
       source: nvidiaTriageWorkflow,
       credentialStep: 'Require NVIDIA credential',
       providerStep: 'Ask NVIDIA NIM for a diagnostic',
+      collectionStep: 'Collect and redact bounded failed-step logs'
     },
     {
       name: 'NVIDIA assisted maintenance',
       source: nvidiaMaintenanceWorkflow,
       credentialStep: 'Require NVIDIA credential',
       providerStep: 'Request a constrained patch from Nemotron',
+      collectionStep: 'Gather bounded failure logs and changed source'
     },
   ];
 
@@ -419,11 +421,80 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
     const authorizationIndex = item.source.indexOf('glorifier_ai_maintenance_authorized');
     const credentialIndex = item.source.indexOf('name: ' + item.credentialStep);
     const providerIndex = item.source.indexOf('name: ' + item.providerStep);
+    const collectionIndex = item.source.indexOf('name: ' + item.collectionStep);
     assert.ok(checkoutIndex >= 0 && checkoutIndex < authorizationIndex,
       item.name + ' must load the trusted shared authorization helper first');
+    assert.ok(authorizationIndex < collectionIndex,
+      item.name + ' must authorize before collecting CI logs or source context');
     assert.ok(authorizationIndex < credentialIndex && authorizationIndex < providerIndex,
       item.name + ' must authorize before reading provider credentials or making provider requests');
     assert.match(item.source, /workflow_run:/,
       item.name + ' may retain the automatic trigger only as a skipped, default-deny event');
   }
+});
+
+
+test('NVIDIA assisted maintenance isolates provider execution from repository publication permissions', () => {
+  const proposalStart = nvidiaMaintenanceWorkflow.indexOf('\n  propose-fix:\n');
+  const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
+  assert.ok(proposalStart >= 0, 'expected a dedicated provider proposal job');
+  assert.ok(publisherStart > proposalStart, 'expected a separate publisher job after provider execution');
+
+  const proposal = nvidiaMaintenanceWorkflow.slice(proposalStart, publisherStart);
+  const publisher = nvidiaMaintenanceWorkflow.slice(publisherStart);
+
+  assert.match(nvidiaMaintenanceWorkflow,
+    /^permissions:\n  actions: read\n  contents: read\n  pull-requests: read$/m,
+    'workflow defaults must be read-only');
+  assert.match(proposal,
+    /^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$/m,
+    'provider job must explicitly use read-only repository permissions');
+  assert.doesNotMatch(proposal, /contents:\s*write|pull-requests:\s*write/,
+    'provider job must never hold repository write permissions');
+  assert.match(proposal, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/,
+    'provider job must hand off the validated patch as an artifact');
+  assert.match(proposal, /Request a constrained patch from Nemotron/);
+  assert.doesNotMatch(proposal, /gh pr create|git push/,
+    'provider job must not publish branches or pull requests');
+
+  assert.match(publisher, /needs: propose-fix/,
+    'publisher must depend on the provider proposal job');
+  assert.match(publisher,
+    /^\s+permissions:\n\s+actions: read\n\s+contents: write\n\s+pull-requests: write/m,
+    'only the isolated publisher may hold the minimum write permissions');
+  assert.match(publisher, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333/,
+    'publisher must download the exact patch artifact');
+  assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/,
+    'publisher must not receive provider credentials');
+  assert.match(publisher, /persist-credentials: false/,
+    'publisher checkout must not persist a write-capable checkout credential');
+
+  const createIndex = publisher.indexOf('      - name: Create review branch and pull request');
+  assert.ok(createIndex >= 0, 'expected the final publication step');
+  const prePublication = publisher.slice(0, createIndex);
+  const publication = publisher.slice(createIndex);
+  assert.doesNotMatch(prePublication, /GH_TOKEN|github\.token/,
+    'patch application and validation must run without the write token');
+  assert.match(publication, /GH_TOKEN: \$\{\{ github\.token \}\}/,
+    'write token must be scoped only to the final PR publication step');
+  assert.ok(prePublication.indexOf('npm run build') >= 0,
+    'publisher must independently validate the applied patch before publishing');
+  assert.ok(publication.includes('gh pr create'),
+    'isolated publisher must create only a review pull request');
+});
+test('Gemini diff retrieval, summary validation, and publication target the same resolved pull request', () => {
+  const diffStart = geminiPrReviewWorkflow.indexOf('      - name: Retrieve pull request diff as untrusted data');
+  const reviewStart = geminiPrReviewWorkflow.indexOf('      - name: Require a non-empty Gemini review');
+  const publishStart = geminiPrReviewWorkflow.indexOf('\n  publish-review:\n');
+  assert.ok(diffStart >= 0 && reviewStart > diffStart && publishStart > reviewStart,
+    'expected diff retrieval, review validation, and publication steps in order');
+  const diffStep = geminiPrReviewWorkflow.slice(diffStart, geminiPrReviewWorkflow.indexOf('\n      - name:', diffStart + 1));
+  const reviewStep = geminiPrReviewWorkflow.slice(reviewStart, publishStart);
+  const publisher = geminiPrReviewWorkflow.slice(publishStart);
+  assert.ok(diffStep.includes('PR_NUMBER: ${{ steps.resolve-pr.outputs.number }}'),
+    'diff retrieval must use the resolved PR number');
+  assert.ok(reviewStep.includes('PR_NUMBER: ${{ steps.resolve-pr.outputs.number }}'),
+    'non-empty review validation must use the same resolved PR number');
+  assert.ok(publisher.includes('PR_NUMBER: ${{ needs.gemini-review.outputs.pr_number }}'),
+    'publication must use the validated job output rather than another PR source');
 });
