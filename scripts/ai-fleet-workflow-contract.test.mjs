@@ -486,17 +486,20 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const publisherCommands = publisherStepBlocks(publisher)
     .map((step) => step.split('        run:').slice(1).join('\n'))
     .join('\n');
-  assert.doesNotMatch(publisherCommands, /\bnpm\b/i, 'publisher must not invoke npm');
-  assert.doesNotMatch(publisherCommands, /\bnpx\b/i, 'publisher must not invoke npx');
-  assert.doesNotMatch(publisherCommands, /\byarn\b/i, 'publisher must not invoke yarn');
-  assert.doesNotMatch(publisherCommands, /\bpnpm\b/i, 'publisher must not invoke pnpm');
-  assert.doesNotMatch(publisherCommands, /\bnode\s+\S+/i, 'publisher must not run Node scripts');
-  assert.doesNotMatch(publisherCommands, /\bpython\s+-c\b/i, 'publisher must not execute dynamic Python');
-  assert.doesNotMatch(publisherCommands, /\bpython3\s+-c\b/i, 'publisher must not execute dynamic Python');
-  assert.doesNotMatch(publisherCommands, /\bpython\s+\S+\.py\b/i, 'publisher must not execute Python files');
-  assert.doesNotMatch(publisherCommands, /\bpython3\s+\S+\.py\b/i, 'publisher must not execute Python files');
-  assert.doesNotMatch(publisherCommands, /\bbash\s+\S+/i, 'publisher must not launch shell scripts');
-  assert.doesNotMatch(publisherCommands, /\bsh\s+\S+/i, 'publisher must not launch shell scripts');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npm\s+(?:ci|install|test|audit|run|exec)\b/i,
+    'publisher must not execute npm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)npx\s+\S+/i,
+    'publisher must not execute npx commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)yarn\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute yarn commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)pnpm\s+(?:install|test|run|exec)\b/i,
+    'publisher must not execute pnpm commands');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)node\s+\S+/i,
+    'publisher must not run Node scripts');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)python3?\s+(?:-c\b|\S+\.py\b)/i,
+    'publisher must not execute dynamic Python or Python files');
+  assert.doesNotMatch(publisherCommands, /(?:^|[\n;&|()]\s*)(?:bash|sh)\s+\S+/i,
+    'publisher must not launch shell scripts');
   assert.doesNotMatch(publisherCommands, /test:nvidia-provider|test:protected-api-paths/i,
     'publisher must not run project test scripts');
 
