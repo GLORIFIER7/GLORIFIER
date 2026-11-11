@@ -3,26 +3,16 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "Existing pull request number to review manually"
-        required: true
-        type: number
-      allow_paid_inference:
-        description: "Explicit owner authorization for external Gemini review; provider charges and PR data transmission may apply"
-        required: true
-        type: boolean
-        default: false
+  workflow_dispatch: {}
 permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: gemini-pr-review-${{ github.event_name }}-${{ inputs.pr_number || github.event.pull_request.number }}
+  group: gemini-pr-review-${{ github.event_name }}-${{ github.run_id }}
   cancel-in-progress: true
 jobs:
   gemini-review:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.allow_paid_inference == true && github.actor_id == '32674233' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -30,6 +20,7 @@ jobs:
       pull-requests: read
     outputs:
       review: ${{ steps.gemini.outputs.summary }}
+      pr_number: ${{ steps.resolve-pr.outputs.number }}
     env:
       HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
     steps:
@@ -42,7 +33,7 @@ jobs:
       - name: Enforce shared owner-only paid-inference authorization
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: 'true'
           OWNER_ACTOR_ID: ${{ github.actor_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
@@ -50,6 +41,19 @@ jobs:
           set -euo pipefail
           source scripts/ai-fleet-authorization.sh
           glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
+
+      - name: Resolve the most recently updated open pull request
+        id: resolve-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER="$(gh pr list --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::No open pull request with a valid number was found."
+            exit 1
+          fi
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Require Gemini credential
         if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
@@ -59,7 +63,7 @@ jobs:
       - name: Retrieve pull request diff as untrusted data
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ steps.resolve-pr.outputs.number }}
         run: |
           set -euo pipefail
           if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
@@ -143,7 +147,7 @@ jobs:
       - name: Publish Gemini COMMENT review only
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.gemini-review.outputs.pr_number }}
           GEMINI_REVIEW: ${{ needs.gemini-review.outputs.review }}
         shell: bash
         run: |
