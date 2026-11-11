@@ -197,17 +197,17 @@ test('fresh independent read-only GLR chain probes are recorded without overstat
     {
       id: 'blockchain.ethereum-readonly-transfer-verifier',
       target: 'Ethereum Mainnet',
-      markers: ['eth_chainId=0x1', 'eth_blockNumber=0x192adf7', 'eth_getCode returned non-empty bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
+      markers: ['eth_chainId returned 0x1', 'eth_blockNumber returned 0x192adf7', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
     },
     {
       id: 'blockchain.bnb-readonly-transfer-verifier',
       target: 'BNB Smart Chain Mainnet',
-      markers: ['eth_chainId=0x38', 'eth_blockNumber=0x7ec40ae', 'eth_getCode returned non-empty bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
+      markers: ['eth_chainId returned 0x38', 'eth_blockNumber returned 0x7ec40ae', 'eth_getCode returned non-empty contract bytecode', 'name=GLORIFIER', 'symbol=GLR', 'decimals=18', 'totalSupply=1000000000 GLR'],
     },
     {
       id: 'blockchain.solana-readonly-transfer-verifier',
       target: 'Solana Mainnet',
-      markers: ['mainnet genesis hash', 'finalized block height=446046054', 'mint supply=1000000000 GLR', 'decimals=9', 'Token-2022', 'mintAuthority=null', 'freezeAuthority=null'],
+      markers: ['mainnet genesis hash', 'getBlockHeight(finalized) returned 446046054', 'getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals', 'Token-2022 mint named GLORIFIER / GLR', 'null mintAuthority', 'null freezeAuthority', 'null metadata-pointer authority', 'null metadata updateAuthority'],
     },
   ];
 
