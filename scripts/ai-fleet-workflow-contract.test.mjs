@@ -329,11 +329,11 @@ function assertGeminiAuthorizationWorkflow(item) {
   const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
   assert.match(condition, /github.ref == 'refs\/heads\/main'/);
-  assert.match(condition, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.ok(condition.includes(item.authorizationCondition));
   assert.match(condition, /github.actor_id == '32674233'/);
   assert.match(condition, /github.run_attempt == 1/);
-  assert.doesNotMatch(condition, /inputs\.|schedule|pull_request_target/);
-  assert.ok(item.source.includes('MANUAL_PAID_INFERENCE_AUTHORIZATION: \${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}'));
+  assert.doesNotMatch(condition, /schedule|pull_request_target/);
+  assert.ok(item.source.includes(item.manualAuthorizationLine));
   const authorization = item.source.indexOf('glorifier_ai_maintenance_authorized');
   assert.ok(authorization >= 0 && authorization < item.source.indexOf(item.firstSensitiveStep));
   assert.ok(authorization < item.source.indexOf(item.modelStep));
@@ -343,9 +343,27 @@ function assertGeminiAuthorizationWorkflow(item) {
 
 test('Gemini provider workflows require owner-initiated manual dispatch and trusted settings', () => {
   const workflows = [
-    { source: geminiCollaboratorWorkflow, firstSensitiveStep: 'name: Require Gemini credential', modelStep: 'name: Run Gemini engineering collaboration' },
-    { source: geminiDevelopmentWorkflow, firstSensitiveStep: 'name: Setup Node.js', modelStep: 'name: Run Gemini CLI' },
-    { source: geminiPrReviewWorkflow, firstSensitiveStep: 'name: Resolve the most recently updated open pull request', modelStep: 'name: Run Gemini advisory review' },
+    {
+      source: geminiCollaboratorWorkflow,
+      firstSensitiveStep: 'name: Require Gemini credential',
+      modelStep: 'name: Run Gemini engineering collaboration',
+      authorizationCondition: 'inputs.allow_paid_inference == true',
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
+    },
+    {
+      source: geminiDevelopmentWorkflow,
+      firstSensitiveStep: 'name: Setup Node.js',
+      modelStep: 'name: Run Gemini CLI',
+      authorizationCondition: 'inputs.allow_paid_inference == true',
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
+    },
+    {
+      source: geminiPrReviewWorkflow,
+      firstSensitiveStep: 'name: Validate explicitly selected pull request',
+      modelStep: 'name: Run Gemini advisory review',
+      authorizationCondition: "vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'",
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}',
+    },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
