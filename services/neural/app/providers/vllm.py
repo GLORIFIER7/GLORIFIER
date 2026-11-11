@@ -36,6 +36,7 @@ def _origin(value: str) -> str:
     if (
         parsed.scheme.casefold() != "https"
         or not parsed.hostname
+        or "*" in parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.path not in ("", "/")
@@ -62,6 +63,7 @@ def _base_url(value: str, allowed_origin: str) -> str:
     if (
         parsed.scheme.casefold() != "https"
         or not parsed.hostname
+        or "*" in parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.path.rstrip("/") != "/v1"
