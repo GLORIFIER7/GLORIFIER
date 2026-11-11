@@ -171,11 +171,15 @@ test('rejects a malformed non-boolean MCP isError flag', async () => {
 
 test('legacy official MCP scenario requires both target validation and runner build success', async () => {
   const workflow = await readFile(new URL('../.github/workflows/external-mcp-conformance.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/- name: Run official MCP legacy tools-list scenario \\(2025-11-25\\)\\s+id: official_mcp_legacy\\s+if: ([^\\n]+)/);
+  const lines = workflow.split(/\r?\n/);
+  const stepIndex = lines.findIndex((line) =>
+    line.trim() === '- name: Run official MCP legacy tools-list scenario (2025-11-25)',
+  );
 
-  assert.ok(step, 'legacy MCP scenario step and its guard must exist');
+  assert.notEqual(stepIndex, -1, 'legacy MCP scenario step must exist');
+  assert.equal(lines[stepIndex + 1]?.trim(), 'id: official_mcp_legacy');
   assert.equal(
-    step[1],
-    "${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}",
+    lines[stepIndex + 2]?.trim(),
+    "if: ${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}",
   );
 });
