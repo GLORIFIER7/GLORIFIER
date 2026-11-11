@@ -18,6 +18,11 @@ on:
       - "scripts/validate-interoperability-registry.mjs"
       - "scripts/validate-interoperability-registry.test.mjs"
       - "scripts/interoperability-protocol-boundaries.test.mjs"
+      - "scripts/mcp-conformance-target.mjs"
+      - "scripts/mcp-conformance-target.test.mjs"
+      - "scripts/mcp-live-smoke.mjs"
+      - "scripts/mcp-live-smoke.test.mjs"
+      - ".github/workflows/external-mcp-conformance.yml"
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
@@ -54,6 +59,11 @@ on:
       - "scripts/validate-interoperability-registry.mjs"
       - "scripts/validate-interoperability-registry.test.mjs"
       - "scripts/interoperability-protocol-boundaries.test.mjs"
+      - "scripts/mcp-conformance-target.mjs"
+      - "scripts/mcp-conformance-target.test.mjs"
+      - "scripts/mcp-live-smoke.mjs"
+      - "scripts/mcp-live-smoke.test.mjs"
+      - ".github/workflows/external-mcp-conformance.yml"
       - "docs/architecture/openapi/**"
       - "docs/architecture/language-neutral-interoperability.md"
       - "docs/architecture/neural-engine-integration.md"
@@ -112,6 +122,8 @@ jobs:
         run: npm run test:a2a-v1-express
       - name: Test pinned A2A and MCP protocol boundaries
         run: npm run test:interoperability-protocol-boundaries
+      - name: Test external MCP guard and scoped smoke contracts
+        run: node --test scripts/mcp-conformance-target.test.mjs scripts/mcp-live-smoke.test.mjs
       - name: Validate MCP interoperability registry
         run: npm run validate:interoperability-registry
       - name: Test capability registry evidence assertions

@@ -150,3 +150,25 @@ The A2A JSON-RPC `/api/a2a/v1` endpoint still uses the existing Bearer-authentic
 The guarded production workflow [#42969134766](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766) deployed GLORIFIER main commit `038fe738e9fdc5fbbb0472343198c19d75cd7643` as Cloudflare Worker v1002 at 100% traffic. The deployment's GET-only smoke verified Worker health, the business-model endpoint, unauthenticated app-state denial, runtime verification, reports summary, Worker-to-NEURAL liveness, and public read models. NEURAL readiness remained intentionally unavailable with external egress disabled.
 
 **This deployment does not establish MCP protocol conformance.** The workflow explicitly did not probe `POST /mcp`, because protocol transport requires POST and the production smoke is GET-only. No external MCP client handshake, discovery, `tools/list`, or `tools/call` was performed. The capability `protocol.a2a-mcp-adapters` remains **NOT VERIFIED** until the official MCP 2026-07-28 frozen-revision conformance suite and an independent external-client test pass against an authorized endpoint. A2A 1.0.1 external TCK and controlled two-agent tests remain separately required.
+
+## Opt-in external MCP verification automation — 2026-11-11
+
+The repository includes `.github/workflows/external-mcp-conformance.yml`, a **manual-only** GitHub Actions workflow. Its `workflow_dispatch` input defaults to `false`; the external checks run only when an authorized operator explicitly dispatches the workflow with `run_external_mcp_checks=true`.
+
+Before dispatch, an owner must configure these non-secret repository Actions variables with the exact current production or staging endpoint and its hostname:
+
+- `GLORIFIER_MCP_CONFORMANCE_URL`: the complete HTTPS endpoint ending in `/mcp`.
+- `GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS`: exact DNS hostname(s), comma- or newline-separated; no wildcards, schemes, paths, credentials, ports, IP literals, or local/reserved names.
+
+The target validator rejects non-HTTPS URLs, URL credentials, non-default ports, paths other than exactly `/mcp`, query strings, fragments, IP literals, reserved/local hostnames, and hosts absent from the explicit allowlist. It does not add or change Worker routes, secrets, bindings, egress policy, or deployment settings.
+
+### Bounded checks
+
+1. The workflow checks out the official `modelcontextprotocol/conformance` runner at immutable commit `96a6f9478b7f2e125cf0360a213383cf57533893`.
+2. It runs only the official `tools-list` server scenario at protocol revision `2025-11-25`, exercising the supported legacy-compatible initialize/list flow.
+3. It then runs a separate scoped `2026-07-28` stateless smoke: `server/discover`, two `tools/list` calls to check deterministic order, and one `tools/call` for the fixed read-only `github_get_repository` tool. This is four bounded POST requests in total, with a 15-second per-request timeout, redirects disabled, and no caller-supplied arbitrary tool name.
+4. Result artifacts are retained for 14 days for inspection.
+
+The workflow does not run the full official MCP requirement set, resources/prompts/streaming scenarios, arbitrary tools, A2A tests, provider inference, or write operations. A successful run proves only the named scoped checks. **Full MCP 2026-07-28 conformance and independent external-client interoperability remain NOT VERIFIED** until the complete required feature set and independent client tests have their own evidence.
+
+The PR and push CI paths run only the local validator/smoke regression tests; they do not contact an external endpoint. No production POST, inference, paid provider request, secret use, deployment, or configuration mutation is triggered by normal CI.
