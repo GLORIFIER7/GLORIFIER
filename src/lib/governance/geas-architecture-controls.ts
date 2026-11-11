@@ -44,6 +44,10 @@ export function canonicalActionHash(action: GovernedActionIdentity): string {
 }
 
 export function buildEvidenceRecord(input: Omit<EvidenceRecord, 'contentHash'> & { content: unknown }): EvidenceRecord {
+  const allowedTruths: readonly string[] = ['observed', 'supported', 'verified', 'economically-verified'];
+  if (!allowedTruths.includes(input.truth)) {
+    throw new Error('Invalid GEAS evidence truth value; an exact supported enum value is required.');
+  }
   if (input.truth === 'economically-verified') {
     throw new Error(
       'GEAS financial-integrity gate: economically-verified evidence is blocked from the generic evidence endpoint. ' +
