@@ -38,6 +38,7 @@ jobs:
     timeout-minutes: 60
     environment: octopus-deploy
     permissions:
+      actions: read
       contents: read
       id-token: write
     env:
@@ -82,6 +83,7 @@ jobs:
       - name: Verify the upstream Docker image publication succeeded
         if: github.event_name == 'workflow_run'
         env:
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           SOURCE_COMMIT: ${{ env.SOURCE_COMMIT }}
@@ -94,8 +96,13 @@ jobs:
           repository = os.environ["GITHUB_REPOSITORY"]
           run_id = os.environ["UPSTREAM_RUN_ID"]
           source_commit = os.environ["SOURCE_COMMIT"]
+          token = os.environ.get("GH_TOKEN", "").strip()
+          if not token:
+              raise SystemExit("Missing GitHub Actions token for upstream workflow verification.")
+
           headers = {
               "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
               "X-GitHub-Api-Version": "2022-11-28",
           }
 
