@@ -367,3 +367,11 @@ test('NVIDIA patch generation disables reasoning only for its documented default
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('Gemini collaborator pins artifact actions used across the read-only model and write-capable publisher boundary', () => {
+  const source = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+  assert.match(source, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7\.0\.2/);
+  assert.match(source, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8\.0\.2/);
+  assert.doesNotMatch(source, /uses: actions\/(?:upload|download)-artifact@v[0-9]+/);
+});
