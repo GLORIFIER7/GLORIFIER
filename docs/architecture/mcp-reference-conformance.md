@@ -143,3 +143,10 @@ Merged PR [#629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) added the ini
 The GitHub MCP tools remain limited to four read-only operations on one public repository, with origin validation, request-size and response-size bounds, timeout, and per-IP tool-call rate limit. PR #661's evidence remains branch CI until merged; no production rollout is implied. The Agent Card does not declare a JWT token format because that exact token format has not been independently established.
 
 The A2A JSON-RPC `/api/a2a/v1` endpoint still uses the existing Bearer-authenticated proxy to the configured backend. No external A2A client/server integration, authenticated production A2A task exchange, modern MCP external-client handshake, or full MCP target-revision conformance result is claimed. The overall `protocol.a2a-mcp-adapters` capability therefore remains **NOT VERIFIED**.
+
+
+## Production release checkpoint — 2026-11-11
+
+The guarded production workflow [#42969134766](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766) deployed GLORIFIER main commit `038fe738e9fdc5fbbb0472343198c19d75cd7643` as Cloudflare Worker v1002 at 100% traffic. The deployment's GET-only smoke verified Worker health, the business-model endpoint, unauthenticated app-state denial, runtime verification, reports summary, Worker-to-NEURAL liveness, and public read models. NEURAL readiness remained intentionally unavailable with external egress disabled.
+
+**This deployment does not establish MCP protocol conformance.** The workflow explicitly did not probe `POST /mcp`, because protocol transport requires POST and the production smoke is GET-only. No external MCP client handshake, discovery, `tools/list`, or `tools/call` was performed. The capability `protocol.a2a-mcp-adapters` remains **NOT VERIFIED** until the official MCP 2026-07-28 frozen-revision conformance suite and an independent external-client test pass against an authorized endpoint. A2A 1.0.1 external TCK and controlled two-agent tests remain separately required.

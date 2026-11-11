@@ -437,3 +437,39 @@ A read-only Cloudflare version/deployment inventory at 2026-11-11 05:24 UTC reco
 6. Keep cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independent economic outcomes NOT VERIFIED until their dedicated evidence is recorded.
 
 No task, provider prompt, inference, paid call, credential value read, production setting mutation, database migration/write, deployment after the identified v1001 release, chain signing, mint, transfer, or financial action was performed during this evidence reconciliation.
+
+
+## Superseding production release and smoke checkpoint — 2026-11-11 05:59 UTC / 12:59 Asia/Vientiane
+
+This checkpoint supersedes earlier statements in this register that GLORIFIER production was still on v1001, that its release provenance predated current main, or that a complete post-release smoke was still pending.
+
+### Production release and exact-version verification
+
+- Guarded GitHub Actions run [#42969134766](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766), job [#130353490598](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42969134766/job/130353490598), completed successfully. Both `validate-and-build` and `deploy-production` passed.
+- The workflow checked out exact GLORIFIER main commit `038fe738e9fdc5fbbb0472343198c19d75cd7643` and deployed it to Cloudflare Worker `glorifier` version **1002**, version ID `3c93b20d-e602-4e9e-b3bb-3c139a311024`, deployment ID `20ca85d6-a1b5-487e-a43e-d7b459611a66`, with **100% traffic**.
+- Exact-version Cloudflare API readback confirms `GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643`, `GLORIFIER_RELEASE_RUN_ID=42969134766`, and the `GLORIFIER_NEURAL` service binding to `glorifier-neural`.
+- The exact GLORIFIER v1002 and NEURAL v36 version records both show `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false`, `GLORIFIER_ENABLE_INFERENCE=false`, and `GLORIFIER_PAID_INFERENCE_AUTHORIZED=false`. NEURAL v36 remains at 100% traffic. API/internal-service secret binding names are present; secret values were not read.
+
+### GET-only production smoke results
+
+- `/api/health`: Worker health contract passed.
+- `/api/business-model`: Worker-native business-model response contract passed.
+- `/api/app-state`: unauthenticated request correctly returned HTTP 401.
+- `/api/identity`: HTTP 503 / `not-ready`; canonical organization domain and email identity remain unconfigured.
+- `/api/runtime-verification?probeAi=false`: HTTP 200 / `verified-for-probed-dependencies`.
+- `/api/reports/summary`: HTTP 200 / `operational-data-observed`, with exact operational-table counts.
+- Worker-to-NEURAL process liveness passed. NEURAL readiness remained intentionally unavailable under the default-deny external-egress policy; this is not a reason to enable egress or inference.
+- The public read models returned 11 integrations and 11 data records. These are operational read-model counts, not users, revenue, or independent economic outcomes.
+- MCP was not probed: its protocol endpoint requires POST and is excluded from this GET-only production smoke. No authenticated task POST, provider prompt, model inference, paid call, database write, or blockchain action was performed.
+
+### Remaining acceptance gates
+
+1. **A2A 1.0.1:** complete official frozen-revision TCK coverage and authenticated external-client / controlled two-agent task lifecycle tests. Local adapters and CI are not external conformance.
+2. **MCP 2026-07-28:** run the official revision-pinned conformance suite and an external client handshake, discovery, tools/list, and read-only tools/call against the authorized production or staging endpoint. No MCP POST was performed by run #42969134766.
+3. **Linux host agent:** enroll an owner-authorized real Linux host and verify heartbeat, fixed read-only task claim/result receipt, lease expiry, and revocation. GitHub-hosted Ubuntu source/container checks are not live-host evidence.
+4. **Blockchain:** refresh independent timestamped read-only RPC probes for Ethereum, BNB Chain, and Solana. Existing latest Alchemy evidence is dated 2026-11-09; no fresh chain query was performed in this checkpoint. Signing, minting, transfers, contract writes, and paid RPC actions remain disabled.
+5. **Identity and authentication:** provide and verify the canonical organization domain/email, then separately test a real owner/user authentication session. The production identity route currently reports not-ready.
+6. **NEURAL task execution:** keep inference, external egress, and paid authorization false by default. A harmless authenticated task exchange requires an explicitly authorized test plan; no such task was run here.
+7. Keep cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independently verified economic outcomes as NOT VERIFIED until their dedicated evidence exists.
+
+**Decision:** Issue #471 remains OPEN. Production synchronization to current main and the enumerated GET-only smoke are verified. The external protocol, real-host, fresh-chain, identity, and authenticated execution gates are not complete.
