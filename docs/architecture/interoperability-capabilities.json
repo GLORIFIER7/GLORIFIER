@@ -854,7 +854,8 @@
       "scope": "A2A 1.0.1 and MCP 2026-07-28 general-purpose protocol adapter and interoperability audit; a fixed public-repository GitHub MCP bridge exists but does not satisfy this broader target",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test"
+        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test",
+        "Optional read-only MCP external server TCK workflow merged by GLORIFIER PR #819; owner-controlled endpoint configuration required; workflow_dispatch only with run_external_mcp_checks defaulting to false; no TCK run recorded."
       ],
       "evidence": [
         {
@@ -989,6 +990,13 @@
           "targetEnvironment": "GitHub Actions main push; Node.js 24 Linux build job, exact GLORIFIER main commit 30573ff17d8b06f84004b9ec8f7f6575dcfde80f",
           "observedAt": "2026-11-11T12:19:51Z",
           "notes": "The exact-main build job passed A2A task-persistence SQL-binding validation, A2A 1.0 JSON-RPC contract tests, A2A durable-runtime regression tests, A2A 1.0 Express endpoint tests, and authenticated-exchange integration tests. The source/test contract supports requester-scoped cancellation of queued tasks only; running tasks remain unchanged because the executor has no provider-interruption signal. These are repository CI checks, not the official A2A 1.0.1 TCK, an external-client exchange, or a controlled two-agent staging test. The combined A2A/MCP capability remains NOT VERIFIED."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/blob/ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7/.github/workflows/external-mcp-conformance.yml",
+          "targetEnvironment": "GLORIFIER main merge commit ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7; manually dispatched read-only MCP external server conformance workflow",
+          "observedAt": "2026-11-11T12:09:31Z",
+          "notes": "PR #819 adds the official frozen MCP 2026-07-28 server requirements command using the conformance runner pinned to 96a6f9478b7f2e125cf0360a213383cf57533893 and retains a separate legacy 2025-11-25 tools-list scenario. The workflow is workflow_dispatch-only and the external-check opt-in defaults to false. This is test-path/source evidence, not a conformance result; the workflow was not dispatched and no endpoint was probed."
         }
       ],
       "limitations": [
@@ -998,7 +1006,8 @@
         "The fixed-scope, stateless, read-only GitHub MCP endpoint now has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call result envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
         "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
-        "No arbitrary proxy or implied provider fallback is authorized."
+        "No arbitrary proxy or implied provider fallback is authorized.",
+        "PR #819 adds an owner-controlled manual-only external MCP server TCK path for frozen 2026-07-28 server requirements and a separate 2025-11-25 legacy tools-list scenario. The input defaults to false; no endpoint configuration, run, report, or independent client handshake is recorded."
       ]
     },
     {
