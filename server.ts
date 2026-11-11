@@ -77,7 +77,7 @@ import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, getA2ATaskForRequesterProtocol, createA2ATaskForProtocol, listA2ATasks, listA2ATaskPageForProtocol, cancelA2ATaskForRequesterProtocol, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
 import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
-import { canonicalActionHash, buildEvidenceRecord, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
+import { canonicalActionHash, buildEvidenceRecord, getEconomicIntegrityPolicy, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
@@ -248,7 +248,11 @@ app.use('/api', (req: Request, res: Response, next) => {
   return requireAuthentication(req, res, next);
 });
 
-// GEAS architecture-control surfaces: evidence, canonical action identity, and API inventory.
+// GEAS architecture-control surfaces: economic integrity, evidence, canonical action identity, and API inventory.
+app.get('/api/governance/geas/financial-integrity', geasRateLimit, requireOwnerOrInternalService, (_req: Request, res: Response) => {
+  res.json({ ok: true, policy: getEconomicIntegrityPolicy() });
+});
+
 app.get('/api/governance/geas/architecture/api-assets', geasRateLimit, requireOwnerOrInternalService, (_req: Request, res: Response) => {
   res.json({ ok: true, assets: listApiAssets() });
 });
@@ -272,6 +276,17 @@ app.post('/api/governance/geas/evidence/record', geasRateLimit, requireOwnerOrIn
   }
 });
 
+registerApiAsset({
+  id: 'geas.financial-integrity',
+  method: 'GET',
+  path: '/api/governance/geas/financial-integrity',
+  owner: 'GEAS',
+  authentication: 'required',
+  authorization: 'required',
+  resourceScope: 'geas:financial-integrity',
+  exposure: 'internal',
+  evidenceRefs: [],
+});
 registerApiAsset({
   id: 'geas.api-assets',
   method: 'GET',
