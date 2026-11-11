@@ -8,6 +8,9 @@ const operatingModel = readFileSync(new URL('../docs/AUTONOMOUS_ENGINEERING_OPER
 const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
+const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
+const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
 const nvidiaMaintenanceWorkflow = readFileSync(new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
@@ -320,6 +323,62 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
   assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
   assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new branch updates may continue to supersede older branch-update runs');
+});
+
+function assertGeminiAuthorizationWorkflow(item) {
+  const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
+  assert.match(condition, /github.event_name == 'workflow_dispatch'/);
+  assert.match(condition, /github.ref == 'refs\/heads\/main'/);
+  assert.ok(condition.includes(item.authorizationCondition));
+  assert.match(condition, /github.actor_id == '32674233'/);
+  assert.match(condition, /github.run_attempt == 1/);
+  assert.doesNotMatch(condition, /schedule|pull_request_target/);
+  assert.ok(item.source.includes(item.manualAuthorizationLine));
+  const authorization = item.source.indexOf('glorifier_ai_maintenance_authorized');
+  assert.ok(authorization >= 0 && authorization < item.source.indexOf(item.firstSensitiveStep));
+  assert.ok(authorization < item.source.indexOf(item.modelStep));
+  assert.match(item.source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/);
+  assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \/etc\/glorifier\/gemini-system-settings\.json/);
+}
+
+test('Gemini provider workflows require owner-initiated manual dispatch and trusted settings', () => {
+  const workflows = [
+    {
+      source: geminiCollaboratorWorkflow,
+      firstSensitiveStep: 'name: Require Gemini credential',
+      modelStep: 'name: Run Gemini engineering collaboration',
+      authorizationCondition: 'inputs.allow_paid_inference == true',
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
+    },
+    {
+      source: geminiDevelopmentWorkflow,
+      firstSensitiveStep: 'name: Setup Node.js',
+      modelStep: 'name: Run Gemini CLI',
+      authorizationCondition: 'inputs.allow_paid_inference == true',
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
+    },
+    {
+      source: geminiPrReviewWorkflow,
+      firstSensitiveStep: 'name: Resolve the latest open pull request targeting main',
+      modelStep: 'name: Run Gemini advisory review',
+      authorizationCondition: "vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'",
+      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}',
+    },
+  ];
+  for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
+  assert.match(geminiCollaboratorWorkflow, /schedule:/);
+});
+
+test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
+  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\\s*\\{\\}/);
+  assert.match(geminiPrReviewWorkflow, /vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\\{\\{ vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \\$\\{\\{ steps\\.resolve-pr\\.outputs\\.number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /STATE.*open/);
+  assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\\./);
+  assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
 });
 
 test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {

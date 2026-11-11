@@ -243,9 +243,12 @@ const geminiReviewWorkflow = readFileSync(
 
 function readGeminiSystemSettings(source) {
   const match = source.match(
-    /cat > "\$RUNNER_TEMP\/gemini-system-settings\.json" <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
+    /sudo tee \/etc\/glorifier\/gemini-system-settings\.json >\/dev\/null <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
   );
-  assert.ok(match, 'Gemini workflow must create its system settings outside the repository workspace');
+  assert.ok(match, 'Gemini workflow must create its system settings in the root-owned trusted directory');
+  assert.match(source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/);
+  assert.match(source, /sudo chown root:root \/etc\/glorifier\/gemini-system-settings\.json/);
+  assert.match(source, /sudo chmod 644 \/etc\/glorifier\/gemini-system-settings\.json/);
   return JSON.parse(match[1]);
 }
 
@@ -291,7 +294,7 @@ test('Gemini coding workflows only enable workspace file tools and redact enviro
     assert.equal(settings.security.environmentVariableRedaction.enabled, true);
     assert.equal(settings.security.enableConseca, true);
     assert.doesNotMatch(JSON.stringify(settings.tools.core), /run_shell_command/);
-    assert.match(source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:\s*\$\{\{\s*runner\.temp\s*\}\}\/gemini-system-settings\.json/);
+    assert.match(source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:\s*\/etc\/glorifier\/gemini-system-settings\.json/);
   }
 });
 
@@ -363,4 +366,12 @@ test('NVIDIA patch generation disables reasoning only for its documented default
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test('Gemini collaborator pins artifact actions used across the read-only model and write-capable publisher boundary', () => {
+  const source = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+  assert.match(source, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7\.0\.2/);
+  assert.match(source, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8\.0\.2/);
+  assert.doesNotMatch(source, /uses: actions\/(?:upload|download)-artifact@v[0-9]+/);
 });
