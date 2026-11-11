@@ -369,11 +369,18 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
 });
 
-test('Gemini PR review requires an explicit open main-target PR number', () => {
+test('Gemini PR review requires per-run paid-inference consent and an explicit open main-target PR number', () => {
   assert.match(geminiPrReviewWorkflow,
-    /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+pr_number:\s*\n\s+description:[^\n]*\n\s+required:\s+true\n\s+type:\s+number/);
-  assert.match(geminiPrReviewWorkflow, /PR_NUMBER_INPUT: \$\{\{ inputs\.pr_number \}\}/);
-  assert.match(geminiPrReviewWorkflow, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/pulls\/\$\{PR_NUMBER\}"/);
+    /workflow_dispatch:\\s*\\n\\s+inputs:/);
+  assert.match(geminiPrReviewWorkflow,
+    /pr_number:\\s*\\n\\s+description:[^\\n]*\\n\\s+required:\\s+true\\n\\s+type:\\s+number/);
+  assert.match(geminiPrReviewWorkflow,
+    /allow_paid_inference:\\s*\\n\\s+description:[^\\n]*\\n\\s+required:\\s+true\\n\\s+type:\\s+boolean\\n\\s+default:\\s+false/);
+  assert.match(geminiPrReviewWorkflow, /inputs\\.allow_paid_inference == true/);
+  assert.match(geminiPrReviewWorkflow, /vars\\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \\$\\{\\{ inputs\\.allow_paid_inference \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER_INPUT: \\$\\{\\{ inputs\\.pr_number \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /gh api "repos\\/\\$\\{GITHUB_REPOSITORY\\}\\/pulls\\/\\$\\{PR_NUMBER\\}"/);
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --limit 1/);
