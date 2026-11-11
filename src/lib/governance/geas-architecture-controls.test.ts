@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { buildEvidenceRecord, canonicalActionHash, evaluateVerificationState, problemDetails } from './geas-architecture-controls';
+import { buildEvidenceRecord, canonicalActionHash, evaluateVerificationState, getEconomicIntegrityPolicy, problemDetails } from './geas-architecture-controls';
 import { before, test } from 'node:test';
 
 let assertionsCompleted = false;
@@ -45,4 +45,50 @@ console.log('GEAS architecture controls tests passed');
 
 test('existing assertions completed in setup hook', () => {
   assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
+
+
+test('generic GEAS evidence admission rejects economic truth without a financial-integrity verifier', () => {
+  assert.throws(() => buildEvidenceRecord({
+    evidenceId: 'economic-claim-1',
+    contextId: 'ctx-economic-1',
+    truth: 'economically-verified',
+    state: 'pass',
+    source: 'caller-supplied',
+    observedAt: '2026-11-11T00:00:00.000Z',
+    producer: 'caller',
+    authoritative: true,
+    refs: ['provider-usage:1', 'provider-invoice:1'],
+    content: { status: 'RECONCILED', amount: '0.00', currency: 'USD' },
+  }), /GEAS financial-integrity gate/);
+});
+
+
+test('GEAS economic integrity policy remains closed until every source control is verified', () => {
+  const policy = getEconomicIntegrityPolicy();
+  assert.equal(policy.version, 'GEAS-FININT-1.0');
+  assert.equal(policy.status, 'NOT VERIFIED');
+  assert.equal(policy.mayClaimEconomicallyVerified, false);
+  assert.equal(policy.genericEvidenceAdmission, 'BLOCKED');
+  assert.ok(policy.controls.some((control) => control.id === 'focus-1-4-usage-invoice-reconciliation'
+    && control.implementationStatus === 'IMPLEMENTED'
+    && control.evidenceStatus === 'NOT VERIFIED'));
+  assert.ok(policy.controls.some((control) => control.id === 'provider-issued-usage-authenticity'
+    && control.implementationStatus === 'NOT IMPLEMENTED'));
+  assert.ok(policy.controls.every((control) => control.evidenceStatus === 'NOT VERIFIED'));
+});
+
+
+test('GEAS evidence admission rejects unknown runtime truth values rather than admitting them', () => {
+  assert.throws(() => buildEvidenceRecord({
+    evidenceId: 'economic-claim-variant-1',
+    contextId: 'ctx-economic-variant-1',
+    truth: 'economically-verified ' as never,
+    state: 'pass',
+    source: 'caller-supplied',
+    observedAt: '2026-11-11T00:00:00.000Z',
+    producer: 'caller',
+    authoritative: true,
+    content: { status: 'RECONCILED' },
+  }), /Invalid GEAS evidence truth value/);
 });
