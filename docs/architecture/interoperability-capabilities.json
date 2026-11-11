@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-11T06:53:06Z",
+  "updatedAt": "2026-11-11T12:19:51Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -854,7 +854,8 @@
       "scope": "A2A 1.0.1 and MCP 2026-07-28 general-purpose protocol adapter and interoperability audit; a fixed public-repository GitHub MCP bridge exists but does not satisfy this broader target",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test"
+        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test",
+        "Optional read-only MCP external server TCK workflow merged by GLORIFIER PR #819; owner-controlled endpoint configuration required; workflow_dispatch only with run_external_mcp_checks defaulting to false; no TCK run recorded."
       ],
       "evidence": [
         {
@@ -982,6 +983,20 @@
           "targetEnvironment": "GitHub Actions CodeQL run for exact PR #629 head 156674a5442173ac0ea8d5355aa7d3eeacfc7c28",
           "observedAt": "2026-11-03T07:28:01.025Z",
           "notes": "CodeQL analysis completed successfully for the PR head. This is source-analysis evidence only and does not establish external protocol or production runtime behavior."
+        },
+        {
+          "kind": "ci-run",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43019184537",
+          "targetEnvironment": "GitHub Actions main push; Node.js 24 Linux build job, exact GLORIFIER main commit 30573ff17d8b06f84004b9ec8f7f6575dcfde80f",
+          "observedAt": "2026-11-11T12:19:51Z",
+          "notes": "The exact-main build job passed A2A task-persistence SQL-binding validation, A2A 1.0 JSON-RPC contract tests, A2A durable-runtime regression tests, A2A 1.0 Express endpoint tests, and authenticated-exchange integration tests. The source/test contract supports requester-scoped cancellation of queued tasks only; running tasks remain unchanged because the executor has no provider-interruption signal. These are repository CI checks, not the official A2A 1.0.1 TCK, an external-client exchange, or a controlled two-agent staging test. The combined A2A/MCP capability remains NOT VERIFIED."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/blob/ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7/.github/workflows/external-mcp-conformance.yml",
+          "targetEnvironment": "GLORIFIER main merge commit ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7; manually dispatched read-only MCP external server conformance workflow",
+          "observedAt": "2026-11-11T12:09:31Z",
+          "notes": "PR #819 adds the official frozen MCP 2026-07-28 server requirements command using the conformance runner pinned to 96a6f9478b7f2e125cf0360a213383cf57533893 and retains a separate legacy 2025-11-25 tools-list scenario. The workflow is workflow_dispatch-only and the external-check opt-in defaults to false. This is test-path/source evidence, not a conformance result; the workflow was not dispatched and no endpoint was probed."
         }
       ],
       "limitations": [
@@ -991,7 +1006,8 @@
         "The fixed-scope, stateless, read-only GitHub MCP endpoint now has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call result envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
         "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
-        "No arbitrary proxy or implied provider fallback is authorized."
+        "No arbitrary proxy or implied provider fallback is authorized.",
+        "PR #819 adds an owner-controlled manual-only external MCP server TCK path for frozen 2026-07-28 server requirements and a separate 2025-11-25 legacy tools-list scenario. The input defaults to false; no endpoint configuration, run, report, or independent client handshake is recorded."
       ]
     },
     {
@@ -1849,7 +1865,7 @@
       "scope": "source-adapter-contract; no live runtime deployment or inference evidence",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "GLORIFIER7/GLORIFIER-NEURAL main (adapter PR #67 merged); follow-up fix PR #68 is open, ready for review, and not merged",
+        "GLORIFIER7/GLORIFIER main commit 5502af2db999db82caca99dc9d3b5bfa32fb4517; provider and wildcard-regression test synchronized from standalone NEURAL main by PR #770",
         "No authorized Dynamo endpoint, GPU host, or Kubernetes environment supplied"
       ],
       "evidence": [
@@ -1858,7 +1874,7 @@
           "reference": "https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67",
           "targetEnvironment": "GLORIFIER7/GLORIFIER-NEURAL main; adapter present at base commit ace74961e36163882ae0624008268dd27538ac7d; follow-up PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
           "observedAt": "2026-11-07T17:18:21Z",
-          "notes": "Adapter source PR #67 is merged and the optional provider is present on NEURAL main. Main had two reproduced defects: the synchronous HTTP/1.0 close-after-response path could fail while reading the response, and matching wildcard hostnames were accepted. Open PR #68 (GitHub API reports draft=false) adds retained-socket handling and wildcard rejection. Its Python tests, CodeQL, and Worker validation pass, but AI Review Policy fails because the formal current-head CodeAnt review is missing. The head commit is unsigned; review/signature governance remains unresolved. No live GPU deployment or inference is verified."
+          "notes": "Historical checkpoint: adapter PR #67 had merged on standalone NEURAL main; at this observation, follow-up PR #68 was still open and had not merged. This historical PR state is superseded for current source status by the later standalone wildcard-guard commit 70b6354 and its synchronization into GLORIFIER main through PR #770. No live GPU deployment or inference is verified."
         },
         {
           "kind": "ci-run",
@@ -1873,6 +1889,20 @@
           "targetEnvironment": "NEURAL PR #68 head 8b21a25d454313888fba0bd33f3b5b17d431276f",
           "observedAt": "2026-11-07T10:46:35Z",
           "notes": "CodeQL Analyze passed in this run. Cloudflare Worker validation/build passed in run 42364310300; deployment and smoke jobs were skipped. Amazon Q's current-head review was COMMENTED and found no blocking code defects; it is not a formal approval. The current AI Review Policy still fails for missing CodeAnt review."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/blob/5502af2db999db82caca99dc9d3b5bfa32fb4517/services/neural/app/providers/dynamo.py",
+          "targetEnvironment": "GLORIFIER7/GLORIFIER merge commit 5502af2db999db82caca99dc9d3b5bfa32fb4517; synchronized NEURAL provider source",
+          "observedAt": "2026-11-09T11:10:16Z",
+          "notes": "PR #770 synchronized the embedded NEURAL provider from standalone main. The monorepo Dynamo adapter rejects wildcard characters in both the allowlisted hostname and configured API hostname and requires the exact HTTPS origin. Source presence is not live endpoint, authentication enforcement, GPU deployment, model readiness, or inference evidence."
+        },
+        {
+          "kind": "automated-test",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/blob/5502af2db999db82caca99dc9d3b5bfa32fb4517/services/neural/tests/test_nvidia_dynamo_provider.py",
+          "targetEnvironment": "GLORIFIER7/GLORIFIER merge commit 5502af2db999db82caca99dc9d3b5bfa32fb4517; offline provider regression tests",
+          "observedAt": "2026-11-09T11:10:16Z",
+          "notes": "The test suite includes test_dynamo_adapter_rejects_wildcard_hostnames_in_either_origin, with a wildcard in either the API base URL or allowlist. This records regression-test presence only; this audit did not establish a passing exact-main NEURAL Python CI run or a live Dynamo endpoint."
         }
       ],
       "limitations": [
@@ -1882,7 +1912,7 @@
         "No live authorized Dynamo /v1/models readiness or /v1/chat/completions inference has been performed.",
         "The configured ingress has not been demonstrated to enforce TLS and bearer authentication; sending an Authorization header is not proof the server validates it.",
         "Mocked unit tests, container builds, Worker previews, and NVIDIA compatibility documentation cannot be promoted to live runtime verification.",
-        "Follow-up PR #68 is open and marked ready for review (draft=false), but remains unmerged. Python 3.11/3.12 tests, Ruff, pip-audit, container build, CodeQL, and Worker validation passed; AI Review Policy failed because the current-head formal review from codeant-ai[bot] is missing. The head commit is unsigned; an authorized signed-commit path and required human review remain necessary before merge."
+        "The earlier standalone PR #68 was closed unmerged. Its wildcard-rejection change later landed on standalone NEURAL main in commit 70b6354 and was synchronized into the GLORIFIER monorepo by PR #770. Current monorepo source and regression tests contain the guard; this does not establish live GPU deployment or inference."
       ]
     },
     {
