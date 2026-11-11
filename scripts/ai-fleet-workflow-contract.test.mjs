@@ -438,6 +438,8 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   const proposalStart = nvidiaMaintenanceWorkflow.indexOf('\n  propose-fix:\n');
   const validatorStart = nvidiaMaintenanceWorkflow.indexOf('\n  validate-fix:\n');
   const publisherStart = nvidiaMaintenanceWorkflow.indexOf('\n  publish-fix:\n');
+  assert.ok(proposalStart >= 0 && validatorStart > proposalStart && publisherStart > validatorStart,
+    'expected proposal, validation, and publication jobs in order');
   assert.ok(proposalStart >= 0, 'expected a provider proposal job');
   assert.ok(validatorStart > proposalStart, 'expected read-only validation after proposal');
   assert.ok(publisherStart > validatorStart, 'expected publication after validation');
@@ -462,6 +464,8 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'provider job must hand off the candidate patch as an artifact');
 
   assert.match(validator, /needs: propose-fix/);
+  assert.match(validator, /if: \$\{\{ needs\.propose-fix\.result == 'success' && needs\.propose-fix\.outputs\.created == 'true' \}\}/,
+    'validator must require a successful proposal job and a created patch');
   assert.match(validator,
     /^    permissions:\n      actions: read\n      contents: read\n      pull-requests: read$/m,
     'generated code must execute only in a read-only validation job');
@@ -469,11 +473,23 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
   assert.match(validator, /npm run build/);
   assert.match(validator, /npm run test:nvidia-provider/);
   assert.match(validator, /npm run test:protected-api-paths/);
+  assert.match(validator, /npm run test:harness/);
+  assert.match(validator, /npm run test:architecture/);
+  assert.match(validator, /npm run test:geas-claim-verification/);
+  assert.match(validator, /npm run test:geas-state-reconciliation/);
+  assert.match(validator, /sha256sum/);
+  assert.match(validator, /patch_sha256=/,
+    'validator must export the digest of the exact patch it tested');
+
+  assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
+  assert.match(publisher, /if: \$\{\{ needs\.propose-fix\.result == 'success' && needs\.propose-fix\.outputs\.created == 'true' && needs\.validate-fix\.result == 'success' \}\}/,
+    'publisher must require successful proposal and validation jobs');
+  assert.match(publisher, /needs\.validate-fix\.outputs\.patch_sha256/);
   assert.match(validator, /EXPECTED_PATCH_SHA256: \$\{\{ needs\.propose-fix\.outputs\.patch_sha256 \}\}/,
     'read-only validator must verify the candidate digest produced before code execution');
 
   assert.match(publisher, /needs: \[propose-fix, validate-fix\]/);
-  assert.match(publisher, /needs\.propose-fix\.outputs\.patch_sha256/);
+  assert.match(publisher, /needs\.validate-fix\.outputs\.patch_sha256/);
   assert.match(publisher,
     /^    permissions:\n      actions: read\n      contents: write\n      pull-requests: write$/m,
     'only the publisher may hold the minimum GitHub write permissions');
@@ -483,6 +499,8 @@ test('NVIDIA assisted maintenance validates generated code in a read-only job be
     'publisher must verify it received the exact patch tested by the read-only validator');
   assert.match(publisher, /git -c core\.hooksPath=\/dev\/null .* apply/);
   assert.doesNotMatch(publisher, /NVIDIA_API_KEY|secrets\.NVIDIA/);
+  assert.doesNotMatch(publisher, /^\s+(?:npm (?:ci|audit|run)|node .*test|test:nvidia-provider|test:protected-api-paths)\b/m,
+    'write-capable publisher must never execute model-generated code or project scripts');
   const publisherCommands = publisherStepBlocks(publisher)
     .map((step) => step.split('        run:').slice(1).join('\n'))
     .join('\n');

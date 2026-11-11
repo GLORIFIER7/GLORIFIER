@@ -176,12 +176,12 @@ jobs:
             echo "created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "created=true" >> "$GITHUB_OUTPUT"
           digest="$(sha256sum patch.diff | awk '{print $1}')"
           if [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
             echo "::error::Unable to calculate a valid candidate patch digest."
             exit 1
           fi
-          echo "created=true" >> "$GITHUB_OUTPUT"
           echo "patch_sha256=$digest" >> "$GITHUB_OUTPUT"
       - name: Upload validated patch for isolated publication
         if: steps.verify.outputs.created == 'true'
@@ -208,13 +208,15 @@ jobs:
 
   validate-fix:
     needs: propose-fix
-    if: ${{ needs.propose-fix.outputs.created == 'true' }}
+    if: ${{ needs.propose-fix.result == 'success' && needs.propose-fix.outputs.created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       actions: read
       contents: read
       pull-requests: read
+    outputs:
+      patch_sha256: ${{ steps.digest.outputs.patch_sha256 }}
     steps:
       - name: Fresh checkout for isolated validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -310,12 +312,26 @@ jobs:
           npm run test:architecture
           npm run test:geas-claim-verification
           npm run test:geas-state-reconciliation
+      - name: Record digest of the validated candidate
+        id: digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="$RUNNER_TEMP/nvidia-artifact/patch.diff"
+          digest="$(sha256sum "$patch" | awk '{print $1}')"
+          if [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::Unable to calculate a valid SHA-256 digest."
+            exit 1
+          fi
+          echo "patch_sha256=$digest" >> "$GITHUB_OUTPUT"
       - name: Summarize isolated validation
         if: always()
         run: |
           {
             echo "# NVIDIA-assisted maintenance validation"
             echo
+            echo "- Generated patch code ran only in a read-only job."
+            echo "- Repository write permissions: none"
             echo "- Generated code executed only in a read-only job."
             echo "- GitHub repository permissions: read-only"
             echo "- Provider credentials: none"
@@ -324,7 +340,7 @@ jobs:
 
   publish-fix:
     needs: [propose-fix, validate-fix]
-    if: ${{ needs.propose-fix.outputs.created == 'true' && needs.validate-fix.result == 'success' }}
+    if: ${{ needs.propose-fix.result == 'success' && needs.propose-fix.outputs.created == 'true' && needs.validate-fix.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -348,18 +364,22 @@ jobs:
           path: ${{ runner.temp }}/nvidia-artifact
       - name: Verify digest, recheck static scope, and apply without executing patch code
         env:
-          EXPECTED_PATCH_SHA256: ${{ needs.propose-fix.outputs.patch_sha256 }}
+          EXPECTED_PATCH_SHA256: ${{ needs.validate-fix.outputs.patch_sha256 }}
         shell: bash
         run: |
           set -euo pipefail
           patch="$RUNNER_TEMP/nvidia-artifact/patch.diff"
-          if [[ ! -s "$patch" || ! "$EXPECTED_PATCH_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
-            echo "::error::The validated patch or its expected SHA-256 digest is missing."
+          if [[ ! -s "$patch" ]]; then
+            echo "::error::The validated patch artifact is missing or empty."
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PATCH_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::The validator did not provide a valid patch digest."
             exit 1
           fi
           actual="$(sha256sum "$patch" | awk '{print $1}')"
           if [[ "$actual" != "$EXPECTED_PATCH_SHA256" ]]; then
-            echo "::error::Patch digest differs from the exact candidate generated and validated."
+            echo "::error::Patch digest differs from the exact candidate tested in the read-only job."
             exit 1
           fi
           python3 - "$patch" <<'PY'
@@ -437,7 +457,7 @@ jobs:
           git -c core.hooksPath=/dev/null commit -m "fix: propose verified repair for CI run $TARGET_RUN_ID"
           gh auth setup-git
           git push origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation and project-specific security and regression checks. Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "NVIDIA-assisted fix proposal for CI run $TARGET_RUN_ID" --body "Nemotron-generated candidate from redacted CI diagnostics. Failed run: $TARGET_RUN_URL. Passed isolated read-only validation (dependency audit, lint, production build, NVIDIA provider, protected API paths, agent harness, architecture, GEAS claim verification and reconciliation). Human review required. No auto-merge, deployment, secret changes, funds movement or paid infrastructure. Passing tests do not prove production health."
       - name: Summarize isolated publication
         if: always()
         env:
