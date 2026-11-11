@@ -373,3 +373,30 @@ Observation time: 2026-11-10T23:50:49.681Z UTC / 2026-11-11T06:50:49.681+07:00 A
 ### Corrective interpretation
 
 The route remains DEGRADED. Before any credential staging, the protected release sequence must first restore and verify false inference/egress flags. Keep the live openai provider selection from routing task prompts until the paid-inference guard is deployed and separate owner authorization is granted. No live configuration, secret, version, or traffic change was made.
+
+## Superseding CI and production smoke evidence — 2026-11-11
+
+### Linux host-agent and protocol contract CI
+
+- GLORIFIER PR [#809](https://github.com/GLORIFIER7/GLORIFIER/pull/809) merged as main commit `f1a7bcc70755a7bacd56e052bc6412f4e41e20d1`.
+- Exact PR-head GLORIFIER CI run [#42960538845](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42960538845) passed. Its build job ran the Linux host-agent contract suite, interoperability protocol-boundary and evidence-policy suites, interoperability registry tests and validator, and polyglot SDK inventory tests and validator.
+- The same exact-head validation completed Build and Test, workflow syntax validation, GEAS controls, dependency review, frontend build, Cloudflare Worker validation, npm security, and CodeQL Python and JavaScript/TypeScript jobs successfully.
+- These are repository-level offline contract and CI results. They do not prove a real Linux host was enrolled, heartbeated, or used to execute a task, and do not establish external A2A/MCP client conformance.
+
+### Production read-only smoke checkpoint
+
+- Cloudflare production workflow run [#42941575720](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/42941575720) completed successfully from GLORIFIER main commit `3a2bb65d4fabc3c1a3171e8303f51246c49506bf`.
+- The recorded read-only smoke verified exact source provenance, Worker health, Neon Hyperdrive, exact row counts for all six reporting tables, Worker-to-NEURAL liveness, explicit default-deny NEURAL readiness, and public read models (11 integrations / 11 data records).
+- NEURAL readiness remains intentionally unavailable while external data egress is disabled. No task was submitted and no model inference was performed.
+- This production evidence is tied to the recorded deployment commit; it does not automatically prove that later main commits have been deployed.
+
+### Remaining acceptance gates
+
+- Obtain owner-authorized, harmless authenticated task-execution evidence before claiming end-to-end host task execution; do not enable paid inference or unrestricted egress as a substitute.
+- Complete external A2A and MCP client conformance with exact protocol revisions, authenticated discovery/list/call or task exchange, and bounded staging endpoints.
+- Enroll and test an authorized Linux host through heartbeat, fixed read-only diagnostics, task receipt, lease expiry, and revocation. Keep compatibility claims limited to tested distributions and architectures.
+- Refresh independent read-only RPC observations for Ethereum, BNB Chain, and Solana. Keep signing, transfers, minting, and contract writes disabled.
+- Keep cryptographic identity, sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo, provider billing reconciliation, and independent economic outcomes NOT VERIFIED until their own evidence exists.
+
+No production configuration, secrets, database records, provider settings, wallet, or blockchain state was changed by this documentation update.
+
