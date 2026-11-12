@@ -55,3 +55,17 @@ def test_historical_production_readbacks_are_not_described_as_current_state():
     assert "production inference flag is currently configured `true`" not in document
     assert "Current production observation — 2026-11-05" not in document
     assert "latest production smoke on 2026-11-05 followed branch (a)" not in document
+
+def test_dynamo_runbook_attributes_implementation_and_regression_tests_to_their_actual_commits():
+    service_root = Path(__file__).resolve().parents[1]
+    document = (service_root / "docs" / "NVIDIA-DYNAMO.md").read_text(
+        encoding="utf-8"
+    )
+    evidence_section = document.split(
+        "## Upstream implementation evidence — 2026-11-11", 1
+    )[1].split("## Configuration contract", 1)[0]
+
+    assert "commit [70b6354]" in evidence_section
+    assert "test commit [4c0f0ef]" in evidence_section
+    assert "expanded in [54f555d]" in evidence_section
+    assert "70b6354" not in evidence_section.split("adds regression coverage", 1)[0]
