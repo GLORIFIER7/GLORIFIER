@@ -118,3 +118,13 @@ def test_review_events_serialize_policy_without_cancelling_ci_validation():
         "group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
     ) in policy_job
     assert "cancel-in-progress: true" in policy_job
+
+
+
+def test_review_scope_fails_closed_on_github_api_errors():
+    scope = _job_section("review-scope")
+    assert "fail_closed_on_api_error() {" in scope
+    assert "if ! changed_file_count=" in scope
+    assert "if ! changed_paths=" in scope
+    assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in scope
+    assert "exit 0" in scope
