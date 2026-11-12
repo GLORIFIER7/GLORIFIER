@@ -27,7 +27,7 @@ def _section(document: str, heading: str) -> str:
         ),
         len(lines),
     )
-    return "\n".join(lines[start:end])
+    return "\\n".join(lines[start:end])
 
 
 def test_every_provider_task_recipe_requires_explicit_paid_inference_authorization():
@@ -44,3 +44,14 @@ def test_every_provider_task_recipe_requires_explicit_paid_inference_authorizati
             "GLORIFIER_PAID_INFERENCE_AUTHORIZED", ""
         ).casefold()
         assert "owner" in authorization_prose or "authoriz" in authorization_prose, heading
+
+
+def test_historical_production_readbacks_are_not_described_as_current_state():
+    service_root = Path(__file__).resolve().parents[1]
+    document = (service_root / "docs" / "PRODUCTION_READINESS.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "production inference flag is currently configured `true`" not in document
+    assert "Current production observation — 2026-11-05" not in document
+    assert "latest production smoke on 2026-11-05 followed branch (a)" not in document
