@@ -135,6 +135,7 @@ export interface ArchitectureEvidence {
   excerpt: string;
   evidenceClass: EvidenceClass;
   sourceStatus: number;
+  /** Source-declared discovery associations; they do not establish claim support. */
   patternIds: string[];
 }
 
@@ -1259,12 +1260,10 @@ const observedPatterns = (results: SourceObservation[], _scanCompletedAt: string
   });
 };
 
-const indexPatternIdsBySource = (patterns: ArchitecturePattern[]): Map<string, string[]> => {
+const indexPatternIdsBySource = (): Map<string, string[]> => {
   const ids = new Map<string, string[]>();
-  for (const pattern of patterns) {
-    const sourceIds = ids.get(pattern.sourceId) ?? [];
-    sourceIds.push(pattern.id);
-    ids.set(pattern.sourceId, sourceIds);
+  for (const source of SOURCES) {
+    ids.set(source.id, [...source.patternIds]);
   }
   return ids;
 };
@@ -1307,8 +1306,8 @@ const createArchitectureEvidence = (
   patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
-const buildEvidence = (results: SourceObservation[], patterns: ArchitecturePattern[]): ArchitectureEvidence[] => {
-  const patternIdsBySource = indexPatternIdsBySource(patterns);
+export const buildArchitectureEvidence = (results: SourceObservation[]): ArchitectureEvidence[] => {
+  const patternIdsBySource = indexPatternIdsBySource();
   return results.flatMap((result) => isPatternSourceObservation(result)
     ? [createArchitectureEvidence(result, patternIdsBySource)]
     : []);
@@ -1672,7 +1671,7 @@ const buildArchitectureScanResult = (
 ): ArchitectureScanResult => {
   const completedAt = new Date().toISOString();
   const patterns = observedPatterns(sources, completedAt);
-  const evidence = buildEvidence(sources, patterns);
+  const evidence = buildArchitectureEvidence(sources);
   return {
     scanId,
     repositoryRevision: process.env.GITHUB_SHA ?? 'unknown',

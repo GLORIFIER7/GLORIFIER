@@ -10,6 +10,7 @@ import {
   isSourceObservationDue,
   shouldReuseSourceObservation,
   buildConditionalRequestHeaders,
+  buildArchitectureEvidence,
   createSourceFetchContext,
   reuseNotModifiedSourceObservation,
   stripHtml,
@@ -77,6 +78,68 @@ if (!natsMessagingPattern
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NATS source keyword matches must remain analysis, not claim verification');
+}
+
+const declaredPatternIds = new Set(model.patterns.map((pattern) => pattern.id));
+for (const source of model.sources) {
+  for (const patternId of source.patternIds) {
+    if (!declaredPatternIds.has(patternId)) {
+      throw new Error(`source ${source.id} declares an unknown architecture pattern: ${patternId}`);
+    }
+  }
+}
+for (const pattern of model.patterns) {
+  const primarySource = model.sources.find((source) => source.id === pattern.sourceId);
+  if (!primarySource?.patternIds.includes(pattern.id)) {
+    throw new Error(`pattern ${pattern.id} is not declared by its primary source ${pattern.sourceId}`);
+  }
+}
+
+const awsEvidence = buildArchitectureEvidence([{
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: 'Test-only source excerpt.',
+  evidenceStatus: 'content-matched',
+}]);
+if (awsEvidence.length !== 1) throw new Error('content-matched AWS source must produce one evidence record');
+assert.deepEqual(
+  awsEvidence[0].patternIds,
+  ['cross-cutting-cloud-controls', 'durable-agent-execution'],
+  'evidence records must preserve every source-declared pattern association',
+);
+if (awsEvidence[0].evidenceClass !== 'analysis') {
+  throw new Error('source-to-pattern linkage must not promote content matches to observed facts');
+}
+
+const microsoftEvidence = buildArchitectureEvidence([{
+  sourceId: 'microsoft-architecture',
+  ok: true,
+  status: 200,
+  contentHash: 'b'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: 'Test-only source excerpt.',
+  evidenceStatus: 'content-matched',
+}]);
+assert.deepEqual(
+  microsoftEvidence[0]?.patternIds,
+  ['cross-cutting-cloud-controls'],
+  'secondary source associations must be retained even when the pattern has another primary source',
+);
+
+const availabilityOnlyEvidence = buildArchitectureEvidence([{
+  sourceId: 'microsoft-architecture',
+  ok: true,
+  status: 200,
+  contentHash: 'c'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+}]);
+if (availabilityOnlyEvidence.length !== 0) {
+  throw new Error('source availability alone must not create architecture evidence records');
 }
 
 for (const source of model.sources) {
