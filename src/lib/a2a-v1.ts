@@ -368,7 +368,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         return rpcResult(id, { task: toA2ATask(task) });
       } catch (error) {
         if (error instanceof Error && error.name === 'A2AIdempotencyConflictError') {
-          return rpcError(id, -32602, 'messageId was already used with different content.');
+          return rpcError(id, -32003, 'messageId was already used with different content.');
         }
         // Record a safe diagnostic without exposing submitted message content,
         // database URLs, credentials, or provider details to the client.
