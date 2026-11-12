@@ -68,4 +68,10 @@ def test_dynamo_runbook_attributes_implementation_and_regression_tests_to_their_
     assert "commit [70b6354]" in evidence_section
     assert "test commit [4c0f0ef]" in evidence_section
     assert "expanded in [54f555d]" in evidence_section
-    assert "70b6354" not in evidence_section.split("adds regression coverage", 1)[0]
+    implementation_evidence, test_evidence = evidence_section.split(
+        "Regression tests were added", 1
+    )
+    assert "[70b6354]" in implementation_evidence
+    assert "[4c0f0ef]" in test_evidence
+    assert "[54f555d]" in test_evidence
+    assert "[70b6354]" not in test_evidence
