@@ -336,7 +336,7 @@ test('NEURAL review events serialize policy without cancelling CI validation', (
 
   assert.ok(testJob.includes("if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'"),
     'review-only events must not start a duplicate full validation job');
-  assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}'),
+  assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}'),
     'test runs must serialize within their own CI concurrency group');
   assert.ok(testJob.includes('cancel-in-progress: true'),
     'a newer code update may supersede an older test run');
