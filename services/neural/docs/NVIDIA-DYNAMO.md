@@ -2,7 +2,7 @@
 
 ## Status
 
-**Adapter source: under review in GLORIFIER-NEURAL PR #67. Live Dynamo deployment: NOT VERIFIED.**
+**Adapter source: present in the GLORIFIER monorepo NEURAL service. Live GPU-backed Dynamo deployment and inference: NOT VERIFIED.**
 
 This integration makes GLORIFIER-NEURAL capable of calling an owner-operated NVIDIA Dynamo frontend. It does not install Dynamo, provision a GPU, create a Kubernetes cluster, download a model, or turn a remote endpoint into an authorized runtime.
 
@@ -11,6 +11,10 @@ The adapter uses the Dynamo OpenAI-compatible API:
 - `POST /v1/chat/completions` for bounded, non-streaming inference.
 
 A successful models request is not evidence that inference works. A source test is not a live Dynamo deployment.
+
+## Upstream implementation evidence — 2026-11-11
+
+The standalone NEURAL implementation history records the governed OpenAI-compatible adapter in [upstream PR #67](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67) and HTTP/1.0 connection-close response handling in [upstream PR #71](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/71). Upstream commit [70b6354](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/commit/70b6354fd4bac1cb7bc825add4270b154a879998) adds regression coverage and rejects wildcard hostnames in the API URL or exact-origin allowlist. This is source/CI evidence only; it does not verify a live GPU-backed deployment or inference.
 
 ## Configuration contract
 
