@@ -321,7 +321,7 @@ test('NEURAL review events for the same PR serialize in one cancellation group',
     concurrency.includes("group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"),
     'all event types for one pull request must share a concurrency key',
   );
-  assert.doesNotMatch(concurrency, /github\\.event_name|github\\.event\\.comment\\.id|github\\.event\\.review\\.id/,
+  assert.doesNotMatch(concurrency, /github\.event_name|github\.event\.comment\.id|github\.event\.review\.id/,
     'the key must not split events for the same pull request into concurrent groups');
   assert.ok(concurrency.includes('cancel-in-progress: true'),
     'new events for the same PR must supersede stale policy evaluations');
