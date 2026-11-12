@@ -27,7 +27,7 @@ jobs:
   test:
     if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
     concurrency:
-      group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+      group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}
       cancel-in-progress: true
     defaults:
       run:
