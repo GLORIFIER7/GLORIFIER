@@ -1,6 +1,6 @@
 # GLORIFIER Neural Orchestration
 
-A governed, provider-neutral AI orchestration API built with Python and FastAPI, deployed as a Cloudflare Python Worker. The latest successful production smoke on 2026-11-05 returned HTTP 200 from `/health` and `/ready`; provider access, read-only Neon connectivity, authentication, and rate limiting were VERIFIED. A direct Cloudflare settings read-back later that day confirmed `GLORIFIER_PROVIDER=openai`, external data egress enabled, Neon connectivity enabled, and `GLORIFIER_ENABLE_INFERENCE=true`. Optional audit and task-run persistence remain unconfigured. The smoke test did not submit a prompt or perform inference, so end-to-end model execution remains NOT VERIFIED.
+As of 2026-11-12, the current production deployment/version/traffic, provider selection, external-egress configuration, inference flag, database connectivity, secret-binding presence, and live readiness are **NOT VERIFIED**. The last recorded production smoke evidence (2026-11-11, [run #42938988897](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42938988897), from standalone NEURAL main commit `042c50d5d570122eeb12036c7a68865330630da7`) reported HTTP 200 from `/health` and HTTP 503 from `/ready` in provider-disabled safe mode: provider readiness `NOT VERIFIED`, database/authentication/rate limiting `VERIFIED`, optional audit/task-run persistence not configured, and `inference_performed=false`. This is a dated historical observation, not proof of present runtime state. No prompt or model inference was submitted.
 
 ## License
 
