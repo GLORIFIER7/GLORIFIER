@@ -2,6 +2,8 @@
 
 This runbook describes the controls required before declaring the Cloudflare Worker production-ready.
 
+> **Evidence freshness — 2026-11-12:** Current production provider selection, Worker deployment/version/traffic, external-egress setting, inference flag, database connectivity, secret-binding presence, and live readiness are **NOT VERIFIED**. The 2026-11-05 Cloudflare inventory and 2026-11-11 smoke evidence are historical observations, not current production read-backs. The last recorded smoke reported provider-disabled safe mode (`/health` HTTP 200; `/ready` HTTP 503; provider `NOT VERIFIED`; database, authentication, and rate limiting `VERIFIED`; `inference_performed=false`). Configuration examples below describe intended controls and do not assert that those values are currently deployed.
+
 ## Deployment target
 
 - Worker: `glorifier-neural`
@@ -9,7 +11,7 @@ This runbook describes the controls required before declaring the Cloudflare Wor
 - Runtime: Cloudflare Python Workers / FastAPI
 - Database read probe: existing `NEON_READONLY` Hyperdrive binding
 - Task-run writes: a separately provisioned `NEON_WRITE` binding or a writer `NEON_DATABASE_URL` secret
-- Currently selected production provider: OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. NVIDIA NIM remains an optional alternative provider, not the current production selection.
+- Historical provider observation (2026-11-05): OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. The current deployed provider selection is **NOT VERIFIED**; NVIDIA NIM remains an optional source-supported provider.
 
 The NEURAL production release path is the protected manual workflow
 `.github/workflows/neural-cloudflare-worker.yml`: it requires a manual
@@ -58,10 +60,9 @@ Configure the following in Workers & Pages → `glorifier-neural` → Settings �
 - `GLORIFIER_API_TOKEN`: a high-entropy bearer token used by authenticated `POST /v1/tasks` callers.
 - `GLORIFIER_INTERNAL_SERVICE_TOKEN`: a separate high-entropy credential used only by the internal GLORIFIER-to-NEURAL service-verification path. Keep it distinct from `GLORIFIER_API_TOKEN`; never publish either value.
 
-### OpenAI (currently selected production provider)
+### OpenAI (optional provider; current production selection NOT VERIFIED)
 
-The observed production Worker is configured with `GLORIFIER_PROVIDER=openai`.
-Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter
+The 2026-11-05 historical settings observation recorded `GLORIFIER_PROVIDER=openai`; the current deployed provider selection is **NOT VERIFIED**. Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter
 defaults to `gpt-6-luna` unless `OPENAI_MODEL` is explicitly set.
 
 For read-only provider readiness, configure:
@@ -77,7 +78,7 @@ Read-only readiness does not authorize task inference. Only after the owner sepa
 
 Keep the paid-inference authorization false in the zero-budget default.
 
-A direct Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC+07:00) confirmed `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. The `OPENAI_API_KEY` binding name is present; its value was not read. This is configuration evidence only. The latest production smoke performed read-only readiness checks and explicitly reported `inference_performed=false`; it did not submit a prompt or verify a live completion. Authenticated task requests can send prompt content to OpenAI and incur separate API usage charges. Current source also requires the independent, default-false `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` gate in addition to inference enablement and external-egress consent; a historical production flag snapshot does not prove that the new source guard has been deployed. A successful model-catalogue check establishes model access only; it does not prove inference quality, latency, capacity, or end-to-end task execution.
+A historical Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC+07:00) recorded `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. Those values are not a current configuration read-back. The `OPENAI_API_KEY` binding name is present; its value was not read. This is configuration evidence only. The latest production smoke performed read-only readiness checks and explicitly reported `inference_performed=false`; it did not submit a prompt or verify a live completion. Authenticated task requests can send prompt content to OpenAI and incur separate API usage charges. Current source also requires the independent, default-false `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` gate in addition to inference enablement and external-egress consent; a historical production flag snapshot does not prove that the new source guard has been deployed. A successful model-catalogue check establishes model access only; it does not prove inference quality, latency, capacity, or end-to-end task execution.
 
 ### NVIDIA NIM (optional alternative provider)
 
