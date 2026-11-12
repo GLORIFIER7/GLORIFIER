@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload validated patch for isolated publication
         if: ${{ steps.package.outputs.changed == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ai-maintenance-patch-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ai-maintenance.patch
@@ -330,6 +330,8 @@ jobs:
         with:
           name: ai-maintenance-patch-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ai-maintenance-artifact
+          # Reject corrupted or substituted patch artifacts.
+          digest-mismatch: error
 
       - name: Apply patch without executing proposed source
         if: ${{ steps.publisher_gate.outputs.allowed == 'true' }}
