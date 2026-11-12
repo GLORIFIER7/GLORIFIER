@@ -310,7 +310,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(policy, /github\.event_name == 'pull_request'/);
 });
 
-test('NEURAL review events use unique concurrency groups and cannot cancel their own scope evaluation', () => {
+test('NEURAL review events for the same PR serialize in one cancellation group', () => {
   const concurrencyStart = neuralCiWorkflow.indexOf('concurrency:');
   const permissionsStart = neuralCiWorkflow.indexOf('permissions:', concurrencyStart);
   assert.ok(concurrencyStart >= 0 && permissionsStart > concurrencyStart,
@@ -318,13 +318,13 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
   const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
 
   assert.ok(
-    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id") &&
-    concurrency.includes("github.event_name == 'pull_request_review_comment' && github.event.comment.id"),
-    'each review event must have its own concurrency key',
+    concurrency.includes("group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"),
+    'all event types for one pull request must share a concurrency key',
   );
-  assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
+  assert.doesNotMatch(concurrency, /github\\.event_name|github\\.event\\.comment\\.id|github\\.event\\.review\\.id/,
+    'the key must not split events for the same pull request into concurrent groups');
   assert.ok(concurrency.includes('cancel-in-progress: true'),
-    'new branch updates may continue to supersede older branch-update runs');
+    'new events for the same PR must supersede stale policy evaluations');
 });
 
 function assertGeminiAuthorizationWorkflow(item) {
