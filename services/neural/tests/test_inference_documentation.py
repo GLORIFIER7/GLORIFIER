@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 PROVIDER_HEADINGS = (
-    "### OpenAI (currently selected production provider)",
+    "### OpenAI (optional provider; current production selection NOT VERIFIED)",
     "### NVIDIA NIM (optional alternative provider)",
     "### Gemini Interactions API (optional alternative provider)",
     "### Anthropic Claude Messages API (optional alternative provider)",
