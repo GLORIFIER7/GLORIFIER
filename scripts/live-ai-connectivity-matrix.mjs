@@ -159,9 +159,6 @@ function failure(result) {
 export async function probeProvider(provider, env, allowMetered) {
   const key = (env[provider.key] || "").trim();
   if (!key) return { id: provider.id, status: "NOT_CONFIGURED", reason: provider.key + " is absent." };
-  if (provider.authorize && env[provider.authorize] !== "true") {
-    return { id: provider.id, status: "BLOCKED_BY_POLICY", reason: provider.authorize + "=true is required." };
-  }
   let base;
   try { base = baseFor(provider, env); }
   catch { return { id: provider.id, status: "CONFIGURATION_ERROR", reason: "Invalid HTTPS provider base URL." }; }
@@ -180,6 +177,12 @@ export async function probeProvider(provider, env, allowMetered) {
   };
   if (!allowMetered) {
     result.reason = "Inference disabled; no generation request was made.";
+    return result;
+  }
+  if (provider.authorize && env[provider.authorize] !== "true") {
+    result.status = "BLOCKED_BY_POLICY";
+    result.inference = "BLOCKED_BY_POLICY";
+    result.reason = provider.authorize + "=true is required for inference.";
     return result;
   }
   const model = modelFor(provider, ids, env);
