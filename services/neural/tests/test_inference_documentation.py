@@ -27,7 +27,7 @@ def _section(document: str, heading: str) -> str:
         ),
         len(lines),
     )
-    return "\\n".join(lines[start:end])
+    return "\n".join(lines[start:end])
 
 
 def test_every_provider_task_recipe_requires_explicit_paid_inference_authorization():
