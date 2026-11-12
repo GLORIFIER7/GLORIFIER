@@ -76,6 +76,22 @@ if (!natsMessagingPattern
     || !natsMessagingPattern.GLORIFIERMapping.includes('does not prove NATS is deployed')) {
   throw new Error('NATS messaging must remain an analysis-only pattern and must not imply GLORIFIER deployment');
 }
+const rfc9111Source = model.sources.find((source) => source.id === 'ietf-rfc9111-http-caching');
+if (!rfc9111Source
+    || rfc9111Source.url !== 'https://www.rfc-editor.org/rfc/rfc9111.html'
+    || rfc9111Source.cadenceHours !== 336
+    || !rfc9111Source.patternIds.includes('conditional-http-cache-validation')) {
+  throw new Error('RFC 9111 must use its exact official URL, a 14-day cadence, and the cache-validation pattern association');
+}
+const conditionalCachePattern = model.patterns.find((pattern) => pattern.id === 'conditional-http-cache-validation');
+if (!conditionalCachePattern
+    || conditionalCachePattern.sourceId !== 'ietf-rfc9111-http-caching'
+    || conditionalCachePattern.domain !== 'integration'
+    || !conditionalCachePattern.pattern.includes('If-None-Match')
+    || !conditionalCachePattern.GLORIFIERMapping.includes('Analysis only')
+    || !conditionalCachePattern.GLORIFIERMapping.includes('does not prove production cache conformance')) {
+  throw new Error('RFC 9111 cache validation must remain an analysis-only pattern, not a production conformance claim');
+}
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NATS source keyword matches must remain analysis, not claim verification');
 }
@@ -175,6 +191,7 @@ const approvedCuratedSourceUrls = [
   'https://focus.finops.org/docs/specification/v1-4/',
   'https://focus.finops.org/focus-1-5-release-scope/',
   'https://docs.nats.io/concepts/jetstream',
+  'https://www.rfc-editor.org/rfc/rfc9111.html',
 ];
 for (const sourceUrl of approvedCuratedSourceUrls) {
   if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
@@ -195,6 +212,7 @@ const rejectedCuratedSourceUrls = [
   'https://www.nist.gov/internal',
   'https://owaspacs.org/docs/unregistered/',
   'https://docs.nats.io/unregistered/',
+  'https://www.rfc-editor.org/rfc/rfc9110.html',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/README.md',
   'https://airc.nist.gov/another-document',
   'https://raw.githubusercontent.com/attacker/repo/main/payload',

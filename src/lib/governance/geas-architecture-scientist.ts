@@ -323,6 +323,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336),
   createArchitectureSource('ietf-oauth-security', 'IETF', 'cybersecurity', 'https://datatracker.ietf.org/doc/html/rfc9700', ['oauth-security-best-practice'], 336),
   createArchitectureSource('ietf-http-problem-details', 'IETF', 'integration', 'https://datatracker.ietf.org/doc/html/rfc9457', ['standard-api-error-contracts'], 336),
+  createArchitectureSource('ietf-rfc9111-http-caching', 'IETF', 'integration', 'https://www.rfc-editor.org/rfc/rfc9111.html', ['conditional-http-cache-validation'], 336),
   createArchitectureSource('nats-jetstream', 'NATS', 'integration', 'https://docs.nats.io/concepts/jetstream', ['durable-agent-messaging'], 336),
   createArchitectureSource('slsa-v1-2', 'SLSA', 'software', 'https://slsa.dev/spec/v1.2/', ['build-provenance'], 336),
   createArchitectureSource('openssf-scorecard', 'OpenSSF', 'software', 'https://securityscorecards.dev/', ['open-source-supply-chain-risk'], 336),
@@ -431,6 +432,16 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   definePattern('enterprise-architecture-traceability', 'Enterprise architecture traceability', 'enterprise-architecture', 'opengroup-togaf', 'Link business, information, application and technology architecture decisions to governed outcomes and traceable change.', 'GEAS architecture baseline and five-state reconciliation', ['TRACE-01', 'GOV-01'], ['architecture', 'capability', 'governance', 'traceability']),
   definePattern('oauth-security-best-practice', 'OAuth security best current practice', 'cybersecurity', 'ietf-oauth-security', 'Apply current OAuth security guidance including constrained authorization flows, secure redirect handling and token misuse defenses.', 'GEAS identity, delegation, audience and token lifecycle controls', ['AUTH-01', 'SEC-01'], ['OAuth', 'authorization', 'token', 'security']),
   definePattern('standard-api-error-contracts', 'Standard API error contracts', 'integration', 'ietf-http-problem-details', 'Use a consistent machine-readable HTTP API error representation without exposing sensitive implementation details.', 'Versioned API adapters and sanitized operational diagnostics', ['FED-01', 'OBS-01'], ['problem details', 'HTTP API', 'status', 'error']),
+  definePattern(
+    'conditional-http-cache-validation',
+    'Conditional HTTP source-cache validation',
+    'integration',
+    'ietf-rfc9111-http-caching',
+    'Use ETag and Last-Modified validators for conditional retrieval; preserve validator precedence and reuse a 304 response only for the matching stored representation.',
+    'Analysis only: GEAS source fetches use If-None-Match and If-Modified-Since for exact-URL, admissible cached observations. A 304 is reusable only when the final URL matches, the cached snapshot is valid, and observation time is monotonic. RFC 9111 specifies If-None-Match precedence over If-Modified-Since and reuse of suitable stored responses. This does not prove production cache conformance.',
+    ['EVID-01', 'REL-01'],
+    ['ETag', 'If-None-Match', 'Last-Modified', 'If-Modified-Since', '304 Not Modified', 'cache validation'],
+  ),
   definePattern(
     'durable-agent-messaging',
     'Durable asynchronous messaging for agents and services',
@@ -894,6 +905,7 @@ const CURATED_SOURCE_ALLOWED_HOSTS = new Set([
   'www.iso.org',
   'www.nist.gov',
   'www.opengroup.org',
+  'www.rfc-editor.org',
   'www.w3.org',
 ]);
 

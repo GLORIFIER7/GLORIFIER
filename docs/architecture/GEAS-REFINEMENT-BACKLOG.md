@@ -89,3 +89,33 @@ GEAS refinement:
 - Add `durable-agent-messaging` as an integration-domain analysis pattern covering asynchronous decoupling, persistence, acknowledgements, redelivery, replay, retention, replication, and idempotent consumers.
 - Keep the pattern explicitly analysis-only. Neither source proves that NATS is deployed, configured, or used by GLORIFIER; no messaging infrastructure is added by this refinement.
 - Add exact-URL trust, registry/cadence, source-to-pattern, and no-deployment-claim regression assertions.
+
+## HTTP cache validation and source-pattern evidence linkage — 2026-11-12
+
+Observed public-source facts:
+- IETF RFC 9111 is an Internet Standards Track document published in June 2022: https://www.rfc-editor.org/rfc/rfc9111.html
+- Section 4.3.1 describes entity-tag validation with If-None-Match and Last-Modified validation with If-Modified-Since; Section 4.3.2 gives If-None-Match precedence when both are present; Sections 4.3.3–4.3.4 describe reuse and freshening of suitable stored responses after a 304 response.
+- NIST's SI Agent Standards Initiative page was updated 2026-11-09 and identifies agent authentication/identity infrastructure and security evaluation as research areas: https://www.nist.gov/super-intelligence/si-agent-standards-initiative
+- OWASP ACS v0.1.4 uses mandatory ACS-Core plus independently declared optional profiles; its profile declarations are self-claims and the current release has no independent conformance test suite: https://owaspacs.org/docs/spec/conformance/
+- OpenTelemetry GenAI agent-span conventions remain marked Development: https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md
+- FOCUS 1.4 remains the published specification; FOCUS 1.5 is a working draft with ratification scheduled for 2026-12-03: https://focus.finops.org/docs/specification/v1-4/ and https://focus.finops.org/focus-1-5-release-scope/
+- SLSA v1.2 provenance is marked Approved; W3C PROV-O remains a W3C Recommendation: https://slsa.dev/spec/v1.2/provenance and https://www.w3.org/TR/prov-o/
+
+Observed repository facts:
+- Main SHA: `fe773d2dd806650e3baf34883a8b8be6ed76c60c`.
+- Latest main GEAS Architecture Science Scan: run `43088845063`, tested SHA `fe773d2dd806650e3baf34883a8b8be6ed76c60c`.
+- Artifact ZIP SHA-256: `a208ce763d5753103d8d292760f03c580254001ff65908a30647c0faa4620d3a`.
+- The artifact records 59 registry sources, 44 active scanner sources, coverage across 17 domains, 41 content-matched sources, two source-available sources, one not-observed source, 43 analysis patterns, zero claim-supported patterns, and eight UNKNOWN drift findings.
+- The artifact's AWS Well-Architected evidence record linked only `cross-cutting-cloud-controls`, although the scanner source catalog declared both `cross-cutting-cloud-controls` and `durable-agent-execution` for that source. The evidence builder had derived associations only from each pattern's primary `sourceId`, ignoring the source's declared `patternIds`.
+
+Analysis:
+- The missing secondary association is a traceability defect, not a claim-verification defect. Source-declared associations may link evidence to candidate patterns, but the evidence class must remain `analysis` unless a separate claim-level validation record exists.
+- The existing conditional-fetch implementation already requires exact configured-URL identity, admissible cached evidence, matching final URL for 304 reuse, and monotonic observation timestamps. The new RFC source documents the protocol basis; it does not certify production cache behavior.
+
+GEAS refinements:
+- Evidence construction now uses the curated source's declared `patternIds`, preserving primary and secondary source-to-pattern links.
+- Regression tests require every source pattern reference to resolve, require each pattern's primary source to declare it, preserve secondary associations, and prove that content matching remains `analysis` while source availability produces no evidence record.
+- Registered `ietf-rfc9111-http-caching` as an active IETF source with a 14-day review cadence and added `conditional-http-cache-validation` as an integration-domain analysis pattern.
+- The exact RFC 9111 URL is admitted; an unregistered RFC path on the same host remains rejected. No conditional-fetch runtime behavior or production data was changed.
+- The RFC-derived pattern is guidance only. It does not prove that any production cache is deployed or compliant.
+

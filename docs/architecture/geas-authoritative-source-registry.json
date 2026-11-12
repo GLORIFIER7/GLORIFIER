@@ -200,6 +200,18 @@
       "scannerStatus": "discovery-only"
     },
     {
+      "id": "ietf-rfc9111-http-caching",
+      "authority": "IETF",
+      "domain": "integration",
+      "url": "https://www.rfc-editor.org/rfc/rfc9111.html",
+      "claimsAllowed": [
+        "conditional-http-cache-validation"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "ietf-rfcs",
       "authority": "IETF",
       "domain": "integration",
