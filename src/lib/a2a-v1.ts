@@ -69,6 +69,8 @@ export interface A2ACreateTaskInput {
   objective: string;
   input: unknown;
   parentTaskId?: string;
+  /** Replay key: the same requester and key must resolve to the same task. */
+  idempotencyKey?: string;
 }
 
 export interface A2AListTasksInput {
@@ -248,6 +250,7 @@ function rpcResult(id: string | number, result: unknown): A2AJsonRpcResponse {
 function messageText(message: JsonRecord): {
   text: string;
   normalizedParts: Array<{ text?: string; data?: unknown; mediaType?: string; metadata?: JsonRecord }>;
+  messageId: string;
   taskId?: string;
   contextId?: string;
 } | null {
@@ -298,6 +301,7 @@ function messageText(message: JsonRecord): {
   return {
     text,
     normalizedParts,
+    messageId: message.messageId,
     ...(typeof message.taskId === 'string' ? { taskId: message.taskId } : {}),
     ...(typeof message.contextId === 'string' ? { contextId: message.contextId } : {}),
   };
@@ -358,10 +362,14 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
             messageId: params.message.messageId,
             parts: parsed.normalizedParts,
           },
+          idempotencyKey: parsed.messageId,
           ...(parentTaskId ? { parentTaskId } : {}),
         });
         return rpcResult(id, { task: toA2ATask(task) });
       } catch (error) {
+        if (error instanceof Error && error.name === 'A2AIdempotencyConflictError') {
+          return rpcError(id, -32602, 'messageId was already used with different content.');
+        }
         // Record a safe diagnostic without exposing submitted message content,
         // database URLs, credentials, or provider details to the client.
         console.warn('[A2A] Durable task creation failed.', {
