@@ -315,19 +315,26 @@ function neuralJobSection(source, name) {
   const start = source.indexOf(heading);
   if (start < 0) return '';
   const contentStart = start + heading.length;
-  const nextJob = /^  [a-z0-9_-]+:[ \\t]*\\r?$/m.exec(source.slice(contentStart));
-  return source.slice(contentStart, nextJob ? contentStart + nextJob.index : source.length);
+  const remainder = source.slice(contentStart);
+  let offset = 0;
+  for (const line of remainder.split('\n')) {
+    if (line.startsWith('  ') && !line.startsWith('    ') && line.trimEnd().endsWith(':')) {
+      return remainder.slice(0, offset);
+    }
+    offset += line.length + 1;
+  }
+  return remainder;
 }
 
 test('NEURAL review events serialize policy without cancelling CI validation', () => {
-  assert.doesNotMatch(neuralCiWorkflow, /^concurrency:/m,
+  assert.equal(neuralCiWorkflow.split('\n').filter((line) => line === 'concurrency:').length, 0,
     'workflow-level cancellation must not let a review-only event cancel the test job');
 
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
   const policyJob = neuralJobSection(neuralCiWorkflow, 'ai-review-policy');
   assert.ok(testJob && policyJob, 'both NEURAL validation and review-policy jobs must exist');
 
-  assert.match(testJob, /^    if: github\\.event_name != 'pull_request_review' && github\\.event_name != 'pull_request_review_comment'$/m,
+  assert.ok(testJob.includes("if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'"),
     'review-only events must not start a duplicate full validation job');
   assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}'),
     'test runs must serialize within their own CI concurrency group');
