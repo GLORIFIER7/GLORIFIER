@@ -48,6 +48,8 @@ def test_untrusted_test_job_does_not_persist_github_token():
 
 
 def test_review_event_uses_the_documented_top_level_pull_request_payload():
+    assert "pull_request_review_comment:" in WORKFLOW
+    assert "types: [created, edited, deleted]" in WORKFLOW
     policy_job = _job_section("ai-review-policy")
     assert "github.event.review.pull_request" not in policy_job
     assert (
