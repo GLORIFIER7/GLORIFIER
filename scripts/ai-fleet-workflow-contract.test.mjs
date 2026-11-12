@@ -294,7 +294,7 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
   const policy = neuralCiWorkflow.slice(policyStart);
 
-  assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
+  assert.match(scope, /if: github\.event_name == 'pull_request_review' \|\| github\.event_name == 'pull_request_review_comment'/);
   assert.match(scope, /gh api --paginate/);
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
@@ -319,7 +319,8 @@ test('NEURAL review events use unique concurrency groups and cannot cancel their
   const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
 
   assert.ok(
-    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id"),
+    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id") &&
+    concurrency.includes("github.event_name == 'pull_request_review_comment' && github.event.comment.id"),
     'each review event must have its own concurrency key',
   );
   assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
