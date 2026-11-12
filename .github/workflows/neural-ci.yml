@@ -13,12 +13,14 @@ on:
       - ".github/workflows/neural-ci.yml"
   pull_request_review:
     types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
   workflow_dispatch:
   schedule:
     - cron: "23 2 * * *"
 
 concurrency:
-  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name }}-${{ github.event_name == 'pull_request_review' && github.event.review.id || 'latest' }}
+  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name }}-${{ github.event_name == 'pull_request_review' && github.event.review.id || (github.event_name == 'pull_request_review_comment' && github.event.comment.id) || 'latest' }}
   cancel-in-progress: true
 
 permissions:
@@ -26,7 +28,7 @@ permissions:
 
 jobs:
   test:
-    if: github.event_name != 'pull_request_review'
+    if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
     defaults:
       run:
         working-directory: services/neural
@@ -68,7 +70,7 @@ jobs:
         run: docker run --rm --entrypoint python glorifier-neural:ci -c "import psycopg; assert psycopg.__version__"
 
   review-scope:
-    if: github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
     name: NEURAL review scope
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -115,7 +117,7 @@ jobs:
       (
         github.event_name == 'pull_request' ||
         (
-          github.event_name == 'pull_request_review' &&
+          (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment') &&
           (
             needs.review-scope.result != 'success' ||
             needs.review-scope.outputs.required == 'true'
