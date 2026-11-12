@@ -98,14 +98,23 @@ def test_policy_job_uses_canonical_pull_request_head_from_github_api():
     assert "github.workspace" in policy_job
 
 
-def test_review_events_for_one_pull_request_share_a_concurrency_group():
-    concurrency = re.search(
-        r"(?ms)^concurrency:\n(.*?)(?=^permissions:\n)",
-        WORKFLOW,
+def test_review_events_serialize_policy_without_cancelling_ci_validation():
+    assert re.search(r"(?m)^concurrency:", WORKFLOW) is None, (
+        "Workflow-level cancellation lets policy-only events cancel running CI tests"
     )
-    assert concurrency, "A workflow-level concurrency group must be configured"
-    group = re.search(r"(?m)^  group: (.+)$", concurrency.group(1))
-    assert group, "The workflow concurrency group must be explicit"
-    assert group.group(1) == (
-        "neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
-    ), "All events for one PR must serialize against the same concurrency key"
+
+    test_job = _job_section("test")
+    policy_job = _job_section("ai-review-policy")
+    assert (
+        "if: github.event_name != 'pull_request_review' "
+        "&& github.event_name != 'pull_request_review_comment'"
+    ) in test_job
+    assert (
+        "group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+    ) in test_job
+    assert "cancel-in-progress: true" in test_job
+
+    assert (
+        "group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+    ) in policy_job
+    assert "cancel-in-progress: true" in policy_job
