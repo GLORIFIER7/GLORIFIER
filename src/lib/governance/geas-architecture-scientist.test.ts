@@ -84,13 +84,18 @@ if (!rfc9111Source
   throw new Error('RFC 9111 must use its exact official URL, a 14-day cadence, and the cache-validation pattern association');
 }
 const conditionalCachePattern = model.patterns.find((pattern) => pattern.id === 'conditional-http-cache-validation');
-if (!conditionalCachePattern
-    || conditionalCachePattern.sourceId !== 'ietf-rfc9111-http-caching'
-    || conditionalCachePattern.domain !== 'integration'
-    || !conditionalCachePattern.pattern.includes('If-None-Match')
-    || !conditionalCachePattern.GLORIFIERMapping.includes('Analysis only')
-    || !conditionalCachePattern.GLORIFIERMapping.includes('does not prove production cache conformance')) {
-  throw new Error('RFC 9111 cache validation must remain an analysis-only pattern, not a production conformance claim');
+if (!conditionalCachePattern) {
+  throw new Error('RFC 9111 conditional cache-validation pattern is missing from the GEAS model');
+}
+const conditionalCachePatternFailures = [
+  conditionalCachePattern.sourceId === 'ietf-rfc9111-http-caching' ? null : `sourceId=${conditionalCachePattern.sourceId}`,
+  conditionalCachePattern.domain === 'integration' ? null : `domain=${conditionalCachePattern.domain}`,
+  conditionalCachePattern.pattern.includes('If-None-Match') ? null : 'pattern lacks If-None-Match',
+  conditionalCachePattern.GLORIFIERMapping.includes('Analysis only') ? null : 'mapping lacks Analysis only',
+  conditionalCachePattern.GLORIFIERMapping.includes('does not prove production cache conformance') ? null : `mapping=${conditionalCachePattern.GLORIFIERMapping}`,
+].filter((failure): failure is string => failure !== null);
+if (conditionalCachePatternFailures.length > 0) {
+  throw new Error(`RFC 9111 cache-validation pattern assertions failed: ${conditionalCachePatternFailures.join('; ')}`);
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NATS source keyword matches must remain analysis, not claim verification');
