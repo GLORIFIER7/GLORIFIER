@@ -20,7 +20,7 @@ on:
     - cron: "23 2 * * *"
 
 concurrency:
-  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name }}-${{ github.event_name == 'pull_request_review' && github.event.review.id || (github.event_name == 'pull_request_review_comment' && github.event.comment.id) || 'latest' }}
+  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 permissions:
