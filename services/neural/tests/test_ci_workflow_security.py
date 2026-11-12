@@ -100,7 +100,7 @@ def test_policy_job_uses_canonical_pull_request_head_from_github_api():
 
 def test_review_events_for_one_pull_request_share_a_concurrency_group():
     concurrency = re.search(
-        r"(?ms)^concurrency:\n(.*?)(?=^permissions:\\n)",
+        r"(?ms)^concurrency:\n(.*?)(?=^permissions:\n)",
         WORKFLOW,
     )
     assert concurrency, "A workflow-level concurrency group must be configured"
