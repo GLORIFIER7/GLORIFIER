@@ -10,6 +10,7 @@ import {
   isSourceObservationDue,
   shouldReuseSourceObservation,
   buildConditionalRequestHeaders,
+  buildArchitectureEvidence,
   createSourceFetchContext,
   reuseNotModifiedSourceObservation,
   stripHtml,
@@ -75,8 +76,91 @@ if (!natsMessagingPattern
     || !natsMessagingPattern.GLORIFIERMapping.includes('does not prove NATS is deployed')) {
   throw new Error('NATS messaging must remain an analysis-only pattern and must not imply GLORIFIER deployment');
 }
+const rfc9111Source = model.sources.find((source) => source.id === 'ietf-rfc9111-http-caching');
+if (!rfc9111Source
+    || rfc9111Source.url !== 'https://www.rfc-editor.org/rfc/rfc9111.html'
+    || rfc9111Source.cadenceHours !== 336
+    || !rfc9111Source.patternIds.includes('conditional-http-cache-validation')) {
+  throw new Error('RFC 9111 must use its exact official URL, a 14-day cadence, and the cache-validation pattern association');
+}
+const conditionalCachePattern = model.patterns.find((pattern) => pattern.id === 'conditional-http-cache-validation');
+if (!conditionalCachePattern) {
+  throw new Error('RFC 9111 conditional cache-validation pattern is missing from the GEAS model');
+}
+const conditionalCachePatternFailures = [
+  conditionalCachePattern.sourceId === 'ietf-rfc9111-http-caching' ? null : `sourceId=${conditionalCachePattern.sourceId}`,
+  conditionalCachePattern.domain === 'integration' ? null : `domain=${conditionalCachePattern.domain}`,
+  conditionalCachePattern.pattern.includes('If-None-Match') ? null : 'pattern lacks If-None-Match',
+  conditionalCachePattern.GLORIFIERMapping.includes('Analysis only') ? null : 'mapping lacks Analysis only',
+  conditionalCachePattern.GLORIFIERMapping.includes('does not prove production cache conformance') ? null : `mapping=${conditionalCachePattern.GLORIFIERMapping}`,
+].filter((failure): failure is string => failure !== null);
+if (conditionalCachePatternFailures.length > 0) {
+  throw new Error(`RFC 9111 cache-validation pattern assertions failed: ${conditionalCachePatternFailures.join('; ')}`);
+}
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NATS source keyword matches must remain analysis, not claim verification');
+}
+
+const declaredPatternIds = new Set(model.patterns.map((pattern) => pattern.id));
+for (const source of model.sources) {
+  for (const patternId of source.patternIds) {
+    if (!declaredPatternIds.has(patternId)) {
+      throw new Error(`source ${source.id} declares an unknown architecture pattern: ${patternId}`);
+    }
+  }
+}
+for (const pattern of model.patterns) {
+  const primarySource = model.sources.find((source) => source.id === pattern.sourceId);
+  if (!primarySource?.patternIds.includes(pattern.id)) {
+    throw new Error(`pattern ${pattern.id} is not declared by its primary source ${pattern.sourceId}`);
+  }
+}
+
+const awsEvidence = buildArchitectureEvidence([{
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: 'Test-only source excerpt.',
+  evidenceStatus: 'content-matched',
+}]);
+if (awsEvidence.length !== 1) throw new Error('content-matched AWS source must produce one evidence record');
+assert.deepEqual(
+  awsEvidence[0].patternIds,
+  ['cross-cutting-cloud-controls', 'durable-agent-execution'],
+  'evidence records must preserve every source-declared pattern association',
+);
+if (awsEvidence[0].evidenceClass !== 'analysis') {
+  throw new Error('source-to-pattern linkage must not promote content matches to observed facts');
+}
+
+const microsoftEvidence = buildArchitectureEvidence([{
+  sourceId: 'microsoft-architecture',
+  ok: true,
+  status: 200,
+  contentHash: 'b'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: 'Test-only source excerpt.',
+  evidenceStatus: 'content-matched',
+}]);
+assert.deepEqual(
+  microsoftEvidence[0]?.patternIds,
+  ['cross-cutting-cloud-controls'],
+  'secondary source associations must be retained even when the pattern has another primary source',
+);
+
+const availabilityOnlyEvidence = buildArchitectureEvidence([{
+  sourceId: 'microsoft-architecture',
+  ok: true,
+  status: 200,
+  contentHash: 'c'.repeat(64),
+  observedAt: '2026-11-12T00:00:00.000Z',
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+}]);
+if (availabilityOnlyEvidence.length !== 0) {
+  throw new Error('source availability alone must not create architecture evidence records');
 }
 
 for (const source of model.sources) {
@@ -112,6 +196,7 @@ const approvedCuratedSourceUrls = [
   'https://focus.finops.org/docs/specification/v1-4/',
   'https://focus.finops.org/focus-1-5-release-scope/',
   'https://docs.nats.io/concepts/jetstream',
+  'https://www.rfc-editor.org/rfc/rfc9111.html',
 ];
 for (const sourceUrl of approvedCuratedSourceUrls) {
   if (!isTrustedArchitectureSourceUrl(sourceUrl)) {
@@ -132,6 +217,7 @@ const rejectedCuratedSourceUrls = [
   'https://www.nist.gov/internal',
   'https://owaspacs.org/docs/unregistered/',
   'https://docs.nats.io/unregistered/',
+  'https://www.rfc-editor.org/rfc/rfc9110.html',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/README.md',
   'https://airc.nist.gov/another-document',
   'https://raw.githubusercontent.com/attacker/repo/main/payload',
