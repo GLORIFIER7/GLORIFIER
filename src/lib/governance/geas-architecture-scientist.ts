@@ -437,7 +437,7 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
     'Conditional HTTP source-cache validation',
     'integration',
     'ietf-rfc9111-http-caching',
-    'Use ETag and Last-Modified validators for conditional retrieval; preserve validator precedence and reuse a 304 response only for the matching stored representation.',
+    'Use ETag and Last-Modified validators with If-None-Match and If-Modified-Since for conditional retrieval; preserve validator precedence and reuse a 304 response only for the matching stored representation.',
     'Analysis only: GEAS source fetches use If-None-Match and If-Modified-Since for exact-URL, admissible cached observations. A 304 is reusable only when the final URL matches, the cached snapshot is valid, and observation time is monotonic. RFC 9111 specifies If-None-Match precedence over If-Modified-Since and reuse of suitable stored responses. This does not prove production cache conformance.',
     ['EVID-01', 'REL-01'],
     ['ETag', 'If-None-Match', 'Last-Modified', 'If-Modified-Since', '304 Not Modified', 'cache validation'],
