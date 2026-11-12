@@ -153,7 +153,7 @@ test('the model-execution job has no GitHub write permissions', () => {
 
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
   assert.match(coding, /git diff --cached --binary HEAD/);
-  assert.match(coding, /uses: actions\\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/);
+  assert.match(coding, new RegExp('uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'));
   assert.ok(publish.includes('digest-mismatch: error'));
   assert.ok(publish.includes('uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2'));
   assert.match(publish, /git apply --check/);
