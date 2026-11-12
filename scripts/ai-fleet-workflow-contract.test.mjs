@@ -153,7 +153,7 @@ test('the model-execution job has no GitHub write permissions', () => {
 
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
   assert.match(coding, /git diff --cached --binary HEAD/);
-  assert.ok(coding.includes('uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2'));
+  assert.match(coding, /uses: actions\\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/);
   assert.ok(publish.includes('digest-mismatch: error'));
   assert.ok(publish.includes('uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2'));
   assert.match(publish, /git apply --check/);
@@ -298,6 +298,9 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
+  assert.ok(scope.includes('fail_closed_on_api_error() {'));
+  assert.ok(scope.includes('if ! changed_file_count='));
+  assert.ok(scope.includes('if ! changed_paths='));
   assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
   assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
   assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
