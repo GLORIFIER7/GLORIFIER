@@ -313,6 +313,44 @@ void test('A2A SendMessage rejects foreign and terminal task continuations', asy
     'canceled tasks are terminal and must reject follow-up messages');
 });
 
+void test('A2A SendMessage maps idempotency conflicts to a server-defined error', async () => {
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: async (input) => {
+      assert.equal(input.idempotencyKey, 'duplicate-message-1');
+      const conflict = new Error('messageId already belongs to different content');
+      conflict.name = 'A2AIdempotencyConflictError';
+      throw conflict;
+    },
+    getTask: async () => null,
+    listTasks: async (input) => ({
+      tasks: [],
+      nextPageToken: '',
+      pageSize: input.pageSize,
+      totalSize: 0,
+    }),
+  });
+
+  const response = await handler({
+    jsonrpc: '2.0',
+    id: 'conflict-1',
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: 'duplicate-message-1',
+        role: 'ROLE_USER',
+        parts: [{ text: 'Different payload for an existing message ID' }],
+      },
+    },
+  });
+
+  assert.equal(response.result, undefined);
+  assert.deepEqual(response.error, {
+    code: -32003,
+    message: 'messageId was already used with different content.',
+  });
+});
+
 void test('A2A ListTasks returns a bounded requester-scoped page with stable result fields', async () => {
   const existing = baseTask({ status: 'running', result: { secret: 'only include when requested' } });
   let received: unknown;
