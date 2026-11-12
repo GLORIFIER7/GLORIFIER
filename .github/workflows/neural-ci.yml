@@ -19,9 +19,6 @@ on:
   schedule:
     - cron: "23 2 * * *"
 
-concurrency:
-  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -29,6 +26,9 @@ permissions:
 jobs:
   test:
     if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
+    concurrency:
+      group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: services/neural
@@ -109,6 +109,9 @@ jobs:
 
   ai-review-policy:
     needs: [review-scope]
+    concurrency:
+      group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: services/neural
