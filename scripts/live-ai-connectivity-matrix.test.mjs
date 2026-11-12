@@ -206,3 +206,55 @@ test("live AI environment preflight encodes owner and repository path segments",
     globalThis.fetch = original;
   }
 });
+
+test("NVIDIA authenticated catalogue access does not require metered inference authorization", async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method || "GET" });
+    return new Response(JSON.stringify({ data: [{ id: "nvidia/nemotron-3.5-super-vl-120b-a12b" }] }), { status: 200 });
+  };
+  try {
+    const provider = {
+      id: "nvidia-nemotron", key: "NVIDIA_API_KEY", model: "NVIDIA_MODEL",
+      base: "NVIDIA_BASE_URL", url: "https://integrate.api.nvidia.com/v1",
+      defaultModel: "nvidia/nemotron-3.5-super-vl-120b-a12b",
+      kind: "openai", authorize: "NVIDIA_AUTHORIZED",
+    };
+    const result = await probeProvider(provider, {
+      NVIDIA_API_KEY: "test-secret",
+      NVIDIA_MODEL: "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    }, false);
+    assert.equal(result.status, "AUTHENTICATED_API_ACCESS");
+    assert.equal(result.inference, "NOT_RUN");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, "GET");
+    assert.equal(JSON.stringify(result).includes("test-secret"), false);
+  } finally { globalThis.fetch = original; }
+});
+
+test("NVIDIA inference remains blocked until explicit provider authorization", async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method || "GET" });
+    return new Response(JSON.stringify({ data: [{ id: "nvidia/nemotron-3.5-super-vl-120b-a12b" }] }), { status: 200 });
+  };
+  try {
+    const provider = {
+      id: "nvidia-nemotron", key: "NVIDIA_API_KEY", model: "NVIDIA_MODEL",
+      base: "NVIDIA_BASE_URL", url: "https://integrate.api.nvidia.com/v1",
+      defaultModel: "nvidia/nemotron-3.5-super-vl-120b-a12b",
+      kind: "openai", authorize: "NVIDIA_AUTHORIZED",
+    };
+    const result = await probeProvider(provider, {
+      NVIDIA_API_KEY: "test-secret",
+      NVIDIA_MODEL: "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    }, true);
+    assert.equal(result.status, "BLOCKED_BY_POLICY");
+    assert.equal(result.inference, "BLOCKED_BY_POLICY");
+    assert.equal(result.stage, "authenticated-model-catalog");
+    assert.equal(calls.length, 1, "only the model catalogue may be queried before NVIDIA authorization");
+    assert.equal(calls[0].method, "GET", "no generation request may be sent");
+  } finally { globalThis.fetch = original; }
+});
