@@ -14,7 +14,7 @@ A successful models request is not evidence that inference works. A source test 
 
 ## Upstream implementation evidence — 2026-11-11
 
-The standalone NEURAL implementation history records the governed OpenAI-compatible adapter in [upstream PR #67](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67) and HTTP/1.0 connection-close response handling in [upstream PR #71](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/71). Upstream commit [70b6354](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/commit/70b6354fd4bac1cb7bc825add4270b154a879998) adds regression coverage and rejects wildcard hostnames in the API URL or exact-origin allowlist. This is source/CI evidence only; it does not verify a live GPU-backed deployment or inference.
+The standalone NEURAL implementation history records the governed OpenAI-compatible adapter in [upstream PR #67](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/67) and HTTP/1.0 connection-close response handling in [upstream PR #71](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/pull/71). The implementation commit [70b6354](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/commit/70b6354fd4bac1cb7bc825add4270b154a879998) implements wildcard-hostname rejection in the API URL or exact-origin allowlist. Regression tests were added in test commit [4c0f0ef](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/commit/4c0f0ef1a895b2bee901483b6414b8db4d85f959) and expanded in [54f555d](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/commit/54f555d78b52f746b5a5ad8ecd0b699f42210953). This is source/CI evidence only; it does not verify a live GPU-backed deployment or inference.
 
 ## Configuration contract
 
