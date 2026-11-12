@@ -110,7 +110,7 @@ def test_review_events_serialize_policy_without_cancelling_ci_validation():
         "&& github.event_name != 'pull_request_review_comment'"
     ) in test_job
     assert (
-        "group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+        "group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}"
     ) in test_job
     assert "cancel-in-progress: true" in test_job
 
