@@ -14,7 +14,7 @@ WORKFLOW = (
 
 def _job_section(name: str) -> str:
     match = re.search(
-        rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z0-9_-]+:\n|\Z)",
+        rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z0-9_-]+:\n|\\Z)",
         WORKFLOW,
     )
     assert match, f"CI job {name!r} must exist"
@@ -38,7 +38,7 @@ def test_untrusted_test_job_does_not_persist_github_token():
     checkout = re.search(
         r"(?ms)^      - uses: actions/checkout@[^\n]+\n"
         r"        with:\n"
-        r"          persist-credentials: false\s*$",
+        r"          persist-credentials: false\\s*$",
         test_job,
     )
     assert checkout, (
@@ -68,7 +68,7 @@ def test_review_event_uses_the_documented_top_level_pull_request_payload():
 def test_policy_job_resolves_the_current_pr_sha_from_workspace_root():
     policy_job = _job_section("ai-review-policy")
     resolver = re.search(
-        r"(?ms)^      - name: Resolve canonical PR head SHA from GitHub\n(.*?)(?=^      - name: |\Z)",
+        r"(?ms)^      - name: Resolve canonical PR head SHA from GitHub\n(.*?)(?=^      - name: |\\Z)",
         policy_job,
     )
     assert resolver, "The canonical PR head resolver must exist"
@@ -96,3 +96,16 @@ def test_policy_job_uses_canonical_pull_request_head_from_github_api():
     assert "github.event.pull_request.head.sha" not in policy_job
     assert "working-directory: ${{ github.event.pull_request.number == 672 && 'trusted-policy' || 'trusted-policy/services/neural' }}" in policy_job
     assert "github.workspace" in policy_job
+
+
+def test_review_events_for_one_pull_request_share_a_concurrency_group():
+    concurrency = re.search(
+        r"(?ms)^concurrency:\\n(.*?)(?=^permissions:\\n)",
+        WORKFLOW,
+    )
+    assert concurrency, "A workflow-level concurrency group must be configured"
+    group = re.search(r"(?m)^  group: (.+)$", concurrency.group(1))
+    assert group, "The workflow concurrency group must be explicit"
+    assert group.group(1) == (
+        "neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+    ), "All events for one PR must serialize against the same concurrency key"
