@@ -2,18 +2,22 @@ name: GLORIFIER Actions Workflow Registration Repair
 
 on:
   push:
+    branches: [main]
     paths:
       - ".github/workflows/glorifier-solana-actions-bootstrap.yml"
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
   repair:
     name: Re-enable canonical Solana reconciliation workflow
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.run_attempt == 1)) }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Re-enable workflow
         env:

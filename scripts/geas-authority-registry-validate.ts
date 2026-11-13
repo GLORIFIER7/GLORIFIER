@@ -60,8 +60,8 @@ const normalizeHttpsUrl = (value: unknown): string | null => {
 
 const scannerParserFixture = [
   'const SOURCES: ArchitectureSource[] = [',
-  "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', [], 24),",
-  "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: [], cadenceHours: 24 },",
+  "  createArchitectureSource('factory-source', 'Example', 'cloud', 'https://factory.example/source', ['factory-pattern'], 24, ['factory-claim']),",
+  "  { id: 'literal-source', authority: 'Example', domain: 'cloud', url: 'https://literal.example/source', patternIds: ['literal-pattern'], cadenceHours: 24, claimsAllowed: ['literal-claim'] },",
   '];',
 ].join('\n');
 const fixtureResult = parseScannerSourceCatalog(scannerParserFixture);
@@ -70,14 +70,16 @@ if (fixtureResult.declaredCount !== 2
     || fixtureResult.failures.length > 0
     || fixtureResult.entries[0]?.id !== 'factory-source'
     || fixtureResult.entries[0]?.url !== 'https://factory.example/source'
+    || fixtureResult.entries[0]?.claimsAllowed[0] !== 'factory-claim'
     || fixtureResult.entries[1]?.id !== 'literal-source'
-    || fixtureResult.entries[1]?.url !== 'https://literal.example/source') {
+    || fixtureResult.entries[1]?.url !== 'https://literal.example/source'
+    || fixtureResult.entries[1]?.claimsAllowed[0] !== 'literal-claim') {
   throw new Error('scanner source parser must preserve factory-call and object-literal entries');
 }
 
 const unsupportedScannerFixture = [
   'const SOURCES: ArchitectureSource[] = [',
-  "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24),",
+  "  createArchitectureSource('computed' + '-id', 'Example', 'cloud', 'https://example.test', [], 24, ['claim']),",
   '];',
 ].join('\n');
 if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) {
@@ -86,7 +88,7 @@ if (parseScannerSourceCatalog(unsupportedScannerFixture).failures.length === 0) 
 
 const commentOnlyObjectFixture = [
   'const SOURCES: ArchitectureSource[] = [',
-  "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, /* id: 'comment-only', url: 'https://example.test/source' */ },",
+  "  { authority: 'Example', domain: 'cloud', patternIds: [], cadenceHours: 24, claimsAllowed: ['claim'], /* id: 'comment-only', url: 'https://example.test/source' */ },",
   '];',
 ].join('\n');
 if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
@@ -95,7 +97,7 @@ if (parseScannerSourceCatalog(commentOnlyObjectFixture).failures.length === 0) {
 
 const fakeFieldsInsideStringFixture = [
   'const SOURCES: ArchitectureSource[] = [',
-  `  { authority: "reference text, id: 'forged-source', url: 'https://forged.example/source'", domain: 'cloud', patternIds: [], cadenceHours: 24 },`,
+  `  { authority: "reference text, id: 'forged-source', url: 'https://forged.example/source'", domain: 'cloud', patternIds: [], cadenceHours: 24, claimsAllowed: ['claim'] },`,
   '];',
 ].join('\n');
 if (parseScannerSourceCatalog(fakeFieldsInsideStringFixture).failures.length === 0) {
@@ -175,6 +177,7 @@ if (isRecord(parsed)) {
   const scannerIds = scannerCatalog.entries.map((entry) => entry.id);
   const scannerIdSet = new Set(scannerIds);
   const scannerUrls = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.url]));
+  const scannerClaimsAllowed = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.claimsAllowed]));
   if (scannerCatalog.declaredCount !== scannerCatalog.entries.length) {
     failures.push('unable to parse every scanner source catalog entry');
   }
@@ -185,6 +188,9 @@ if (isRecord(parsed)) {
     const source = (parsed as Registry).sources.find((item) => item.id === id);
     if (source && source.scannerStatus !== 'active') failures.push(`scanner source ${id} must be marked active in registry`);
     if (source && scannerUrls.get(id) !== source.url) failures.push(`scanner source ${id} URL does not match authoritative registry`);
+    if (source && JSON.stringify(scannerClaimsAllowed.get(id)) !== JSON.stringify(source.claimsAllowed)) {
+      failures.push(`scanner source ${id} claimsAllowed does not match authoritative registry`);
+    }
   }
   for (const source of (parsed as Registry).sources) {
     if (source.aliasOf) {

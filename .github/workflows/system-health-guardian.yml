@@ -2,7 +2,7 @@ name: GLORIFIER AI 24/7 System Health Guardian
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 # Read-only monitoring. Remediation must use a reviewed pull request.

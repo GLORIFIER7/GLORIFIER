@@ -312,6 +312,12 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.doesNotMatch(geminiReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.match(modelJob, /gemini_model: gemini-3\.8-flash/);
   assert.match(geminiReviewWorkflow, /fail without switching models, providers, or billing tiers/);
+  assert.deepEqual(geminiReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
+    'name: GLORIFIER Gemini PR Review',
+    'on:',
+    '  workflow_dispatch: {}',
+  ]);
+  assert.equal(geminiReviewWorkflow.includes('pull_request_target:'), false);
   assert.match(geminiReviewWorkflow, /contents:\s*read/);
   assert.match(modelJob, /pull-requests:\s*read/);
   assert.doesNotMatch(modelJob, /contents:\s*write|pull-requests:\s*write|issues:\s*write/);

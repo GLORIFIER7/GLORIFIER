@@ -42,12 +42,16 @@ requirePattern(/const isValidSuccessfulEvidenceShape = \(input: CachedSourceEvid
   'successful cached source observations must not admit claim-supported evidence');
 requirePattern(/const isAdmissibleFailedCache = \(input: CachedSourceEvidence\): boolean => \{\s*if \(input\.evidenceStatus !== 'not-observed' && input\.evidenceStatus !== 'unavailable'\) return false;/,
   'failed cached source observations must not admit claim-supported evidence');
-requirePattern(/(?:export function isClaimSupportedEvidence\(status: EvidenceStatus\): boolean\s*\{\s*return status === 'claim-supported';\s*\}|export const isClaimSupportedEvidence\s*=\s*\(status: EvidenceStatus\): boolean\s*=>\s*status === 'claim-supported';)/,
-  'claim-supported status must be explicit');
-requirePattern(/(?:export function classifyArchitectureEvidence\(status: EvidenceStatus\): EvidenceClass\s*\{\s*return status === 'claim-supported' \? 'observed-fact' : 'analysis';\s*\}|export const classifyArchitectureEvidence\s*=\s*\(status: EvidenceStatus\): EvidenceClass\s*=>\s*status === 'claim-supported' \? 'observed-fact' : 'analysis';)/,
-  'only claim-supported evidence may be classified as observed-fact');
-requirePattern(/source\.evidenceStatus === 'claim-supported' \? 'observed-fact' : 'analysis'/,
-  'observed patterns must preserve evidence classification');
+requirePattern(/export const isClaimSupportedEvidence = \([\s\S]*?status === 'claim-supported'[\s\S]*?isAuthenticatedClaimSupportObservation\(source, patternId, authenticate, nowMs\)/,
+  'claim-supported evidence must require a fresh, pattern-bound attestation and injected trusted authenticator');
+requirePattern(/const isAuthenticatedClaimSupportObservation = \([\s\S]*?attestation\.patternId !== patternId[\s\S]*?registeredSource\.patternIds\.includes\(patternId\)[\s\S]*?registeredSource\.claimsAllowed\.includes\(attestation\.claimType\)/,
+  'claim-support attestations must enforce both source-pattern association and the authoritative claimsAllowed policy');
+requirePattern(/const isPatternSourceObservation = \([\s\S]*?isClaimSupportedEvidence\(source\.evidenceStatus, source, patternId, authenticate, nowMs\)/,
+  'pattern evidence must not admit claim-supported source observations without authenticated pattern-specific support');
+requirePattern(/export const classifyArchitectureEvidence = \([\s\S]*?isClaimSupportedEvidence\(status, source, patternId, authenticate, nowMs\)/,
+  'observed-fact classification must require authenticated claim support for the exact pattern');
+requirePattern(/Promise\.resolve\(result\)\.catch\(\(\) => undefined\)/,
+  'rejected asynchronous claim authenticators must be observed before failing closed');
 requirePattern(/irreversibleChangesExecuted:\s*false/,
   'scan result must explicitly prohibit autonomous irreversible changes');
 requirePattern(/architectureStateModel:\s*\['desired',\s*'declared',\s*'deployed',\s*'observed',\s*'verified'\]/,

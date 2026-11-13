@@ -4,7 +4,7 @@ type Range = { start: number; end: number };
 type LiteralValue = string | number | null;
 type DelimiterState = { expected: string[] };
 
-export type ScannerSourceEntry = { id: string; url: string; cadenceHours: number };
+export type ScannerSourceEntry = { id: string; url: string; cadenceHours: number; claimsAllowed: string[] };
 export type ScannerSourceCatalog = { declaredCount: number; entries: ScannerSourceEntry[]; failures: string[] };
 
 const isWhitespace = (value: string): boolean => /\s/.test(value);
@@ -237,17 +237,26 @@ const isNonEmptyStringValue = (value: LiteralValue): value is string =>
 const isPositiveIntegerValue = (value: LiteralValue): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
-type ValidSourceEntryValues = { id: string; url: string; cadenceHours: number };
+type ValidSourceEntryValues = { id: string; url: string; cadenceHours: number; claimsAllowed: string[] };
 
 const isValidSourceEntryValues = (
-  value: { id: LiteralValue; url: LiteralValue; cadenceHours: LiteralValue },
+  value: { id: LiteralValue; url: LiteralValue; cadenceHours: LiteralValue; claimsAllowed: string[] | null },
 ): value is ValidSourceEntryValues =>
   isNonEmptyStringValue(value.id)
   && isNonEmptyStringValue(value.url)
-  && isPositiveIntegerValue(value.cadenceHours);
+  && isPositiveIntegerValue(value.cadenceHours)
+  && Array.isArray(value.claimsAllowed)
+  && value.claimsAllowed.length > 0
+  && value.claimsAllowed.every(claim => typeof claim === 'string' && claim.length > 0)
+  && new Set(value.claimsAllowed).size === value.claimsAllowed.length;
 
-const createSourceEntry = (id: LiteralValue, url: LiteralValue, cadenceHours: LiteralValue): ScannerSourceEntry | null => {
-  const values = { id, url, cadenceHours };
+const createSourceEntry = (
+  id: LiteralValue,
+  url: LiteralValue,
+  cadenceHours: LiteralValue,
+  claimsAllowed: string[] | null,
+): ScannerSourceEntry | null => {
+  const values = { id, url, cadenceHours, claimsAllowed };
   return isValidSourceEntryValues(values) ? values : null;
 };
 
@@ -263,7 +272,8 @@ const readObjectSourceEntry = (tokens: Token[], properties: Range[]): ScannerSou
   const id = readLiteralProperty(tokens, properties, 'id', 'string');
   const url = readLiteralProperty(tokens, properties, 'url', 'string');
   const cadence = readLiteralProperty(tokens, properties, 'cadenceHours', 'number');
-  return createSourceEntry(id, url, cadence);
+  const claimsAllowed = readLiteralStringArrayProperty(tokens, properties, 'claimsAllowed');
+  return createSourceEntry(id, url, cadence, claimsAllowed);
 };
 
 const parseObjectEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
@@ -292,6 +302,25 @@ const readNumberArgument = (tokens: Token[], arguments_: Range[], index: number)
 const isLiteralPatternArray = (tokens: Token[], range: Range | null): boolean =>
   Boolean(range && tokens[range.start]?.text === '[' && tokens[range.end - 1]?.text === ']');
 
+const readLiteralStringArray = (tokens: Token[], range: Range | null): string[] | null => {
+  if (!isLiteralPatternArray(tokens, range) || !range) return null;
+  const ranges = splitTopLevelRanges(tokens, range.start + 1, range.end - 1, ',');
+  const values = ranges.map(item => {
+    if (item.end - item.start !== 1) return null;
+    const token = tokens[item.start];
+    return token?.kind === 'string' ? token.value : null;
+  });
+  return values.every((value): value is string => typeof value === 'string' && value.length > 0)
+    ? values
+    : null;
+};
+
+const readLiteralStringArrayProperty = (tokens: Token[], properties: Range[], name: string): string[] | null => {
+  const property = getPropertyRange(tokens, properties, name);
+  if (!property || tokens[property.start + 1]?.text !== ':') return null;
+  return readLiteralStringArray(tokens, { start: property.start + 2, end: property.end });
+};
+
 const isFactoryCallRange = (tokens: Token[], range: Range): boolean =>
   tokens[range.start]?.text === 'createArchitectureSource'
   && tokens[range.start + 1]?.text === '('
@@ -303,17 +332,19 @@ const readFactorySourceEntry = (tokens: Token[], arguments_: Range[]): ScannerSo
   const domain = readStringArgument(tokens, arguments_, 2);
   const url = readStringArgument(tokens, arguments_, 3);
   const cadence = readNumberArgument(tokens, arguments_, 5);
+  const claimsAllowed = readLiteralStringArray(tokens, argumentRange(arguments_, 6));
   if (!authority || !domain) return null;
-  return createSourceEntry(id, url, cadence);
+  return createSourceEntry(id, url, cadence, claimsAllowed);
 };
 
 const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
   const arguments_ = isFactoryCallRange(tokens, range)
     ? splitTopLevelRanges(tokens, range.start + 2, range.end - 1, ',')
     : [];
-  const hasExpectedArguments = arguments_.length === 6;
+  const hasExpectedArguments = arguments_.length === 7;
   const hasLiteralPatterns = isLiteralPatternArray(tokens, argumentRange(arguments_, 4));
-  return hasExpectedArguments && hasLiteralPatterns
+  const hasLiteralClaimTypes = isLiteralPatternArray(tokens, argumentRange(arguments_, 6));
+  return hasExpectedArguments && hasLiteralPatterns && hasLiteralClaimTypes
     ? readFactorySourceEntry(tokens, arguments_)
     : null;
 };

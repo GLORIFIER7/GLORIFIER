@@ -412,6 +412,13 @@ test('Gemini PR review requires an explicit main-target PR number after owner au
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.allow_paid_inference/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /pull_request_target:/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
+  assert.deepEqual(geminiPrReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
+    'name: GLORIFIER Gemini PR Review',
+    'on:',
+    '  workflow_dispatch: {}',
+  ]);
+  assert.equal(geminiPrReviewWorkflow.includes('pull_request_target:'), false);
 });
 
 test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {
