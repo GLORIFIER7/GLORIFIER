@@ -42,7 +42,7 @@ test("standalone build entry points run package manifest integrity first", () =>
   for (const script of ["build:frontend", "build:server", "build:android"]) {
     assert.equal(
       manifest.scripts?.["pre" + script],
-      "npm run test:package-manifest-integrity",
+      "npm run test:package-manifest-integrity && npm run test:brand-assets",
       script + " must run the package manifest integrity gate before building",
     );
   }

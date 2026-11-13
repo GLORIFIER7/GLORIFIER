@@ -1,4 +1,5 @@
 import React, { useState, Suspense } from 'react';
+import { GLORIFIER_OFFICIAL_BRAND_ASSET } from '../lib/brand-assets';
 import {
   ShieldCheck, Wallet, Sparkles, Zap, Database, Scale, Layers,
   ShieldAlert, ArrowUpRight, Coins, Lock, Users,
@@ -14,7 +15,7 @@ interface HeaderProps {
   currentUser: HeaderIdentity | null;
 }
 
-const OFFICIAL_GLORIFIER_LOGO = 'https://ipfs.io/ipfs/QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv';
+const OFFICIAL_GLORIFIER_LOGO = `${import.meta.env.BASE_URL}${GLORIFIER_OFFICIAL_BRAND_ASSET.appAssetPath}`;
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
@@ -109,11 +110,11 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-[15px] font-semibold tracking-[-0.03em] text-white flex items-center gap-1.5">
                 GLORIFIER
                 <span className="text-[10px] px-1.5 py-0.5 rounded-sm text-emerald-300 border border-slate-700 font-mono">
-                  GOVERNED AI ORCHESTRATION
+                  AUTONOMOUS AI ENTERPRISE
                 </span>
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
-                Provider-neutral orchestration · status shown per module
+                AI-first operating model · verified status shown per module
               </p>
             </div>
           </button>
