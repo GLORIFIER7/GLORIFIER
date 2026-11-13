@@ -386,8 +386,8 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
       source: geminiPrReviewWorkflow,
       firstSensitiveStep: 'name: Resolve the latest open pull request targeting main',
       modelStep: 'name: Run Gemini advisory review',
-      authorizationCondition: "vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'",
-      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ vars.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED }}',
+      authorizationCondition: "vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'",
+      manualAuthorizationLine: 'FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}',
     },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
@@ -396,7 +396,7 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 
 test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
   assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
-  assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \}\}/);
   assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
   assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
