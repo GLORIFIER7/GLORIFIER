@@ -206,7 +206,7 @@ export async function getFederatedA2ATaskFromStore(
   return result.rows[0] ? taskFromDatabaseRow(result.rows[0]) : null;
 }
 
-export async function authorizeFederatedA2ATask(taskId: string, actor: string, humanApproved = false) {
+export async function authorizeFederatedA2ATask(taskId: string, actor: string, humanApproved = false, persistence: FederatedA2APersistence = defaultFederatedA2APersistence) {
   const task = getFederatedA2ATask(taskId);
   if (!task) throw new Error('Federated A2A task not found');
   if (task.state !== 'DISCOVERED') {
@@ -215,16 +215,16 @@ export async function authorizeFederatedA2ATask(taskId: string, actor: string, h
   const route = routeAgentCapability(task.capability);
   if (!route.governed) throw new Error('Capability is not governed');
   if (route.humanApprovalDefault && !humanApproved) throw new Error('Human approval required');
-  return transitionFederatedA2ATask(task, 'AUTHORIZED', actor, { capability: task.capability });
+  return transitionFederatedA2ATask(task, 'AUTHORIZED', actor, { capability: task.capability }, {}, persistence);
 }
-export async function assignFederatedA2ATask(taskId: string, actor = 'glorifier-daemon') {
+export async function assignFederatedA2ATask(taskId: string, actor = 'glorifier-daemon', persistence: FederatedA2APersistence = defaultFederatedA2APersistence) {
   const task = getFederatedA2ATask(taskId);
   if (!task) throw new Error('Federated A2A task not found');
   if (task.state !== 'AUTHORIZED') throw new Error('Task must be AUTHORIZED before ASSIGNED');
   const route = task.targetAgentId ? null : routeAgentCapability(task.capability);
   const targetAgentId = task.targetAgentId || route?.specialists[0] || route?.fallback || null;
   if (!targetAgentId) throw new Error('No eligible agent for capability');
-  return transitionFederatedA2ATask(task, 'ASSIGNED', actor, { targetAgentId }, { targetAgentId });
+  return transitionFederatedA2ATask(task, 'ASSIGNED', actor, { targetAgentId }, { targetAgentId }, persistence);
 }
 
 export async function startFederatedA2ATask(
