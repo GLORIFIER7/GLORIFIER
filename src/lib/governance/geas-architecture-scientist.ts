@@ -645,7 +645,7 @@ const isAuthenticatedClaimSupportObservation = (
   const attestation = source.claimSupportAttestation;
   const registeredSource = SOURCES.find((item) => item.id === source.sourceId);
   if (!authenticate || !attestation || !registeredSource || source.ok !== true) return false;
-  if (!Number.isInteger(source.status) || source.status === null || source.status < 200 || source.status >= 300) return false;
+  if (typeof source.status !== 'number' || !Number.isInteger(source.status) || source.status < 200 || source.status >= 300) return false;
   if (typeof source.evidenceExcerpt !== 'string' || !source.evidenceExcerpt.trim()) return false;
   if (typeof source.contentHash !== 'string' || !/^[a-f0-9]{64}$/i.test(source.contentHash)) return false;
   if (!Number.isSafeInteger(nowMs)
