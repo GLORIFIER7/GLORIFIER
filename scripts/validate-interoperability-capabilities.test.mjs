@@ -227,3 +227,35 @@ test('fresh independent read-only GLR chain probes are recorded without overstat
     assert.match(evidence.notes, /No signing, transaction, transfer, or state mutation/);
   }
 });
+
+
+test('Issue 471 A2A and NEURAL branch evidence does not promote external capabilities prematurely', async () => {
+  const registry = JSON.parse(await readFile(documents[0], 'utf8'));
+  const gap = await readFile(gapRegister, 'utf8');
+  const protocol = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
+  const neural = registry.capabilities.find((item) => item.id === 'neural.runtime-live-readiness');
+
+  assert.ok(protocol);
+  assert.equal(protocol.status, 'NOT VERIFIED');
+  assert.ok(protocol.evidence.some((item) =>
+    item.kind === 'source' &&
+    item.reference === 'https://github.com/GLORIFIER7/GLORIFIER/pull/833' &&
+    item.notes.includes('signature-verified upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba') &&
+    item.notes.includes('no staging host or secret is configured'),
+  ));
+
+  assert.ok(neural);
+  assert.equal(neural.status, 'DEGRADED');
+  assert.ok(neural.evidence.some((item) =>
+    item.kind === 'source' &&
+    item.reference === 'https://github.com/GLORIFIER7/GLORIFIER/pull/833' &&
+    item.notes.includes('explicit federated handoff start transition') &&
+    item.notes.includes('no authenticated GLORIFIER-to-NEURAL task'),
+  ));
+
+  assert.match(gap, /Issue #471 — A2A \/ NEURAL orchestration source-hardening checkpoint — 2026-11-13/);
+  assert.match(gap, /The workflow has \*\*not\*\* been dispatched/);
+  assert.match(gap, /The TCK result, authenticated external client handshake, and controlled two-agent task lifecycle remain \*\*NOT VERIFIED\*\*/);
+  assert.match(gap, /No owner-authorized Linux host was enrolled/);
+  assert.match(gap, /Issue #471 remains OPEN/);
+});
