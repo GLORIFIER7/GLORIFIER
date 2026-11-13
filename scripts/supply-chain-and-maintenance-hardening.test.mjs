@@ -412,5 +412,7 @@ test('continuous improvement installs dependencies from the committed npm lockfi
   const source = readFileSync(new URL('../.github/workflows/continuous-improvement.yml', import.meta.url), 'utf8');
   assert.match(source, /cache-dependency-path:\s*package-lock\.json/);
   assert.match(source, /run:\s*npm ci --ignore-scripts --no-audit --no-fund/);
+  assertPinnedAction(source, 'actions/checkout', '3d3c42e5aac5ba805825da76410c181273ba90b1');
+  assertPinnedAction(source, 'actions/setup-node', '949feb2413d6458794dcd2491c4babbbce0c15c1');
   assert.doesNotMatch(source, /run:\s*npm install\b/);
 });
