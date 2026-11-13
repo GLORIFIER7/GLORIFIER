@@ -406,7 +406,7 @@ test('Gemini PR review has empty dispatch inputs and resolves an open main-targe
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
-  assert.match(geminiPrReviewWorkflow, /pull_request_target:/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /pull_request_target:/);
 });
 
 test('NVIDIA inference workflows require explicit owner-only manual authorization before credentials or provider calls', () => {
