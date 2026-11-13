@@ -30,6 +30,60 @@ test('forwards API, auth, MCP and Agent Card requests through the private Worker
   }
 });
 
+test('forwards public Pages MCP Streamable HTTP POST intact instead of returning the SPA shell', async () => {
+  const message = {
+    jsonrpc: '2.0',
+    id: 'pages-mcp-proxy',
+    method: 'tools/list',
+    params: {},
+  };
+  const request = new Request('https://glorifier.pages.dev/mcp', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json, text/event-stream',
+      'Content-Type': 'application/json',
+      'MCP-Protocol-Version': '2025-11-25',
+      'Mcp-Method': 'tools/list',
+      Origin: 'https://glorifier.pages.dev',
+    },
+    body: JSON.stringify(message),
+  });
+  let received;
+  const workerResult = {
+    jsonrpc: '2.0',
+    id: 'pages-mcp-proxy',
+    result: { tools: [] },
+  };
+  const result = await routePagesRequest({
+    request,
+    env: {
+      GLORIFIER_WORKER: {
+        fetch: async (value) => {
+          received = {
+            url: value.url,
+            method: value.method,
+            headers: new Headers(value.headers),
+            body: await value.clone().json(),
+          };
+          return Response.json(workerResult);
+        },
+      },
+    },
+    next: async () => new Response('<html>SPA fallback</html>', {
+      headers: { 'Content-Type': 'text/html' },
+    }),
+  });
+
+  assert.equal(received.url, 'https://glorifier.pages.dev/mcp');
+  assert.equal(received.method, 'POST');
+  assert.equal(received.headers.get('origin'), 'https://glorifier.pages.dev');
+  assert.equal(received.headers.get('mcp-protocol-version'), '2025-11-25');
+  assert.equal(received.headers.get('mcp-method'), 'tools/list');
+  assert.deepEqual(received.body, message);
+  assert.equal(result.headers.get('content-type'), 'application/json');
+  assert.deepEqual(await result.json(), workerResult);
+});
+
 test('serves static and client-side routes from Pages instead of the Worker', async () => {
   let workerCalls = 0;
   const result = await routePagesRequest({
