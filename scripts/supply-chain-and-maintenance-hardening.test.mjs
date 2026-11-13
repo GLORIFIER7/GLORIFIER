@@ -315,8 +315,10 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.deepEqual(geminiReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
     'on:',
-    '  workflow_dispatch: {}',
+    '  workflow_dispatch:',
   ]);
+  assert.equal((geminiReviewWorkflow.match(/^  workflow_dispatch:/gm) || []).length, 1,
+    'Gemini PR review must declare workflow_dispatch exactly once');
   assert.equal(geminiReviewWorkflow.includes('pull_request_target:'), false);
   assert.match(geminiReviewWorkflow, /contents:\s*read/);
   assert.match(modelJob, /pull-requests:\s*read/);

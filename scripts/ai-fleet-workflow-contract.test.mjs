@@ -412,7 +412,8 @@ test('Gemini PR review requires an explicit main-target PR number after owner au
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.allow_paid_inference/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /pull_request_target:/);
-  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
+  assert.equal((geminiPrReviewWorkflow.match(/^  workflow_dispatch:/gm) || []).length, 1,
+    'Gemini PR review must declare workflow_dispatch exactly once');
   assert.deepEqual(geminiPrReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
     'on:',
