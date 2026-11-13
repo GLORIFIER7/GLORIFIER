@@ -112,16 +112,19 @@ export function normalizeGithubToolInvocation(
     return { toolName, arguments: { branch, base_ref: 'main' } };
   }
   if (toolName === 'github_update_file') {
-    assertOnlyKeys(input, ['branch', 'path', 'content', 'message']);
+    assertOnlyKeys(input, ['branch', 'path', 'content', 'message', 'expectedContentSha256']);
     const branch = normalizeAutopilotWriteBranch(input.branch);
     if (!isAllowedAutopilotWritePath(input.path)) throw new Error('path is not in the enabled Autopilot maintenance scope.');
     if (typeof input.content !== 'string' || input.content.length > 24_000) {
       throw new Error('content must be text no larger than 24,000 characters.');
     }
+    if (typeof input.expectedContentSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedContentSha256)) {
+      throw new Error('expectedContentSha256 must be a lowercase SHA-256 digest of the inspected source file.');
+    }
     if (typeof input.message !== 'string' || input.message.trim().length < 5 || input.message.trim().length > 120) {
       throw new Error('message must contain between 5 and 120 characters.');
     }
-    return { toolName, arguments: { branch, path: input.path, content: input.content, message: input.message.trim() } };
+    return { toolName, arguments: { branch, path: input.path, content: input.content, message: input.message.trim(), expectedContentSha256: input.expectedContentSha256 } };
   }
   assertOnlyKeys(input, ['branch', 'title', 'body']);
   const branch = normalizeAutopilotWriteBranch(input.branch);
