@@ -44,6 +44,21 @@ const memoryTasks = new Map<string, A2ATask>();
 const memoryIdempotencyTasks = new Map<string, string>();
 const memoryHandoffs = new Map<string, A2AHandoff>();
 let initializationPromise: Promise<void> | null = null;
+type A2APersistenceMode = 'not-initialized' | 'memory-only' | 'initializing' | 'postgres' | 'failed';
+let initializationState: A2APersistenceMode = 'not-initialized';
+let initializationFailure = false;
+
+export function getA2ARuntimeStatus() {
+  const mode: A2APersistenceMode = !process.env.DATABASE_URL
+    ? 'memory-only'
+    : initializationState;
+  return {
+    mode,
+    initialized: mode === 'postgres' || mode === 'memory-only',
+    durable: mode === 'postgres',
+    lastFailure: initializationFailure ? 'database-initialization-failed' : null,
+  };
+}
 
 function a2aIdempotencyCacheKey(requesterAgentId: string, idempotencyKey: string): string {
   return JSON.stringify([requesterAgentId, idempotencyKey]);
@@ -74,10 +89,14 @@ function sign(h: Omit<A2AHandoff, 'signature'>) {
 
 export function initializeA2ARuntime(): Promise<void> {
   if (!process.env.DATABASE_URL) {
+    initializationState = 'memory-only';
+    initializationFailure = false;
     console.warn('[A2A] DATABASE_URL is not configured; persistent task runtime initialization skipped.');
     return Promise.resolve();
   }
   if (initializationPromise) return initializationPromise;
+  initializationState = 'initializing';
+  initializationFailure = false;
   initializationPromise = getPostgresPool().query(`
     CREATE TABLE IF NOT EXISTS a2a_tasks (
       id TEXT PRIMARY KEY,
@@ -112,7 +131,12 @@ export function initializeA2ARuntime(): Promise<void> {
       envelope JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-  `).then(() => undefined).catch((error) => {
+  `).then(() => {
+    initializationState = 'postgres';
+    initializationFailure = false;
+  }).catch((error) => {
+    initializationState = 'failed';
+    initializationFailure = true;
     initializationPromise = null;
     console.warn('[A2A] persistence initialization deferred:', error?.message);
     throw error;
