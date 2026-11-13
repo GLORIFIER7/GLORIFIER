@@ -61,19 +61,18 @@ vendored package contains the API, Neon, and PyTorch adapter modules before
 starting the Pyodide runtime.
 
 The account's Workers subdomain is `glorifier`. The live Worker address is
-`https://glorifier-neural.glorifier.workers.dev`. An earlier Cloudflare deployment inventory at `2026-11-05T03:58:11Z` observed
-superseded by the newer deployment recorded in the historical observation below.
+`https://glorifier-neural.glorifier.workers.dev`. An earlier Cloudflare deployment inventory at
+`2026-11-05T03:58:11Z` observed version `733211d1-6931-4fdb-a4b9-5c7482bcf9b8`; that
+inventory was superseded by the later 2026-11-05 deployment inventory below.
 Deployment success is not itself a readiness result.
-below. Deployment success is not itself a readiness result.
 
+The task endpoint reads `GLORIFIER_API_TOKEN` from the Cloudflare request-scoped
 `env` binding. Current secret-binding presence is **NOT VERIFIED**; only the
-2026-11-05 historical inventory (see below) recorded its name. Secret values are
-never read or stored in this repository or Wrangler configuration. The endpoint
-remains protected by Cloudflare Access and bearer-token validation.
-The endpoint remains protected by Cloudflare Access and bearer-token validation.
+2026-11-05 historical inventory below recorded its name. Secret values are never
+read or stored in this repository or Wrangler configuration. The documented access-control model uses Cloudflare Access and bearer-token validation; current production enforcement is **NOT VERIFIED**.
 
-The following 2026-11-05 settings are a historical snapshot and are superseded
-by the 2026-11-10 read-only production inventory in
+The following 2026-11-05 settings are a historical snapshot, not current-state
+evidence; they were superseded by the 2026-11-10 read-only production inventory in
 `docs/PRODUCTION_READINESS.md`. They must not be treated as current production
 state. The historical settings were read back directly from Cloudflare on
 2026-11-05 at approximately 16:28 (UTC+07:00):
@@ -83,10 +82,10 @@ state. The historical settings were read back directly from Cloudflare on
 `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`. The OpenAI secret binding
 `OPENAI_API_KEY` and task-authentication secret binding `GLORIFIER_API_TOKEN`
 are present by name; secret values are never read from the binding inventory.
-The `NVIDIA_NIM_API_KEY` binding is also present for the optional NVIDIA adapter,
-but NVIDIA is not the selected production provider. External egress is enabled
-for the read-only provider readiness request. The production inference flag is
-now `true`, but the latest successful production smoke (GitHub Actions run
+The `NVIDIA_NIM_API_KEY` binding was also present for the optional NVIDIA adapter,
+but NVIDIA was not the selected provider in that historical snapshot. External
+egress was enabled for the read-only provider readiness request. The production inference flag was recorded as `true` in that historical configuration. The
+2026-11-05 production smoke (GitHub Actions run
 [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798),
 2026-11-05T07:30Z) reported HTTP 200 from `/health` and `/ready`, with provider,
 read-only database connectivity, authentication, and rate limiting `VERIFIED`.
@@ -119,17 +118,18 @@ The task endpoint is disabled unless `GLORIFIER_API_TOKEN` is configured. Set a 
 Do not expose the service publicly without TLS, monitoring, secret rotation, and an operational incident plan. Local execution applies a bounded, process-local limit of 60 authenticated task requests per minute, keyed by a domain-separated HMAC-SHA-256 fingerprint of the bearer token; local counters reset on restart. Cloudflare Workers use the native `GLORIFIER_RATE_LIMITER` binding with a 60-request/60-second configuration and the same credential-keyed HMAC construction. Public `/ready` probes use a separate `GLORIFIER_READINESS_LIMITER` binding, limited to 10 requests per 60 seconds per Cloudflare client IP, and cache provider/database probe results for 30 seconds. Worker requests fail closed with HTTP 503 if the binding is missing or unavailable and return HTTP 429 when the binding denies a request. Cloudflare documents these counters as approximate and per-location, not a strict global quota; use a separately reviewed global coordination design if exact global quotas are required.
 
 ## Explicit inference configuration
+
 ## Historical deployed-state observation — 2026-11-05 (UTC+07:00)
 Inference is disabled by default for local development and newly provisioned deployments. A historical production Worker read-back from Cloudflare on 2026-11-05 at approximately 16:28 (UTC+07:00) recorded: `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. The `OPENAI_API_KEY` and `GLORIFIER_API_TOKEN` secret binding names are present; their values were not read. The readiness smoke check is read-only and did not call the Responses API completion endpoint. Live inference, output quality, latency, task execution, and usage-cost behavior therefore remain **NOT VERIFIED**. Authenticated task requests may send task content to OpenAI and incur separate API usage charges. A controlled live inference request must be treated as a separate operational test and must not be inferred from a successful `/ready` response. ChatGPT subscriptions and API billing are separate.
-## Current deployed state — observed 2026-11-05 (UTC+07:00)
+## Historical deployment inventory — observed 2026-11-05 (UTC+07:00)
 
-Direct Cloudflare configuration inventory was read at approximately 16:28 local time. The latest deployment inventory returned:
+Direct Cloudflare configuration inventory was read at approximately 16:28 local time. The 2026-11-05 deployment inventory returned:
 
 - Worker: `glorifier-neural`; route: `https://glorifier-neural.glorifier.workers.dev`.
 - Latest deployment: `77cace04-8c1b-4a26-82b6-b4504f920625`, created `2026-11-05T07:30:11.656407Z`; 100% traffic assigned to version `ecf822d5-745e-4c33-8fc2-5c10ca83baf7`.
-- Current non-secret Worker variables: `GLORIFIER_PROVIDER=openai`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`, `GLORIFIER_ENABLE_INFERENCE=true`, and `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`.
+- Non-secret Worker variables observed at that time: `GLORIFIER_PROVIDER=openai`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`, `GLORIFIER_ENABLE_INFERENCE=true`, and `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`.
 - Secret-binding inventory includes `OPENAI_API_KEY`, `GLORIFIER_API_TOKEN`, and `NVIDIA_NIM_API_KEY`. Only binding names were inspected; secret values were not read.
-- The latest successful production smoke was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED`.
+- The 2026-11-05 production smoke was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED`.
 - That smoke response reported `inference_performed=false`. No prompt was submitted and no model inference was executed.
 - Audit and task-run persistence remain `NOT CONFIGURED (OPTIONAL)`; no optional persistence write was tested.
 
