@@ -132,7 +132,7 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
     'a negative verifier decision must leave the task in EVIDENCE');
 
   await assert.rejects(
-    verifyFederatedA2ATask(task.id, 'reviewer-a', async () => ({
+    verify(task.id, 'reviewer-a', async () => ({
       status: 'VERIFIED',
       source: 'trusted-verifier',
       evidenceRefs: ['https://evidence.example/not-attached-to-task'],
