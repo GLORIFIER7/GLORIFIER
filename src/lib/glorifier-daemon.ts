@@ -6,6 +6,7 @@ import { runAgentMinerCycle } from './agent-miner';
 import { runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
 import { runModelNetworkDiscovery } from './model-network';
 import { synchronizeAIWebNetwork } from './ai-web-network';
+import { getAutopilotMissionControlStatus, recoverAutopilotMissionsIfAvailable } from './autopilot-mission-control';
 
 type DaemonState = 'STOPPED' | 'RUNNING' | 'DEGRADED';
 type ComponentStatus = { name: string; lastRunAt: string | null; lastSuccessAt: string | null; failures: number; lastError: string | null };
@@ -50,7 +51,11 @@ export async function runGlorifierDaemonCycle(reason = 'scheduled') {
       ['agent-miner-observation', () => runAgentMinerCycle()],
       ['internet-discovery-world-graph', () => runInternetDiscoveryFabricCycle('glorifier-daemon')],
       ['model-network-discovery', () => runModelNetworkDiscovery('glorifier-daemon')],
-      ['ai-web-network-index', () => synchronizeAIWebNetwork('glorifier-daemon')]
+      ['ai-web-network-index', () => synchronizeAIWebNetwork('glorifier-daemon')],
+      ['autopilot-mission-recovery', async () => ({
+        persistence: getAutopilotMissionControlStatus(),
+        recovered: await recoverAutopilotMissionsIfAvailable(),
+      })]
     ];
     for (const [name, operation] of stages) { try { await runComponent(name, operation); } catch (error) { errors.push(name + ': ' + (error instanceof Error ? error.message : String(error))); } }
     lastErrors = errors;
