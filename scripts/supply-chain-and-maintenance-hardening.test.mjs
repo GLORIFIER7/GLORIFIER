@@ -303,7 +303,10 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   const publisherJob = jobSection(geminiReviewWorkflow, 'publish-review', null);
   const settings = readGeminiSystemSettings(geminiReviewWorkflow);
 
-  assert.match(geminiReviewWorkflow, /workflow_dispatch:\s*\{\}/);
+  assert.match(
+    geminiReviewWorkflow,
+    /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+pr_number:\s*\n\s+description:.*\n\s+required: true\n\s+type: number/,
+  );
   assert.doesNotMatch(geminiReviewWorkflow, /pull_request_target:/);
   assert.match(geminiReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.doesNotMatch(geminiReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
