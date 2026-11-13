@@ -227,18 +227,26 @@ void test('A2A canceled tasks remain filterable across pages and appear in the p
 
 void test('A2A protocol message idempotency is durable, requester-scoped, and content-bound', async () => {
   await withA2ATestEnvironment(async () => {
-    type Stored = Record<string, unknown> & { idempotency_hash: string };
+    type Stored = Record<string, unknown> & {
+      idempotency_hash: string;
+      requester_agent_id: string;
+      idempotency_key: string;
+    };
     const records = new Map<string, Stored>();
+    const queryCalls: string[] = [];
     const query = async (sql: string, values: unknown[] = []) => {
+      queryCalls.push(sql);
       if (sql.includes('INSERT INTO a2a_tasks') && sql.includes('idempotency_key')) {
         const [
           id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
-          serializedInput, status, attempts, maxAttempts, _result, _error, _evidenceId,
+          serializedInput, status, attempts, maxAttempts, result, error, evidenceId,
           createdAt, updatedAt, idempotencyKey, idempotencyHash,
         ] = values;
         const key = JSON.stringify([requesterAgentId, idempotencyKey]);
-        if (records.has(key)) return { rows: [] };
-        records.set(key, {
+        const existing = records.get(key);
+        if (existing) return { rows: [existing] };
+
+        const row: Stored = {
           id: String(id),
           parent_task_id: parentTaskId ?? null,
           requester_agent_id: String(requesterAgentId),
@@ -249,17 +257,16 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
           status: String(status),
           attempts: Number(attempts),
           max_attempts: Number(maxAttempts),
+          result: result ?? null,
+          error: error ?? null,
+          evidence_id: evidenceId ?? null,
           created_at: String(createdAt),
           updated_at: String(updatedAt),
           idempotency_key: String(idempotencyKey),
           idempotency_hash: String(idempotencyHash),
-        });
-        return { rows: [{ id: String(id) }] };
-      }
-      if (sql.includes('SELECT') && sql.includes('idempotency_hash')) {
-        const key = JSON.stringify([values[0], values[1]]);
-        const row = records.get(key);
-        return { rows: row ? [row] : [] };
+        };
+        records.set(key, row);
+        return { rows: [row] };
       }
       throw new Error('Unexpected A2A idempotency query.');
     };
@@ -280,6 +287,7 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
     assert.equal(replay.id, first.id,
       'retrying a message with the same requester, key, and semantic JSON payload must return the original task');
     assert.equal(records.size, 1, 'an idempotent retry must not create a second durable task');
+    assert.equal(queryCalls.length, 2, 'each initial send and retry must resolve through one atomic upsert');
 
     await assert.rejects(
       createA2ATaskWithIdempotency({
@@ -290,6 +298,7 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
       'reusing a requester messageId for different content must return a typed conflict',
     );
     assert.equal(records.size, 1, 'a conflicting retry must not create or overwrite a task');
+    assert.equal(queryCalls.length, 3, 'a content conflict must be decided by the atomic upsert result');
 
     const anotherRequester = await createA2ATaskWithIdempotency({
       ...firstInput,
@@ -298,5 +307,6 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
     assert.notEqual(anotherRequester.id, first.id,
       'the same messageId may be used independently by a different authenticated requester');
     assert.equal(records.size, 2);
+    assert.equal(queryCalls.length, 4, 'the second requester must use its own scoped idempotency record');
   });
 });
