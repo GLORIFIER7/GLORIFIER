@@ -1,0 +1,143 @@
+name: A2A TCK — authorized staging conformance
+
+on:
+  workflow_dispatch:
+    inputs:
+      sut_host:
+        description: "HTTPS staging origin; hostname must match GLORIFIER_A2A_TCK_STAGING_HOST"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a2a-tck-staging-conformance
+  cancel-in-progress: false
+
+jobs:
+  conformance:
+    if: ${{ github.ref == 'refs/heads/main' && github.actor_id == '32674233' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: a2a-tck-staging
+    steps:
+      - name: Validate staging origin, bearer credential, and A2A Agent Card
+        id: target
+        env:
+          SUT_HOST: ${{ inputs.sut_host }}
+          ALLOWED_HOST: ${{ vars.GLORIFIER_A2A_TCK_STAGING_HOST }}
+          A2A_TCK_TOKEN: ${{ secrets.GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlsplit
+          from urllib.request import Request, urlopen
+
+          sut_host = os.environ.get("SUT_HOST", "").strip()
+          allowed_host = os.environ.get("ALLOWED_HOST", "").strip()
+          token = os.environ.get("A2A_TCK_TOKEN", "")
+          if not allowed_host or not token:
+              raise SystemExit(
+                  "A2A staging gate is not configured. Set the environment secret "
+                  "GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN and variable "
+                  "GLORIFIER_A2A_TCK_STAGING_HOST before dispatch."
+              )
+          if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", allowed_host):
+              raise SystemExit("GLORIFIER_A2A_TCK_STAGING_HOST must be one exact DNS hostname.")
+          parsed = urlsplit(sut_host)
+          if (
+              parsed.scheme != "https"
+              or not parsed.hostname
+              or parsed.hostname.lower() != allowed_host.lower()
+              or parsed.username is not None
+              or parsed.password is not None
+              or parsed.port not in (None, 443)
+              or parsed.path not in ("", "/")
+              or parsed.query
+              or parsed.fragment
+          ):
+              raise SystemExit("SUT host must be an HTTPS origin on the exact allowlisted staging hostname.")
+          origin = f"https://{parsed.hostname.lower()}"
+          request = Request(
+              origin + "/.well-known/agent-card.json",
+              headers={"Accept": "application/json"},
+              method="GET",
+          )
+          try:
+              with urlopen(request, timeout=20) as response:
+                  if response.status != 200:
+                      raise SystemExit(f"A2A Agent Card returned HTTP {response.status}.")
+                  card = json.loads(response.read().decode("utf-8"))
+          except (HTTPError, URLError, TimeoutError, ValueError) as error:
+              raise SystemExit(f"Staging A2A Agent Card preflight failed: {type(error).__name__}.") from None
+
+          interfaces = card.get("supportedInterfaces")
+          jsonrpc = [
+              item for item in interfaces or []
+              if isinstance(item, dict)
+              and item.get("protocolBinding") == "JSONRPC"
+              and item.get("protocolVersion") == "1.0"
+          ]
+          if not jsonrpc:
+              raise SystemExit("Agent Card does not advertise the A2A 1.0 JSONRPC interface.")
+          endpoint = urlsplit(jsonrpc[0].get("url", ""))
+          if endpoint.scheme != "https" or endpoint.hostname != parsed.hostname:
+              raise SystemExit("A2A JSONRPC interface must remain on the allowlisted staging host.")
+          if "bearer" not in (card.get("securitySchemes") or {}):
+              raise SystemExit("Agent Card does not declare the expected bearer security scheme.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("sut_host=" + origin + "\n")
+          print("A2A staging origin and public Agent Card contract verified; bearer credential was not displayed.")
+          PY
+
+      - name: Checkout official A2A TCK at signature-verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: a2aproject/a2a-tck
+          ref: 104a7b4ae0d83f65c075e3793e322953a830eaba
+          path: .a2a-tck
+          persist-credentials: false
+
+      - name: Set up Python 3.15
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6
+        with:
+          python-version: "3.15"
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+          version: "0.13.6"
+
+      - name: Install official A2A TCK
+        working-directory: .a2a-tck
+        run: |
+          set -euo pipefail
+          uv venv
+          uv pip install --python .venv/bin/python -e .
+
+      - name: Run full declared JSON-RPC transport conformance
+        working-directory: .a2a-tck
+        env:
+          SUT_HOST: ${{ steps.target.outputs.sut_host }}
+          A2A_AUTH_TYPE: bearer
+          A2A_AUTH_TOKEN: ${{ secrets.GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN }}
+        run: |
+          set -euo pipefail
+          source .venv/bin/activate
+          ./run_tck.py --sut-host "$SUT_HOST" --transport jsonrpc
+
+      - name: Upload A2A TCK reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: a2a-tck-jsonrpc-reports
+          path: .a2a-tck/reports/
+          if-no-files-found: warn
+          retention-days: 14
