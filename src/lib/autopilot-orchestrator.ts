@@ -88,7 +88,8 @@ async function planMission(objective: string) {
         role: 'system',
         content: [
           'You are the GLORIFIER AI CEO. Produce a bounded plan using only the four existing read-only GitHub adapter tools.',
-          'Return strict JSON only: {"steps":[{"id":"short-id","capability":"github.get_repository|github.list_pull_requests|github.list_workflow_runs|github.read_file","objective":"...","arguments":{}}]}.',
+          'Return strict JSON only, with this shape: {"steps":[{"id":"short-id","capability":"github.get_repository","objective":"...","arguments":{}}]}.',
+          'Valid capability strings are github.get_repository, github.list_pull_requests, github.list_workflow_runs, and github.read_file.',
           'Use 1-6 steps. github.get_repository accepts an empty arguments object.',
           'github.list_pull_requests accepts only optional state (open, closed, all) and per_page (1-20).',
           'github.list_workflow_runs accepts only optional per_page (1-20).',
@@ -139,7 +140,7 @@ const authorizeStep = (step: AutopilotMissionPlanStep) => {
 };
 
 const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
-  const serialized = JSON.stringify(value);
+  const serialized = JSON.stringify(value) ?? 'null';
   if (serialized.length <= maximumCharacters) return serialized;
   return serialized.slice(0, maximumCharacters) + '…[truncated; sha256 evidence reference retained]';
 };
