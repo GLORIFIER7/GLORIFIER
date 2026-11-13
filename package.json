@@ -61,7 +61,7 @@
     "test:glr-solana-verifier": "node --import tsx/esm --test src/lib/glr-solana-verifier.test.ts",
     "test:alpaca-oauth-url": "tsx src/lib/alpaca-oauth-url.test.ts",
     "test:outcome-evidence-gates": "tsx src/lib/governance/outcome-evidence-gates.test.ts",
-    "test:cloudflare-worker": "tsx src/worker.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs",
+    "test:cloudflare-worker": "tsx src/worker.test.ts && tsx src/worker-neural-diagnostic.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs",
     "test:worker-integration-registry": "tsx src/lib/worker-integration-registry.test.ts",
     "test:opensea-worker": "tsx src/lib/opensea-worker.test.ts",
     "test:huggingface-space-deploy": "node scripts/huggingface-space-deploy.test.cjs",
