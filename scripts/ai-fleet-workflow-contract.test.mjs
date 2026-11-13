@@ -646,14 +646,37 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
 });
 
 
+function extractWorkflowActionRefs(jobSection) {
+  return jobSection
+    .split(String.fromCharCode(10))
+    .filter((line) => /^\\s*(?:-\\s*)?uses:\\s+/.test(line))
+    .map((line) => line.trim().replace(/^-?\\s*uses:\\s*/, '').split(/\\s+/)[0]);
+}
+
+test('Code Guardian action extraction includes named and unnamed steps', () => {
+  const newline = String.fromCharCode(10);
+  const fixture = [
+    'jobs:',
+    '  guardian:',
+    '    steps:',
+    '      - name: Named action',
+    '        uses: actions/checkout@v7',
+    '      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1',
+  ].join(newline);
+  const guardianStart = fixture.indexOf(newline + '  guardian:' + newline);
+  assert.ok(guardianStart >= 0, 'fixture must contain the guardian job');
+  const guardian = fixture.slice(guardianStart);
+  assert.deepEqual(extractWorkflowActionRefs(guardian), [
+    'actions/checkout@v7',
+    'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1',
+  ]);
+});
+
 test('Code Guardian credential-bearing job pins every action to an immutable commit SHA', () => {
-  const guardianStart = codeGuardianWorkflow.indexOf('\n  guardian:\n');
+  const guardianStart = codeGuardianWorkflow.indexOf('\\n  guardian:\\n');
   assert.ok(guardianStart >= 0, 'Code Guardian must declare its credential-bearing guardian job');
   const guardian = codeGuardianWorkflow.slice(guardianStart);
-  const actionRefs = guardian
-    .split(String.fromCharCode(10))
-    .filter((line) => line.trimStart().startsWith('- uses:'))
-    .map((line) => line.trim().slice('- uses:'.length).trim().split(' ')[0]);
+  const actionRefs = extractWorkflowActionRefs(guardian);
   assert.equal(actionRefs.length, 2, 'Code Guardian should use only checkout and setup-node actions');
   for (const actionRef of actionRefs) {
     assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
