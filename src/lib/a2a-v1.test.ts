@@ -93,6 +93,100 @@ void test('A2A v1 Agent Card advertises a valid protocol and requires owner appr
   assert.throws(() => buildA2AAgentCard('https://example.com/path'), /origin/);
 });
 
+
+void test('A2A SendMessage returns an exact retry after the referenced task becomes terminal', async () => {
+  const requesterAgentId = 'verified-user-terminal-retry';
+  const messageId = 'terminal-replay-message';
+  const terminalTask = baseTask({
+    id: 'terminal-child-task',
+    parentTaskId: 'stable-context-1',
+    requesterAgentId,
+    status: 'completed',
+  });
+  const created: A2ACreateTaskInput[] = [];
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId,
+    createTask: async (input) => {
+      created.push(input);
+      return terminalTask;
+    },
+    getTask: async (id) => id === terminalTask.id ? terminalTask : null,
+    getTaskForIdempotencyKey: async (key, requester) => {
+      assert.equal(key, messageId);
+      assert.equal(requester, requesterAgentId);
+      return terminalTask;
+    },
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+  });
+
+  const replay = await handler({
+    jsonrpc: '2.0',
+    id: 'terminal-retry-1',
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId,
+        role: 'ROLE_USER',
+        taskId: terminalTask.id,
+        contextId: 'stable-context-1',
+        parts: [{ text: 'The original follow-up message' }],
+      },
+    },
+  });
+
+  assert.equal(replay.error, undefined,
+    'an authenticated exact retry must return its original task even after the task becomes terminal');
+  assert.equal(created.length, 1, 'the retry still goes through the durable idempotency verifier');
+  assert.equal(created[0].parentTaskId, 'stable-context-1');
+
+  let attemptedCreate = false;
+  const newMessageHandler = createA2AJsonRpcHandler({
+    requesterAgentId,
+    createTask: async () => {
+      attemptedCreate = true;
+      throw new Error('new messages must not be appended to terminal tasks');
+    },
+    getTask: async (id) => id === terminalTask.id ? terminalTask : null,
+    getTaskForIdempotencyKey: async () => null,
+    listTasks: async (input) => ({ tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 }),
+  });
+  const newMessage = await newMessageHandler({
+    jsonrpc: '2.0',
+    id: 'terminal-new-1',
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: 'new-message-after-terminal',
+        role: 'ROLE_USER',
+        taskId: terminalTask.id,
+        contextId: 'stable-context-1',
+        parts: [{ text: 'A genuinely new follow-up' }],
+      },
+    },
+  });
+  assert.equal((newMessage.error as { code: number }).code, -32000);
+  assert.equal(attemptedCreate, false,
+    'terminal lifecycle protection must still reject a new message before durable task creation');
+});
+
+void test('A2A SendMessage rejects oversized idempotency message IDs', async () => {
+  const { created, handler } = createTestHandler();
+  const response = await handler({
+    jsonrpc: '2.0',
+    id: 'oversized-message-id',
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: 'm'.repeat(257),
+        role: 'ROLE_USER',
+        parts: [{ text: 'must not create a task' }],
+      },
+    },
+  });
+  assert.equal((response.error as { code: number }).code, -32602);
+  assert.equal(created.length, 0, 'invalid replay identifiers must not reach durable task creation');
+});
+
 void test('A2A SendMessage creates a task for the authenticated requester', async () => {
   const { created, handler } = createTestHandler();
   const submit = await handler({
@@ -129,6 +223,8 @@ void test('A2A SendMessage creates a task for the authenticated requester', asyn
   assert.equal(created[0].requesterAgentId, 'verified-user-42');
   assert.equal(created[0].capability, 'a2a-message-intake');
   assert.equal(created[0].objective, 'Review this proposal');
+  assert.equal(created[0].idempotencyKey, 'message-1',
+    'the authenticated SendMessage messageId must flow into durable idempotency');
 });
 
 void test('A2A GetTask returns only tasks owned by the authenticated requester', async () => {

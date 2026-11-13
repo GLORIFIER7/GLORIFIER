@@ -418,6 +418,12 @@ jobs:
           AGENT_STATE_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
           PGUSER: postgres
 
+      - name: PostgreSQL A2A durable idempotency integration tests
+        run: node --import tsx/esm --test src/lib/a2a-runtime.postgres.integration.test.ts
+        env:
+          A2A_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
+          PGUSER: postgres
+
 
   supabase-default-privileges-integration:
     name: Supabase default privilege integration

@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
+import { createA2ATask, createA2ATaskWithIdempotency, A2AIdempotencyConflictError, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -221,5 +221,195 @@ void test('A2A canceled tasks remain filterable across pages and appear in the p
     const manifest = getA2AProtocolManifest();
     assert.ok(manifest.lifecycle.includes('canceled'),
       'the advertised A2A lifecycle must include the terminal canceled state');
+  });
+});
+
+
+
+void test('A2A JSON data retries ignore object-key order in the derived objective', async () => {
+  await withA2ATestEnvironment(async () => {
+    type Stored = Record<string, unknown> & {
+      idempotency_hash: string;
+      requester_agent_id: string;
+      idempotency_key: string;
+    };
+    const records = new Map<string, Stored>();
+    const query = async (_sql: string, values: unknown[] = []) => {
+      const [
+        id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
+        serializedInput, status, attempts, maxAttempts, result, error, evidenceId,
+        createdAt, updatedAt, idempotencyKey, idempotencyHash,
+      ] = values;
+      const key = JSON.stringify([requesterAgentId, idempotencyKey]);
+      const existing = records.get(key);
+      if (existing) return { rows: [existing] };
+
+      const row: Stored = {
+        id: String(id),
+        parent_task_id: parentTaskId ?? null,
+        requester_agent_id: String(requesterAgentId),
+        target_agent_id: targetAgentId ?? null,
+        capability: String(capability),
+        objective: String(objective),
+        input: typeof serializedInput === 'string' ? JSON.parse(serializedInput) : serializedInput,
+        status: String(status),
+        attempts: Number(attempts),
+        max_attempts: Number(maxAttempts),
+        result: result ?? null,
+        error: error ?? null,
+        evidence_id: evidenceId ?? null,
+        created_at: String(createdAt),
+        updated_at: String(updatedAt),
+        idempotency_key: String(idempotencyKey),
+        idempotency_hash: String(idempotencyHash),
+      };
+      records.set(key, row);
+      return { rows: [row] };
+    };
+
+    const firstData = { nested: { z: 2, a: 1 }, labels: ['same', 'payload'] };
+    const replayData = { labels: ['same', 'payload'], nested: { a: 1, z: 2 } };
+    const base = {
+      requesterAgentId: 'a2a-json-order-requester',
+      capability: 'a2a-message-intake',
+      idempotencyKey: 'a2a-json-order-message',
+    };
+    const first = await createA2ATaskWithIdempotency({
+      ...base,
+      objective: JSON.stringify(firstData),
+      input: { messageId: base.idempotencyKey, parts: [{ data: firstData, mediaType: 'application/json' }] },
+    }, query);
+    const replay = await createA2ATaskWithIdempotency({
+      ...base,
+      objective: JSON.stringify(replayData),
+      input: { messageId: base.idempotencyKey, parts: [{ data: replayData, mediaType: 'application/json' }] },
+    }, query);
+
+    assert.equal(replay.id, first.id,
+      'semantically identical A2A JSON data must resolve to the original task despite object-key ordering');
+    assert.equal(records.size, 1, 'an equivalent JSON-data retry must not create a second durable row');
+  });
+});
+
+void test('A2A protocol message idempotency is durable, requester-scoped, and content-bound', async () => {
+  await withA2ATestEnvironment(async () => {
+    type Stored = Record<string, unknown> & {
+      idempotency_hash: string;
+      requester_agent_id: string;
+      idempotency_key: string;
+    };
+    const records = new Map<string, Stored>();
+    const queryCalls: Array<{ sql: string; values: unknown[] }> = [];
+    const expectedInsertColumns = [
+      'id', 'parent_task_id', 'requester_agent_id', 'target_agent_id', 'capability', 'objective',
+      'input', 'status', 'attempts', 'max_attempts', 'result', 'error', 'evidence_id',
+      'created_at', 'updated_at', 'idempotency_key', 'idempotency_hash',
+    ];
+    const query = async (sql: string, values: unknown[] = []) => {
+      queryCalls.push({ sql, values: [...values] });
+      if (sql.includes('INSERT INTO a2a_tasks') && sql.includes('idempotency_key')) {
+        const columns = sql.match(/INSERT INTO a2a_tasks\s*\(([\s\S]*?)\)\s*VALUES/i)?.[1];
+        assert.ok(columns, 'atomic task insert must expose its bound column list');
+        assert.deepEqual(
+          columns.split(',').map((column) => column.trim()),
+          expectedInsertColumns,
+          'the SQL column order must stay aligned with the positional parameter bindings',
+        );
+        assert.match(
+          sql,
+          /VALUES\s*\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17\)/,
+          'the insert must bind each of the 17 task and idempotency columns in order',
+        );
+        assert.match(
+          sql,
+          /ON CONFLICT \(requester_agent_id,idempotency_key\)\s+WHERE idempotency_key IS NOT NULL\s+DO UPDATE SET idempotency_key = EXCLUDED\.idempotency_key/,
+          'conflicts must atomically return the existing requester-scoped row without replacing its fingerprint',
+        );
+        assert.match(
+          sql,
+          /RETURNING[\s\S]*idempotency_hash/i,
+          'the atomic upsert must return the stored fingerprint for exact-replay/conflict comparison',
+        );
+        assert.equal(values.length, 17, 'the insert must bind all 17 values');
+        assert.equal(typeof values[2], 'string', 'parameter $3 must be the authenticated requester ID');
+        assert.equal(typeof values[15], 'string', 'parameter $16 must be the message idempotency key');
+        assert.match(String(values[16]), /^[a-f0-9]{64}$/, 'parameter $17 must be a SHA-256 fingerprint');
+
+        const [
+          id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
+          serializedInput, status, attempts, maxAttempts, result, error, evidenceId,
+          createdAt, updatedAt, idempotencyKey, idempotencyHash,
+        ] = values;
+        const key = JSON.stringify([requesterAgentId, idempotencyKey]);
+        const existing = records.get(key);
+        if (existing) return { rows: [existing] };
+
+        const row: Stored = {
+          id: String(id),
+          parent_task_id: parentTaskId ?? null,
+          requester_agent_id: String(requesterAgentId),
+          target_agent_id: targetAgentId ?? null,
+          capability: String(capability),
+          objective: String(objective),
+          input: typeof serializedInput === 'string' ? JSON.parse(serializedInput) : serializedInput,
+          status: String(status),
+          attempts: Number(attempts),
+          max_attempts: Number(maxAttempts),
+          result: result ?? null,
+          error: error ?? null,
+          evidence_id: evidenceId ?? null,
+          created_at: String(createdAt),
+          updated_at: String(updatedAt),
+          idempotency_key: String(idempotencyKey),
+          idempotency_hash: String(idempotencyHash),
+        };
+        records.set(key, row);
+        return { rows: [row] };
+      }
+      throw new Error('Unexpected A2A idempotency query.');
+    };
+
+    const firstInput = {
+      requesterAgentId: 'alice',
+      capability: 'research',
+      objective: 'Review a proposal',
+      input: { nested: { z: 1, a: 2 }, labels: ['one', 'two'] },
+      idempotencyKey: 'message-123',
+    };
+    const first = await createA2ATaskWithIdempotency(firstInput, query);
+    const firstFingerprint = queryCalls[0].values[16];
+    const replay = await createA2ATaskWithIdempotency({
+      ...firstInput,
+      input: { labels: ['one', 'two'], nested: { a: 2, z: 1 } },
+    }, query);
+
+    assert.equal(replay.id, first.id,
+      'retrying a message with the same requester, key, and semantic JSON payload must return the original task');
+    assert.equal(queryCalls[1].values[16], firstFingerprint,
+      'semantically identical payloads must bind the same fingerprint');
+    assert.equal(records.size, 1, 'an idempotent retry must not create a second durable task');
+    assert.equal(queryCalls.length, 2, 'each initial send and retry must resolve through one atomic upsert');
+
+    await assert.rejects(
+      createA2ATaskWithIdempotency({
+        ...firstInput,
+        objective: 'A different proposal',
+      }, query),
+      (error: unknown) => error instanceof A2AIdempotencyConflictError,
+      'reusing a requester messageId for different content must return a typed conflict',
+    );
+    assert.notEqual(queryCalls[2].values[16], firstFingerprint,
+      'different semantic content must bind a different fingerprint');
+    assert.equal(records.size, 1, 'a conflicting retry must not create or overwrite a task');
+    assert.equal(queryCalls.length, 3, 'a content conflict must be decided by the atomic upsert result');
+
+    const anotherRequester = await createA2ATaskWithIdempotency({
+      ...firstInput,
+      requesterAgentId: 'bob',
+    }, query);
+    assert.notEqual(anotherRequester.id, first.id,
+      'the same messageId may be used independently by a different authenticated requester');
+    assert.equal(records.size, 2);
+    assert.equal(queryCalls.length, 4, 'the second requester must use its own scoped idempotency record');
   });
 });
