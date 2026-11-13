@@ -60,6 +60,28 @@ export interface ArchitectureSource {
   cadenceHours: number;
 }
 
+export interface ClaimSupportAttestation {
+  /** Integrity reference returned by the claim-review record validator. */
+  evidenceRef: string;
+  claimId: string;
+  sourceId: string;
+  sourceRegistryVersion: string;
+  sourceContentHash: string;
+  supportingExcerptHash: string;
+  /** Authenticated reviewer identity reference, not a display name. */
+  reviewerIdentityRef: string;
+  /** Independent semantic-verifier attestation reference. */
+  semanticVerifierRef: string;
+  observedAt: string;
+  validUntil: string;
+  decision: 'supported';
+}
+
+/** Trusted adapter that authenticates reviewer identity and independent semantic verification. */
+export type ClaimSupportAuthenticator = (
+  attestation: Readonly<ClaimSupportAttestation>,
+) => boolean;
+
 export interface SourceObservation {
   sourceId: string;
   ok: boolean;
@@ -73,6 +95,8 @@ export interface SourceObservation {
   revalidatedNotModified?: boolean;
   evidenceExcerpt: string | null;
   evidenceStatus: EvidenceStatus;
+  /** Optional claim-level attestation; never trusted without the injected authenticator. */
+  claimSupportAttestation?: ClaimSupportAttestation;
   error?: string;
 }
 
@@ -535,11 +559,23 @@ export const stripHtml = (input: string): string => input
   .replace(/\s+/g, ' ')
   .trim();
 
-export const isClaimSupportedEvidence = (status: EvidenceStatus): boolean =>
-  status === 'claim-supported';
+export const isClaimSupportedEvidence = (
+  status: EvidenceStatus,
+  source?: SourceObservation,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): boolean => status === 'claim-supported'
+  && source !== undefined
+  && isAuthenticatedClaimSupportObservation(source, authenticate, nowMs);
 
-export const classifyArchitectureEvidence = (status: EvidenceStatus): EvidenceClass =>
-  status === 'claim-supported' ? 'observed-fact' : 'analysis';
+export const classifyArchitectureEvidence = (
+  status: EvidenceStatus,
+  source?: SourceObservation,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): EvidenceClass => isClaimSupportedEvidence(status, source, authenticate, nowMs)
+  ? 'observed-fact'
+  : 'analysis';
 
 const isLeapYear = (year: number): boolean =>
   year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -591,6 +627,65 @@ const parseSourceObservationTimestamp = (value: unknown): number | null => {
     return Number.isFinite(timestamp) ? timestamp : null;
   }
   return typeof value === 'string' ? parseSourceObservationTimestampText(value) : null;
+};
+
+const isNonEmptyEvidenceReference = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+/**
+ * A source observation can become claim-supported only when a fresh attestation
+ * binds the exact source snapshot and excerpt and a trusted adapter authenticates
+ * both reviewer identity and independent semantic verification.
+ */
+const isAuthenticatedClaimSupportObservation = (
+  source: SourceObservation,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): boolean => {
+  const attestation = source.claimSupportAttestation;
+  const registeredSource = SOURCES.find((item) => item.id === source.sourceId);
+  if (!authenticate || !attestation || !registeredSource || source.ok !== true) return false;
+  if (!Number.isInteger(source.status) || source.status === null || source.status < 200 || source.status >= 300) return false;
+  if (typeof source.evidenceExcerpt !== 'string' || !source.evidenceExcerpt.trim()) return false;
+  if (typeof source.contentHash !== 'string' || !/^[a-f0-9]{64}$/i.test(source.contentHash)) return false;
+  if (!Number.isFinite(nowMs) || !Number.isFinite(registeredSource.cadenceHours) || registeredSource.cadenceHours <= 0) return false;
+
+  const observedAt = parseSourceObservationTimestamp(source.observedAt);
+  const attestedAt = parseSourceObservationTimestamp(attestation.observedAt);
+  const validUntil = parseSourceObservationTimestamp(attestation.validUntil);
+  if (observedAt === null || attestedAt === null || validUntil === null) return false;
+
+  const excerptHash = createHash('sha256')
+    .update(source.evidenceExcerpt.replace(/\\s+/g, ' ').trim(), 'utf8')
+    .digest('hex');
+  const cadenceMs = registeredSource.cadenceHours * 60 * 60 * 1000;
+  if (
+    !isNonEmptyEvidenceReference(attestation.claimId)
+    || !/^claim-review-[a-f0-9]{24}$/i.test(attestation.evidenceRef)
+    || attestation.decision !== 'supported'
+    || attestation.sourceId !== source.sourceId
+    || attestation.sourceRegistryVersion !== 'GEAS-AUTHORITY-2'
+    || typeof attestation.sourceContentHash !== 'string'
+    || attestation.sourceContentHash.toLowerCase() !== source.contentHash.toLowerCase()
+    || typeof attestation.supportingExcerptHash !== 'string'
+    || attestation.supportingExcerptHash.toLowerCase() !== excerptHash
+    || !isNonEmptyEvidenceReference(attestation.reviewerIdentityRef)
+    || !isNonEmptyEvidenceReference(attestation.semanticVerifierRef)
+    || attestation.observedAt !== source.observedAt
+    || attestedAt !== observedAt
+    || observedAt > nowMs
+    || nowMs - observedAt >= cadenceMs
+    || validUntil <= nowMs
+    || validUntil < observedAt
+    || validUntil - observedAt > cadenceMs
+    || source.finalUrl !== registeredSource.url
+  ) return false;
+
+  try {
+    return authenticate(Object.freeze({ ...attestation })) === true;
+  } catch {
+    return false;
+  }
 };
 
 const isValidSourceCadence = (cadenceHours: number, nowMs: number): boolean =>
@@ -1241,20 +1336,25 @@ type PatternSourceObservation = SourceObservation & { evidenceExcerpt: string };
 
 const isPatternSourceObservation = (
   source: SourceObservation | undefined,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): source is PatternSourceObservation =>
   source?.ok === true
-  && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
+  && (source.evidenceStatus === 'content-matched'
+    || isClaimSupportedEvidence(source.evidenceStatus, source, authenticate, nowMs))
   && typeof source.evidenceExcerpt === 'string'
-  && source.evidenceExcerpt.length > 0;
+  && source.evidenceExcerpt.trim().length > 0;
 
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
   source: PatternSourceObservation,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): ArchitecturePattern => ({
   id: pattern.id,
   title: pattern.title,
   domain: pattern.domain,
-  evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
+  evidenceClass: classifyArchitectureEvidence(source.evidenceStatus, source, authenticate, nowMs),
   sourceId: source.sourceId,
   evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
   evidenceExcerpt: source.evidenceExcerpt,
@@ -1264,11 +1364,18 @@ const createObservedArchitecturePattern = (
   lastReviewed: source.observedAt,
 });
 
-const observedPatterns = (results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] => {
+const observedPatterns = (
+  results: SourceObservation[],
+  _scanCompletedAt: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): ArchitecturePattern[] => {
   const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = observationsBySource.get(pattern.sourceId);
-    return isPatternSourceObservation(source) ? [createObservedArchitecturePattern(pattern, source)] : [];
+    return isPatternSourceObservation(source, authenticate, nowMs)
+      ? [createObservedArchitecturePattern(pattern, source, authenticate, nowMs)]
+      : [];
   });
 };
 
@@ -1306,6 +1413,8 @@ const architectureEvidenceHttpStatus = (status: number | null): number => status
 const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): ArchitectureEvidence => ({
   id: architectureEvidenceId(result.sourceId, result.contentHash),
   sourceId: result.sourceId,
@@ -1313,15 +1422,19 @@ const createArchitectureEvidence = (
   observedAt: result.observedAt,
   contentHash: architectureEvidenceContentHash(result.contentHash),
   excerpt: result.evidenceExcerpt,
-  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
+  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus, result, authenticate, nowMs),
   sourceStatus: architectureEvidenceHttpStatus(result.status),
   patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
-export const buildArchitectureEvidence = (results: SourceObservation[]): ArchitectureEvidence[] => {
+export const buildArchitectureEvidence = (
+  results: SourceObservation[],
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): ArchitectureEvidence[] => {
   const patternIdsBySource = indexPatternIdsBySource();
-  return results.flatMap((result) => isPatternSourceObservation(result)
-    ? [createArchitectureEvidence(result, patternIdsBySource)]
+  return results.flatMap((result) => isPatternSourceObservation(result, authenticate, nowMs)
+    ? [createArchitectureEvidence(result, patternIdsBySource, authenticate, nowMs)]
     : []);
 };
 
