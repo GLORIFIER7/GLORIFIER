@@ -5,6 +5,7 @@ import { getPostgresPool } from './db/postgres.ts';
 import {
   A2AIdempotencyConflictError,
   createA2ATaskForProtocol,
+  getA2ATaskForIdempotencyKeyForProtocol,
   initializeA2ARuntime,
 } from './a2a-runtime.ts';
 
@@ -114,6 +115,13 @@ test('PostgreSQL migrates A2A idempotency and atomically deduplicates concurrent
     [requesterAgentId, base.idempotencyKey],
   );
   assert.equal(Number(count.rows[0].count), 1, 'the database must contain only one row for the requester/key pair');
+  const replayLookup = await getA2ATaskForIdempotencyKeyForProtocol(requesterAgentId, base.idempotencyKey);
+  assert.equal(replayLookup?.id, tasks[0].id, 'the durable requester/key lookup returns the original task');
+  const foreignLookup = await getA2ATaskForIdempotencyKeyForProtocol(
+    'a2a-pg-idem-foreign-' + randomUUID(),
+    base.idempotencyKey,
+  );
+  assert.equal(foreignLookup, null, 'a replay key must not reveal another requester's task');
 
   await assert.rejects(
     createA2ATaskForProtocol({ ...base, objective: 'Different content for the same messageId' }),
