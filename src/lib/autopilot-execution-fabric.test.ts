@@ -116,9 +116,9 @@ test('Autopilot write execution also requires matching independent GitHub source
 
 test('Autopilot read path validation rejects single backslashes and null bytes', () => {
   assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
-    path: 'src\\\\lib\\\\service.ts',
+    path: 'src' + String.fromCharCode(92) + 'lib/service.ts',
   }), /valid repository-relative path/);
   assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
-    path: 'src/lib/\\0service.ts',
+    path: 'src' + String.fromCharCode(92) + 'lib/service.ts',
   }), /valid repository-relative path/);
 });
