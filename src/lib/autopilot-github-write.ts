@@ -164,11 +164,11 @@ async function updateFile(
   const existing = await githubRequest(
     fetchImpl, token, 'GET', endpoint + '?' + new URLSearchParams({ ref: branch }).toString(),
   );
-  if (existing.status !== 200 && existing.status !== 404) {
-    throw new Error('Unable to inspect the target file on the Autopilot branch (HTTP ' + existing.status + ').');
+  if (existing.status !== 200) {
+    throw new Error('Inspected source file is missing from the Autopilot branch; refusing to create an uninspected file (HTTP ' + existing.status + ').');
   }
   let sha: string | undefined;
-  if (existing.status === 200) {
+  {
     if (!isRecord(existing.data) || typeof existing.data.sha !== 'string' ||
         !/^[a-f0-9]{40}$/i.test(existing.data.sha) ||
         typeof existing.data.content !== 'string' || existing.data.encoding !== 'base64') {
