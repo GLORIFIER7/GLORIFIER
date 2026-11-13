@@ -21,6 +21,12 @@ const COUNCIL_ROLES = ['engineering-scientist', 'software-architect', 'cybersecu
 
 type PlannedStep = AutopilotMissionPlanStep;
 
+export function isAutopilotInferenceAuthorized(env: Record<string, string | undefined> = process.env): boolean {
+  return env.GLORIFIER_ENABLE_INFERENCE === 'true'
+    && env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+    && env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
+}
+
 export function validateAutopilotPlan(text: string): PlannedStep[] {
   const source = text.trim().replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/, '');
   const parsed = JSON.parse(source) as { steps?: unknown };
@@ -164,9 +170,7 @@ export function getAutopilotOrchestrationStatus() {
   const persistence = getAutopilotMissionControlStatus();
   const executive = aiOrchestrator.executive();
   const providerReady = executive.status === 'active';
-  const inferenceAuthorized = process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
-    && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
-    && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
+  const inferenceAuthorized = isAutopilotInferenceAuthorized();
   return {
     enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && providerReady && inferenceAuthorized,
     aiCeoConnected: true,
