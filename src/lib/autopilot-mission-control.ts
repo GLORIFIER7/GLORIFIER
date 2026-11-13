@@ -1,5 +1,6 @@
 import { newId } from './new-id';
 import { getPostgresPool } from './db/postgres';
+import { getA2ARuntimeStatus } from './a2a-runtime';
 
 export type AutopilotMissionStatus =
   | 'queued'
@@ -708,16 +709,29 @@ export function getAutopilotMissionStore(): AutopilotMissionStore | null {
 }
 
 export function getAutopilotMissionControlStatus() {
+  const a2aRuntime = getA2ARuntimeStatus();
+  const inferenceAuthorized = process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
+    && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+    && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
+  const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
+    && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
+    && a2aRuntime.durable && inferenceAuthorized;
+  const writeCredentialConfigured = Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim());
   return {
     mode: autopilotPersistenceMode,
     available: autopilotStore !== null,
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
-    autonomousPlanningEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
-    autonomousStepExecutionEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    autonomousPlanningEnabled: persistentExecutionReady,
+    autonomousStepExecutionEnabled: persistentExecutionReady,
+    a2aPersistenceMode: a2aRuntime.mode,
+    a2aDurableReady: a2aRuntime.durable,
+    a2aInitializationFailure: a2aRuntime.lastFailure,
     readOnlyToolExecutionEnabled: autopilotStore !== null,
-    writeToolExecutionEnabled: Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim()),
+    writeToolExecutionEnabled: writeCredentialConfigured,
+    writeCredentialConfigured,
+    writeCredentialPermissionVerification: 'not-verified-until-github-write-and-readback',
     repositoryWriteScope: 'isolated-autopilot-branches-only',
     automaticPullRequestMergeEnabled: false,
     automaticProductionDeploymentEnabled: false,
