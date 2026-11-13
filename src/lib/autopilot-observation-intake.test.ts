@@ -44,7 +44,7 @@ const observation: AutopilotObservation = {
   evidenceRefs: ['urn:glorifier:daemon:cycle:42:provider-discovery'],
 };
 
-test('observation intake creates a durable, source-attributed mission without claiming execution', async () => {
+test('observation intake creates a queued, source-attributed mission without claiming execution', async () => {
   const store = new MemoryMissionStore();
   const result = await createAutopilotObservationMission(store, observation);
   assert.equal(result.accepted, true);
