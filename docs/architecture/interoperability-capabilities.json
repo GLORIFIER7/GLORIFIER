@@ -871,7 +871,7 @@
           "reference": "docs/architecture/interoperability-gap-register.md#protocol-conformance-boundary-review--2026-10-30",
           "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; A2A 1.0.1 specification target",
           "observedAt": "2026-10-30T03:59:28Z",
-          "notes": "Historical 2026-10-30 baseline, superseded for A2A discovery by GLORIFIER PR #629, merged 2026-11-03. Current main now serves the standard /.well-known/agent-card.json and provides the authenticated /api/a2a/v1 Worker proxy plus backend Express task handler. External A2A/MCP conformance remains unverified."
+          "notes": "Historical 2026-10-30 baseline, superseded for A2A discovery by GLORIFIER PR #629, merged 2026-11-03. Current main now serves the standard /.well-known/agent-card.json and provides the authenticated /api/a2a/v1 Worker proxy plus backend Express task handler. External A2A/MCP conformance remains unverified. The historical review did not establish an A2A 1.0.1 message/task binding."
         },
         {
           "kind": "documentation",
@@ -1003,6 +1003,7 @@
       "limitations": [
         "The standard A2A Agent Card route is merged in GLORIFIER main by PR #629 and is present in the source for the 2026-11-11 Worker v1002 release. The recorded production GET-only smoke did not separately probe /.well-known/agent-card.json; a fresh external discovery check remains NOT VERIFIED.",
         "The Worker exposes an authenticated A2A JSON-RPC proxy and the backend source contains a requester-bound task handler. Source tests and CI do not prove that the live backend, credentials, and persistent task store are currently configured or that a real task exchange succeeds.",
+        "These merged source and CI records do not establish A2A 1.0 external interoperability or prove a live authenticated task exchange.",
         "No independent external A2A client, official A2A 1.0.1 TCK report, or controlled two-agent lifecycle test has been recorded. The TCK's v1.0.1 transport-error mapping update remains under upstream PR #232 review as of 2026-11-13.",
         "The Agent Card explicitly declares streaming, push notifications, and extended Agent Card unsupported. Task cancellation is limited to requester-owned queued tasks; running provider work is not reported as canceled without a real executor interrupt.",
         "The fixed-scope, stateless, read-only GitHub MCP endpoint has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
