@@ -116,7 +116,8 @@
     "test:worker-app-state": "tsx --test src/lib/app-state-worker.test.ts",
     "test:worker-app-state-route": "tsx --test src/lib/worker-app-state-route.test.ts",
     "test:brand-assets": "node --test scripts/brand-asset-integrity.test.mjs",
-    "test:autopilot-mission-control": "node --import tsx/esm --test src/lib/autopilot-mission-control.test.ts"
+    "test:autopilot-mission-control": "node --import tsx/esm --test src/lib/autopilot-mission-control.test.ts",
+    "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
