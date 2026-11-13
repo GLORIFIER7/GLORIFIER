@@ -128,9 +128,11 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
   assert.equal(task.state, 'RUNNING');
 
   const evidenceRef = 'https://evidence.example/owner-supplied-claim';
+  const secondEvidenceRef = 'https://evidence.example/second-owner-supplied-claim';
   await markFederatedA2AEvidence(task.id, evidenceRef, 'evidence-agent', persistence);
+  await markFederatedA2AEvidence(task.id, secondEvidenceRef, 'evidence-agent', persistence);
   assert.equal(task.state, 'EVIDENCE');
-  assert.deepEqual(task.evidenceRefs, [evidenceRef]);
+  assert.deepEqual(task.evidenceRefs, [evidenceRef, secondEvidenceRef]);
 
   await assert.rejects(
     verifyFederatedA2ATask(task.id, 'reviewer-a'),
@@ -151,6 +153,19 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
   );
   assert.equal(task.state, 'EVIDENCE',
     'a negative verifier decision must leave the task in EVIDENCE');
+
+  await assert.rejects(
+    verifyFederatedA2ATask(task.id, 'reviewer-a', async (snapshot) => ({
+      status: 'VERIFIED',
+      source: 'independent-verifier',
+      evidenceRefs: [snapshot.evidenceRefs[0]],
+      observedAt: new Date().toISOString(),
+      verifier: 'independent-verifier',
+    }), persistence),
+    /independent verification evidence references do not match/i,
+  );
+  assert.equal(task.state, 'EVIDENCE',
+    'a verifier must confirm every attached evidence reference before the task is VERIFIED');
 
   await assert.rejects(
     verifyFederatedA2ATask(task.id, 'reviewer-a', async () => ({
