@@ -1383,13 +1383,11 @@ const isPatternSourceObservation = (
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
   source: PatternSourceObservation,
-  authenticate?: ClaimSupportAuthenticator,
-  nowMs = Date.now(),
-): ArchitecturePattern => ({
+ ): ArchitecturePattern => ({
   id: pattern.id,
   title: pattern.title,
   domain: pattern.domain,
-  evidenceClass: classifyArchitectureEvidence(source.evidenceStatus, source, pattern.id, authenticate, nowMs),
+  evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
   sourceId: source.sourceId,
   evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
   evidenceExcerpt: source.evidenceExcerpt,
@@ -1409,7 +1407,7 @@ const observedPatterns = (
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = observationsBySource.get(pattern.sourceId);
     return isPatternSourceObservation(source, pattern.id, authenticate, nowMs)
-      ? [createObservedArchitecturePattern(pattern, source, authenticate, nowMs)]
+      ? [createObservedArchitecturePattern(pattern, source)]
       : [];
   });
 };
@@ -1449,8 +1447,6 @@ const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
   patternId?: string,
-  authenticate?: ClaimSupportAuthenticator,
-  nowMs = Date.now(),
 ): ArchitectureEvidence => ({
   id: architectureEvidenceId(result.sourceId, result.contentHash),
   sourceId: result.sourceId,
@@ -1458,7 +1454,7 @@ const createArchitectureEvidence = (
   observedAt: result.observedAt,
   contentHash: architectureEvidenceContentHash(result.contentHash),
   excerpt: result.evidenceExcerpt,
-  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus, result, patternId, authenticate, nowMs),
+  evidenceClass: result.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
   sourceStatus: architectureEvidenceHttpStatus(result.status),
   patternIds: result.evidenceStatus === 'claim-supported' && patternId
     ? [patternId]
@@ -1476,7 +1472,7 @@ export const buildArchitectureEvidence = (
       ? result.claimSupportAttestation?.patternId
       : undefined;
     return isPatternSourceObservation(result, patternId ?? '', authenticate, nowMs)
-      ? [createArchitectureEvidence(result, patternIdsBySource, patternId, authenticate, nowMs)]
+      ? [createArchitectureEvidence(result, patternIdsBySource, patternId)]
       : [];
   });
 };
