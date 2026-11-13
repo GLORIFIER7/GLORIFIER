@@ -404,6 +404,38 @@ test('Autopilot records planning failures with one bounded retry and quarantines
   const secondFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-2', new Error('provider still unavailable'), '2026-11-13T08:04:00.000Z');
   assert.equal(secondFailure?.status, 'blocked');
   assert.equal(secondFailure?.planningAttempts, 2);
+  assert.equal(secondFailure?.leaseOwner, undefined);
+  assert.equal(secondFailure?.leaseExpiresAt, undefined);
+  assert.equal(secondFailure?.nextRunAt, undefined);
+
+  const executionMission = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'execution-failure-001',
+    objective: 'Quarantine an interrupted read-only execution.',
+    now: '2026-11-13T08:05:00.000Z',
+  });
+  const executionClaim = await claimNextAutopilotMission(store, 'worker-3', 120_000, '2026-11-13T08:05:30.000Z');
+  assert.equal(executionClaim?.status, 'planning');
+  const executionPlan = await recordAutopilotMissionPlan(store, executionMission.id, executionClaim!.version, 'worker-3', [
+    { id: 'inspect', capability: 'engineering', objective: 'Inspect a public repository.', effect: 'read-only' },
+  ], '2026-11-13T08:05:45.000Z');
+  const runningStep = await claimAutopilotMissionStep(store, executionPlan.id, 'inspect', 'worker-3', undefined, '2026-11-13T08:06:00.000Z');
+  assert.equal(runningStep.claimed, true);
+  const executionFailure = await recordAutopilotMissionFailure(
+    store,
+    executionMission.id,
+    'worker-3',
+    new Error('read-only tool execution failed'),
+    '2026-11-13T08:06:30.000Z',
+  );
+  assert.equal(executionFailure?.status, 'reconciliation-required');
+  assert.equal(executionFailure?.verificationState, 'reconciliation-required');
+  assert.equal(executionFailure?.steps[0].status, 'reconciliation-required');
+  assert.equal(executionFailure?.leaseOwner, undefined);
+  assert.equal(executionFailure?.leaseExpiresAt, undefined);
+  assert.match(executionFailure?.lastError || '', /read-only tool execution failed/);
+});
+
 test('Autopilot mission creation distinguishes invalid input from persistence failures', async () => {
   const invalidStore = new MemoryMissionStore();
   await assert.rejects(
