@@ -261,16 +261,24 @@ const MAX_STEPS = 30;
 const MIN_LEASE_MS = 30_000;
 const MAX_LEASE_MS = 30 * 60_000;
 
+export class AutopilotMissionValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
+    this.name = 'AutopilotMissionValidationError';
+  }
+}
+
 function timestamp(value?: string): string {
   const candidate = value ?? new Date().toISOString();
-  if (!Number.isFinite(Date.parse(candidate))) throw new Error('timestamp must be a valid ISO-8601 date.');
+  if (!Number.isFinite(Date.parse(candidate))) throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
   return new Date(candidate).toISOString();
 }
 
 function requireNonEmpty(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} must be a non-empty string.`);
+  if (typeof value !== 'string' || !value.trim()) throw new AutopilotMissionValidationError(`${field} must be a non-empty string.`);
   const normalized = value.trim();
-  if (normalized.length > maxLength) throw new Error(`${field} must not exceed ${maxLength} characters.`);
+  if (normalized.length > maxLength) throw new AutopilotMissionValidationError(`${field} must not exceed ${maxLength} characters.`);
   return normalized;
 }
 
