@@ -155,10 +155,12 @@ The guarded production workflow [#42969134766](https://github.com/GLORIFIER7/GLO
 
 The repository includes `.github/workflows/external-mcp-conformance.yml`, a **manual-only** GitHub Actions workflow. Its `workflow_dispatch` input defaults to `false`; the external checks run only when an authorized operator explicitly dispatches the workflow with `run_external_mcp_checks=true`.
 
-Before dispatch, an owner must configure these non-secret repository Actions variables with the exact current production or staging endpoint and its hostname:
+The workflow defaults to GLORIFIER's existing public Pages ingress, so repository Actions variables are optional. To make the configuration explicit, set these non-secret repository Actions variables:
 
-- `GLORIFIER_MCP_CONFORMANCE_URL`: the complete HTTPS endpoint ending in `/mcp`.
-- `GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS`: exact DNS hostname(s), comma- or newline-separated; no wildcards, schemes, paths, credentials, ports, IP literals, or local/reserved names.
+- `GLORIFIER_MCP_CONFORMANCE_URL`: `https://glorifier.pages.dev/mcp`.
+- `GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS`: `glorifier.pages.dev`.
+
+Do **not** use `https://glorifier.glorifier.workers.dev/mcp` for the public conformance target. That direct Worker hostname is protected by a Cloudflare Access policy restricted to GLORIFIER account members. The Pages hostname has a separate public-access policy and forwards `/mcp` through the private `GLORIFIER_WORKER` service binding. The public Pages Function route manifest includes `/mcp`, and the proxy preserves the incoming MCP request when it forwards to the Worker. The direct Worker Access policy remains enabled; this repair does not weaken it.
 
 The target validator rejects non-HTTPS URLs, URL credentials, non-default ports, paths other than exactly `/mcp`, query strings, fragments, IP literals, reserved/local hostnames, and hosts absent from the explicit allowlist. It does not add or change Worker routes, secrets, bindings, egress policy, or deployment settings.
 
@@ -173,3 +175,19 @@ The target validator rejects non-HTTPS URLs, URL credentials, non-default ports,
 The complete official server requirement set intentionally tests protocol surfaces beyond the current four-tool GitHub bridge, including resources, prompts, content variants, and streaming-related requirements. Those failures are findings, not reasons to widen the endpoint's scope or weaken the test. The TCK server leg does not test independent MCP clients. **Full MCP 2026-07-28 conformance and independent external-client interoperability remain NOT VERIFIED** until the scored server requirements pass and separate independent-client tests have their own evidence. The workflow still does not run A2A tests, provider inference, paid operations, or write operations.
 
 The PR and push CI paths run only the local validator/smoke regression tests; they do not contact an external endpoint. No production POST, inference, paid provider request, secret use, deployment, or configuration mutation is triggered by normal CI.
+
+
+## Public MCP ingress correction — 2026-11-13
+
+The public conformance entry point is **`https://glorifier.pages.dev/mcp`**, with exact allowed hostname **`glorifier.pages.dev`**. This corrects the previous target assumption that the protected `workers.dev` hostname was externally reachable.
+
+Cloudflare account configuration observed on 2026-11-13:
+- Pages project `glorifier` has the production `GLORIFIER_WORKER` service binding to Worker `glorifier`.
+- The Pages public frontend Access application has a `bypass` policy for everyone.
+- The direct Worker Access application has an `allow` policy restricted to Cloudflare account members.
+- The latest production Pages deployment observed at `2026-11-13T16:25:18Z` completed successfully for main commit `33291355bfbd6ed32cca176ab4d7773c84de4d56`.
+- The Pages route manifest includes `/mcp`; the Pages Function forwards this exact path to the Worker service binding without rewriting the request.
+
+The external conformance workflow now falls back to the canonical Pages URL and hostname when repository variables are absent. The target validator explicitly rejects the account-protected direct Worker hostname even when it is accidentally added to the allowlist. The regression suite now checks this rejection and verifies that a public Pages `POST /mcp` request preserves its MCP method, body, origin, and protocol headers through the service-binding proxy.
+
+**Verification boundary:** Cloudflare control-plane configuration and the latest Pages deployment were inspected. A live external `POST /mcp` request and the official MCP TCK have not yet been run from this environment. Therefore public transport success and MCP conformance remain **NOT VERIFIED** until the workflow is dispatched and its reports are inspected. The configured public target fixes the known Access-host mismatch; it does not upgrade the protocol capability status by itself.
