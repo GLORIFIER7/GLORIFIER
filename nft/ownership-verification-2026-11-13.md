@@ -76,7 +76,9 @@ OpenSea's current API documentation describes per-NFT best-listing, offer and ev
 
 The contract and token state identify the holding address, but chain state alone does not prove that the human owner controls the wallet or is authorized to represent the company. The address currently returns empty bytecode (`0x`), so it is an externally owned account and can use a standard EIP-191 personal message signature.
 
-The following message is prepared for the holder to sign in their wallet. It is **not yet signed**:
+Use the Etherscan [Verified Signatures page](https://etherscan.io/verifiedSignatures). Select **Sign Message**, connect the wallet that holds Token #1, paste the exact message below, and approve only the message-signature prompt. Etherscan also provides **Verify Signature**; choose verification only and do not publish the message. Etherscan explains that signing a message does not cost gas or change the blockchain ([wallet connection and signing guidance](https://info.etherscan.com/connecting-your-wallet-on-etherscan/?id=999)).
+
+The following fresh challenge is valid until **2026-11-13T17:32:00+07:00**. It is prepared for the holder to sign and is **not yet signed**:
 
 ```text
 GLORIFIER SERVICES ADVERTISING
@@ -90,7 +92,7 @@ Expected owner wallet: 0xe0589195995cb373c856953cfaddaeeaf2088a06
 
 I confirm that I control the wallet listed above and am authorized to act for GLORIFIER SERVICES ADVERTISING for this verification.
 
-Nonce: GLORIFIER-ERC721-OWNER-CONTROL-2026-11-13T09:40:28Z
+Nonce: a07ad2826719930e8d6d238292534c219ea0db586a15ac300e3af0a962ea915b
 
 This is an off-chain message signature only. It does not authorize a transaction, transfer, sale, listing, approval, mint, deployment, or expenditure.
 ```
