@@ -367,15 +367,8 @@ function assertGeminiAuthorizationWorkflow(item) {
   assert.match(item.source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH: \/etc\/glorifier\/gemini-system-settings\.json/);
 }
 
-test('Gemini provider workflows require owner-initiated manual dispatch and trusted settings', () => {
+test('Gemini paid/manual workflows require owner-initiated dispatch and trusted settings', () => {
   const workflows = [
-    {
-      source: geminiCollaboratorWorkflow,
-      firstSensitiveStep: 'name: Require Gemini credential',
-      modelStep: 'name: Run Gemini engineering collaboration',
-      authorizationCondition: 'inputs.allow_paid_inference == true',
-      manualAuthorizationLine: 'MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}',
-    },
     {
       source: geminiDevelopmentWorkflow,
       firstSensitiveStep: 'name: Setup Node.js',
@@ -392,7 +385,33 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
     },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
-  assert.match(geminiCollaboratorWorkflow, /schedule:/);
+});
+
+test('Gemini engineering collaborator runs on schedule only through the owner-confirmed free tier', () => {
+  assert.match(geminiCollaboratorWorkflow, /schedule:\\s*\\n\\s+- cron:/);
+  assert.match(geminiCollaboratorWorkflow, /run_free_tier_gemini:[\\s\\S]*?default: false/);
+  assert.match(geminiCollaboratorWorkflow, /github\\.event_name == 'schedule'/);
+  assert.match(geminiCollaboratorWorkflow, /vars\\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
+  assert.match(geminiCollaboratorWorkflow, /inputs\\.run_free_tier_gemini == true/);
+  assert.match(geminiCollaboratorWorkflow, /glorifier_gemini_free_tier_authorized/);
+  assert.match(geminiCollaboratorWorkflow, /FREE_TIER_CONFIRMED: \\$\\{\\{ vars\\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED \\}\\}/);
+  assert.match(geminiCollaboratorWorkflow, /gemini_model: gemini-3\\.8-flash/);
+  assert.match(geminiCollaboratorWorkflow, /gemini_cli_version: v0\\.68\\.0/);
+  assert.match(geminiCollaboratorWorkflow, /quota is unavailable, stop; never retry on a paid tier or switch providers/);
+  assert.match(geminiCollaboratorWorkflow, /npm run lint/);
+  assert.match(geminiCollaboratorWorkflow, /npm run build/);
+  assert.match(geminiCollaboratorWorkflow, /gh pr create --draft/);
+  assert.doesNotMatch(geminiCollaboratorWorkflow, /allow_paid_inference|MANUAL_PAID_INFERENCE_AUTHORIZATION|OPENAI_API_KEY|NVIDIA_API_KEY/);
+  assert.doesNotMatch(geminiCollaboratorWorkflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
+});
+
+test('Gemini free-tier authorization helper allows only scheduled main and explicitly opted-in owner runs', () => {
+  assert.match(authorization, /glorifier_gemini_free_tier_authorized/);
+  assert.match(authorization, /FREE_TIER_CONFIRMED|free_tier_confirmed/);
+  assert.match(authorization, /refs\\/heads\\/main/);
+  assert.match(authorization, /event_name/);
+  assert.match(authorization, /actor_id/);
+  assert.match(authorization, /run_attempt/);
 });
 
 test('Gemini PR review requires an explicit main-target PR number after owner authorization', () => {
