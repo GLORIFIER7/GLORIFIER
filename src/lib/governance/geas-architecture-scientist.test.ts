@@ -172,6 +172,7 @@ const claimSupportContentHash = 'd'.repeat(64);
 const claimSupportAttestation = {
   evidenceRef: `claim-review-${'e'.repeat(24)}`,
   claimId: 'claim-geas-test-1',
+  patternId: 'cross-cutting-cloud-controls',
   sourceId: 'aws-well-architected',
   sourceRegistryVersion: 'GEAS-AUTHORITY-2',
   sourceContentHash: claimSupportContentHash,
@@ -193,7 +194,7 @@ const claimSupportObservation: SourceObservation = {
   evidenceStatus: 'claim-supported',
   claimSupportAttestation,
 };
-if (isClaimSupportedEvidence('claim-supported', claimSupportObservation, undefined, claimSupportNowMs)) {
+if (isClaimSupportedEvidence('claim-supported', claimSupportObservation, 'cross-cutting-cloud-controls', undefined, claimSupportNowMs)) {
   throw new Error('claim-supported status and a record alone must not establish authenticated claim support');
 }
 if (buildArchitectureEvidence([claimSupportObservation], undefined, claimSupportNowMs).length !== 0) {
@@ -201,6 +202,7 @@ if (buildArchitectureEvidence([claimSupportObservation], undefined, claimSupport
 }
 const trustedClaimSupportAuthenticator = (attestation: Readonly<typeof claimSupportAttestation>) =>
   attestation.evidenceRef === claimSupportAttestation.evidenceRef
+  && attestation.patternId === claimSupportAttestation.patternId
   && attestation.semanticVerifierRef === claimSupportAttestation.semanticVerifierRef;
 const authenticatedClaimEvidence = buildArchitectureEvidence(
   [claimSupportObservation],
@@ -209,6 +211,24 @@ const authenticatedClaimEvidence = buildArchitectureEvidence(
 );
 if (authenticatedClaimEvidence.length !== 1 || authenticatedClaimEvidence[0].evidenceClass !== 'observed-fact') {
   throw new Error('only a fresh source-bound claim attestation accepted by the trusted authenticator may become observed-fact');
+}
+if (authenticatedClaimEvidence[0].patternIds.length !== 1
+    || authenticatedClaimEvidence[0].patternIds[0] !== 'cross-cutting-cloud-controls') {
+  throw new Error('claim support must be restricted to the exact attested architecture pattern, not every pattern associated with the source');
+}
+const mismatchedPatternClaimEvidence = buildArchitectureEvidence(
+  [{
+    ...claimSupportObservation,
+    claimSupportAttestation: {
+      ...claimSupportAttestation,
+      patternId: 'unregistered-pattern',
+    },
+  }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (mismatchedPatternClaimEvidence.length !== 0) {
+  throw new Error('claim support must not promote a pattern that the source registry does not associate with the source');
 }
 const rejectedClaimEvidence = buildArchitectureEvidence(
   [claimSupportObservation],
