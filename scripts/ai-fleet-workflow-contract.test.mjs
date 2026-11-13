@@ -596,9 +596,8 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
 
 
 test('Code Guardian manual paid-inference execution is restricted to main', () => {
-  assert.match(
-    codeGuardianWorkflow,
-    /^  guardian:\n    if: \$\{\{ github\.ref == 'refs\\/heads\\/main' \}\}$/m,
+  assert.ok(
+    codeGuardianWorkflow.includes("  guardian:\\n    if: ${{ github.ref == 'refs/heads/main' }}"),
     'Code Guardian must not run branch-controlled workflow code with provider credentials',
   );
   assert.match(codeGuardianWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ inputs\.allow_paid_inference \}\}/);
