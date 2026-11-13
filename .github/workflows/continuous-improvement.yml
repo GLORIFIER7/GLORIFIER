@@ -47,8 +47,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package.json
-      - run: npm install --ignore-scripts --no-audit --no-fund
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
         if: steps.authorization.outputs.enabled == 'true'
       - name: AI improvement analysis
         id: improve
