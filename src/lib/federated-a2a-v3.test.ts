@@ -184,51 +184,94 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
 
 test('Federated A2A terminal task states cannot be reauthorized or overwritten as failed', async () => {
   const {
-    getFederatedA2ATask,
     authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    startFederatedA2ATask,
+    markFederatedA2AEvidence,
+    verifyFederatedA2ATask,
+    settleFederatedA2ATask,
     failFederatedA2ATask,
   } = await import('./federated-a2a-v3');
+  const persistence = {
+    audit: async () => 'audit-terminal',
+    persist: async () => {},
+  };
 
-  const settledForAuthorization = await createFederatedA2ATask(
-    { requesterAgentId: 'requester-terminal-a', capability: 'research', objective: 'terminal authorization guard' },
+  const settledTask = await createFederatedA2ATask(
+    {
+      requesterAgentId: 'requester-terminal-a',
+      targetAgentId: 'evidence-agent',
+      capability: 'evidence.attach',
+      objective: 'settled tasks remain terminal',
+    },
     async () => {},
   );
-  const authorizationRecord = getFederatedA2ATask(settledForAuthorization.id);
-  assert.ok(authorizationRecord);
-  authorizationRecord.state = 'SETTLED';
+  await authorizeFederatedA2ATask(settledTask.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(settledTask.id, 'glorifier-daemon', persistence);
+  await startFederatedA2ATask(settledTask.id, 'evidence-agent', persistence);
+  const evidenceRef = 'https://evidence.example/terminal-settlement';
+  await markFederatedA2AEvidence(settledTask.id, evidenceRef, 'evidence-agent', persistence);
+  await verifyFederatedA2ATask(
+    settledTask.id,
+    'human-owner',
+    async () => ({
+      status: 'VERIFIED',
+      source: 'independent-verifier',
+      evidenceRefs: [evidenceRef],
+      observedAt: new Date().toISOString(),
+      verifier: 'independent-verifier',
+    }),
+    persistence,
+  );
+  await settleFederatedA2ATask(settledTask.id, 'human-owner', persistence);
+  assert.equal(settledTask.state, 'SETTLED');
+
   await assert.rejects(
-    authorizeFederatedA2ATask(settledForAuthorization.id, 'human-owner', true),
+    authorizeFederatedA2ATask(settledTask.id, 'human-owner', true, persistence),
     /only DISCOVERED tasks may be authorized/i,
   );
-  assert.equal(authorizationRecord.state, 'SETTLED',
-    'authorization must not resurrect a settled task');
-
-  const settledForFailure = await createFederatedA2ATask(
-    { requesterAgentId: 'requester-terminal-b', capability: 'research', objective: 'terminal failure guard' },
-    async () => {},
-  );
-  const failureRecord = getFederatedA2ATask(settledForFailure.id);
-  assert.ok(failureRecord);
-  failureRecord.state = 'SETTLED';
   await assert.rejects(
-    failFederatedA2ATask(settledForFailure.id, 'late failure'),
+    failFederatedA2ATask(settledTask.id, 'late failure', 'runtime', persistence),
     /terminal task cannot transition to FAILED/i,
   );
-  assert.equal(failureRecord.state, 'SETTLED',
-    'failure reporting must not overwrite a settled task');
-});
+  assert.equal(settledTask.state, 'SETTLED',
+    'neither authorization nor failure reporting may overwrite a settled task');
 
-
-test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async () => {
-  const { getFederatedA2ATask, createFederatedA2AEnvelope } = await import('./federated-a2a-v3');
-  const task = await createFederatedA2ATask(
-    { requesterAgentId: 'requester-envelope', capability: 'research', objective: 'bounded handoff lifetime' },
+  const failedTask = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-terminal-b', capability: 'research', objective: 'failed tasks remain terminal' },
     async () => {},
   );
-  const stored = getFederatedA2ATask(task.id);
-  assert.ok(stored);
-  stored.state = 'ASSIGNED';
-  stored.targetAgentId = 'neural-agent';
+  await failFederatedA2ATask(failedTask.id, 'initial failure', 'runtime', persistence);
+  await assert.rejects(
+    failFederatedA2ATask(failedTask.id, 'late failure', 'runtime', persistence),
+    /terminal task cannot transition to FAILED/i,
+  );
+  assert.equal(failedTask.state, 'FAILED',
+    'a terminal FAILED task cannot be overwritten by another failure');
+});
+
+test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async () => {
+  const {
+    authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    createFederatedA2AEnvelope,
+  } = await import('./federated-a2a-v3');
+  const persistence = {
+    audit: async () => 'audit-envelope',
+    persist: async () => {},
+  };
+  const task = await createFederatedA2ATask(
+    {
+      requesterAgentId: 'requester-envelope',
+      targetAgentId: 'neural-agent',
+      capability: 'research',
+      objective: 'bounded handoff lifetime',
+    },
+    async () => {},
+  );
+  await authorizeFederatedA2ATask(task.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(task.id, 'glorifier-daemon', persistence);
+  assert.equal(task.state, 'ASSIGNED');
 
   for (const ttlSeconds of [0, -1, 1.5, 301, Number.POSITIVE_INFINITY]) {
     await assert.rejects(
@@ -237,18 +280,22 @@ test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async
       `TTL ${String(ttlSeconds)} must be rejected`,
     );
   }
+  assert.equal(task.state, 'ASSIGNED',
+    'invalid envelope lifetimes must not alter the assigned task');
 });
 
-
 test('Federated A2A requires an assigned target before transitioning to RUNNING', async () => {
-  const { startFederatedA2ATask, getFederatedA2ATask } = await import('./federated-a2a-v3');
-  const start = startFederatedA2ATask as unknown as (...args: any[]) => Promise<unknown>;
+  const {
+    authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    startFederatedA2ATask,
+  } = await import('./federated-a2a-v3');
   const persisted: Array<{ state: string; targetAgentId: string | null }> = [];
   const auditEvents: Array<{ state: string; actor: string; detail: unknown }> = [];
   const persistence = {
     audit: async (_taskId: string, state: string, actor: string, detail: unknown) => {
       auditEvents.push({ state, actor, detail });
-      return 'audit-start';
+      return `audit-${state.toLowerCase()}`;
     },
     persist: async (value: { state: string; targetAgentId: string | null }) => {
       persisted.push({ state: value.state, targetAgentId: value.targetAgentId });
@@ -256,26 +303,46 @@ test('Federated A2A requires an assigned target before transitioning to RUNNING'
   };
 
   const task = await createFederatedA2ATask(
-    { requesterAgentId: 'requester-start', capability: 'research', objective: 'start assigned task' },
+    {
+      requesterAgentId: 'requester-start',
+      targetAgentId: 'neural-agent',
+      capability: 'research',
+      objective: 'start assigned task',
+    },
     async () => {},
   );
-  const record = getFederatedA2ATask(task.id);
-  assert.ok(record);
-  record.state = 'ASSIGNED';
-  record.targetAgentId = 'neural-agent';
-  const started = await start(task.id, 'neural-agent', persistence);
-  assert.equal((started as { state: string }).state, 'RUNNING');
-  assert.deepEqual(persisted, [{ state: 'RUNNING', targetAgentId: 'neural-agent' }]);
-  assert.deepEqual(auditEvents, [{ state: 'RUNNING', actor: 'neural-agent', detail: { targetAgentId: 'neural-agent' } }]);
+  await authorizeFederatedA2ATask(task.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(task.id, 'glorifier-daemon', persistence);
+  const started = await startFederatedA2ATask(task.id, 'neural-agent', persistence);
+
+  assert.equal(started.state, 'RUNNING');
+  assert.deepEqual(
+    persisted,
+    [
+      { state: 'AUTHORIZED', targetAgentId: 'neural-agent' },
+      { state: 'ASSIGNED', targetAgentId: 'neural-agent' },
+      { state: 'RUNNING', targetAgentId: 'neural-agent' },
+    ],
+  );
+  assert.deepEqual(
+    auditEvents,
+    [
+      { state: 'AUTHORIZED', actor: 'human-owner', detail: { capability: 'research' } },
+      { state: 'ASSIGNED', actor: 'glorifier-daemon', detail: { targetAgentId: 'neural-agent' } },
+      { state: 'RUNNING', actor: 'neural-agent', detail: { targetAgentId: 'neural-agent' } },
+    ],
+  );
 
   const unassigned = await createFederatedA2ATask(
     { requesterAgentId: 'requester-not-assigned', capability: 'research', objective: 'reject early start' },
     async () => {},
   );
-  await assert.rejects(start(unassigned.id, 'neural-agent', persistence), /task must be ASSIGNED before RUNNING/i);
+  await assert.rejects(
+    startFederatedA2ATask(unassigned.id, 'neural-agent', persistence),
+    /task must be ASSIGNED before RUNNING/i,
+  );
   assert.equal(unassigned.state, 'DISCOVERED');
 });
-
 
 test('Federated A2A serializes concurrent evidence submissions per task', async () => {
   const {
