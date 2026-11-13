@@ -101,6 +101,7 @@ test('existing assertions completed in setup hook', () => {
 
 test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without an independent verifier', async () => {
   const { getFederatedA2ATask, verifyFederatedA2ATask } = await import('./federated-a2a-v3');
+  const verify = verifyFederatedA2ATask as unknown as (...args: any[]) => Promise<unknown>;
   const task = await createFederatedA2ATask(
     { requesterAgentId: 'requester-a', capability: 'research', objective: 'verify evidence safely' },
     async () => {},
@@ -111,14 +112,14 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
   stored.evidenceRefs.push('https://evidence.example/owner-supplied-claim');
 
   await assert.rejects(
-    verifyFederatedA2ATask(task.id, 'reviewer-a'),
+    verify(task.id, 'reviewer-a'),
     /independent evidence verifier is not configured/i,
   );
   assert.equal(stored.state, 'EVIDENCE',
     'missing independent verifier must not mutate the task into VERIFIED');
 
   await assert.rejects(
-    verifyFederatedA2ATask(task.id, 'reviewer-a', async () => ({
+    verify(task.id, 'reviewer-a', async () => ({
       status: 'NOT VERIFIED',
       source: 'untrusted caller assertion',
       evidenceRefs: [...stored.evidenceRefs],
