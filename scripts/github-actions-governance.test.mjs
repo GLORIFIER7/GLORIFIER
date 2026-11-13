@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, ci] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
   read('../.github/workflows/gemini-pr-review.yml'),
+  read('../.github/workflows/glorifier-solana-actions-bootstrap.yml'),
   read('../.github/workflows/ci.yml'),
 ]);
 
@@ -55,6 +56,14 @@ test('Gemini PR review is manual-only and retains its owner and paid-inference g
   assert.match(geminiReview, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
   assert.match(geminiReview, /github\.actor_id == '32674233'/);
   assert.match(geminiReview, /github\.run_attempt == 1/);
+});
+
+test('Solana workflow registration write access is main-only and owner-gated for manual dispatch', () => {
+  assert.match(bootstrap, /\npermissions:\n  contents: read\n/);
+  assert.doesNotMatch(bootstrap, /\npermissions:\n  actions: write/);
+  assert.match(bootstrap, /push:\s*\n\s+branches:\s*\[main\]/);
+  assert.ok(bootstrap.includes("github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.run_attempt == 1))"));
+  assert.match(bootstrap, /repair:\s*\n[\s\S]*?permissions:\s*\n\s+actions:\s*write\s*\n\s+contents:\s*read/);
 });
 
 test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
