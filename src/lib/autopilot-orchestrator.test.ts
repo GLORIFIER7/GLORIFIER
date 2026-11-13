@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -172,4 +172,11 @@ test('Autopilot rejects unsafe, unconfigured, out-of-order or stale-source repos
     expectedBranch: branch, allowWrites: true,
     inspectedPaths: ['src/lib/service.ts'], expectedSourceHashes: { 'src/lib/service.ts': expectedHash },
   }), /source reads, file updates/);
+});
+
+
+test('Autopilot A2A context separator is a real newline, not a literal backslash sequence', () => {
+  const result = formatAutopilotA2AContext('analysis', { task: 1 });
+  assert.equal(result, 'analysis\\nExecution context: {"task":1}');
+  assert.equal(result.includes('\\\\n'), false);
 });
