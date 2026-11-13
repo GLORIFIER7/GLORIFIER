@@ -45,7 +45,7 @@ test('secondary deployment paths are gated and existing Pages content is preserv
   
   assert.match(
     projectPage,
-    /GLORIFIER — Governed intelligence for business/u,
+    /GLORIFIER — Autonomous AI Enterprise/u,
     'the existing GitHub Pages project source must remain in the repository',
   );
   assert.match(
