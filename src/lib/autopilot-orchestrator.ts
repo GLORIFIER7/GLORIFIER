@@ -21,7 +21,7 @@ const COUNCIL_ROLES = ['engineering-scientist', 'software-architect', 'cybersecu
 
 type PlannedStep = AutopilotMissionPlanStep;
 
-function parsePlan(text: string): PlannedStep[] {
+export function validateAutopilotPlan(text: string): PlannedStep[] {
   const source = text.trim().replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/, '');
   const parsed = JSON.parse(source) as { steps?: unknown };
   if (!parsed || !Array.isArray(parsed.steps) || parsed.steps.length < 1 || parsed.steps.length > 12) {
@@ -73,7 +73,7 @@ async function planMission(objective: string) {
       },
     ],
   });
-  const steps = parsePlan(executive.text);
+  const steps = validateAutopilotPlan(executive.text);
   return { steps, council, executive: { provider: executive.provider, model: executive.model } };
 }
 
@@ -164,11 +164,15 @@ export async function processNextAutopilotMission(now = new Date().toISOString()
 
 export function getAutopilotOrchestrationStatus() {
   const persistence = getAutopilotMissionControlStatus();
+  const executive = aiOrchestrator.executive();
+  const providerReady = executive.status === 'active';
   return {
-    enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()),
+    enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && providerReady,
     aiCeoConnected: true,
     specialistCouncilConnected: true,
-    providerOrchestratorConnected: true,
+    providerOrchestratorConnected: providerReady,
+    selectedProvider: executive.provider,
+    selectedModel: executive.model,
     a2aConnected: true,
     geasAuthorizationConnected: true,
     safeAnalysisCapabilities: [...ALLOWED_ANALYSIS_CAPABILITIES],
@@ -177,6 +181,7 @@ export function getAutopilotOrchestrationStatus() {
     reason: !persistence.available ? 'mission-store-unavailable'
       : !process.env.DATABASE_URL ? 'persistent-a2a-storage-required'
       : !String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim() ? 'a2a-signing-secret-not-configured'
+      : !providerReady ? 'no-connected-ai-provider'
       : 'ready-for-read-only-analysis-missions',
     authority: {
       aiCeoPolicy: aiCeoPolicy.id,
