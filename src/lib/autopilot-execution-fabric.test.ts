@@ -14,7 +14,7 @@ test('Autopilot resolves only concrete read-only GitHub adapter capabilities', (
     toolName: 'github_list_open_pull_requests',
     arguments: { state: 'open', per_page: 5 },
   });
-  assert.throws(() => normalizeGithubToolInvocation('github.create_issue', {}), /no enabled read-only adapter/);
+  assert.throws(() => normalizeGithubToolInvocation('github.create_issue', {}), /no enabled Autopilot GitHub adapter/);
   assert.throws(() => normalizeGithubToolInvocation('github.read_file', { path: '../.env' }), /valid repository-relative path/);
   assert.throws(() => normalizeGithubToolInvocation('github.list_workflow_runs', { per_page: 100 }), /between 1 and 20/);
 });
@@ -56,4 +56,59 @@ test('Autopilot refuses to treat a tool response as verified when the independen
     }),
     /independent evidence verification failed/,
   );
+});
+
+
+test('Autopilot normalizes only reversible branch-scoped GitHub write capabilities', () => {
+  assert.deepEqual(normalizeGithubToolInvocation('github.create_branch', {
+    branch: 'autopilot/mission-123', base_ref: 'main',
+  }), {
+    toolName: 'github_create_branch',
+    arguments: { branch: 'autopilot/mission-123', base_ref: 'main' },
+  });
+  assert.deepEqual(normalizeGithubToolInvocation('github.update_file', {
+    branch: 'autopilot/mission-123',
+    path: 'src/lib/fix.ts',
+    content: 'export const fixed = true;',
+    message: 'fix: repair module',
+  }), {
+    toolName: 'github_update_file',
+    arguments: {
+      branch: 'autopilot/mission-123',
+      path: 'src/lib/fix.ts',
+      content: 'export const fixed = true;',
+      message: 'fix: repair module',
+    },
+  });
+  assert.throws(() => normalizeGithubToolInvocation('github.create_branch', {
+    branch: 'main', base_ref: 'main',
+  }), /autopilot branch/);
+  assert.throws(() => normalizeGithubToolInvocation('github.update_file', {
+    branch: 'autopilot/mission-123', path: '.env', content: 'x', message: 'fix: secret',
+  }), /maintenance scope/);
+  assert.throws(() => normalizeGithubToolInvocation('github.create_pull_request', {
+    branch: 'feature/unsafe', title: 'unsafe PR', body: '',
+  }), /autopilot branch/);
+});
+
+test('Autopilot write execution also requires matching independent GitHub source evidence', async () => {
+  const result = await executeAutopilotToolStep('github.create_branch', {
+    branch: 'autopilot/mission-123', base_ref: 'main',
+  }, {
+    adapter: async (toolName, args) => {
+      assert.equal(toolName, 'github_create_branch');
+      assert.deepEqual(args, { branch: 'autopilot/mission-123', base_ref: 'main' });
+      return { ref: 'refs/heads/autopilot/mission-123', sha: 'c'.repeat(40), idempotent: false };
+    },
+    verifier: async (toolName, args, output) => ({
+      verified: true,
+      verifierId: 'github-rest-independent-read-v1',
+      sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/git/ref/heads/autopilot/mission-123',
+      verifiedAt: '2026-11-13T09:00:00.000Z',
+      sourceSha256: 'c'.repeat(64),
+      executionSha256: 'c'.repeat(64),
+    }),
+  });
+  assert.equal(result.verification.verified, true);
+  assert.equal(result.toolName, 'github_create_branch');
 });
