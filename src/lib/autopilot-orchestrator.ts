@@ -58,6 +58,7 @@ export function validateAutopilotPlan(text: string): PlannedStep[] {
     if (!id || id.length > 128 || !objective || objective.length > 20_000 || ids.has(id)) {
       throw new Error(`Plan step ${index + 1} has an invalid or duplicate id/objective.`);
     }
+    ids.add(id);
     if (!(ALLOWED_TOOL_CAPABILITIES as readonly string[]).includes(capability)) {
       throw new Error(`Plan step ${id} requests a capability without an enabled safe executor: ${capability}.`);
     }
