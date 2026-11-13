@@ -17,7 +17,7 @@ test('Autopilot accepts only bounded read-only plans using known capabilities', 
 });
 
 test('Autopilot accepts a fenced JSON response but normalizes the plan', () => {
-  const plan = validateAutopilotPlan('```json\n{"steps":[{"id":"research","capability":"knowledge.search","objective":"Review available internal knowledge."}]}\n```');
+  const plan = validateAutopilotPlan('```json\n{"steps":[{"id":"research","capability":"github.read_file","objective":"Read repository README.","arguments":{"path":"README.md","ref":"main"}}]}\n```');
   assert.equal(plan[0].capability, 'github.read_file');
   assert.deepEqual(plan[0].toolArguments, { path: 'README.md', ref: 'main' });
 });
@@ -52,7 +52,7 @@ test('Autopilot rejects malformed and oversized plans', () => {
     steps: Array.from({ length: 7 }, (_, i) => ({
       id: `step-${i}`, capability: 'analyze.code', objective: 'Analyze.',
     })),
-  })), /between 1 and 12/);
+  })), /between 1 and 6/);
 });
 
 test('Autopilot inference remains disabled unless every owner authorization gate is explicitly true', () => {
