@@ -226,8 +226,7 @@ git fetch origin main
 
 EXISTING_PR="$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url' | head -n1 || true)"
 
-# Rebuild the bot-owned branch from current main and update an existing open PR
-# when present. The push below uses force-with-lease to prevent a stale overwrite.
+# Preserve existing publication history; update only by a normal fast-forward push.
 git checkout -b "${BRANCH}"
 # Reconciliation may legitimately finish without transaction JSON files when immutable
 # artifact provenance is sufficient; never let an unmatched glob break publication.
