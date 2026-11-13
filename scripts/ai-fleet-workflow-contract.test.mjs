@@ -397,7 +397,10 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
 test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
   assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
   assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
-  assert.match(geminiPrReviewWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED \}\}/);
+  assert.match(geminiPrReviewWorkflow, /FREE_TIER_CONFIRMED: \\$\\{\\{ vars\\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED \\}\\}/);
+  assert.match(geminiPrReviewWorkflow, /gemini_model: gemini-3\\.8-flash/);
+  assert.match(geminiPrReviewWorkflow, /fail without switching models, providers, or billing tiers/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
   assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
