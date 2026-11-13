@@ -53,3 +53,56 @@ test('independent verifier checks file content rather than trusting the executor
   );
   assert.equal(result.verified, true);
 });
+
+
+test('independent verifier confirms a newly created branch from a fresh GitHub ref read', async () => {
+  const result = await verifyGithubToolResult(
+    'github_create_branch',
+    { branch: 'autopilot/mission-123', base_ref: 'main' },
+    { ref: 'refs/heads/autopilot/mission-123', sha: 'a'.repeat(40), idempotent: false },
+    async (input) => {
+      assert.equal(String(input), 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/git/ref/heads/autopilot/mission-123');
+      return Response.json({
+        ref: 'refs/heads/autopilot/mission-123',
+        object: { sha: 'a'.repeat(40) },
+      });
+    },
+  );
+  assert.equal(result.verified, true);
+});
+
+test('independent verifier rejects file update evidence when branch content SHA differs', async () => {
+  const result = await verifyGithubToolResult(
+    'github_update_file',
+    { branch: 'autopilot/mission-123', path: 'src/lib/fix.ts' },
+    { content: { path: 'src/lib/fix.ts', sha: 'b'.repeat(40) }, commit: { sha: 'c'.repeat(40) } },
+    async (input) => {
+      assert.equal(String(input), 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/contents/src/lib/fix.ts?ref=autopilot%2Fmission-123');
+      return Response.json({ path: 'src/lib/fix.ts', sha: 'd'.repeat(40) });
+    },
+  );
+  assert.equal(result.verified, false);
+  assert.equal(result.reason, 'independent-source-mismatch');
+});
+
+test('independent verifier confirms a draft PR targets main and uses the expected maintenance branch', async () => {
+  const result = await verifyGithubToolResult(
+    'github_create_pull_request',
+    { branch: 'autopilot/mission-123' },
+    {
+      number: 91, title: 'Autopilot repair', state: 'open', draft: true,
+      url: 'https://github.com/GLORIFIER7/GLORIFIER/pull/91',
+      head: { ref: 'autopilot/mission-123' }, base: { ref: 'main' },
+      idempotent: false,
+    },
+    async (input) => {
+      assert.equal(String(input), 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/pulls/91');
+      return Response.json({
+        number: 91, title: 'Autopilot repair', state: 'open', draft: true,
+        html_url: 'https://github.com/GLORIFIER7/GLORIFIER/pull/91',
+        head: { ref: 'autopilot/mission-123' }, base: { ref: 'main' },
+      });
+    },
+  );
+  assert.equal(result.verified, true);
+});
