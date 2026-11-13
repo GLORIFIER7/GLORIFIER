@@ -62,6 +62,7 @@ export type AutopilotMission = {
   status: AutopilotMissionStatus;
   verificationState: 'not-started' | 'pending-external-evidence' | 'verified' | 'reconciliation-required';
   recoveryAttempts?: number;
+  planningAttempts?: number;
   version: number;
   steps: AutopilotMissionStep[];
   evidenceRefs: string[];
@@ -85,6 +86,7 @@ export interface AutopilotMissionStore {
   list(requester: string | undefined, limit: number, allowAll?: boolean): Promise<AutopilotMission[]>;
   save(mission: AutopilotMission, expectedVersion: number): Promise<AutopilotMission | null>;
   claimNext(workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
+  renewLease(id: string, workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
   recoverExpired(now: string): Promise<number>;
 }
 
@@ -200,7 +202,7 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
          LIMIT 1
        )
        UPDATE glorifier_autopilot_missions AS mission
-       SET status = CASE WHEN jsonb_typeof(payload->'steps') = 'array' AND jsonb_array_length(payload->'steps') > 0 THEN 'executing' ELSE 'planning' END,
+       SET status = CASE WHEN jsonb_typeof(payload->'steps') = 'array' THEN CASE WHEN jsonb_array_length(payload->'steps') > 0 THEN 'executing' ELSE 'planning' END ELSE 'planning' END,
            version = mission.version + 1,
            lease_owner = $1,
            lease_expires_at = $3::timestamptz + ($2::bigint * INTERVAL '1 millisecond'),
@@ -215,6 +217,26 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
        WHERE mission.id = (SELECT id FROM candidate)
        RETURNING mission.payload`,
       [workerId, leaseMs, now],
+    );
+    return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
+  }
+
+  async renewLease(id: string, workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null> {
+    const result = await getPostgresPool().query(
+      `UPDATE glorifier_autopilot_missions
+       SET version = version + 1,
+           lease_expires_at = $4::timestamptz + ($3::bigint * INTERVAL '1 millisecond'),
+           updated_at = $4::timestamptz,
+           payload = payload || jsonb_build_object(
+             'version', version + 1,
+             'leaseExpiresAt', $4::timestamptz + ($3::bigint * INTERVAL '1 millisecond'),
+             'updatedAt', $4::timestamptz
+           )
+       WHERE id = $1 AND lease_owner = $2
+         AND status IN ('planning', 'executing')
+         AND lease_expires_at > $4::timestamptz
+       RETURNING payload`,
+      [id, workerId, leaseMs, now],
     );
     return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
   }
@@ -271,6 +293,7 @@ function parseMission(value: unknown): AutopilotMission {
     mission.verificationState = mission.status === 'completed' ? 'pending-external-evidence' : 'not-started';
   }
   if (!Number.isSafeInteger(mission.recoveryAttempts)) mission.recoveryAttempts = 0;
+  if (!Number.isSafeInteger(mission.planningAttempts)) mission.planningAttempts = 0;
   mission.steps = Array.isArray(mission.steps) ? mission.steps.map(step => ({ ...step, attemptCount: Number.isSafeInteger(step.attemptCount) ? step.attemptCount : 0 })) : [];
   return mission;
 }
@@ -364,6 +387,69 @@ export async function listAutopilotMissions(
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('limit must be an integer between 1 and 100.');
   if (!allowAll && (!requester || !requester.trim())) return [];
   return store.list(requester?.trim(), limit, allowAll);
+}
+
+export async function renewAutopilotMissionLease(
+  store: AutopilotMissionStore,
+  missionId: string,
+  workerId: string,
+  leaseMs = 5 * 60_000,
+  now = new Date().toISOString(),
+): Promise<AutopilotMission | null> {
+  const id = requireNonEmpty(missionId, 'mission id', 256);
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  validateLease(leaseMs);
+  return store.renewLease(id, worker, leaseMs, timestamp(now));
+}
+
+export async function recordAutopilotMissionFailure(
+  store: AutopilotMissionStore,
+  missionId: string,
+  workerId: string,
+  error: unknown,
+  now = new Date().toISOString(),
+): Promise<AutopilotMission | null> {
+  const id = requireNonEmpty(missionId, 'mission id', 256);
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  const currentTime = timestamp(now);
+  const mission = await store.get(id);
+  if (!mission || mission.leaseOwner !== worker || !mission.leaseExpiresAt ||
+      Date.parse(mission.leaseExpiresAt) <= Date.parse(currentTime) ||
+      !['planning', 'executing'].includes(mission.status)) return null;
+
+  const rawMessage = error instanceof Error ? error.message : String(error || 'unknown execution failure');
+  const safeMessage = rawMessage
+    .replace(/Bearer\\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/(api[_-]?key|token|secret|password)\\s*[:=]\\s*[^\\s,;]+/gi, '$1=[REDACTED]')
+    .slice(0, 2_000);
+
+  if (mission.status === 'planning' && mission.steps.length === 0) {
+    const planningAttempts = (mission.planningAttempts ?? 0) + 1;
+    const retryAllowed = planningAttempts < 2;
+    const nextRunAt = retryAllowed
+      ? new Date(Date.parse(currentTime) + 60_000).toISOString()
+      : undefined;
+    return saveMission(store, mission, {
+      status: retryAllowed ? 'queued' : 'blocked',
+      planningAttempts,
+      ...(nextRunAt ? { nextRunAt } : { nextRunAt: undefined }),
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined,
+      lastError: `Planning attempt ${planningAttempts} failed: ${safeMessage}`,
+    }, currentTime);
+  }
+
+  const steps = mission.steps.map(step => step.status === 'running'
+    ? { ...step, status: 'reconciliation-required' as const, error: safeMessage }
+    : step);
+  return saveMission(store, mission, {
+    status: 'reconciliation-required',
+    verificationState: 'reconciliation-required',
+    steps,
+    leaseOwner: undefined,
+    leaseExpiresAt: undefined,
+    lastError: safeMessage,
+  }, currentTime);
 }
 
 export async function claimNextAutopilotMission(
@@ -611,8 +697,8 @@ export function getAutopilotMissionControlStatus() {
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
-    autonomousPlanningEnabled: autopilotStore !== null,
-    autonomousStepExecutionEnabled: autopilotStore !== null,
+    autonomousPlanningEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    autonomousStepExecutionEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
     readOnlyToolExecutionEnabled: autopilotStore !== null,
     writeToolExecutionEnabled: false,
     independentOutcomeVerificationEnabled: autopilotStore !== null,
