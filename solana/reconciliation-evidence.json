@@ -19,7 +19,7 @@
   "metadataMint": "8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd",
   "metadataUriInDisplay": true,
   "metadataPointerAuthorityRevocationTransaction": "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh",
-  "offChainMetadataSha256": "c023ca9f3a5c1b224205551c5158132210d3c47201f17976fb88674c52dd5f25",
+  "offChainMetadataSha256": "e85addef0a9297ac7e9fec72c476654bc3f7880c6875a06539446888c93e044a",
   "deploymentProvenanceVerified": true,
   "provenanceSource": "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT",
   "transactionSemanticsVerified": true,
@@ -31,7 +31,9 @@
   "mintAuthorityRevocationTransaction": "5WErARdcBz1KC5XF7xdM8r3uRSYvXvN4k3w2jR9kLp4EzEpeNjZ1iTHRzM2okURggV5xBAGAXEg6CtHXbz3ekHw3",
   "freezeAuthorityRevocationTransaction": "NOT_APPLICABLE_NEVER_SET",
   "metadataUpdateAuthorityRevocationTransaction": "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn",
-  "transactionHistoryObservedAt": "2026-10-29T03:43:37Z",
+  "totalMintedBaseUnits": "1000000000000000000",
   "transactionHistorySource": "FINALIZED_RPC_TRANSACTION_HISTORY",
-  "transactionHistorySignatureCount": 7
+  "transactionHistorySignatureCount": 7,
+  "historyComplete": true,
+  "transactionHistoryObservedAt": null
 }

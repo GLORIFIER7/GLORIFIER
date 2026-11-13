@@ -24,8 +24,5 @@
   "freezeAuthorityRevocationTransaction": "NOT_APPLICABLE_NEVER_SET",
   "metadataUpdateAuthorityRevocationTransaction": "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn",
   "metadataPointerAuthorityRevocationTransaction": "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh",
-  "transactionSemanticsVerified": true,
-  "observedAt": "2026-10-29T03:43:37Z",
-  "rpcEndpoint": "https://api.devnet.solana.com",
-  "verificationMethod": "repository script solana/verify-token2022-devnet-history.py; read-only finalized RPC"
+  "transactionSemanticsVerified": true
 }
