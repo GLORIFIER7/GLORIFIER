@@ -275,3 +275,80 @@ test('Federated A2A requires an assigned target before transitioning to RUNNING'
   await assert.rejects(start(unassigned.id, 'neural-agent', persistence), /task must be ASSIGNED before RUNNING/i);
   assert.equal(unassigned.state, 'DISCOVERED');
 });
+
+
+test('Federated A2A serializes concurrent evidence submissions per task', async () => {
+  const {
+    authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    startFederatedA2ATask,
+    markFederatedA2AEvidence,
+  } = await import('./federated-a2a-v3');
+  const persistence = {
+    audit: async () => {
+      // Keep both concurrent calls pending long enough to expose snapshot races.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return 'audit-concurrent';
+    },
+    persist: async () => {},
+  };
+  const task = await createFederatedA2ATask(
+    {
+      requesterAgentId: 'requester-concurrent',
+      targetAgentId: 'evidence-agent',
+      capability: 'evidence.attach',
+      objective: 'retain concurrent evidence submissions',
+    },
+    async () => {},
+  );
+  await authorizeFederatedA2ATask(task.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(task.id, 'glorifier-daemon', persistence);
+  await startFederatedA2ATask(task.id, 'evidence-agent', persistence);
+
+  const refs = [
+    'https://evidence.example/concurrent-a',
+    'https://evidence.example/concurrent-b',
+  ];
+  const results = await Promise.allSettled(
+    refs.map((reference) =>
+      markFederatedA2AEvidence(task.id, reference, 'evidence-agent', persistence)),
+  );
+  assert.deepEqual(
+    results.map((result) => result.status),
+    ['fulfilled', 'fulfilled'],
+    'both distinct concurrent evidence references must be accepted',
+  );
+  assert.deepEqual(
+    [...task.evidenceRefs].sort(),
+    [...refs].sort(),
+    'no concurrent evidence reference may be lost',
+  );
+
+  const duplicateTask = await createFederatedA2ATask(
+    {
+      requesterAgentId: 'requester-concurrent-duplicate',
+      targetAgentId: 'evidence-agent',
+      capability: 'evidence.attach',
+      objective: 'reject duplicate concurrent evidence submissions',
+    },
+    async () => {},
+  );
+  await authorizeFederatedA2ATask(duplicateTask.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(duplicateTask.id, 'glorifier-daemon', persistence);
+  await startFederatedA2ATask(duplicateTask.id, 'evidence-agent', persistence);
+  const duplicateResults = await Promise.allSettled([
+    markFederatedA2AEvidence(duplicateTask.id, refs[0], 'evidence-agent', persistence),
+    markFederatedA2AEvidence(duplicateTask.id, refs[0], 'evidence-agent', persistence),
+  ]);
+  assert.equal(
+    duplicateResults.filter((result) => result.status === 'fulfilled').length,
+    1,
+    'only one concurrent submission of the same reference may succeed',
+  );
+  assert.equal(
+    duplicateResults.filter((result) => result.status === 'rejected').length,
+    1,
+    'the duplicate concurrent submission must be rejected',
+  );
+  assert.deepEqual(duplicateTask.evidenceRefs, [refs[0]]);
+});
