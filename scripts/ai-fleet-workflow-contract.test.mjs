@@ -384,7 +384,7 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
     },
     {
       source: geminiPrReviewWorkflow,
-      firstSensitiveStep: 'name: Resolve the latest open pull request targeting main',
+      firstSensitiveStep: 'name: Validate explicitly selected pull request',
       modelStep: 'name: Run Gemini free-tier advisory review',
       authorizationCondition: "vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'",
       manualAuthorizationLine: 'FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}',
@@ -394,18 +394,23 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
   assert.match(geminiCollaboratorWorkflow, /schedule:/);
 });
 
-test('Gemini PR review has empty dispatch inputs and resolves an open main-target PR after owner authorization', () => {
-  assert.match(geminiPrReviewWorkflow, /workflow_dispatch:\s*\{\}/);
+test('Gemini PR review requires an explicit main-target PR number after owner authorization', () => {
+  assert.match(
+    geminiPrReviewWorkflow,
+    /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+pr_number:\s*\n\s+description:.*\n\s+required: true\n\s+type: number/,
+  );
   assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.match(geminiPrReviewWorkflow, /FREE_TIER_CONFIRMED: \$\{\{ vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED \}\}/);
   assert.match(geminiPrReviewWorkflow, /gemini_model: gemini-3\.8-flash/);
+  assert.match(geminiPrReviewWorkflow, /gemini_cli_version: v0\.68\.0/);
   assert.match(geminiPrReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
-  assert.match(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1 --json number/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1/);
+  assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
   assert.match(geminiPrReviewWorkflow, /PR_NUMBER: \$\{\{ steps\.resolve-pr\.outputs\.number \}\}/);
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
-  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\.allow_paid_inference/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /pull_request_target:/);
 });
 
