@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
+import { createA2ATask, createA2ATaskWithIdempotency, A2AIdempotencyConflictError, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -221,5 +221,82 @@ void test('A2A canceled tasks remain filterable across pages and appear in the p
     const manifest = getA2AProtocolManifest();
     assert.ok(manifest.lifecycle.includes('canceled'),
       'the advertised A2A lifecycle must include the terminal canceled state');
+  });
+});
+
+
+void test('A2A protocol message idempotency is durable, requester-scoped, and content-bound', async () => {
+  await withA2ATestEnvironment(async () => {
+    type Stored = Record<string, unknown> & { idempotency_hash: string };
+    const records = new Map<string, Stored>();
+    const query = async (sql: string, values: unknown[] = []) => {
+      if (sql.includes('INSERT INTO a2a_tasks') && sql.includes('idempotency_key')) {
+        const [
+          id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
+          serializedInput, status, attempts, maxAttempts, createdAt, updatedAt,
+          idempotencyKey, idempotencyHash,
+        ] = values;
+        const key = JSON.stringify([requesterAgentId, idempotencyKey]);
+        if (records.has(key)) return { rows: [] };
+        records.set(key, {
+          id: String(id),
+          parent_task_id: parentTaskId ?? null,
+          requester_agent_id: String(requesterAgentId),
+          target_agent_id: targetAgentId ?? null,
+          capability: String(capability),
+          objective: String(objective),
+          input: typeof serializedInput === 'string' ? JSON.parse(serializedInput) : serializedInput,
+          status: String(status),
+          attempts: Number(attempts),
+          max_attempts: Number(maxAttempts),
+          created_at: String(createdAt),
+          updated_at: String(updatedAt),
+          idempotency_key: String(idempotencyKey),
+          idempotency_hash: String(idempotencyHash),
+        });
+        return { rows: [{ id: String(id) }] };
+      }
+      if (sql.includes('SELECT') && sql.includes('idempotency_hash')) {
+        const key = JSON.stringify([values[0], values[1]]);
+        const row = records.get(key);
+        return { rows: row ? [row] : [] };
+      }
+      throw new Error('Unexpected A2A idempotency query.');
+    };
+
+    const firstInput = {
+      requesterAgentId: 'alice',
+      capability: 'research',
+      objective: 'Review a proposal',
+      input: { nested: { z: 1, a: 2 }, labels: ['one', 'two'] },
+      idempotencyKey: 'message-123',
+    };
+    const first = await createA2ATaskWithIdempotency(firstInput, query);
+    const replay = await createA2ATaskWithIdempotency({
+      ...firstInput,
+      input: { labels: ['one', 'two'], nested: { a: 2, z: 1 } },
+    }, query);
+
+    assert.equal(replay.id, first.id,
+      'retrying a message with the same requester, key, and semantic JSON payload must return the original task');
+    assert.equal(records.size, 1, 'an idempotent retry must not create a second durable task');
+
+    await assert.rejects(
+      createA2ATaskWithIdempotency({
+        ...firstInput,
+        objective: 'A different proposal',
+      }, query),
+      (error: unknown) => error instanceof A2AIdempotencyConflictError,
+      'reusing a requester messageId for different content must return a typed conflict',
+    );
+    assert.equal(records.size, 1, 'a conflicting retry must not create or overwrite a task');
+
+    const anotherRequester = await createA2ATaskWithIdempotency({
+      ...firstInput,
+      requesterAgentId: 'bob',
+    }, query);
+    assert.notEqual(anotherRequester.id, first.id,
+      'the same messageId may be used independently by a different authenticated requester');
+    assert.equal(records.size, 2);
   });
 });
