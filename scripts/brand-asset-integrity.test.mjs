@@ -6,10 +6,10 @@ import test from "node:test";
 const expectedSha256 = "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790";
 const canonicalCid = "bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa";
 const appPath = "glorifier-services-official-logo-001.png";
-const read = (path) => readFile(new URL(path, import.meta.url));
+const read = (path, encoding) => readFile(new URL(path, import.meta.url), encoding);
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-const [sourcePng, appPng, brandRecord, header, indexHtml, manifestText, policy] =
+const [sourcePng, appPng, brandRecord, header, indexHtml, manifestText, policy, projectPage, appIcon] =
   await Promise.all([
     read("../GLORIFIER SERVICES.png"),
     read("../public/" + appPath),
@@ -18,6 +18,8 @@ const [sourcePng, appPng, brandRecord, header, indexHtml, manifestText, policy] 
     read("../index.html", "utf8"),
     read("../public/manifest.webmanifest", "utf8"),
     read("../BRAND_ASSET_POLICY.md", "utf8"),
+    read("../public/project.html", "utf8"),
+    read("../public/glorifier-app-icon.svg", "utf8"),
   ]);
 
 test("app-served logo is the byte-identical Ethereum ERC-721 token image", () => {
@@ -58,6 +60,14 @@ test("browser and installed-app icons use the same canonical PNG", () => {
   for (const source of [indexHtml, manifestText]) {
     assert.doesNotMatch(source, /gravatar\.com|QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv/);
   }
+});
+
+test("the project page and compatibility SVG use the same canonical artwork", () => {
+  assert.match(projectPage, /glorifier-services-official-logo-001\\.png/);
+  assert.match(projectPage, /autonomous AI enterprise/i);
+  assert.doesNotMatch(projectPage, /gravatar\\.com|<span class="mark"[^>]*>G<\\/span>/);
+  assert.match(appIcon, /glorifier-services-official-logo-001\\.png/);
+  assert.doesNotMatch(appIcon, /gravatar\\.com/);
 });
 
 test("brand policy records the NFT-matched asset and historical hash distinction", () => {
