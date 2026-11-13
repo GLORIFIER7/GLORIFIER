@@ -171,9 +171,9 @@ test('rejects a malformed non-boolean MCP isError flag', async () => {
 
 test('external conformance workflow defaults to the public Pages ingress', async () => {
   const workflow = await readFile(new URL('../.github/workflows/external-mcp-conformance.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /vars\\.GLORIFIER_MCP_CONFORMANCE_URL \\|\\| 'https:\\/\\/glorifier\\.pages\\.dev\\/mcp'/);
-  assert.match(workflow, /vars\\.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS \\|\\| 'glorifier\\.pages\\.dev'/);
-  assert.doesNotMatch(workflow, /glorifier\\.glorifier\\.workers\\.dev/);
+  assert.ok(workflow.includes("GLORIFIER_MCP_CONFORMANCE_URL: ${{ vars.GLORIFIER_MCP_CONFORMANCE_URL || 'https://glorifier.pages.dev/mcp' }}"));
+  assert.ok(workflow.includes("GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS || 'glorifier.pages.dev' }}"));
+  assert.equal(workflow.includes('glorifier.glorifier.workers.dev'), false);
 });
 
 test('legacy official MCP scenario requires both target validation and runner build success', async () => {
