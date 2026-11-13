@@ -125,7 +125,7 @@ test('Autopilot write adapter rejects secret paths, path traversal, main writes 
   assert.equal(isAllowedAutopilotWritePath('src/../../.env'), false);
   assert.equal(isAllowedAutopilotWritePath('package.json'), false);
   assert.equal(isAllowedAutopilotWritePath('.env'), false);
-  assert.equal(isAllowedAutopilotWritePath('src/lib' + String.fromCharCode(92) + 'escape.ts'), false);
+  assert.equal(isAllowedAutopilotWritePath('src/lib/' + String.fromCharCode(0) + 'escape.ts'), false);
   assert.equal(isAllowedAutopilotWritePath('src/lib' + String.fromCharCode(92) + 'escape.ts'), false);
   await assert.rejects(
     () => executeGithubWriteTool('github_update_file', {
@@ -180,7 +180,7 @@ test('Autopilot refuses to overwrite a source file that changed after inspection
 
 
 test('Autopilot GitHub write adapter rejects real CR and LF in credentials before network access', async () => {
-  for (const invalidToken of ['token\\nheader: injected', 'token\\rheader: injected']) {
+  for (const invalidToken of ['token' + String.fromCharCode(10) + 'header: injected', 'token' + String.fromCharCode(13) + 'header: injected']) {
     await assert.rejects(
       () => executeGithubWriteTool('github_create_branch', {
         branch: 'autopilot/mission-123', base_ref: 'main',
