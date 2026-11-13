@@ -33,14 +33,17 @@ const canonicalize = (value: unknown): string => {
 const sha256 = (value: unknown): string =>
   createHash('sha256').update(canonicalize(value)).digest('hex');
 
-const readJson = async (fetchImpl: FetchLike, url: string): Promise<unknown> => {
+const readJson = async (fetchImpl: FetchLike, url: string, readToken?: string): Promise<unknown> => {
+  const headers = new Headers({
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'GLORIFIER-Autopilot-Evidence-Verifier',
+  });
+  const normalizedToken = readToken?.trim();
+  if (normalizedToken) headers.set('Authorization', `Bearer ${normalizedToken}`);
   const response = await fetchImpl(url, {
     method: 'GET',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'GLORIFIER-Autopilot-Evidence-Verifier',
-    },
+    headers,
     redirect: 'error',
     signal: AbortSignal.timeout(8_000),
   });
@@ -146,6 +149,7 @@ export async function verifyGithubToolResult(
   argumentsValue: unknown,
   executedResult: unknown,
   fetchImpl: FetchLike = fetch,
+  readToken?: string,
 ): Promise<GithubVerificationResult> {
   const args = isRecord(argumentsValue) ? argumentsValue : {};
   let sourceUrl = API_ROOT + REPOSITORY_PATH;
@@ -153,7 +157,7 @@ export async function verifyGithubToolResult(
   let executionProjection: unknown;
 
   if (toolName === 'github_get_repository') {
-    sourceProjection = repositorySummary(await readJson(fetchImpl, sourceUrl));
+    sourceProjection = repositorySummary(await readJson(fetchImpl, sourceUrl, readToken));
     executionProjection = repositorySummary(executedResult);
   } else if (toolName === 'github_list_open_pull_requests') {
     const state = typeof args.state === 'string' ? args.state : 'open';
