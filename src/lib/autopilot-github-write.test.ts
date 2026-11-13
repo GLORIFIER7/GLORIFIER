@@ -45,7 +45,7 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : undefined;
     calls.push({ url, method, body });
     if (method === 'GET' && url.includes('/contents/src/lib/example.ts?')) {
-      return Response.json({ path: 'src/lib/example.ts', sha: 'd'.repeat(40), content: Buffer.from('existing').toString('base64'), encoding: 'base64' });
+      return Response.json({ path: 'src/lib/example.ts', sha: 'd'.repeat(40), content: Buffer.from('existing').toString('base64') + '\n', encoding: 'base64' });
     }
     if (method === 'PUT' && url.includes('/contents/src/lib/example.ts')) {
       return Response.json({
@@ -125,6 +125,8 @@ test('Autopilot write adapter rejects secret paths, path traversal, main writes 
   assert.equal(isAllowedAutopilotWritePath('src/../../.env'), false);
   assert.equal(isAllowedAutopilotWritePath('package.json'), false);
   assert.equal(isAllowedAutopilotWritePath('.env'), false);
+  assert.equal(isAllowedAutopilotWritePath('src/lib\\\\escape.ts'), false);
+  assert.equal(isAllowedAutopilotWritePath('src/lib/\\0escape.ts'), false);
   await assert.rejects(
     () => executeGithubWriteTool('github_update_file', {
       branch: 'main', path: 'src/lib/service.ts', content: 'x', message: 'unsafe',
@@ -174,4 +176,16 @@ test('Autopilot refuses to overwrite a source file that changed after inspection
     /changed after inspection/,
   );
   assert.equal(putAttempted, false, 'stale source must be rejected before the GitHub write request');
+});
+
+
+test('Autopilot GitHub write adapter rejects real CR and LF in credentials before network access', async () => {
+  for (const invalidToken of ['token\\nheader: injected', 'token\\rheader: injected']) {
+    await assert.rejects(
+      () => executeGithubWriteTool('github_create_branch', {
+        branch: 'autopilot/mission-123', base_ref: 'main',
+      }, invalidToken, async () => { throw new Error('network must not be called'); }),
+      /invalid format/,
+    );
+  }
 });
