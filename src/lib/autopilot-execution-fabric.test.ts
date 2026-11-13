@@ -71,6 +71,7 @@ test('Autopilot normalizes only reversible branch-scoped GitHub write capabiliti
     path: 'src/lib/fix.ts',
     content: 'export const fixed = true;',
     message: 'fix: repair module',
+    expectedContentSha256: 'a'.repeat(64),
   }), {
     toolName: 'github_update_file',
     arguments: {
