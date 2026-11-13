@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -94,4 +94,29 @@ test('Autopilot rejects duplicate step identifiers before execution', () => {
     ],
   });
   assert.throws(() => validateAutopilotPlan(plan), /invalid or duplicate id\/objective/);
+});
+
+
+test('Autopilot lease heartbeat renews while long-running work is in flight and drains on stop', async () => {
+  let renewals = 0;
+  const heartbeat = startAutopilotMissionLeaseHeartbeat(async () => {
+    renewals += 1;
+    return { version: renewals };
+  }, 5);
+  await new Promise(resolve => setTimeout(resolve, 25));
+  await heartbeat.stop();
+  assert.ok(renewals >= 1, 'the active mission lease must be renewed');
+});
+
+test('Autopilot lease heartbeat surfaces a lost lease and stops future renewals', async () => {
+  let renewals = 0;
+  const heartbeat = startAutopilotMissionLeaseHeartbeat(async () => {
+    renewals += 1;
+    return null;
+  }, 5);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  await assert.rejects(() => heartbeat.stop(), /lease renewal failed/);
+  const stoppedAt = renewals;
+  await new Promise(resolve => setTimeout(resolve, 15));
+  assert.equal(renewals, stoppedAt, 'a failed heartbeat must not keep running');
 });
