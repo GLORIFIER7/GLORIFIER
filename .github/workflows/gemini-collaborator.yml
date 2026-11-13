@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   gemini:
-    if: ${{ github.ref == 'refs/heads/main' && vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_free_tier_gemini == true && github.actor_id == '32674233' && github.run_attempt == 1)) }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_free_tier_gemini == true && github.actor_id == '32674233' && github.run_attempt == 1)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
