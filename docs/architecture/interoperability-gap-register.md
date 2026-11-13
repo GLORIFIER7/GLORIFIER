@@ -2,7 +2,7 @@
 
 Status: **PARTIALLY VERIFIED — audit baseline only; no universal interoperability claim.**
 
-Audit date: 2026-11-05  
+Audit date: 2026-11-13  
 Repository: `GLORIFIER7/GLORIFIER`
 
 This register records gaps from a targeted read-only inspection of the default-branch source. It is not a claim that every source file, workflow, adapter, or remote endpoint was tested. Update each item only with linked source, test, CI, and (where applicable) live-probe evidence.
@@ -95,15 +95,15 @@ This source review pins the standards targets for the next implementation work. 
 ### A2A target: specification 1.0.1
 
 - Normative discovery URI: `/.well-known/agent-card.json`.
-- An A2A server MUST publish an Agent Card describing identity, capabilities, skills, authentication requirements, and its supported interfaces.
-- Each advertised interface must accurately declare the endpoint URL, protocol binding, and protocol version. Do not advertise an interface until its wire endpoint actually implements it.
-- Current GLORIFIER source exposes `/.well-known/a2a-agent-card.json` with a GLORIFIER-specific manifest and capability list. This is a proprietary discovery document, not an A2A 1.0.1 Agent Card: it does not establish the standard URI, required Agent Card shape, or an A2A 1.0 message/task binding.
-- Existing `/api/a2a/tasks` and federated task lifecycle code remain GLORIFIER-specific APIs. Their presence and unit tests do not establish A2A 1.0.1 interoperability.
-- The Cloudflare Worker does not currently serve the standard Agent Card or an A2A 1.0 message/task endpoint natively. Do not route an unverified A2A path through an arbitrary backend or claim production availability.
+- **The standard Agent Card is implemented on GLORIFIER main.** `src/worker.ts` serves `GET /.well-known/agent-card.json` directly from the Worker using `buildA2AAgentCard` in `src/lib/a2a-v1.ts`. It declares the JSON-RPC interface at `/api/a2a/v1`, protocol version 1.0, and bearer authentication. Streaming, push notifications, and extended Agent Card are explicitly false; they are not claimed as supported.
+- **The A2A request path is also present in main source.** The Worker accepts authenticated `POST /api/a2a/v1` requests using `application/a2a+json` or `application/json` and forwards the request to the configured backend. `src/lib/a2a-v1-express.ts` provides the backend JSON-RPC route, binds task ownership to the authenticated requester, and requires persistent task storage before handling requests. The task handler exposes SendMessage, GetTask, ListTasks, and requester-scoped cancellation for queued tasks; running work is not represented as canceled without a real executor interrupt.
+- These changes were merged by [PR #629](https://github.com/GLORIFIER7/GLORIFIER/pull/629) (merge commit `7d11085a40f2a935a7ff226a9cb8f63c311b224d`). Its exact PR head was `1b3771267cccbab86087eb5b668fb320120e9c21`; the PR record reports the Worker build, Linux interoperability, Build and Test, CodeQL, SDK, and governance checks successful. Main-branch A2A task-persistence, JSON-RPC, Express, and authenticated-exchange tests also passed in [run #43019184537](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43019184537) on exact main commit `30573ff17d8b06f84004b9ec8f7f6575dcfde80f`.
+- **This is implementation and CI evidence, not external conformance.** The 2026-11-11 production release checkpoint deployed Worker v1002 from `038fe738e9fdc5fbbb0472343198c19d75cd7643`; its GET-only smoke did not exercise an authenticated A2A task POST or an independent client. No live authenticated task exchange, independent A2A client, official A2A 1.0.1 TCK report, or controlled two-agent lifecycle test is recorded. The route can remain unavailable when its backend origin, credentials, or persistent task store are not configured.
+- The upstream A2A TCK's v1.0.1 transport-error mapping alignment is still under review in [a2aproject/a2a-tck#232](https://github.com/a2aproject/a2a-tck/pull/232) as observed on 2026-11-13. Do not count an unaligned or incomplete TCK run as conformance evidence.
 
 Normative source: [A2A 1.0.1 specification — Agent Card discovery and supported interfaces](https://github.com/a2aproject/A2A/blob/3303592588e388e62e0f69f701af531d2f4e3991/docs/specification.md#8-agent-discovery-the-agent-card).
 
-Reproducible upstream snapshot: repository commit `3303592588e388e62e0f69f701af531d2f4e3991` (release tag `v1.0.1`); `docs/specification.md` Git blob SHA-1 `382185a53b312cd6a60f5ac536ec5a356437ce77`. The full commit and blob identifiers, not the moving default branch, define this audit reference. Acceptance requires a pinned schema/fixture set, standard discovery route, at least one genuinely implemented binding, version negotiation, authenticated/authorized task handling, task state/error mapping, cancellation semantics where advertised, and a controlled two-agent test.
+Reproducible upstream snapshot: repository commit `3303592588e388e62e0f69f701af531d2f4e3991` (release tag `v1.0.1`); `docs/specification.md` Git blob SHA-1 `382185a53b312cd6a60f5ac536ec5a356437ce77`. The full commit and blob identifiers, not the moving default branch, define this audit reference. Full acceptance still requires a current official TCK report, independent authenticated client interoperability, and a controlled two-agent task test against an explicitly authorized endpoint.
 
 ### MCP target: specification revision 2026-07-28
 
@@ -211,13 +211,47 @@ The implementation intentionally does not expose arbitrary shell execution, sudo
 
 See [the Linux host-agent integration contract](./linux-host-agent.md) and [the agent installation guide](../../agents/linux-host-agent/README.md).
 
+
+### Current read-only GLR chain refresh — 2026-11-13
+
+Observation time: `2026-11-13T02:53:07Z`. These calls used the existing GLORIFIER Alchemy app and were read-only. No signing, transaction submission, wallet use, token transfer, mint, or contract write was performed.
+
+| Network | Current observation | Result |
+| --- | --- | --- |
+| Ethereum Mainnet | `eth_chainId`, `eth_blockNumber`, `eth_getCode`, and read-only `eth_call` against the owner-designated GLR ERC-20 | Chain ID `0x1`; block `0x192e15f`; non-empty code; name `GLORIFIER`; symbol `GLR`; 18 decimals; total supply 1,000,000,000 GLR |
+| BNB Smart Chain Mainnet | Same read-only RPC methods against the owner-designated GLR BEP-20 | Chain ID `0x38`; block `0x7f19dc4`; non-empty code; name `GLORIFIER`; symbol `GLR`; 18 decimals; total supply 1,000,000,000 GLR |
+| Solana Mainnet Beta | `getGenesisHash`, finalized `getBlockHeight`, `getTokenSupply`, and parsed finalized `getAccountInfo` for the GLR Token-2022 mint | Mainnet genesis hash matched; finalized height 446781316; supply 1,000,000,000 GLR at 9 decimals; initialized GLORIFIER / GLR mint; mint, freeze, metadata-pointer and metadata-update authorities are null |
+
+The three chain capabilities remain **PARTIALLY VERIFIED**. These observations verify current read-only RPC reachability and token metadata only; they do not prove a transfer receipt, recipient settlement, or the production payment-verification path. The second same-deployer Ethereum GLORIFIER/GLR contract identity remains unresolved.
+
+
+### Fresh read-only GLORIFIER–NEURAL and A2A discovery probe — 2026-11-13
+
+Observation time: `2026-11-13T02:58:54Z`. The Cloudflare API confirmed GLORIFIER Worker v1002 at 100% traffic (deployment `20ca85d6-a1b5-487e-a43e-d7b459611a66`, version `3c93b20d-e602-4e9e-b3bb-3c139a311024`) and standalone NEURAL Worker v36 at 100% traffic (deployment `ab78475f-dcf6-46a1-b7a4-e823bd1559ca`, version `f1a26f39-e46f-4d9d-b982-f66f21f2e115`). GLORIFIER's `GLORIFIER_NEURAL` service binding is present. In both versions, external data egress, model inference, and paid-inference authorization remain `false`; no secret values were read.
+
+Fresh public GET results:
+
+| Route | Result | Interpretation |
+| --- | --- | --- |
+| GLORIFIER `/api/neural/health` | JSON `PARTIALLY VERIFIED`; process `VERIFIED`; providers/database/PyTorch `NOT VERIFIED` | Proxy reaches NEURAL process; this is not provider/database readiness |
+| NEURAL `/health` | Same JSON `PARTIALLY VERIFIED` | Process responds directly; dependencies are not verified |
+| GLORIFIER `/api/neural/ready` | HTTP 503 | Readiness not available under the current default-deny configuration |
+| NEURAL `/ready` | HTTP 503 | Readiness not available under the current default-deny configuration |
+| GLORIFIER `/.well-known/agent-card.json` | Fetch intercepted by Cloudflare Access: `login_required` | The standard source route exists, but unauthenticated external discovery was not observable from this probe context |
+
+No authenticated task POST, provider prompt, model inference, external egress, or database mutation was performed. A2A external discovery/client interoperability remains **NOT VERIFIED**; the Access result is not a route-absence finding and must not be treated as a successful Agent Card fetch.
+
 ### Remaining universal-interoperability gates
 
-- The eleven first-party SDKs have bounded language-specific CI evidence; this does not establish all operating systems, architectures, runtime versions, or live Neural connectivity.
-- A2A and MCP remain **NOT VERIFIED** for external interoperability. Official conformance/TCK results and authorized external-client tests are still required.
-- The active production GLORIFIER Worker v994 already contains `GLORIFIER_NEURAL_ORIGIN` and the exact-host allowlist, but its deployed bindings omit `GLORIFIER_NEURAL`. PR #774 merged the service-binding repair to `main`; deploy it only through the protected production workflow, then re-probe `/api/neural/health` and `/api/neural/ready`. The last recorded direct standalone NEURAL `/ready` probe at `2026-11-09T15:33:47Z` reported READY, but the current-main smoke for `92d209544c02a3bf9c6f45eeb9d459b4a468426b` failed before health/readiness probes; current live readiness is therefore NOT VERIFIED. No authenticated task or model inference has been executed.
-- Authentication and AI-provider execution were not included in the public infrastructure probe.
-- The canonical OpenAPI document covers the Neural adapter only; a complete versioned API/protocol schema inventory and drift gate remain outstanding.
+- The eleven first-party SDKs have bounded language-specific CI evidence. This does not establish every operating system, architecture, runtime version, or live NEURAL connection.
+- **A2A source:** the standard Agent Card route and authenticated JSON-RPC proxy/backend handler are merged on GLORIFIER main (PR #629). Local task-lifecycle and authenticated-exchange tests passed in the cited exact-main run. This does not prove that a live backend is currently configured or that an independent A2A client can complete a task.
+- **A2A external acceptance:** official v1.0.1 TCK, authenticated external-client interoperability, and a controlled two-agent lifecycle test remain **NOT VERIFIED**. The TCK's v1.0.1 transport-error mapping alignment is still under review upstream in PR #232; do not overstate any TCK result.
+- **MCP external acceptance:** the official MCP 2026-07-28 server TCK and independent client handshake/discovery/tools-list/read-only-call remain **NOT VERIFIED**. GLORIFIER PR #819 added a manual-only, read-only TCK workflow with its opt-in defaulting to false; no TCK run or external client result is recorded.
+- **GLORIFIER–NEURAL production:** a fresh read-only Cloudflare deployment/API readback at `2026-11-13T02:58:54Z` confirms GLORIFIER Worker v1002 and NEURAL Worker v36 remain at 100% traffic, with the GLORIFIER_NEURAL service binding present. External egress, inference, and paid-inference authorization remain false on both exact versions. Fresh public GET checks through GLORIFIER `/api/neural/health` and directly against NEURAL `/health` each returned `PARTIALLY VERIFIED` (process verified; providers, database, and PyTorch not verified); both readiness GET routes returned HTTP 503. current live readiness is therefore NOT VERIFIED for an authenticated task/inference exchange. No authenticated task POST or model inference is recorded.
+- **Linux host agent:** source and GitHub-hosted Ubuntu contract tests are merged, but no owner-authorized real Linux host enrollment, heartbeat, task claim/result receipt, lease expiry, or revocation is verified.
+- **Blockchain:** fresh read-only Alchemy observations dated `2026-11-13T02:53:07Z` are recorded above for Ethereum, BNB Chain, and Solana. The three transfer/payment capabilities remain PARTIALLY VERIFIED; no transfer receipt, payment settlement, signing, mint, or contract write is claimed.
+- **Identity and wider assurance:** canonical organization domain/email and a real owner authentication session remain unverified. Cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independent economic outcomes also remain unverified.
+- The canonical OpenAPI document still covers the NEURAL adapter rather than a complete versioned API/protocol schema inventory; a repository-wide schema drift gate remains outstanding.
 
 No production deployment, database setting change, privilege change, credential change, wallet signing, or financial action was performed in this checkpoint.
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-11T12:19:51Z",
+  "updatedAt": "2026-11-13T02:58:54Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -153,6 +153,13 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
         }
       ],
       "limitations": [
@@ -362,6 +369,18 @@
           "targetEnvironment": "PR #833 source branch and GitHub CI; no production or staging Worker change",
           "observedAt": null,
           "notes": "Adds an explicit federated handoff start transition, persistence-before-memory mutation, bounded/deduplicated evidence references, strict terminal-state guards, bounded signed-envelope TTL, and independent-verifier gating before VERIFIED. The verifier is not configured, so verification requests intentionally fail closed. The branch has not been deployed; no authenticated GLORIFIER-to-NEURAL task or model inference was performed. Runtime readiness and task exchange remain NOT VERIFIED."
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/health; https://glorifier.glorifier.workers.dev/api/neural/ready; https://glorifier-neural.glorifier.workers.dev/health; https://glorifier-neural.glorifier.workers.dev/ready",
+          "targetEnvironment": "Public production GLORIFIER-to-NEURAL proxy and standalone NEURAL Worker; unauthenticated read-only GET; fresh origin fetch",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only GET checks: GLORIFIER /api/neural/health and standalone NEURAL /health each returned JSON status PARTIALLY VERIFIED with process=VERIFIED and providers/database/pytorch=NOT VERIFIED (measured fetch latency 7,526 ms and 7,392 ms, respectively). GLORIFIER /api/neural/ready and standalone NEURAL /ready each returned HTTP 503. No credentials, authenticated task POST, provider prompt, model inference, or write call was used. This is process/liveness evidence only; provider, database, PyTorch, and inference readiness remain NOT VERIFIED."
         }
       ],
       "limitations": [
@@ -667,9 +686,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; Ethereum Mainnet (chainId 0x1); latest block 0x192adf7 (26,390,007); owner-designated GLR ERC-20 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: eth_chainId returned 0x1; eth_blockNumber returned 0x192adf7 (26,390,007); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). These calls were read-only. No signing, transaction, transfer, or state mutation was performed; this does not verify a transfer receipt or payment-verification path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; Ethereum Mainnet (chainId 0x1); latest block 0x192e15f; owner-designated GLR ERC-20 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: eth_chainId returned 0x1; eth_blockNumber returned 0x192e15f (26,403,167); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state mutation was performed; this does not resolve the second same-deployer Ethereum GLORIFIER/GLR contract or verify a transfer receipt or payment-verification path."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Signing, minting, transfers and contract writes are outside this verifier and remain gated.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms Ethereum mainnet identity, current block, non-empty code, and the owner-designated GLR contract's token fields. The second same-deployer GLORIFIER/GLR contract remains unresolved as a canonical-identity decision.",
         "No actual GLR transfer receipt or end-to-end payment-verification path was tested; keep PARTIALLY VERIFIED."
@@ -734,9 +761,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; BNB Smart Chain Mainnet (chainId 0x38); latest block 0x7ec40ae (132,923,566); owner-designated GLR BEP-20 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: eth_chainId returned 0x38; eth_blockNumber returned 0x7ec40ae (132,923,566); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). These calls were read-only. No signing, transaction, transfer, or state mutation was performed; this does not verify an actual transfer receipt or the full payment-verification path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; BNB Smart Chain Mainnet (chainId 0x38); latest block 0x7f19dc4; owner-designated GLR BEP-20 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: eth_chainId returned 0x38; eth_blockNumber returned 0x7f19dc4 (133,275,076); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state mutation was performed; this does not verify an actual transfer receipt or the full payment-verification path."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms BNB Smart Chain mainnet identity, current block, non-empty code, and the owner-designated GLR contract's token fields.",
         "No actual GLR transfer receipt or full production payment-verification path was tested; keep PARTIALLY VERIFIED.",
         "Signing, minting, transfers and contract writes remain outside this read-only verifier and gated."
@@ -801,9 +836,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; Solana Mainnet Beta; finalized block height 446046054; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 468029566",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: getGenesisHash returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d; getBlockHeight(finalized) returned 446046054; getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals; getAccountInfo(jsonParsed, finalized) confirmed an initialized Token-2022 mint named GLORIFIER / GLR, supply 1000000000000000000 base units, null mintAuthority, null freezeAuthority, null metadata-pointer authority, and null metadata updateAuthority. The probe's account context slot was 468029566. No signing, transaction, transfer, or state mutation was performed; this does not independently review all token provenance or verify an actual transfer."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; Solana Mainnet Beta; finalized block height 446781316; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 468765838",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: getGenesisHash returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d; getBlockHeight(finalized) returned 446781316; getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals; getAccountInfo(jsonParsed, finalized) confirmed an initialized Token-2022 mint named GLORIFIER / GLR, supply 1000000000000000000 base units, null mintAuthority, null freezeAuthority, null metadata-pointer authority, and null metadata updateAuthority. The account context slot was 468765838. No signing, transaction, transfer, or state mutation was performed; this does not independently review all token provenance or verify an actual transfer."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms Solana mainnet identity, finalized block height, Token-2022 mint metadata, 1,000,000,000 GLR supply, and null mint/freeze/metadata authorities.",
         "This does not verify a GLR transfer, payment-verification path, or independent review of all mint provenance; keep PARTIALLY VERIFIED.",
         "Signing, transfers and state mutation remain outside this read-only verifier and gated."
@@ -862,7 +905,8 @@
       "scope": "A2A 1.0.1 and MCP 2026-07-28 general-purpose protocol adapter and interoperability audit; a fixed public-repository GitHub MCP bridge exists but does not satisfy this broader target",
       "status": "NOT VERIFIED",
       "targetEnvironments": [
-        "Repository source review and fixed-scope Worker unit tests; no general A2A/MCP client/server interoperability test",
+        "GLORIFIER main source and the 2026-11-11 production Worker v1002 release source; standard A2A Agent Card and authenticated proxy/backend task-handler implementation are present",
+        "No general external A2A/MCP client-server conformance run, authenticated two-agent exchange, or official conformance report is recorded",
         "Optional read-only MCP external server TCK workflow merged by GLORIFIER PR #819; owner-controlled endpoint configuration required; workflow_dispatch only with run_external_mcp_checks defaulting to false; no TCK run recorded."
       ],
       "evidence": [
@@ -878,7 +922,7 @@
           "reference": "docs/architecture/interoperability-gap-register.md#protocol-conformance-boundary-review--2026-10-30",
           "targetEnvironment": "Main branch source review at baseline 2e05667341f696eac766e3738ff7a1281e771d2b; A2A 1.0.1 specification target",
           "observedAt": "2026-10-30T03:59:28Z",
-          "notes": "Source review found only a GLORIFIER-specific A2A discovery document and task API. The standard /.well-known/agent-card.json, AgentCard supportedInterfaces, and A2A 1.0.1 message/task binding are not established. This is gap evidence, not conformance evidence."
+          "notes": "Historical 2026-10-30 baseline, superseded for A2A discovery by GLORIFIER PR #629, merged 2026-11-03. Current main now serves the standard /.well-known/agent-card.json and provides the authenticated /api/a2a/v1 Worker proxy plus backend Express task handler. External A2A/MCP conformance remains unverified. The historical review did not establish an A2A 1.0.1 message/task binding."
         },
         {
           "kind": "documentation",
@@ -925,16 +969,16 @@
         {
           "kind": "source",
           "reference": "src/worker.ts; src/lib/a2a-v1.ts",
-          "targetEnvironment": "PR #629 branch fix/issue-471-a2a-mcp-discovery; Cloudflare Worker source",
+          "targetEnvironment": "GLORIFIER main, merged PR #629 (merge commit 7d11085a40f2a935a7ff226a9cb8f63c311b224d); production source release commit 038fe738e9fdc5fbbb0472343198c19d75cd7643",
           "observedAt": "2026-11-03T07:17:05.461Z",
-          "notes": "Draft source adds the A2A 1.0.1 standard Agent Card at GET /.well-known/agent-card.json, served natively by the Worker with GET/HEAD-only semantics and no legacy backend dependency. The Worker A2A JSON-RPC endpoint remains a Bearer-authenticated backend proxy; this does not implement or verify a live A2A message/task service."
+          "notes": "Merged Worker source serves the standard A2A 1.0.1 Agent Card at GET /.well-known/agent-card.json with GET/HEAD-only behavior and routes authenticated POST /api/a2a/v1 requests through the configured backend proxy. The backend Express handler is in src/lib/a2a-v1-express.ts. This is source/release provenance, not a live external discovery, authenticated task-exchange, or two-agent conformance result."
         },
         {
           "kind": "automated-test",
           "reference": "src/worker.test.ts; src/lib/a2a-v1.test.ts",
-          "targetEnvironment": "Mocked Cloudflare Worker and A2A unit-test fixtures on PR #629 branch",
+          "targetEnvironment": "Merged GLORIFIER PR #629 exact head 1b3771267cccbab86087eb5b668fb320120e9c21; Worker and A2A local test fixtures",
           "observedAt": "2026-11-03T07:17:05.461Z",
-          "notes": "New regression coverage checks modern server/discover and supported-version reporting, matching HTTP/header protocol versions, resultType/serverInfo metadata for modern tools/list and tools/call, unsupported-version errors, no modern initialize/ping, backward-compatible legacy initialize/tools, native A2A Agent Card GET/HEAD/POST semantics, no JWT bearerFormat claim, A2A 1.0.1 application/a2a+json acceptance, and legacy application/json compatibility. These tests use mocked GitHub upstream responses and local fixtures; they do not establish external MCP/A2A client interoperability or live backend connectivity."
+          "notes": "Regression tests cover modern MCP discovery, protocol headers, result envelopes, legacy compatibility, standard A2A Agent Card GET/HEAD/POST semantics, bearer scheme declarations, and A2A application/a2a+json acceptance. These are local/mocked tests and do not establish external client interoperability or a live authenticated backend task exchange."
         },
         {
           "kind": "ci-run",
@@ -1012,13 +1056,21 @@
           "targetEnvironment": "PR #833 source branch and GitHub CI contract; no main-branch merge, staging configuration, or production deployment",
           "observedAt": null,
           "notes": "Adds a manual owner-dispatched official A2A TCK workflow pinned to signed upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba. It preflights the public Agent Card, limits the SUT to an exact HTTPS staging hostname, uses a dedicated staging Bearer secret, runs the declared JSON-RPC binding, and uploads reports. This is test-path/source evidence only: no staging host or secret is configured and no TCK run or external client exchange has occurred. Capability status remains NOT VERIFIED."
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/.well-known/agent-card.json",
+          "targetEnvironment": "Public production GLORIFIER Cloudflare Worker; unauthenticated GET via public fetch",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "An external read-only GET fetch was attempted, but Cloudflare Access intercepted the request and returned login_required before the Worker Agent Card could be read. This is not evidence that the Agent Card route is absent or malformed; it means unauthenticated external discovery from this probe context is not observable. No access token was supplied and no authenticated A2A POST, task exchange, TCK run, or two-agent test was performed."
         }
       ],
       "limitations": [
-        "The draft standard A2A Agent Card is served by the Worker at GET /.well-known/agent-card.json, but this is source-branch implementation and not a production deployment or live external discovery result.",
-        "These source and CI changes do not establish A2A 1.0.1 authenticated message/task interoperability, a live backend, or a controlled two-agent test.",
-        "The existing /api/a2a/v1 JSON-RPC interface remains an authenticated Bearer-token proxy to the owner-configured backend. A live A2A 1.0.1 message/task service, authenticated task exchange, task lifecycle, and controlled two-agent interoperability test are not yet established.",
-        "The fixed-scope, stateless, read-only GitHub MCP endpoint now has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call result envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
+        "A fresh public GET of /.well-known/agent-card.json was intercepted by Cloudflare Access with login_required before the Agent Card could be read; public unauthenticated discovery is therefore NOT VERIFIED. This does not negate the merged source implementation.",
+        "The standard A2A Agent Card route is merged in GLORIFIER main by PR #629 and is present in the source for the 2026-11-11 Worker v1002 release. The recorded production GET-only smoke did not separately probe /.well-known/agent-card.json; a fresh external discovery check remains NOT VERIFIED.",
+        "The Worker exposes an authenticated A2A JSON-RPC proxy and the backend source contains a requester-bound task handler. Source tests and CI do not prove that the live backend, credentials, and persistent task store are currently configured or that a real task exchange succeeds.",
+        "These merged source and CI records do not establish A2A 1.0 external interoperability or prove a live authenticated task exchange.",
+        "No independent external A2A client, official A2A 1.0.1 TCK report, or controlled two-agent lifecycle test has been recorded. The TCK's v1.0.1 transport-error mapping update remains under upstream PR #232 review as of 2026-11-13.",
+        "The Agent Card explicitly declares streaming, push notifications, and extended Agent Card unsupported. Task cancellation is limited to requester-owned queued tasks; running provider work is not reported as canceled without a real executor interrupt.",
+        "The fixed-scope, stateless, read-only GitHub MCP endpoint has a source implementation for MCP 2026-07-28 server/discover, modern tools/list and tools/call envelopes, and per-request version metadata/header matching while preserving the legacy 2025 initialize/tool-call path. This does not establish a general-purpose MCP provider or repository adapter.",
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
         "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
         "No arbitrary proxy or implied provider fallback is authorized.",
@@ -1230,6 +1282,13 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
         }
       ],
       "limitations": [
