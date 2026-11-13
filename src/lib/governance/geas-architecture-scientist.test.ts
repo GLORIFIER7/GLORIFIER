@@ -172,6 +172,7 @@ const claimSupportContentHash = 'd'.repeat(64);
 const claimSupportAttestation = {
   evidenceRef: `claim-review-${'e'.repeat(24)}`,
   claimId: 'claim-geas-test-1',
+  claimType: 'cross-cutting-cloud-controls',
   patternId: 'cross-cutting-cloud-controls',
   sourceId: 'aws-well-architected',
   sourceRegistryVersion: 'GEAS-AUTHORITY-2',
@@ -202,6 +203,8 @@ if (buildArchitectureEvidence([claimSupportObservation], undefined, claimSupport
 }
 const trustedClaimSupportAuthenticator = (attestation: Readonly<typeof claimSupportAttestation>) =>
   attestation.evidenceRef === claimSupportAttestation.evidenceRef
+  && attestation.claimId === claimSupportAttestation.claimId
+  && attestation.claimType === claimSupportAttestation.claimType
   && attestation.patternId === claimSupportAttestation.patternId
   && attestation.semanticVerifierRef === claimSupportAttestation.semanticVerifierRef;
 const authenticatedClaimEvidence = buildArchitectureEvidence(
@@ -247,6 +250,35 @@ const mismatchedPatternClaimEvidence = buildArchitectureEvidence(
 );
 if (mismatchedPatternClaimEvidence.length !== 0) {
   throw new Error('claim support must not promote a pattern that the source registry does not associate with the source');
+}
+const unsupportedClaimTypeEvidence = buildArchitectureEvidence(
+  [{
+    ...claimSupportObservation,
+    claimSupportAttestation: {
+      ...claimSupportAttestation,
+      // AWS declares this as a discovery association, but not an allowed claim type.
+      claimType: 'durable-agent-execution',
+    },
+  }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (unsupportedClaimTypeEvidence.length !== 0) {
+  throw new Error('a source discovery association must not bypass the registry claimsAllowed policy');
+}
+const missingClaimTypeEvidence = buildArchitectureEvidence(
+  [{
+    ...claimSupportObservation,
+    claimSupportAttestation: {
+      ...claimSupportAttestation,
+      claimType: '',
+    },
+  }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (missingClaimTypeEvidence.length !== 0) {
+  throw new Error('claim-support attestations must include a non-empty source-authorized claim type');
 }
 const rejectedClaimEvidence = buildArchitectureEvidence(
   [claimSupportObservation],
