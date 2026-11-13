@@ -38,7 +38,6 @@ export function isAllowedAutopilotWritePath(value: unknown): value is string {
     || value.startsWith('scripts/')
     || value.startsWith('tests/')
     || value.startsWith('docs/')
-    || value.startsWith('.github/workflows/')
     || value === 'AGENT_RUNTIME.md'
     || value === 'README.md';
 }
@@ -117,10 +116,7 @@ async function createBranch(
   if (args.base_ref !== 'main') throw new Error('Autopilot branches may only be created from main.');
   const refPath = branchRefPath(branch);
   const existing = await githubRequest(fetchImpl, token, 'GET', refPath);
-  if (existing.status === 200) {
-    return { ...normalizedRef(existing.data, branch), idempotent: true };
-  }
-  if (existing.status !== 404) {
+  if (existing.status !== 200 && existing.status !== 404) {
     throw new Error('Unable to check the Autopilot branch reference (HTTP ' + existing.status + ').');
   }
 
@@ -129,16 +125,37 @@ async function createBranch(
       typeof base.data.object.sha !== 'string' || !/^[a-f0-9]{40,64}$/i.test(base.data.object.sha)) {
     throw new Error('Unable to resolve the current main branch commit.');
   }
+  const baseSha = base.data.object.sha;
+
+  const verifyExistingBranch = async (value: unknown): Promise<unknown> => {
+    const branchRef = normalizedRef(value, branch);
+    const comparison = await githubRequest(
+      fetchImpl,
+      token,
+      'GET',
+      '/compare/' + baseSha + '...' + branchRef.sha,
+    );
+    if (comparison.status !== 200 || !isRecord(comparison.data) ||
+        !['ahead', 'identical'].includes(String(comparison.data.status)) ||
+        !isRecord(comparison.data.merge_base_commit) ||
+        comparison.data.merge_base_commit.sha !== baseSha) {
+      throw new Error('Existing Autopilot branch is not a descendant of current main; refusing to reuse it.');
+    }
+    return { ...branchRef, idempotent: true };
+  };
+
+  if (existing.status === 200) return verifyExistingBranch(existing.data);
+
   const created = await githubRequest(fetchImpl, token, 'POST', '/git/refs', {
     ref: 'refs/heads/' + branch,
-    sha: base.data.object.sha,
+    sha: baseSha,
   });
   if (created.status === 201 || created.status === 200) {
     return { ...normalizedRef(created.data, branch), idempotent: false };
   }
   if (created.status === 422) {
     const raced = await githubRequest(fetchImpl, token, 'GET', refPath);
-    if (raced.status === 200) return { ...normalizedRef(raced.data, branch), idempotent: true };
+    if (raced.status === 200) return verifyExistingBranch(raced.data);
   }
   throw new Error('Unable to create the Autopilot branch (HTTP ' + created.status + ').');
 }
