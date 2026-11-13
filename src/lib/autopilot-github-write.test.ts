@@ -20,10 +20,10 @@ test('Autopilot branch creation is restricted to its namespace and uses main as 
       return Response.json({ message: 'Not Found' }, { status: 404 });
     }
     if (url.endsWith('/git/ref/heads/main')) {
-      return Response.json({ ref: 'refs/heads/main', object: { sha: 'base-sha' } });
+      return Response.json({ ref: 'refs/heads/main', object: { sha: 'a'.repeat(40) } });
     }
     if (url.endsWith('/git/refs') && method === 'POST') {
-      return Response.json({ ref: body?.ref, object: { sha: 'branch-sha' } }, { status: 201 });
+      return Response.json({ ref: body?.ref, object: { sha: 'b'.repeat(40) } }, { status: 201 });
     }
     throw new Error('Unexpected request: ' + method + ' ' + url);
   };
@@ -31,8 +31,8 @@ test('Autopilot branch creation is restricted to its namespace and uses main as 
     branch: 'autopilot/mission-123',
     base_ref: 'main',
   }, token, fetchImpl);
-  assert.deepEqual(result, { ref: 'refs/heads/autopilot/mission-123', sha: 'branch-sha', idempotent: false });
-  assert.equal(calls.at(-1)?.body?.sha, 'base-sha');
+  assert.deepEqual(result, { ref: 'refs/heads/autopilot/mission-123', sha: 'b'.repeat(40), idempotent: false });
+  assert.equal(calls.at(-1)?.body?.sha, 'a'.repeat(40));
   assert.equal(calls.at(-1)?.body?.ref, 'refs/heads/autopilot/mission-123');
   assert.ok(calls.every(call => call.method === 'GET' || call.method === 'POST'));
 });
@@ -45,12 +45,12 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : undefined;
     calls.push({ url, method, body });
     if (method === 'GET' && url.includes('/contents/src/lib/example.ts?')) {
-      return Response.json({ path: 'src/lib/example.ts', sha: 'old-file-sha', content: Buffer.from('existing').toString('base64'), encoding: 'base64' });
+      return Response.json({ path: 'src/lib/example.ts', sha: 'd'.repeat(40), content: Buffer.from('existing').toString('base64'), encoding: 'base64' });
     }
     if (method === 'PUT' && url.includes('/contents/src/lib/example.ts')) {
       return Response.json({
-        commit: { sha: 'commit-sha' },
-        content: { path: 'src/lib/example.ts', sha: 'new-file-sha' },
+        commit: { sha: 'f'.repeat(40) },
+        content: { path: 'src/lib/example.ts', sha: 'e'.repeat(40) },
       });
     }
     throw new Error('Unexpected request: ' + method + ' ' + url);
@@ -63,8 +63,8 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     expectedContentSha256: createHash('sha256').update('existing').digest('hex'),
   }, token, fetchImpl);
   assert.deepEqual(result, {
-    commit: { sha: 'commit-sha' },
-    content: { path: 'src/lib/example.ts', sha: 'new-file-sha' },
+    commit: { sha: 'f'.repeat(40) },
+    content: { path: 'src/lib/example.ts', sha: 'e'.repeat(40) },
     idempotent: false,
   });
   assert.equal(calls[1].body?.sha, 'old-file-sha');
@@ -163,7 +163,7 @@ test('Autopilot refuses to overwrite a source file that changed after inspection
       if (method === 'GET') {
         return Response.json({
           path: 'src/lib/example.ts',
-          sha: 'old-file-sha',
+          sha: 'd'.repeat(40),
           content: Buffer.from('newer current value').toString('base64'),
           encoding: 'base64',
         });
