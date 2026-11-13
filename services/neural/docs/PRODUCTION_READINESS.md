@@ -62,8 +62,7 @@ Configure the following in Workers & Pages → `glorifier-neural` → Settings �
 
 ### OpenAI (optional provider; current production selection NOT VERIFIED)
 
-The 2026-11-05 historical settings observation recorded `GLORIFIER_PROVIDER=openai`; the current deployed provider selection is **NOT VERIFIED**. Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter
-defaults to `gpt-6-luna` unless `OPENAI_MODEL` is explicitly set.
+The 2026-11-05 historical settings observation recorded `GLORIFIER_PROVIDER=openai`; the current deployed provider selection is **NOT VERIFIED**. Source defaults `GLORIFIER_PROVIDER` to OpenAI when the variable is unset (verified in `app/runtime.py` lines 50–54); this is a source-code default, not a statement that OpenAI is currently deployed. Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter defaults to `gpt-6-luna` unless `OPENAI_MODEL` is explicitly set.
 
 For read-only provider readiness, configure:
 

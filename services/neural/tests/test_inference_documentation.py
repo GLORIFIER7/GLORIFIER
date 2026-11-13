@@ -75,3 +75,19 @@ def test_dynamo_runbook_attributes_implementation_and_regression_tests_to_their_
     assert "[4c0f0ef]" in test_evidence
     assert "[54f555d]" in test_evidence
     assert "[70b6354]" not in test_evidence
+
+
+def test_openai_provider_docs_distinguish_source_default_from_current_deployment():
+    service_root = Path(__file__).resolve().parents[1]
+    text = (service_root / "docs" / "PRODUCTION_READINESS.md").read_text(encoding="utf-8")
+    openai_section = _section(
+        text,
+        "### OpenAI (optional provider; current production selection NOT VERIFIED)",
+    )
+    lower = openai_section.casefold()
+    # Source-code default must be documented.
+    assert "source defaults" in lower or "source-code default" in lower
+    # Current selection must remain NOT VERIFIED.
+    assert "not verified" in lower
+    # Must not assert OpenAI is currently running in production.
+    assert "currently deployed" not in lower
