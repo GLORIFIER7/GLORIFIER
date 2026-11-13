@@ -249,8 +249,13 @@ PUSH_OK=false
 if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
   git fetch origin "${BRANCH}"
   REMOTE_BRANCH_SHA="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
-  if git push --force-with-lease="refs/heads/${BRANCH}:${REMOTE_BRANCH_SHA}" origin "${BRANCH}"; then
-    PUSH_OK=true
+  if git merge-base --is-ancestor "${REMOTE_BRANCH_SHA}" HEAD; then
+    if git push origin "HEAD:refs/heads/${BRANCH}"; then
+      PUSH_OK=true
+    fi
+  else
+    echo "::error::Refusing to overwrite the existing publication branch: remote commits are not an ancestor of this candidate. Inspect or reconcile the branch before retrying."
+    exit 1
   fi
 else
   if git push --set-upstream origin "${BRANCH}"; then
