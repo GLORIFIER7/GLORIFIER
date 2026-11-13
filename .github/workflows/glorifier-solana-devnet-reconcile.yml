@@ -29,6 +29,8 @@ on:
       - "GLORIFIER Solana Devnet Deployment"
     types:
       - completed
+    branches:
+      - main
 
 permissions:
   contents: read
