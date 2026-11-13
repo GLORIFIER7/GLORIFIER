@@ -350,7 +350,8 @@ export async function createA2ATaskWithIdempotency(
 
   const persistedTask = mapPersistedA2ATask(persistedRow);
   memoryTasks.set(persistedTask.id, persistedTask);
-  return persistedTask;}
+  return persistedTask;
+}
 
 
 export function listA2ATasks(limit = 50, requesterAgentId?: string, allowAll = false) {
