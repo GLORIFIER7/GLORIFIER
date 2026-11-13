@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { aiCeoPolicy } from './ai-ceo';
 import { aiOrchestrator } from './ai/orchestrator';
 import { runSpecialistCouncil } from './ai/specialist-council';
-import { createA2ATaskForProtocol, executeA2ATask } from './a2a-runtime';
+import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
@@ -588,16 +588,24 @@ export function getAutopilotOrchestrationStatus() {
   const providerReady = executive.status === 'active';
   const inferenceAuthorized = isAutopilotInferenceAuthorized();
   const repositoryWriteEnabled = Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim());
+  const a2aRuntime = getA2ARuntimeStatus();
+  const runtimeEnabled = persistence.available && Boolean(process.env.DATABASE_URL)
+    && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
+    && providerReady && inferenceAuthorized && a2aRuntime.durable;
   return {
-    enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && providerReady && inferenceAuthorized,
-    aiCeoConnected: true,
-    specialistCouncilConnected: true,
+    enabled: runtimeEnabled,
+    aiCeoConnected: providerReady && inferenceAuthorized,
+    specialistCouncilConnected: providerReady && inferenceAuthorized,
     providerOrchestratorConnected: providerReady,
     inferenceAuthorized,
     inferenceMode: inferenceAuthorized ? 'owner-authorized-provider-inference' : 'disabled-zero-budget-default',
     selectedProvider: executive.provider,
     selectedModel: executive.model,
-    a2aConnected: true,
+    a2aConnected: a2aRuntime.durable,
+    a2aPersistenceMode: a2aRuntime.mode,
+    a2aInitializationFailure: a2aRuntime.lastFailure,
+    writeCredentialConfigured: repositoryWriteEnabled,
+    writeCredentialPermissionVerification: 'not-verified-until-github-write-and-readback',
     geasAuthorizationConnected: true,
     safeAnalysisCapabilities: repositoryWriteEnabled ? [...ALLOWED_TOOL_CAPABILITIES] : [...READ_ONLY_TOOL_CAPABILITIES],
     readOnlyToolExecution: true,
@@ -609,6 +617,7 @@ export function getAutopilotOrchestrationStatus() {
     externalActionExecution: false,
     reason: !persistence.available ? 'mission-store-unavailable'
       : !process.env.DATABASE_URL ? 'persistent-a2a-storage-required'
+      : !a2aRuntime.durable ? a2aRuntime.mode === 'failed' ? 'a2a-persistence-initialization-failed' : 'a2a-persistence-not-ready'
       : !String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim() ? 'a2a-signing-secret-not-configured'
       : !providerReady ? 'no-connected-ai-provider'
       : !inferenceAuthorized ? 'inference-disabled-until-owner-authorizes-egress-and-paid-usage'
