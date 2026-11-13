@@ -90,8 +90,9 @@ def test_openai_provider_docs_distinguish_source_default_from_current_deployment
     assert "source defaults" in lower or "source-code default" in lower
     # Current selection must remain NOT VERIFIED.
     assert "not verified" in lower
-    # Must not assert OpenAI is currently running in production.
-    assert "currently deployed" not in lower
+    # Reject a positive current-deployment claim without matching its negated explanation.
+    assert "openai is currently deployed" not in lower
+    assert "current deployed provider selection is **not verified**" in lower
 
 
 def test_readme_historical_cloudflare_evidence_is_coherent_and_not_current():
