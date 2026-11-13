@@ -548,11 +548,12 @@ export async function recoverAutopilotMissionsWithSafeRetry(
     if (mission.status !== 'reconciliation-required' || mission.steps.length === 0) continue;
     const uncertain = mission.steps.filter(step => step.status === 'reconciliation-required' || step.status === 'pending');
     if (uncertain.length === 0) continue;
-    const safeToRetry = mission.steps.every(step =>
-      step.effect === 'read-only' &&
-      isSupportedGithubCapability(step.capability) &&
-      (step.attemptCount ?? 0) < 2
-    );
+    const safeToRetry = mission.steps.every(step => {
+      if (step.effect !== 'read-only' || !isSupportedGithubCapability(step.capability)) return false;
+      if (step.status === 'completed') return step.verification?.status === 'verified';
+      return (step.status === 'pending' || step.status === 'reconciliation-required') &&
+        (step.attemptCount ?? 0) < 2;
+    });
     if (!safeToRetry) continue;
 
     const steps = mission.steps.map(step => step.status === 'reconciliation-required'
