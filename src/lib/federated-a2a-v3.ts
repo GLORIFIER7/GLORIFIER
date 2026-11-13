@@ -193,11 +193,36 @@ export async function createFederatedA2AEnvelope(taskId:string,actor='glorifier-
 export function verifyFederatedA2AEnvelope(e:FederatedA2AEnvelope){
   try{if(!secret()) return {valid:false,reason:'signing_not_configured'}; if(new Date(e.expiresAt).getTime()<=Date.now()) return {valid:false,reason:'expired'}; const expected=sign(unsignedEnvelope(e)); const a=Buffer.from(e.signature),b=Buffer.from(expected); return a.length===b.length&&crypto.timingSafeEqual(a,b)?{valid:true,reason:'verified'}:{valid:false,reason:'invalid_signature'};}catch{return {valid:false,reason:'verification_error'};}
 }
-export async function markFederatedA2AEvidence(taskId:string,evidenceRef:string,actor='system'){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  if(!['RUNNING','EVIDENCE'].includes(task.state)) throw new Error('Task is not accepting evidence');
-  if(!evidenceRef.trim()) throw new Error('evidenceRef is required');
-  task.evidenceRefs.push(evidenceRef); task.state='EVIDENCE'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{evidenceRef})); await persist(task); return task;
+export interface FederatedA2APersistence {
+  audit(
+    taskId: string,
+    state: FederatedA2ATaskState,
+    actor: string,
+    detail: unknown,
+  ): Promise<string>;
+  persist(task: FederatedA2ATask): Promise<void>;
+}
+
+const defaultFederatedA2APersistence: FederatedA2APersistence = { audit, persist };
+
+export async function markFederatedA2AEvidence(
+  taskId: string,
+  evidenceRef: string,
+  actor = 'system',
+  persistence: FederatedA2APersistence = defaultFederatedA2APersistence,
+): Promise<FederatedA2ATask> {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (!['RUNNING', 'EVIDENCE'].includes(task.state)) {
+    throw new Error('Task is not accepting evidence');
+  }
+  if (!evidenceRef.trim()) throw new Error('evidenceRef is required');
+  task.evidenceRefs.push(evidenceRef);
+  task.state = 'EVIDENCE';
+  task.updatedAt = new Date().toISOString();
+  task.auditRefs.push(await persistence.audit(task.id, task.state, actor, { evidenceRef }));
+  await persistence.persist(task);
+  return task;
 }
 export interface FederatedA2AEvidenceVerification {
   status: 'VERIFIED' | 'NOT VERIFIED';
