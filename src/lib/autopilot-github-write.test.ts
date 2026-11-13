@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import {
   executeGithubWriteTool,
   isAllowedAutopilotWritePath,
@@ -44,7 +45,7 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : undefined;
     calls.push({ url, method, body });
     if (method === 'GET' && url.includes('/contents/src/lib/example.ts?')) {
-      return Response.json({ path: 'src/lib/example.ts', sha: 'old-file-sha' });
+      return Response.json({ path: 'src/lib/example.ts', sha: 'old-file-sha', content: Buffer.from('existing').toString('base64'), encoding: 'base64' });
     }
     if (method === 'PUT' && url.includes('/contents/src/lib/example.ts')) {
       return Response.json({
@@ -59,6 +60,7 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     path: 'src/lib/example.ts',
     content: 'export const repaired = true;\\n',
     message: 'fix(autopilot): repair example',
+    expectedContentSha256: createHash('sha256').update('existing').digest('hex'),
   }, token, fetchImpl);
   assert.deepEqual(result, {
     commit: { sha: 'commit-sha' },
@@ -144,4 +146,32 @@ test('Autopilot GitHub write adapter refuses missing write credentials', async (
     }, '', async () => { throw new Error('network must not be called'); }),
     /GLORIFIER_GITHUB_WRITE_TOKEN is not configured/,
   );
+});
+
+
+test('Autopilot refuses to overwrite a source file that changed after inspection', async () => {
+  let putAttempted = false;
+  await assert.rejects(
+    () => executeGithubWriteTool('github_update_file', {
+      branch: 'autopilot/mission-123',
+      path: 'src/lib/example.ts',
+      content: 'replacement',
+      message: 'fix(autopilot): avoid stale write',
+      expectedContentSha256: createHash('sha256').update('old inspected value').digest('hex'),
+    }, token, async (input, init) => {
+      const method = init?.method || 'GET';
+      if (method === 'GET') {
+        return Response.json({
+          path: 'src/lib/example.ts',
+          sha: 'old-file-sha',
+          content: Buffer.from('newer current value').toString('base64'),
+          encoding: 'base64',
+        });
+      }
+      putAttempted = true;
+      return Response.json({});
+    }),
+    /changed after inspection/,
+  );
+  assert.equal(putAttempted, false, 'stale source must be rejected before the GitHub write request');
 });
