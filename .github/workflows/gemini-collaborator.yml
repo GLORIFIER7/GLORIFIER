@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      pull-requests: read
     outputs:
       has_changes: ${{ steps.patch.outputs.has_changes }}
     env:
@@ -66,14 +67,33 @@ jobs:
           sudo chown root:root /etc/glorifier/gemini-system-settings.json
           sudo chmod 644 /etc/glorifier/gemini-system-settings.json
 
+      - name: Avoid duplicate open Gemini engineering proposals
+        id: duplicate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --state open --base main --json headRefName --jq '[.[] | select(.headRefName | startswith("ai/gemini/"))] | length')"
+          if [[ "$existing" =~ ^[0-9]+$ ]] && (( existing > 0 )); then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::An existing Gemini engineering proposal is still open; skipping another model run."
+          else
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report existing Gemini proposal
+        if: ${{ steps.duplicate.outputs.blocked == 'true' }}
+        run: echo "::notice::Resolve the existing Gemini proposal before another scheduled engineering run."
+
       - name: Require Gemini credential
-        if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && env.HAS_GEMINI_API_KEY != 'true' }}
         run: |
           echo "::error::GEMINI_API_KEY is unavailable. Gemini collaboration did not run."
           exit 1
       - name: Run Gemini engineering collaboration
         id: gemini
-        if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && env.HAS_GEMINI_API_KEY == 'true' }}
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         env:
           GEMINI_CLI_SYSTEM_SETTINGS_PATH: /etc/glorifier/gemini-system-settings.json
@@ -100,7 +120,7 @@ jobs:
             ${{ inputs.task || 'Scheduled maintenance: inspect and propose one bounded improvement.' }}
       - name: Prepare and validate Gemini patch
         id: patch
-        if: ${{ steps.gemini.outcome == 'success' }}
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
