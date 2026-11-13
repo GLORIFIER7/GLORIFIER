@@ -355,6 +355,13 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/833",
+          "targetEnvironment": "PR #833 source branch and GitHub CI; no production or staging Worker change",
+          "observedAt": null,
+          "notes": "Adds an explicit federated handoff start transition, persistence-before-memory mutation, bounded/deduplicated evidence references, strict terminal-state guards, bounded signed-envelope TTL, and independent-verifier gating before VERIFIED. The verifier is not configured, so verification requests intentionally fail closed. The branch has not been deployed; no authenticated GLORIFIER-to-NEURAL task or model inference was performed. Runtime readiness and task exchange remain NOT VERIFIED."
         }
       ],
       "limitations": [
@@ -364,7 +371,8 @@
         "Both active Workers show the required API/internal-service secret binding names, and GLORIFIER v1001 shows the GLORIFIER_NEURAL service binding. Secret values were not accessed; binding presence is not proof of token matching or authenticated task execution.",
         "The 05:59 UTC production smoke in run #42969134766 completed all declared GET-only checks on GLORIFIER v1002 from exact main commit 038fe738e9fdc5fbbb0472343198c19d75cd7643; the exact Cloudflare version readback independently confirms that release is active at 100% traffic.",
         "No authenticated task POST or model inference was performed. Authentication, inference, provider readiness, and the task exchange remain NOT VERIFIED by design while the three egress/inference/paid-authorization controls are false.",
-        "External A2A/MCP conformance, real Linux host enrollment/task/revocation, fresh chain RPC evidence, cryptographic identity, sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo runtime, provider billing reconciliation, and independent economic outcomes remain NOT VERIFIED."
+        "External A2A/MCP conformance, real Linux host enrollment/task/revocation, fresh chain RPC evidence, cryptographic identity, sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo runtime, provider billing reconciliation, and independent economic outcomes remain NOT VERIFIED.",
+        "PR #833 hardens the source-level Federated A2A v3 orchestration lifecycle with an explicit ASSIGNED-to-RUNNING transition, audited/persisted transitions, bounded evidence references, terminal-state protections, and 1–300 second signed handoff envelope lifetimes. The HTTP verification endpoint fails closed until a trusted independent evidence verifier is configured. These are branch source/test changes, not a deployed or authenticated GLORIFIER-to-NEURAL task exchange."
       ]
     },
     {
@@ -997,6 +1005,13 @@
           "targetEnvironment": "GLORIFIER main merge commit ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7; manually dispatched read-only MCP external server conformance workflow",
           "observedAt": "2026-11-11T12:09:31Z",
           "notes": "PR #819 adds the official frozen MCP 2026-07-28 server requirements command using the conformance runner pinned to 96a6f9478b7f2e125cf0360a213383cf57533893 and retains a separate legacy 2025-11-25 tools-list scenario. The workflow is workflow_dispatch-only and the external-check opt-in defaults to false. This is test-path/source evidence, not a conformance result; the workflow was not dispatched and no endpoint was probed."
+        },
+        {
+          "kind": "source",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/833",
+          "targetEnvironment": "PR #833 source branch and GitHub CI contract; no main-branch merge, staging configuration, or production deployment",
+          "observedAt": null,
+          "notes": "Adds a manual owner-dispatched official A2A TCK workflow pinned to signed upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba. It preflights the public Agent Card, limits the SUT to an exact HTTPS staging hostname, uses a dedicated staging Bearer secret, runs the declared JSON-RPC binding, and uploads reports. This is test-path/source evidence only: no staging host or secret is configured and no TCK run or external client exchange has occurred. Capability status remains NOT VERIFIED."
         }
       ],
       "limitations": [
@@ -1007,7 +1022,8 @@
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
         "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
         "No arbitrary proxy or implied provider fallback is authorized.",
-        "PR #819 adds an owner-controlled manual-only external MCP server TCK path for frozen 2026-07-28 server requirements and a separate 2025-11-25 legacy tools-list scenario. The input defaults to false; no endpoint configuration, run, report, or independent client handshake is recorded."
+        "PR #819 adds an owner-controlled manual-only external MCP server TCK path for frozen 2026-07-28 server requirements and a separate 2025-11-25 legacy tools-list scenario. The input defaults to false; no endpoint configuration, run, report, or independent client handshake is recorded.",
+        "PR #833 adds a workflow_dispatch-only official A2A TCK runner pinned to a signature-verified upstream revision, with an exact HTTPS staging-host allowlist, a dedicated staging bearer secret, and read-only GitHub permissions. The staging Environment variable/secret have not been configured and the TCK has not been dispatched; external A2A conformance remains NOT VERIFIED."
       ]
     },
     {
