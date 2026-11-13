@@ -216,6 +216,24 @@ if (authenticatedClaimEvidence[0].patternIds.length !== 1
     || authenticatedClaimEvidence[0].patternIds[0] !== 'cross-cutting-cloud-controls') {
   throw new Error('claim support must be restricted to the exact attested architecture pattern, not every pattern associated with the source');
 }
+if (classifyArchitectureEvidence(
+  'claim-supported',
+  claimSupportObservation,
+  'cross-cutting-cloud-controls',
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+) !== 'observed-fact') {
+  throw new Error('the exact attested pattern may become observed-fact after trusted authentication');
+}
+if (classifyArchitectureEvidence(
+  'claim-supported',
+  claimSupportObservation,
+  'durable-agent-execution',
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+) !== 'analysis') {
+  throw new Error('a sibling pattern must not inherit another pattern claim attestation');
+}
 const mismatchedPatternClaimEvidence = buildArchitectureEvidence(
   [{
     ...claimSupportObservation,
