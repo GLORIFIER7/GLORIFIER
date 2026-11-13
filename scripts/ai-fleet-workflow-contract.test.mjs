@@ -388,7 +388,8 @@ test('Gemini paid/manual workflows require owner-initiated dispatch and trusted 
 });
 
 test('Gemini engineering collaborator runs on schedule only through the owner-confirmed free tier', () => {
-  assert.ok(geminiCollaboratorWorkflow.includes('  schedule:\\n    - cron:'));
+  assert.ok(geminiCollaboratorWorkflow.includes('  schedule:'));
+  assert.ok(geminiCollaboratorWorkflow.includes('- cron:'));
   assert.ok(geminiCollaboratorWorkflow.includes('run_free_tier_gemini:'));
   assert.ok(geminiCollaboratorWorkflow.includes("github.event_name == 'schedule'"));
   assert.ok(geminiCollaboratorWorkflow.includes("vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'"));
@@ -403,6 +404,9 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('npm run lint'));
   assert.ok(geminiCollaboratorWorkflow.includes('npm run build'));
   assert.ok(geminiCollaboratorWorkflow.includes('gh pr create --draft'));
+  assert.ok(geminiCollaboratorWorkflow.includes('Avoid duplicate open Gemini engineering proposals'));
+  assert.ok(geminiCollaboratorWorkflow.includes('pull-requests: read'));
+  assert.ok(geminiCollaboratorWorkflow.includes('headRefName | startswith("ai/gemini/")'));
   assert.doesNotMatch(geminiCollaboratorWorkflow, /allow_paid_inference|MANUAL_PAID_INFERENCE_AUTHORIZATION|OPENAI_API_KEY|NVIDIA_API_KEY|GITHUB_REF:/);
   assert.doesNotMatch(geminiCollaboratorWorkflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
