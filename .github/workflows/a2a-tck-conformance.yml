@@ -96,13 +96,44 @@ jobs:
           print("A2A staging origin and public Agent Card contract verified; bearer credential was not displayed.")
           PY
 
-      - name: Checkout official A2A TCK at signature-verified revision
+      - name: Checkout official A2A TCK at pinned upstream revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: a2aproject/a2a-tck
           ref: 104a7b4ae0d83f65c075e3793e322953a830eaba
           path: .a2a-tck
           persist-credentials: false
+
+      - name: Verify pinned upstream TCK injects configured bearer auth
+        working-directory: .a2a-tck
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          helpers = Path("tck/transport/_helpers.py").read_text(encoding="utf-8")
+          client = Path("tck/transport/jsonrpc_client.py").read_text(encoding="utf-8")
+          required = (
+              "def get_auth_headers",
+              "A2A_AUTH_TOKEN",
+              "def build_default_headers",
+          )
+          if any(marker not in helpers for marker in required):
+              raise SystemExit(
+                  "Pinned upstream A2A TCK cannot inject bearer credentials. "
+                  "Upstream issue #163 remains open and PR #200 is unmerged; refusing to claim authenticated conformance."
+              )
+          if "build_default_headers" not in client or "self._headers = build_default_headers()" not in client:
+              raise SystemExit(
+                  "Pinned upstream JSON-RPC client does not inject A2A_AUTH_* headers; refusing to run authenticated conformance."
+              )
+          if "merge_headers(self._headers" not in client:
+              raise SystemExit(
+                  "Pinned upstream JSON-RPC requests do not carry configured authorization headers; refusing to run authenticated conformance."
+              )
+          print("Pinned upstream TCK authenticated JSON-RPC support verified.")
+          PY
 
       - name: Set up Python 3.15
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6
