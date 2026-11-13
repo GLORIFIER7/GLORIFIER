@@ -8,6 +8,8 @@ import {
   completeAutopilotMissionStep,
   recoverAutopilotMissions,
   recoverAutopilotMissionsWithSafeRetry,
+  renewAutopilotMissionLease,
+  recordAutopilotMissionFailure,
   getAutopilotMission,
   listAutopilotMissions,
   type AutopilotMission,
@@ -59,6 +61,13 @@ class MemoryMissionStore implements AutopilotMissionStore {
     };
     this.records.set(claimed.id, claimed);
     return structuredClone(claimed);
+  }
+  async renewLease(id: string, workerId: string, leaseMs: number, now: string) {
+    const current = this.records.get(id);
+    if (!current || current.leaseOwner !== workerId || !current.leaseExpiresAt || Date.parse(current.leaseExpiresAt) <= Date.parse(now) || !['planning', 'executing'].includes(current.status)) return null;
+    const next = { ...current, leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(), updatedAt: now, version: current.version + 1 };
+    this.records.set(id, next);
+    return structuredClone(next);
   }
   async recoverExpired(now: string) {
     let recovered = 0;
@@ -357,4 +366,41 @@ test('Autopilot retries only known read-only steps once after lease reconciliati
   const quarantined = await getAutopilotMission(store, planned.id, 'owner');
   assert.equal(quarantined?.status, 'reconciliation-required');
   assert.equal(quarantined?.steps[0].status, 'reconciliation-required');
+});
+
+
+test('Autopilot renews only an active lease owned by the worker', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'renew-001',
+    objective: 'Keep a long-running planning operation leased.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-13T08:01:00.000Z');
+  const renewed = await renewAutopilotMissionLease(store, created.id, 'worker-1', 120_000, '2026-11-13T08:02:00.000Z');
+  assert.equal(renewed?.version, claimed!.version + 1);
+  assert.equal(renewed?.leaseExpiresAt, '2026-11-13T08:04:00.000Z');
+  assert.equal(await renewAutopilotMissionLease(store, created.id, 'intruder', 120_000, '2026-11-13T08:02:30.000Z'), null);
+  assert.equal(await renewAutopilotMissionLease(store, created.id, 'worker-1', 120_000, '2026-11-13T08:05:00.000Z'), null);
+});
+
+test('Autopilot records planning failures with one bounded retry and quarantines execution failures', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'planning-failure-001',
+    objective: 'Plan a bounded public repository inspection.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const firstClaim = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-13T08:01:00.000Z');
+  const firstFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-1', new Error('provider transient failure'), '2026-11-13T08:01:30.000Z');
+  assert.equal(firstFailure?.status, 'queued');
+  assert.equal(firstFailure?.planningAttempts, 1);
+  assert.equal(firstFailure?.leaseOwner, undefined);
+  const secondClaim = await claimNextAutopilotMission(store, 'worker-2', 120_000, firstFailure!.nextRunAt!);
+  assert.equal(secondClaim?.status, 'planning');
+  const secondFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-2', new Error('provider still unavailable'), '2026-11-13T08:04:00.000Z');
+  assert.equal(secondFailure?.status, 'blocked');
+  assert.equal(secondFailure?.planningAttempts, 2);
 });
