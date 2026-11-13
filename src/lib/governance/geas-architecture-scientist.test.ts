@@ -296,6 +296,24 @@ if (buildArchitectureEvidence(
 ).length !== 0) {
   throw new Error('asynchronous claim-support authenticators must not be treated as synchronously verified');
 }
+const rejectingAsyncClaimSupportAuthenticator = (() => Promise.reject(new Error('untrusted verifier failure'))) as unknown as ClaimSupportAuthenticator;
+if (buildArchitectureEvidence(
+  [claimSupportObservation],
+  rejectingAsyncClaimSupportAuthenticator,
+  claimSupportNowMs,
+).length !== 0) {
+  throw new Error('rejected asynchronous claim-support authenticators must fail closed');
+}
+const throwingClaimSupportAuthenticator = (() => {
+  throw new Error('untrusted verifier exception');
+}) as ClaimSupportAuthenticator;
+if (buildArchitectureEvidence(
+  [claimSupportObservation],
+  throwingClaimSupportAuthenticator,
+  claimSupportNowMs,
+).length !== 0) {
+  throw new Error('throwing claim-support authenticators must fail closed');
+}
 const overlongClaimSupportEvidence = buildArchitectureEvidence(
   [{
     ...claimSupportObservation,
