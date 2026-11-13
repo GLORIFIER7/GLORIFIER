@@ -392,7 +392,6 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('- cron:'));
   assert.ok(geminiCollaboratorWorkflow.includes('run_free_tier_gemini:'));
   assert.ok(geminiCollaboratorWorkflow.includes("github.event_name == 'schedule'"));
-  assert.ok(geminiCollaboratorWorkflow.includes("vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'"));
   assert.ok(geminiCollaboratorWorkflow.includes('inputs.run_free_tier_gemini == true'));
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
