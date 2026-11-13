@@ -352,3 +352,58 @@ await withServer({
 
 console.log('A2A Express endpoint regression tests passed.');
 });
+
+void test('Express A2A adapter permits a requester-scoped exact retry after terminal completion', async () => {
+  const requesterAgentId = 'express-test-user';
+  const terminalTask = task({
+    id: 'express-terminal-replay-task',
+    parentTaskId: 'express-terminal-context',
+    requesterAgentId,
+    status: 'completed',
+  });
+  const created: Array<{ parentTaskId?: string }> = [];
+  const dependencies: A2AExpressDependencies = {
+    ...baseDependencies(),
+    getTask: async (id, requester) =>
+      id === terminalTask.id && requester === requesterAgentId ? terminalTask : null,
+    getTaskForIdempotencyKey: async (messageId, requester) => {
+      assert.equal(messageId, 'express-terminal-replay-message');
+      assert.equal(requester, requesterAgentId);
+      return terminalTask;
+    },
+    createTask: async (input) => {
+      created.push(input);
+      return terminalTask;
+    },
+  };
+
+  await withServer(dependencies, async (origin) => {
+    const response = await fetch(`${origin}/api/a2a/v1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'A2A-Version': '1.0' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'express-terminal-replay',
+        method: 'SendMessage',
+        params: {
+          message: {
+            messageId: 'express-terminal-replay-message',
+            role: 'ROLE_USER',
+            taskId: terminalTask.id,
+            contextId: 'express-terminal-context',
+            parts: [{ text: 'Replay the original terminal task request' }],
+          },
+        },
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as {
+      result?: { task?: { id?: string } };
+      error?: { code: number };
+    };
+    assert.equal(body.error, undefined);
+    assert.equal(body.result?.task?.id, terminalTask.id);
+    assert.equal(created.length, 1);
+    assert.equal(created[0].parentTaskId, 'express-terminal-context');
+  });
+});
