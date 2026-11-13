@@ -242,7 +242,7 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
     const query = async (sql: string, values: unknown[] = []) => {
       queryCalls.push({ sql, values: [...values] });
       if (sql.includes('INSERT INTO a2a_tasks') && sql.includes('idempotency_key')) {
-        const columns = sql.match(/INSERT INTO a2a_tasks\\s*\\(([\\s\\S]*?)\\)\\s*VALUES/i)?.[1];
+        const columns = sql.match(/INSERT INTO a2a_tasks\s*\(([\s\S]*?)\)\s*VALUES/i)?.[1];
         assert.ok(columns, 'atomic task insert must expose its bound column list');
         assert.deepEqual(
           columns.split(',').map((column) => column.trim()),
@@ -251,17 +251,17 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
         );
         assert.match(
           sql,
-          /VALUES\\s*\\(\\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10,\\$11,\\$12,\\$13,\\$14,\\$15,\\$16,\\$17\\)/,
+          /VALUES\s*\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11,\$12,\$13,\$14,\$15,\$16,\$17\)/,
           'the insert must bind each of the 17 task and idempotency columns in order',
         );
         assert.match(
           sql,
-          /ON CONFLICT \\(requester_agent_id,idempotency_key\\)\\s+WHERE idempotency_key IS NOT NULL\\s+DO UPDATE SET idempotency_key = EXCLUDED\\.idempotency_key/,
+          /ON CONFLICT \(requester_agent_id,idempotency_key\)\s+WHERE idempotency_key IS NOT NULL\s+DO UPDATE SET idempotency_key = EXCLUDED\.idempotency_key/,
           'conflicts must atomically return the existing requester-scoped row without replacing its fingerprint',
         );
         assert.match(
           sql,
-          /RETURNING[\\s\\S]*idempotency_hash/i,
+          /RETURNING[\s\S]*idempotency_hash/i,
           'the atomic upsert must return the stored fingerprint for exact-replay/conflict comparison',
         );
         assert.equal(values.length, 17, 'the insert must bind all 17 values');
