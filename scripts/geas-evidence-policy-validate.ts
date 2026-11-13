@@ -50,7 +50,7 @@ requirePattern(/const isPatternSourceObservation = \([\s\S]*?isClaimSupportedEvi
   'pattern evidence must not admit claim-supported source observations without authenticated pattern-specific support');
 requirePattern(/export const classifyArchitectureEvidence = \([\s\S]*?isClaimSupportedEvidence\(status, source, patternId, authenticate, nowMs\)/,
   'observed-fact classification must require authenticated claim support for the exact pattern');
-requirePattern(/Promise\\.resolve\\(result\\)\\.catch\\(\\(\\) => undefined\\)/,
+requirePattern(/Promise\.resolve\(result\)\.catch\(\(\) => undefined\)/,
   'rejected asynchronous claim authenticators must be observed before failing closed');
 requirePattern(/irreversibleChangesExecuted:\s*false/,
   'scan result must explicitly prohibit autonomous irreversible changes');
