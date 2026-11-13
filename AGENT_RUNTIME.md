@@ -29,3 +29,14 @@ The authenticated mission-control API is available at:
 Mission records are requester-scoped and idempotent. Mission state changes use optimistic version checks. Workers claim queued missions with bounded leases. A lease that expires while work is planning or executing is changed to `reconciliation-required`; it is never automatically replayed. A step marked `irreversible` requires an explicit approval record before it can be claimed. Completion requires at least one evidence reference.
 
 The current implementation provides the durable mission ledger, state machine, lease/claim primitives, and recovery boundary. It does **not yet** provide provider-backed autonomous planning, automatic step execution, event-driven triggers, or a production executor. The status endpoint reports those capabilities as disabled. These are subsequent implementation stages, not claims of completed functionality.
+
+
+## Governed Autopilot orchestration
+
+The persistent mission engine is connected to the existing GLORIFIER AI CEO policy, Specialist Council, provider orchestrator/registry, persistent A2A task runtime, capability authorization, and GEAS policy engine.
+
+The daemon processes at most one due mission per cycle. It first requires durable mission storage, persistent A2A storage, an A2A signing secret, and at least one configured provider. The Specialist Council supplies advisory engineering, architecture, cybersecurity, and operations findings. The AI CEO then proposes a bounded plan. The plan parser accepts only a short list of read-only analysis capabilities (`read.repository`, `repository.search`, `analyze.code`, and `knowledge.search`). Each step must pass both capability authorization and GEAS before A2A dispatch.
+
+A2A workers currently generate analytical artifacts through the provider orchestrator. They do not invoke repository write tools, deployment tools, payment systems, credential systems, or arbitrary external integrations. An A2A artifact reference is not external proof. A mission that finishes generating its analytical artifacts has `verificationState: pending-external-evidence`; it is not represented as an independently verified external outcome.
+
+The current autonomy boundary is therefore continuous, provider-backed read-only analysis and A2A delegation. Actual external action adapters, independently verifiable evidence ingestion, and human approval lifecycle integration remain disabled. Production deployments, merges, financial transfers, secret changes, and destructive actions remain outside autonomous authority. The status endpoint reports live provider and signing readiness rather than assuming those connections exist.
