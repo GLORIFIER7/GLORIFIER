@@ -498,10 +498,29 @@ export function getAutopilotMissionControlStatus() {
     available: autopilotStore !== null,
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
+    missionPersistence: autopilotStore ? 'available' : 'unavailable',
+    autonomousPlanningEnabled: false,
+    autonomousStepExecutionEnabled: false,
+    eventDrivenTriggersEnabled: false,
+    providerInferenceEnabled: false,
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
-    nextCapabilities: ['event-driven-triggers', 'provider-backed-planning', 'approved-step-execution', 'evidence-reconciliation'],
+    implementedCapabilities: [
+      'durable-mission-records',
+      'requester-scoped-access',
+      'idempotent-mission-creation',
+      'version-checked-state-transitions',
+      'leased-mission-claims',
+      'evidence-required-completion',
+      'crash-reconciliation-without-replay',
+    ],
+    remainingCapabilities: [
+      'event-driven-triggers',
+      'provider-backed-autonomous-planning',
+      'approved-step-execution-adapters',
+      'independent-outcome-verification',
+    ],
   };
 }
 
