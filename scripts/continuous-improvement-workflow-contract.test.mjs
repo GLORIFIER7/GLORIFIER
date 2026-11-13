@@ -28,7 +28,7 @@ test('paid inference requires the owner-authorized first manual attempt', () => 
   assert.doesNotMatch(dispatch, /verified sponsor\/monetization funding or confirmed provider acceptance of GLR/);
 
   const authorizationStart = workflow.indexOf('      - name: Resolve paid inference authorization');
-  const setupStart = workflow.indexOf('      - uses: actions/setup-node@v7', authorizationStart);
+  const setupStart = workflow.indexOf('      - uses: actions/setup-node@', authorizationStart);
   const modelStart = workflow.indexOf('      - name: AI improvement analysis', setupStart);
   const resultStart = workflow.indexOf('      - name: Governed result', modelStart);
   assert.ok(authorizationStart >= 0 && setupStart > authorizationStart && modelStart > setupStart && resultStart > modelStart);

@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import {
+  AutopilotMissionValidationError,
   createAutopilotMission,
   claimNextAutopilotMission,
   recordAutopilotMissionPlan,
@@ -403,4 +404,30 @@ test('Autopilot records planning failures with one bounded retry and quarantines
   const secondFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-2', new Error('provider still unavailable'), '2026-11-13T08:04:00.000Z');
   assert.equal(secondFailure?.status, 'blocked');
   assert.equal(secondFailure?.planningAttempts, 2);
+test('Autopilot mission creation distinguishes invalid input from persistence failures', async () => {
+  const invalidStore = new MemoryMissionStore();
+  await assert.rejects(
+    () => createAutopilotMission(invalidStore, {
+      requester: 'owner',
+      idempotencyKey: ' ',
+      objective: 'A valid objective.',
+    }),
+    AutopilotMissionValidationError,
+  );
+
+  class FailingMissionStore extends MemoryMissionStore {
+    async create(_mission: AutopilotMission): Promise<AutopilotMission> {
+      throw new Error('database connection unavailable');
+    }
+  }
+
+  const failingStore = new FailingMissionStore();
+  await assert.rejects(
+    () => createAutopilotMission(failingStore, {
+      requester: 'owner',
+      idempotencyKey: 'persistence-001',
+      objective: 'A valid objective.',
+    }),
+    (error: unknown) => error instanceof Error && !(error instanceof AutopilotMissionValidationError),
+  );
 });
