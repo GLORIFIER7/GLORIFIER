@@ -1383,7 +1383,7 @@ const isPatternSourceObservation = (
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
   source: PatternSourceObservation,
- ): ArchitecturePattern => ({
+): ArchitecturePattern => ({
   id: pattern.id,
   title: pattern.title,
   domain: pattern.domain,
