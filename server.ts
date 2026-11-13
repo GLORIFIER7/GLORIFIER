@@ -81,7 +81,7 @@ import { canonicalActionHash, buildEvidenceRecord, getEconomicIntegrityPolicy, l
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
-import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
+import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, startFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
   getScientistFleet, 
@@ -2513,6 +2513,14 @@ app.post('/api/federated-a2a/v3/tasks/:id/assign', requireOwnerOrInternalService
   catch (error) { return apiError(res, 409, 'Federated A2A assignment rejected', error); }
 });
 
+app.post('/api/federated-a2a/v3/tasks/:id/start', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try {
+    return res.json({ ok: true, task: await startFederatedA2ATask(String(req.params.id), String((req as any).auth?.uid || 'glorifier-daemon')) });
+  } catch (error) {
+    return apiError(res, 409, 'Federated A2A start rejected', error);
+  }
+});
+
 app.post('/api/federated-a2a/v3/tasks/:id/envelope', requireOwnerOrInternalService, async (req: Request, res: Response) => {
   try { return res.json({ ok: true, envelope: await createFederatedA2AEnvelope(String(req.params.id), 'glorifier-daemon', Number(req.body?.ttlSeconds) || 300) }); }
   catch (error) { return apiError(res, 409, 'Federated A2A envelope creation rejected', error); }
@@ -2537,7 +2545,8 @@ app.post('/api/federated-a2a/v3/tasks/:id/verify', requireOwner, async (req: Req
     const actor = String((req as any).auth?.uid || 'human-owner');
     return res.json({ ok: true, task: await verifyFederatedA2ATask(String(req.params.id), actor) });
   } catch (error) {
-    return apiError(res, 409, 'Federated A2A verification rejected', error);
+    const verifierUnavailable = error instanceof Error && error.message === 'Independent evidence verifier is not configured';
+    return apiError(res, verifierUnavailable ? 503 : 409, verifierUnavailable ? 'Federated A2A verification unavailable' : 'Federated A2A verification rejected', error);
   }
 });
 
