@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import {
+  AutopilotMissionValidationError,
   createAutopilotMission,
   claimNextAutopilotMission,
   recordAutopilotMissionPlan,
@@ -283,5 +284,33 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
       { id: 'step', capability: 'engineering', objective: 'A stale plan.', effect: 'read-only' },
     ]),
     /changed concurrently/,
+  );
+});
+
+test('Autopilot mission creation distinguishes invalid input from persistence failures', async () => {
+  const invalidStore = new MemoryMissionStore();
+  await assert.rejects(
+    () => createAutopilotMission(invalidStore, {
+      requester: 'owner',
+      idempotencyKey: ' ',
+      objective: 'A valid objective.',
+    }),
+    AutopilotMissionValidationError,
+  );
+
+  class FailingMissionStore extends MemoryMissionStore {
+    async create(_mission: AutopilotMission): Promise<AutopilotMission> {
+      throw new Error('database connection unavailable');
+    }
+  }
+
+  const failingStore = new FailingMissionStore();
+  await assert.rejects(
+    () => createAutopilotMission(failingStore, {
+      requester: 'owner',
+      idempotencyKey: 'persistence-001',
+      objective: 'A valid objective.',
+    }),
+    (error: unknown) => error instanceof Error && !(error instanceof AutopilotMissionValidationError),
   );
 });
