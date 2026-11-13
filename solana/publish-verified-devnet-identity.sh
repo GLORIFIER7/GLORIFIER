@@ -226,8 +226,7 @@ git fetch origin main
 
 EXISTING_PR="$(gh pr list --base main --head "${BRANCH}" --state open --json url --jq '.[0].url' | head -n1 || true)"
 
-# Rebuild the bot-owned branch from current main and update an existing open PR
-# when present. The push below uses force-with-lease to prevent a stale overwrite.
+# Preserve existing publication history; update only by a normal fast-forward push.
 git checkout -b "${BRANCH}"
 # Reconciliation may legitimately finish without transaction JSON files when immutable
 # artifact provenance is sufficient; never let an unmatched glob break publication.
@@ -249,8 +248,13 @@ PUSH_OK=false
 if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
   git fetch origin "${BRANCH}"
   REMOTE_BRANCH_SHA="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
-  if git push --force-with-lease="refs/heads/${BRANCH}:${REMOTE_BRANCH_SHA}" origin "${BRANCH}"; then
-    PUSH_OK=true
+  if git merge-base --is-ancestor "${REMOTE_BRANCH_SHA}" HEAD; then
+    if git push origin "HEAD:refs/heads/${BRANCH}"; then
+      PUSH_OK=true
+    fi
+  else
+    echo "::error::Refusing to overwrite the existing publication branch: remote commits are not an ancestor of this candidate. Inspect or reconcile the branch before retrying."
+    exit 1
   fi
 else
   if git push --set-upstream origin "${BRANCH}"; then

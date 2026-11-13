@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if grep -Fq 'git push --force-with-lease' "$ROOT/solana/publish-verified-devnet-identity.sh" || grep -Fq 'git push --force' "$ROOT/solana/publish-verified-devnet-identity.sh"; then
+  echo "Publisher must never force-push an automation branch." >&2
+  exit 1
+fi
+if ! grep -Fq 'git merge-base --is-ancestor "${REMOTE_BRANCH_SHA}" HEAD' "$ROOT/solana/publish-verified-devnet-identity.sh"; then
+  echo "Publisher must require a fast-forward-only update for an existing branch." >&2
+  exit 1
+fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/solana"
