@@ -93,9 +93,18 @@ jobs:
           set -euo pipefail
           git reset --hard HEAD
           git clean -fd
+      - name: Fail when Claude execution fails
+        if: ${{ steps.run.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo "::error::Claude CLI execution failed; the worktree was reset and no patch will be published."
+          exit 1
       - name: Report missing Claude key
         if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
-        run: echo "::warning::ANTHROPIC_API_KEY is unavailable to this workflow; no model call was made."
+        shell: bash
+        run: |
+          echo "::error::ANTHROPIC_API_KEY is unavailable; this owner-triggered Claude task did not run."
+          exit 1
       - name: Prepare change patch
         id: patch
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' && steps.run.outcome == 'success' }}
