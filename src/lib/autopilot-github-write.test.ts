@@ -37,6 +37,31 @@ test('Autopilot branch creation is restricted to its namespace and uses main as 
   assert.ok(calls.every(call => call.method === 'GET' || call.method === 'POST'));
 });
 
+test('Autopilot reuses an existing mission branch only when current main is its ancestor', async () => {
+  const branch = 'autopilot/mission-123';
+  const mainSha = 'a'.repeat(40);
+  const branchSha = 'b'.repeat(40);
+  const calls: string[] = [];
+  const result = await executeGithubWriteTool('github_create_branch', {
+    branch, base_ref: 'main',
+  }, token, async input => {
+    const url = String(input);
+    calls.push(url);
+    if (url.endsWith('/git/ref/heads/' + branch)) {
+      return Response.json({ ref: 'refs/heads/' + branch, object: { sha: branchSha } });
+    }
+    if (url.endsWith('/git/ref/heads/main')) {
+      return Response.json({ ref: 'refs/heads/main', object: { sha: mainSha } });
+    }
+    if (url.endsWith('/compare/' + mainSha + '...' + branchSha)) {
+      return Response.json({ status: 'ahead', merge_base_commit: { sha: mainSha } });
+    }
+    throw new Error('Unexpected request: ' + url);
+  });
+  assert.deepEqual(result, { ref: 'refs/heads/' + branch, sha: branchSha, idempotent: true });
+  assert.equal(calls.length, 3);
+});
+
 test('Autopilot refuses to reuse an existing mission branch that diverged from current main', async () => {
   const branch = 'autopilot/mission-123';
   const mainSha = 'a'.repeat(40);
