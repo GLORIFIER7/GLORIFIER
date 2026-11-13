@@ -41,8 +41,13 @@ export interface A2AHandoff {
 }
 
 const memoryTasks = new Map<string, A2ATask>();
+const memoryIdempotencyTasks = new Map<string, string>();
 const memoryHandoffs = new Map<string, A2AHandoff>();
 let initializationPromise: Promise<void> | null = null;
+
+function a2aIdempotencyCacheKey(requesterAgentId: string, idempotencyKey: string): string {
+  return JSON.stringify([requesterAgentId, idempotencyKey]);
+}
 
 function signingSecret() {
   return String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim();
@@ -395,9 +400,50 @@ export async function createA2ATaskWithIdempotency(
 
   const persistedTask = mapPersistedA2ATask(persistedRow);
   memoryTasks.set(persistedTask.id, persistedTask);
+  memoryIdempotencyTasks.set(a2aIdempotencyCacheKey(persistedTask.requesterAgentId, idempotencyKey), persistedTask.id);
   return persistedTask;
 }
 
+
+
+
+
+/**
+ * Look up an existing A2A message key within the authenticated requester's
+ * namespace. This is used only to decide whether a terminal-task request may
+ * proceed to the atomic create/upsert, which still validates the full payload
+ * fingerprint before returning an existing task.
+ */
+export async function getA2ATaskForIdempotencyKeyForProtocol(
+  requesterAgentId: string,
+  idempotencyKey: string,
+): Promise<A2ATask | null> {
+  const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : '';
+  const key = typeof idempotencyKey === 'string' ? idempotencyKey.trim() : '';
+  if (!requester || !key || key.length > 256) return null;
+
+  if (!process.env.DATABASE_URL) {
+    const taskId = memoryIdempotencyTasks.get(a2aIdempotencyCacheKey(requester, key));
+    const task = taskId ? memoryTasks.get(taskId) : null;
+    return task?.requesterAgentId === requester ? task : null;
+  }
+
+  await initializeA2ARuntime();
+  const result = await getPostgresPool().query(
+    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+            attempts,max_attempts,result,error,evidence_id,created_at,updated_at
+       FROM a2a_tasks
+      WHERE requester_agent_id = $1 AND idempotency_key = $2
+      LIMIT 1`,
+    [requester, key],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const task = mapPersistedA2ATask(row);
+  memoryTasks.set(task.id, task);
+  memoryIdempotencyTasks.set(a2aIdempotencyCacheKey(requester, key), task.id);
+  return task;
+}
 
 export function listA2ATasks(limit = 50, requesterAgentId?: string, allowAll = false) {
   const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;
