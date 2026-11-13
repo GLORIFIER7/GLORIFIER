@@ -264,7 +264,7 @@ test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async
     {
       requesterAgentId: 'requester-envelope',
       targetAgentId: 'neural-agent',
-      capability: 'research',
+      capability: 'evidence.attach',
       objective: 'bounded handoff lifetime',
     },
     async () => {},
@@ -306,7 +306,7 @@ test('Federated A2A requires an assigned target before transitioning to RUNNING'
     {
       requesterAgentId: 'requester-start',
       targetAgentId: 'neural-agent',
-      capability: 'research',
+      capability: 'evidence.attach',
       objective: 'start assigned task',
     },
     async () => {},
@@ -327,7 +327,7 @@ test('Federated A2A requires an assigned target before transitioning to RUNNING'
   assert.deepEqual(
     auditEvents,
     [
-      { state: 'AUTHORIZED', actor: 'human-owner', detail: { capability: 'research' } },
+      { state: 'AUTHORIZED', actor: 'human-owner', detail: { capability: 'evidence.attach' } },
       { state: 'ASSIGNED', actor: 'glorifier-daemon', detail: { targetAgentId: 'neural-agent' } },
       { state: 'RUNNING', actor: 'neural-agent', detail: { targetAgentId: 'neural-agent' } },
     ],
