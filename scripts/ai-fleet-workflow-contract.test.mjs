@@ -649,8 +649,8 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
 function extractWorkflowActionRefs(jobSection) {
   return jobSection
     .split(String.fromCharCode(10))
-    .filter((line) => /^\\s*(?:-\\s*)?uses:\\s+/.test(line))
-    .map((line) => line.trim().replace(/^-?\\s*uses:\\s*/, '').split(/\\s+/)[0]);
+    .filter((line) => /^\s*(?:-\s*)?uses:\s+/.test(line))
+    .map((line) => line.trim().replace(/^-?\s*uses:\s*/, '').split(/\s+/)[0]);
 }
 
 test('Code Guardian action extraction includes named and unnamed steps', () => {
