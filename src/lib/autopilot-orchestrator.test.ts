@@ -85,3 +85,13 @@ test('Autopilot rejects plans without a concrete adapter or with unsafe tool arg
     steps: [{ id: 'write', capability: 'github.create_issue', objective: 'Create an issue.', arguments: {} }],
   })), /without an enabled safe executor/);
 });
+
+test('Autopilot rejects duplicate step identifiers before execution', () => {
+  const plan = JSON.stringify({
+    steps: [
+      { id: 'duplicate', capability: 'github.get_repository', objective: 'Read the repository identity.' },
+      { id: 'duplicate', capability: 'github.list_pull_requests', objective: 'Read open pull requests.' },
+    ],
+  });
+  assert.throws(() => validateAutopilotPlan(plan), /invalid or duplicate id\/objective/);
+});
