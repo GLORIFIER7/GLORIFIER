@@ -385,7 +385,7 @@ test('Gemini provider workflows require owner-initiated manual dispatch and trus
     {
       source: geminiPrReviewWorkflow,
       firstSensitiveStep: 'name: Resolve the latest open pull request targeting main',
-      modelStep: 'name: Run Gemini advisory review',
+      modelStep: 'name: Run Gemini free-tier advisory review',
       authorizationCondition: "vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'",
       manualAuthorizationLine: 'FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}',
     },
