@@ -37,6 +37,33 @@ test('Autopilot branch creation is restricted to its namespace and uses main as 
   assert.ok(calls.every(call => call.method === 'GET' || call.method === 'POST'));
 });
 
+test('Autopilot refuses to reuse an existing mission branch that diverged from current main', async () => {
+  const branch = 'autopilot/mission-123';
+  const mainSha = 'a'.repeat(40);
+  const branchSha = 'b'.repeat(40);
+  let mutationAttempted = false;
+  const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method || 'GET';
+    if (method === 'GET' && url.endsWith('/git/ref/heads/autopilot/mission-123')) {
+      return Response.json({ ref: 'refs/heads/' + branch, object: { sha: branchSha } });
+    }
+    if (method === 'GET' && url.endsWith('/git/ref/heads/main')) {
+      return Response.json({ ref: 'refs/heads/main', object: { sha: mainSha } });
+    }
+    if (method === 'GET' && url.endsWith('/compare/' + mainSha + '...' + branchSha)) {
+      return Response.json({ status: 'diverged', merge_base_commit: { sha: 'c'.repeat(40) } });
+    }
+    mutationAttempted = true;
+    throw new Error('Unexpected mutation request: ' + method + ' ' + url);
+  };
+  await assert.rejects(
+    () => executeGithubWriteTool('github_create_branch', { branch, base_ref: 'main' }, token, fetchImpl),
+    /not a descendant of current main/,
+  );
+  assert.equal(mutationAttempted, false, 'a diverged branch must not be reused or mutated');
+});
+
 test('Autopilot update_file only writes bounded source content to a non-main autopilot branch', async () => {
   const calls: Array<{ url: string; method: string; body?: Record<string, unknown> }> = [];
   const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
@@ -119,7 +146,7 @@ test('Autopilot write adapter rejects secret paths, path traversal, main writes 
   assert.throws(() => normalizeAutopilotWriteBranch('main'), /autopilot branch/);
   assert.throws(() => normalizeAutopilotWriteBranch('feature/mission-123'), /autopilot branch/);
   assert.equal(isAllowedAutopilotWritePath('src/lib/service.ts'), true);
-  assert.equal(isAllowedAutopilotWritePath('.github/workflows/ci.yml'), true);
+  assert.equal(isAllowedAutopilotWritePath('.github/workflows/ci.yml'), false);
   assert.equal(isAllowedAutopilotWritePath('docs/operations.md'), true);
   assert.equal(isAllowedAutopilotWritePath('../.env'), false);
   assert.equal(isAllowedAutopilotWritePath('src/../../.env'), false);
