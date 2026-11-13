@@ -42,12 +42,12 @@ requirePattern(/const isValidSuccessfulEvidenceShape = \(input: CachedSourceEvid
   'successful cached source observations must not admit claim-supported evidence');
 requirePattern(/const isAdmissibleFailedCache = \(input: CachedSourceEvidence\): boolean => \{\s*if \(input\.evidenceStatus !== 'not-observed' && input\.evidenceStatus !== 'unavailable'\) return false;/,
   'failed cached source observations must not admit claim-supported evidence');
-requirePattern(/(?:export function isClaimSupportedEvidence\(status: EvidenceStatus\): boolean\s*\{\s*return status === 'claim-supported';\s*\}|export const isClaimSupportedEvidence\s*=\s*\(status: EvidenceStatus\): boolean\s*=>\s*status === 'claim-supported';)/,
-  'claim-supported status must be explicit');
-requirePattern(/(?:export function classifyArchitectureEvidence\(status: EvidenceStatus\): EvidenceClass\s*\{\s*return status === 'claim-supported' \? 'observed-fact' : 'analysis';\s*\}|export const classifyArchitectureEvidence\s*=\s*\(status: EvidenceStatus\): EvidenceClass\s*=>\s*status === 'claim-supported' \? 'observed-fact' : 'analysis';)/,
-  'only claim-supported evidence may be classified as observed-fact');
-requirePattern(/source\.evidenceStatus === 'claim-supported' \? 'observed-fact' : 'analysis'/,
-  'observed patterns must preserve evidence classification');
+requirePattern(/export const isClaimSupportedEvidence = \\([\\s\\S]*?status === 'claim-supported'[\\s\\S]*?isAuthenticatedClaimSupportObservation\\(source, authenticate, nowMs\\)/,
+  'claim-supported evidence must require a fresh attestation and injected trusted authenticator');
+requirePattern(/const isPatternSourceObservation = \\([\\s\\S]*?isClaimSupportedEvidence\\(source\\.evidenceStatus, source, authenticate, nowMs\\)/,
+  'pattern evidence must not admit claim-supported source observations without authenticated support');
+requirePattern(/export const classifyArchitectureEvidence = \\([\\s\\S]*?isClaimSupportedEvidence\\(status, source, authenticate, nowMs\\)/,
+  'observed-fact classification must require authenticated claim support');
 requirePattern(/irreversibleChangesExecuted:\s*false/,
   'scan result must explicitly prohibit autonomous irreversible changes');
 requirePattern(/architectureStateModel:\s*\['desired',\s*'declared',\s*'deployed',\s*'observed',\s*'verified'\]/,
