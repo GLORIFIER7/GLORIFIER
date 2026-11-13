@@ -9,6 +9,10 @@ export type CapabilityPolicy = {
 
 const POLICIES: Record<string, CapabilityPolicy> = {
   'read.repository': { id: 'read.repository', risk: 'low', requiresHumanApproval: false, reversible: true },
+  'github.get_repository': { id: 'github.get_repository', risk: 'low', requiresHumanApproval: false, reversible: true },
+  'github.list_pull_requests': { id: 'github.list_pull_requests', risk: 'low', requiresHumanApproval: false, reversible: true },
+  'github.list_workflow_runs': { id: 'github.list_workflow_runs', risk: 'low', requiresHumanApproval: false, reversible: true },
+  'github.read_file': { id: 'github.read_file', risk: 'low', requiresHumanApproval: false, reversible: true },
   'repository.search': { id: 'repository.search', risk: 'low', requiresHumanApproval: false, reversible: true },
   'issue.create': { id: 'issue.create', risk: 'medium', requiresHumanApproval: false, reversible: true },
   'issue.comment': { id: 'issue.comment', risk: 'medium', requiresHumanApproval: false, reversible: true },

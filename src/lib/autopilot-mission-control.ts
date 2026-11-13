@@ -21,6 +21,15 @@ export type AutopilotMissionStepStatus =
 
 export type AutopilotActionEffect = 'read-only' | 'reversible' | 'irreversible';
 
+export type AutopilotStepVerification = {
+  status: 'verified';
+  verifierId: string;
+  sourceUrl: string;
+  verifiedAt: string;
+  sourceSha256: string;
+  executionSha256: string;
+};
+
 export type AutopilotMissionApproval = {
   approvedBy: string;
   approvedAt: string;
@@ -35,6 +44,9 @@ export type AutopilotMissionStep = {
   status: AutopilotMissionStepStatus;
   idempotencyKey: string;
   evidenceRefs: string[];
+  toolArguments?: Record<string, unknown>;
+  attemptCount?: number;
+  verification?: AutopilotStepVerification;
   approval?: AutopilotMissionApproval;
   startedAt?: string;
   completedAt?: string;
@@ -48,6 +60,9 @@ export type AutopilotMission = {
   title: string;
   objective: string;
   status: AutopilotMissionStatus;
+  verificationState: 'not-started' | 'pending-external-evidence' | 'verified' | 'reconciliation-required';
+  recoveryAttempts?: number;
+  planningAttempts?: number;
   version: number;
   steps: AutopilotMissionStep[];
   evidenceRefs: string[];
@@ -62,7 +77,7 @@ export type AutopilotMission = {
 export type AutopilotMissionPlanStep = Pick<
   AutopilotMissionStep,
   'id' | 'capability' | 'objective' | 'effect'
->;
+> & { toolArguments?: Record<string, unknown> };
 
 export interface AutopilotMissionStore {
   initialize(): Promise<void>;
@@ -71,6 +86,7 @@ export interface AutopilotMissionStore {
   list(requester: string | undefined, limit: number, allowAll?: boolean): Promise<AutopilotMission[]>;
   save(mission: AutopilotMission, expectedVersion: number): Promise<AutopilotMission | null>;
   claimNext(workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
+  renewLease(id: string, workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
   recoverExpired(now: string): Promise<number>;
 }
 
@@ -186,13 +202,13 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
          LIMIT 1
        )
        UPDATE glorifier_autopilot_missions AS mission
-       SET status = 'planning',
+       SET status = CASE WHEN jsonb_typeof(payload->'steps') = 'array' THEN CASE WHEN jsonb_array_length(payload->'steps') > 0 THEN 'executing' ELSE 'planning' END ELSE 'planning' END,
            version = mission.version + 1,
            lease_owner = $1,
            lease_expires_at = $3::timestamptz + ($2::bigint * INTERVAL '1 millisecond'),
            updated_at = $3::timestamptz,
            payload = mission.payload || jsonb_build_object(
-             'status', 'planning',
+             'status', CASE WHEN jsonb_typeof(mission.payload->'steps') = 'array' AND jsonb_array_length(mission.payload->'steps') > 0 THEN 'executing' ELSE 'planning' END,
              'version', mission.version + 1,
              'leaseOwner', $1,
              'leaseExpiresAt', ($3::timestamptz + ($2::bigint * INTERVAL '1 millisecond')),
@@ -201,6 +217,26 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
        WHERE mission.id = (SELECT id FROM candidate)
        RETURNING mission.payload`,
       [workerId, leaseMs, now],
+    );
+    return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
+  }
+
+  async renewLease(id: string, workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null> {
+    const result = await getPostgresPool().query(
+      `UPDATE glorifier_autopilot_missions
+       SET version = version + 1,
+           lease_expires_at = $4::timestamptz + ($3::bigint * INTERVAL '1 millisecond'),
+           updated_at = $4::timestamptz,
+           payload = payload || jsonb_build_object(
+             'version', version + 1,
+             'leaseExpiresAt', $4::timestamptz + ($3::bigint * INTERVAL '1 millisecond'),
+             'updatedAt', $4::timestamptz
+           )
+       WHERE id = $1 AND lease_owner = $2
+         AND status IN ('planning', 'executing')
+         AND lease_expires_at > $4::timestamptz
+       RETURNING payload`,
+      [id, workerId, leaseMs, now],
     );
     return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
   }
@@ -252,7 +288,14 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
 function parseMission(value: unknown): AutopilotMission {
   const parsed = typeof value === 'string' ? JSON.parse(value) : value;
   if (!parsed || typeof parsed !== 'object') throw new Error('Stored Autopilot mission payload is invalid.');
-  return parsed as AutopilotMission;
+  const mission = parsed as AutopilotMission;
+  if (!mission.verificationState) {
+    mission.verificationState = mission.status === 'completed' ? 'pending-external-evidence' : 'not-started';
+  }
+  if (!Number.isSafeInteger(mission.recoveryAttempts)) mission.recoveryAttempts = 0;
+  if (!Number.isSafeInteger(mission.planningAttempts)) mission.planningAttempts = 0;
+  mission.steps = Array.isArray(mission.steps) ? mission.steps.map(step => ({ ...step, attemptCount: Number.isSafeInteger(step.attemptCount) ? step.attemptCount : 0 })) : [];
+  return mission;
 }
 
 const MAX_OBJECTIVE_LENGTH = 20_000;
@@ -271,7 +314,16 @@ export class AutopilotMissionValidationError extends Error {
 
 function timestamp(value?: string): string {
   const candidate = value ?? new Date().toISOString();
-  if (!Number.isFinite(Date.parse(candidate))) throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  const dateParts = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(candidate);
+  if (!dateParts) throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  const year = Number(dateParts[1]);
+  const month = Number(dateParts[2]);
+  const day = Number(dateParts[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (!daysInMonth || day < 1 || day > daysInMonth || !Number.isFinite(Date.parse(candidate))) {
+    throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  }
   return new Date(candidate).toISOString();
 }
 
@@ -319,6 +371,7 @@ export async function createAutopilotMission(
     title,
     objective,
     status: 'queued',
+    verificationState: 'not-started',
     version: 1,
     steps: [],
     evidenceRefs: [],
@@ -353,6 +406,69 @@ export async function listAutopilotMissions(
   return store.list(requester?.trim(), limit, allowAll);
 }
 
+export async function renewAutopilotMissionLease(
+  store: AutopilotMissionStore,
+  missionId: string,
+  workerId: string,
+  leaseMs = 5 * 60_000,
+  now = new Date().toISOString(),
+): Promise<AutopilotMission | null> {
+  const id = requireNonEmpty(missionId, 'mission id', 256);
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  validateLease(leaseMs);
+  return store.renewLease(id, worker, leaseMs, timestamp(now));
+}
+
+export async function recordAutopilotMissionFailure(
+  store: AutopilotMissionStore,
+  missionId: string,
+  workerId: string,
+  error: unknown,
+  now = new Date().toISOString(),
+): Promise<AutopilotMission | null> {
+  const id = requireNonEmpty(missionId, 'mission id', 256);
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  const currentTime = timestamp(now);
+  const mission = await store.get(id);
+  if (!mission || mission.leaseOwner !== worker || !mission.leaseExpiresAt ||
+      Date.parse(mission.leaseExpiresAt) <= Date.parse(currentTime) ||
+      !['planning', 'executing'].includes(mission.status)) return null;
+
+  const rawMessage = error instanceof Error ? error.message : String(error || 'unknown execution failure');
+  const safeMessage = rawMessage
+    .replace(/Bearer\\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/(api[_-]?key|token|secret|password)\\s*[:=]\\s*[^\\s,;]+/gi, '$1=[REDACTED]')
+    .slice(0, 2_000);
+
+  if (mission.status === 'planning' && mission.steps.length === 0) {
+    const planningAttempts = (mission.planningAttempts ?? 0) + 1;
+    const retryAllowed = planningAttempts < 2;
+    const nextRunAt = retryAllowed
+      ? new Date(Date.parse(currentTime) + 60_000).toISOString()
+      : undefined;
+    return saveMission(store, mission, {
+      status: retryAllowed ? 'queued' : 'blocked',
+      planningAttempts,
+      ...(nextRunAt ? { nextRunAt } : { nextRunAt: undefined }),
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined,
+      lastError: `Planning attempt ${planningAttempts} failed: ${safeMessage}`,
+    }, currentTime);
+  }
+
+  const steps = mission.steps.map(step => step.status === 'running'
+    ? { ...step, status: 'reconciliation-required' as const, error: safeMessage }
+    : step);
+  return saveMission(store, mission, {
+    status: 'reconciliation-required',
+    verificationState: 'reconciliation-required',
+    steps,
+    leaseOwner: undefined,
+    leaseExpiresAt: undefined,
+    lastError: safeMessage,
+  }, currentTime);
+}
+
 export async function claimNextAutopilotMission(
   store: AutopilotMissionStore,
   workerId: string,
@@ -385,12 +501,20 @@ export async function recordAutopilotMissionPlan(
     if (ids.has(id)) throw new Error('step identifiers must be unique.');
     ids.add(id);
     if (!['read-only', 'reversible', 'irreversible'].includes(step.effect)) throw new Error('step effect must be read-only, reversible, or irreversible.');
+    if (step.toolArguments !== undefined) {
+      if (!step.toolArguments || typeof step.toolArguments !== 'object' || Array.isArray(step.toolArguments) ||
+          JSON.stringify(step.toolArguments).length > 8_192) {
+        throw new Error('step tool arguments must be a bounded JSON object.');
+      }
+    }
     return {
       id,
       capability,
       objective,
       effect: step.effect,
       status: 'pending',
+      ...(step.toolArguments ? { toolArguments: structuredClone(step.toolArguments) } : {}),
+      attemptCount: 0,
       idempotencyKey: `mission:${missionId}:step:${id}`,
       evidenceRefs: [],
     };
@@ -438,12 +562,26 @@ export async function claimAutopilotMissionStep(
     ? {
         ...entry,
         status: 'running' as const,
+        attemptCount: (entry.attemptCount ?? 0) + 1,
         startedAt: currentTime,
         ...(approval ? { approval: { ...approval, approvedBy: approval.approvedBy.trim(), approvedAt: timestamp(approval.approvedAt) } } : {}),
       }
     : entry);
   const saved = await saveMission(store, mission, { steps: updatedSteps }, currentTime);
   return { claimed: true, mission: saved };
+}
+
+
+function isTrustedGithubEvidenceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      url.origin === 'https://api.github.com' &&
+      (url.pathname === '/repos/GLORIFIER7/GLORIFIER' ||
+        url.pathname.startsWith('/repos/GLORIFIER7/GLORIFIER/'));
+  } catch {
+    return false;
+  }
 }
 
 export async function completeAutopilotMissionStep(
@@ -454,11 +592,19 @@ export async function completeAutopilotMissionStep(
   workerId: string,
   evidenceRefs: string[],
   now = new Date().toISOString(),
+  verification?: AutopilotStepVerification,
 ): Promise<AutopilotMission> {
   const worker = requireNonEmpty(workerId, 'workerId', 256);
   const currentTime = timestamp(now);
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
+  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-independent-read-v1' ||
+      !isTrustedGithubEvidenceUrl(verification.sourceUrl) || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
+      Date.parse(verification.verifiedAt) > Date.parse(currentTime) ||
+      !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||
+      verification.sourceSha256 !== verification.executionSha256)) {
+    throw new Error('mission step verification evidence is invalid.');
+  }
   const mission = await store.get(requireNonEmpty(missionId, 'mission id', 256));
   if (!mission) throw new Error('Autopilot mission not found.');
   if (mission.version !== expectedVersion) throw new Error(`Autopilot mission ${missionId} changed concurrently; reload before retrying.`);
@@ -471,19 +617,69 @@ export async function completeAutopilotMissionStep(
   if (step.status !== 'running') throw new Error('only a running mission step can be completed.');
   if (step.effect === 'irreversible' && !step.approval) throw new Error('irreversible mission step is missing recorded human approval.');
   const updatedSteps = mission.steps.map((entry, position) => position === index
-    ? { ...entry, status: 'completed' as const, completedAt: currentTime, evidenceRefs: [...new Set(refs)] }
+    ? { ...entry, status: 'completed' as const, completedAt: currentTime, evidenceRefs: [...new Set(refs)], ...(verification ? { verification } : {}) }
     : entry);
   const allCompleted = updatedSteps.every((entry) => entry.status === 'completed');
   return saveMission(store, mission, {
     steps: updatedSteps,
     evidenceRefs: [...new Set([...mission.evidenceRefs, ...refs])],
     status: allCompleted ? 'completed' : 'executing',
+    verificationState: allCompleted
+      ? (updatedSteps.every(entry => entry.verification?.status === 'verified') ? 'verified' : 'pending-external-evidence')
+      : mission.verificationState,
     ...(allCompleted ? { leaseOwner: undefined, leaseExpiresAt: undefined } : {}),
   }, currentTime);
 }
 
 export async function recoverAutopilotMissions(store: AutopilotMissionStore, now = new Date().toISOString()): Promise<number> {
   return store.recoverExpired(timestamp(now));
+}
+
+/**
+ * Reconcile leases first. Only a known, idempotent, read-only GitHub adapter
+ * step can be retried, and only once. Unknown/legacy/write steps stay quarantined.
+ */
+export async function recoverAutopilotMissionsWithSafeRetry(
+  store: AutopilotMissionStore,
+  now = new Date().toISOString(),
+): Promise<{ quarantined: number; requeued: number }> {
+  const currentTime = timestamp(now);
+  const quarantined = await store.recoverExpired(currentTime);
+  const { isSupportedGithubCapability } = await import('./autopilot-execution-fabric');
+  const missions = await store.list(undefined, 100, true);
+  let requeued = 0;
+
+  for (const mission of missions) {
+    if (mission.status !== 'reconciliation-required' || mission.steps.length === 0) continue;
+    const uncertain = mission.steps.filter(step => step.status === 'reconciliation-required' || step.status === 'pending');
+    if (uncertain.length === 0) continue;
+    const safeToRetry = mission.steps.every(step => {
+      if (step.effect !== 'read-only' || !isSupportedGithubCapability(step.capability)) return false;
+      if (step.status === 'completed') return step.verification?.status === 'verified';
+      return (step.status === 'pending' || step.status === 'reconciliation-required') &&
+        (step.attemptCount ?? 0) < 2;
+    });
+    if (!safeToRetry) continue;
+
+    const steps = mission.steps.map(step => step.status === 'reconciliation-required'
+      ? { ...step, status: 'pending' as const, error: undefined }
+      : step);
+    const next: AutopilotMission = {
+      ...mission,
+      status: 'queued',
+      verificationState: 'pending-external-evidence',
+      steps,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined,
+      nextRunAt: currentTime,
+      updatedAt: currentTime,
+      recoveryAttempts: (mission.recoveryAttempts ?? 0) + 1,
+      lastError: 'Recovered after an expired lease; only idempotent read-only GitHub steps were requeued (bounded retry).',
+    };
+    const saved = await store.save(next, mission.version);
+    if (saved) requeued += 1;
+  }
+  return { quarantined, requeued };
 }
 
 export async function initializeAutopilotMissionControl(storeOverride?: AutopilotMissionStore): Promise<boolean> {
@@ -495,11 +691,11 @@ export async function initializeAutopilotMissionControl(storeOverride?: Autopilo
   }
   const store = storeOverride ?? new PostgresAutopilotMissionStore();
   await store.initialize();
-  const recovered = await store.recoverExpired(new Date().toISOString());
+  const recovered = await recoverAutopilotMissionsWithSafeRetry(store);
   autopilotStore = store;
   autopilotPersistenceMode = storeOverride ? 'injected' : 'postgres';
-  if (recovered > 0) {
-    console.warn(`[Autopilot] moved ${recovered} expired mission(s) to reconciliation-required; automatic replay is disabled.`);
+  if (recovered.quarantined > 0 || recovered.requeued > 0) {
+    console.warn(`[Autopilot] lease recovery: quarantined=${recovered.quarantined}, bounded-read-only-requeued=${recovered.requeued}; all other work remains quarantined.`);
   }
   return true;
 }
@@ -518,10 +714,16 @@ export function getAutopilotMissionControlStatus() {
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
-    autonomousPlanningEnabled: false,
-    autonomousStepExecutionEnabled: false,
+    autonomousPlanningEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    autonomousStepExecutionEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    readOnlyToolExecutionEnabled: autopilotStore !== null,
+    writeToolExecutionEnabled: false,
+    independentOutcomeVerificationEnabled: autopilotStore !== null,
+    boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
-    providerInferenceEnabled: false,
+    providerInferenceEnabled: process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
+      && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+      && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
@@ -533,17 +735,23 @@ export function getAutopilotMissionControlStatus() {
       'leased-mission-claims',
       'evidence-required-completion',
       'crash-reconciliation-without-replay',
+      'provider-backed-read-only-mission-planning',
+      'specialist-council-review',
+      'geas-and-capability-gated-a2a-analysis-dispatch',
+      'bounded-github-read-tool-execution',
+      'independent-github-source-verification',
+      'bounded-idempotent-read-only-recovery',
     ],
     remainingCapabilities: [
       'event-driven-triggers',
-      'provider-backed-autonomous-planning',
-      'approved-step-execution-adapters',
-      'independent-outcome-verification',
+      'write-capable-external-action-adapters',
+      'independent-verification-from-a-separate-trust-domain',
     ],
   };
 }
 
 export async function recoverAutopilotMissionsIfAvailable(now = new Date().toISOString()): Promise<number> {
   if (!autopilotStore) return 0;
-  return recoverAutopilotMissions(autopilotStore, now);
+  const result = await recoverAutopilotMissionsWithSafeRetry(autopilotStore, now);
+  return result.quarantined;
 }

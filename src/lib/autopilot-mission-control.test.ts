@@ -8,6 +8,9 @@ import {
   claimAutopilotMissionStep,
   completeAutopilotMissionStep,
   recoverAutopilotMissions,
+  recoverAutopilotMissionsWithSafeRetry,
+  renewAutopilotMissionLease,
+  recordAutopilotMissionFailure,
   getAutopilotMission,
   listAutopilotMissions,
   type AutopilotMission,
@@ -51,7 +54,7 @@ class MemoryMissionStore implements AutopilotMissionStore {
     if (!next) return null;
     const claimed = {
       ...next,
-      status: 'planning' as const,
+      status: next.steps.length > 0 ? 'executing' as const : 'planning' as const,
       leaseOwner: workerId,
       leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
       updatedAt: now,
@@ -59,6 +62,13 @@ class MemoryMissionStore implements AutopilotMissionStore {
     };
     this.records.set(claimed.id, claimed);
     return structuredClone(claimed);
+  }
+  async renewLease(id: string, workerId: string, leaseMs: number, now: string) {
+    const current = this.records.get(id);
+    if (!current || current.leaseOwner !== workerId || !current.leaseExpiresAt || Date.parse(current.leaseExpiresAt) <= Date.parse(now) || !['planning', 'executing'].includes(current.status)) return null;
+    const next = { ...current, leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(), updatedAt: now, version: current.version + 1 };
+    this.records.set(id, next);
+    return structuredClone(next);
   }
   async recoverExpired(now: string) {
     let recovered = 0;
@@ -287,6 +297,145 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
   );
 });
 
+
+test('Autopilot stores independent verification before marking a read-only mission verified', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'independent-verification-001',
+    objective: 'Verify the public repository identity.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
+    { id: 'repo', capability: 'github.get_repository', objective: 'Read repository identity.', effect: 'read-only', toolArguments: {} },
+  ], '2026-11-13T08:02:00.000Z');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'repo', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  assert.equal(started.mission.steps[0].attemptCount, 1);
+  const proof = {
+    status: 'verified' as const,
+    verifierId: 'github-rest-independent-read-v1',
+    sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
+    verifiedAt: '2026-11-13T08:04:00.000Z',
+    sourceSha256: 'a'.repeat(64),
+    executionSha256: 'a'.repeat(64),
+  };
+  const completed = await completeAutopilotMissionStep(
+    store,
+    started.mission.id,
+    'repo',
+    started.mission.version,
+    'worker-1',
+    ['github-adapter://github_get_repository/' + proof.executionSha256],
+    '2026-11-13T08:04:00.000Z',
+    proof,
+  );
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.verificationState, 'verified');
+  assert.equal(completed.steps[0].verification?.verifierId, proof.verifierId);
+});
+
+test('Autopilot retries only known read-only steps once after lease reconciliation', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'safe-recovery-001',
+    objective: 'Read the current public repository metadata.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
+    { id: 'repo', capability: 'github.get_repository', objective: 'Read repo metadata.', effect: 'read-only', toolArguments: {} },
+  ], '2026-11-13T08:02:00.000Z');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'repo', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  assert.equal(started.mission.steps[0].attemptCount, 1);
+
+  const recovered = await recoverAutopilotMissionsWithSafeRetry(store, '2026-11-13T08:10:00.000Z');
+  assert.deepEqual(recovered, { quarantined: 1, requeued: 1 });
+  const queued = await getAutopilotMission(store, planned.id, 'owner');
+  assert.equal(queued?.status, 'queued');
+  assert.equal(queued?.steps[0].status, 'pending');
+  assert.equal(queued?.steps[0].attemptCount, 1);
+
+  const resumed = await claimNextAutopilotMission(store, 'worker-2', 300_000, '2026-11-13T08:11:00.000Z');
+  assert.equal(resumed?.status, 'executing');
+  const secondAttempt = await claimAutopilotMissionStep(store, resumed!.id, 'repo', 'worker-2', undefined, '2026-11-13T08:12:00.000Z');
+  assert.equal(secondAttempt.mission.steps[0].attemptCount, 2);
+
+  const exhausted = await recoverAutopilotMissionsWithSafeRetry(store, '2026-11-13T08:20:00.000Z');
+  assert.deepEqual(exhausted, { quarantined: 1, requeued: 0 });
+  const quarantined = await getAutopilotMission(store, planned.id, 'owner');
+  assert.equal(quarantined?.status, 'reconciliation-required');
+  assert.equal(quarantined?.steps[0].status, 'reconciliation-required');
+});
+
+
+test('Autopilot renews only an active lease owned by the worker', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'renew-001',
+    objective: 'Keep a long-running planning operation leased.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-13T08:01:00.000Z');
+  const renewed = await renewAutopilotMissionLease(store, created.id, 'worker-1', 120_000, '2026-11-13T08:02:00.000Z');
+  assert.equal(renewed?.version, claimed!.version + 1);
+  assert.equal(renewed?.leaseExpiresAt, '2026-11-13T08:04:00.000Z');
+  assert.equal(await renewAutopilotMissionLease(store, created.id, 'intruder', 120_000, '2026-11-13T08:02:30.000Z'), null);
+  assert.equal(await renewAutopilotMissionLease(store, created.id, 'worker-1', 120_000, '2026-11-13T08:05:00.000Z'), null);
+});
+
+test('Autopilot records planning failures with one bounded retry and quarantines execution failures', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'planning-failure-001',
+    objective: 'Plan a bounded public repository inspection.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const firstClaim = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-13T08:01:00.000Z');
+  const firstFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-1', new Error('provider transient failure'), '2026-11-13T08:01:30.000Z');
+  assert.equal(firstFailure?.status, 'queued');
+  assert.equal(firstFailure?.planningAttempts, 1);
+  assert.equal(firstFailure?.leaseOwner, undefined);
+  const secondClaim = await claimNextAutopilotMission(store, 'worker-2', 120_000, firstFailure!.nextRunAt!);
+  assert.equal(secondClaim?.status, 'planning');
+  const secondFailure = await recordAutopilotMissionFailure(store, created.id, 'worker-2', new Error('provider still unavailable'), '2026-11-13T08:04:00.000Z');
+  assert.equal(secondFailure?.status, 'blocked');
+  assert.equal(secondFailure?.planningAttempts, 2);
+  assert.equal(secondFailure?.leaseOwner, undefined);
+  assert.equal(secondFailure?.leaseExpiresAt, undefined);
+  assert.equal(secondFailure?.nextRunAt, undefined);
+
+  const executionMission = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'execution-failure-001',
+    objective: 'Quarantine an interrupted read-only execution.',
+    now: '2026-11-13T08:05:00.000Z',
+  });
+  const executionClaim = await claimNextAutopilotMission(store, 'worker-3', 120_000, '2026-11-13T08:05:30.000Z');
+  assert.equal(executionClaim?.status, 'planning');
+  const executionPlan = await recordAutopilotMissionPlan(store, executionMission.id, executionClaim!.version, 'worker-3', [
+    { id: 'inspect', capability: 'engineering', objective: 'Inspect a public repository.', effect: 'read-only' },
+  ], '2026-11-13T08:05:45.000Z');
+  const runningStep = await claimAutopilotMissionStep(store, executionPlan.id, 'inspect', 'worker-3', undefined, '2026-11-13T08:06:00.000Z');
+  assert.equal(runningStep.claimed, true);
+  const executionFailure = await recordAutopilotMissionFailure(
+    store,
+    executionMission.id,
+    'worker-3',
+    new Error('read-only tool execution failed'),
+    '2026-11-13T08:06:30.000Z',
+  );
+  assert.equal(executionFailure?.status, 'reconciliation-required');
+  assert.equal(executionFailure?.verificationState, 'reconciliation-required');
+  assert.equal(executionFailure?.steps[0].status, 'reconciliation-required');
+  assert.equal(executionFailure?.leaseOwner, undefined);
+  assert.equal(executionFailure?.leaseExpiresAt, undefined);
+  assert.match(executionFailure?.lastError || '', /read-only tool execution failed/);
+});
+
 test('Autopilot mission creation distinguishes invalid input from persistence failures', async () => {
   const invalidStore = new MemoryMissionStore();
   await assert.rejects(
@@ -313,4 +462,28 @@ test('Autopilot mission creation distinguishes invalid input from persistence fa
     }),
     (error: unknown) => error instanceof Error && !(error instanceof AutopilotMissionValidationError),
   );
+});
+
+
+test('Autopilot rejects impossible calendar dates but accepts valid leap days', async () => {
+  const store = new MemoryMissionStore();
+  await assert.rejects(() => createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'invalid-february-30',
+    objective: 'Reject impossible calendar dates.',
+    now: '2026-02-30T12:00:00.000Z',
+  }), /timestamp must be a valid ISO-8601 date/);
+  await assert.rejects(() => createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'invalid-non-leap-february-29',
+    objective: 'Reject a leap day in a non-leap year.',
+    now: '2026-02-29T12:00:00.000Z',
+  }), /timestamp must be a valid ISO-8601 date/);
+  const leapDay = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'valid-leap-day',
+    objective: 'Accept a valid leap-day timestamp with an explicit offset.',
+    now: '2024-02-29T12:00:00.000+07:00',
+  });
+  assert.equal(leapDay.createdAt, '2024-02-29T05:00:00.000Z');
 });

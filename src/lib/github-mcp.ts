@@ -421,6 +421,35 @@ const callTool = (name: string, args: unknown, readToken?: string): Promise<unkn
   }
 };
 
+
+export type GithubReadToolName =
+  | 'github_get_repository'
+  | 'github_list_open_pull_requests'
+  | 'github_list_workflow_runs'
+  | 'github_read_file';
+
+const AUTOPILOT_READ_TOOL_NAMES = new Set<GithubReadToolName>([
+  'github_get_repository',
+  'github_list_open_pull_requests',
+  'github_list_workflow_runs',
+  'github_read_file',
+]);
+
+/**
+ * Internal server-side entry point for the existing fixed, public-repository
+ * GitHub read adapter. It intentionally exposes no write-capable operation.
+ */
+export async function executeGithubReadTool(
+  name: string,
+  args: unknown,
+  readToken?: string,
+): Promise<unknown> {
+  if (!AUTOPILOT_READ_TOOL_NAMES.has(name as GithubReadToolName)) {
+    throw new Error('Unknown or unsupported GitHub tool. This adapter exposes read-only operations only.');
+  }
+  return callTool(name, args, readToken);
+}
+
 const resultText = (value: unknown): string => typeof value === 'string' ? value : String(JSON.stringify(value));
 
 const emptyNotificationResponse = (): Response =>
