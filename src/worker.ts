@@ -781,50 +781,21 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
       headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
     });
   }
+  let taskBody: ArrayBuffer | undefined;
   if (pathname === '/api/neural/v1/tasks') {
     if (!explicitlyEnabled(env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS)) {
-      return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_EGRESS_DISABLED' }, {
+      return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_DATA_EGRESS_DISABLED' }, {
         status: 503,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
     }
-    if (!explicitlyEnabled(env.GLORIFIER_ENABLE_INFERENCE)) {
-      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_INFERENCE_DISABLED' }, {
-        status: 403,
+    if (!isJsonContentType(request.headers.get('content-type') || '')) {
+      return Response.json({ ok: false, code: 'UNSUPPORTED_MEDIA_TYPE' }, {
+        status: 415,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
     }
-    if (!explicitlyEnabled(env.GLORIFIER_PAID_INFERENCE_AUTHORIZED)) {
-      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED' }, {
-        status: 403,
-        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-      });
-    }
-  }
-  if (pathname === '/api/neural/v1/tasks' && !isJsonContentType(request.headers.get('content-type') || '')) {
-    return Response.json({ ok: false, code: 'UNSUPPORTED_MEDIA_TYPE' }, {
-      status: 415,
-      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-    });
-  }
 
-  const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
-  if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
-  if (!configured(env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
-    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' }, {
-      status: 503,
-      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-    });
-  }
-  if (!originHostAllowlisted(origin, env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
-    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' }, {
-      status: 503,
-      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
-    });
-  }
-
-  let taskBody: ArrayBuffer | undefined;
-  if (pathname === '/api/neural/v1/tasks') {
     try {
       taskBody = await readBoundedNeuralRequestBody(request);
     } catch (error) {
@@ -840,14 +811,53 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
       });
     }
 
+    let taskPayload: unknown;
     try {
-      JSON.parse(new TextDecoder().decode(taskBody));
+      taskPayload = JSON.parse(new TextDecoder().decode(taskBody));
     } catch {
       return Response.json({ ok: false, code: 'INVALID_JSON_BODY' }, {
         status: 400,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
     }
+
+    // A trusted internal caller may submit only an approval-gated, read-only
+    // diagnostic while inference and paid inference are disabled. NEURAL's own
+    // orchestration policy must return policy:approval-required; this allowance
+    // never authorizes execution and is not available to public SDK bearers.
+    const taskRecord = taskPayload && typeof taskPayload === 'object' && !Array.isArray(taskPayload)
+      ? taskPayload as Record<string, unknown>
+      : undefined;
+    const approvalOnlyInternalTask = internalServiceAuthenticated &&
+      taskRecord?.require_approval === true &&
+      taskRecord.action_class === 'read_only';
+
+    if (!approvalOnlyInternalTask && !explicitlyEnabled(env.GLORIFIER_ENABLE_INFERENCE)) {
+      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_INFERENCE_DISABLED' }, {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+    if (!approvalOnlyInternalTask && !explicitlyEnabled(env.GLORIFIER_PAID_INFERENCE_AUTHORIZED)) {
+      return Response.json({ ok: false, status: 'forbidden', code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED' }, {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+  }
+  const origin = neuralOrigin(env.GLORIFIER_NEURAL_ORIGIN);
+  if (!origin) return Response.json({ ok: false, status: 'unavailable', code: configured(env.GLORIFIER_NEURAL_ORIGIN) ? 'NEURAL_ORIGIN_INVALID' : 'NEURAL_ORIGIN_NOT_CONFIGURED' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+  if (!configured(env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EGRESS_ALLOWLIST_NOT_CONFIGURED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  if (!originHostAllowlisted(origin, env.GLORIFIER_NEURAL_ALLOWED_HOSTS)) {
+    return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_ORIGIN_NOT_ALLOWLISTED' }, {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
   }
 
   const headers = new Headers();
