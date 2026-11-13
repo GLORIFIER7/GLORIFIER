@@ -13,6 +13,7 @@ const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gem
 const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
 const nvidiaMaintenanceWorkflow = readFileSync(new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url), 'utf8');
+const codeGuardianWorkflow = readFileSync(new URL('../.github/workflows/glorifier-code-guardian.yml', import.meta.url), 'utf8');
 const claudeRunner = readFileSync(new URL('../scripts/run-claude-workflow.mjs', import.meta.url), 'utf8');
 const dispatchMarker = '\n  dispatch-ci:\n';
 const publicationWindowMarker = '\n  publication-window:\n';
@@ -591,4 +592,16 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
   assert.match(ciWorkflow, /run: npm run test:polyglot-sdk-inventory/);
   assert.match(ciWorkflow, /run: npm run validate:interoperability-registry/);
   assert.match(ciWorkflow, /run: npm run validate:polyglot-sdk-inventory/);
+});
+
+
+test('Code Guardian manual paid-inference execution is restricted to main', () => {
+  assert.match(
+    codeGuardianWorkflow,
+    /^  guardian:\n    if: \$\{\{ github\.ref == 'refs\\/heads\\/main' \}\}$/m,
+    'Code Guardian must not run branch-controlled workflow code with provider credentials',
+  );
+  assert.match(codeGuardianWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ inputs\.allow_paid_inference \}\}/);
+  assert.match(codeGuardianWorkflow, /OPENAI_API_KEY: \$\{\{ steps\.authorization\.outputs\.enabled == 'true'/);
+  assert.match(codeGuardianWorkflow, /GEMINI_API_KEY: \$\{\{ steps\.authorization\.outputs\.enabled == 'true'/);
 });
