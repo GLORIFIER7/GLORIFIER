@@ -463,3 +463,27 @@ test('Autopilot mission creation distinguishes invalid input from persistence fa
     (error: unknown) => error instanceof Error && !(error instanceof AutopilotMissionValidationError),
   );
 });
+
+
+test('Autopilot rejects impossible calendar dates but accepts valid leap days', async () => {
+  const store = new MemoryMissionStore();
+  await assert.rejects(() => createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'invalid-february-30',
+    objective: 'Reject impossible calendar dates.',
+    now: '2026-02-30T12:00:00.000Z',
+  }), /timestamp must be a valid ISO-8601 date/);
+  await assert.rejects(() => createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'invalid-non-leap-february-29',
+    objective: 'Reject a leap day in a non-leap year.',
+    now: '2026-02-29T12:00:00.000Z',
+  }), /timestamp must be a valid ISO-8601 date/);
+  const leapDay = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'valid-leap-day',
+    objective: 'Accept a valid leap-day timestamp with an explicit offset.',
+    now: '2024-02-29T12:00:00.000+07:00',
+  });
+  assert.equal(leapDay.createdAt, '2024-02-29T05:00:00.000Z');
+});
