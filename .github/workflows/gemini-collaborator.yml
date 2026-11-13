@@ -44,12 +44,12 @@ jobs:
           MANUAL_FREE_TIER_CONSENT: ${{ inputs.run_free_tier_gemini }}
           OWNER_ACTOR_ID: ${{ github.actor_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_REF: ${{ github.ref }}
+          TARGET_REF: ${{ github.ref }}
         shell: bash
         run: |
           set -euo pipefail
           source scripts/ai-fleet-authorization.sh
-          glorifier_gemini_free_tier_authorized "$EVENT_NAME" "$FREE_TIER_CONFIRMED" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT" "$GITHUB_REF" "$MANUAL_FREE_TIER_CONSENT"
+          glorifier_gemini_free_tier_authorized "$EVENT_NAME" "$FREE_TIER_CONFIRMED" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT" "$TARGET_REF" "$MANUAL_FREE_TIER_CONSENT"
 
       - name: Configure root-owned Gemini system-level tool policy
         shell: bash
@@ -209,6 +209,8 @@ jobs:
           npm run build
       - name: Run Gemini and collaboration regression suites
         run: |
+          bash scripts/ai-fleet-authorization.test.sh
+          node --test scripts/ai-fleet-workflow-contract.test.mjs
           npm run test:gemini-model-policy
           npm run test:ai-council-routing
           npm run test:model-council-client
