@@ -177,6 +177,6 @@ test('Autopilot rejects unsafe, unconfigured, out-of-order or stale-source repos
 
 test('Autopilot A2A context separator is a real newline, not a literal backslash sequence', () => {
   const result = formatAutopilotA2AContext('analysis', { task: 1 });
-  assert.equal(result, 'analysis\\nExecution context: {"task":1}');
+  assert.equal(result, 'analysis\nExecution context: {"task":1}');
   assert.equal(result.includes('\\\\n'), false);
 });
