@@ -58,7 +58,7 @@ export function normalizeGithubToolInvocation(
   argumentsValue: unknown,
 ): { toolName: GithubReadToolName; arguments: JsonRecord } {
   const normalized = typeof capability === 'string' ? capability.trim().toLowerCase() : '';
-  const toolName = GITHUB_CAPABILITY_TO_TOOL[normalized];
+  const toolName = Object.hasOwn(GITHUB_CAPABILITY_TO_TOOL, normalized) ? GITHUB_CAPABILITY_TO_TOOL[normalized] : undefined;
   if (!toolName) throw new Error(`Capability '${String(capability)}' has no enabled read-only adapter.`);
   const input = argumentsValue === undefined ? {} : argumentsValue;
   if (!isRecord(input)) throw new Error('Tool arguments must be an object.');
@@ -105,8 +105,21 @@ export async function executeAutopilotToolStep(
   const executionResult = await adapter(invocation.toolName, invocation.arguments);
   const verification = await verifier(invocation.toolName, invocation.arguments, executionResult);
   const executionSha256 = verification.executionSha256;
-  if (!verification.verified) {
-    throw new Error(`Autopilot independent evidence verification failed for ${invocation.toolName}: ${verification.reason || 'source mismatch'}.`);
+  const sourceUrlIsTrusted = (() => {
+    try {
+      const url = new URL(verification.sourceUrl);
+      return url.protocol === 'https:' && url.origin === 'https://api.github.com' &&
+        (url.pathname === '/repos/GLORIFIER7/GLORIFIER' || url.pathname.startsWith('/repos/GLORIFIER7/GLORIFIER/'));
+    } catch {
+      return false;
+    }
+  })();
+  if (!verification.verified || !sourceUrlIsTrusted ||
+      !/^[a-f0-9]{64}$/.test(verification.sourceSha256) ||
+      !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||
+      verification.sourceSha256 !== verification.executionSha256 ||
+      !Number.isFinite(Date.parse(verification.verifiedAt)) || !verification.verifierId.trim()) {
+    throw new Error(`Autopilot independent evidence verification failed for ${invocation.toolName}: ${verification.reason || 'invalid or mismatched source proof'}.`);
   }
   return {
     toolName: invocation.toolName,
