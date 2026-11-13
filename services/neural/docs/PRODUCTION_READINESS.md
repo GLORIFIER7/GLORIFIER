@@ -2,6 +2,8 @@
 
 This runbook describes the controls required before declaring the Cloudflare Worker production-ready.
 
+> **Evidence freshness — 2026-11-12:** Current production provider selection, Worker deployment/version/traffic, external-egress setting, inference flag, database connectivity, secret-binding presence, and live readiness are **NOT VERIFIED**. The 2026-11-05 Cloudflare inventory and 2026-11-11 smoke evidence are historical observations, not current production read-backs. The last recorded smoke reported provider-disabled safe mode (`/health` HTTP 200; `/ready` HTTP 503; provider `NOT VERIFIED`; database, authentication, and rate limiting `VERIFIED`; `inference_performed=false`). Configuration examples below describe intended controls and do not assert that those values are currently deployed.
+
 ## Deployment target
 
 - Worker: `glorifier-neural`
@@ -9,7 +11,7 @@ This runbook describes the controls required before declaring the Cloudflare Wor
 - Runtime: Cloudflare Python Workers / FastAPI
 - Database read probe: existing `NEON_READONLY` Hyperdrive binding
 - Task-run writes: a separately provisioned `NEON_WRITE` binding or a writer `NEON_DATABASE_URL` secret
-- Currently selected production provider: OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. NVIDIA NIM remains an optional alternative provider, not the current production selection.
+- Historical provider observation (2026-11-05): OpenAI Responses API. The adapter defaults to model `gpt-6-luna` unless `OPENAI_MODEL` overrides it. The current deployed provider selection is **NOT VERIFIED**; NVIDIA NIM remains an optional source-supported provider.
 
 The NEURAL production release path is the protected manual workflow
 `.github/workflows/neural-cloudflare-worker.yml`: it requires a manual
@@ -47,7 +49,7 @@ The account-wide `All Workers` Access application remains enabled and still prot
 
 These read-only operational routes bypass the account-wide Access gate so monitoring and the post-deploy smoke job can reach them. The task endpoint `POST /v1/tasks` is not included in the bypass; it remains behind account-wide Access and also requires `GLORIFIER_API_TOKEN`. Public `GET /ready` is protected by a separate Cloudflare-native per-client rate limiter and a 30-second cache for provider/database probes. Do not broaden this exception to all Worker paths or disable the existing `All Workers` policy.
 
-Historical safe-mode observation (2026-11-04; superseded by the current production observation below): `GET /health` returned HTTP 200 and process status `VERIFIED`. The production smoke job (run [#41792456546](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41792456546), 13:33:52Z) returned HTTP 503 from `/ready` with `providers: NOT VERIFIED`, `database: VERIFIED`, `authentication: VERIFIED`, `rate_limit: VERIFIED`, and `inference_performed=false`. That run passed the strict provider-disabled safe-mode branch. This records the earlier non-provider-ready state only; it is not the current production readiness result.
+Historical safe-mode observation (2026-11-04; superseded by the 2026-11-05 observation below): `GET /health` returned HTTP 200 and process status `VERIFIED`. The production smoke job (run [#41792456546](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41792456546), 13:33:52Z) returned HTTP 503 from `/ready` with `providers: NOT VERIFIED`, `database: VERIFIED`, `authentication: VERIFIED`, `rate_limit: VERIFIED`, and `inference_performed=false`. That run passed the strict provider-disabled safe-mode branch. This records the earlier non-provider-ready state only; it is not a current production readiness read-back.
 
 ## Cloudflare variables and secrets
 
@@ -58,11 +60,9 @@ Configure the following in Workers & Pages → `glorifier-neural` → Settings �
 - `GLORIFIER_API_TOKEN`: a high-entropy bearer token used by authenticated `POST /v1/tasks` callers.
 - `GLORIFIER_INTERNAL_SERVICE_TOKEN`: a separate high-entropy credential used only by the internal GLORIFIER-to-NEURAL service-verification path. Keep it distinct from `GLORIFIER_API_TOKEN`; never publish either value.
 
-### OpenAI (currently selected production provider)
+### OpenAI (optional provider; current production selection NOT VERIFIED)
 
-The observed production Worker is configured with `GLORIFIER_PROVIDER=openai`.
-Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter
-defaults to `gpt-6-luna` unless `OPENAI_MODEL` is explicitly set.
+The 2026-11-05 historical settings observation recorded `GLORIFIER_PROVIDER=openai`; the current deployed provider selection is **NOT VERIFIED**. Source defaults `GLORIFIER_PROVIDER` to OpenAI when the variable is unset (verified in `app/runtime.py` lines 50–54); this source-code default does not establish the current production provider. Its read-only model-access probe uses `GET /v1/models/{model}`; the adapter defaults to `gpt-6-luna` unless `OPENAI_MODEL` is explicitly set.
 
 For read-only provider readiness, configure:
 
@@ -77,7 +77,7 @@ Read-only readiness does not authorize task inference. Only after the owner sepa
 
 Keep the paid-inference authorization false in the zero-budget default.
 
-A direct Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC+07:00) confirmed `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. The `OPENAI_API_KEY` binding name is present; its value was not read. This is configuration evidence only. The latest production smoke performed read-only readiness checks and explicitly reported `inference_performed=false`; it did not submit a prompt or verify a live completion. Authenticated task requests can send prompt content to OpenAI and incur separate API usage charges. Current source also requires the independent, default-false `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` gate in addition to inference enablement and external-egress consent; a historical production flag snapshot does not prove that the new source guard has been deployed. A successful model-catalogue check establishes model access only; it does not prove inference quality, latency, capacity, or end-to-end task execution.
+A historical Cloudflare settings read-back on 2026-11-05 at approximately 16:28 (UTC+07:00) recorded `GLORIFIER_ENABLE_INFERENCE=true`, `GLORIFIER_PROVIDER=openai`, and `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`. Those values are not a current configuration read-back. The `OPENAI_API_KEY` binding name is present; its value was not read. This is configuration evidence only. The last recorded smoke on 2026-11-11 in the standalone NEURAL repository (run [#42938988897](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/42938988897)) performed read-only readiness checks and reported `inference_performed=false`; it did not submit a prompt or verify a live completion. Authenticated task requests can send prompt content to OpenAI and incur separate API usage charges. Current source also requires the independent, default-false `GLORIFIER_PAID_INFERENCE_AUTHORIZED=true` gate in addition to inference enablement and external-egress consent; a historical production flag snapshot does not prove that the new source guard has been deployed. A successful model-catalogue check establishes model access only; it does not prove inference quality, latency, capacity, or end-to-end task execution.
 
 ### NVIDIA NIM (optional alternative provider)
 
@@ -129,7 +129,7 @@ These adapters are explicit alternatives, not automatic multi-provider failover.
 
 ### Neon task-run writes (optional)
 
-The production Worker currently has the `glorifier-neon-readonly` Hyperdrive resource bound as `NEON_READONLY`. It is used only for the read-only `SELECT 1` readiness probe and must not be used for writes. The direct live `/ready` check on 2026-11-05 returned HTTP 200 with `status: READY` and `database: VERIFIED`; the Hyperdrive probe is read-only and does not test application-data writes. The probe remains read-only and does not verify application-data reads/writes. No writer-role `NEON_WRITE` binding is configured, and task-run persistence remains disabled.
+The 2026-11-05 Cloudflare inventory recorded the `glorifier-neon-readonly` Hyperdrive resource bound as `NEON_READONLY`. It was used only for the read-only `SELECT 1` readiness probe and must not be used for writes. The direct `/ready` check observed on 2026-11-05 returned HTTP 200 with `status: READY` and `database: VERIFIED`; the Hyperdrive probe is read-only and does not test application-data writes. The probe does not verify application-data reads/writes. That inventory recorded no writer-role `NEON_WRITE` binding and task-run persistence as disabled; current binding state is **NOT VERIFIED**.
 
 To enable task-run persistence:
 
@@ -161,39 +161,39 @@ Audit writes use the Cloudflare Fetch API and fail closed when explicitly enable
 
 Optional audit and task-run integrations report their configuration state separately. Their write paths are not tested by readiness. A post-execution persistence failure is returned as a degraded evidence marker alongside the completed task outcome, not as a retryable HTTP 503.
 
-The post-deploy smoke job requires HTTP 200 from `/health` and accepts either (a) HTTP 200 from `/ready` when the selected provider, database, authentication, and rate-limit checks pass, or (b) the strict provider-disabled safe-mode HTTP 503 response when database, authentication, and rate-limit checks pass and `inference_performed=false`. It performs no inference and does not incur a model completion request. The latest production smoke on 2026-11-05 followed branch (a): `/ready` returned HTTP 200 with `status: READY`. The 2026-11-04 HTTP 503 result above is historical only. A later direct Cloudflare settings read-back confirmed that the production inference flag is now `true`; the smoke still performed no inference. An HTTP 503 is a fail-closed non-ready/safe-mode result, not the expected current response while the selected provider readiness probe succeeds.
+The post-deploy smoke job requires HTTP 200 from `/health` and accepts either (a) HTTP 200 from `/ready` when the selected provider, database, authentication, and rate-limit checks pass, or (b) the strict provider-disabled safe-mode HTTP 503 response when database, authentication, and rate-limit checks pass and `inference_performed=false`. It performs no inference and does not incur a model completion request. The historical production smoke on 2026-11-05 followed branch (a): `/ready` returned HTTP 200 with `status: READY`. The 2026-11-04 HTTP 503 result above is also historical. A 2026-11-05 Cloudflare settings read-back recorded the production inference flag as `true`; the current value is **NOT VERIFIED**. Neither smoke submitted a prompt or performed inference. An HTTP 503 is a fail-closed non-ready/safe-mode result; the current readiness response is **NOT VERIFIED** until a fresh live check.
 
 ## Rate limiting
 
 The Worker uses the Cloudflare-native `GLORIFIER_RATE_LIMITER` binding with a configured limit of 60 requests per 60-second window. Its HMAC-SHA-256 key is derived from the bearer token plus the normalized client identity (`CF-Connecting-IP` on Workers, or the client host locally), so separate clients using the same token receive separate buckets. Cloudflare's native Workers rate-limit counters are approximate and per-location, not a strict global quota. Do not represent this as globally exact enforcement.
 
-## Current production observation — 2026-11-05 (UTC+07:00)
+## Historical production observation — 2026-11-05 (UTC+07:00)
 
-Direct Cloudflare configuration inventory was read at approximately 16:28 local time. The latest deployment inventory returned:
+Direct Cloudflare configuration inventory was read at approximately 16:28 local time on 2026-11-05. The deployment inventory observed at that time returned:
 
 - Worker: `glorifier-neural`; route: `https://glorifier-neural.glorifier.workers.dev`.
-- Latest deployment: `77cace04-8c1b-4a26-82b6-b4504f920625`, created `2026-11-05T07:30:11.656407Z`; 100% traffic assigned to version `ecf822d5-745e-4c33-8fc2-5c10ca83baf7`.
-- Current non-secret Worker variables: `GLORIFIER_PROVIDER=openai`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`, `GLORIFIER_ENABLE_INFERENCE=true`, and `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`.
+- Deployment observed on 2026-11-05: `77cace04-8c1b-4a26-82b6-b4504f920625`, created `2026-11-05T07:30:11.656407Z`; 100% traffic was assigned to version `ecf822d5-745e-4c33-8fc2-5c10ca83baf7` at that observation time.
+- Non-secret Worker variables observed on 2026-11-05: `GLORIFIER_PROVIDER=openai`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`, `GLORIFIER_ENABLE_INFERENCE=true`, and `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`. Current values are **NOT VERIFIED**.
 - Secret-binding inventory includes `OPENAI_API_KEY`, `GLORIFIER_API_TOKEN`, and `NVIDIA_NIM_API_KEY`. Only binding names were inspected; secret values were not read.
-- The latest successful production smoke was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED`.
+- A successful production smoke observed on 2026-11-05 was GitHub Actions run [#41987341798](https://github.com/GLORIFIER7/GLORIFIER-NEURAL/actions/runs/41987341798), around `2026-11-05T07:30Z`. It confirmed `/health` HTTP 200 and `/ready` HTTP 200 with `status: READY`; provider, database connectivity, authentication, and rate limiting were `VERIFIED` at that time.
 - That smoke response reported `inference_performed=false`. No prompt was submitted and no model inference was executed.
 - Audit and task-run persistence remain `NOT CONFIGURED (OPTIONAL)`; no optional persistence write was tested.
 
-Conclusion: Cloudflare deployment and the configured read-only production readiness checks are **VERIFIED**. The production inference flag and external-egress consent are configured `true`, but live inference, inference quality, end-to-end task execution, optional audit/task-run writes, and externally verified economic outcomes remain **NOT VERIFIED**. Do not infer successful model execution from a successful readiness probe.
+Historical conclusion for the 2026-11-05 observation: Cloudflare deployment and the configured read-only production readiness checks were **VERIFIED at that time**. The production inference flag and external-egress consent were recorded as `true` in that historical configuration read-back; their current values are **NOT VERIFIED**. Live inference, inference quality, end-to-end task execution, optional audit/task-run writes, and externally verified economic outcomes remain **NOT VERIFIED**. Do not infer successful model execution from a successful readiness probe.
 ## Release procedure
 
 1. Make code changes on a branch and open a pull request. The active repository ruleset targets `~DEFAULT_BRANCH`, requires the exact `AI Review Policy` status check with strict latest-commit enforcement, retains CodeQL/code-quality constraints, prohibits deletion and non-fast-forward updates, has zero required human approvals, and has no bypass actors. The AI policy workflow itself still has a PR-controlled workflow-definition trust limitation; see `docs/AI_REVIEW_POLICY.md`.
 2. Require the repository's CI, security checks, and Cloudflare dry-run validation to pass. Do not bypass the active ruleset or weaken quality thresholds to obtain a green result.
 3. After an approved merge to `main`, use the protected `.github/workflows/neural-cloudflare-worker.yml` workflow with a manual `workflow_dispatch` and `deploy=true` from `main` to promote NEURAL production. Workers Builds on `main` is validation-only (`--prepare-only`) and is not a production release. Verify the protected deployment job and exact active Worker version/traffic before announcing release.
 4. Require live `/health` and `/ready` checks. Expect `/ready` HTTP 200 when the selected provider, database, authentication, and rate-limit checks are verified. Accept HTTP 503 only for the explicit provider-disabled safe-mode response when the other required controls are verified and `inference_performed=false`; that response is not provider-ready.
-5. The production inference flag is currently configured `true`, but do not treat that as proof of live execution. Perform a controlled authenticated inference request only after confirming the selected provider credential is valid, approving transmission of task content, and accepting any applicable API usage charges. The automated readiness/smoke steps intentionally do not submit a prompt.
+5. The 2026-11-05 historical production snapshot recorded `GLORIFIER_ENABLE_INFERENCE=true`; the current value is **NOT VERIFIED**. Do not infer present enablement or live execution from that snapshot. Perform a controlled authenticated inference request only after confirming the selected provider credential is valid, approving transmission of task content, and accepting any applicable API usage charges. The automated readiness/smoke steps intentionally do not submit a prompt.
 
 Do not declare full AI production readiness until provider model-catalog readiness and a separately controlled inference check succeed. Enable audit writes or task-run persistence only after their own schema, least-privilege credentials, backup, and read/write verification steps have been approved and completed.
 
 
-## Superseding production configuration observation — 2026-11-10
+## Historical superseding production configuration observation — 2026-11-10
 
-This section supersedes earlier descriptions in this runbook of the current Cloudflare deployment path and production Worker configuration. It is based on a read-only Cloudflare API inventory at 2026-11-10T08:58:02Z (UTC), not a change or deployment.
+At the 2026-11-10 observation, this section superseded earlier descriptions in this runbook of the Cloudflare deployment path and production Worker configuration. It is based on a read-only Cloudflare API inventory at 2026-11-10T08:58:02Z (UTC), not a change or deployment; it is not a current read-back.
 
 ### Actual deployment controls
 
@@ -202,7 +202,7 @@ This section supersedes earlier descriptions in this runbook of the current Clou
 - GLORIFIER has its own protected manual release workflow at `.github/workflows/cloudflare-worker.yml`. Its production job is gated by manual dispatch, `deploy_production=true`, `CLOUDFLARE_DEPLOY_ENABLED=true`, required secrets, and the protected production environment.
 - Cloudflare Workers Builds metadata and Worker deployment inventory are separate evidence. Do not infer production release or traffic promotion from a successful source build, dry-run, or validation-only trigger.
 
-### Current live Worker inventory
+### Live Worker inventory observed 2026-11-10
 
 Read-only Cloudflare API inspection showed:
 
@@ -213,7 +213,7 @@ Read-only Cloudflare API inspection showed:
 
 GLORIFIER's active binding inventory does not contain the `GLORIFIER_NEURAL` service binding declared by the merged source configuration. The configured origin and exact allowed hostname are present, but they do not substitute for the missing binding. The source repair is not proof of a deployed repair.
 
-The NEURAL Worker currently reports these live non-secret values:
+At the 2026-11-10 observation, the NEURAL Worker reported these non-secret values:
 
 - `GLORIFIER_ENABLE_INFERENCE=true`
 - `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=true`

@@ -13,20 +13,22 @@ on:
       - ".github/workflows/neural-ci.yml"
   pull_request_review:
     types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
   workflow_dispatch:
   schedule:
     - cron: "23 2 * * *"
 
-concurrency:
-  group: neural-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name }}-${{ github.event_name == 'pull_request_review' && github.event.review.id || 'latest' }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   test:
-    if: github.event_name != 'pull_request_review'
+    if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
+    concurrency:
+      group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: services/neural
@@ -68,7 +70,7 @@ jobs:
         run: docker run --rm --entrypoint python glorifier-neural:ci -c "import psycopg; assert psycopg.__version__"
 
   review-scope:
-    if: github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
     name: NEURAL review scope
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -85,7 +87,14 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          changed_file_count="$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.changed_files')"
+          fail_closed_on_api_error() {
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "$1 NEURAL review policy is required (fail closed)."
+            exit 0
+          }
+          if ! changed_file_count="$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}" --jq '.changed_files')"; then
+            fail_closed_on_api_error "GitHub API request for changed-file count failed;"
+          fi
           if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then
             echo "required=true" >> "$GITHUB_OUTPUT"
             echo "Could not verify PR changed-file count; NEURAL review policy is required (fail closed)."
@@ -96,7 +105,9 @@ jobs:
             echo "PR has at least 3000 changed files; GitHub's files endpoint may be truncated. NEURAL review policy is required (fail closed)."
             exit 0
           fi
-          changed_paths="$(gh api --paginate "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100" --jq '.[] | [.filename, .previous_filename // empty] | .[]')"
+          if ! changed_paths="$(gh api --paginate "repos/${GH_REPO}/pulls/${PR_NUMBER}/files?per_page=100" --jq '.[] | [.filename, .previous_filename // empty] | .[]')"; then
+            fail_closed_on_api_error "GitHub API request for changed paths failed;"
+          fi
           if grep -Eq '^services/neural/' <<<"$changed_paths" || grep -Fqx '.github/workflows/neural-ci.yml' <<<"$changed_paths"; then
             echo "required=true" >> "$GITHUB_OUTPUT"
             echo "NEURAL review policy is required for this PR."
@@ -107,6 +118,9 @@ jobs:
 
   ai-review-policy:
     needs: [review-scope]
+    concurrency:
+      group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: true
     defaults:
       run:
         working-directory: services/neural
@@ -115,7 +129,7 @@ jobs:
       (
         github.event_name == 'pull_request' ||
         (
-          github.event_name == 'pull_request_review' &&
+          (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment') &&
           (
             needs.review-scope.result != 'success' ||
             needs.review-scope.outputs.required == 'true'

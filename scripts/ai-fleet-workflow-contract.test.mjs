@@ -153,7 +153,8 @@ test('the model-execution job has no GitHub write permissions', () => {
 
 test('generated changes cross the privilege boundary only as a validated patch artifact', () => {
   assert.match(coding, /git diff --cached --binary HEAD/);
-  assert.match(coding, /uses: actions\/upload-artifact@v4/);
+  assert.match(coding, new RegExp('uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'));
+  assert.ok(publish.includes('digest-mismatch: error'));
   assert.ok(publish.includes('uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2'));
   assert.match(publish, /git apply --check/);
   assert.match(publish, /node --import tsx\/esm scripts\/validate-ai-fleet-diff\.mjs/);
@@ -292,11 +293,14 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
   const policy = neuralCiWorkflow.slice(policyStart);
 
-  assert.match(scope, /if: github\.event_name == 'pull_request_review'/);
+  assert.match(scope, /if: github\.event_name == 'pull_request_review' \|\| github\.event_name == 'pull_request_review_comment'/);
   assert.match(scope, /gh api --paginate/);
   assert.match(scope, /previous_filename/);
   assert.match(scope, /pull-requests: read/);
   assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
+  assert.ok(scope.includes('fail_closed_on_api_error() {'));
+  assert.ok(scope.includes('if ! changed_file_count='));
+  assert.ok(scope.includes('if ! changed_paths='));
   assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
   assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
   assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
@@ -309,20 +313,41 @@ test('NEURAL review events scope the AI policy to relevant files and fail closed
   assert.match(policy, /github\.event_name == 'pull_request'/);
 });
 
-test('NEURAL review events use unique concurrency groups and cannot cancel their own scope evaluation', () => {
-  const concurrencyStart = neuralCiWorkflow.indexOf('concurrency:');
-  const permissionsStart = neuralCiWorkflow.indexOf('permissions:', concurrencyStart);
-  assert.ok(concurrencyStart >= 0 && permissionsStart > concurrencyStart,
-    'NEURAL workflow must define concurrency before permissions');
-  const concurrency = neuralCiWorkflow.slice(concurrencyStart, permissionsStart);
+function neuralJobSection(source, name) {
+  const heading = '\n  ' + name + ':\n';
+  const start = source.indexOf(heading);
+  if (start < 0) return '';
+  const contentStart = start + heading.length;
+  const remainder = source.slice(contentStart);
+  let offset = 0;
+  for (const line of remainder.split('\n')) {
+    if (line.startsWith('  ') && !line.startsWith('    ') && line.trimEnd().endsWith(':')) {
+      return remainder.slice(0, offset);
+    }
+    offset += line.length + 1;
+  }
+  return remainder;
+}
 
-  assert.ok(
-    concurrency.includes("github.event_name == 'pull_request_review' && github.event.review.id"),
-    'each review event must have its own concurrency key',
-  );
-  assert.ok(concurrency.includes("|| 'latest'"), "concurrency group must fall back to 'latest' for non-review events");
-  assert.ok(concurrency.includes('cancel-in-progress: true'),
-    'new branch updates may continue to supersede older branch-update runs');
+test('NEURAL review events serialize policy without cancelling CI validation', () => {
+  assert.equal(neuralCiWorkflow.split('\n').filter((line) => line === 'concurrency:').length, 0,
+    'workflow-level cancellation must not let a review-only event cancel the test job');
+
+  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
+  const policyJob = neuralJobSection(neuralCiWorkflow, 'ai-review-policy');
+  assert.ok(testJob && policyJob, 'both NEURAL validation and review-policy jobs must exist');
+
+  assert.ok(testJob.includes("if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'"),
+    'review-only events must not start a duplicate full validation job');
+  assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}'),
+    'test runs must serialize within their own CI concurrency group');
+  assert.ok(testJob.includes('cancel-in-progress: true'),
+    'a newer code update may supersede an older test run');
+
+  assert.ok(policyJob.includes('group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}'),
+    'PR and review events must serialize policy evaluations in a separate group');
+  assert.ok(policyJob.includes('cancel-in-progress: true'),
+    'new review evidence must supersede stale policy evaluations');
 });
 
 function assertGeminiAuthorizationWorkflow(item) {

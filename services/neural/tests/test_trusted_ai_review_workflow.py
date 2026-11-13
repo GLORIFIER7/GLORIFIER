@@ -99,6 +99,8 @@ def test_trusted_policy_workflow_run_is_limited_to_default_branch_ci():
 def test_monorepo_neural_ci_uses_a_trusted_read_only_review_checkout():
     assert "pull_request:" in WORKFLOW
     assert "pull_request_review:" in WORKFLOW
+    assert "pull_request_review_comment:" in WORKFLOW
+    assert "github.event_name == 'pull_request_review_comment'" in WORKFLOW
     assert "  ai-review-policy:" in WORKFLOW
     assert "pull-requests: read" in WORKFLOW
     assert "persist-credentials: false" in WORKFLOW

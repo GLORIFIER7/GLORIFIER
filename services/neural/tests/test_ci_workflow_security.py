@@ -48,6 +48,8 @@ def test_untrusted_test_job_does_not_persist_github_token():
 
 
 def test_review_event_uses_the_documented_top_level_pull_request_payload():
+    assert "pull_request_review_comment:" in WORKFLOW
+    assert "types: [created, edited, deleted]" in WORKFLOW
     policy_job = _job_section("ai-review-policy")
     assert "github.event.review.pull_request" not in policy_job
     assert (
@@ -94,3 +96,35 @@ def test_policy_job_uses_canonical_pull_request_head_from_github_api():
     assert "github.event.pull_request.head.sha" not in policy_job
     assert "working-directory: ${{ github.event.pull_request.number == 672 && 'trusted-policy' || 'trusted-policy/services/neural' }}" in policy_job
     assert "github.workspace" in policy_job
+
+
+def test_review_events_serialize_policy_without_cancelling_ci_validation():
+    assert re.search(r"(?m)^concurrency:", WORKFLOW) is None, (
+        "Workflow-level cancellation lets policy-only events cancel running CI tests"
+    )
+
+    test_job = _job_section("test")
+    policy_job = _job_section("ai-review-policy")
+    assert (
+        "if: github.event_name != 'pull_request_review' "
+        "&& github.event_name != 'pull_request_review_comment'"
+    ) in test_job
+    assert (
+        "group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}"
+    ) in test_job
+    assert "cancel-in-progress: true" in test_job
+
+    assert (
+        "group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
+    ) in policy_job
+    assert "cancel-in-progress: true" in policy_job
+
+
+
+def test_review_scope_fails_closed_on_github_api_errors():
+    scope = _job_section("review-scope")
+    assert "fail_closed_on_api_error() {" in scope
+    assert "if ! changed_file_count=" in scope
+    assert "if ! changed_paths=" in scope
+    assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in scope
+    assert "exit 0" in scope
