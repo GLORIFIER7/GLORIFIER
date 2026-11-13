@@ -202,8 +202,8 @@ test('the publisher contract rejects an unnamed step inserted after the clock ga
 test('every action in the write-capable publisher is pinned to an immutable commit SHA', () => {
   const actionRefs = publish
     .split(String.fromCharCode(10))
-    .filter((line) => line.trimStart().startsWith('- uses:'))
-    .map((line) => line.trim().slice('- uses:'.length).trim().split(' ')[0]);
+    .filter((line) => line.trimStart().startsWith('uses:'))
+    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
   assert.equal(actionRefs.length, 3, 'the publisher should use only the three reviewed GitHub actions');
   for (const actionRef of actionRefs) {
     assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
@@ -631,13 +631,13 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
 
 
 test('Code Guardian credential-bearing job pins every action to an immutable commit SHA', () => {
-  const guardianStart = codeGuardianWorkflow.indexOf('\\n  guardian:\\n');
+  const guardianStart = codeGuardianWorkflow.indexOf('\n  guardian:\n');
   assert.ok(guardianStart >= 0, 'Code Guardian must declare its credential-bearing guardian job');
   const guardian = codeGuardianWorkflow.slice(guardianStart);
   const actionRefs = guardian
     .split(String.fromCharCode(10))
-    .filter((line) => line.trimStart().startsWith('uses:'))
-    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
+    .filter((line) => line.trimStart().startsWith('- uses:'))
+    .map((line) => line.trim().slice('- uses:'.length).trim().split(' ')[0]);
   assert.equal(actionRefs.length, 2, 'Code Guardian should use only checkout and setup-node actions');
   for (const actionRef of actionRefs) {
     assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
