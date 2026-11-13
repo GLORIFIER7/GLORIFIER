@@ -44,7 +44,7 @@ const validatePageSize = (value: unknown): number => {
 
 const validatePath = (value: unknown): string => {
   if (typeof value !== 'string' || !value || value.length > 200 || value.startsWith('/') ||
-      value.includes('\\\\') || value.includes('\\0') ||
+      value.includes('\\') || value.includes('\0') ||
       value.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
     throw new Error('path must be a valid repository-relative path.');
   }
