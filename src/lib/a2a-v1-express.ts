@@ -21,6 +21,7 @@ export interface A2AExpressDependencies {
   initializePersistence(): Promise<void>;
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  getTaskForIdempotencyKey?(key: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(requesterAgentId: string, input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
   cancelTask?(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
 }
@@ -137,6 +138,9 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
       requesterAgentId,
       createTask: dependencies.createTask,
       getTask: (id) => dependencies.getTask(id, requesterAgentId),
+      ...(dependencies.getTaskForIdempotencyKey
+        ? { getTaskForIdempotencyKey: (key: string, authenticatedRequesterId: string) => dependencies.getTaskForIdempotencyKey!(key, authenticatedRequesterId) }
+        : {}),
       listTasks: (input) => dependencies.listTasks(requesterAgentId, input),
       ...(dependencies.cancelTask
         ? { cancelTask: (id: string, authenticatedRequesterId: string) => dependencies.cancelTask!(id, authenticatedRequesterId) }
