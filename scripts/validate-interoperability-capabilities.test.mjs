@@ -240,7 +240,7 @@ test('Issue 471 A2A and NEURAL branch evidence does not promote external capabil
   assert.ok(protocol.evidence.some((item) =>
     item.kind === 'source' &&
     item.reference === 'https://github.com/GLORIFIER7/GLORIFIER/pull/833' &&
-    item.notes.includes('signature-verified upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba') &&
+    item.notes.includes('pinned to signed upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba') &&
     item.notes.includes('no staging host or secret is configured'),
   ));
 
