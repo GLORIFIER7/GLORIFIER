@@ -56,6 +56,7 @@ def test_historical_production_readbacks_are_not_described_as_current_state():
     assert "Current production observation — 2026-11-05" not in document
     assert "latest production smoke on 2026-11-05 followed branch (a)" not in document
 
+
 def test_dynamo_runbook_attributes_implementation_and_regression_tests_to_their_actual_commits():
     service_root = Path(__file__).resolve().parents[1]
     document = (service_root / "docs" / "NVIDIA-DYNAMO.md").read_text(
@@ -92,23 +93,25 @@ def test_openai_provider_docs_distinguish_source_default_from_current_deployment
     # Must not assert OpenAI is currently running in production.
     assert "currently deployed" not in lower
 
+
 def test_readme_historical_cloudflare_evidence_is_coherent_and_not_current():
     service_root = Path(__file__).resolve().parents[1]
     readme = (service_root / "README.md").read_text(encoding="utf-8")
+    normalized_readme = " ".join(readme.split())
 
     assert (
         "An earlier Cloudflare deployment inventory at `2026-11-05T03:58:11Z` "
         "observed version `733211d1-6931-4fdb-a4b9-5c7482bcf9b8`;"
-    ) in readme
-    assert readme.count("Deployment success is not itself a readiness result.") == 1
+    ) in normalized_readme
+    assert normalized_readme.count("Deployment success is not itself a readiness result.") == 1
     assert (
         "The task endpoint reads `GLORIFIER_API_TOKEN` from the Cloudflare "
         "request-scoped `env` binding."
-    ) in readme
+    ) in normalized_readme
     assert (
         "The documented access-control model uses Cloudflare Access and "
         "bearer-token validation; current production enforcement is **NOT VERIFIED**."
-    ) in readme
-    assert "Historical deployment inventory — observed 2026-11-05 (UTC+07:00)" in readme
-    assert "Current deployed state — observed 2026-11-05" not in readme
+    ) in normalized_readme
+    assert "Historical deployment inventory — observed 2026-11-05 (UTC+07:00)" in normalized_readme
+    assert "Current deployed state — observed 2026-11-05" not in normalized_readme
     assert "The production inference flag was recorded as `true` in that historical configuration." in readme
