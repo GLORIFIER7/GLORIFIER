@@ -314,7 +314,16 @@ export class AutopilotMissionValidationError extends Error {
 
 function timestamp(value?: string): string {
   const candidate = value ?? new Date().toISOString();
-  if (!Number.isFinite(Date.parse(candidate))) throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  const dateParts = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(candidate);
+  if (!dateParts) throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  const year = Number(dateParts[1]);
+  const month = Number(dateParts[2]);
+  const day = Number(dateParts[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+  if (!daysInMonth || day < 1 || day > daysInMonth || !Number.isFinite(Date.parse(candidate))) {
+    throw new AutopilotMissionValidationError('timestamp must be a valid ISO-8601 date.');
+  }
   return new Date(candidate).toISOString();
 }
 
