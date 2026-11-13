@@ -49,7 +49,7 @@ export function isAutopilotInferenceAuthorized(env: Record<string, string | unde
 
 export function getAutopilotMaintenanceBranchName(missionId: string): string {
   const slug = missionId.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
-    .replace(/^-|-$/g, '').slice(0, 60);
+    .replace(/^-|-$/g, '').slice(0, 56);
   if (!slug) throw new Error('Autopilot mission ID cannot be converted to a safe branch name.');
   return normalizeAutopilotWriteBranch(`autopilot/mission-${slug}`);
 }
