@@ -144,3 +144,40 @@ test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without 
   assert.equal(stored.state, 'EVIDENCE',
     'a verifier cannot approve evidence references that are not attached to the task');
 });
+
+
+test('Federated A2A terminal task states cannot be reauthorized or overwritten as failed', async () => {
+  const {
+    getFederatedA2ATask,
+    authorizeFederatedA2ATask,
+    failFederatedA2ATask,
+  } = await import('./federated-a2a-v3');
+
+  const settledForAuthorization = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-terminal-a', capability: 'research', objective: 'terminal authorization guard' },
+    async () => {},
+  );
+  const authorizationRecord = getFederatedA2ATask(settledForAuthorization.id);
+  assert.ok(authorizationRecord);
+  authorizationRecord.state = 'SETTLED';
+  await assert.rejects(
+    authorizeFederatedA2ATask(settledForAuthorization.id, 'human-owner', true),
+    /only DISCOVERED tasks may be authorized/i,
+  );
+  assert.equal(authorizationRecord.state, 'SETTLED',
+    'authorization must not resurrect a settled task');
+
+  const settledForFailure = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-terminal-b', capability: 'research', objective: 'terminal failure guard' },
+    async () => {},
+  );
+  const failureRecord = getFederatedA2ATask(settledForFailure.id);
+  assert.ok(failureRecord);
+  failureRecord.state = 'SETTLED';
+  await assert.rejects(
+    failFederatedA2ATask(settledForFailure.id, 'late failure'),
+    /terminal task cannot transition to FAILED/i,
+  );
+  assert.equal(failureRecord.state, 'SETTLED',
+    'failure reporting must not overwrite a settled task');
+});
