@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
 
 const API_ROOT = 'https://api.github.com';
 const REPOSITORY_PATH = '/repos/GLORIFIER7/GLORIFIER';
@@ -163,18 +164,18 @@ export async function verifyGithubToolResult(
     const state = typeof args.state === 'string' ? args.state : 'open';
     const perPage = typeof args.per_page === 'number' ? args.per_page : 10;
     sourceUrl += '/pulls?' + new URLSearchParams({ state, per_page: String(perPage) }).toString();
-    sourceProjection = pullRequestSummary(await readJson(fetchImpl, sourceUrl));
+    sourceProjection = pullRequestSummary(await readJson(fetchImpl, sourceUrl, readToken));
     executionProjection = pullRequestSummary(executedResult);
   } else if (toolName === 'github_list_workflow_runs') {
     const perPage = typeof args.per_page === 'number' ? args.per_page : 10;
     sourceUrl += '/actions/runs?' + new URLSearchParams({ per_page: String(perPage) }).toString();
-    sourceProjection = workflowRunSummary(await readJson(fetchImpl, sourceUrl));
+    sourceProjection = workflowRunSummary(await readJson(fetchImpl, sourceUrl, readToken));
     executionProjection = workflowRunSummary(executedResult);
   } else if (toolName === 'github_read_file') {
     const { path, ref } = validateFileArguments(args);
     sourceUrl += '/contents/' + encodeURIComponent(path).replaceAll('%2F', '/') + '?' +
       new URLSearchParams({ ref }).toString();
-    const source = await readJson(fetchImpl, sourceUrl);
+    const source = await readJson(fetchImpl, sourceUrl, readToken);
     sourceProjection = { path, ref, content: fileContent(source) };
     if (!isRecord(executedResult)) throw new Error('GitHub file execution result is invalid.');
     executionProjection = {
@@ -182,6 +183,83 @@ export async function verifyGithubToolResult(
       ref: executedResult.ref,
       content: executedResult.content,
     };
+  } else if (toolName === 'github_create_branch') {
+    const branch = normalizeAutopilotWriteBranch(args.branch);
+    sourceUrl += '/git/ref/heads/' + branch.split('/').map(encodeURIComponent).join('/');
+    const source = await readJson(fetchImpl, sourceUrl, readToken);
+    if (!isRecord(source) || source.ref !== 'refs/heads/' + branch ||
+        !isRecord(source.object) || typeof source.object.sha !== 'string') {
+      throw new Error('Independent GitHub branch evidence is invalid.');
+    }
+    if (!isRecord(executedResult)) throw new Error('GitHub branch execution result is invalid.');
+    sourceProjection = { ref: source.ref, sha: source.object.sha };
+    executionProjection = { ref: executedResult.ref, sha: executedResult.sha };
+  } else if (toolName === 'github_update_file') {
+    const branch = normalizeAutopilotWriteBranch(args.branch);
+    if (!isAllowedAutopilotWritePath(args.path)) {
+      throw new Error('Independent verification path is outside the Autopilot maintenance scope.');
+    }
+    const path = args.path as string;
+    sourceUrl += '/contents/' + path.split('/').map(encodeURIComponent).join('/') + '?' +
+      new URLSearchParams({ ref: branch }).toString();
+    const source = await readJson(fetchImpl, sourceUrl, readToken);
+    if (!isRecord(source) || source.path !== path || typeof source.sha !== 'string') {
+      throw new Error('Independent GitHub file-update evidence is invalid.');
+    }
+    if (!isRecord(executedResult) || !isRecord(executedResult.content)) {
+      throw new Error('GitHub file-update execution result is invalid.');
+    }
+    sourceProjection = { path, sha: source.sha };
+    executionProjection = {
+      path: executedResult.content.path,
+      sha: executedResult.content.sha,
+    };
+  } else if (toolName === 'github_create_pull_request') {
+    const branch = normalizeAutopilotWriteBranch(args.branch);
+    if (!isRecord(executedResult) || !Number.isSafeInteger(executedResult.number) ||
+        (executedResult.number as number) < 1) {
+      throw new Error('GitHub pull-request execution result is invalid.');
+    }
+    const number = executedResult.number as number;
+    sourceUrl += '/pulls/' + number;
+    const source = await readJson(fetchImpl, sourceUrl, readToken);
+    const summarizeSource = (value: unknown): JsonRecord => {
+      if (!isRecord(value) || !Number.isSafeInteger(value.number) ||
+          typeof value.title !== 'string' || typeof value.state !== 'string' ||
+          typeof value.draft !== 'boolean' || typeof value.html_url !== 'string' ||
+          !isRecord(value.head) || value.head.ref !== branch ||
+          !isRecord(value.base) || value.base.ref !== 'main') {
+        throw new Error('Independent GitHub pull-request evidence is invalid.');
+      }
+      return {
+        number: value.number,
+        title: value.title,
+        state: value.state,
+        draft: value.draft,
+        url: value.html_url,
+        head: { ref: branch },
+        base: { ref: 'main' },
+      };
+    };
+    const summarizeExecution = (value: JsonRecord): JsonRecord => {
+      if (!Number.isSafeInteger(value.number) || typeof value.title !== 'string' ||
+          typeof value.state !== 'string' || typeof value.draft !== 'boolean' ||
+          typeof value.url !== 'string' || !isRecord(value.head) ||
+          !isRecord(value.base)) {
+        throw new Error('GitHub pull-request execution projection is invalid.');
+      }
+      return {
+        number: value.number,
+        title: value.title,
+        state: value.state,
+        draft: value.draft,
+        url: value.url,
+        head: { ref: value.head.ref },
+        base: { ref: value.base.ref },
+      };
+    };
+    sourceProjection = summarizeSource(source);
+    executionProjection = summarizeExecution(executedResult);
   } else {
     throw new Error('No independent verifier exists for this GitHub tool.');
   }
