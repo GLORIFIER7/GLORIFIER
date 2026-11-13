@@ -164,11 +164,15 @@ test('Autopilot planning requires unique, bounded steps and enters execution onl
     { id: 'inspect', capability: 'engineering', objective: 'Inspect the failed workflow.', effect: 'read-only' as const },
     { id: 'repair', capability: 'engineering', objective: 'Prepare a branch-based repair.', effect: 'reversible' as const },
   ];
-  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, plan, '2026-11-13T08:02:00.000Z');
+  await assert.rejects(
+    () => recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'intruder-worker', plan, '2026-11-13T08:02:00.000Z'),
+    /worker does not hold an active mission lease/,
+  );
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'planner-1', plan, '2026-11-13T08:02:00.000Z');
   assert.equal(planned.status, 'executing');
   assert.equal(planned.steps.length, 2);
   await assert.rejects(
-    () => recordAutopilotMissionPlan(store, claimed!.id, planned.version, [
+    () => recordAutopilotMissionPlan(store, claimed!.id, planned.version, 'planner-1', [
       { id: 'same', capability: 'engineering', objective: 'First step.', effect: 'read-only' },
       { id: 'same', capability: 'engineering', objective: 'Duplicate step.', effect: 'read-only' },
     ], '2026-11-13T08:03:00.000Z'),
@@ -185,7 +189,7 @@ test('Autopilot blocks irreversible steps unless an explicit human approval is r
     now: '2026-11-13T08:00:00.000Z',
   });
   const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
-  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
     { id: 'deploy', capability: 'deploy.production', objective: 'Deploy approved production release.', effect: 'irreversible' },
   ], '2026-11-13T08:02:00.000Z');
   const denied = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
@@ -206,19 +210,32 @@ test('Autopilot only completes steps with evidence and closes a mission after ev
     now: '2026-11-13T08:00:00.000Z',
   });
   const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
-  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
     { id: 'inspect', capability: 'engineering', objective: 'Inspect the repository.', effect: 'read-only' },
   ], '2026-11-13T08:02:00.000Z');
   const started = await claimAutopilotMissionStep(store, planned.id, 'inspect', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
   await assert.rejects(
-    () => completeAutopilotMissionStep(store, started.mission.id, 'inspect', started.mission.version, [], '2026-11-13T08:03:00.000Z'),
+    () => completeAutopilotMissionStep(store, started.mission.id, 'inspect', started.mission.version, 'worker-1', [], '2026-11-13T08:03:00.000Z'),
     /at least one evidence reference/,
+  );
+  await assert.rejects(
+    () => completeAutopilotMissionStep(
+      store,
+      started.mission.id,
+      'inspect',
+      started.mission.version,
+      'intruder-worker',
+      ['github://GLORIFIER7/GLORIFIER/commit/forged'],
+      '2026-11-13T08:03:00.000Z',
+    ),
+    /worker does not hold an active mission lease/,
   );
   const completed = await completeAutopilotMissionStep(
     store,
     started.mission.id,
     'inspect',
     started.mission.version,
+    'worker-1',
     ['github://GLORIFIER7/GLORIFIER/commit/abc123'],
     '2026-11-13T08:04:00.000Z',
   );
@@ -236,7 +253,7 @@ test('Autopilot recovery quarantines expired in-flight work instead of replaying
     now: '2026-11-13T08:00:00.000Z',
   });
   const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
-  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
     { id: 'inspect', capability: 'engineering', objective: 'Inspect state.', effect: 'read-only' },
     { id: 'write', capability: 'engineering', objective: 'Write a reversible change.', effect: 'reversible' },
   ], '2026-11-13T08:02:00.000Z');
@@ -262,7 +279,7 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
   const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000);
   assert.ok(claimed);
   await assert.rejects(
-    () => recordAutopilotMissionPlan(store, mission.id, mission.version, [
+    () => recordAutopilotMissionPlan(store, mission.id, mission.version, 'worker-1', [
       { id: 'step', capability: 'engineering', objective: 'A stale plan.', effect: 'read-only' },
     ]),
     /changed concurrently/,
