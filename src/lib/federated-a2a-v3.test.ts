@@ -352,3 +352,70 @@ test('Federated A2A serializes concurrent evidence submissions per task', async 
   );
   assert.deepEqual(duplicateTask.evidenceRefs, [refs[0]]);
 });
+
+
+test('Federated A2A verification cannot overwrite a terminal transition during verifier I/O', async () => {
+  const {
+    authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    startFederatedA2ATask,
+    markFederatedA2AEvidence,
+    verifyFederatedA2ATask,
+    failFederatedA2ATask,
+  } = await import('./federated-a2a-v3');
+  const persistence = {
+    audit: async () => 'audit-verification-race',
+    persist: async () => {},
+  };
+  const task = await createFederatedA2ATask(
+    {
+      requesterAgentId: 'requester-verification-race',
+      targetAgentId: 'evidence-agent',
+      capability: 'evidence.attach',
+      objective: 'do not resurrect failed tasks',
+    },
+    async () => {},
+  );
+  await authorizeFederatedA2ATask(task.id, 'human-owner', false, persistence);
+  await assignFederatedA2ATask(task.id, 'glorifier-daemon', persistence);
+  await startFederatedA2ATask(task.id, 'evidence-agent', persistence);
+  const evidenceRef = 'https://evidence.example/verification-race';
+  await markFederatedA2AEvidence(task.id, evidenceRef, 'evidence-agent', persistence);
+
+  let resolveVerifier!: (decision: {
+    status: 'VERIFIED';
+    source: string;
+    evidenceRefs: string[];
+    observedAt: string;
+    verifier: string;
+  }) => void;
+  let signalVerifierStarted!: () => void;
+  const verifierStarted = new Promise<void>((resolve) => {
+    signalVerifierStarted = resolve;
+  });
+  const pendingVerification = verifyFederatedA2ATask(
+    task.id,
+    'reviewer',
+    async (snapshot) => {
+      signalVerifierStarted();
+      return await new Promise((resolve) => { resolveVerifier = resolve; });
+    },
+    persistence,
+  );
+  await verifierStarted;
+  await failFederatedA2ATask(task.id, 'concurrent terminal failure', 'runtime', persistence);
+  resolveVerifier({
+    status: 'VERIFIED',
+    source: 'independent-verifier',
+    evidenceRefs: [evidenceRef],
+    observedAt: new Date().toISOString(),
+    verifier: 'independent-verifier',
+  });
+
+  await assert.rejects(
+    pendingVerification,
+    /task state changed during verification/i,
+    'a late verifier response must not overwrite FAILED',
+  );
+  assert.equal(task.state, 'FAILED');
+});
