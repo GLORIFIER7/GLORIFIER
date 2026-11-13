@@ -13,6 +13,13 @@ const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci
   read('../.github/workflows/docker-image.yml'),
   read('../.github/workflows/glorifier-solana-devnet-reconcile.yml'),
 ]);
+function sliceBetweenMarkers(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start,
+    'expected ordered workflow markers: ' + startMarker + ' -> ' + endMarker);
+  return source.slice(start, end);
+}
 
 test('Code Guardian calls paid providers only after shared owner-authorized manual dispatch', () => {
   assert.match(guardian, /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+allow_paid_inference:[\s\S]*?default:\s*false[\s\S]*?type:\s*boolean/);
@@ -34,9 +41,20 @@ test('Code Guardian uses deterministic locked dependencies and non-persistent ch
   assert.match(guardian, /package-manager-cache:\s*false/);
   assert.match(guardian, /npm ci --ignore-scripts --no-audit --no-fund/);
   assert.doesNotMatch(guardian, /npm install --ignore-scripts/);
-  const guardianStep = guardian.slice(guardian.indexOf('      - id: guardian'), guardian.indexOf('      - name: Report paid-inference authorization state'));
+  const guardianStep = sliceBetweenMarkers(guardian, '      - id: guardian', '      - name: Report paid-inference authorization state');
   assert.doesNotMatch(guardianStep, /continue-on-error:\s*true/);
   assert.match(guardian, /Guardian completed in the ephemeral runner[\s\S]*?no branch, PR, repository write, or deployment was performed/);
+});
+
+test('Code Guardian contract fails closed when a required slice marker is missing', () => {
+  assert.throws(
+    () => sliceBetweenMarkers(
+      '      - id: guardian\\n      - run: test\\n',
+      '      - id: guardian',
+      '      - name: Report paid-inference authorization state',
+    ),
+    /expected ordered workflow markers/,
+  );
 });
 
 test('Code Guardian scheduled checks are throttled while push and manual checks remain available', () => {
