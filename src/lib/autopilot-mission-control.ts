@@ -503,7 +503,7 @@ export async function recordAutopilotMissionPlan(
     if (!['read-only', 'reversible', 'irreversible'].includes(step.effect)) throw new Error('step effect must be read-only, reversible, or irreversible.');
     if (step.toolArguments !== undefined) {
       if (!step.toolArguments || typeof step.toolArguments !== 'object' || Array.isArray(step.toolArguments) ||
-          JSON.stringify(step.toolArguments).length > 8_192) {
+          JSON.stringify(step.toolArguments).length > 64_000) {
         throw new Error('step tool arguments must be a bounded JSON object.');
       }
     }
