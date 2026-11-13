@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -51,4 +51,22 @@ test('Autopilot rejects malformed and oversized plans', () => {
       id: `step-${i}`, capability: 'analyze.code', objective: 'Analyze.',
     })),
   })), /between 1 and 12/);
+});
+
+test('Autopilot inference remains disabled unless every owner authorization gate is explicitly true', () => {
+  assert.equal(isAutopilotInferenceAuthorized({}), false);
+  assert.equal(isAutopilotInferenceAuthorized({
+    GLORIFIER_ENABLE_INFERENCE: 'true',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true',
+  }), false);
+  assert.equal(isAutopilotInferenceAuthorized({
+    GLORIFIER_ENABLE_INFERENCE: 'true',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+  }), false);
+  assert.equal(isAutopilotInferenceAuthorized({
+    GLORIFIER_ENABLE_INFERENCE: 'true',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true',
+  }), true);
 });
