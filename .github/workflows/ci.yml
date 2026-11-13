@@ -470,3 +470,4 @@ jobs:
         env:
           SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
           PGUSER: postgres
+\n      - name: Autopilot mission control\n        run: npm run test:autopilot-mission-control
