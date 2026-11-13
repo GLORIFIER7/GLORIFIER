@@ -344,7 +344,7 @@ export async function markFederatedA2AEvidence(
     }
     const reference = evidenceRef.trim();
     if (!reference || reference.length > 2048 || /[\\u0000-\\u001f\\u007f]/.test(reference)) {
-      throw new Error('evidenceRef must be a non-empty, bounded reference without control characters');
+    if (!reference || reference.length > 2048 || /[\u0000-\u001f\u007f]/.test(reference)) {
     }
     if (task.evidenceRefs.includes(reference)) throw new Error('evidenceRef is already attached to this task');
     const evidenceRefs = [...task.evidenceRefs, reference];
