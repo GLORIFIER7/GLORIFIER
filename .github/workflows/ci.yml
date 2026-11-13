@@ -240,6 +240,8 @@ jobs:
 
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
+      - name: Autopilot mission control
+        run: npm run test:autopilot-mission-control
 
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
@@ -470,4 +472,3 @@ jobs:
         env:
           SUPABASE_DEFAULT_PRIVILEGES_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
           PGUSER: postgres
-\n      - name: Autopilot mission control\n        run: npm run test:autopilot-mission-control
