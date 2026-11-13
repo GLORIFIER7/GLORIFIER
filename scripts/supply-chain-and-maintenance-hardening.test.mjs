@@ -303,11 +303,22 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   const publisherJob = jobSection(geminiReviewWorkflow, 'publish-review', null);
   const settings = readGeminiSystemSettings(geminiReviewWorkflow);
 
+  assert.match(
+    geminiReviewWorkflow,
+    /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+pr_number:\s*\n\s+description:.*\n\s+required: true\n\s+type: number/,
+  );
+  assert.doesNotMatch(geminiReviewWorkflow, /pull_request_target:/);
+  assert.match(geminiReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
+  assert.doesNotMatch(geminiReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
+  assert.match(modelJob, /gemini_model: gemini-3\.8-flash/);
+  assert.match(geminiReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.deepEqual(geminiReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
     'on:',
-    '  workflow_dispatch: {}',
+    '  workflow_dispatch:',
   ]);
+  assert.equal((geminiReviewWorkflow.match(/^  workflow_dispatch:/gm) || []).length, 1,
+    'Gemini PR review must declare workflow_dispatch exactly once');
   assert.equal(geminiReviewWorkflow.includes('pull_request_target:'), false);
   assert.match(geminiReviewWorkflow, /contents:\s*read/);
   assert.match(modelJob, /pull-requests:\s*read/);
@@ -331,6 +342,21 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.match(publisherJob, /event:\s*"COMMENT"/);
   assert.doesNotMatch(publisherJob, /event:\s*"(?:APPROVE|REQUEST_CHANGES)"/);
   assert.doesNotMatch(publisherJob, /merge_pull_request|gh pr merge|git push/);
+});
+
+test('Gemini PR review requires an explicit target PR and a pinned CLI release', () => {
+  const dispatchStart = geminiReviewWorkflow.indexOf('  workflow_dispatch:');
+  const permissionsStart = geminiReviewWorkflow.indexOf('\npermissions:', dispatchStart);
+  const dispatch = geminiReviewWorkflow.slice(dispatchStart, permissionsStart);
+
+  assert.match(
+    dispatch,
+    /inputs:\s*\n\s+pr_number:\s*\n\s+description:.*\n\s+required: true\n\s+type: number/,
+  );
+  assert.match(geminiReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
+  assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
+  assert.match(geminiReviewWorkflow, /gemini_cli_version: v0\.68\.0/);
+  assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
 });
 
 test('Gemini PR review fails visibly when the Gemini credential is unavailable', () => {
