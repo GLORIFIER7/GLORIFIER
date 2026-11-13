@@ -119,7 +119,8 @@
     "test:autopilot-mission-control": "node --import tsx/esm --test src/lib/autopilot-mission-control.test.ts",
     "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts",
     "test:autopilot-execution-fabric": "node --import tsx/esm --test src/lib/autopilot-execution-fabric.test.ts",
-    "test:autopilot-evidence-verifier": "node --import tsx/esm --test src/lib/autopilot-evidence-verifier.test.ts"
+    "test:autopilot-evidence-verifier": "node --import tsx/esm --test src/lib/autopilot-evidence-verifier.test.ts",
+    "test:autopilot-github-write": "node --import tsx/esm --test src/lib/autopilot-github-write.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
