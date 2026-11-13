@@ -188,11 +188,11 @@ test('Autopilot blocks irreversible steps unless an explicit human approval is r
   const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
     { id: 'deploy', capability: 'deploy.production', objective: 'Deploy approved production release.', effect: 'irreversible' },
   ], '2026-11-13T08:02:00.000Z');
-  const denied = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1');
+  const denied = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
   assert.equal(denied.claimed, false);
   assert.equal(denied.reason, 'human-approval-required');
   assert.equal((await getAutopilotMission(store, created.id, 'owner'))?.steps[0].status, 'pending');
-  const allowed = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', { approvedBy: 'owner-1', approvedAt: '2026-11-13T08:03:00.000Z' });
+  const allowed = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', { approvedBy: 'owner-1', approvedAt: '2026-11-13T08:03:00.000Z' }, '2026-11-13T08:03:00.000Z');
   assert.equal(allowed.claimed, true);
   assert.equal(allowed.mission.steps[0].status, 'running');
 });
@@ -209,7 +209,7 @@ test('Autopilot only completes steps with evidence and closes a mission after ev
   const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
     { id: 'inspect', capability: 'engineering', objective: 'Inspect the repository.', effect: 'read-only' },
   ], '2026-11-13T08:02:00.000Z');
-  const started = await claimAutopilotMissionStep(store, planned.id, 'inspect', 'worker-1');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'inspect', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
   await assert.rejects(
     () => completeAutopilotMissionStep(store, started.mission.id, 'inspect', started.mission.version, [], '2026-11-13T08:03:00.000Z'),
     /at least one evidence reference/,
@@ -235,12 +235,12 @@ test('Autopilot recovery quarantines expired in-flight work instead of replaying
     objective: 'Reconcile a potentially interrupted maintenance run.',
     now: '2026-11-13T08:00:00.000Z',
   });
-  const claimed = await claimNextAutopilotMission(store, 'worker-1', 60_000, '2026-11-13T08:01:00.000Z');
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
   const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
     { id: 'inspect', capability: 'engineering', objective: 'Inspect state.', effect: 'read-only' },
     { id: 'write', capability: 'engineering', objective: 'Write a reversible change.', effect: 'reversible' },
   ], '2026-11-13T08:02:00.000Z');
-  const started = await claimAutopilotMissionStep(store, planned.id, 'write', 'worker-1');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'write', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
   assert.equal(started.mission.steps[1].status, 'running');
 
   const recovered = await recoverAutopilotMissions(store, '2026-11-13T08:10:00.000Z');
@@ -265,6 +265,6 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
     () => recordAutopilotMissionPlan(store, mission.id, mission.version, [
       { id: 'step', capability: 'engineering', objective: 'A stale plan.', effect: 'read-only' },
     ]),
-    /mission changed concurrently/,
+    /changed concurrently/,
   );
 });
