@@ -240,6 +240,8 @@ jobs:
 
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
+      - name: Autopilot mission control
+        run: npm run test:autopilot-mission-control
 
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
