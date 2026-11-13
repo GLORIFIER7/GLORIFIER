@@ -23,7 +23,6 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalP
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
-import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission } from './src/lib/autopilot-mission-control';
 import { getAutopilotOrchestrationStatus } from './src/lib/autopilot-orchestrator';
 import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission, AutopilotMissionValidationError } from './src/lib/autopilot-mission-control';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
