@@ -350,10 +350,6 @@ await withServer({
   assert.equal(body.result, undefined);
 });
 
-console.log('A2A Express endpoint regression tests passed.');
-});
-
-void test('Express A2A adapter permits a requester-scoped exact retry after terminal completion', async () => {
   const requesterAgentId = 'express-test-user';
   const terminalTask = task({
     id: 'express-terminal-replay-task',
@@ -406,4 +402,7 @@ void test('Express A2A adapter permits a requester-scoped exact retry after term
     assert.equal(created.length, 1);
     assert.equal(created[0].parentTaskId, 'express-terminal-context');
   });
+
+console.log('A2A Express endpoint regression tests passed.');
 });
+
