@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const API_ROOT = 'https://api.github.com';
 const REPOSITORY_PATH = '/repos/GLORIFIER7/GLORIFIER';
 const MAX_API_RESPONSE_CHARS = 1_000_000;
@@ -154,6 +156,9 @@ async function updateFile(
     throw new Error('Autopilot file content must be text no larger than 24,000 characters.');
   }
   const message = requireMessage(args.message, 'commit message');
+  if (typeof args.expectedContentSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(args.expectedContentSha256)) {
+    throw new Error('expectedContentSha256 must be a lowercase SHA-256 digest of the inspected source file.');
+  }
   const path = args.path;
   const endpoint = fileContentPath(path);
   const existing = await githubRequest(
@@ -165,8 +170,14 @@ async function updateFile(
   let sha: string | undefined;
   if (existing.status === 200) {
     if (!isRecord(existing.data) || typeof existing.data.sha !== 'string' ||
-        !/^[a-f0-9]{40}$/i.test(existing.data.sha)) {
-      throw new Error('GitHub returned an invalid existing file SHA.');
+        !/^[a-f0-9]{40}$/i.test(existing.data.sha) ||
+        typeof existing.data.content !== 'string' || existing.data.encoding !== 'base64') {
+      throw new Error('GitHub returned invalid existing file content or SHA.');
+    }
+    const existingBytes = Buffer.from(existing.data.content.replace(/\\s/g, ''), 'base64');
+    const currentContentSha256 = createHash('sha256').update(existingBytes).digest('hex');
+    if (currentContentSha256 !== args.expectedContentSha256) {
+      throw new Error('Autopilot source changed after inspection; refusing to overwrite a stale file.');
     }
     sha = existing.data.sha;
   }
@@ -264,7 +275,7 @@ export async function executeGithubWriteTool(
     return createBranch(args, token, fetchImpl);
   }
   if (name === 'github_update_file') {
-    if (Object.keys(args).some(key => !['branch', 'path', 'content', 'message'].includes(key))) throw new Error('Unsupported update_file argument.');
+    if (Object.keys(args).some(key => !['branch', 'path', 'content', 'message', 'expectedContentSha256'].includes(key))) throw new Error('Unsupported update_file argument.');
     return updateFile(args, token, fetchImpl);
   }
   if (name === 'github_create_pull_request') {
