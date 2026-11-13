@@ -406,3 +406,11 @@ test('Gemini collaborator pins artifact actions used across the read-only model 
   assert.match(source, /uses: actions\/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8\.0\.2/);
   assert.doesNotMatch(source, /uses: actions\/(?:upload|download)-artifact@v[0-9]+/);
 });
+
+
+test('continuous improvement installs dependencies from the committed npm lockfile', () => {
+  const source = readFileSync(new URL('../.github/workflows/continuous-improvement.yml', import.meta.url), 'utf8');
+  assert.match(source, /cache-dependency-path:\s*package-lock\.json/);
+  assert.match(source, /run:\s*npm ci --ignore-scripts --no-audit --no-fund/);
+  assert.doesNotMatch(source, /run:\s*npm install\b/);
+});

@@ -52,7 +52,8 @@ test('paid inference requires the owner-authorized first manual attempt', () => 
 
   const setupAndInstall = workflow.slice(setupStart, modelStart);
   assert.match(setupAndInstall, /if:\s*steps\.authorization\.outputs\.enabled == 'true'/);
-  assert.match(setupAndInstall, /npm install/);
+  assert.match(setupAndInstall, /npm ci --ignore-scripts --no-audit --no-fund/);
+  assert.doesNotMatch(setupAndInstall, /npm install/);
 
   const modelStep = workflow.slice(modelStart, resultStart);
   assert.match(modelStep, /if:\s*steps\.authorization\.outputs\.enabled == 'true'/);
