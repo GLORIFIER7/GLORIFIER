@@ -31,6 +31,9 @@ test('Code Guardian uses deterministic locked dependencies and non-persistent ch
   assert.match(guardian, /package-manager-cache:\s*false/);
   assert.match(guardian, /npm ci --ignore-scripts --no-audit --no-fund/);
   assert.doesNotMatch(guardian, /npm install --ignore-scripts/);
+  const guardianStep = guardian.slice(guardian.indexOf('      - id: guardian'), guardian.indexOf('      - name: Report paid-inference authorization state'));
+  assert.doesNotMatch(guardianStep, /continue-on-error:\\s*true/);
+  assert.match(guardian, /Guardian completed in the ephemeral runner[\\s\\S]*?no branch, PR, repository write, or deployment was performed/);
 });
 
 test('Code Guardian scheduled checks are throttled while push and manual checks remain available', () => {
