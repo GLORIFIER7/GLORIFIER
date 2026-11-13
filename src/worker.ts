@@ -784,7 +784,7 @@ const neuralRouteImplementation = async (request: Request, pathname: string, env
   let taskBody: ArrayBuffer | undefined;
   if (pathname === '/api/neural/v1/tasks') {
     if (!explicitlyEnabled(env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS)) {
-      return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_DATA_EGRESS_DISABLED' }, {
+      return Response.json({ ok: false, status: 'unavailable', code: 'NEURAL_EXTERNAL_EGRESS_DISABLED' }, {
         status: 503,
         headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
       });
