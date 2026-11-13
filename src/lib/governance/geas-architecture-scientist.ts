@@ -656,7 +656,7 @@ const isAuthenticatedClaimSupportObservation = (
   if (observedAt === null || attestedAt === null || validUntil === null) return false;
 
   const excerptHash = createHash('sha256')
-    .update(source.evidenceExcerpt.replace(/\\s+/g, ' ').trim(), 'utf8')
+    .update(source.evidenceExcerpt.replace(/\s+/g, ' ').trim(), 'utf8')
     .digest('hex');
   const cadenceMs = registeredSource.cadenceHours * 60 * 60 * 1000;
   if (
