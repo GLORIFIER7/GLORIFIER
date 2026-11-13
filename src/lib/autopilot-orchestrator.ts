@@ -10,6 +10,8 @@ import {
   recordAutopilotMissionPlan,
   claimAutopilotMissionStep,
   completeAutopilotMissionStep,
+  renewAutopilotMissionLease,
+  recordAutopilotMissionFailure,
   getAutopilotMissionStore,
   getAutopilotMissionControlStatus,
   type AutopilotMissionPlanStep,
@@ -119,32 +121,47 @@ async function planMission(objective: string) {
 
 type MissionClock = () => string;
 
-const authorizeStep = (step: AutopilotMissionPlanStep) => {
-  const capability = authorizeCapability({ capability: step.capability, requestedBy: WORKER_ID });
-  if (!capability.allowed || !capability.policy) {
-    throw new Error(`Capability authorization rejected Autopilot step ${step.id}: ${capability.reason}.`);
+export function startAutopilotMissionLeaseHeartbeat(
+  renew: () => Promise<unknown>,
+  intervalMs = 30_000,
+) {
+  if (!Number.isSafeInteger(intervalMs) || intervalMs < 1) {
+    throw new Error('Autopilot lease heartbeat interval must be a positive integer.');
   }
-  if (step.effect !== 'read-only' || !(ALLOWED_TOOL_CAPABILITIES as readonly string[]).includes(step.capability)) {
-    throw new Error(`Autopilot step ${step.id} is not backed by an enabled read-only adapter.`);
-  }
-  const geas = evaluateGeasPolicy({
-    actorType: 'agent',
-    action: step.capability,
-    risk: capability.policy.risk,
-    hasEvidence: false,
-    evidenceVerified: false,
-    externallyIrreversible: false,
-  });
-  if (geas.decision !== 'allow') {
-    throw new Error(`GEAS rejected Autopilot step ${step.id}: ${geas.decision}.`);
-  }
-};
+  let stopped = false;
+  let renewalInFlight: Promise<void> | null = null;
+  let failure: Error | null = null;
+  const timer = setInterval(() => {
+    if (stopped || renewalInFlight || failure) return;
+    renewalInFlight = (async () => {
+      try {
+        const renewed = await renew();
+        if (!renewed) {
+          throw new Error('Autopilot mission lease renewal failed: lease is no longer owned or active.');
+        }
+      } catch (error) {
+        failure = error instanceof Error ? error : new Error(String(error || 'unknown lease renewal failure'));
+      }
+    })().finally(() => {
+      renewalInFlight = null;
+    });
+  }, intervalMs);
+  timer.unref?.();
 
-const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
-  const serialized = JSON.stringify(value) ?? 'null';
-  if (serialized.length <= maximumCharacters) return serialized;
-  return serialized.slice(0, maximumCharacters) + '…[truncated; sha256 evidence reference retained]';
-};
+  return {
+    assertHealthy(): void {
+      if (failure) throw failure;
+    },
+    async stop(): Promise<void> {
+      if (!stopped) {
+        stopped = true;
+        clearInterval(timer);
+      }
+      if (renewalInFlight) await renewalInFlight;
+      if (failure) throw failure;
+    },
+  };
+}
 
 export async function processNextAutopilotMission(
   suppliedNow?: string,
@@ -164,131 +181,194 @@ export async function processNextAutopilotMission(
   const mission = await claimNextAutopilotMission(store, WORKER_ID, LEASE_MS, now);
   if (!mission) return { status: 'idle', reason: 'no-due-missions' };
 
-  let planningMetadata: {
-    executive: { provider: string; model: string };
-    council: { result: { specialistCount: number; conflicts: unknown } };
-  } | null = null;
-  let planned: AutopilotMission;
-
-  if (mission.steps.length === 0) {
-    const plan = await planMission(mission.objective);
-    for (const step of plan.steps) authorizeStep(step);
-    planned = await recordAutopilotMissionPlan(store, mission.id, mission.version, WORKER_ID, plan.steps, now);
-    planningMetadata = { executive: plan.executive, council: plan.council };
-  } else {
-    // Existing steps are resumed only when the durable store preserved a prior
-    // approved plan and the retry reconciler explicitly requeued read-only work.
-    if (mission.status !== 'executing') {
-      throw new Error('Recovered Autopilot mission did not resume in the executing state.');
+  const heartbeatIntervalMs = Math.max(5_000, Math.floor(LEASE_MS / 3));
+  const renewLease = () => renewAutopilotMissionLease(
+    store, mission.id, WORKER_ID, LEASE_MS, clock(),
+  );
+  let heartbeat: ReturnType<typeof startAutopilotMissionLeaseHeartbeat> | null =
+    startAutopilotMissionLeaseHeartbeat(renewLease, heartbeatIntervalMs);
+  const pauseHeartbeat = async (): Promise<void> => {
+    const active = heartbeat;
+    heartbeat = null;
+    if (active) await active.stop();
+  };
+  const resumeHeartbeat = (): void => {
+    if (!heartbeat) heartbeat = startAutopilotMissionLeaseHeartbeat(renewLease, heartbeatIntervalMs);
+  };
+  const assertLeaseOwned = async (): Promise<AutopilotMission> => {
+    const current = await store.get(mission.id);
+    if (!current || current.leaseOwner !== WORKER_ID || !current.leaseExpiresAt ||
+        Date.parse(current.leaseExpiresAt) <= Date.parse(clock())) {
+      throw new Error('Autopilot mission lease was lost before a durable state transition.');
     }
-    for (const step of mission.steps) authorizeStep(step);
-    planned = mission;
-  }
+    return current;
+  };
 
-  const results: Array<{
-    stepId: string;
-    toolName: string;
-    status: string;
-    executionSha256: string;
-    verifierId: string;
-    sourceUrl: string;
-  }> = [];
+  try {
+    let planningMetadata: {
+      executive: { provider: string; model: string };
+      council: { result: { specialistCount: number; conflicts: unknown } };
+    } | null = null;
+    let planned: AutopilotMission;
 
-  for (const step of planned.steps) {
-    if (step.status === 'completed' && step.verification?.status === 'verified') continue;
-    if (step.status !== 'pending') {
-      throw new Error(`Mission step ${step.id} is not safely resumable from status ${step.status}.`);
+    if (mission.steps.length === 0) {
+      const plan = await planMission(mission.objective);
+      heartbeat?.assertHealthy();
+      for (const step of plan.steps) authorizeStep(step);
+      await pauseHeartbeat();
+      const current = await assertLeaseOwned();
+      planned = await recordAutopilotMissionPlan(
+        store, mission.id, current.version, WORKER_ID, plan.steps, clock(),
+      );
+      planningMetadata = { executive: plan.executive, council: plan.council };
+      resumeHeartbeat();
+    } else {
+      // Existing steps are resumed only when the durable store preserved a prior
+      // approved plan and the retry reconciler explicitly requeued read-only work.
+      if (mission.status !== 'executing') {
+        throw new Error('Recovered Autopilot mission did not resume in the executing state.');
+      }
+      for (const step of mission.steps) authorizeStep(step);
+      planned = mission;
     }
 
-    authorizeStep(step);
-    const claimed = await claimAutopilotMissionStep(store, planned.id, step.id, WORKER_ID, undefined, clock());
-    if (!claimed.claimed) throw new Error(`Mission step ${step.id} was not authorized for execution: ${claimed.reason || 'claim denied'}.`);
+    const results: Array<{
+      stepId: string;
+      toolName: string;
+      status: string;
+      executionSha256: string;
+      verifierId: string;
+      sourceUrl: string;
+    }> = [];
 
-    const execution = await executeAutopilotToolStep(step.capability, step.toolArguments ?? {});
-    const task = await createA2ATaskForProtocol({
-      requesterAgentId: 'ai-ceo',
-      capability: 'analyze.code',
-      objective: `Analyze the independently verified read-only GitHub tool result for mission step ${step.id}. Separate observed fields, interpretation, limitations, and recommendations. Do not claim any state-changing action.`,
-      input: {
-        missionId: planned.id,
-        missionObjective: planned.objective,
+    for (const step of planned.steps) {
+      if (step.status === 'completed' && step.verification?.status === 'verified') continue;
+      if (step.status !== 'pending') {
+        throw new Error(`Mission step ${step.id} is not safely resumable from status ${step.status}.`);
+      }
+
+      authorizeStep(step);
+      // Pause heartbeats around compare-and-swap writes so a lease renewal cannot
+      // race the mission-version check. Restart immediately after the transition.
+      await pauseHeartbeat();
+      await assertLeaseOwned();
+      const claimed = await claimAutopilotMissionStep(
+        store, planned.id, step.id, WORKER_ID, undefined, clock(),
+      );
+      if (!claimed.claimed) {
+        throw new Error(`Mission step ${step.id} was not authorized for execution: ${claimed.reason || 'claim denied'}.`);
+      }
+      resumeHeartbeat();
+
+      const execution = await executeAutopilotToolStep(step.capability, step.toolArguments ?? {});
+      heartbeat?.assertHealthy();
+      const task = await createA2ATaskForProtocol({
+        requesterAgentId: 'ai-ceo',
+        capability: 'analyze.code',
+        objective: `Analyze the independently verified read-only GitHub tool result for mission step ${step.id}. Separate observed fields, interpretation, limitations, and recommendations. Do not claim any state-changing action.`,
+        input: {
+          missionId: planned.id,
+          missionObjective: planned.objective,
+          stepId: step.id,
+          toolName: execution.toolName,
+          toolArguments: execution.arguments,
+          toolResult: boundedJson(execution.executionResult),
+          executionSha256: execution.executionSha256,
+          independentVerification: execution.verification,
+        },
+        idempotencyKey: `${step.idempotencyKey}:attempt:${claimed.mission.steps.find(entry => entry.id === step.id)?.attemptCount ?? 1}`,
+        maxAttempts: 1,
+      });
+      const completed = await executeA2ATask(task, async (prompt, options) => {
+        const response = await aiOrchestrator.generate({
+          provider: 'auto',
+          temperature: 0.1,
+          evaluate: true,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an analytical A2A worker. Analyze the supplied independently verified read-only tool output. Do not claim repository, infrastructure, financial, or external state was changed. Distinguish source observations, assumptions, recommendations, and missing evidence.',
+            },
+            { role: 'user', content: prompt + '\\nExecution context: ' + JSON.stringify(options || {}) },
+          ],
+        });
+        return { text: response.text, model: `${response.provider}:${response.model}` };
+      });
+      if (completed.status !== 'completed' || !completed.evidenceId) {
+        throw new Error(`A2A analytical task ${task.id} did not complete: ${completed.error || completed.status}.`);
+      }
+
+      heartbeat?.assertHealthy();
+      await pauseHeartbeat();
+      const latest = await assertLeaseOwned();
+      const verifiedEvidence = {
+        status: 'verified' as const,
+        verifierId: execution.verification.verifierId,
+        sourceUrl: execution.verification.sourceUrl,
+        verifiedAt: execution.verification.verifiedAt,
+        sourceSha256: execution.verification.sourceSha256,
+        executionSha256: execution.verification.executionSha256,
+      };
+      const saved = await completeAutopilotMissionStep(
+        store,
+        planned.id,
+        step.id,
+        latest.version,
+        WORKER_ID,
+        [
+          `github-adapter://${execution.toolName}/${execution.executionSha256}`,
+          `github-verification://${verifiedEvidence.verifierId}/${verifiedEvidence.sourceSha256}`,
+          `a2a-artifact://${completed.id}/${completed.evidenceId}`,
+        ],
+        clock(),
+        verifiedEvidence,
+      );
+      results.push({
         stepId: step.id,
         toolName: execution.toolName,
-        toolArguments: execution.arguments,
-        toolResult: boundedJson(execution.executionResult),
+        status: completed.status,
         executionSha256: execution.executionSha256,
-        independentVerification: execution.verification,
-      },
-      idempotencyKey: `${step.idempotencyKey}:attempt:${claimed.mission.steps.find(entry => entry.id === step.id)?.attemptCount ?? 1}`,
-      maxAttempts: 1,
-    });
-    const completed = await executeA2ATask(task, async (prompt, options) => {
-      const response = await aiOrchestrator.generate({
-        provider: 'auto',
-        temperature: 0.1,
-        evaluate: true,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an analytical A2A worker. Analyze the supplied independently verified read-only tool output. Do not claim repository, infrastructure, financial, or external state was changed. Distinguish source observations, assumptions, recommendations, and missing evidence.',
-          },
-          { role: 'user', content: prompt + '\nExecution context: ' + JSON.stringify(options || {}) },
-        ],
+        verifierId: execution.verification.verifierId,
+        sourceUrl: execution.verification.sourceUrl,
       });
-      return { text: response.text, model: `${response.provider}:${response.model}` };
-    });
-    if (completed.status !== 'completed' || !completed.evidenceId) {
-      throw new Error(`A2A analytical task ${task.id} did not complete: ${completed.error || completed.status}.`);
+      if (saved.status !== 'completed') resumeHeartbeat();
+      else break;
     }
 
-    const latest = await store.get(planned.id);
-    if (!latest) throw new Error('Mission disappeared during A2A execution.');
-    const verifiedEvidence = {
-      status: 'verified' as const,
-      verifierId: execution.verification.verifierId,
-      sourceUrl: execution.verification.sourceUrl,
-      verifiedAt: execution.verification.verifiedAt,
-      sourceSha256: execution.verification.sourceSha256,
-      executionSha256: execution.verification.executionSha256,
+    await pauseHeartbeat();
+    const finalMission = await store.get(planned.id);
+    return {
+      status: finalMission?.status || 'unknown',
+      missionId: planned.id,
+      aiCeo: planningMetadata?.executive ?? null,
+      specialistCount: planningMetadata?.council.result.specialistCount ?? null,
+      specialistConflicts: planningMetadata?.council.result.conflicts ?? null,
+      dispatchedSteps: results,
+      verification: finalMission?.verificationState === 'verified'
+        ? 'INDEPENDENT_GITHUB_SOURCE_MATCH'
+        : 'PENDING_EXTERNAL_EVIDENCE',
+      warning: 'Verification independently re-reads the same public GitHub source through a separate adapter path; it is not a second trust domain and does not prove write operations.',
     };
-    const saved = await completeAutopilotMissionStep(
-      store,
-      planned.id,
-      step.id,
-      latest.version,
-      WORKER_ID,
-      [
-        `github-adapter://${execution.toolName}/${execution.executionSha256}`,
-        `github-verification://${verifiedEvidence.verifierId}/${verifiedEvidence.sourceSha256}`,
-        `a2a-artifact://${completed.id}/${completed.evidenceId}`,
-      ],
-      clock(),
-      verifiedEvidence,
-    );
-    results.push({
-      stepId: step.id,
-      toolName: execution.toolName,
-      status: completed.status,
-      executionSha256: execution.executionSha256,
-      verifierId: execution.verification.verifierId,
-      sourceUrl: execution.verification.sourceUrl,
-    });
-    if (saved.status === 'completed') break;
+  } catch (error) {
+    // Persist failures immediately. Planning failures get the existing single
+    // bounded retry; an interrupted execution is quarantined for reconciliation.
+    // A lost lease cannot be mutated by this worker and remains recoverable later.
+    try {
+      await pauseHeartbeat();
+    } catch {
+      // Preserve the original execution failure; the lease is no longer trusted.
+    }
+    try {
+      const current = await store.get(mission.id);
+      if (current?.leaseOwner === WORKER_ID && current.leaseExpiresAt &&
+          Date.parse(current.leaseExpiresAt) > Date.parse(clock())) {
+        await recordAutopilotMissionFailure(store, mission.id, WORKER_ID, error, clock());
+      }
+    } catch (recordError) {
+      console.error('[Autopilot] failed to persist mission failure state:', recordError);
+    }
+    throw error;
   }
-
-  const finalMission = await store.get(planned.id);
-  return {
-    status: finalMission?.status || 'unknown',
-    missionId: planned.id,
-    aiCeo: planningMetadata?.executive ?? null,
-    specialistCount: planningMetadata?.council.result.specialistCount ?? null,
-    specialistConflicts: planningMetadata?.council.result.conflicts ?? null,
-    dispatchedSteps: results,
-    verification: finalMission?.verificationState === 'verified'
-      ? 'INDEPENDENT_GITHUB_SOURCE_MATCH'
-      : 'PENDING_EXTERNAL_EVIDENCE',
-    warning: 'Verification independently re-reads the same public GitHub source through a separate adapter path; it is not a second trust domain and does not prove write operations.',
-  };
 }
 
 export function getAutopilotOrchestrationStatus() {
