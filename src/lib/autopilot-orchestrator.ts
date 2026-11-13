@@ -211,7 +211,7 @@ export async function processNextAutopilotMission(
         executionSha256: execution.executionSha256,
         independentVerification: execution.verification,
       },
-      idempotencyKey: step.idempotencyKey,
+      idempotencyKey: `${step.idempotencyKey}:attempt:${claimed.mission.steps.find(entry => entry.id === step.id)?.attemptCount ?? 1}`,
       maxAttempts: 1,
     });
     const completed = await executeA2ATask(task, async (prompt, options) => {
