@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -119,4 +119,57 @@ test('Autopilot lease heartbeat surfaces a lost lease and stops future renewals'
   const stoppedAt = renewals;
   await new Promise(resolve => setTimeout(resolve, 15));
   assert.equal(renewals, stoppedAt, 'a failed heartbeat must not keep running');
+});
+
+
+test('Autopilot generates mission-specific branch names within GitHub limits', () => {
+  assert.equal(getAutopilotMaintenanceBranchName('mission-123'), 'autopilot/mission-123');
+  assert.equal(getAutopilotMaintenanceBranchName('MISSION:abc/123'), 'autopilot/mission-abc-123');
+  assert.ok(getAutopilotMaintenanceBranchName('x'.repeat(100)).length <= 73);
+});
+
+test('Autopilot accepts only a branch-scoped repair plan whose update hash matches the inspected source', () => {
+  const branch = 'autopilot/mission-123';
+  const expectedHash = 'a'.repeat(64);
+  const plan = JSON.stringify({
+    steps: [
+      { id: 'branch', capability: 'github.create_branch', objective: 'Create an isolated branch.', arguments: { branch, base_ref: 'main' } },
+      { id: 'inspect', capability: 'github.read_file', objective: 'Re-read the inspected source on the mission branch.', arguments: { path: 'src/lib/service.ts', ref: branch } },
+      { id: 'update', capability: 'github.update_file', objective: 'Apply the minimal repair.', arguments: { branch, path: 'src/lib/service.ts', content: 'export const fixed = true;', message: 'fix: repair service', expectedContentSha256: expectedHash } },
+      { id: 'pr', capability: 'github.create_pull_request', objective: 'Open a draft PR for review.', arguments: { branch, title: 'Fix service behavior', body: 'Summary and verification plan.' } },
+    ],
+  });
+  const validated = validateAutopilotPlan(plan, {
+    expectedBranch: branch,
+    allowWrites: true,
+    inspectedPaths: ['src/lib/service.ts'],
+    expectedSourceHashes: { 'src/lib/service.ts': expectedHash },
+  });
+  assert.deepEqual(validated.map(step => step.effect), ['reversible', 'read-only', 'reversible', 'reversible']);
+});
+
+test('Autopilot rejects unsafe, unconfigured, out-of-order or stale-source repository repair plans', () => {
+  const branch = 'autopilot/mission-123';
+  const expectedHash = 'a'.repeat(64);
+  const steps = [
+    { id: 'branch', capability: 'github.create_branch', objective: 'Create an isolated branch.', arguments: { branch, base_ref: 'main' } },
+    { id: 'inspect', capability: 'github.read_file', objective: 'Read the source.', arguments: { path: 'src/lib/service.ts', ref: branch } },
+    { id: 'update', capability: 'github.update_file', objective: 'Update source.', arguments: { branch, path: 'src/lib/service.ts', content: 'patched', message: 'fix: patch source', expectedContentSha256: expectedHash } },
+    { id: 'pr', capability: 'github.create_pull_request', objective: 'Open a draft PR.', arguments: { branch, title: 'Fix service behavior', body: 'Review requested.' } },
+  ];
+  const input = JSON.stringify({ steps });
+  assert.throws(() => validateAutopilotPlan(input), /write adapter is disabled/);
+  assert.throws(() => validateAutopilotPlan(input, {
+    expectedBranch: 'autopilot/other-mission', allowWrites: true,
+    inspectedPaths: ['src/lib/service.ts'], expectedSourceHashes: { 'src/lib/service.ts': expectedHash },
+  }), /exact isolated Autopilot branch/);
+  assert.throws(() => validateAutopilotPlan(input, {
+    expectedBranch: branch, allowWrites: true,
+    inspectedPaths: ['src/lib/service.ts'], expectedSourceHashes: { 'src/lib/service.ts': 'b'.repeat(64) },
+  }), /exact source SHA-256/);
+  const outOfOrder = JSON.stringify({ steps: [steps[0], steps[2], steps[1], steps[3]] });
+  assert.throws(() => validateAutopilotPlan(outOfOrder, {
+    expectedBranch: branch, allowWrites: true,
+    inspectedPaths: ['src/lib/service.ts'], expectedSourceHashes: { 'src/lib/service.ts': expectedHash },
+  }), /source reads, file updates/);
 });
