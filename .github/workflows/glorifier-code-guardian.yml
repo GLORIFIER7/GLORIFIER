@@ -51,7 +51,6 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
       - id: guardian
-        continue-on-error: true
         env:
           GUARDIAN_PROVIDER: ${{ steps.authorization.outputs.enabled == 'true' && vars.GUARDIAN_PROVIDER || 'none' }}
           OPENAI_API_KEY: ${{ steps.authorization.outputs.enabled == 'true' && secrets.OPENAI_API_KEY || '' }}
@@ -73,7 +72,7 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.guardian.outcome }}" = "success" ]; then
-            echo "Guardian completed. Proposed repairs remain subject to normal review and CI."
+            echo "Guardian completed in the ephemeral runner. Any local repair passed lint/build; no branch, PR, repository write, or deployment was performed."
           else
-            echo "Guardian analysis failed or provider was unavailable; no repository mutation was attempted."
+            echo "Guardian checks or provider-assisted local repair failed; inspect logs. No repository write or deployment was performed."
           fi
