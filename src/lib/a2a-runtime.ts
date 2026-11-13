@@ -88,10 +88,17 @@ export function initializeA2ARuntime(): Promise<void> {
       result JSONB,
       error TEXT,
       evidence_id TEXT,
+      idempotency_key TEXT,
+      idempotency_hash TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE a2a_tasks ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+    ALTER TABLE a2a_tasks ADD COLUMN IF NOT EXISTS idempotency_hash TEXT;
     CREATE INDEX IF NOT EXISTS idx_a2a_tasks_status ON a2a_tasks(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_a2a_tasks_requester_idempotency
+      ON a2a_tasks(requester_agent_id, idempotency_key)
+      WHERE idempotency_key IS NOT NULL;
     CREATE TABLE IF NOT EXISTS a2a_handoffs (
       handoff_id TEXT PRIMARY KEY,
       task_id TEXT NOT NULL,
@@ -175,7 +182,21 @@ type CreateA2ATaskInput = {
   input?: unknown;
   parentTaskId?: string;
   maxAttempts?: number;
+  /** A2A message replay key; scoped to the authenticated requester. */
+  idempotencyKey?: string;
 };
+
+export type A2ATaskPersistenceQuery = (
+  sql: string,
+  values?: unknown[],
+) => Promise<{ rows: Array<Record<string, unknown>> }>;
+
+export class A2AIdempotencyConflictError extends Error {
+  constructor() {
+    super('A2A messageId was already used by this requester with different content.');
+    this.name = 'A2AIdempotencyConflictError';
+  }
+}
 
 function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
   const now = new Date().toISOString();
@@ -206,6 +227,12 @@ export async function createA2ATaskForProtocol(input: CreateA2ATaskInput): Promi
     throw new Error('A2A persistent task storage is not configured.');
   }
   await initializeA2ARuntime();
+  if (input.idempotencyKey !== undefined) {
+    return createA2ATaskWithIdempotency(input, async (sql, values = []) => {
+      const result = await getPostgresPool().query(sql, values as any[]);
+      return { rows: result.rows as Array<Record<string, unknown>> };
+    });
+  }
   const task = buildA2ATask(input);
   await persistTaskDurably(task);
   memoryTasks.set(task.id, task);
@@ -247,6 +274,94 @@ function mapPersistedA2ATask(row: Record<string, unknown>): A2ATask {
     ...(row.evidence_id === null || row.evidence_id === undefined ? {} : { evidenceId: String(row.evidence_id) }),
   };
 }
+
+function canonicalizeIdempotencyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeIdempotencyValue);
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record).sort().map((key) => [key, canonicalizeIdempotencyValue(record[key])]),
+    );
+  }
+  return value;
+}
+
+function a2aTaskRequestFingerprint(input: CreateA2ATaskInput): string {
+  const semanticRequest = {
+    requesterAgentId: input.requesterAgentId,
+    targetAgentId: input.targetAgentId || null,
+    capability: input.capability.trim().toLowerCase(),
+    objective: input.objective,
+    input: input.input ?? null,
+    parentTaskId: input.parentTaskId || null,
+    maxAttempts: Math.max(1, Math.min(5, input.maxAttempts || 3)),
+  };
+  return crypto.createHash('sha256')
+    .update(JSON.stringify(canonicalizeIdempotencyValue(semanticRequest)))
+    .digest('hex');
+}
+
+/**
+ * Persist one A2A task with an atomic requester-scoped idempotency key.
+ * Exact retries return the first stored task; key reuse with different content
+ * raises A2AIdempotencyConflictError without changing the existing row.
+ */
+export async function createA2ATaskWithIdempotency(
+  input: CreateA2ATaskInput,
+  query: A2ATaskPersistenceQuery,
+): Promise<A2ATask> {
+  const idempotencyKey = typeof input.idempotencyKey === 'string'
+    ? input.idempotencyKey.trim()
+    : '';
+  if (!idempotencyKey || idempotencyKey.length > 256) {
+    throw new Error('A2A idempotency key must contain 1 through 256 characters.');
+  }
+
+  const task = buildA2ATask(input);
+  const fingerprint = a2aTaskRequestFingerprint(input);
+  const inserted = await query(
+    `INSERT INTO a2a_tasks(
+       id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+       attempts,max_attempts,result,error,evidence_id,created_at,updated_at,idempotency_key,idempotency_hash
+     )
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     ON CONFLICT (requester_agent_id,idempotency_key)
+       WHERE idempotency_key IS NOT NULL
+       DO NOTHING
+     RETURNING id`,
+    [
+      task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability,
+      task.objective, JSON.stringify(task.input ?? null), task.status, task.attempts,
+      task.maxAttempts, task.result ?? null, task.error ?? null, task.evidenceId ?? null,
+      task.createdAt, task.updatedAt, idempotencyKey, fingerprint,
+    ],
+  );
+  if (inserted.rows.length > 0) {
+    memoryTasks.set(task.id, task);
+    return task;
+  }
+
+  const existingResult = await query(
+    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+            attempts,max_attempts,result,error,evidence_id,created_at,updated_at,idempotency_hash
+       FROM a2a_tasks
+      WHERE requester_agent_id = $1 AND idempotency_key = $2
+      LIMIT 1`,
+    [task.requesterAgentId, idempotencyKey],
+  );
+  const existingRow = existingResult.rows[0];
+  if (!existingRow) {
+    throw new Error('A2A idempotency record could not be resolved after a conflict.');
+  }
+  if (String(existingRow.idempotency_hash || '') !== fingerprint) {
+    throw new A2AIdempotencyConflictError();
+  }
+
+  const existingTask = mapPersistedA2ATask(existingRow);
+  memoryTasks.set(existingTask.id, existingTask);
+  return existingTask;
+}
+
 
 export function listA2ATasks(limit = 50, requesterAgentId?: string, allowAll = false) {
   const requester = typeof requesterAgentId === 'string' ? requesterAgentId.trim() : undefined;

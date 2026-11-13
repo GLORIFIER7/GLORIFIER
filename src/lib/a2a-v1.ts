@@ -254,7 +254,8 @@ function messageText(message: JsonRecord): {
   taskId?: string;
   contextId?: string;
 } | null {
-  if (message.role !== 'ROLE_USER' || typeof message.messageId !== 'string' || !message.messageId.trim()) return null;
+  if (message.role !== 'ROLE_USER' || typeof message.messageId !== 'string' ||
+      !message.messageId.trim() || message.messageId.length > 256) return null;
   if (hasOwn(message, 'taskId') && (typeof message.taskId !== 'string' || !message.taskId.trim())) return null;
   if (hasOwn(message, 'contextId') && (typeof message.contextId !== 'string' || !message.contextId.trim())) return null;
   if (!Array.isArray(message.parts) || message.parts.length < 1 || message.parts.length > 20) return null;

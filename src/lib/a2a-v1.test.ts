@@ -93,6 +93,25 @@ void test('A2A v1 Agent Card advertises a valid protocol and requires owner appr
   assert.throws(() => buildA2AAgentCard('https://example.com/path'), /origin/);
 });
 
+
+void test('A2A SendMessage rejects oversized idempotency message IDs', async () => {
+  const { created, handler } = createTestHandler();
+  const response = await handler({
+    jsonrpc: '2.0',
+    id: 'oversized-message-id',
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: 'm'.repeat(257),
+        role: 'ROLE_USER',
+        parts: [{ text: 'must not create a task' }],
+      },
+    },
+  });
+  assert.equal((response.error as { code: number }).code, -32602);
+  assert.equal(created.length, 0, 'invalid replay identifiers must not reach durable task creation');
+});
+
 void test('A2A SendMessage creates a task for the authenticated requester', async () => {
   const { created, handler } = createTestHandler();
   const submit = await handler({
