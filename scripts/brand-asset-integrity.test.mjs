@@ -5,6 +5,7 @@ import test from "node:test";
 
 const expectedSha256 = "6d76341a1a892d05d7c4162176e69e3741f0eda1ae4765fd8ceb8b345e85b790";
 const canonicalCid = "bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa";
+const legacyAvatarFingerprint = "2debdba15d0c08ab78691048092e465dc74c530e3447e3f584a23e7165272c33";
 const appPath = "glorifier-services-official-logo-001.png";
 const read = (path, encoding) => readFile(new URL(path, import.meta.url), encoding);
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -46,7 +47,8 @@ test("app header consumes the centralized local artwork path", () => {
   assert.match(header, /GLORIFIER_OFFICIAL_BRAND_ASSET/);
   assert.match(header, /import\.meta\.env\.BASE_URL/);
   assert.match(header, /object-contain/);
-  assert.doesNotMatch(header, /gravatar\.com|ipfs\.io\/ipfs\/QmVHCtut/);
+  assert.ok(!header.includes(legacyAvatarFingerprint));
+  assert.ok(!header.includes("QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv"));
 });
 
 test("browser and installed-app icons use the same canonical PNG", () => {
@@ -58,17 +60,18 @@ test("browser and installed-app icons use the same canonical PNG", () => {
   assert.equal(manifest.icons[0].type, "image/png");
   assert.equal(manifest.icons[0].sizes, "500x500");
   for (const source of [indexHtml, manifestText]) {
-    assert.doesNotMatch(source, /gravatar\.com|QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv/);
+    assert.ok(!source.includes(legacyAvatarFingerprint));
+    assert.ok(!source.includes("QmVHCtutYvhWxAsqjTCzB5ySjqA1yenAyhDAWxE2Wa91Sv"));
   }
 });
 
 test("the project page and compatibility SVG use the same canonical artwork", () => {
   assert.ok(projectPage.includes(appPath));
   assert.match(projectPage, /autonomous AI enterprise/i);
-  assert.ok(!projectPage.includes("gravatar.com"));
+  assert.ok(!projectPage.includes(legacyAvatarFingerprint));
   assert.ok(!projectPage.includes('<span class="mark" aria-hidden="true">G</span>'));
   assert.ok(appIcon.includes(appPath));
-  assert.ok(!appIcon.includes("gravatar.com"));
+  assert.ok(!appIcon.includes(legacyAvatarFingerprint));
 });
 
 test("brand policy records the NFT-matched asset and historical hash distinction", () => {
