@@ -74,6 +74,7 @@ test('forwards public Pages MCP Streamable HTTP POST intact instead of returning
     }),
   });
 
+  assert.ok(received, 'The public Pages MCP route must invoke the private Worker binding before the forwarded request is inspected.');
   assert.equal(received.url, 'https://glorifier.pages.dev/mcp');
   assert.equal(received.method, 'POST');
   assert.equal(received.headers.get('origin'), 'https://glorifier.pages.dev');
