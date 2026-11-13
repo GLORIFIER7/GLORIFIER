@@ -72,32 +72,17 @@ OpenSea's current API documentation describes per-NFT best-listing, offer and ev
 - [Offers for an NFT](https://docs.opensea.io/reference/get_offers_nft)
 - [Events for an NFT](https://docs.opensea.io/reference/list_events_by_nft)
 
-## Wallet-control attestation — pending
+## Wallet-control signature — supplementary, not an ownership blocker
 
-The contract and token state identify the holding address, but chain state alone does not prove that the human owner controls the wallet or is authorized to represent the company. The address currently returns empty bytecode (`0x`), so it is an externally owned account and can use a standard EIP-191 personal message signature.
+The current on-chain holder address is **VERIFIED at the address level** by the direct Ethereum Mainnet `ownerOf(1)` read and the successful mint receipt. A message signature is not required to establish that the token is currently assigned to this address on-chain. Do not hold the NFT's address-level ownership record open solely because the holder cannot connect MetaMask to Etherscan.
 
-Use the Etherscan [Verified Signatures page](https://etherscan.io/verifiedSignatures). Select **Sign Message**, connect the wallet that holds Token #1, paste the exact message below, and approve only the message-signature prompt. Etherscan also provides **Verify Signature**; choose verification only and do not publish the message. Etherscan explains that signing a message does not cost gas or change the blockchain ([wallet connection and signing guidance](https://info.etherscan.com/connecting-your-wallet-on-etherscan/?id=999)).
+An EIP-191 message signature can provide additional evidence that a person can control the private key for the holder address at signing time. It does not change the NFT, does not replace the direct `ownerOf(1)` read, and does not independently prove the signer's legal identity, beneficial ownership, or authority to represent GLORIFIER SERVICES ADVERTISING.
 
-The following fresh challenge is valid until **2026-11-13T17:32:00+07:00**. It is prepared for the holder to sign and is **not yet signed**:
+The user supplied screenshots of two Etherscan records:
+- [Signature #341854](https://etherscan.io/verifySig/341854) displays **Message Signature Verified**, but its visible signer address is `0xc9B7c2f97537EFE526F10e05aABE532531a7b1`, which does **not** match the current on-chain holder address.
+- [Signature #341855](https://etherscan.io/verifySig/341855) displays **Message Signature Verified**, but the supplied screenshot does not show the signer address or the complete message. Its signer therefore cannot be reconciled against `ownerOf(1)` from the available evidence.
 
-```text
-GLORIFIER SERVICES ADVERTISING
-ERC-721 WALLET-CONTROL ATTESTATION
-
-Network: Ethereum Mainnet
-Chain ID: 1
-Contract: 0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7
-Token ID: 1
-Expected owner wallet: 0xe0589195995cb373c856953cfaddaeeaf2088a06
-
-I confirm that I control the wallet listed above and am authorized to act for GLORIFIER SERVICES ADVERTISING for this verification.
-
-Nonce: a07ad2826719930e8d6d238292534c219ea0db586a15ac300e3af0a962ea915b
-
-This is an off-chain message signature only. It does not authorize a transaction, transfer, sale, listing, approval, mint, deployment, or expenditure.
-```
-
-Verification rule: recover the signer from the exact message using the Ethereum personal-sign/EIP-191 prefix and compare the recovered address with the current `ownerOf(1)` address. Record the signature and observation time only after it is supplied and successfully verified. Never request a seed phrase or private key. Do not use a transaction signature. The signed statement is the signer's attestation of authority; it is not independent proof of legal beneficial ownership or company registration.
+No further wallet-signing action is required for the address-level NFT ownership record. Any previously issued challenge messages are superseded for this evidence task and should not be signed or reused. If a future, separate identity/control attestation is needed, the signature must be verified against the exact message and current holder address; it remains supplementary evidence only.
 
 ## Verification ledger
 
@@ -112,13 +97,13 @@ Verification rule: recover the signer from the exact message using the Ethereum 
 | ERC-165, ERC-721 and Metadata interfaces | VERIFIED |
 | Holding address is an EOA at observation time | VERIFIED |
 | Previous Pinata/Filebase metadata retrieval and image digest | VERIFIED in 2026-11-03 record; not re-fetched in this refresh |
-| Current human wallet control | PENDING signed message |
+| Current human wallet control / signer identity | NOT VERIFIED from the supplied signature screenshots; supplementary only, not required for on-chain holder verification |
 | Organizational authority / legal beneficial ownership | NOT INDEPENDENTLY VERIFIED |
 | Current OpenSea listings, offers, sales and floor price | NOT VERIFIED |
 | Alchemy cached supply/token URI | DISAGREES with direct chain reads; not authoritative |
 
-**Overall: PARTIALLY VERIFIED.** The on-chain NFT identity, mint and current holder address are verified. Completion requires the holder's valid off-chain message signature and a separate marketplace order/event check. No blockchain or marketplace write action is authorized or required for this verification.
+**Overall: PARTIALLY VERIFIED.** The on-chain NFT identity, mint and current holder address are VERIFIED. The human identity/control of the address, legal beneficial ownership or organizational authority, and current marketplace listings/offers/sales/floor remain NOT VERIFIED. A wallet signature is supplementary identity evidence, not a prerequisite for confirming the on-chain holder address. No blockchain or marketplace write action is authorized or required for this verification.
 
 ## Safety and execution record
 
-No wallet was connected. No message was signed. No transaction, token transfer, approval, listing, mint or deployment was submitted. No paid service or expenditure was initiated. No duplicate Official Logo #001 was created.
+The repository maintenance process did not connect a wallet or sign a message. The user later supplied screenshots of Etherscan Signature #341854 and #341855 as documented above. No transaction, token transfer, approval, listing, mint or deployment was submitted by this maintenance process. No paid service or expenditure was initiated. No duplicate Official Logo #001 was created.
