@@ -23,6 +23,7 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalP
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
+import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission } from './src/lib/autopilot-mission-control';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2699,6 +2700,76 @@ app.get('/.well-known/glorifier-agent.json', (_req: Request, res: Response) => {
   res.json(agentManifest());
 });
 
+app.get('/api/autopilot/status', requireOwnerOrInternalService, (_req: Request, res: Response) => {
+  return res.json({
+    ok: true,
+    product: 'GLORIFIER Autopilot',
+    purpose: 'Persistent, governed mission control integrated with the existing A2A runtime.',
+    control: getAutopilotMissionControlStatus(),
+  });
+});
+
+app.post('/api/autopilot/missions', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const internalServiceRequest = isInternalServiceRequest(req);
+  const requester = typeof auth?.uid === 'string' && auth.uid.trim()
+    ? auth.uid.trim()
+    : internalServiceRequest
+      ? 'glorifier-internal-service'
+      : '';
+  if (!requester) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+
+  const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey;
+  const { objective, title, nextRunAt } = req.body || {};
+  if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) {
+    return res.status(400).json({ ok: false, error: 'Idempotency-Key header or idempotencyKey body field is required' });
+  }
+  if (typeof objective !== 'string' || !objective.trim()) {
+    return res.status(400).json({ ok: false, error: 'objective must be a non-empty string' });
+  }
+  const store = getAutopilotMissionStore();
+  if (!store) return res.status(503).json({ ok: false, error: 'Durable Autopilot mission persistence is unavailable' });
+  try {
+    const mission = await createAutopilotMission(store, { requester, idempotencyKey, objective, title, nextRunAt });
+    return res.status(201).json({ ok: true, accepted: true, executionStarted: false, mission });
+  } catch (error) {
+    return apiError(res, 400, 'Autopilot mission could not be accepted', error);
+  }
+});
+
+app.get('/api/autopilot/missions', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const internalServiceRequest = isInternalServiceRequest(req);
+  const requester = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAll = Boolean((auth && isOwner(auth)) || internalServiceRequest);
+  if (!requester && !mayReadAll) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  const store = getAutopilotMissionStore();
+  if (!store) return res.status(503).json({ ok: false, error: 'Durable Autopilot mission persistence is unavailable' });
+  try {
+    const missions = await listAutopilotMissions(store, requester || undefined, 50, mayReadAll);
+    return res.json({ ok: true, missions, control: getAutopilotMissionControlStatus() });
+  } catch (error) {
+    return apiError(res, 503, 'Autopilot mission listing unavailable', error);
+  }
+});
+
+app.get('/api/autopilot/missions/:id', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  const internalServiceRequest = isInternalServiceRequest(req);
+  const requester = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
+  const mayReadAll = Boolean((auth && isOwner(auth)) || internalServiceRequest);
+  if (!requester && !mayReadAll) return res.status(401).json({ ok: false, error: 'Authenticated requester identity is required' });
+  const store = getAutopilotMissionStore();
+  if (!store) return res.status(503).json({ ok: false, error: 'Durable Autopilot mission persistence is unavailable' });
+  try {
+    const mission = await getAutopilotMission(store, String(req.params.id), requester || undefined, mayReadAll);
+    if (!mission) return res.status(404).json({ ok: false, error: 'Mission not found' });
+    return res.json({ ok: true, mission });
+  } catch (error) {
+    return apiError(res, 503, 'Autopilot mission lookup unavailable', error);
+  }
+});
+
 app.get('/api/agents/tasks', async (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   const requesterUid = typeof auth?.uid === 'string' ? auth.uid.trim() : '';
@@ -4080,6 +4151,7 @@ async function initializeBackend(): Promise<void> {
   const initializers: Array<[string, () => Promise<unknown>]> = [
     ['federated A2A v3 persistence', initializeFederatedA2AV3],
     ['agent task persistence', initializeAgentRuntimePersistence],
+    ['Autopilot mission persistence', initializeAutopilotMissionControl],
     ['agent harness session persistence', initializeAgentHarnessPersistence],
     ['revenue ledger', initializeRevenueLedger],
     ['economic operating system', initializeEconomicOperatingSystem],
