@@ -4,8 +4,14 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "17 */4 * * *"
   workflow_dispatch:
+    inputs:
+      allow_paid_inference:
+        description: "Explicit owner authorization for one paid inference; provider charges and external data transmission may apply."
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -21,29 +27,52 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: package.json
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - id: guardian
-        continue-on-error: true
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Resolve owner-only paid-inference authorization
+        id: authorization
+        shell: bash
         env:
-          GUARDIAN_PROVIDER: ${{ vars.GUARDIAN_PROVIDER }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PAID_INFERENCE_AUTHORIZATION: ${{ inputs.allow_paid_inference }}
+          OWNER_ACTOR_ID: ${{ github.actor_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          source scripts/ai-fleet-authorization.sh
+          if glorifier_ai_maintenance_authorized "$EVENT_NAME" "$MANUAL_PAID_INFERENCE_AUTHORIZATION" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: guardian
+        env:
+          GUARDIAN_PROVIDER: ${{ steps.authorization.outputs.enabled == 'true' && vars.GUARDIAN_PROVIDER || 'none' }}
+          OPENAI_API_KEY: ${{ steps.authorization.outputs.enabled == 'true' && secrets.OPENAI_API_KEY || '' }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ steps.authorization.outputs.enabled == 'true' && secrets.GEMINI_API_KEY || '' }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/code-guardian.mjs
+      - name: Report paid-inference authorization state
+        if: always()
+        run: |
+          if [ "${{ steps.authorization.outputs.enabled }}" = "true" ]; then
+            echo "Owner-authorized first-attempt manual run; provider inference may be attempted if checks fail."
+          else
+            echo "Provider inference is disabled for push and scheduled runs. No OpenAI or Gemini credentials were provided."
+          fi
       - name: Report guardian result
         if: always()
         run: |
           if [ "${{ steps.guardian.outcome }}" = "success" ]; then
-            echo "Guardian completed. Proposed repairs remain subject to normal review and CI."
+            echo "Guardian completed in the ephemeral runner. Any local repair passed lint/build; no branch, PR, repository write, or deployment was performed."
           else
-            echo "Guardian analysis failed or provider was unavailable; no repository mutation was attempted."
+            echo "Guardian checks or provider-assisted local repair failed; inspect logs. No repository write or deployment was performed."
           fi

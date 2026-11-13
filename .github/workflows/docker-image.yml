@@ -23,6 +23,7 @@ on:
   workflow_run:
     workflows: ["GLORIFIER CI"]
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
