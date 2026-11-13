@@ -125,8 +125,8 @@ test('Autopilot write adapter rejects secret paths, path traversal, main writes 
   assert.equal(isAllowedAutopilotWritePath('src/../../.env'), false);
   assert.equal(isAllowedAutopilotWritePath('package.json'), false);
   assert.equal(isAllowedAutopilotWritePath('.env'), false);
-  assert.equal(isAllowedAutopilotWritePath('src/lib\\\\escape.ts'), false);
-  assert.equal(isAllowedAutopilotWritePath('src/lib/\\0escape.ts'), false);
+  assert.equal(isAllowedAutopilotWritePath('src/lib' + String.fromCharCode(92) + 'escape.ts'), false);
+  assert.equal(isAllowedAutopilotWritePath('src/lib' + String.fromCharCode(92) + 'escape.ts'), false);
   await assert.rejects(
     () => executeGithubWriteTool('github_update_file', {
       branch: 'main', path: 'src/lib/service.ts', content: 'x', message: 'unsafe',
