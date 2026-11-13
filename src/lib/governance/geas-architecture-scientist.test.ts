@@ -22,6 +22,7 @@ import {
   type ArchitectureDomain,
   type ArchitecturePattern,
   type SourceObservation,
+  type ClaimSupportAuthenticator,
 } from './geas-architecture-scientist';
 import { strict as assert } from 'node:assert';
 import { before, test } from 'node:test';
@@ -240,6 +241,43 @@ const wrongExcerptClaimEvidence = buildArchitectureEvidence(
 );
 if (wrongExcerptClaimEvidence.length !== 0) {
   throw new Error('claim-support attestation must bind to the exact supporting excerpt');
+}
+const asyncClaimSupportAuthenticator = (() => Promise.resolve(true)) as unknown as ClaimSupportAuthenticator;
+if (buildArchitectureEvidence(
+  [claimSupportObservation],
+  asyncClaimSupportAuthenticator,
+  claimSupportNowMs,
+).length !== 0) {
+  throw new Error('asynchronous claim-support authenticators must not be treated as synchronously verified');
+}
+const overlongClaimSupportEvidence = buildArchitectureEvidence(
+  [{
+    ...claimSupportObservation,
+    claimSupportAttestation: {
+      ...claimSupportAttestation,
+      validUntil: '2026-11-27T03:00:00.001Z',
+    },
+  }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (overlongClaimSupportEvidence.length !== 0) {
+  throw new Error('claim-support attestation validity must not exceed the source review cadence');
+}
+const futureClaimSupportEvidence = buildArchitectureEvidence(
+  [{
+    ...claimSupportObservation,
+    observedAt: '2026-11-13T03:02:00.000Z',
+    claimSupportAttestation: {
+      ...claimSupportAttestation,
+      observedAt: '2026-11-13T03:02:00.000Z',
+    },
+  }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (futureClaimSupportEvidence.length !== 0) {
+  throw new Error('future claim-support observations must fail closed');
 }
 
 for (const source of model.sources) {
