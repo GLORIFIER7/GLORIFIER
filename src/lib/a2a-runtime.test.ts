@@ -225,6 +225,72 @@ void test('A2A canceled tasks remain filterable across pages and appear in the p
 });
 
 
+
+void test('A2A JSON data retries ignore object-key order in the derived objective', async () => {
+  await withA2ATestEnvironment(async () => {
+    type Stored = Record<string, unknown> & {
+      idempotency_hash: string;
+      requester_agent_id: string;
+      idempotency_key: string;
+    };
+    const records = new Map<string, Stored>();
+    const query = async (_sql: string, values: unknown[] = []) => {
+      const [
+        id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
+        serializedInput, status, attempts, maxAttempts, result, error, evidenceId,
+        createdAt, updatedAt, idempotencyKey, idempotencyHash,
+      ] = values;
+      const key = JSON.stringify([requesterAgentId, idempotencyKey]);
+      const existing = records.get(key);
+      if (existing) return { rows: [existing] };
+
+      const row: Stored = {
+        id: String(id),
+        parent_task_id: parentTaskId ?? null,
+        requester_agent_id: String(requesterAgentId),
+        target_agent_id: targetAgentId ?? null,
+        capability: String(capability),
+        objective: String(objective),
+        input: typeof serializedInput === 'string' ? JSON.parse(serializedInput) : serializedInput,
+        status: String(status),
+        attempts: Number(attempts),
+        max_attempts: Number(maxAttempts),
+        result: result ?? null,
+        error: error ?? null,
+        evidence_id: evidenceId ?? null,
+        created_at: String(createdAt),
+        updated_at: String(updatedAt),
+        idempotency_key: String(idempotencyKey),
+        idempotency_hash: String(idempotencyHash),
+      };
+      records.set(key, row);
+      return { rows: [row] };
+    };
+
+    const firstData = { nested: { z: 2, a: 1 }, labels: ['same', 'payload'] };
+    const replayData = { labels: ['same', 'payload'], nested: { a: 1, z: 2 } };
+    const base = {
+      requesterAgentId: 'a2a-json-order-requester',
+      capability: 'a2a-message-intake',
+      idempotencyKey: 'a2a-json-order-message',
+    };
+    const first = await createA2ATaskWithIdempotency({
+      ...base,
+      objective: JSON.stringify(firstData),
+      input: { messageId: base.idempotencyKey, parts: [{ data: firstData, mediaType: 'application/json' }] },
+    }, query);
+    const replay = await createA2ATaskWithIdempotency({
+      ...base,
+      objective: JSON.stringify(replayData),
+      input: { messageId: base.idempotencyKey, parts: [{ data: replayData, mediaType: 'application/json' }] },
+    }, query);
+
+    assert.equal(replay.id, first.id,
+      'semantically identical A2A JSON data must resolve to the original task despite object-key ordering');
+    assert.equal(records.size, 1, 'an equivalent JSON-data retry must not create a second durable row');
+  });
+});
+
 void test('A2A protocol message idempotency is durable, requester-scoped, and content-bound', async () => {
   await withA2ATestEnvironment(async () => {
     type Stored = Record<string, unknown> & {
