@@ -48,7 +48,8 @@ export function isAutopilotInferenceAuthorized(env: Record<string, string | unde
 }
 
 export function getAutopilotMaintenanceBranchName(missionId: string): string {
-  const slug = missionId.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
+  const rawId = missionId.toLowerCase().replace(/^mission-/, '');
+  const slug = rawId.replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
     .replace(/^-|-$/g, '').slice(0, 56);
   if (!slug) throw new Error('Autopilot mission ID cannot be converted to a safe branch name.');
   return normalizeAutopilotWriteBranch(`autopilot/mission-${slug}`);
@@ -56,7 +57,7 @@ export function getAutopilotMaintenanceBranchName(missionId: string): string {
 
 export function validateAutopilotPlan(
   text: string,
-  options: { expectedBranch?: string; allowWrites?: boolean; inspectedPaths?: string[] } = {},
+  options: { expectedBranch?: string; allowWrites?: boolean; inspectedPaths?: string[]; expectedSourceHashes?: Record<string, string> } = {},
 ): PlannedStep[] {
   if (typeof text !== 'string' || text.length > 120_000) {
     throw new Error('AI CEO plan must be bounded text no larger than 120,000 characters.');
@@ -158,9 +159,12 @@ export function validateAutopilotPlan(
       throw new Error('Repository repair steps must follow branch, source reads, file updates, then draft PR order.');
     }
     for (const step of updateSteps) {
+      const path = String(step.toolArguments?.path || '');
+      const expectedHash = options.expectedSourceHashes?.[path];
       if (typeof step.toolArguments?.expectedContentSha256 !== 'string' ||
-          !/^[a-f0-9]{64}$/.test(step.toolArguments.expectedContentSha256)) {
-        throw new Error('Every file update must carry the inspected source content SHA-256.');
+          !/^[a-f0-9]{64}$/.test(step.toolArguments.expectedContentSha256) ||
+          !expectedHash || step.toolArguments.expectedContentSha256 !== expectedHash) {
+        throw new Error('Every file update must carry the exact source SHA-256 captured during preflight inspection.');
       }
     }
   }
@@ -276,6 +280,7 @@ async function planMission(objective: string, missionId: string) {
     expectedBranch,
     allowWrites: writePlanningEnabled,
     inspectedPaths: inspectedFiles.map(file => file.path),
+    expectedSourceHashes: Object.fromEntries(inspectedFiles.map(file => [file.path, file.expectedContentSha256])),
   });
   return {
     steps,
