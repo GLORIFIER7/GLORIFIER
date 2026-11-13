@@ -648,7 +648,9 @@ const isAuthenticatedClaimSupportObservation = (
   if (!Number.isInteger(source.status) || source.status === null || source.status < 200 || source.status >= 300) return false;
   if (typeof source.evidenceExcerpt !== 'string' || !source.evidenceExcerpt.trim()) return false;
   if (typeof source.contentHash !== 'string' || !/^[a-f0-9]{64}$/i.test(source.contentHash)) return false;
-  if (!Number.isFinite(nowMs) || !Number.isFinite(registeredSource.cadenceHours) || registeredSource.cadenceHours <= 0) return false;
+  if (!Number.isSafeInteger(nowMs)
+      || !Number.isSafeInteger(registeredSource.cadenceHours)
+      || registeredSource.cadenceHours <= 0) return false;
 
   const observedAt = parseSourceObservationTimestamp(source.observedAt);
   const attestedAt = parseSourceObservationTimestamp(attestation.observedAt);
@@ -659,9 +661,11 @@ const isAuthenticatedClaimSupportObservation = (
     .update(source.evidenceExcerpt.replace(/\s+/g, ' ').trim(), 'utf8')
     .digest('hex');
   const cadenceMs = registeredSource.cadenceHours * 60 * 60 * 1000;
+  if (!Number.isSafeInteger(cadenceMs)) return false;
   if (
-    !isNonEmptyEvidenceReference(attestation.claimId)
+    !isNonEmptyEvidenceReference(attestation.evidenceRef)
     || !/^claim-review-[a-f0-9]{24}$/i.test(attestation.evidenceRef)
+    || !isNonEmptyEvidenceReference(attestation.claimId)
     || attestation.decision !== 'supported'
     || attestation.sourceId !== source.sourceId
     || attestation.sourceRegistryVersion !== 'GEAS-AUTHORITY-2'
