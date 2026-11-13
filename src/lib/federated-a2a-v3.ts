@@ -100,7 +100,32 @@ async function persist(task:FederatedA2ATask){
   [task.id,task.requesterAgentId,task.targetAgentId,task.capability,task.objective,JSON.stringify(task.input??null),task.state,task.attempt,task.maxAttempts,task.parentTaskId,JSON.stringify(task.evidenceRefs),JSON.stringify(task.auditRefs),JSON.stringify(task.result??null),task.error??null,task.createdAt,task.updatedAt]);
   memory.set(task.id,task);
 }
-${lockHelper}async function transitionFederatedA2ATask(
+const federatedA2ATaskLockTails = new Map<string, Promise<void>>();
+
+async function withFederatedA2ATaskLock<T>(
+  taskId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = federatedA2ATaskLockTails.get(taskId) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const queued = previous.then(() => current);
+  federatedA2ATaskLockTails.set(taskId, queued);
+
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (federatedA2ATaskLockTails.get(taskId) === queued) {
+      federatedA2ATaskLockTails.delete(taskId);
+    }
+  }
+}
+
+async function transitionFederatedA2ATask(
   task: FederatedA2ATask,
   state: FederatedA2ATaskState,
   actor: string,
