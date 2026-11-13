@@ -9,6 +9,9 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
+assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
+const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
 const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
 const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
@@ -385,6 +388,19 @@ test('Gemini paid/manual workflows require owner-initiated dispatch and trusted 
     },
   ];
   for (const workflow of workflows) assertGeminiAuthorizationWorkflow(workflow);
+});
+
+test('Gemini write-capable publisher pins every action to an immutable commit SHA', () => {
+  const actionRefs = geminiPublish
+    .split(String.fromCharCode(10))
+    .filter((line) => line.trimStart().startsWith('uses:'))
+    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
+  assert.equal(actionRefs.length, 3, 'Gemini publisher should use only its three reviewed GitHub actions');
+  for (const actionRef of actionRefs) {
+    assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
+      'Gemini write-capable publisher actions must use immutable 40-character commit SHAs: ' + actionRef);
+  }
+  assert.ok(geminiPublish.includes('uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0'));
 });
 
 test('Gemini engineering collaborator runs on schedule only through the owner-confirmed free tier', () => {
