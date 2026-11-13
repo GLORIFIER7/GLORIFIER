@@ -630,6 +630,23 @@ test('GLORIFIER CI runs static Linux host-agent and interoperability contract su
 });
 
 
+test('Code Guardian credential-bearing job pins every action to an immutable commit SHA', () => {
+  const guardianStart = codeGuardianWorkflow.indexOf('\\n  guardian:\\n');
+  assert.ok(guardianStart >= 0, 'Code Guardian must declare its credential-bearing guardian job');
+  const guardian = codeGuardianWorkflow.slice(guardianStart);
+  const actionRefs = guardian
+    .split(String.fromCharCode(10))
+    .filter((line) => line.trimStart().startsWith('uses:'))
+    .map((line) => line.trim().slice('uses:'.length).trim().split(' ')[0]);
+  assert.equal(actionRefs.length, 2, 'Code Guardian should use only checkout and setup-node actions');
+  for (const actionRef of actionRefs) {
+    assert.ok(/@[0-9a-f]{40}$/.test(actionRef),
+      'credential-bearing Code Guardian actions must use immutable 40-character commit SHAs: ' + actionRef);
+  }
+  assert.ok(guardian.includes('uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'));
+  assert.ok(guardian.includes('uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0'));
+});
+
 test('Code Guardian manual paid-inference execution is restricted to main', () => {
   assert.ok(
     codeGuardianWorkflow.includes("  guardian:" + String.fromCharCode(10) + "    if: ${{ github.ref == 'refs/heads/main' }}"),
