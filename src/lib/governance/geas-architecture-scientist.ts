@@ -695,7 +695,17 @@ const isAuthenticatedClaimSupportObservation = (
   ) return false;
 
   try {
-    return authenticate(Object.freeze({ ...attestation })) === true;
+    const result: unknown = authenticate(Object.freeze({ ...attestation }));
+    if (
+      result !== null
+      && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as { then?: unknown }).then === 'function'
+    ) {
+      // Async authenticators are unsupported; observe rejection before failing closed.
+      Promise.resolve(result).catch(() => undefined);
+      return false;
+    }
+    return result === true;
   } catch {
     return false;
   }
