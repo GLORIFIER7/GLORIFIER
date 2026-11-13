@@ -1,6 +1,8 @@
 # GLORIFIER SERVICES NFT — evidence status
 
-**Observed:** 2026-11-03  
+**Historical observation:** 2026-11-03  
+**Latest verification refresh:** [2026-11-13 — Official Logo #001 ownership and provenance](ownership-verification-2026-11-13.md)  
+**Current overall status:** PARTIALLY VERIFIED — the contract, deployment, mint and on-chain holder address are verified; wallet-control attestation and live marketplace orders remain pending.  
 **Repository:** GLORIFIER7/GLORIFIER
 
 ## Existing Official Logo #001 — verified minted
