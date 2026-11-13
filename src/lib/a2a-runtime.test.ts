@@ -233,8 +233,8 @@ void test('A2A protocol message idempotency is durable, requester-scoped, and co
       if (sql.includes('INSERT INTO a2a_tasks') && sql.includes('idempotency_key')) {
         const [
           id, parentTaskId, requesterAgentId, targetAgentId, capability, objective,
-          serializedInput, status, attempts, maxAttempts, createdAt, updatedAt,
-          idempotencyKey, idempotencyHash,
+          serializedInput, status, attempts, maxAttempts, _result, _error, _evidenceId,
+          createdAt, updatedAt, idempotencyKey, idempotencyHash,
         ] = values;
         const key = JSON.stringify([requesterAgentId, idempotencyKey]);
         if (records.has(key)) return { rows: [] };
