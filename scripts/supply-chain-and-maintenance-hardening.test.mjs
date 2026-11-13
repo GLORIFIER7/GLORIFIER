@@ -335,16 +335,16 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
 
 test('Gemini PR review requires an explicit target PR and a pinned CLI release', () => {
   const dispatchStart = geminiReviewWorkflow.indexOf('  workflow_dispatch:');
-  const permissionsStart = geminiReviewWorkflow.indexOf('\\npermissions:', dispatchStart);
+  const permissionsStart = geminiReviewWorkflow.indexOf('\npermissions:', dispatchStart);
   const dispatch = geminiReviewWorkflow.slice(dispatchStart, permissionsStart);
 
   assert.match(
     dispatch,
-    /inputs:\\s*\\n\\s+pr_number:\\s*\\n\\s+description:.*\\n\\s+required: true\\n\\s+type: number/,
+    /inputs:\s*\n\s+pr_number:\s*\n\s+description:.*\n\s+required: true\n\s+type: number/,
   );
-  assert.match(geminiReviewWorkflow, /PR_NUMBER: \\$\\{\\{ inputs\\.pr_number \\}\\}/);
+  assert.match(geminiReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
   assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
-  assert.match(geminiReviewWorkflow, /gemini_cli_version: v0\\.68\\.0/);
+  assert.match(geminiReviewWorkflow, /gemini_cli_version: v0\.68\.0/);
   assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
 });
 
