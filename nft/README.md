@@ -2,12 +2,14 @@
 
 **Historical observation:** 2026-11-03  
 **Latest verification refresh:** [2026-11-13 — Official Logo #001 ownership and provenance](ownership-verification-2026-11-13.md)  
-**Current overall status:** PARTIALLY VERIFIED — the contract, deployment, mint and on-chain holder address are verified; wallet-control attestation and live marketplace orders remain pending.  
+**Current overall status:** PARTIALLY VERIFIED — the contract, deployment, mint and current on-chain holder address are verified. Human identity / legal authority and live marketplace orders remain unverified; an off-chain wallet signature is supplementary evidence, not a prerequisite for recording the on-chain holder.  
 **Repository:** GLORIFIER7/GLORIFIER
 
 ## Existing Official Logo #001 — verified minted
 
 The official-logo NFT already exists on Ethereum Mainnet. Do not deploy a duplicate Logo #001 contract or mint a second copy of this edition.
+
+The current holder address is established by the direct `ownerOf(1)` contract read and the successful mint receipt. A personal-message signature is not required to verify the address recorded as the current on-chain holder. Such a signature may separately support wallet-control evidence, but does not establish legal identity or company authority. See the latest verification report for the assessment of Etherscan signature records #341854 and #341855.
 
 | Field | Verified value |
 |---|---|
