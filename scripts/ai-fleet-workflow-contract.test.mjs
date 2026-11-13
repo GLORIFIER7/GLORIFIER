@@ -417,7 +417,7 @@ test('Gemini PR review requires an explicit main-target PR number after owner au
   assert.deepEqual(geminiPrReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
     'on:',
-    '  workflow_dispatch: {}',
+    '  workflow_dispatch:',
   ]);
   assert.equal(geminiPrReviewWorkflow.includes('pull_request_target:'), false);
 });
