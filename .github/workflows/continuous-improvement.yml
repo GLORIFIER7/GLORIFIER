@@ -77,3 +77,9 @@ jobs:
           else
             echo "Improvement analysis failed or provider was unavailable; no repository mutation was attempted."
           fi
+      - name: Fail when an authorized improvement run does not complete
+        if: ${{ always() && steps.authorization.outputs.enabled == 'true' && steps.improve.outcome != 'success' }}
+        shell: bash
+        run: |
+          echo "::error::Owner-authorized AI improvement failed or did not complete. The workflow will not report success."
+          exit 1
