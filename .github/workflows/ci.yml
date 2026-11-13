@@ -277,6 +277,9 @@ jobs:
       - name: A2A 1.0 JSON-RPC contract tests
         run: npm run test:a2a-v1
 
+      - name: A2A official TCK workflow security contract tests
+        run: node --test scripts/a2a-tck-workflow-contract.test.mjs
+
       - name: A2A durable runtime regression tests
         run: npm run test:a2a-runtime
 
