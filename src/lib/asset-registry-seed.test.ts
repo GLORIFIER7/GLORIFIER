@@ -47,7 +47,13 @@ async function run() {
   assert.match(String(deploymentCalls[1].values?.[4]), /owner-supplied-in-conversation/);
 
   // Guard the canonical documentation against overstating marketplace evidence.
-  const registryDoc = readFileSync('docs/canonical-asset-registry.md', 'utf8');
+  const registryDoc = readFileSync(new URL('../../docs/canonical-asset-registry.md', import.meta.url), 'utf8');
+  const ownershipReport = readFileSync(new URL('../../nft/ownership-verification-2026-11-13.md', import.meta.url), 'utf8');
+  const erc721ItemUrl = 'https://opensea.io/assets/ethereum/0xd62eb4963423f6e224af0bcccabf75f566fb9ad7/1';
+  const registryItemUrl = registryDoc.split('[Token #1 item](')[1]?.split(')')[0];
+  const ownershipReportItemUrl = ownershipReport.split('[OpenSea token #1 item](')[1]?.split(')')[0];
+  assert.equal(registryItemUrl, erc721ItemUrl, 'canonical registry must link to the exact ERC-721 contract URL');
+  assert.equal(ownershipReportItemUrl, erc721ItemUrl, 'ownership report must link to the same exact ERC-721 contract URL');
   assert.match(registryDoc, /glorifier-erc721[\s\S]*?Token #1 item/);
   assert.match(registryDoc, /glorifier-erc1155[\s\S]*?Token #1 item/);
   assert.match(registryDoc, /PARTIALLY VERIFIED — 2026-11-13 Etherscan reports verified `ERC721SeaDropCloneable` proxy source/);
