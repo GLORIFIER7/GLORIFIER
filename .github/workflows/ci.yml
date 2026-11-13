@@ -240,6 +240,8 @@ jobs:
 
       - name: Agent task persistence fallback tests
         run: npm run test:agent-runtime
+      - name: Autopilot observation mission intake
+        run: npm run test:autopilot-observation-intake
       - name: Autopilot mission control
         run: npm run test:autopilot-mission-control
       - name: Autopilot orchestrator
