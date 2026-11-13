@@ -218,6 +218,14 @@ const rejectedClaimEvidence = buildArchitectureEvidence(
 if (rejectedClaimEvidence.length !== 0) {
   throw new Error('a rejected claim-support authenticator must not admit observed-fact evidence');
 }
+const nullStatusClaimEvidence = buildArchitectureEvidence(
+  [{ ...claimSupportObservation, status: null }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (nullStatusClaimEvidence.length !== 0) {
+  throw new Error('claim-support attestations must reject missing HTTP status values');
+}
 const mismatchedClaimEvidence = buildArchitectureEvidence(
   [{ ...claimSupportObservation, contentHash: 'f'.repeat(64) }],
   trustedClaimSupportAuthenticator,
