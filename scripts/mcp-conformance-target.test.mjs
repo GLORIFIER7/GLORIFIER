@@ -11,7 +11,7 @@ test('accepts an HTTPS MCP endpoint on the exact allowlisted public hostname', (
 
 test('normalizes case and whitespace in an explicit hostname allowlist', () => {
   assert.equal(
-    validateMcpConformanceTarget(target, ' GLORIFIER.GLORIFIER.WORKERS.DEV\n'),
+    validateMcpConformanceTarget(target, ' GLORIFIER.PAGES.DEV\n'),
     target,
   );
 });
