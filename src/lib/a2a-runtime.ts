@@ -206,7 +206,7 @@ function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
     requesterAgentId: input.requesterAgentId,
     targetAgentId: input.targetAgentId || null,
     capability: input.capability.trim().toLowerCase(),
-    objective: canonicalizeA2ADataObjective(input),
+    objective: input.objective,
     input: input.input ?? null,
     status: 'queued',
     attempts: 0,
@@ -326,8 +326,8 @@ function canonicalizeA2ADataObjective(input: CreateA2ATaskInput): string {
     return input.objective;
   }
 
-  return rawParts.join('\\n') === input.objective
-    ? canonicalParts.join('\\n')
+  return rawParts.join('\n') === input.objective
+    ? canonicalParts.join('\n')
     : input.objective;
 }
 
@@ -336,7 +336,7 @@ function a2aTaskRequestFingerprint(input: CreateA2ATaskInput): string {
     requesterAgentId: input.requesterAgentId,
     targetAgentId: input.targetAgentId || null,
     capability: input.capability.trim().toLowerCase(),
-    objective: input.objective,
+    objective: canonicalizeA2ADataObjective(input),
     input: input.input ?? null,
     parentTaskId: input.parentTaskId || null,
     maxAttempts: Math.max(1, Math.min(5, input.maxAttempts || 3)),
