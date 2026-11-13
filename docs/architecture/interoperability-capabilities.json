@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-13T02:41:20Z",
+  "updatedAt": "2026-11-13T02:53:07Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -659,9 +659,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; Ethereum Mainnet (chainId 0x1); latest block 0x192adf7 (26,390,007); owner-designated GLR ERC-20 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: eth_chainId returned 0x1; eth_blockNumber returned 0x192adf7 (26,390,007); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). These calls were read-only. No signing, transaction, transfer, or state mutation was performed; this does not verify a transfer receipt or payment-verification path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; Ethereum Mainnet (chainId 0x1); latest block 0x192e15f; owner-designated GLR ERC-20 0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: eth_chainId returned 0x1; eth_blockNumber returned 0x192e15f (26,403,167); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state mutation was performed; this does not resolve the second same-deployer Ethereum GLORIFIER/GLR contract or verify a transfer receipt or payment-verification path."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Signing, minting, transfers and contract writes are outside this verifier and remain gated.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms Ethereum mainnet identity, current block, non-empty code, and the owner-designated GLR contract's token fields. The second same-deployer GLORIFIER/GLR contract remains unresolved as a canonical-identity decision.",
         "No actual GLR transfer receipt or end-to-end payment-verification path was tested; keep PARTIALLY VERIFIED."
@@ -726,9 +734,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; BNB Smart Chain Mainnet (chainId 0x38); latest block 0x7ec40ae (132,923,566); owner-designated GLR BEP-20 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: eth_chainId returned 0x38; eth_blockNumber returned 0x7ec40ae (132,923,566); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). These calls were read-only. No signing, transaction, transfer, or state mutation was performed; this does not verify an actual transfer receipt or the full payment-verification path."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; BNB Smart Chain Mainnet (chainId 0x38); latest block 0x7f19dc4; owner-designated GLR BEP-20 0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: eth_chainId returned 0x38; eth_blockNumber returned 0x7f19dc4 (133,275,076); eth_getCode returned non-empty contract bytecode; eth_call returned name=GLORIFIER, symbol=GLR, decimals=18, and totalSupply=1000000000000000000000000000 base units (1,000,000,000 GLR). No signing, transaction, transfer, or state mutation was performed; this does not verify an actual transfer receipt or the full payment-verification path."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms BNB Smart Chain mainnet identity, current block, non-empty code, and the owner-designated GLR contract's token fields.",
         "No actual GLR transfer receipt or full production payment-verification path was tested; keep PARTIALLY VERIFIED.",
         "Signing, minting, transfers and contract writes remain outside this read-only verifier and gated."
@@ -793,9 +809,17 @@
           "targetEnvironment": "Alchemy GLORIFIER app; Solana Mainnet Beta; finalized block height 446046054; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 468029566",
           "observedAt": "2026-11-11T06:53:06Z",
           "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-11T06:53:06Z: getGenesisHash returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d; getBlockHeight(finalized) returned 446046054; getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals; getAccountInfo(jsonParsed, finalized) confirmed an initialized Token-2022 mint named GLORIFIER / GLR, supply 1000000000000000000 base units, null mintAuthority, null freezeAuthority, null metadata-pointer authority, and null metadata updateAuthority. The probe's account context slot was 468029566. No signing, transaction, transfer, or state mutation was performed; this does not independently review all token provenance or verify an actual transfer."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Alchemy GLORIFIER app — read-only chain RPC methods only",
+          "targetEnvironment": "Alchemy GLORIFIER app; Solana Mainnet Beta; finalized block height 446781316; Token-2022 mint 7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9 at finalized context slot 468765838",
+          "observedAt": "2026-11-13T02:53:07Z",
+          "notes": "Fresh independent read-only Alchemy RPC probe at 2026-11-13T02:53:07Z: getGenesisHash returned the Solana mainnet genesis hash 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d; getBlockHeight(finalized) returned 446781316; getTokenSupply(finalized) returned 1,000,000,000 GLR with 9 decimals; getAccountInfo(jsonParsed, finalized) confirmed an initialized Token-2022 mint named GLORIFIER / GLR, supply 1000000000000000000 base units, null mintAuthority, null freezeAuthority, null metadata-pointer authority, and null metadata updateAuthority. The account context slot was 468765838. No signing, transaction, transfer, or state mutation was performed; this does not independently review all token provenance or verify an actual transfer."
         }
       ],
       "limitations": [
+        "The latest independent read-only Alchemy probe at 2026-11-13T02:53:07Z confirms network identity and the owner-designated GLR token contract/mint metadata; transfer receipt and end-to-end payment verification remain unproven.",
         "Fresh independent read-only Alchemy RPC evidence on 2026-11-11 confirms Solana mainnet identity, finalized block height, Token-2022 mint metadata, 1,000,000,000 GLR supply, and null mint/freeze/metadata authorities.",
         "This does not verify a GLR transfer, payment-verification path, or independent review of all mint provenance; keep PARTIALLY VERIFIED.",
         "Signing, transfers and state mutation remain outside this read-only verifier and gated."
