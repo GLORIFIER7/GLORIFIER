@@ -333,6 +333,21 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.doesNotMatch(publisherJob, /merge_pull_request|gh pr merge|git push/);
 });
 
+test('Gemini PR review requires an explicit target PR and a pinned CLI release', () => {
+  const dispatchStart = geminiReviewWorkflow.indexOf('  workflow_dispatch:');
+  const permissionsStart = geminiReviewWorkflow.indexOf('\\npermissions:', dispatchStart);
+  const dispatch = geminiReviewWorkflow.slice(dispatchStart, permissionsStart);
+
+  assert.match(
+    dispatch,
+    /inputs:\\s*\\n\\s+pr_number:\\s*\\n\\s+description:.*\\n\\s+required: true\\n\\s+type: number/,
+  );
+  assert.match(geminiReviewWorkflow, /PR_NUMBER: \\$\\{\\{ inputs\\.pr_number \\}\\}/);
+  assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
+  assert.match(geminiReviewWorkflow, /gemini_cli_version: v0\\.68\\.0/);
+  assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
+});
+
 test('Gemini PR review fails visibly when the Gemini credential is unavailable', () => {
   assert.match(geminiReviewWorkflow, /HAS_GEMINI_API_KEY/);
   assert.match(geminiReviewWorkflow, /GEMINI_API_KEY is unavailable/);
