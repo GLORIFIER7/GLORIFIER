@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { discoverGlobalProviders } from './ai/provider-discovery';
 import { reconcileIntegrationControlPlane } from './integration-control-plane';
 import { runAutonomousAuthenticationVerification } from './autonomous-auth-verification';
@@ -6,7 +7,8 @@ import { runAgentMinerCycle } from './agent-miner';
 import { runInternetDiscoveryFabricCycle } from './internet-discovery-fabric';
 import { runModelNetworkDiscovery } from './model-network';
 import { synchronizeAIWebNetwork } from './ai-web-network';
-import { getAutopilotMissionControlStatus, recoverAutopilotMissionsIfAvailable } from './autopilot-mission-control';
+import { getAutopilotMissionControlStatus, getAutopilotMissionStore, recoverAutopilotMissionsIfAvailable } from './autopilot-mission-control';
+import { createAutopilotObservationMission } from './autopilot-observation-intake';
 import { getAutopilotOrchestrationStatus, processNextAutopilotMission } from './autopilot-orchestrator';
 
 type DaemonState = 'STOPPED' | 'RUNNING' | 'DEGRADED';
@@ -62,7 +64,33 @@ export async function runGlorifierDaemonCycle(reason = 'scheduled') {
         result: await processNextAutopilotMission(),
       })]
     ];
-    for (const [name, operation] of stages) { try { await runComponent(name, operation); } catch (error) { errors.push(name + ': ' + (error instanceof Error ? error.message : String(error))); } }
+    for (const [name, operation] of stages) {
+      try {
+        await runComponent(name, operation);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(name + ': ' + message);
+        const store = getAutopilotMissionStore();
+        if (store) {
+          try {
+            const observedAt = new Date().toISOString();
+            const hour = observedAt.slice(0, 13);
+            const errorDigest = createHash('sha256').update(message).digest('hex');
+            const severity = /authentication|security|verification|integration-control/i.test(name) ? 'high' : 'medium';
+            await createAutopilotObservationMission(store, {
+              source: 'daemon-component',
+              sourceEventId: `${name}:${hour}:${errorDigest}`,
+              severity,
+              summary: `${name} failed during daemon cycle ${cycleCount}: ${message}`.slice(0, 2_000),
+              observedAt,
+              evidenceRefs: [`urn:glorifier:daemon:cycle:${cycleCount}:component:${name}`],
+            });
+          } catch (intakeError) {
+            errors.push('autopilot-observation-intake: ' + (intakeError instanceof Error ? intakeError.message : String(intakeError)));
+          }
+        }
+      }
+    }
     lastErrors = errors;
     if (!errors.length) lastSuccessAt = new Date().toISOString();
     state = errors.length ? 'DEGRADED' : 'RUNNING';
@@ -91,7 +119,30 @@ export function stopGlorifierDaemon() {
 }
 
 export function getGlorifierDaemonSnapshot() {
-  return { ok: true, name: 'GLORIFIER System Daemon', state, mode: 'continuous-governed-orchestration', cadenceMs: getIntervalMs(), cycleCount, lastRunAt, lastSuccessAt, nextRunAt, inFlight: Boolean(inFlight),
+  const missionControl = getAutopilotMissionControlStatus();
+  const orchestration = getAutopilotOrchestrationStatus();
+  return {
+    ok: state === 'RUNNING',
+    name: 'GLORIFIER System Daemon',
+    state,
+    mode: 'continuous-governed-enterprise-lifecycle',
+    cadenceMs: getIntervalMs(),
+    cycleCount,
+    lastRunAt,
+    lastSuccessAt,
+    nextRunAt,
+    inFlight: Boolean(inFlight),
+    autonomyReadiness: {
+      daemonActive: state === 'RUNNING',
+      missionPersistenceAvailable: missionControl.available,
+      missionPersistenceDurable: missionControl.durable,
+      governedExecutionReady: orchestration.enabled,
+      inferenceMode: orchestration.inferenceMode,
+      reason: orchestration.reason,
+      observationIntakeEnabled: Boolean(getAutopilotMissionStore()),
+      autoMerge: false,
+      autoDeploy: false,
+    },
     components: [...components.values()].map(item => ({ ...item })),
     safety: { humanAuthorityRemainsHighest: true, automaticIrreversibleProductionChanges: false, automaticFinancialTransfers: false, automaticCredentialRotation: false, externalSystemScope: 'authorized integrations only', truthRule: 'No qualifying external evidence means UNKNOWN or NOT VERIFIED.', degradedMode: 'Fail independently by component, preserve service and surface evidence gaps.' },
     architecture: ['Governance Kernel / GEAS', 'AI CEO', 'Permanent Orchestrator', 'Provider Registry', 'AI Agent / A2A Network', 'Execution Fabric', 'Verification and Evidence Spine', 'Revenue Control Plane', 'Audit and Economic Truth']

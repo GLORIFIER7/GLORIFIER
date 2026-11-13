@@ -28,7 +28,13 @@ The authenticated mission-control API is available at:
 
 Mission records are requester-scoped and idempotent. Mission state changes use optimistic version checks. Workers claim queued missions with bounded leases. An expired lease first moves to `reconciliation-required`. The recovery policy may requeue only an explicitly allowlisted, idempotent read-only GitHub step, and only for one bounded retry; other work remains quarantined. A step marked `irreversible` requires an explicit approval record before it can be claimed. Completion requires evidence references and records verification separately from completion.
 
-The mission ledger provides durable state, requester scoping, idempotent creation, optimistic concurrency, bounded leases, evidence references, and crash reconciliation. Provider-backed planning, bounded read-only inspection, and optional branch-scoped GitHub maintenance are described in the following section. Event-driven triggers and non-GitHub external action adapters are not implemented.
+The mission ledger provides durable state, requester scoping, idempotent creation, optimistic concurrency, bounded leases, evidence references, and crash reconciliation. Provider-backed planning, bounded read-only inspection, and optional branch-scoped GitHub maintenance are described in the following section.
+
+### Unified observation intake
+
+The system daemon now submits component failures to the same persistent mission ledger through `src/lib/autopilot-observation-intake.ts`. Observation sources are allowlisted (daemon components, continuous improvement, CI, GEAS, providers, integrations, security, opportunities, agent runtime, and business operations). Each event is bounded, timestamp-validated, credential-redacted, and assigned a deterministic source-scoped idempotency key. The event is stored as an investigation mission; intake does not start execution or bypass AI CEO planning, GEAS/GATS policy, capability authorization, budget controls, or human approval. Observation text is explicitly untrusted data and cannot become an instruction to the executor.
+
+The daemon records an observation mission when a scheduled component throws and durable mission storage is available. Repeated failures with the same component, hourly window, and error digest deduplicate to one mission. If mission storage is unavailable, the daemon retains its component error in its in-memory health snapshot; it cannot claim durable incident intake. This is an initial internal observation source, not proof that every CI workflow, external provider, or business subsystem already publishes events. Event-driven triggers and non-GitHub external action adapters remain unimplemented.
 
 
 ## Governed Autopilot orchestration

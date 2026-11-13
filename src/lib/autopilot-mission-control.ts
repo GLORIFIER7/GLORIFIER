@@ -85,6 +85,7 @@ export interface AutopilotMissionStore {
   create(mission: AutopilotMission): Promise<AutopilotMission>;
   get(id: string): Promise<AutopilotMission | null>;
   list(requester: string | undefined, limit: number, allowAll?: boolean): Promise<AutopilotMission[]>;
+  findByIdempotencyKey?(requester: string, idempotencyKey: string): Promise<AutopilotMission | null>;
   save(mission: AutopilotMission, expectedVersion: number): Promise<AutopilotMission | null>;
   claimNext(workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
   renewLease(id: string, workerId: string, leaseMs: number, now: string): Promise<AutopilotMission | null>;
@@ -167,6 +168,14 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
     return result.rows
       .filter((row) => row.payload !== undefined && row.payload !== null)
       .map((row) => parseMission(row.payload));
+  }
+
+  async findByIdempotencyKey(requester: string, idempotencyKey: string): Promise<AutopilotMission | null> {
+    const result = await getPostgresPool().query(
+      'SELECT payload FROM glorifier_autopilot_missions WHERE requester = $1 AND idempotency_key = $2 LIMIT 1',
+      [requester.trim(), idempotencyKey],
+    );
+    return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
   }
 
   async save(mission: AutopilotMission, expectedVersion: number): Promise<AutopilotMission | null> {
