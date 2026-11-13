@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-13T02:53:07Z",
+  "updatedAt": "2026-11-13T02:58:54Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -153,6 +153,13 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
         }
       ],
       "limitations": [
@@ -355,6 +362,20 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/api/neural/health; https://glorifier.glorifier.workers.dev/api/neural/ready; https://glorifier-neural.glorifier.workers.dev/health; https://glorifier-neural.glorifier.workers.dev/ready",
+          "targetEnvironment": "Public production GLORIFIER-to-NEURAL proxy and standalone NEURAL Worker; unauthenticated read-only GET; fresh origin fetch",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only GET checks: GLORIFIER /api/neural/health and standalone NEURAL /health each returned JSON status PARTIALLY VERIFIED with process=VERIFIED and providers/database/pytorch=NOT VERIFIED (measured fetch latency 7,526 ms and 7,392 ms, respectively). GLORIFIER /api/neural/ready and standalone NEURAL /ready each returned HTTP 503. No credentials, authenticated task POST, provider prompt, model inference, or write call was used. This is process/liveness evidence only; provider, database, PyTorch, and inference readiness remain NOT VERIFIED."
         }
       ],
       "limitations": [
@@ -1022,9 +1043,17 @@
           "targetEnvironment": "GLORIFIER main merge commit ac6f4c2d3fbcbf8e96b9b6727311bfd9b71855f7; manually dispatched read-only MCP external server conformance workflow",
           "observedAt": "2026-11-11T12:09:31Z",
           "notes": "PR #819 adds the official frozen MCP 2026-07-28 server requirements command using the conformance runner pinned to 96a6f9478b7f2e125cf0360a213383cf57533893 and retains a separate legacy 2025-11-25 tools-list scenario. The workflow is workflow_dispatch-only and the external-check opt-in defaults to false. This is test-path/source evidence, not a conformance result; the workflow was not dispatched and no endpoint was probed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://glorifier.glorifier.workers.dev/.well-known/agent-card.json",
+          "targetEnvironment": "Public production GLORIFIER Cloudflare Worker; unauthenticated GET via public fetch",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "An external read-only GET fetch was attempted, but Cloudflare Access intercepted the request and returned login_required before the Worker Agent Card could be read. This is not evidence that the Agent Card route is absent or malformed; it means unauthenticated external discovery from this probe context is not observable. No access token was supplied and no authenticated A2A POST, task exchange, TCK run, or two-agent test was performed."
         }
       ],
       "limitations": [
+        "A fresh public GET of /.well-known/agent-card.json was intercepted by Cloudflare Access with login_required before the Agent Card could be read; public unauthenticated discovery is therefore NOT VERIFIED. This does not negate the merged source implementation.",
         "The standard A2A Agent Card route is merged in GLORIFIER main by PR #629 and is present in the source for the 2026-11-11 Worker v1002 release. The recorded production GET-only smoke did not separately probe /.well-known/agent-card.json; a fresh external discovery check remains NOT VERIFIED.",
         "The Worker exposes an authenticated A2A JSON-RPC proxy and the backend source contains a requester-bound task handler. Source tests and CI do not prove that the live backend, credentials, and persistent task store are currently configured or that a real task exchange succeeds.",
         "These merged source and CI records do not establish A2A 1.0 external interoperability or prove a live authenticated task exchange.",
@@ -1241,6 +1270,13 @@
           "targetEnvironment": "Production Cloudflare Workers; exact active-version and deployment readback; non-secret metadata only",
           "observedAt": "2026-11-11T06:04:17Z",
           "notes": "Cloudflare's deployment inventory assigns 100% traffic to GLORIFIER Worker v1002 (version 3c93b20d-e602-4e9e-b3bb-3c139a311024), and the exact-version API reports GLORIFIER_RELEASE_COMMIT=038fe738e9fdc5fbbb0472343198c19d75cd7643 and GLORIFIER_RELEASE_RUN_ID=42969134766. That exact version has the GLORIFIER_NEURAL service binding to glorifier-neural and GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL Worker v36 remains at 100% traffic with all three controls false and API/internal-service secret binding names present; secret values were not read. This is deployment/configuration evidence, not proof of authenticated task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
+          "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
+          "observedAt": "2026-11-13T02:58:54Z",
+          "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
         }
       ],
       "limitations": [
