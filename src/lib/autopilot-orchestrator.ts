@@ -164,11 +164,16 @@ export function getAutopilotOrchestrationStatus() {
   const persistence = getAutopilotMissionControlStatus();
   const executive = aiOrchestrator.executive();
   const providerReady = executive.status === 'active';
+  const inferenceAuthorized = process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
+    && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+    && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
   return {
-    enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && providerReady,
+    enabled: persistence.available && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && providerReady && inferenceAuthorized,
     aiCeoConnected: true,
     specialistCouncilConnected: true,
     providerOrchestratorConnected: providerReady,
+    inferenceAuthorized,
+    inferenceMode: inferenceAuthorized ? 'owner-authorized-provider-inference' : 'disabled-zero-budget-default',
     selectedProvider: executive.provider,
     selectedModel: executive.model,
     a2aConnected: true,
@@ -180,6 +185,7 @@ export function getAutopilotOrchestrationStatus() {
       : !process.env.DATABASE_URL ? 'persistent-a2a-storage-required'
       : !String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim() ? 'a2a-signing-secret-not-configured'
       : !providerReady ? 'no-connected-ai-provider'
+      : !inferenceAuthorized ? 'inference-disabled-until-owner-authorizes-egress-and-paid-usage'
       : 'ready-for-read-only-analysis-missions',
     authority: {
       aiCeoPolicy: aiCeoPolicy.id,
