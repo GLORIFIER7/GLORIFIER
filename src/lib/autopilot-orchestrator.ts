@@ -80,10 +80,8 @@ async function planMission(objective: string) {
 export async function processNextAutopilotMission(now = new Date().toISOString()) {
   const store = getAutopilotMissionStore();
   if (!store) return { status: 'unavailable', reason: 'durable-mission-store-unavailable' };
-  if (!process.env.DATABASE_URL) return { status: 'blocked', reason: 'persistent-A2A-storage-required' };
-  if (!String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) {
-    return { status: 'blocked', reason: 'A2A-signing-secret-not-configured' };
-  }
+  const readiness = getAutopilotOrchestrationStatus();
+  if (!readiness.enabled) return { status: 'blocked', reason: readiness.reason };
 
   const mission = await claimNextAutopilotMission(store, WORKER_ID, LEASE_MS, now);
   if (!mission) return { status: 'idle', reason: 'no-due-missions' };
