@@ -264,6 +264,7 @@ const MAX_LEASE_MS = 30 * 60_000;
 export class AutopilotMissionValidationError extends Error {
   constructor(message: string) {
     super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = 'AutopilotMissionValidationError';
   }
 }
