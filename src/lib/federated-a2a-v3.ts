@@ -327,6 +327,7 @@ export async function verifyFederatedA2ATask(
   taskId: string,
   actor = 'verifier',
   evidenceVerifier?: FederatedA2AEvidenceVerifier,
+  persistence: FederatedA2APersistence = defaultFederatedA2APersistence,
 ): Promise<FederatedA2ATask> {
   const task = getFederatedA2ATask(taskId);
   if (!task) throw new Error('Federated A2A task not found');
@@ -365,6 +366,8 @@ export async function verifyFederatedA2ATask(
     observedAt > Date.now() ||
     verifiedEvidence.length === 0 ||
     new Set(verifiedEvidence).size !== verifiedEvidence.length ||
+    attachedEvidence.size !== task.evidenceRefs.length ||
+    verifiedEvidence.length !== task.evidenceRefs.length ||
     verifiedEvidence.some((reference) => !attachedEvidence.has(reference)) ||
     verifier === task.requesterAgentId ||
     (task.targetAgentId !== null && verifier === task.targetAgentId)
@@ -382,6 +385,8 @@ export async function verifyFederatedA2ATask(
       observedAt: new Date(observedAt).toISOString(),
       verifier,
     },
+    {},
+    persistence,
   );
 }
 export async function settleFederatedA2ATask(taskId: string, actor = 'human-owner') {
