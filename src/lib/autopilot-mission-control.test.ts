@@ -188,11 +188,11 @@ test('Autopilot blocks irreversible steps unless an explicit human approval is r
   const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, [
     { id: 'deploy', capability: 'deploy.production', objective: 'Deploy approved production release.', effect: 'irreversible' },
   ], '2026-11-13T08:02:00.000Z');
-  const denied = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', false);
+  const denied = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1');
   assert.equal(denied.claimed, false);
   assert.equal(denied.reason, 'human-approval-required');
   assert.equal((await getAutopilotMission(store, created.id, 'owner'))?.steps[0].status, 'pending');
-  const allowed = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', true);
+  const allowed = await claimAutopilotMissionStep(store, planned.id, 'deploy', 'worker-1', { approvedBy: 'owner-1', approvedAt: '2026-11-13T08:03:00.000Z' });
   assert.equal(allowed.claimed, true);
   assert.equal(allowed.mission.steps[0].status, 'running');
 });
