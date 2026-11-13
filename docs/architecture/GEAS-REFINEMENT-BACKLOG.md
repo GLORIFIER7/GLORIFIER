@@ -156,3 +156,28 @@ Unresolved:
 - Reviewer authentication and semantic verification remain external dependencies; no claim has been promoted by this refinement.
 - The latest retrieved scheduled-main artifact predates current main. A fresh current-main GEAS artifact is still required before claiming current-main scan success.
 - OpenTelemetry collector/exporter probes, actual FOCUS invoice/settlement reconciliation, signed SLSA artifact verification, and runtime PROV export remain separate implementation/verification gaps.
+
+
+## 2026-11-13 — enforce source-authorized claim types at observed-fact admission
+
+Observed repository facts:
+- Main remains `5a4948f4c6eec37ba34bca1d5f39714948b36641`; existing claim-support refinement PR #836 is based on that SHA.
+- PR #836's source scan artifact (run 43360668506) is bound to head `ac1cc222b9e931e5d82993904f0fc928e643450f`, base `5a4948f4c6eec37ba34bca1d5f39714948b36641`, and tested merge SHA `f5aa8668e98b0bdb9802291d3239d0bbffe04fb8`.
+- The authoritative JSON registry separates `claimsAllowed` (claim-type policy) from the scanner's `patternIds` (discovery associations).
+- Example: AWS Well-Architected permits claim type `cross-cutting-cloud-controls`, while the scanner also associates the source with `durable-agent-execution` for discovery. Those identifiers are not interchangeable.
+- The claim-support admission path checked pattern association but did not directly enforce the registry's `claimsAllowed` list on the attested claim type.
+
+Analysis:
+- A source's association with a candidate architecture pattern is not authorization to support every claim type associated with that pattern or source.
+- The trusted claim-review validator already checks `claimType` against `claimsAllowed`; the later claim-support attestation must preserve and re-enforce that same policy before it can create an `observed-fact`.
+- The trusted authenticator remains an external trust boundary: it must resolve the evidence reference to the exact record and authenticate reviewer identity and independent semantic verification. No production authenticator is configured.
+
+Refinement:
+- Add `claimType` to the claim-support attestation and require it to be explicitly present in the scanner source's registry-mirrored `claimsAllowed` list.
+- Mirror each active source's `claimsAllowed` values in the scanner catalog and extend the source-catalog parser/CI validator to require exact parity with the authoritative JSON registry.
+- Add regression coverage proving an AWS discovery association such as `durable-agent-execution` cannot bypass the source's narrower claim-type allowance, even when the test authenticator returns true.
+- Preserve zero claim-supported patterns in scheduled scans until a separately reviewed trusted authenticator is configured.
+
+Unresolved:
+- This is a fail-closed admission refinement, not reviewer authentication or semantic verification.
+- No source claim, runtime deployment, invoice, OpenTelemetry collector, or production state is promoted by this change.
