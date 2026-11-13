@@ -174,7 +174,7 @@ async function updateFile(
         typeof existing.data.content !== 'string' || existing.data.encoding !== 'base64') {
       throw new Error('GitHub returned invalid existing file content or SHA.');
     }
-    const existingBytes = Buffer.from(existing.data.content.replace(/\\s/g, ''), 'base64');
+    const existingBytes = Buffer.from(existing.data.content.replace(/\s/g, ''), 'base64');
     const currentContentSha256 = createHash('sha256').update(existingBytes).digest('hex');
     if (currentContentSha256 !== args.expectedContentSha256) {
       throw new Error('Autopilot source changed after inspection; refusing to overwrite a stale file.');
@@ -265,7 +265,7 @@ export async function executeGithubWriteTool(
 ): Promise<unknown> {
   const token = typeof writeToken === 'string' ? writeToken.trim() : '';
   if (!token) throw new Error('GLORIFIER_GITHUB_WRITE_TOKEN is not configured.');
-  if (token.length > 512 || /[\\r\\n]/.test(token)) {
+  if (token.length > 512 || /[\r\n]/.test(token)) {
     throw new Error('GLORIFIER_GITHUB_WRITE_TOKEN has an invalid format.');
   }
   if (!isRecord(argumentsValue)) throw new Error('Autopilot GitHub write arguments must be an object.');
