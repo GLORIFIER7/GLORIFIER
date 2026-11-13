@@ -50,12 +50,14 @@ test('full build guardian runs hourly because infrastructure health owns rapid p
   assert.match(infrastructureHealth, /cron:\s*"\*\/5 \* \* \* \*"/);
 });
 
-test('Gemini PR review is manual-only and retains its owner and paid-inference gate', () => {
+test('Gemini PR review is manual-only and retains its owner and free-tier gate', () => {
   const events = geminiReview.match(/^on:\n([\s\S]*?)^permissions:/m)?.[1] ?? '';
   assert.match(events, /workflow_dispatch:/);
   assert.doesNotMatch(events, /pull_request/);
   assert.match(geminiReview, /github\.event_name == 'workflow_dispatch'/);
-  assert.match(geminiReview, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
+  assert.match(geminiReview, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
+  assert.match(geminiReview, /github\.ref == 'refs\\/heads\\/main'/);
+  assert.doesNotMatch(geminiReview, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.match(geminiReview, /github\.actor_id == '32674233'/);
   assert.match(geminiReview, /github\.run_attempt == 1/);
 });
