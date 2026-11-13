@@ -403,7 +403,11 @@ test('Gemini PR review has empty dispatch inputs and resolves an open main-targe
   assert.match(geminiPrReviewWorkflow, /STATE.*open/);
   assert.match(geminiPrReviewWorkflow, /BASE_REF.*main/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /inputs\./);
-  assert.ok(geminiPrReviewWorkflow.startsWith('name: GLORIFIER Gemini PR Review\\non:\\n  workflow_dispatch: {}'));
+  assert.deepEqual(geminiPrReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
+    'name: GLORIFIER Gemini PR Review',
+    'on:',
+    '  workflow_dispatch: {}',
+  ]);
   assert.equal(geminiPrReviewWorkflow.includes('pull_request_target:'), false);
 });
 
