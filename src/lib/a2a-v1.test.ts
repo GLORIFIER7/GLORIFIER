@@ -148,6 +148,8 @@ void test('A2A SendMessage creates a task for the authenticated requester', asyn
   assert.equal(created[0].requesterAgentId, 'verified-user-42');
   assert.equal(created[0].capability, 'a2a-message-intake');
   assert.equal(created[0].objective, 'Review this proposal');
+  assert.equal(created[0].idempotencyKey, 'message-1',
+    'the authenticated SendMessage messageId must flow into durable idempotency');
 });
 
 void test('A2A GetTask returns only tasks owned by the authenticated requester', async () => {
