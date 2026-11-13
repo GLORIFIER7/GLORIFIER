@@ -83,6 +83,11 @@ test('approval-only allowance is unavailable to tasks that can execute or have e
       body: JSON.stringify({ task: 'financial action', require_approval: true, action_class: 'financial' }),
       expectedCode: 'NEURAL_INFERENCE_DISABLED',
     },
+    {
+      name: 'approval omitted rather than explicitly required',
+      body: JSON.stringify({ task: 'must explicitly require approval', action_class: 'read_only' }),
+      expectedCode: 'NEURAL_INFERENCE_DISABLED',
+    },
   ];
 
   for (const item of cases) {
@@ -117,7 +122,7 @@ test('approval-only internal task still requires explicitly enabled service egre
   }), testFixture.env);
 
   assert.equal(response.status, 503);
-  assert.equal((await response.json() as { code?: string }).code, 'NEURAL_EXTERNAL_DATA_EGRESS_DISABLED');
+  assert.equal((await response.json() as { code?: string }).code, 'NEURAL_EXTERNAL_EGRESS_DISABLED');
   assert.equal(testFixture.getCapturedRequest(), null);
 });
 
