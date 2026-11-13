@@ -224,15 +224,32 @@ Observation time: `2026-11-13T02:53:07Z`. These calls used the existing GLORIFIE
 
 The three chain capabilities remain **PARTIALLY VERIFIED**. These observations verify current read-only RPC reachability and token metadata only; they do not prove a transfer receipt, recipient settlement, or the production payment-verification path. The second same-deployer Ethereum GLORIFIER/GLR contract identity remains unresolved.
 
+
+### Fresh read-only GLORIFIER–NEURAL and A2A discovery probe — 2026-11-13
+
+Observation time: `2026-11-13T02:58:54Z`. The Cloudflare API confirmed GLORIFIER Worker v1002 at 100% traffic (deployment `20ca85d6-a1b5-487e-a43e-d7b459611a66`, version `3c93b20d-e602-4e9e-b3bb-3c139a311024`) and standalone NEURAL Worker v36 at 100% traffic (deployment `ab78475f-dcf6-46a1-b7a4-e823bd1559ca`, version `f1a26f39-e46f-4d9d-b982-f66f21f2e115`). GLORIFIER's `GLORIFIER_NEURAL` service binding is present. In both versions, external data egress, model inference, and paid-inference authorization remain `false`; no secret values were read.
+
+Fresh public GET results:
+
+| Route | Result | Interpretation |
+| --- | --- | --- |
+| GLORIFIER `/api/neural/health` | JSON `PARTIALLY VERIFIED`; process `VERIFIED`; providers/database/PyTorch `NOT VERIFIED` | Proxy reaches NEURAL process; this is not provider/database readiness |
+| NEURAL `/health` | Same JSON `PARTIALLY VERIFIED` | Process responds directly; dependencies are not verified |
+| GLORIFIER `/api/neural/ready` | HTTP 503 | Readiness not available under the current default-deny configuration |
+| NEURAL `/ready` | HTTP 503 | Readiness not available under the current default-deny configuration |
+| GLORIFIER `/.well-known/agent-card.json` | Fetch intercepted by Cloudflare Access: `login_required` | The standard source route exists, but unauthenticated external discovery was not observable from this probe context |
+
+No authenticated task POST, provider prompt, model inference, external egress, or database mutation was performed. A2A external discovery/client interoperability remains **NOT VERIFIED**; the Access result is not a route-absence finding and must not be treated as a successful Agent Card fetch.
+
 ### Remaining universal-interoperability gates
 
 - The eleven first-party SDKs have bounded language-specific CI evidence. This does not establish every operating system, architecture, runtime version, or live NEURAL connection.
 - **A2A source:** the standard Agent Card route and authenticated JSON-RPC proxy/backend handler are merged on GLORIFIER main (PR #629). Local task-lifecycle and authenticated-exchange tests passed in the cited exact-main run. This does not prove that a live backend is currently configured or that an independent A2A client can complete a task.
 - **A2A external acceptance:** official v1.0.1 TCK, authenticated external-client interoperability, and a controlled two-agent lifecycle test remain **NOT VERIFIED**. The TCK's v1.0.1 transport-error mapping alignment is still under review upstream in PR #232; do not overstate any TCK result.
 - **MCP external acceptance:** the official MCP 2026-07-28 server TCK and independent client handshake/discovery/tools-list/read-only-call remain **NOT VERIFIED**. GLORIFIER PR #819 added a manual-only, read-only TCK workflow with its opt-in defaulting to false; no TCK run or external client result is recorded.
-- **GLORIFIER–NEURAL production:** the latest recorded guarded release checkpoint is 2026-11-11, Worker v1002 from main commit `038fe738e9fdc5fbbb0472343198c19d75cd7643`. Its read-only smoke verified Worker-to-NEURAL liveness. NEURAL readiness remained intentionally unavailable under default-deny external egress; inference, egress, and paid-inference authorization were false in the exact-version records. Because external egress and inference remain disabled, current live readiness is therefore NOT VERIFIED for an authenticated task/inference exchange. This is a dated checkpoint, not a fresh 2026-11-13 probe. No authenticated task POST or model inference is recorded.
+- **GLORIFIER–NEURAL production:** a fresh read-only Cloudflare deployment/API readback at `2026-11-13T02:58:54Z` confirms GLORIFIER Worker v1002 and NEURAL Worker v36 remain at 100% traffic, with the GLORIFIER_NEURAL service binding present. External egress, inference, and paid-inference authorization remain false on both exact versions. Fresh public GET checks through GLORIFIER `/api/neural/health` and directly against NEURAL `/health` each returned `PARTIALLY VERIFIED` (process verified; providers, database, and PyTorch not verified); both readiness GET routes returned HTTP 503. Current live readiness is therefore NOT VERIFIED for an authenticated task/inference exchange. No authenticated task POST or model inference is recorded.
 - **Linux host agent:** source and GitHub-hosted Ubuntu contract tests are merged, but no owner-authorized real Linux host enrollment, heartbeat, task claim/result receipt, lease expiry, or revocation is verified.
-- **Blockchain:** fresh read-only Ethereum, BNB Chain, and Solana observations are recorded in the dated 2026-11-11 checkpoint. Transfer/payment verification remains PARTIALLY VERIFIED; no signing, transfer, mint, or contract write is claimed.
+- **Blockchain:** fresh read-only Alchemy observations dated `2026-11-13T02:53:07Z` are recorded above for Ethereum, BNB Chain, and Solana. The three transfer/payment capabilities remain PARTIALLY VERIFIED; no transfer receipt, payment settlement, signing, mint, or contract write is claimed.
 - **Identity and wider assurance:** canonical organization domain/email and a real owner authentication session remain unverified. Cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo deployment, provider billing reconciliation, and independent economic outcomes also remain unverified.
 - The canonical OpenAPI document still covers the NEURAL adapter rather than a complete versioned API/protocol schema inventory; a repository-wide schema drift gate remains outstanding.
 
