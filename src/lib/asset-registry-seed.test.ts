@@ -48,6 +48,12 @@ async function run() {
 
   // Guard the canonical documentation against overstating marketplace evidence.
   const registryDoc = readFileSync('docs/canonical-asset-registry.md', 'utf8');
+  const ownershipReport = readFileSync('nft/ownership-verification-2026-11-13.md', 'utf8');
+  const erc721ItemUrl = 'https://opensea.io/assets/ethereum/0xd62eb4963423f6e224af0bcccabf75f566fb9ad7/1';
+  assert.ok(registryDoc.includes(erc721ItemUrl), 'canonical registry must link to the exact ERC-721 contract address');
+  assert.ok(ownershipReport.includes(erc721ItemUrl), 'ownership report must link to the same exact ERC-721 contract address');
+  assert.doesNotMatch(registryDoc, /0xd62eb4963423f6e224af0bccabf75f566fb9ad7/);
+  assert.doesNotMatch(ownershipReport, /0xd62eb4963423f6e224af0bccabf75f566fb9ad7/);
   assert.match(registryDoc, /glorifier-erc721[\s\S]*?Token #1 item/);
   assert.match(registryDoc, /glorifier-erc1155[\s\S]*?Token #1 item/);
   assert.match(registryDoc, /PARTIALLY VERIFIED — 2026-11-13 Etherscan reports verified `ERC721SeaDropCloneable` proxy source/);
