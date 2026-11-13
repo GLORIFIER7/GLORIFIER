@@ -26,7 +26,8 @@ const canonicalize = (value: unknown): string => {
   if (isRecord(value)) {
     return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonicalize(value[key])).join(',') + '}';
   }
-  return JSON.stringify(value);
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? 'null' : encoded;
 };
 
 const sha256 = (value: unknown): string =>
@@ -44,10 +45,32 @@ const readJson = async (fetchImpl: FetchLike, url: string): Promise<unknown> => 
     signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) throw new Error(`Independent GitHub evidence read failed with HTTP ${response.status}.`);
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-    throw new Error('Independent GitHub evidence response exceeded the 1 MB limit.');
+  if (!response.body) throw new Error('Independent GitHub evidence source returned an empty response.');
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      if (!part.value) continue;
+      totalBytes += part.value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('Independent GitHub evidence response exceeded the 1 MB limit.');
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    reader.releaseLock();
   }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   try {
     return JSON.parse(text) as unknown;
   } catch {
