@@ -24,7 +24,7 @@ This is a read-only verification refresh of the already-minted GLORIFIER SERVICE
 | Factory | `0x008ebccae39d001200c3003c3225ce0a00690066` |
 | Creation transaction | [Etherscan](https://etherscan.io/tx/0x8a41d16bc9c0a26f0f286e1b36ced6d78506c81ae2ad706446444be942550f79) |
 | Creation block | `26,235,674` |
-| Creation receipt | SUCCESS; includes `OwnershipTransferred(address(0), 0xe058...a08a06)` |
+| Creation receipt | SUCCESS; includes `OwnershipTransferred(address(0), 0xe058...a088a06)` |
 
 The Etherscan contract-creation lookup links the contract address to the creator and factory transaction above. The creation transaction was submitted by the same address. The successful receipt includes an ownership-transfer event from the zero address to that address, establishing the initial on-chain owner recorded during initialization.
 
