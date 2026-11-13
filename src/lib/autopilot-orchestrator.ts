@@ -326,6 +326,10 @@ const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
   return serialized.slice(0, maximumCharacters) + '…[truncated; sha256 evidence reference retained]';
 };
 
+export function formatAutopilotA2AContext(prompt: string, options: unknown): string {
+  return prompt + '\\nExecution context: ' + JSON.stringify(options || {});
+}
+
 type MissionClock = () => string;
 
 export function startAutopilotMissionLeaseHeartbeat(
@@ -496,7 +500,7 @@ export async function processNextAutopilotMission(
               role: 'system',
               content: 'You are an analytical A2A worker. Analyze the supplied independently verified GitHub operation and its REST readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
             },
-            { role: 'user', content: prompt + '\\nExecution context: ' + JSON.stringify(options || {}) },
+            { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
           ],
         });
         return { text: response.text, model: `${response.provider}:${response.model}` };
