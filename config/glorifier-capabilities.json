@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "default": "deny",
   "capabilities": [
     {
@@ -250,6 +250,21 @@
     {
       "id": "github.read_file",
       "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "github.create_branch",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "github.update_file",
+      "risk": "medium",
+      "approval": false
+    },
+    {
+      "id": "github.create_pull_request",
+      "risk": "medium",
       "approval": false
     }
   ]
