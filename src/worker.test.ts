@@ -2326,6 +2326,7 @@ const run = async (): Promise<void> => {
           flags: Partial<CloudflareEnv>;
           status: number;
           code: string;
+          requireApproval?: boolean;
         }> = [
           {
             name: 'external egress disabled',
@@ -2336,12 +2337,14 @@ const run = async (): Promise<void> => {
           {
             name: 'inference disabled',
             flags: { GLORIFIER_ENABLE_INFERENCE: 'false' },
+            requireApproval: false,
             status: 403,
             code: 'NEURAL_INFERENCE_DISABLED',
           },
           {
             name: 'paid inference not authorized',
             flags: { GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false' },
+            requireApproval: false,
             status: 403,
             code: 'NEURAL_PAID_INFERENCE_NOT_AUTHORIZED',
           },
@@ -2363,6 +2366,7 @@ const run = async (): Promise<void> => {
             ['TRUE', 'True', ' true '].map((value) => ({
               name: `${flag} rejects malformed value ${JSON.stringify(value)}`,
               flags: { [flag]: value } as Partial<CloudflareEnv>,
+              requireApproval: false,
               status,
               code,
             })),
@@ -2377,7 +2381,11 @@ const run = async (): Promise<void> => {
                 'X-Glorifier-Internal-Token': 'test-internal-neural-service-token',
                 'Content-Type': 'application/json',
               },
-              body: '{"task":"policy regression","require_approval":true,"action_class":"read_only"}',
+              body: JSON.stringify({
+                task: 'policy regression',
+                require_approval: policyCase.requireApproval ?? true,
+                action_class: 'read_only',
+              }),
             }),
             { ...env, ...policyCase.flags },
           );
