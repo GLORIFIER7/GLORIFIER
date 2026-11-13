@@ -119,6 +119,6 @@ test('Autopilot read path validation rejects single backslashes and null bytes',
     path: 'src' + String.fromCharCode(92) + 'lib/service.ts',
   }), /valid repository-relative path/);
   assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
-    path: 'src' + String.fromCharCode(92) + 'lib/service.ts',
+    path: 'src/lib/' + String.fromCharCode(0) + 'service.ts',
   }), /valid repository-relative path/);
 });
