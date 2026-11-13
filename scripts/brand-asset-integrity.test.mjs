@@ -63,11 +63,12 @@ test("browser and installed-app icons use the same canonical PNG", () => {
 });
 
 test("the project page and compatibility SVG use the same canonical artwork", () => {
-  assert.match(projectPage, /glorifier-services-official-logo-001\\.png/);
+  assert.ok(projectPage.includes(appPath));
   assert.match(projectPage, /autonomous AI enterprise/i);
-  assert.doesNotMatch(projectPage, /gravatar\\.com|<span class="mark"[^>]*>G<\\/span>/);
-  assert.match(appIcon, /glorifier-services-official-logo-001\\.png/);
-  assert.doesNotMatch(appIcon, /gravatar\\.com/);
+  assert.ok(!projectPage.includes("gravatar.com"));
+  assert.ok(!projectPage.includes('<span class="mark" aria-hidden="true">G</span>'));
+  assert.ok(appIcon.includes(appPath));
+  assert.ok(!appIcon.includes("gravatar.com"));
 });
 
 test("brand policy records the NFT-matched asset and historical hash distinction", () => {
