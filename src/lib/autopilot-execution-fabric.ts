@@ -101,7 +101,7 @@ export async function executeAutopilotToolStep(
   const adapter = dependencies.adapter ?? ((toolName, args) =>
     executeGithubReadTool(toolName, args, process.env.GITHUB_MCP_READ_TOKEN));
   const verifier = dependencies.verifier ?? ((toolName, args, output) =>
-    verifyGithubToolResult(toolName, args, output));
+    verifyGithubToolResult(toolName, args, output, fetch, process.env.GITHUB_MCP_READ_TOKEN));
   const executionResult = await adapter(invocation.toolName, invocation.arguments);
   const verification = await verifier(invocation.toolName, invocation.arguments, executionResult);
   const executionSha256 = verification.executionSha256;
