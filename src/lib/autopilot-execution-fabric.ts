@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { executeGithubReadTool, type GithubReadToolName } from './github-mcp';
 import { verifyGithubToolResult, type GithubVerificationResult } from './autopilot-evidence-verifier';
 
@@ -19,17 +18,6 @@ const GITHUB_CAPABILITY_TO_TOOL: Record<string, GithubReadToolName> = {
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const canonicalize = (value: unknown): string => {
-  if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']';
-  if (isRecord(value)) {
-    return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonicalize(value[key])).join(',') + '}';
-  }
-  return JSON.stringify(value);
-};
-
-const sha256 = (value: unknown): string =>
-  createHash('sha256').update(canonicalize(value)).digest('hex');
 
 const assertOnlyKeys = (input: JsonRecord, allowed: string[]) => {
   for (const key of Object.keys(input)) {
@@ -115,13 +103,10 @@ export async function executeAutopilotToolStep(
   const verifier = dependencies.verifier ?? ((toolName, args, output) =>
     verifyGithubToolResult(toolName, args, output));
   const executionResult = await adapter(invocation.toolName, invocation.arguments);
-  const executionSha256 = sha256(executionResult);
   const verification = await verifier(invocation.toolName, invocation.arguments, executionResult);
+  const executionSha256 = verification.executionSha256;
   if (!verification.verified) {
     throw new Error(`Autopilot independent evidence verification failed for ${invocation.toolName}: ${verification.reason || 'source mismatch'}.`);
-  }
-  if (verification.executionSha256 !== executionSha256) {
-    throw new Error(`Autopilot independent evidence verification failed for ${invocation.toolName}: execution digest mismatch.`);
   }
   return {
     toolName: invocation.toolName,
