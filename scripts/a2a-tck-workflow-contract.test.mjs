@@ -36,6 +36,18 @@ test('A2A TCK requires an exact HTTPS staging-host allowlist and a staging-only 
   assert.doesNotMatch(workflow, /GLORIFIER_API_TOKEN|GLORIFIER_INTERNAL_SERVICE_TOKEN/);
 });
 
+test('A2A TCK refuses authenticated conformance without upstream bearer injection', () => {
+  assert.match(workflow, /Verify pinned upstream TCK injects configured bearer auth/);
+  assert.match(workflow, /tck\/transport\/_helpers\.py/);
+  assert.match(workflow, /def get_auth_headers/);
+  assert.match(workflow, /A2A_AUTH_TOKEN/);
+  assert.match(workflow, /self\._headers = build_default_headers\(\)/);
+  assert.match(workflow, /merge_headers\(self\._headers/);
+  assert.match(workflow, /Upstream issue #163 remains open and PR #200 is unmerged/);
+  assert.ok(workflow.indexOf('Verify pinned upstream') < workflow.indexOf('Set up Python 3.15'));
+  assert.ok(workflow.indexOf('Verify pinned upstream') < workflow.indexOf('Run full declared JSON-RPC transport conformance'));
+});
+
 test('A2A TCK publishes reports as an immutable artifact without granting repository write access', () => {
   assert.match(workflow, /actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/);
   assert.match(workflow, /if: always\(\)/);
