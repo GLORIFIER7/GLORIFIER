@@ -673,7 +673,7 @@ test('Code Guardian action extraction includes named and unnamed steps', () => {
 });
 
 test('Code Guardian credential-bearing job pins every action to an immutable commit SHA', () => {
-  const guardianStart = codeGuardianWorkflow.indexOf('\\n  guardian:\\n');
+  const guardianStart = codeGuardianWorkflow.indexOf(String.fromCharCode(10) + '  guardian:' + String.fromCharCode(10));
   assert.ok(guardianStart >= 0, 'Code Guardian must declare its credential-bearing guardian job');
   const guardian = codeGuardianWorkflow.slice(guardianStart);
   const actionRefs = extractWorkflowActionRefs(guardian);
