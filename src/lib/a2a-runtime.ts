@@ -206,7 +206,7 @@ function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
     requesterAgentId: input.requesterAgentId,
     targetAgentId: input.targetAgentId || null,
     capability: input.capability.trim().toLowerCase(),
-    objective: input.objective,
+    objective: canonicalizeA2ADataObjective(input),
     input: input.input ?? null,
     status: 'queued',
     attempts: 0,
@@ -284,6 +284,51 @@ function canonicalizeIdempotencyValue(value: unknown): unknown {
     );
   }
   return value;
+}
+
+/**
+ * The A2A adapter derives an objective by serializing Part.data. Canonicalize
+ * that derived objective only when it exactly matches the persisted parts;
+ * retain all other caller-supplied objective strings unchanged.
+ */
+function canonicalizeA2ADataObjective(input: CreateA2ATaskInput): string {
+  const taskInput = input.input;
+  if (!taskInput || typeof taskInput !== 'object' || Array.isArray(taskInput)) {
+    return input.objective;
+  }
+  const parts = (taskInput as Record<string, unknown>).parts;
+  if (!Array.isArray(parts) || parts.length === 0) return input.objective;
+
+  const rawParts: string[] = [];
+  const canonicalParts: string[] = [];
+  for (const part of parts) {
+    if (!part || typeof part !== 'object' || Array.isArray(part)) return input.objective;
+    const record = part as Record<string, unknown>;
+    if (Object.prototype.hasOwnProperty.call(record, 'data')) {
+      let rawData: string | undefined;
+      let canonicalData: string | undefined;
+      try {
+        rawData = JSON.stringify(record.data);
+        canonicalData = JSON.stringify(canonicalizeIdempotencyValue(record.data));
+      } catch {
+        return input.objective;
+      }
+      if (typeof rawData !== 'string' || typeof canonicalData !== 'string') return input.objective;
+      rawParts.push(rawData);
+      canonicalParts.push(canonicalData);
+      continue;
+    }
+    if (typeof record.text === 'string') {
+      rawParts.push(record.text);
+      canonicalParts.push(record.text);
+      continue;
+    }
+    return input.objective;
+  }
+
+  return rawParts.join('\\n') === input.objective
+    ? canonicalParts.join('\\n')
+    : input.objective;
 }
 
 function a2aTaskRequestFingerprint(input: CreateA2ATaskInput): string {
