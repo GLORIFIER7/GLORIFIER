@@ -67,7 +67,7 @@ test('Autopilot update_file only writes bounded source content to a non-main aut
     content: { path: 'src/lib/example.ts', sha: 'e'.repeat(40) },
     idempotent: false,
   });
-  assert.equal(calls[1].body?.sha, 'old-file-sha');
+  assert.equal(calls[1].body?.sha, 'd'.repeat(40));
   assert.equal(calls[1].body?.branch, 'autopilot/mission-123');
   assert.equal(calls[1].method, 'PUT');
 });
