@@ -215,6 +215,21 @@ const authenticatedClaimEvidence = buildArchitectureEvidence(
 if (authenticatedClaimEvidence.length !== 1 || authenticatedClaimEvidence[0].evidenceClass !== 'observed-fact') {
   throw new Error('only a fresh source-bound claim attestation accepted by the trusted authenticator may become observed-fact');
 }
+let oneUseAuthenticatorCalls = 0;
+const oneUseClaimSupportAuthenticator = () => {
+  oneUseAuthenticatorCalls += 1;
+  return oneUseAuthenticatorCalls === 1;
+};
+const oneUseAuthenticatedEvidence = buildArchitectureEvidence(
+  [claimSupportObservation],
+  oneUseClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (oneUseAuthenticatedEvidence.length !== 1
+    || oneUseAuthenticatedEvidence[0].evidenceClass !== 'observed-fact'
+    || oneUseAuthenticatorCalls !== 1) {
+  throw new Error('claim-support authenticators must be evaluated exactly once per source observation');
+}
 if (authenticatedClaimEvidence[0].patternIds.length !== 1
     || authenticatedClaimEvidence[0].patternIds[0] !== 'cross-cutting-cloud-controls') {
   throw new Error('claim support must be restricted to the exact attested architecture pattern, not every pattern associated with the source');
