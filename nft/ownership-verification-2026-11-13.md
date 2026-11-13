@@ -62,7 +62,7 @@ The refreshed Alchemy NFT metadata response conflicts with direct chain state: i
 The cached indexed NFT response includes an OpenSea item URL and collection label `glorifier7`:
 
 - [OpenSea collection](https://opensea.io/collection/glorifier7)
-- [OpenSea token #1 item](https://opensea.io/assets/ethereum/0xd62eb4963423f6e224af0bccabf75f566fb9ad7/1)
+- [OpenSea token #1 item](https://opensea.io/assets/ethereum/0xd62eb4963423f6e224af0bcccabf75f566fb9ad7/1)
 
 This establishes an indexed marketplace reference, not current trading status. Active listings, received offers, sale events and floor price were **not verified** in this refresh. The Alchemy NFT-sales request returned 404 because that endpoint has been deprecated; its floor-price response could not fetch a price. Those failures do not establish that there are no offers or sales.
 
