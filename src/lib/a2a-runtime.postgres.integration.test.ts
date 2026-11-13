@@ -121,7 +121,7 @@ test('PostgreSQL migrates A2A idempotency and atomically deduplicates concurrent
     'a2a-pg-idem-foreign-' + randomUUID(),
     base.idempotencyKey,
   );
-  assert.equal(foreignLookup, null, 'a replay key must not reveal another requester's task');
+  assert.equal(foreignLookup, null, "a replay key must not reveal another requester's task");
 
   await assert.rejects(
     createA2ATaskForProtocol({ ...base, objective: 'Different content for the same messageId' }),
