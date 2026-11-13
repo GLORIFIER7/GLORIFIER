@@ -184,3 +184,24 @@ test('Federated A2A terminal task states cannot be reauthorized or overwritten a
   assert.equal(failureRecord.state, 'SETTLED',
     'failure reporting must not overwrite a settled task');
 });
+
+
+test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async () => {
+  const { getFederatedA2ATask, createFederatedA2AEnvelope } = await import('./federated-a2a-v3');
+  const task = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-envelope', capability: 'research', objective: 'bounded handoff lifetime' },
+    async () => {},
+  );
+  const stored = getFederatedA2ATask(task.id);
+  assert.ok(stored);
+  stored.state = 'ASSIGNED';
+  stored.targetAgentId = 'neural-agent';
+
+  for (const ttlSeconds of [0, -1, 1.5, 301, Number.POSITIVE_INFINITY]) {
+    await assert.rejects(
+      createFederatedA2AEnvelope(task.id, 'glorifier-daemon', ttlSeconds),
+      /TTL must be an integer from 1 through 300 seconds/i,
+      `TTL ${String(ttlSeconds)} must be rejected`,
+    );
+  }
+});
