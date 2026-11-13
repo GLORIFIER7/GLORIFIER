@@ -253,7 +253,11 @@ class PostgresAutopilotMissionStore implements AutopilotMissionStore {
 function parseMission(value: unknown): AutopilotMission {
   const parsed = typeof value === 'string' ? JSON.parse(value) : value;
   if (!parsed || typeof parsed !== 'object') throw new Error('Stored Autopilot mission payload is invalid.');
-  return parsed as AutopilotMission;
+  const mission = parsed as AutopilotMission;
+  if (!mission.verificationState) {
+    mission.verificationState = mission.status === 'completed' ? 'pending-external-evidence' : 'not-started';
+  }
+  return mission;
 }
 
 const MAX_OBJECTIVE_LENGTH = 20_000;
