@@ -81,7 +81,7 @@ import { canonicalActionHash, buildEvidenceRecord, getEconomicIntegrityPolicy, l
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
 import { initializeAIWebNetwork, synchronizeAIWebNetwork, runAIWebNetworkCycle, getAIWebNetworkSnapshot, getAIWebNetworkPolicy } from './src/lib/ai-web-network';
 import { getCanonicalAsset, listCanonicalAssets } from './src/lib/asset-registry';
-import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, startFederatedA2ATask, createFederatedA2AEnvelope, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
+import { initializeFederatedA2AV3, getFederatedA2AV3Policy, createFederatedA2ATask, getFederatedA2ATask, listFederatedA2ATasks, listFederatedA2ATasksFromStore, getFederatedA2ATaskFromStore, authorizeFederatedA2ATask, assignFederatedA2ATask, startFederatedA2ATask, createFederatedA2AEnvelope, FEDERATED_A2A_ENVELOPE_MAX_TTL_SECONDS, verifyFederatedA2AEnvelope, markFederatedA2AEvidence, verifyFederatedA2ATask, settleFederatedA2ATask, failFederatedA2ATask } from './src/lib/federated-a2a-v3';
 
 import { 
   getScientistFleet, 
@@ -2522,8 +2522,17 @@ app.post('/api/federated-a2a/v3/tasks/:id/start', requireOwnerOrInternalService,
 });
 
 app.post('/api/federated-a2a/v3/tasks/:id/envelope', requireOwnerOrInternalService, async (req: Request, res: Response) => {
-  try { return res.json({ ok: true, envelope: await createFederatedA2AEnvelope(String(req.params.id), 'glorifier-daemon', Number(req.body?.ttlSeconds) || 300) }); }
-  catch (error) { return apiError(res, 409, 'Federated A2A envelope creation rejected', error); }
+  try {
+    const ttlSeconds = req.body?.ttlSeconds === undefined
+      ? FEDERATED_A2A_ENVELOPE_MAX_TTL_SECONDS
+      : Number(req.body.ttlSeconds);
+    return res.json({
+      ok: true,
+      envelope: await createFederatedA2AEnvelope(String(req.params.id), 'glorifier-daemon', ttlSeconds),
+    });
+  } catch (error) {
+    return apiError(res, 409, 'Federated A2A envelope creation rejected', error);
+  }
 });
 
 app.post('/api/federated-a2a/v3/handoffs/verify', requireOwnerOrInternalService, (req: Request, res: Response) => {
