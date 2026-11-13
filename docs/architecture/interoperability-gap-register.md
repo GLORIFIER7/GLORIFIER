@@ -211,6 +211,19 @@ The implementation intentionally does not expose arbitrary shell execution, sudo
 
 See [the Linux host-agent integration contract](./linux-host-agent.md) and [the agent installation guide](../../agents/linux-host-agent/README.md).
 
+
+### Current read-only GLR chain refresh — 2026-11-13
+
+Observation time: `2026-11-13T02:53:07Z`. These calls used the existing GLORIFIER Alchemy app and were read-only. No signing, transaction submission, wallet use, token transfer, mint, or contract write was performed.
+
+| Network | Current observation | Result |
+| --- | --- | --- |
+| Ethereum Mainnet | `eth_chainId`, `eth_blockNumber`, `eth_getCode`, and read-only `eth_call` against the owner-designated GLR ERC-20 | Chain ID `0x1`; block `0x192e15f`; non-empty code; name `GLORIFIER`; symbol `GLR`; 18 decimals; total supply 1,000,000,000 GLR |
+| BNB Smart Chain Mainnet | Same read-only RPC methods against the owner-designated GLR BEP-20 | Chain ID `0x38`; block `0x7f19dc4`; non-empty code; name `GLORIFIER`; symbol `GLR`; 18 decimals; total supply 1,000,000,000 GLR |
+| Solana Mainnet Beta | `getGenesisHash`, finalized `getBlockHeight`, `getTokenSupply`, and parsed finalized `getAccountInfo` for the GLR Token-2022 mint | Mainnet genesis hash matched; finalized height 446781316; supply 1,000,000,000 GLR at 9 decimals; initialized GLORIFIER / GLR mint; mint, freeze, metadata-pointer and metadata-update authorities are null |
+
+The three chain capabilities remain **PARTIALLY VERIFIED**. These observations verify current read-only RPC reachability and token metadata only; they do not prove a transfer receipt, recipient settlement, or the production payment-verification path. The second same-deployer Ethereum GLORIFIER/GLR contract identity remains unresolved.
+
 ### Remaining universal-interoperability gates
 
 - The eleven first-party SDKs have bounded language-specific CI evidence. This does not establish every operating system, architecture, runtime version, or live NEURAL connection.
