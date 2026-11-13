@@ -146,7 +146,7 @@ Analysis:
 - No trusted reviewer-identity and independent semantic-verification adapter is currently configured for the GEAS source scan. Claim support must therefore fail closed by default.
 
 GEAS refinement prepared on `fix/geas-authenticated-claim-support-gate-20261113`:
-- Added a structured claim-support attestation binding the claim-review reference, claim ID, source ID, registry version, source snapshot hash, exact excerpt hash, authenticated reviewer reference, independent semantic-verifier reference, observation time, expiry, and supported decision.
+- Added a structured claim-support attestation binding the claim-review reference, claim ID, exact architecture pattern ID, source ID, registry version, source snapshot hash, exact excerpt hash, authenticated reviewer reference, independent semantic-verifier reference, observation time, expiry, and supported decision. A claim can promote only its attested pattern ID; it cannot promote every sibling pattern associated with the same source.
 - Claim-supported classification now requires a successful 2xx source observation, exact canonical final URL, exact source and excerpt hashes, current source cadence, non-future RFC 3339 observation time, unexpired attestation, and an injected synchronous trusted authenticator returning literal `true`.
 - Missing, stale, mismatched, rejected, throwing, or asynchronous authenticators fail closed. Ordinary content-matched evidence remains `analysis`; source availability remains insufficient.
 - Added regression coverage for absent/rejected authenticators, source-hash mismatch, excerpt mismatch, and expired attestations. The evidence-policy CI validator now checks the authenticated admission boundary.
