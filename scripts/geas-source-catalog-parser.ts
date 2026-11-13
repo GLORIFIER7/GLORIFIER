@@ -272,7 +272,7 @@ const readObjectSourceEntry = (tokens: Token[], properties: Range[]): ScannerSou
   const id = readLiteralProperty(tokens, properties, 'id', 'string');
   const url = readLiteralProperty(tokens, properties, 'url', 'string');
   const cadence = readLiteralProperty(tokens, properties, 'cadenceHours', 'number');
-  const claimsAllowed = readLiteralStringArray(tokens, getPropertyRange(tokens, properties, 'claimsAllowed'));
+  const claimsAllowed = readLiteralStringArrayProperty(tokens, properties, 'claimsAllowed');
   return createSourceEntry(id, url, cadence, claimsAllowed);
 };
 
@@ -313,6 +313,12 @@ const readLiteralStringArray = (tokens: Token[], range: Range | null): string[] 
   return values.every((value): value is string => typeof value === 'string' && value.length > 0)
     ? values
     : null;
+};
+
+const readLiteralStringArrayProperty = (tokens: Token[], properties: Range[], name: string): string[] | null => {
+  const property = getPropertyRange(tokens, properties, name);
+  if (!property || tokens[property.start + 1]?.text !== ':') return null;
+  return readLiteralStringArray(tokens, { start: property.start + 2, end: property.end });
 };
 
 const isFactoryCallRange = (tokens: Token[], range: Range): boolean =>
