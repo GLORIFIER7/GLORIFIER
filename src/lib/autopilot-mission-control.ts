@@ -398,6 +398,12 @@ export async function recordAutopilotMissionPlan(
     if (ids.has(id)) throw new Error('step identifiers must be unique.');
     ids.add(id);
     if (!['read-only', 'reversible', 'irreversible'].includes(step.effect)) throw new Error('step effect must be read-only, reversible, or irreversible.');
+    if (step.toolArguments !== undefined) {
+      if (!step.toolArguments || typeof step.toolArguments !== 'object' || Array.isArray(step.toolArguments) ||
+          JSON.stringify(step.toolArguments).length > 8_192) {
+        throw new Error('step tool arguments must be a bounded JSON object.');
+      }
+    }
     return {
       id,
       capability,
@@ -462,6 +468,19 @@ export async function claimAutopilotMissionStep(
   return { claimed: true, mission: saved };
 }
 
+
+function isTrustedGithubEvidenceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      url.origin === 'https://api.github.com' &&
+      (url.pathname === '/repos/GLORIFIER7/GLORIFIER' ||
+        url.pathname.startsWith('/repos/GLORIFIER7/GLORIFIER/'));
+  } catch {
+    return false;
+  }
+}
+
 export async function completeAutopilotMissionStep(
   store: AutopilotMissionStore,
   missionId: string,
@@ -477,7 +496,7 @@ export async function completeAutopilotMissionStep(
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
   if (verification && (verification.status !== 'verified' || !verification.verifierId.trim() ||
-      !verification.sourceUrl.startsWith('https://') || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
+      !isTrustedGithubEvidenceUrl(verification.sourceUrl) || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
       !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256))) {
     throw new Error('mission step verification evidence is invalid.');
   }
@@ -527,7 +546,7 @@ export async function recoverAutopilotMissionsWithSafeRetry(
 
   for (const mission of missions) {
     if (mission.status !== 'reconciliation-required' || mission.steps.length === 0) continue;
-    const uncertain = mission.steps.filter(step => step.status === 'reconciliation-required');
+    const uncertain = mission.steps.filter(step => step.status === 'reconciliation-required' || step.status === 'pending');
     if (uncertain.length === 0) continue;
     const safeToRetry = mission.steps.every(step =>
       step.effect === 'read-only' &&
@@ -590,10 +609,11 @@ export function getAutopilotMissionControlStatus() {
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
     autonomousPlanningEnabled: autopilotStore !== null,
-    autonomousStepExecutionEnabled: true,
-    readOnlyToolExecutionEnabled: true,
+    autonomousStepExecutionEnabled: autopilotStore !== null,
+    readOnlyToolExecutionEnabled: autopilotStore !== null,
     writeToolExecutionEnabled: false,
-    independentOutcomeVerificationEnabled: true,
+    independentOutcomeVerificationEnabled: autopilotStore !== null,
+    boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
     providerInferenceEnabled: false,
     automaticReplay: false,
