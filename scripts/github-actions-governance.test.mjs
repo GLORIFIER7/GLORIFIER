@@ -56,7 +56,7 @@ test('Gemini PR review is manual-only and retains its owner and free-tier gate',
   assert.doesNotMatch(events, /pull_request/);
   assert.match(geminiReview, /github\.event_name == 'workflow_dispatch'/);
   assert.match(geminiReview, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
-  assert.match(geminiReview, /github\.ref == 'refs\\/heads\\/main'/);
+  assert.ok(geminiReview.includes("github.ref == 'refs/heads/main'"));
   assert.doesNotMatch(geminiReview, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.match(geminiReview, /github\.actor_id == '32674233'/);
   assert.match(geminiReview, /github\.run_attempt == 1/);
