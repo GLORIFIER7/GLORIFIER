@@ -49,6 +49,8 @@ jobs:
         run: node --test scripts/ai-fleet-publication-window-recheck.test.mjs
       - name: Continuous improvement paid-inference authorization regression tests
         run: node --test scripts/continuous-improvement-workflow-contract.test.mjs
+      - name: Continuous improvement provider-outage regression tests
+        run: node --test scripts/continuous-improvement-agent.test.mjs
 
       - name: GitHub Actions governance regression tests
         run: node --test scripts/github-actions-governance.test.mjs
