@@ -231,6 +231,26 @@
       "id": "wallet.broadcast",
       "risk": "critical",
       "approval": true
+    },
+    {
+      "id": "github.get_repository",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "github.list_pull_requests",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "github.list_workflow_runs",
+      "risk": "low",
+      "approval": false
+    },
+    {
+      "id": "github.read_file",
+      "risk": "low",
+      "approval": false
     }
   ]
 }
