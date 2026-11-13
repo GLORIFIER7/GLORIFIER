@@ -368,7 +368,7 @@
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/833",
           "targetEnvironment": "PR #833 source branch and GitHub CI; no production or staging Worker change",
           "observedAt": null,
-          "notes": "Adds an explicit federated handoff start transition, persistence-before-memory mutation, bounded/deduplicated evidence references, strict terminal-state guards, bounded signed-envelope TTL, and independent-verifier gating before VERIFIED. The verifier is not configured, so verification requests intentionally fail closed. The branch has not been deployed; no authenticated GLORIFIER-to-NEURAL task or model inference was performed. Runtime readiness and task exchange remain NOT VERIFIED."
+          "notes": "Adds an explicit federated handoff start transition, persistence-before-memory mutation, bounded/deduplicated evidence references, strict terminal-state guards, bounded signed-envelope TTL, and independent-verifier gating before VERIFIED. The verifier is not configured, so verification requests intentionally fail closed. The branch has not been deployed; no authenticated GLORIFIER-to-NEURAL task or model inference was performed. Runtime readiness and task exchange remain NOT VERIFIED.",
           "kind": "live-probe",
           "reference": "Cloudflare Workers API deployment inventory and exact-version metadata GET",
           "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
@@ -1055,7 +1055,7 @@
           "reference": "https://github.com/GLORIFIER7/GLORIFIER/pull/833",
           "targetEnvironment": "PR #833 source branch and GitHub CI contract; no main-branch merge, staging configuration, or production deployment",
           "observedAt": null,
-          "notes": "Adds a manual owner-dispatched official A2A TCK workflow pinned to signed upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba. It preflights the public Agent Card, limits the SUT to an exact HTTPS staging hostname, uses a dedicated staging Bearer secret, runs the declared JSON-RPC binding, and uploads reports. This is test-path/source evidence only: no staging host or secret is configured and no TCK run or external client exchange has occurred. Capability status remains NOT VERIFIED."
+          "notes": "Adds a manual owner-dispatched official A2A TCK workflow pinned to signed upstream commit 104a7b4ae0d83f65c075e3793e322953a830eaba. It preflights the public Agent Card, limits the SUT to an exact HTTPS staging hostname, uses a dedicated staging Bearer secret, runs the declared JSON-RPC binding, and uploads reports. This is test-path/source evidence only: no staging host or secret is configured and no TCK run or external client exchange has occurred. Capability status remains NOT VERIFIED.",
           "kind": "live-probe",
           "reference": "https://glorifier.glorifier.workers.dev/.well-known/agent-card.json",
           "targetEnvironment": "Public production GLORIFIER Cloudflare Worker; unauthenticated GET via public fetch",
