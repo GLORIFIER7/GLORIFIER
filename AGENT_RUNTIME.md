@@ -26,7 +26,7 @@ The authenticated mission-control API is available at:
 - `GET /api/autopilot/missions` — lists missions visible to the authorized owner/internal service.
 - `GET /api/autopilot/missions/:id` — retrieves an authorized mission.
 
-Mission records are requester-scoped and idempotent. Mission state changes use optimistic version checks. Workers claim queued missions with bounded leases. A lease that expires while work is planning or executing is changed to `reconciliation-required`; it is never automatically replayed. A step marked `irreversible` requires an explicit approval record before it can be claimed. Completion requires at least one evidence reference.
+Mission records are requester-scoped and idempotent. Mission state changes use optimistic version checks. Workers claim queued missions with bounded leases. An expired lease first moves to `reconciliation-required`. The recovery policy may requeue only an explicitly allowlisted, idempotent read-only GitHub step, and only for one bounded retry; other work remains quarantined. A step marked `irreversible` requires an explicit approval record before it can be claimed. Completion requires evidence references and records verification separately from completion.
 
 The mission ledger provides durable state, requester scoping, idempotent creation, optimistic concurrency, bounded leases, evidence references, and crash reconciliation. Provider-backed planning and bounded read-only tool execution are described in the following section. Event-driven triggers and write-capable external action adapters are not implemented.
 
