@@ -100,17 +100,35 @@ test('existing assertions completed in setup hook', () => {
 
 
 test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without an independent verifier', async () => {
-  const { markFederatedA2AEvidence, verifyFederatedA2ATask } = await import('./federated-a2a-v3');
+  const {
+    authorizeFederatedA2ATask,
+    assignFederatedA2ATask,
+    startFederatedA2ATask,
+    markFederatedA2AEvidence,
+    verifyFederatedA2ATask,
+  } = await import('./federated-a2a-v3');
   const persistence = {
     audit: async () => 'audit-test',
     persist: async () => {},
   };
   const task = await createFederatedA2ATask(
-    { requesterAgentId: 'requester-a', capability: 'research', objective: 'verify evidence safely' },
+    {
+      requesterAgentId: 'requester-a',
+      targetAgentId: 'evidence-agent',
+      capability: 'evidence.attach',
+      objective: 'verify evidence safely',
+    },
     async () => {},
   );
+  await authorizeFederatedA2ATask(task.id, 'human-owner', false, persistence);
+  assert.equal(task.state, 'AUTHORIZED');
+  await assignFederatedA2ATask(task.id, 'glorifier-daemon', persistence);
+  assert.equal(task.state, 'ASSIGNED');
+  await startFederatedA2ATask(task.id, 'evidence-agent', persistence);
+  assert.equal(task.state, 'RUNNING');
+
   const evidenceRef = 'https://evidence.example/owner-supplied-claim';
-  await markFederatedA2AEvidence(task.id, evidenceRef, 'reviewer-a', persistence);
+  await markFederatedA2AEvidence(task.id, evidenceRef, 'evidence-agent', persistence);
   assert.equal(task.state, 'EVIDENCE');
   assert.deepEqual(task.evidenceRefs, [evidenceRef]);
 
