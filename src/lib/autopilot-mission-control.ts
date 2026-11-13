@@ -48,6 +48,7 @@ export type AutopilotMission = {
   title: string;
   objective: string;
   status: AutopilotMissionStatus;
+  verificationState: 'not-started' | 'pending-external-evidence';
   version: number;
   steps: AutopilotMissionStep[];
   evidenceRefs: string[];
@@ -311,6 +312,7 @@ export async function createAutopilotMission(
     title,
     objective,
     status: 'queued',
+    verificationState: 'not-started',
     version: 1,
     steps: [],
     evidenceRefs: [],
@@ -470,6 +472,7 @@ export async function completeAutopilotMissionStep(
     steps: updatedSteps,
     evidenceRefs: [...new Set([...mission.evidenceRefs, ...refs])],
     status: allCompleted ? 'completed' : 'executing',
+    verificationState: allCompleted ? 'pending-external-evidence' : mission.verificationState,
     ...(allCompleted ? { leaseOwner: undefined, leaseExpiresAt: undefined } : {}),
   }, currentTime);
 }
@@ -510,7 +513,7 @@ export function getAutopilotMissionControlStatus() {
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
-    autonomousPlanningEnabled: false,
+    autonomousPlanningEnabled: autopilotStore !== null,
     autonomousStepExecutionEnabled: false,
     eventDrivenTriggersEnabled: false,
     providerInferenceEnabled: false,
@@ -525,11 +528,13 @@ export function getAutopilotMissionControlStatus() {
       'leased-mission-claims',
       'evidence-required-completion',
       'crash-reconciliation-without-replay',
+      'provider-backed-read-only-mission-planning',
+      'specialist-council-review',
+      'geas-and-capability-gated-a2a-analysis-dispatch',
     ],
     remainingCapabilities: [
       'event-driven-triggers',
-      'provider-backed-autonomous-planning',
-      'approved-step-execution-adapters',
+      'external-action-execution-adapters',
       'independent-outcome-verification',
     ],
   };
