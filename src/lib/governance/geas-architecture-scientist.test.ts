@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
   createGovernedActionEvidencePackage,
@@ -163,6 +164,84 @@ if (availabilityOnlyEvidence.length !== 0) {
   throw new Error('source availability alone must not create architecture evidence records');
 }
 
+const claimSupportExcerpt = 'Test-only source excerpt.';
+const claimSupportObservedAt = '2026-11-13T03:00:00.000Z';
+const claimSupportNowMs = Date.parse('2026-11-13T03:01:00.000Z');
+const claimSupportContentHash = 'd'.repeat(64);
+const claimSupportAttestation = {
+  evidenceRef: `claim-review-${'e'.repeat(24)}`,
+  claimId: 'claim-geas-test-1',
+  sourceId: 'aws-well-architected',
+  sourceRegistryVersion: 'GEAS-AUTHORITY-2',
+  sourceContentHash: claimSupportContentHash,
+  supportingExcerptHash: createHash('sha256').update(claimSupportExcerpt).digest('hex'),
+  reviewerIdentityRef: 'identity:authenticated-reviewer-1',
+  semanticVerifierRef: 'attestation:independent-semantic-verifier-1',
+  observedAt: claimSupportObservedAt,
+  validUntil: '2026-11-14T03:00:00.000Z',
+  decision: 'supported' as const,
+};
+const claimSupportObservation: SourceObservation = {
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: claimSupportContentHash,
+  observedAt: claimSupportObservedAt,
+  finalUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  evidenceExcerpt: claimSupportExcerpt,
+  evidenceStatus: 'claim-supported',
+  claimSupportAttestation,
+};
+if (isClaimSupportedEvidence('claim-supported', claimSupportObservation, undefined, claimSupportNowMs)) {
+  throw new Error('claim-supported status and a record alone must not establish authenticated claim support');
+}
+if (buildArchitectureEvidence([claimSupportObservation], undefined, claimSupportNowMs).length !== 0) {
+  throw new Error('claim-supported source observations must fail closed when no trusted authenticator is configured');
+}
+const trustedClaimSupportAuthenticator = (attestation: Readonly<typeof claimSupportAttestation>) =>
+  attestation.evidenceRef === claimSupportAttestation.evidenceRef
+  && attestation.semanticVerifierRef === claimSupportAttestation.semanticVerifierRef;
+const authenticatedClaimEvidence = buildArchitectureEvidence(
+  [claimSupportObservation],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (authenticatedClaimEvidence.length !== 1 || authenticatedClaimEvidence[0].evidenceClass !== 'observed-fact') {
+  throw new Error('only a fresh source-bound claim attestation accepted by the trusted authenticator may become observed-fact');
+}
+const rejectedClaimEvidence = buildArchitectureEvidence(
+  [claimSupportObservation],
+  () => false,
+  claimSupportNowMs,
+);
+if (rejectedClaimEvidence.length !== 0) {
+  throw new Error('a rejected claim-support authenticator must not admit observed-fact evidence');
+}
+const mismatchedClaimEvidence = buildArchitectureEvidence(
+  [{ ...claimSupportObservation, contentHash: 'f'.repeat(64) }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (mismatchedClaimEvidence.length !== 0) {
+  throw new Error('claim-support attestation must bind to the exact observed source snapshot hash');
+}
+const expiredClaimEvidence = buildArchitectureEvidence(
+  [{ ...claimSupportObservation, claimSupportAttestation: { ...claimSupportAttestation, validUntil: '2026-11-13T03:00:59.999Z' } }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (expiredClaimEvidence.length !== 0) {
+  throw new Error('expired claim-support attestations must remain analysis-ineligible');
+}
+const wrongExcerptClaimEvidence = buildArchitectureEvidence(
+  [{ ...claimSupportObservation, evidenceExcerpt: 'A different excerpt.' }],
+  trustedClaimSupportAuthenticator,
+  claimSupportNowMs,
+);
+if (wrongExcerptClaimEvidence.length !== 0) {
+  throw new Error('claim-support attestation must bind to the exact supporting excerpt');
+}
+
 for (const source of model.sources) {
   if (!isTrustedArchitectureSourceUrl(source.url)) {
     throw new Error(`model source is not covered by the curated hostname allowlist: ${source.id}`);
@@ -278,10 +357,10 @@ assert.doesNotMatch(
 );
 
 if (isClaimSupportedEvidence('content-matched')) throw new Error('keyword match must not count as claim verification');
-if (!isClaimSupportedEvidence('claim-supported')) throw new Error('claim-supported evidence state missing');
+if (isClaimSupportedEvidence('claim-supported')) throw new Error('claim-supported status without an attestation and trusted authenticator must fail closed');
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') throw new Error('keyword matches must remain analysis');
 if (classifyArchitectureEvidence('source-available') !== 'analysis') throw new Error('source availability must remain analysis');
-if (classifyArchitectureEvidence('claim-supported') !== 'observed-fact') throw new Error('claim-supported evidence should be classified as observed fact');
+if (classifyArchitectureEvidence('claim-supported') !== 'analysis') throw new Error('claim-supported status without an authenticated attestation must remain analysis');
 if (isSourceObservationDue(24, new Date(0).toISOString(), 24 * 60 * 60 * 1000 - 1)) throw new Error('source cadence should reuse fresh observations');
 if (!isSourceObservationDue(24, new Date(0).toISOString(), 24 * 60 * 60 * 1000)) throw new Error('source cadence should refresh expired observations');
 const fixedNowMs = 1000;
