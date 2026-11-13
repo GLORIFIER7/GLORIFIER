@@ -494,3 +494,33 @@ A new read-only probe was performed through the existing GLORIFIER Alchemy app. 
 - These RPC results do not verify general blockchain interoperability, cross-chain asset equivalence, or any transaction/write capability.
 
 Issue #471 remains OPEN. The external A2A/MCP, live Linux host, authenticated GLORIFIER–NEURAL task, owner identity, cryptographic identity, sandbox, GPU/Kubernetes/NVIDIA Dynamo, provider billing, and independently verifiable economic-outcome gates remain separate and unverified.
+
+
+## Issue #471 — A2A / NEURAL orchestration source-hardening checkpoint — 2026-11-13
+
+This checkpoint records source and branch-CI changes proposed in GLORIFIER PR [#833](https://github.com/GLORIFIER7/GLORIFIER/pull/833). It is not a production-deployment or external-conformance result.
+
+### Federated A2A v3 lifecycle and evidence boundary
+
+- Adds an explicit `ASSIGNED → RUNNING` handoff acknowledgement for the selected target agent.
+- Moves lifecycle state changes through an audited persistence transition helper so in-memory state is not advanced before durable audit/persistence succeeds.
+- Rejects caller-supplied booleans as proof of evidence. Promotion to `VERIFIED` requires a server-supplied independent evidence verifier, with a current observation timestamp and exact evidence-reference matching.
+- The HTTP verification route is owner-only and fails closed because no authoritative independent verifier is configured. This prevents a task from being marked verified based only on an agent-provided URL or `qualifyingEvidence` flag.
+- Rejects duplicate, empty, overlong, or control-character evidence references; protects terminal `VERIFIED`, `SETTLED`, and `FAILED` states; and bounds signed handoff-envelope TTLs to 1–300 integer seconds.
+- Branch CI ran the Federated A2A v3 regression suite: five tests passed, including caller-asserted evidence rejection, terminal-state protection, TTL bounds, and assigned-target start transition.
+
+### Official A2A TCK path
+
+- Adds an owner-dispatched, main-only workflow pinned to signature-verified upstream A2A TCK commit `104a7b4ae0d83f65c075e3793e322953a830eaba`.
+- The workflow is limited to the Agent Card's declared JSON-RPC binding, validates the public Agent Card, and requires a dedicated exact-host HTTPS staging allowlist plus a staging-only bearer credential.
+- GitHub repository permissions are read-only; the workflow is not triggered by push, pull request, or schedule. Reports are retained as an artifact.
+- The workflow has **not** been dispatched. The `a2a-tck-staging` GitHub Environment, `GLORIFIER_A2A_TCK_STAGING_HOST` variable, and `GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN` secret must be configured by an authorized owner. The TCK result, authenticated external client handshake, and controlled two-agent task lifecycle remain **NOT VERIFIED**.
+
+### NEURAL, Linux, MCP, and execution boundaries
+
+- The existing GLORIFIER–NEURAL safe-mode controls remain unchanged: external data egress, inference, and paid-inference authorization stay disabled by default. No production service setting was changed and no task or inference was submitted.
+- The existing MCP conformance workflow remains a separate manually dispatched test path; an official external MCP client/server conformance result is not created by this PR.
+- Linux source/container CI is not real-host enrollment evidence. No owner-authorized Linux host was enrolled or used for heartbeat, task claim/result, lease expiry, or revocation.
+- A2A/MCP external protocol conformance, a live authenticated GLORIFIER–NEURAL task exchange, canonical organization identity, cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo execution, fresh chain RPC observations, provider billing reconciliation, and independent economic outcomes remain **NOT VERIFIED**.
+
+**Decision:** Issue #471 remains OPEN. The branch hardens the source-level A2A/NEURAL orchestration path and adds a guarded external conformance workflow; it does not certify live interoperability or production execution.
