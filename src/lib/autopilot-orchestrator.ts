@@ -146,9 +146,15 @@ const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
 };
 
 export async function processNextAutopilotMission(
-  now = new Date().toISOString(),
-  clock: MissionClock = () => new Date().toISOString(),
+  suppliedNow?: string,
+  suppliedClock?: MissionClock,
 ) {
+  const now = suppliedNow ?? new Date().toISOString();
+  // Supplying a fixture timestamp makes the operation deterministic for tests;
+  // normal daemon calls use a live clock so long-running work respects lease expiry.
+  const clock: MissionClock = suppliedClock ?? (suppliedNow
+    ? () => new Date(now).toISOString()
+    : () => new Date().toISOString());
   const store = getAutopilotMissionStore();
   if (!store) return { status: 'unavailable', reason: 'durable-mission-store-unavailable' };
   const readiness = getAutopilotOrchestrationStatus();
