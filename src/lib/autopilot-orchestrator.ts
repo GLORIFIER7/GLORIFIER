@@ -327,7 +327,7 @@ const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
 };
 
 export function formatAutopilotA2AContext(prompt: string, options: unknown): string {
-  return prompt + '\\nExecution context: ' + JSON.stringify(options || {});
+  return prompt + '\nExecution context: ' + JSON.stringify(options || {});
 }
 
 type MissionClock = () => string;
