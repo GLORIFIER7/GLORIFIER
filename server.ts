@@ -24,6 +24,7 @@ import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission } from './src/lib/autopilot-mission-control';
+import { getAutopilotOrchestrationStatus } from './src/lib/autopilot-orchestrator';
 import { initializeAgentHarnessPersistence, getAgentHarnessPersistenceStatus } from './src/lib/ai/agent-harness';
 import { initializeAgentStateFallbackWhenDatabaseMissing } from './src/lib/agent-persistence-bootstrap';
 import { initializeGLREconomicLayer, glrEconomicPolicy, createGLRPaymentIntent, authorizeGLRPaymentIntent, commitGLRPaymentIntent, recordGLRSettlementEvidence, getGLRPaymentIntent, listGLRPaymentIntents, getGLREconomicSnapshot } from './src/lib/glr-economic-layer';
@@ -2706,6 +2707,7 @@ app.get('/api/autopilot/status', requireOwnerOrInternalService, (_req: Request, 
     product: 'GLORIFIER Autopilot',
     purpose: 'Persistent, governed mission control integrated with the existing A2A runtime.',
     control: getAutopilotMissionControlStatus(),
+    orchestration: getAutopilotOrchestrationStatus(),
   });
 });
 
