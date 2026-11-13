@@ -319,7 +319,10 @@ export async function createA2ATaskWithIdempotency(
 
   const task = buildA2ATask(input);
   const fingerprint = a2aTaskRequestFingerprint(input);
-  const inserted = await query(
+  // Resolve both first submissions and retries in one atomic statement. The
+  // no-op conflict update returns the original row so a concurrent retry cannot
+  // observe a missing record between INSERT and SELECT.
+  const persistedResult = await query(
     `INSERT INTO a2a_tasks(
        id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
        attempts,max_attempts,result,error,evidence_id,created_at,updated_at,idempotency_key,idempotency_hash
@@ -327,8 +330,9 @@ export async function createA2ATaskWithIdempotency(
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      ON CONFLICT (requester_agent_id,idempotency_key)
        WHERE idempotency_key IS NOT NULL
-       DO NOTHING
-     RETURNING id`,
+       DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
+     RETURNING id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
+               attempts,max_attempts,result,error,evidence_id,created_at,updated_at,idempotency_hash`,
     [
       task.id, task.parentTaskId, task.requesterAgentId, task.targetAgentId, task.capability,
       task.objective, JSON.stringify(task.input ?? null), task.status, task.attempts,
@@ -336,31 +340,17 @@ export async function createA2ATaskWithIdempotency(
       task.createdAt, task.updatedAt, idempotencyKey, fingerprint,
     ],
   );
-  if (inserted.rows.length > 0) {
-    memoryTasks.set(task.id, task);
-    return task;
+  const persistedRow = persistedResult.rows[0];
+  if (!persistedRow) {
+    throw new Error('A2A idempotency upsert returned no persisted task.');
   }
-
-  const existingResult = await query(
-    `SELECT id,parent_task_id,requester_agent_id,target_agent_id,capability,objective,input,status,
-            attempts,max_attempts,result,error,evidence_id,created_at,updated_at,idempotency_hash
-       FROM a2a_tasks
-      WHERE requester_agent_id = $1 AND idempotency_key = $2
-      LIMIT 1`,
-    [task.requesterAgentId, idempotencyKey],
-  );
-  const existingRow = existingResult.rows[0];
-  if (!existingRow) {
-    throw new Error('A2A idempotency record could not be resolved after a conflict.');
-  }
-  if (String(existingRow.idempotency_hash || '') !== fingerprint) {
+  if (String(persistedRow.idempotency_hash || '') !== fingerprint) {
     throw new A2AIdempotencyConflictError();
   }
 
-  const existingTask = mapPersistedA2ATask(existingRow);
-  memoryTasks.set(existingTask.id, existingTask);
-  return existingTask;
-}
+  const persistedTask = mapPersistedA2ATask(persistedRow);
+  memoryTasks.set(persistedTask.id, persistedTask);
+  return persistedTask;}
 
 
 export function listA2ATasks(limit = 50, requesterAgentId?: string, allowAll = false) {
