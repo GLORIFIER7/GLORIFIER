@@ -58,7 +58,39 @@ export interface ArchitectureSource {
   url: string;
   patternIds: string[];
   cadenceHours: number;
+  /** Claim types explicitly permitted by the authoritative source registry. */
+  claimsAllowed: string[];
 }
+
+export interface ClaimSupportAttestation {
+  /** Integrity reference returned by the claim-review record validator. */
+  evidenceRef: string;
+  claimId: string;
+  /** Claim type checked against the source registry's claimsAllowed policy. */
+  claimType: string;
+  /** The exact architecture pattern this claim review supports. */
+  patternId: string;
+  sourceId: string;
+  sourceRegistryVersion: string;
+  sourceContentHash: string;
+  supportingExcerptHash: string;
+  /** Authenticated reviewer identity reference, not a display name. */
+  reviewerIdentityRef: string;
+  /** Independent semantic-verifier attestation reference. */
+  semanticVerifierRef: string;
+  observedAt: string;
+  validUntil: string;
+  decision: 'supported';
+}
+
+/**
+ * Trusted adapter must resolve evidenceRef to the exact claim-review record and verify its
+ * claimId/claimType, source-policy digest, reviewer identity, and independent semantic verdict.
+ * The deterministic admission gate separately enforces source claimsAllowed and pattern binding.
+ */
+export type ClaimSupportAuthenticator = (
+  attestation: Readonly<ClaimSupportAttestation>,
+) => boolean;
 
 export interface SourceObservation {
   sourceId: string;
@@ -73,6 +105,8 @@ export interface SourceObservation {
   revalidatedNotModified?: boolean;
   evidenceExcerpt: string | null;
   evidenceStatus: EvidenceStatus;
+  /** Optional claim-level attestation; never trusted without the injected authenticator. */
+  claimSupportAttestation?: ClaimSupportAttestation;
   error?: string;
 }
 
@@ -280,54 +314,55 @@ const createArchitectureSource = (
   url: string,
   patternIds: string[],
   cadenceHours: number,
-): ArchitectureSource => ({ id, authority, domain, url, patternIds, cadenceHours });
+  claimsAllowed: string[],
+): ArchitectureSource => ({ id, authority, domain, url, patternIds, cadenceHours, claimsAllowed });
 
 const SOURCES: ArchitectureSource[] = [
-  createArchitectureSource('microsoft-architecture', 'Microsoft', 'enterprise-architecture', 'https://learn.microsoft.com/en-us/azure/architecture/', ['cross-cutting-cloud-controls'], 336),
-  createArchitectureSource('aws-well-architected', 'AWS', 'cloud', 'https://aws.amazon.com/architecture/well-architected/', ['cross-cutting-cloud-controls', 'durable-agent-execution'], 336),
-  createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/framework', ['federated-data-access'], 336),
-  createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720),
-  createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720),
-  createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336),
-  createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336),
-  createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336),
-  createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336),
-  createArchitectureSource('finops-focus', 'FinOps Foundation', 'finops', 'https://focus.finops.org/', ['cost-outcome-accounting'], 336),
-  createArchitectureSource('cncf-kyverno', 'CNCF', 'platform-engineering', 'https://www.cncf.io/projects/kyverno/', ['policy-as-code'], 336),
-  createArchitectureSource('cncf-dapr-agents', 'CNCF', 'reliability', 'https://www.cncf.io/projects/dapr/', ['durable-agent-execution'], 336),
-  createArchitectureSource('etsi-eni', 'ETSI', 'networking', 'https://www.etsi.org/technical-groups/eni/', ['federated-continuum', 'intent-closed-loop'], 336),
-  createArchitectureSource('ietf-rfcs', 'IETF', 'integration', 'https://www.ietf.org/process/rfcs/', ['protocol-neutral-interoperability'], 336),
-  createArchitectureSource('nist-iot', 'NIST', 'iot', 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program', ['iot-device-boundaries'], 336),
-  createArchitectureSource('etsi-edge', 'ETSI', 'edge', 'https://www.etsi.org/technologies/multi-access-edge-computing', ['edge-degradation'], 336),
-  createArchitectureSource('nist-blockchain', 'NIST', 'blockchain', 'https://csrc.nist.gov/pubs/ir/8202/final', ['selective-trust-anchoring'], 336),
-  createArchitectureSource('iso-42001', 'ISO', 'governance', 'https://www.iso.org/standard/42001', ['ai-management-system'], 336),
-  createArchitectureSource('w3c-vc', 'W3C', 'emerging-technology', 'https://www.w3.org/TR/vc-data-model-2.0/', ['verifiable-credentials'], 336),
-  createArchitectureSource('owasp-agent-control', 'OWASP GenAI Security Project', 'cybersecurity', 'https://owaspacs.org/docs/acs/', ['runtime-agent-controls'], 336),
-  createArchitectureSource('owasp-agentic-asi01', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md', ['owasp-agentic-asi01'], 336),
-  createArchitectureSource('owasp-agentic-asi02', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md', ['owasp-agentic-asi02'], 336),
-  createArchitectureSource('owasp-agentic-asi03', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md', ['owasp-agentic-asi03'], 336),
-  createArchitectureSource('owasp-agentic-asi04', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md', ['owasp-agentic-asi04'], 336),
-  createArchitectureSource('owasp-agentic-asi05', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md', ['owasp-agentic-asi05'], 336),
-  createArchitectureSource('owasp-agentic-asi06', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md', ['owasp-agentic-asi06'], 336),
-  createArchitectureSource('owasp-agentic-asi07', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md', ['owasp-agentic-asi07'], 336),
-  createArchitectureSource('owasp-agentic-asi08', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md', ['owasp-agentic-asi08'], 336),
-  createArchitectureSource('owasp-agentic-asi09', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md', ['owasp-agentic-asi09'], 336),
-  createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336),
-  createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336),
-  createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336),
-  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336),
-  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336),
-  createArchitectureSource('finops-focus-1-5-release-scope', 'FinOps Foundation', 'finops', 'https://focus.finops.org/focus-1-5-release-scope/', ['focus-1-5-ai-cost-attribution'], 168),
-  createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336),
-  createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336),
-  createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336),
-  createArchitectureSource('ietf-oauth-security', 'IETF', 'cybersecurity', 'https://datatracker.ietf.org/doc/html/rfc9700', ['oauth-security-best-practice'], 336),
-  createArchitectureSource('ietf-http-problem-details', 'IETF', 'integration', 'https://datatracker.ietf.org/doc/html/rfc9457', ['standard-api-error-contracts'], 336),
-  createArchitectureSource('ietf-rfc9111-http-caching', 'IETF', 'integration', 'https://www.rfc-editor.org/rfc/rfc9111.html', ['conditional-http-cache-validation'], 336),
-  createArchitectureSource('nats-jetstream', 'NATS', 'integration', 'https://docs.nats.io/concepts/jetstream', ['durable-agent-messaging'], 336),
-  createArchitectureSource('slsa-v1-2', 'SLSA', 'software', 'https://slsa.dev/spec/v1.2/', ['build-provenance'], 336),
-  createArchitectureSource('openssf-scorecard', 'OpenSSF', 'software', 'https://securityscorecards.dev/', ['open-source-supply-chain-risk'], 336),
-  createArchitectureSource('google-sre-workbook', 'Google SRE', 'reliability', 'https://sre.google/workbook/table-of-contents/', ['slo-error-budget-release-gates'], 336)
+  createArchitectureSource('microsoft-architecture', 'Microsoft', 'enterprise-architecture', 'https://learn.microsoft.com/en-us/azure/architecture/', ['cross-cutting-cloud-controls'], 336, ["cross-cutting-cloud-controls"]),
+  createArchitectureSource('aws-well-architected', 'AWS', 'cloud', 'https://aws.amazon.com/architecture/well-architected/', ['cross-cutting-cloud-controls', 'durable-agent-execution'], 336, ["cross-cutting-cloud-controls"]),
+  createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/framework', ['federated-data-access'], 336, ["federated-data-access"]),
+  createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720, ["ai-risk-governance","lifecycle-risk-management"]),
+  createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720, ["ai-risk-governance","lifecycle-risk-management","governance-oversight"]),
+  createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
+  createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336, ["identity-risk-controls"]),
+  createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336, ["software-supply-chain"]),
+  createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336, ["vendor-neutral-telemetry"]),
+  createArchitectureSource('finops-focus', 'FinOps Foundation', 'finops', 'https://focus.finops.org/', ['cost-outcome-accounting'], 336, ["cost-outcome-accounting"]),
+  createArchitectureSource('cncf-kyverno', 'CNCF', 'platform-engineering', 'https://www.cncf.io/projects/kyverno/', ['policy-as-code'], 336, ["policy-as-code"]),
+  createArchitectureSource('cncf-dapr-agents', 'CNCF', 'reliability', 'https://www.cncf.io/projects/dapr/', ['durable-agent-execution'], 336, ["durable-agent-execution"]),
+  createArchitectureSource('etsi-eni', 'ETSI', 'networking', 'https://www.etsi.org/technical-groups/eni/', ['federated-continuum', 'intent-closed-loop'], 336, ["federated-continuum"]),
+  createArchitectureSource('ietf-rfcs', 'IETF', 'integration', 'https://www.ietf.org/process/rfcs/', ['protocol-neutral-interoperability'], 336, ["protocol-neutral-interoperability"]),
+  createArchitectureSource('nist-iot', 'NIST', 'iot', 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program', ['iot-device-boundaries'], 336, ["iot-device-boundaries"]),
+  createArchitectureSource('etsi-edge', 'ETSI', 'edge', 'https://www.etsi.org/technologies/multi-access-edge-computing', ['edge-degradation'], 336, ["edge-degradation"]),
+  createArchitectureSource('nist-blockchain', 'NIST', 'blockchain', 'https://csrc.nist.gov/pubs/ir/8202/final', ['selective-trust-anchoring'], 336, ["selective-trust-anchoring"]),
+  createArchitectureSource('iso-42001', 'ISO', 'governance', 'https://www.iso.org/standard/42001', ['ai-management-system'], 336, ["ai-management-system"]),
+  createArchitectureSource('w3c-vc', 'W3C', 'emerging-technology', 'https://www.w3.org/TR/vc-data-model-2.0/', ['verifiable-credentials'], 336, ["verifiable-credentials"]),
+  createArchitectureSource('owasp-agent-control', 'OWASP GenAI Security Project', 'cybersecurity', 'https://owaspacs.org/docs/acs/', ['runtime-agent-controls'], 336, ["runtime-agent-controls"]),
+  createArchitectureSource('owasp-agentic-asi01', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md', ['owasp-agentic-asi01'], 336, ["agent-goal-hijack"]),
+  createArchitectureSource('owasp-agentic-asi02', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI02_Tool_Misuse_and_Exploitation.md', ['owasp-agentic-asi02'], 336, ["agent-tool-misuse"]),
+  createArchitectureSource('owasp-agentic-asi03', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI03_Identity_and_Privilege_Abuse.md', ['owasp-agentic-asi03'], 336, ["agent-identity-privilege-abuse"]),
+  createArchitectureSource('owasp-agentic-asi04', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI04_Agentic_Supply_Chain_Vulnerabilities.md', ['owasp-agentic-asi04'], 336, ["agentic-supply-chain-vulnerabilities"]),
+  createArchitectureSource('owasp-agentic-asi05', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI05_Unexpected_Code_Execution_RCE.md', ['owasp-agentic-asi05'], 336, ["unexpected-code-execution"]),
+  createArchitectureSource('owasp-agentic-asi06', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI06_Memory_Context_Poisoning.md', ['owasp-agentic-asi06'], 336, ["agent-memory-context-poisoning"]),
+  createArchitectureSource('owasp-agentic-asi07', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI07_Insecure_Inter_Agent_Communication.md', ['owasp-agentic-asi07'], 336, ["insecure-inter-agent-communication"]),
+  createArchitectureSource('owasp-agentic-asi08', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI08_Cascading_Failures.md', ['owasp-agentic-asi08'], 336, ["agent-cascading-failures"]),
+  createArchitectureSource('owasp-agentic-asi09', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI09_Human_Agent_Trust_Exploitation.md', ['owasp-agentic-asi09'], 336, ["human-agent-trust-exploitation"]),
+  createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336, ["rogue-agent-behavior"]),
+  createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336, ["adversarial-ai-controls"]),
+  createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336, ["token-lifecycle-protection"]),
+  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
+  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
+  createArchitectureSource('finops-focus-1-5-release-scope', 'FinOps Foundation', 'finops', 'https://focus.finops.org/focus-1-5-release-scope/', ['focus-1-5-ai-cost-attribution'], 168, ["focus-1-5-ai-cost-attribution"]),
+  createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336, ["zero-trust-resource-access"]),
+  createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336, ["provenance-graph"]),
+  createArchitectureSource('opengroup-togaf', 'The Open Group', 'enterprise-architecture', 'https://www.opengroup.org/togaf', ['enterprise-architecture-traceability'], 336, ["enterprise-architecture-traceability"]),
+  createArchitectureSource('ietf-oauth-security', 'IETF', 'cybersecurity', 'https://datatracker.ietf.org/doc/html/rfc9700', ['oauth-security-best-practice'], 336, ["oauth-security-best-practice"]),
+  createArchitectureSource('ietf-http-problem-details', 'IETF', 'integration', 'https://datatracker.ietf.org/doc/html/rfc9457', ['standard-api-error-contracts'], 336, ["standard-api-error-contracts"]),
+  createArchitectureSource('ietf-rfc9111-http-caching', 'IETF', 'integration', 'https://www.rfc-editor.org/rfc/rfc9111.html', ['conditional-http-cache-validation'], 336, ["conditional-http-cache-validation"]),
+  createArchitectureSource('nats-jetstream', 'NATS', 'integration', 'https://docs.nats.io/concepts/jetstream', ['durable-agent-messaging'], 336, ["durable-agent-messaging"]),
+  createArchitectureSource('slsa-v1-2', 'SLSA', 'software', 'https://slsa.dev/spec/v1.2/', ['build-provenance'], 336, ["build-provenance"]),
+  createArchitectureSource('openssf-scorecard', 'OpenSSF', 'software', 'https://securityscorecards.dev/', ['open-source-supply-chain-risk'], 336, ["open-source-supply-chain-risk"]),
+  createArchitectureSource('google-sre-workbook', 'Google SRE', 'reliability', 'https://sre.google/workbook/table-of-contents/', ['slo-error-budget-release-gates'], 336, ["slo-error-budget-release-gates"])
 ];
 
 const definePattern = (
@@ -535,11 +570,26 @@ export const stripHtml = (input: string): string => input
   .replace(/\s+/g, ' ')
   .trim();
 
-export const isClaimSupportedEvidence = (status: EvidenceStatus): boolean =>
-  status === 'claim-supported';
+export const isClaimSupportedEvidence = (
+  status: EvidenceStatus,
+  source?: SourceObservation,
+  patternId?: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): boolean => status === 'claim-supported'
+  && source !== undefined
+  && typeof patternId === 'string'
+  && isAuthenticatedClaimSupportObservation(source, patternId, authenticate, nowMs);
 
-export const classifyArchitectureEvidence = (status: EvidenceStatus): EvidenceClass =>
-  status === 'claim-supported' ? 'observed-fact' : 'analysis';
+export const classifyArchitectureEvidence = (
+  status: EvidenceStatus,
+  source?: SourceObservation,
+  patternId?: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): EvidenceClass => isClaimSupportedEvidence(status, source, patternId, authenticate, nowMs)
+  ? 'observed-fact'
+  : 'analysis';
 
 const isLeapYear = (year: number): boolean =>
   year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -591,6 +641,85 @@ const parseSourceObservationTimestamp = (value: unknown): number | null => {
     return Number.isFinite(timestamp) ? timestamp : null;
   }
   return typeof value === 'string' ? parseSourceObservationTimestampText(value) : null;
+};
+
+const isNonEmptyEvidenceReference = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+/**
+ * A source observation can become claim-supported only when a fresh attestation
+ * binds the exact source snapshot and excerpt and a trusted adapter authenticates
+ * both reviewer identity and independent semantic verification.
+ */
+const isAuthenticatedClaimSupportObservation = (
+  source: SourceObservation,
+  patternId: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): boolean => {
+  const attestation = source.claimSupportAttestation;
+  const registeredSource = SOURCES.find((item) => item.id === source.sourceId);
+  if (!authenticate || !attestation || !registeredSource || source.ok !== true) return false;
+  if (!isNonEmptyEvidenceReference(patternId)
+      || attestation.patternId !== patternId
+      || !registeredSource.patternIds.includes(patternId)) return false;
+  if (typeof source.status !== 'number' || !Number.isInteger(source.status) || source.status < 200 || source.status >= 300) return false;
+  if (typeof source.evidenceExcerpt !== 'string' || !source.evidenceExcerpt.trim()) return false;
+  if (typeof source.contentHash !== 'string' || !/^[a-f0-9]{64}$/i.test(source.contentHash)) return false;
+  if (!Number.isSafeInteger(nowMs)
+      || !Number.isSafeInteger(registeredSource.cadenceHours)
+      || registeredSource.cadenceHours <= 0) return false;
+
+  const observedAt = parseSourceObservationTimestamp(source.observedAt);
+  const attestedAt = parseSourceObservationTimestamp(attestation.observedAt);
+  const validUntil = parseSourceObservationTimestamp(attestation.validUntil);
+  if (observedAt === null || attestedAt === null || validUntil === null) return false;
+
+  const excerptHash = createHash('sha256')
+    .update(source.evidenceExcerpt.replace(/\s+/g, ' ').trim(), 'utf8')
+    .digest('hex');
+  const cadenceMs = registeredSource.cadenceHours * 60 * 60 * 1000;
+  if (!Number.isSafeInteger(cadenceMs)) return false;
+  if (
+    !isNonEmptyEvidenceReference(attestation.evidenceRef)
+    || !/^claim-review-[a-f0-9]{24}$/i.test(attestation.evidenceRef)
+    || !isNonEmptyEvidenceReference(attestation.claimId)
+    || !isNonEmptyEvidenceReference(attestation.claimType)
+    || !registeredSource.claimsAllowed.includes(attestation.claimType)
+    || attestation.decision !== 'supported'
+    || attestation.sourceId !== source.sourceId
+    || attestation.sourceRegistryVersion !== 'GEAS-AUTHORITY-2'
+    || typeof attestation.sourceContentHash !== 'string'
+    || attestation.sourceContentHash.toLowerCase() !== source.contentHash.toLowerCase()
+    || typeof attestation.supportingExcerptHash !== 'string'
+    || attestation.supportingExcerptHash.toLowerCase() !== excerptHash
+    || !isNonEmptyEvidenceReference(attestation.reviewerIdentityRef)
+    || !isNonEmptyEvidenceReference(attestation.semanticVerifierRef)
+    || attestation.observedAt !== source.observedAt
+    || attestedAt !== observedAt
+    || observedAt > nowMs
+    || nowMs - observedAt >= cadenceMs
+    || validUntil <= nowMs
+    || validUntil < observedAt
+    || validUntil - observedAt > cadenceMs
+    || source.finalUrl !== registeredSource.url
+  ) return false;
+
+  try {
+    const result: unknown = authenticate(Object.freeze({ ...attestation }));
+    if (
+      result !== null
+      && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as { then?: unknown }).then === 'function'
+    ) {
+      // Async authenticators are unsupported; observe rejection before failing closed.
+      Promise.resolve(result).catch(() => undefined);
+      return false;
+    }
+    return result === true;
+  } catch {
+    return false;
+  }
 };
 
 const isValidSourceCadence = (cadenceHours: number, nowMs: number): boolean =>
@@ -1241,20 +1370,26 @@ type PatternSourceObservation = SourceObservation & { evidenceExcerpt: string };
 
 const isPatternSourceObservation = (
   source: SourceObservation | undefined,
+  patternId: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): source is PatternSourceObservation =>
   source?.ok === true
-  && (source.evidenceStatus === 'content-matched' || source.evidenceStatus === 'claim-supported')
+  && (source.evidenceStatus === 'content-matched'
+    || isClaimSupportedEvidence(source.evidenceStatus, source, patternId, authenticate, nowMs))
   && typeof source.evidenceExcerpt === 'string'
-  && source.evidenceExcerpt.length > 0;
+  && source.evidenceExcerpt.trim().length > 0;
 
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
   source: PatternSourceObservation,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): ArchitecturePattern => ({
   id: pattern.id,
   title: pattern.title,
   domain: pattern.domain,
-  evidenceClass: source.evidenceStatus === 'claim-supported' ? 'observed-fact' : 'analysis',
+  evidenceClass: classifyArchitectureEvidence(source.evidenceStatus, source, pattern.id, authenticate, nowMs),
   sourceId: source.sourceId,
   evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
   evidenceExcerpt: source.evidenceExcerpt,
@@ -1264,11 +1399,18 @@ const createObservedArchitecturePattern = (
   lastReviewed: source.observedAt,
 });
 
-const observedPatterns = (results: SourceObservation[], _scanCompletedAt: string): ArchitecturePattern[] => {
+const observedPatterns = (
+  results: SourceObservation[],
+  _scanCompletedAt: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): ArchitecturePattern[] => {
   const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = observationsBySource.get(pattern.sourceId);
-    return isPatternSourceObservation(source) ? [createObservedArchitecturePattern(pattern, source)] : [];
+    return isPatternSourceObservation(source, pattern.id, authenticate, nowMs)
+      ? [createObservedArchitecturePattern(pattern, source, authenticate, nowMs)]
+      : [];
   });
 };
 
@@ -1306,6 +1448,9 @@ const architectureEvidenceHttpStatus = (status: number | null): number => status
 const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
+  patternId?: string,
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
 ): ArchitectureEvidence => ({
   id: architectureEvidenceId(result.sourceId, result.contentHash),
   sourceId: result.sourceId,
@@ -1313,16 +1458,27 @@ const createArchitectureEvidence = (
   observedAt: result.observedAt,
   contentHash: architectureEvidenceContentHash(result.contentHash),
   excerpt: result.evidenceExcerpt,
-  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus),
+  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus, result, patternId, authenticate, nowMs),
   sourceStatus: architectureEvidenceHttpStatus(result.status),
-  patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
+  patternIds: result.evidenceStatus === 'claim-supported' && patternId
+    ? [patternId]
+    : architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
-export const buildArchitectureEvidence = (results: SourceObservation[]): ArchitectureEvidence[] => {
+export const buildArchitectureEvidence = (
+  results: SourceObservation[],
+  authenticate?: ClaimSupportAuthenticator,
+  nowMs = Date.now(),
+): ArchitectureEvidence[] => {
   const patternIdsBySource = indexPatternIdsBySource();
-  return results.flatMap((result) => isPatternSourceObservation(result)
-    ? [createArchitectureEvidence(result, patternIdsBySource)]
-    : []);
+  return results.flatMap((result) => {
+    const patternId = result.evidenceStatus === 'claim-supported'
+      ? result.claimSupportAttestation?.patternId
+      : undefined;
+    return isPatternSourceObservation(result, patternId ?? '', authenticate, nowMs)
+      ? [createArchitectureEvidence(result, patternIdsBySource, patternId, authenticate, nowMs)]
+      : [];
+  });
 };
 
 /**

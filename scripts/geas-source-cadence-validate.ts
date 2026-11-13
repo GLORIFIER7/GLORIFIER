@@ -85,14 +85,14 @@ const expectParserFailure = (fixture: string, description: string): void => {
 const verifyParserHandlesFactoryCalls = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] = [',
-    "  createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24),",
-    "  createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336),",
+    "  createArchitectureSource('factory-one', 'Test', 'cloud', 'https://example.org/one', [], 24, ['claim-one']),",
+    "  createArchitectureSource('factory-two', 'Test', 'cloud', 'https://example.org/two', ['pattern'], 336, ['claim-two']),",
     '];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   const expected = [
-    { id: 'factory-one', url: 'https://example.org/one', cadenceHours: 24 },
-    { id: 'factory-two', url: 'https://example.org/two', cadenceHours: 336 },
+    { id: 'factory-one', url: 'https://example.org/one', cadenceHours: 24, claimsAllowed: ['claim-one'] },
+    { id: 'factory-two', url: 'https://example.org/two', cadenceHours: 336, claimsAllowed: ['claim-two'] },
   ];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
     throw new Error('scanner parser must read factory-form ID and cadence values');
@@ -102,13 +102,13 @@ const verifyParserHandlesFactoryCalls = (): void => {
 const verifyParserIgnoresCommentedFactoryCalls = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] = [',
-    "  // createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24),",
-    "  /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24), */",
-    "  createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24),",
+    "  // createArchitectureSource('disabled-line', 'Test', 'cloud', 'https://example.org/disabled', [], 24, ['claim']),",
+    "  /* createArchitectureSource('disabled-block', 'Test', 'cloud', 'https://example.org/disabled', [], 24, ['claim']), */",
+    "  createArchitectureSource('active', 'Test', 'cloud', 'https://example.org/active', [], 24, ['active-claim']),",
     '];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
-  const expected = [{ id: 'active', url: 'https://example.org/active', cadenceHours: 24 }];
+  const expected = [{ id: 'active', url: 'https://example.org/active', cadenceHours: 24, claimsAllowed: ['active-claim'] }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.declaredCount !== 1) {
     throw new Error('commented-out factory calls must not be counted as active scanner sources');
   }
@@ -118,11 +118,11 @@ const verifyParserHandlesBraceCharacters = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] = [{',
     "  id: 'fixture', authority: 'Test {Authority}', domain: 'cloud',",
-    "  url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24",
+    "  url: 'https://example.org/{architecture}', patternIds: [], cadenceHours: 24, claimsAllowed: ['fixture-claim']",
     '}];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
-  const expected = [{ id: 'fixture', url: 'https://example.org/{architecture}', cadenceHours: 24 }];
+  const expected = [{ id: 'fixture', url: 'https://example.org/{architecture}', cadenceHours: 24, claimsAllowed: ['fixture-claim'] }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
     throw new Error('scanner parser failed its brace-containing string regression fixture');
   }
@@ -130,8 +130,8 @@ const verifyParserHandlesBraceCharacters = (): void => {
 
 const verifyParserRejectsUnsafeCadenceValues = (): void => {
   const fixtures = [
-    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('unsafe', 'Test', 'cloud', 'https://example.org', [], 9007199254740992)];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'unsafe', url: 'https://example.org', cadenceHours: 9007199254740992 }];",
+    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('unsafe', 'Test', 'cloud', 'https://example.org', [], 9007199254740992, ['claim'])];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'unsafe', url: 'https://example.org', cadenceHours: 9007199254740992, claimsAllowed: ['claim'] }];",
   ];
   for (const fixture of fixtures) {
     expectParserFailure(fixture, 'scanner parser accepted a cadence outside JavaScript safe-integer range');
@@ -140,10 +140,10 @@ const verifyParserRejectsUnsafeCadenceValues = (): void => {
 
 const verifyParserRejectsComputedValues = (): void => {
   const fixtures = [
-    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24)];",
-    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30)];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', url: 'https://example.org', cadenceHours: 24 }];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'computed', url: 'https://example.org', cadenceHours: 24 * 30 }];",
+    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24, ['claim'])];",
+    "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30, ['claim'])];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', url: 'https://example.org', cadenceHours: 24, claimsAllowed: ['claim'] }];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'computed', url: 'https://example.org', cadenceHours: 24 * 30, claimsAllowed: ['claim'] }];",
   ];
   for (const fixture of fixtures) {
     expectParserFailure(fixture, 'scanner parser accepted a computed source ID or cadence value');
@@ -153,9 +153,9 @@ const verifyParserRejectsComputedValues = (): void => {
 const verifyParserRejectsEmptySourceSlots = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] = [',
-    "  createArchitectureSource('first', 'Test', 'cloud', 'https://example.org/first', [], 24),",
+    "  createArchitectureSource('first', 'Test', 'cloud', 'https://example.org/first', [], 24, ['first-claim']),",
     ',',
-    "  createArchitectureSource('third', 'Test', 'cloud', 'https://example.org/third', [], 24),",
+    "  createArchitectureSource('third', 'Test', 'cloud', 'https://example.org/third', [], 24, ['third-claim']),",
     '];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
@@ -167,8 +167,8 @@ const verifyParserRejectsEmptySourceSlots = (): void => {
 const verifyParserSkipsCommentsBeforeArrayInitializer = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] =',
-    "  /* fake catalog: [ { id: 'forged', url: 'https://forged.example', cadenceHours: 24 } ] */",
-    "  [{ id: 'real', url: 'https://real.example/source', cadenceHours: 24 }];",
+    "  /* fake catalog: [ { id: 'forged', url: 'https://forged.example', cadenceHours: 24, claimsAllowed: ['fake'] } ] */",
+    "  [{ id: 'real', url: 'https://real.example/source', cadenceHours: 24, claimsAllowed: ['real-claim'] }];",
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   if (parsed.declaredCount !== 1 || parsed.entries.length !== 1 || parsed.entries[0]?.id !== 'real') {
@@ -189,7 +189,7 @@ const verifyParserRejectsCommentOnlyFields = (): void => {
     'const SOURCES: ArchitectureSource[] = [{',
     "  // id: 'comment-only',",
     '  // cadenceHours: 24',
-    "  authority: 'Test', url: 'https://example.org/source'",
+    "  authority: 'Test', url: 'https://example.org/source', claimsAllowed: ['claim']",
     '}];',
   ].join('\n');
   expectParserFailure(fixture, 'scanner parser accepted ID and cadenceHours fields found only in comments');

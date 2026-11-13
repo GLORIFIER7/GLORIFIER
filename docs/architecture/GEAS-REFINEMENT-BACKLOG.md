@@ -119,3 +119,65 @@ GEAS refinements:
 - The exact RFC 9111 URL is admitted; an unregistered RFC path on the same host remains rejected. No conditional-fetch runtime behavior or production data was changed.
 - The RFC-derived pattern is guidance only. It does not prove that any production cache is deployed or compliant.
 
+
+
+## 2026-11-13 — authenticated claim-support admission boundary
+
+Observed repository facts:
+- Current main at inspection: `5a4948f4c6eec37ba34bca1d5f39714948b36641`.
+- Current main has 60 registered source records: 45 active scanner sources and 15 discovery-only sources across 17 domains. The scanner catalog contains 45 active sources.
+- The latest main-branch GEAS artifact retrieved during this run is scheduled run `43088845063`, tested against older main SHA `fe773d2dd806650e3baf34883a8b8be6ed76c60c`, completed `2026-11-11T19:37:24.652Z`. Its ZIP digest was independently recomputed as `a208ce763d5753103d8d292760f03c580254001ff65908a30647c0faa4620d3a`.
+- That older artifact reports 44 source observations, 41 content-matched, two source-available, one not-observed, 43 analysis patterns, zero claim-supported patterns, and eight UNKNOWN drift findings. It predates the RFC 9111 source now present on current main; its 44-source count must not be treated as the current 45-source catalog.
+- The current main commit's combined status endpoint reports one successful CircleCI Cloudflare Worker validation. The available GitHub workflow-run wrapper filters to pull-request-triggered runs, so it does not provide a complete current scheduled-main workflow inventory.
+- The separate open PR #833 addresses the Federated A2A verifier boundary. Its tested commit `250854353fba2573fb7100f8798c386c334d6896` has successful GEAS reconciliation and enterprise-control workflows; its npm validation job succeeded while the actual npm publish job was skipped. PR #833 is not a GEAS refinement PR and was not modified by this change.
+
+Observed public-source facts:
+- NIST's SI Agent Standards Initiative page was updated 2026-11-09 and identifies agent identity/authentication infrastructure and security evaluation as research areas: https://www.nist.gov/super-intelligence/si-agent-standards-initiative
+- OWASP ACS describes an authenticated Guardian control channel and an observable, reconstructable audit trail. The current documentation labels v0.1.4 as the shipped release; conformance declarations and optional profiles must not be confused with independent implementation verification: https://owaspacs.org/docs/acs/
+- OpenTelemetry GenAI agent-span conventions remain in Development: https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md
+- FOCUS 1.4 remains the current published specification; the FOCUS 1.5 page states ratification is scheduled for 2026-12-03: https://focus.finops.org/docs/specification/v1-4/ and https://focus.finops.org/focus-1-5-release-scope/
+- SLSA v1.2 provenance is marked Approved and describes verifiable information linking artifacts to where, when, and how they were produced: https://slsa.dev/spec/v1.2/provenance
+- W3C PROV-O remains a W3C Recommendation for representing and exchanging provenance: https://www.w3.org/TR/prov-o/
+
+Analysis:
+- The source fetcher emits content-matched, source-available, or not-observed; the cache validator rejects claim-supported cache rows. However, the exported evidence builder and classifier previously accepted a caller-supplied `claim-supported` status as sufficient to label an observation `observed-fact`.
+- The separate claim-review validator admits record integrity only. Its result explicitly reports `reviewerIdentityStatus: not-authenticated` and `semanticTruthStatus: not-verified`. A record hash and an asserted supported decision do not authenticate a reviewer or establish semantic truth.
+- The previous source-fetch path did not emit claim-supported, so the gap was a trust-boundary weakness in the exported builder/classifier rather than an observed promotion in the latest scan artifact.
+- No trusted reviewer-identity and independent semantic-verification adapter is currently configured for the GEAS source scan. Claim support must therefore fail closed by default.
+
+GEAS refinement prepared on `fix/geas-authenticated-claim-support-gate-20261113`:
+- Added a structured claim-support attestation binding the claim-review reference, claim ID, exact architecture pattern ID, source ID, registry version, source snapshot hash, exact excerpt hash, authenticated reviewer reference, independent semantic-verifier reference, observation time, expiry, and supported decision. A claim can promote only its attested pattern ID; it cannot promote every sibling pattern associated with the same source.
+- Claim-supported classification now requires a successful 2xx source observation, exact canonical final URL, exact source and excerpt hashes, current source cadence, non-future RFC 3339 observation time, unexpired attestation, and an injected synchronous trusted authenticator returning literal `true`.
+- Missing, stale, mismatched, rejected, throwing, or asynchronous authenticators fail closed. Ordinary content-matched evidence remains `analysis`; source availability remains insufficient.
+- Added regression coverage for absent/rejected authenticators, source-hash mismatch, excerpt mismatch, and expired attestations. The evidence-policy CI validator now checks the authenticated admission boundary.
+- The scheduled scan does not configure a claim-support authenticator. It must continue to report zero claim-supported patterns until a separately reviewed trusted adapter is deployed and its identity and semantic-verification evidence are independently established.
+
+Unresolved:
+- Reviewer authentication and semantic verification remain external dependencies; no claim has been promoted by this refinement.
+- The latest retrieved scheduled-main artifact predates current main. A fresh current-main GEAS artifact is still required before claiming current-main scan success.
+- OpenTelemetry collector/exporter probes, actual FOCUS invoice/settlement reconciliation, signed SLSA artifact verification, and runtime PROV export remain separate implementation/verification gaps.
+
+
+## 2026-11-13 — enforce source-authorized claim types at observed-fact admission
+
+Observed repository facts:
+- Main remains `5a4948f4c6eec37ba34bca1d5f39714948b36641`; existing claim-support refinement PR #836 is based on that SHA.
+- PR #836's source scan artifact (run 43360668506) is bound to head `ac1cc222b9e931e5d82993904f0fc928e643450f`, base `5a4948f4c6eec37ba34bca1d5f39714948b36641`, and tested merge SHA `f5aa8668e98b0bdb9802291d3239d0bbffe04fb8`.
+- The authoritative JSON registry separates `claimsAllowed` (claim-type policy) from the scanner's `patternIds` (discovery associations).
+- Example: AWS Well-Architected permits claim type `cross-cutting-cloud-controls`, while the scanner also associates the source with `durable-agent-execution` for discovery. Those identifiers are not interchangeable.
+- The claim-support admission path checked pattern association but did not directly enforce the registry's `claimsAllowed` list on the attested claim type.
+
+Analysis:
+- A source's association with a candidate architecture pattern is not authorization to support every claim type associated with that pattern or source.
+- The trusted claim-review validator already checks `claimType` against `claimsAllowed`; the later claim-support attestation must preserve and re-enforce that same policy before it can create an `observed-fact`.
+- The trusted authenticator remains an external trust boundary: it must resolve the evidence reference to the exact record and authenticate reviewer identity and independent semantic verification. No production authenticator is configured.
+
+Refinement:
+- Add `claimType` to the claim-support attestation and require it to be explicitly present in the scanner source's registry-mirrored `claimsAllowed` list.
+- Mirror each active source's `claimsAllowed` values in the scanner catalog and extend the source-catalog parser/CI validator to require exact parity with the authoritative JSON registry.
+- Add regression coverage proving an AWS discovery association such as `durable-agent-execution` cannot bypass the source's narrower claim-type allowance, even when the test authenticator returns true.
+- Preserve zero claim-supported patterns in scheduled scans until a separately reviewed trusted authenticator is configured.
+
+Unresolved:
+- This is a fail-closed admission refinement, not reviewer authentication or semantic verification.
+- No source claim, runtime deployment, invoice, OpenTelemetry collector, or production state is promoted by this change.
