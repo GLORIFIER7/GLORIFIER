@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runMcpLiveSmoke } from './mcp-live-smoke.mjs';
 
-const targetUrl = 'https://glorifier.glorifier.workers.dev/mcp';
+const targetUrl = 'https://glorifier.pages.dev/mcp';
 const serverInfo = { name: 'GLORIFIER GitHub Read-Only', version: '1.1.0' };
 const tools = [
   'github_get_repository',
@@ -82,7 +82,7 @@ test('runs modern discovery, deterministic tool-list, and one read-only reposito
   const calls = [];
   const result = await runMcpLiveSmoke({
     targetUrl,
-    allowedHosts: 'glorifier.glorifier.workers.dev',
+    allowedHosts: 'glorifier.pages.dev',
     fetchImpl: fixtureFetch(calls),
   });
 
@@ -108,7 +108,7 @@ test('fails closed when a live MCP request returns an HTTP error', async () => {
   await assert.rejects(
     runMcpLiveSmoke({
       targetUrl,
-      allowedHosts: 'glorifier.glorifier.workers.dev',
+      allowedHosts: 'glorifier.pages.dev',
       fetchImpl: async () => new Response('unavailable', { status: 503 }),
     }),
     /HTTP 503/,
@@ -119,7 +119,7 @@ test('fails closed when the server returns a JSON-RPC error envelope', async () 
   await assert.rejects(
     runMcpLiveSmoke({
       targetUrl,
-      allowedHosts: 'glorifier.glorifier.workers.dev',
+      allowedHosts: 'glorifier.pages.dev',
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
         return new Response(JSON.stringify({
@@ -135,7 +135,7 @@ test('accepts Streamable HTTP SSE responses for the fixed read-only requests', a
   const calls = [];
   const result = await runMcpLiveSmoke({
     targetUrl,
-    allowedHosts: 'glorifier.glorifier.workers.dev',
+    allowedHosts: 'glorifier.pages.dev',
     fetchImpl: fixtureFetch(calls, {
       sseMethods: ['server/discover', 'tools/list', 'tools/call'],
     }),
@@ -150,7 +150,7 @@ test('compares deterministic tool contents independently of JSON object key orde
   const calls = [];
   const result = await runMcpLiveSmoke({
     targetUrl,
-    allowedHosts: 'glorifier.glorifier.workers.dev',
+    allowedHosts: 'glorifier.pages.dev',
     fetchImpl: fixtureFetch(calls, { reorderToolObjectKeys: true }),
   });
 
@@ -161,7 +161,7 @@ test('rejects a malformed non-boolean MCP isError flag', async () => {
   await assert.rejects(
     runMcpLiveSmoke({
       targetUrl,
-      allowedHosts: 'glorifier.glorifier.workers.dev',
+      allowedHosts: 'glorifier.pages.dev',
       fetchImpl: fixtureFetch([], { invalidIsError: true }),
     }),
     /isError/i,
