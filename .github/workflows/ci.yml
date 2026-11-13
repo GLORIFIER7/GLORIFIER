@@ -242,6 +242,8 @@ jobs:
         run: npm run test:agent-runtime
       - name: Autopilot mission control
         run: npm run test:autopilot-mission-control
+      - name: Autopilot orchestrator
+        run: npm run test:autopilot-orchestrator
 
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
