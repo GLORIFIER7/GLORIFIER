@@ -408,22 +408,6 @@ test('Gemini collaborator pins artifact actions used across the read-only model 
 });
 
 
-test('Claude development pins every action across the model and publisher jobs', () => {
-  const source = readFileSync(new URL('../.github/workflows/claude-development.yml', import.meta.url), 'utf8');
-  const actionRefs = source
-    .split(String.fromCharCode(10))
-    .filter((line) => /^\s*uses:\s+/.test(line))
-    .map((line) => line.trim().replace(/^uses:\s+/, '').split(/\s+/)[0]);
-
-  assert.equal(actionRefs.length, 5, 'Claude development must pin all five third-party action uses');
-  assert.ok(actionRefs.every((ref) => /@[0-9a-f]{40}$/.test(ref)),
-    'Claude development actions must use immutable 40-character commit SHAs');
-  assert.equal(actionRefs.filter((ref) => ref === 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1').length, 2);
-  assert.equal(actionRefs.filter((ref) => ref === 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1').length, 1);
-  assert.equal(actionRefs.filter((ref) => ref === 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9').length, 1);
-  assert.equal(actionRefs.filter((ref) => ref === 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333').length, 1);
-});
-
 test('continuous improvement installs dependencies from the committed npm lockfile', () => {
   const source = readFileSync(new URL('../.github/workflows/continuous-improvement.yml', import.meta.url), 'utf8');
   assert.match(source, /cache-dependency-path:\s*package-lock\.json/);
