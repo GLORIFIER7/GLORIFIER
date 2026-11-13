@@ -112,3 +112,13 @@ test('Autopilot write execution also requires matching independent GitHub source
   assert.equal(result.verification.verified, true);
   assert.equal(result.toolName, 'github_create_branch');
 });
+
+
+test('Autopilot read path validation rejects single backslashes and null bytes', () => {
+  assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
+    path: 'src\\\\lib\\\\service.ts',
+  }), /valid repository-relative path/);
+  assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
+    path: 'src/lib/\\0service.ts',
+  }), /valid repository-relative path/);
+});
