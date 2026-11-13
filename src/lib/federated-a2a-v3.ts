@@ -30,6 +30,19 @@ export type FederatedA2AQuery = (
   values?: unknown[],
 ) => Promise<{ rows: Array<Record<string, unknown>> }>;
 
+export interface FederatedA2APersistence {
+  audit(
+    taskId: string,
+    state: FederatedA2ATaskState,
+    actor: string,
+    detail: unknown,
+  ): Promise<string>;
+  persist(task: FederatedA2ATask): Promise<void>;
+}
+
+const defaultFederatedA2APersistence: FederatedA2APersistence = { audit, persist };
+
+
 function parseJsonValue(value: unknown, fallback: unknown): unknown {
   if (value === undefined || value === null) return fallback;
   if (typeof value !== 'string') return value;
@@ -86,6 +99,29 @@ async function persist(task:FederatedA2ATask){
   ON CONFLICT(id) DO UPDATE SET target_agent_id=EXCLUDED.target_agent_id,state=EXCLUDED.state,attempt=EXCLUDED.attempt,evidence_refs=EXCLUDED.evidence_refs,audit_refs=EXCLUDED.audit_refs,result=EXCLUDED.result,error=EXCLUDED.error,updated_at=EXCLUDED.updated_at`,
   [task.id,task.requesterAgentId,task.targetAgentId,task.capability,task.objective,JSON.stringify(task.input??null),task.state,task.attempt,task.maxAttempts,task.parentTaskId,JSON.stringify(task.evidenceRefs),JSON.stringify(task.auditRefs),JSON.stringify(task.result??null),task.error??null,task.createdAt,task.updatedAt]);
   memory.set(task.id,task);
+}
+async function transitionFederatedA2ATask(
+  task: FederatedA2ATask,
+  state: FederatedA2ATaskState,
+  actor: string,
+  detail: unknown,
+  updates: Partial<FederatedA2ATask> = {},
+  persistence: FederatedA2APersistence = defaultFederatedA2APersistence,
+): Promise<FederatedA2ATask> {
+  const nextTask: FederatedA2ATask = {
+    ...task,
+    ...updates,
+    state,
+    updatedAt: new Date().toISOString(),
+    evidenceRefs: [...(updates.evidenceRefs ?? task.evidenceRefs)],
+    auditRefs: [...task.auditRefs],
+  };
+  const auditId = await persistence.audit(task.id, state, actor, detail);
+  nextTask.auditRefs.push(auditId);
+  await persistence.persist(nextTask);
+  Object.assign(task, nextTask);
+  memory.set(task.id, task);
+  return task;
 }
 export async function initializeFederatedA2AV3(){
   await getPostgresPool().query(`CREATE TABLE IF NOT EXISTS ${TASKS}(
@@ -170,41 +206,85 @@ export async function getFederatedA2ATaskFromStore(
   return result.rows[0] ? taskFromDatabaseRow(result.rows[0]) : null;
 }
 
-export async function authorizeFederatedA2ATask(taskId:string,actor:string,humanApproved=false){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  const route=routeAgentCapability(task.capability);
-  if(!route.governed) throw new Error('Capability is not governed');
-  if(route.humanApprovalDefault && !humanApproved) throw new Error('Human approval required');
-  task.state='AUTHORIZED'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{capability:task.capability})); await persist(task); return task;
+export async function authorizeFederatedA2ATask(taskId: string, actor: string, humanApproved = false) {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (task.state !== 'DISCOVERED') {
+    throw new Error('Only DISCOVERED tasks may be authorized');
+  }
+  const route = routeAgentCapability(task.capability);
+  if (!route.governed) throw new Error('Capability is not governed');
+  if (route.humanApprovalDefault && !humanApproved) throw new Error('Human approval required');
+  return transitionFederatedA2ATask(task, 'AUTHORIZED', actor, { capability: task.capability });
 }
-export async function assignFederatedA2ATask(taskId:string,actor='glorifier-daemon'){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  if(task.state!=='AUTHORIZED') throw new Error('Task must be AUTHORIZED before ASSIGNED');
-  if(!task.targetAgentId){const route=routeAgentCapability(task.capability); task.targetAgentId=route.specialists[0]||route.fallback;}
-  if(!task.targetAgentId) throw new Error('No eligible agent for capability');
-  task.state='ASSIGNED'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{targetAgentId:task.targetAgentId})); await persist(task); return task;
+export async function assignFederatedA2ATask(taskId: string, actor = 'glorifier-daemon') {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (task.state !== 'AUTHORIZED') throw new Error('Task must be AUTHORIZED before ASSIGNED');
+  const route = task.targetAgentId ? null : routeAgentCapability(task.capability);
+  const targetAgentId = task.targetAgentId || route?.specialists[0] || route?.fallback || null;
+  if (!targetAgentId) throw new Error('No eligible agent for capability');
+  return transitionFederatedA2ATask(task, 'ASSIGNED', actor, { targetAgentId }, { targetAgentId });
 }
-export async function createFederatedA2AEnvelope(taskId:string,actor='glorifier-daemon',ttlSeconds=300){
-  const task=getFederatedA2ATask(taskId); if(!task||!task.targetAgentId) throw new Error('Task must be assigned before handoff');
-  if(!['ASSIGNED','RUNNING'].includes(task.state)) throw new Error('Task is not handoff-ready');
-  const issued=new Date(), u:Omit<FederatedA2AEnvelope,'signature'>={protocol:'GLORIFIER-A2A-v3',version:'3',envelopeId:'env-'+crypto.randomUUID(),taskId,fromAgentId:task.requesterAgentId,toAgentId:task.targetAgentId,capability:task.capability,objective:task.objective,payload:task.input,issuedAt:issued.toISOString(),expiresAt:new Date(issued.getTime()+ttlSeconds*1000).toISOString(),nonce:crypto.randomBytes(18).toString('base64url'),signatureAlgorithm:'HMAC-SHA256'};
-  const envelope={...u,signature:sign(u)}; await getPostgresPool().query(`INSERT INTO ${ENVELOPES}(envelope_id,task_id,from_agent_id,to_agent_id,envelope,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,[envelope.envelopeId,task.id,envelope.fromAgentId,envelope.toAgentId,JSON.stringify(envelope),issued.toISOString()]); return envelope;
+
+export async function startFederatedA2ATask(
+  taskId: string,
+  actor = 'neural-agent',
+  persistence: FederatedA2APersistence = defaultFederatedA2APersistence,
+): Promise<FederatedA2ATask> {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (task.state !== 'ASSIGNED' || !task.targetAgentId) {
+    throw new Error('Task must be ASSIGNED before RUNNING');
+  }
+  return transitionFederatedA2ATask(
+    task,
+    'RUNNING',
+    actor,
+    { targetAgentId: task.targetAgentId },
+    {},
+    persistence,
+  );
+}
+export const FEDERATED_A2A_ENVELOPE_MAX_TTL_SECONDS = 300;
+
+export async function createFederatedA2AEnvelope(
+  taskId: string,
+  actor = 'glorifier-daemon',
+  ttlSeconds = FEDERATED_A2A_ENVELOPE_MAX_TTL_SECONDS,
+) {
+  const task = getFederatedA2ATask(taskId);
+  if (!task || !task.targetAgentId) throw new Error('Task must be assigned before handoff');
+  if (!['ASSIGNED', 'RUNNING'].includes(task.state)) throw new Error('Task is not handoff-ready');
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > FEDERATED_A2A_ENVELOPE_MAX_TTL_SECONDS) {
+    throw new Error('TTL must be an integer from 1 through 300 seconds');
+  }
+  const issued = new Date();
+  const unsigned: Omit<FederatedA2AEnvelope, 'signature'> = {
+    protocol: 'GLORIFIER-A2A-v3',
+    version: '3',
+    envelopeId: 'env-' + crypto.randomUUID(),
+    taskId,
+    fromAgentId: task.requesterAgentId,
+    toAgentId: task.targetAgentId,
+    capability: task.capability,
+    objective: task.objective,
+    payload: task.input,
+    issuedAt: issued.toISOString(),
+    expiresAt: new Date(issued.getTime() + ttlSeconds * 1000).toISOString(),
+    nonce: crypto.randomBytes(18).toString('base64url'),
+    signatureAlgorithm: 'HMAC-SHA256',
+  };
+  const envelope = { ...unsigned, signature: sign(unsigned) };
+  await getPostgresPool().query(
+    `INSERT INTO ${ENVELOPES}(envelope_id,task_id,from_agent_id,to_agent_id,envelope,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
+    [envelope.envelopeId, task.id, envelope.fromAgentId, envelope.toAgentId, JSON.stringify(envelope), issued.toISOString()],
+  );
+  return envelope;
 }
 export function verifyFederatedA2AEnvelope(e:FederatedA2AEnvelope){
   try{if(!secret()) return {valid:false,reason:'signing_not_configured'}; if(new Date(e.expiresAt).getTime()<=Date.now()) return {valid:false,reason:'expired'}; const expected=sign(unsignedEnvelope(e)); const a=Buffer.from(e.signature),b=Buffer.from(expected); return a.length===b.length&&crypto.timingSafeEqual(a,b)?{valid:true,reason:'verified'}:{valid:false,reason:'invalid_signature'};}catch{return {valid:false,reason:'verification_error'};}
 }
-export interface FederatedA2APersistence {
-  audit(
-    taskId: string,
-    state: FederatedA2ATaskState,
-    actor: string,
-    detail: unknown,
-  ): Promise<string>;
-  persist(task: FederatedA2ATask): Promise<void>;
-}
-
-const defaultFederatedA2APersistence: FederatedA2APersistence = { audit, persist };
-
 export async function markFederatedA2AEvidence(
   taskId: string,
   evidenceRef: string,
@@ -216,13 +296,20 @@ export async function markFederatedA2AEvidence(
   if (!['RUNNING', 'EVIDENCE'].includes(task.state)) {
     throw new Error('Task is not accepting evidence');
   }
-  if (!evidenceRef.trim()) throw new Error('evidenceRef is required');
-  task.evidenceRefs.push(evidenceRef);
-  task.state = 'EVIDENCE';
-  task.updatedAt = new Date().toISOString();
-  task.auditRefs.push(await persistence.audit(task.id, task.state, actor, { evidenceRef }));
-  await persistence.persist(task);
-  return task;
+  const reference = evidenceRef.trim();
+  if (!reference || reference.length > 2048 || /[\u0000-\u001f\u007f]/.test(reference)) {
+    throw new Error('evidenceRef must be a non-empty, bounded reference without control characters');
+  }
+  if (task.evidenceRefs.includes(reference)) throw new Error('evidenceRef is already attached to this task');
+  const evidenceRefs = [...task.evidenceRefs, reference];
+  return transitionFederatedA2ATask(
+    task,
+    'EVIDENCE',
+    actor,
+    { evidenceRef: reference },
+    { evidenceRefs },
+    persistence,
+  );
 }
 export interface FederatedA2AEvidenceVerification {
   status: 'VERIFIED' | 'NOT VERIFIED';
@@ -285,32 +372,31 @@ export async function verifyFederatedA2ATask(
     throw new Error('Independent verification evidence references do not match the task');
   }
 
-  const verifiedAt = new Date().toISOString();
-  const nextTask: FederatedA2ATask = {
-    ...task,
-    state: 'VERIFIED',
-    updatedAt: verifiedAt,
-    evidenceRefs: [...task.evidenceRefs],
-    auditRefs: [...task.auditRefs],
-  };
-  const auditId = await audit(task.id, 'VERIFIED', actor, {
-    evidenceRefs: verifiedEvidence,
-    source,
-    observedAt: new Date(observedAt).toISOString(),
-    verifier,
-    verifiedAt,
-  });
-  nextTask.auditRefs.push(auditId);
-  await persist(nextTask);
-  Object.assign(task, nextTask);
-  return task;
+  return transitionFederatedA2ATask(
+    task,
+    'VERIFIED',
+    actor,
+    {
+      evidenceRefs: verifiedEvidence,
+      source,
+      observedAt: new Date(observedAt).toISOString(),
+      verifier,
+    },
+  );
 }
-export async function settleFederatedA2ATask(taskId:string,actor='human-owner'){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  if(task.state!=='VERIFIED') throw new Error('Only VERIFIED tasks may be SETTLED');
-  task.state='SETTLED'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{settlement:'non-financial lifecycle settlement'})); await persist(task); return task;
+export async function settleFederatedA2ATask(taskId: string, actor = 'human-owner') {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (task.state !== 'VERIFIED') throw new Error('Only VERIFIED tasks may be SETTLED');
+  return transitionFederatedA2ATask(task, 'SETTLED', actor, { settlement: 'non-financial lifecycle settlement' });
 }
-export async function failFederatedA2ATask(taskId:string,error:string,actor='runtime'){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  task.state='FAILED'; task.error=error; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{error})); await persist(task); return task;
+export async function failFederatedA2ATask(taskId: string, error: string, actor = 'runtime') {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (['VERIFIED', 'SETTLED', 'FAILED'].includes(task.state)) {
+    throw new Error('Terminal task cannot transition to FAILED');
+  }
+  const safeError = String(error).trim().slice(0, 2048);
+  if (!safeError) throw new Error('Task failure reason is required');
+  return transitionFederatedA2ATask(task, 'FAILED', actor, { error: safeError }, { error: safeError });
 }
