@@ -1,6 +1,11 @@
 name: GLORIFIER Gemini PR Review
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review"
+        required: true
+        type: number
 permissions:
   contents: read
   pull-requests: read
@@ -46,15 +51,15 @@ jobs:
           source scripts/ai-fleet-authorization.sh
           glorifier_ai_maintenance_authorized "$EVENT_NAME" "$FREE_TIER_CONFIRMED" "$OWNER_ACTOR_ID" "$RUN_ATTEMPT"
 
-      - name: Resolve the latest open pull request targeting main
+      - name: Validate explicitly selected pull request
         id: resolve-pr
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
-          PR_NUMBER="$(gh pr list --state open --base main --limit 1 --json number --jq '.[0].number // empty')"
-          if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::No open pull request targeting main is available for review."
+          if [[ ! "${PR_NUMBER:-}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::pr_number must be a positive decimal pull request number."
             exit 1
           fi
           PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
@@ -118,7 +123,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: gemini-3.8-flash
-          gemini_cli_version: latest
+          gemini_cli_version: v0.68.0
           prompt: |
             You are GLORIFIER's independent Gemini engineering reviewer.
             Read GEMINI.md and AGENTS.md if present, then inspect GEMINI_PR_REVIEW.diff.
