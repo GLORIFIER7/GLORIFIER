@@ -100,48 +100,51 @@ test('existing assertions completed in setup hook', () => {
 
 
 test('Federated A2A cannot promote caller-supplied evidence to VERIFIED without an independent verifier', async () => {
-  const { getFederatedA2ATask, verifyFederatedA2ATask } = await import('./federated-a2a-v3');
-  const verify = verifyFederatedA2ATask as unknown as (...args: any[]) => Promise<unknown>;
+  const { markFederatedA2AEvidence, verifyFederatedA2ATask } = await import('./federated-a2a-v3');
+  const persistence = {
+    audit: async () => 'audit-test',
+    persist: async () => {},
+  };
   const task = await createFederatedA2ATask(
     { requesterAgentId: 'requester-a', capability: 'research', objective: 'verify evidence safely' },
     async () => {},
   );
-  const stored = getFederatedA2ATask(task.id);
-  assert.ok(stored);
-  stored.state = 'EVIDENCE';
-  stored.evidenceRefs.push('https://evidence.example/owner-supplied-claim');
+  const evidenceRef = 'https://evidence.example/owner-supplied-claim';
+  await markFederatedA2AEvidence(task.id, evidenceRef, 'reviewer-a', persistence);
+  assert.equal(task.state, 'EVIDENCE');
+  assert.deepEqual(task.evidenceRefs, [evidenceRef]);
 
   await assert.rejects(
-    verify(task.id, 'reviewer-a'),
+    verifyFederatedA2ATask(task.id, 'reviewer-a'),
     /independent evidence verifier is not configured/i,
   );
-  assert.equal(stored.state, 'EVIDENCE',
+  assert.equal(task.state, 'EVIDENCE',
     'missing independent verifier must not mutate the task into VERIFIED');
 
   await assert.rejects(
-    verify(task.id, 'reviewer-a', async () => ({
+    verifyFederatedA2ATask(task.id, 'reviewer-a', async (snapshot) => ({
       status: 'NOT VERIFIED',
-      source: 'untrusted caller assertion',
-      evidenceRefs: [...stored.evidenceRefs],
+      source: 'independent-verifier',
+      evidenceRefs: [...snapshot.evidenceRefs],
       observedAt: new Date().toISOString(),
-      verifier: 'untrusted-caller',
+      verifier: 'independent-verifier',
     })),
     /independent evidence verifier did not confirm/i,
   );
-  assert.equal(stored.state, 'EVIDENCE',
+  assert.equal(task.state, 'EVIDENCE',
     'a negative verifier decision must leave the task in EVIDENCE');
 
   await assert.rejects(
-    verify(task.id, 'reviewer-a', async () => ({
+    verifyFederatedA2ATask(task.id, 'reviewer-a', async () => ({
       status: 'VERIFIED',
-      source: 'trusted-verifier',
+      source: 'independent-verifier',
       evidenceRefs: ['https://evidence.example/not-attached-to-task'],
       observedAt: new Date().toISOString(),
       verifier: 'independent-verifier',
     })),
-    /evidence references do not match/i,
+    /independent verification evidence references do not match/i,
   );
-  assert.equal(stored.state, 'EVIDENCE',
+  assert.equal(task.state, 'EVIDENCE',
     'a verifier cannot approve evidence references that are not attached to the task');
 });
 
