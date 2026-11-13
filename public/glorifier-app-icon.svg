@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">GLORIFIER SERVICES — Original Profile Artwork</title>
-  <desc id="desc">Displays the original GLORIFIER profile image directly from its Gravatar source without redrawing, changing typography, recoloring, or repositioning its artwork.</desc>
+  <title id="title">GLORIFIER SERVICES — Official Logo #001</title>
+  <desc id="desc">The original Ethereum Mainnet ERC-721 Official Logo #001 artwork, token ID 1, preserved as a local byte-identical PNG.</desc>
   <defs>
     <clipPath id="profile-circle">
       <circle cx="256" cy="256" r="256"/>
@@ -8,7 +8,7 @@
   </defs>
   <g clip-path="url(#profile-circle)">
     <image
-      href="https://gravatar.com/avatar/2debdba15d0c08ab78691048092e465dc74c530e3447e3f584a23e7165272c33?s=2048"
+      href="./glorifier-services-official-logo-001.png"
       x="0" y="0" width="512" height="512"
       preserveAspectRatio="xMidYMid meet"
     />

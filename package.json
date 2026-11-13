@@ -14,13 +14,13 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:broker-console-truthfulness": "node --test scripts/broker-console-truthfulness.test.mjs",
-    "prebuild:frontend": "npm run test:package-manifest-integrity",
+    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets",
     "build:frontend": "vite build",
-    "prebuild:android": "npm run test:package-manifest-integrity",
+    "prebuild:android": "npm run test:package-manifest-integrity && npm run test:brand-assets",
     "build:android": "cross-env CAPACITOR_BUILD=true vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:open": "npx cap open android",
-    "prebuild:server": "npm run test:package-manifest-integrity",
+    "prebuild:server": "npm run test:package-manifest-integrity && npm run test:brand-assets",
     "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "test:harness": "node --import tsx/esm --test src/lib/ai/agent-harness.test.ts",
     "test:provider-model-selection": "node --import tsx/esm --test src/lib/ai/registry.model-selection.test.ts",
@@ -114,7 +114,8 @@
     "test:compliance-claims-policy": "node --test scripts/compliance-claims-policy.test.mjs",
     "test:worker-auth": "tsx --test src/lib/auth/worker-auth.test.ts",
     "test:worker-app-state": "tsx --test src/lib/app-state-worker.test.ts",
-    "test:worker-app-state-route": "tsx --test src/lib/worker-app-state-route.test.ts"
+    "test:worker-app-state-route": "tsx --test src/lib/worker-app-state-route.test.ts",
+    "test:brand-assets": "node --test scripts/brand-asset-integrity.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
