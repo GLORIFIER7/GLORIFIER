@@ -64,6 +64,8 @@ export interface ClaimSupportAttestation {
   /** Integrity reference returned by the claim-review record validator. */
   evidenceRef: string;
   claimId: string;
+  /** The exact architecture pattern this claim review supports. */
+  patternId: string;
   sourceId: string;
   sourceRegistryVersion: string;
   sourceContentHash: string;
@@ -562,18 +564,21 @@ export const stripHtml = (input: string): string => input
 export const isClaimSupportedEvidence = (
   status: EvidenceStatus,
   source?: SourceObservation,
+  patternId?: string,
   authenticate?: ClaimSupportAuthenticator,
   nowMs = Date.now(),
 ): boolean => status === 'claim-supported'
   && source !== undefined
-  && isAuthenticatedClaimSupportObservation(source, authenticate, nowMs);
+  && typeof patternId === 'string'
+  && isAuthenticatedClaimSupportObservation(source, patternId, authenticate, nowMs);
 
 export const classifyArchitectureEvidence = (
   status: EvidenceStatus,
   source?: SourceObservation,
+  patternId?: string,
   authenticate?: ClaimSupportAuthenticator,
   nowMs = Date.now(),
-): EvidenceClass => isClaimSupportedEvidence(status, source, authenticate, nowMs)
+): EvidenceClass => isClaimSupportedEvidence(status, source, patternId, authenticate, nowMs)
   ? 'observed-fact'
   : 'analysis';
 
@@ -639,12 +644,16 @@ const isNonEmptyEvidenceReference = (value: unknown): value is string =>
  */
 const isAuthenticatedClaimSupportObservation = (
   source: SourceObservation,
+  patternId: string,
   authenticate?: ClaimSupportAuthenticator,
   nowMs = Date.now(),
 ): boolean => {
   const attestation = source.claimSupportAttestation;
   const registeredSource = SOURCES.find((item) => item.id === source.sourceId);
   if (!authenticate || !attestation || !registeredSource || source.ok !== true) return false;
+  if (!isNonEmptyEvidenceReference(patternId)
+      || attestation.patternId !== patternId
+      || !registeredSource.patternIds.includes(patternId)) return false;
   if (typeof source.status !== 'number' || !Number.isInteger(source.status) || source.status < 200 || source.status >= 300) return false;
   if (typeof source.evidenceExcerpt !== 'string' || !source.evidenceExcerpt.trim()) return false;
   if (typeof source.contentHash !== 'string' || !/^[a-f0-9]{64}$/i.test(source.contentHash)) return false;
@@ -1340,12 +1349,13 @@ type PatternSourceObservation = SourceObservation & { evidenceExcerpt: string };
 
 const isPatternSourceObservation = (
   source: SourceObservation | undefined,
+  patternId: string,
   authenticate?: ClaimSupportAuthenticator,
   nowMs = Date.now(),
 ): source is PatternSourceObservation =>
   source?.ok === true
   && (source.evidenceStatus === 'content-matched'
-    || isClaimSupportedEvidence(source.evidenceStatus, source, authenticate, nowMs))
+    || isClaimSupportedEvidence(source.evidenceStatus, source, patternId, authenticate, nowMs))
   && typeof source.evidenceExcerpt === 'string'
   && source.evidenceExcerpt.trim().length > 0;
 
@@ -1358,7 +1368,7 @@ const createObservedArchitecturePattern = (
   id: pattern.id,
   title: pattern.title,
   domain: pattern.domain,
-  evidenceClass: classifyArchitectureEvidence(source.evidenceStatus, source, authenticate, nowMs),
+  evidenceClass: classifyArchitectureEvidence(source.evidenceStatus, source, pattern.id, authenticate, nowMs),
   sourceId: source.sourceId,
   evidenceUrl: SOURCES.find((item) => item.id === source.sourceId)?.url ?? '',
   evidenceExcerpt: source.evidenceExcerpt,
@@ -1377,7 +1387,7 @@ const observedPatterns = (
   const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
     const source = observationsBySource.get(pattern.sourceId);
-    return isPatternSourceObservation(source, authenticate, nowMs)
+    return isPatternSourceObservation(source, pattern.id, authenticate, nowMs)
       ? [createObservedArchitecturePattern(pattern, source, authenticate, nowMs)]
       : [];
   });
@@ -1417,6 +1427,7 @@ const architectureEvidenceHttpStatus = (status: number | null): number => status
 const createArchitectureEvidence = (
   result: PatternSourceObservation,
   patternIdsBySource: Map<string, string[]>,
+  patternId?: string,
   authenticate?: ClaimSupportAuthenticator,
   nowMs = Date.now(),
 ): ArchitectureEvidence => ({
@@ -1426,9 +1437,11 @@ const createArchitectureEvidence = (
   observedAt: result.observedAt,
   contentHash: architectureEvidenceContentHash(result.contentHash),
   excerpt: result.evidenceExcerpt,
-  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus, result, authenticate, nowMs),
+  evidenceClass: classifyArchitectureEvidence(result.evidenceStatus, result, patternId, authenticate, nowMs),
   sourceStatus: architectureEvidenceHttpStatus(result.status),
-  patternIds: architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
+  patternIds: result.evidenceStatus === 'claim-supported' && patternId
+    ? [patternId]
+    : architectureEvidencePatternIds(result.sourceId, patternIdsBySource),
 });
 
 export const buildArchitectureEvidence = (
@@ -1437,9 +1450,14 @@ export const buildArchitectureEvidence = (
   nowMs = Date.now(),
 ): ArchitectureEvidence[] => {
   const patternIdsBySource = indexPatternIdsBySource();
-  return results.flatMap((result) => isPatternSourceObservation(result, authenticate, nowMs)
-    ? [createArchitectureEvidence(result, patternIdsBySource, authenticate, nowMs)]
-    : []);
+  return results.flatMap((result) => {
+    const patternId = result.evidenceStatus === 'claim-supported'
+      ? result.claimSupportAttestation?.patternId
+      : undefined;
+    return isPatternSourceObservation(result, patternId ?? '', authenticate, nowMs)
+      ? [createArchitectureEvidence(result, patternIdsBySource, patternId, authenticate, nowMs)]
+      : [];
+  });
 };
 
 /**
