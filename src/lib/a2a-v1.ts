@@ -92,6 +92,8 @@ export interface A2AJsonRpcDependencies {
   requesterAgentId: string;
   createTask(input: A2ACreateTaskInput): A2ATaskLike | Promise<A2ATaskLike>;
   getTask(id: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  /** Requester-scoped replay lookup; the create/upsert remains responsible for payload fingerprint validation. */
+  getTaskForIdempotencyKey?(key: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
   /** Atomic cancellation scoped to the authenticated requester. Running tasks must be returned unchanged. */
   cancelTask?(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
@@ -350,7 +352,15 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
             return rpcError(id, -32001, 'Task not found.');
           }
           if (['completed', 'failed', 'blocked', 'canceled'].includes(existing.status)) {
-            return rpcError(id, -32000, 'A task in a terminal state cannot accept additional messages.');
+            const replay = dependencies.getTaskForIdempotencyKey
+              ? await dependencies.getTaskForIdempotencyKey(parsed.messageId, dependencies.requesterAgentId)
+              : null;
+            if (!replay || replay.requesterAgentId !== dependencies.requesterAgentId) {
+              return rpcError(id, -32000, 'A task in a terminal state cannot accept additional messages.');
+            }
+            // A matching key is only permission to attempt an exact replay.
+            // createTask performs the atomic stored-fingerprint comparison and
+            // rejects a reused key carrying different message content.
           }
           parentTaskId = contextId;
         }
