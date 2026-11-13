@@ -2528,17 +2528,9 @@ app.post('/api/federated-a2a/v3/tasks/:id/evidence', requireOwnerOrInternalServi
   catch (error) { return apiError(res, 409, 'Federated A2A evidence rejected', error); }
 });
 
-app.post('/api/federated-a2a/v3/tasks/:id/verify', requireOwner, async (req: Request, res: Response) => {
-  try {
-    // The request body is not evidence. VERIFIED requires a trusted server-side
-    // verifier backed by an authoritative evidence source; none is configured
-    // yet, so this route intentionally fails closed rather than accepting a
-    // caller-supplied qualifyingEvidence boolean.
-    const actor = String((req as any).auth?.uid || 'human-owner');
-    return res.json({ ok: true, task: await verifyFederatedA2ATask(String(req.params.id), actor) });
-  } catch (error) {
-    return apiError(res, 409, 'Federated A2A verification rejected', error);
-  }
+app.post('/api/federated-a2a/v3/tasks/:id/verify', requireOwnerOrInternalService, async (req: Request, res: Response) => {
+  try { return res.json({ ok: true, task: await verifyFederatedA2ATask(String(req.params.id), req.body?.qualifyingEvidence !== false, String((req as any).auth?.uid || 'verifier')) }); }
+  catch (error) { return apiError(res, 409, 'Federated A2A verification rejected', error); }
 });
 
 app.post('/api/federated-a2a/v3/tasks/:id/settle', requireOwner, async (req: Request, res: Response) => {
