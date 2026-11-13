@@ -199,10 +199,86 @@ export async function markFederatedA2AEvidence(taskId:string,evidenceRef:string,
   if(!evidenceRef.trim()) throw new Error('evidenceRef is required');
   task.evidenceRefs.push(evidenceRef); task.state='EVIDENCE'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{evidenceRef})); await persist(task); return task;
 }
-export async function verifyFederatedA2ATask(taskId:string,qualifyingEvidence=true,actor='verifier'){
-  const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
-  if(task.state!=='EVIDENCE'||task.evidenceRefs.length===0||!qualifyingEvidence) throw new Error('Qualifying evidence is required before VERIFIED');
-  task.state='VERIFIED'; task.updatedAt=new Date().toISOString(); task.auditRefs.push(await audit(task.id,task.state,actor,{evidenceRefs:task.evidenceRefs})); await persist(task); return task;
+export interface FederatedA2AEvidenceVerification {
+  status: 'VERIFIED' | 'NOT VERIFIED';
+  source: string;
+  evidenceRefs: string[];
+  observedAt: string;
+  verifier: string;
+}
+
+export type FederatedA2AEvidenceVerifier = (
+  task: Readonly<FederatedA2ATask>,
+) => Promise<FederatedA2AEvidenceVerification>;
+
+export async function verifyFederatedA2ATask(
+  taskId: string,
+  actor = 'verifier',
+  evidenceVerifier?: FederatedA2AEvidenceVerifier,
+): Promise<FederatedA2ATask> {
+  const task = getFederatedA2ATask(taskId);
+  if (!task) throw new Error('Federated A2A task not found');
+  if (task.state !== 'EVIDENCE' || task.evidenceRefs.length === 0) {
+    throw new Error('Evidence must be attached before verification');
+  }
+  if (typeof evidenceVerifier !== 'function') {
+    throw new Error('Independent evidence verifier is not configured');
+  }
+
+  let decision: FederatedA2AEvidenceVerification;
+  try {
+    decision = await evidenceVerifier(Object.freeze({
+      ...task,
+      evidenceRefs: [...task.evidenceRefs],
+      auditRefs: [...task.auditRefs],
+    }));
+  } catch {
+    throw new Error('Independent evidence verification is unavailable');
+  }
+
+  if (!decision || decision.status !== 'VERIFIED') {
+    throw new Error('Independent evidence verifier did not confirm qualifying evidence');
+  }
+  const source = typeof decision.source === 'string' ? decision.source.trim() : '';
+  const verifier = typeof decision.verifier === 'string' ? decision.verifier.trim() : '';
+  const observedAt = typeof decision.observedAt === 'string' ? Date.parse(decision.observedAt) : NaN;
+  const attachedEvidence = new Set(task.evidenceRefs);
+  const verifiedEvidence = Array.isArray(decision.evidenceRefs)
+    ? decision.evidenceRefs.filter((reference): reference is string => typeof reference === 'string')
+    : [];
+  if (
+    !source ||
+    !verifier ||
+    !Number.isFinite(observedAt) ||
+    observedAt > Date.now() ||
+    verifiedEvidence.length === 0 ||
+    new Set(verifiedEvidence).size !== verifiedEvidence.length ||
+    verifiedEvidence.some((reference) => !attachedEvidence.has(reference)) ||
+    verifier === task.requesterAgentId ||
+    (task.targetAgentId !== null && verifier === task.targetAgentId)
+  ) {
+    throw new Error('Independent verification evidence references do not match the task');
+  }
+
+  const verifiedAt = new Date().toISOString();
+  const nextTask: FederatedA2ATask = {
+    ...task,
+    state: 'VERIFIED',
+    updatedAt: verifiedAt,
+    evidenceRefs: [...task.evidenceRefs],
+    auditRefs: [...task.auditRefs],
+  };
+  const auditId = await audit(task.id, 'VERIFIED', actor, {
+    evidenceRefs: verifiedEvidence,
+    source,
+    observedAt: new Date(observedAt).toISOString(),
+    verifier,
+    verifiedAt,
+  });
+  nextTask.auditRefs.push(auditId);
+  await persist(nextTask);
+  Object.assign(task, nextTask);
+  return task;
 }
 export async function settleFederatedA2ATask(taskId:string,actor='human-owner'){
   const task=getFederatedA2ATask(taskId); if(!task) throw new Error('Federated A2A task not found');
