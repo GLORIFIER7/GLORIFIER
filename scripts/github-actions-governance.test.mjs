@@ -3,13 +3,15 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
   read('../.github/workflows/gemini-pr-review.yml'),
   read('../.github/workflows/glorifier-solana-actions-bootstrap.yml'),
   read('../.github/workflows/ci.yml'),
+  read('../.github/workflows/docker-image.yml'),
+  read('../.github/workflows/glorifier-solana-devnet-reconcile.yml'),
 ]);
 
 test('Code Guardian calls paid providers only after shared owner-authorized manual dispatch', () => {
@@ -56,6 +58,17 @@ test('Gemini PR review is manual-only and retains its owner and paid-inference g
   assert.match(geminiReview, /vars\.GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED == 'true'/);
   assert.match(geminiReview, /github\.actor_id == '32674233'/);
   assert.match(geminiReview, /github\.run_attempt == 1/);
+});
+
+test('Docker publication and Solana reconciliation workflow_run listeners are limited to main', () => {
+  assert.match(
+    dockerImage,
+    /workflow_run:\s*\n\s+workflows: \["GLORIFIER CI"\]\s*\n\s+types: \[completed\]\s*\n\s+branches: \[main\]/,
+  );
+  assert.match(
+    solanaReconcile,
+    /workflow_run:\s*\n\s+workflows:\s*\n\s+- "GLORIFIER Solana Devnet Deployment"\s*\n\s+types:\s*\n\s+- completed\s*\n\s+branches:\s*\n\s+- main/,
+  );
 });
 
 test('Solana workflow registration write access is main-only and owner-gated for manual dispatch', () => {
