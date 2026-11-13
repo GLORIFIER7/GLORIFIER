@@ -360,9 +360,12 @@ export async function recordAutopilotMissionPlan(
   store: AutopilotMissionStore,
   missionId: string,
   expectedVersion: number,
+  workerId: string,
   plan: AutopilotMissionPlanStep[],
   now = new Date().toISOString(),
 ): Promise<AutopilotMission> {
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  const currentTime = timestamp(now);
   if (!Array.isArray(plan) || plan.length < 1 || plan.length > MAX_STEPS) {
     throw new Error(`mission plan must contain between 1 and ${MAX_STEPS} steps.`);
   }
@@ -390,9 +393,11 @@ export async function recordAutopilotMissionPlan(
   if (mission.status !== 'planning' || !mission.leaseOwner || !mission.leaseExpiresAt) {
     throw new Error('mission must hold an active planning lease before a plan can be recorded.');
   }
-  if (Date.parse(mission.leaseExpiresAt) <= Date.parse(timestamp(now))) throw new Error('mission planning lease has expired.');
+  if (mission.leaseOwner !== worker || Date.parse(mission.leaseExpiresAt) <= Date.parse(currentTime)) {
+    throw new Error('worker does not hold an active mission lease.');
+  }
   if (mission.steps.length > 0) throw new Error('mission plan is already recorded.');
-  return saveMission(store, mission, { status: 'executing', steps, lastError: undefined }, now);
+  return saveMission(store, mission, { status: 'executing', steps, lastError: undefined }, currentTime);
 }
 
 export async function claimAutopilotMissionStep(
@@ -438,21 +443,27 @@ export async function completeAutopilotMissionStep(
   missionId: string,
   stepId: string,
   expectedVersion: number,
+  workerId: string,
   evidenceRefs: string[],
   now = new Date().toISOString(),
 ): Promise<AutopilotMission> {
+  const worker = requireNonEmpty(workerId, 'workerId', 256);
+  const currentTime = timestamp(now);
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
   const mission = await store.get(requireNonEmpty(missionId, 'mission id', 256));
   if (!mission) throw new Error('Autopilot mission not found.');
   if (mission.version !== expectedVersion) throw new Error(`Autopilot mission ${missionId} changed concurrently; reload before retrying.`);
+  if (mission.status !== 'executing' || mission.leaseOwner !== worker || !mission.leaseExpiresAt || Date.parse(mission.leaseExpiresAt) <= Date.parse(currentTime)) {
+    throw new Error('worker does not hold an active mission lease.');
+  }
   const index = mission.steps.findIndex((step) => step.id === stepId);
   if (index < 0) throw new Error('Autopilot mission step not found.');
   const step = mission.steps[index];
   if (step.status !== 'running') throw new Error('only a running mission step can be completed.');
   if (step.effect === 'irreversible' && !step.approval) throw new Error('irreversible mission step is missing recorded human approval.');
   const updatedSteps = mission.steps.map((entry, position) => position === index
-    ? { ...entry, status: 'completed' as const, completedAt: timestamp(now), evidenceRefs: [...new Set(refs)] }
+    ? { ...entry, status: 'completed' as const, completedAt: currentTime, evidenceRefs: [...new Set(refs)] }
     : entry);
   const allCompleted = updatedSteps.every((entry) => entry.status === 'completed');
   return saveMission(store, mission, {
@@ -460,7 +471,7 @@ export async function completeAutopilotMissionStep(
     evidenceRefs: [...new Set([...mission.evidenceRefs, ...refs])],
     status: allCompleted ? 'completed' : 'executing',
     ...(allCompleted ? { leaseOwner: undefined, leaseExpiresAt: undefined } : {}),
-  }, now);
+  }, currentTime);
 }
 
 export async function recoverAutopilotMissions(store: AutopilotMissionStore, now = new Date().toISOString()): Promise<number> {
