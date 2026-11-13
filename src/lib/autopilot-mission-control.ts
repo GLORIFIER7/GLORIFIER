@@ -495,9 +495,11 @@ export async function completeAutopilotMissionStep(
   const currentTime = timestamp(now);
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
-  if (verification && (verification.status !== 'verified' || !verification.verifierId.trim() ||
+  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-independent-read-v1' ||
       !isTrustedGithubEvidenceUrl(verification.sourceUrl) || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
-      !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256))) {
+      Date.parse(verification.verifiedAt) > Date.parse(currentTime) ||
+      !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||
+      verification.sourceSha256 !== verification.executionSha256)) {
     throw new Error('mission step verification evidence is invalid.');
   }
   const mission = await store.get(requireNonEmpty(missionId, 'mission id', 256));
@@ -616,7 +618,9 @@ export function getAutopilotMissionControlStatus() {
     independentOutcomeVerificationEnabled: autopilotStore !== null,
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
-    providerInferenceEnabled: false,
+    providerInferenceEnabled: process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
+      && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+      && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
