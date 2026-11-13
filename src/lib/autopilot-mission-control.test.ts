@@ -7,6 +7,7 @@ import {
   claimAutopilotMissionStep,
   completeAutopilotMissionStep,
   recoverAutopilotMissions,
+  recoverAutopilotMissionsWithSafeRetry,
   getAutopilotMission,
   listAutopilotMissions,
   type AutopilotMission,
@@ -50,7 +51,7 @@ class MemoryMissionStore implements AutopilotMissionStore {
     if (!next) return null;
     const claimed = {
       ...next,
-      status: 'planning' as const,
+      status: next.steps.length > 0 ? 'executing' as const : 'planning' as const,
       leaseOwner: workerId,
       leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
       updatedAt: now,
@@ -284,4 +285,76 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
     ]),
     /changed concurrently/,
   );
+});
+
+
+test('Autopilot stores independent verification before marking a read-only mission verified', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'independent-verification-001',
+    objective: 'Verify the public repository identity.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
+    { id: 'repo', capability: 'github.get_repository', objective: 'Read repository identity.', effect: 'read-only', toolArguments: {} },
+  ], '2026-11-13T08:02:00.000Z');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'repo', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  assert.equal(started.mission.steps[0].attemptCount, 1);
+  const proof = {
+    status: 'verified' as const,
+    verifierId: 'github-rest-independent-read-v1',
+    sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
+    verifiedAt: '2026-11-13T08:04:00.000Z',
+    sourceSha256: 'a'.repeat(64),
+    executionSha256: 'a'.repeat(64),
+  };
+  const completed = await completeAutopilotMissionStep(
+    store,
+    started.mission.id,
+    'repo',
+    started.mission.version,
+    'worker-1',
+    ['github-adapter://github_get_repository/' + proof.executionSha256],
+    '2026-11-13T08:04:00.000Z',
+    proof,
+  );
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.verificationState, 'verified');
+  assert.equal(completed.steps[0].verification?.verifierId, proof.verifierId);
+});
+
+test('Autopilot retries only known read-only steps once after lease reconciliation', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'safe-recovery-001',
+    objective: 'Read the current public repository metadata.',
+    now: '2026-11-13T08:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 300_000, '2026-11-13T08:01:00.000Z');
+  const planned = await recordAutopilotMissionPlan(store, claimed!.id, claimed!.version, 'worker-1', [
+    { id: 'repo', capability: 'github.get_repository', objective: 'Read repo metadata.', effect: 'read-only', toolArguments: {} },
+  ], '2026-11-13T08:02:00.000Z');
+  const started = await claimAutopilotMissionStep(store, planned.id, 'repo', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  assert.equal(started.mission.steps[0].attemptCount, 1);
+
+  const recovered = await recoverAutopilotMissionsWithSafeRetry(store, '2026-11-13T08:10:00.000Z');
+  assert.deepEqual(recovered, { quarantined: 1, requeued: 1 });
+  const queued = await getAutopilotMission(store, planned.id, 'owner');
+  assert.equal(queued?.status, 'queued');
+  assert.equal(queued?.steps[0].status, 'pending');
+  assert.equal(queued?.steps[0].attemptCount, 1);
+
+  const resumed = await claimNextAutopilotMission(store, 'worker-2', 300_000, '2026-11-13T08:11:00.000Z');
+  assert.equal(resumed?.status, 'executing');
+  const secondAttempt = await claimAutopilotMissionStep(store, resumed!.id, 'repo', 'worker-2', undefined, '2026-11-13T08:12:00.000Z');
+  assert.equal(secondAttempt.mission.steps[0].attemptCount, 2);
+
+  const exhausted = await recoverAutopilotMissionsWithSafeRetry(store, '2026-11-13T08:20:00.000Z');
+  assert.deepEqual(exhausted, { quarantined: 1, requeued: 0 });
+  const quarantined = await getAutopilotMission(store, planned.id, 'owner');
+  assert.equal(quarantined?.status, 'reconciliation-required');
+  assert.equal(quarantined?.steps[0].status, 'reconciliation-required');
 });
