@@ -1,5 +1,6 @@
 import { newId } from './new-id';
 import { getPostgresPool } from './db/postgres';
+import { getA2ARuntimeStatus } from './a2a-runtime';
 
 export type AutopilotMissionStatus =
   | 'queued'
@@ -503,7 +504,7 @@ export async function recordAutopilotMissionPlan(
     if (!['read-only', 'reversible', 'irreversible'].includes(step.effect)) throw new Error('step effect must be read-only, reversible, or irreversible.');
     if (step.toolArguments !== undefined) {
       if (!step.toolArguments || typeof step.toolArguments !== 'object' || Array.isArray(step.toolArguments) ||
-          JSON.stringify(step.toolArguments).length > 8_192) {
+          JSON.stringify(step.toolArguments).length > 64_000) {
         throw new Error('step tool arguments must be a bounded JSON object.');
       }
     }
@@ -708,16 +709,32 @@ export function getAutopilotMissionStore(): AutopilotMissionStore | null {
 }
 
 export function getAutopilotMissionControlStatus() {
+  const a2aRuntime = getA2ARuntimeStatus();
+  const inferenceAuthorized = process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
+    && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
+    && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
+  const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
+    && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
+    && a2aRuntime.durable && inferenceAuthorized;
+  const writeCredentialConfigured = Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim());
   return {
     mode: autopilotPersistenceMode,
     available: autopilotStore !== null,
     durable: autopilotPersistenceMode === 'postgres',
     missionQueue: autopilotStore !== null,
     missionPersistence: autopilotStore ? 'available' : 'unavailable',
-    autonomousPlanningEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
-    autonomousStepExecutionEnabled: autopilotStore !== null && Boolean(process.env.DATABASE_URL) && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim()) && process.env.GLORIFIER_ENABLE_INFERENCE === 'true' && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    autonomousPlanningEnabled: persistentExecutionReady,
+    autonomousStepExecutionEnabled: persistentExecutionReady,
+    a2aPersistenceMode: a2aRuntime.mode,
+    a2aDurableReady: a2aRuntime.durable,
+    a2aInitializationFailure: a2aRuntime.lastFailure,
     readOnlyToolExecutionEnabled: autopilotStore !== null,
-    writeToolExecutionEnabled: false,
+    writeToolExecutionEnabled: writeCredentialConfigured,
+    writeCredentialConfigured,
+    writeCredentialPermissionVerification: 'not-verified-until-github-write-and-readback',
+    repositoryWriteScope: 'isolated-autopilot-branches-only',
+    automaticPullRequestMergeEnabled: false,
+    automaticProductionDeploymentEnabled: false,
     independentOutcomeVerificationEnabled: autopilotStore !== null,
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
@@ -733,12 +750,18 @@ export function getAutopilotMissionControlStatus() {
       'idempotent-mission-creation',
       'version-checked-state-transitions',
       'leased-mission-claims',
+      'long-running-mission-lease-heartbeat',
+      'immediate-planning-and-execution-failure-persistence',
       'evidence-required-completion',
       'crash-reconciliation-without-replay',
       'provider-backed-read-only-mission-planning',
       'specialist-council-review',
       'geas-and-capability-gated-a2a-analysis-dispatch',
       'bounded-github-read-tool-execution',
+      'optional-branch-scoped-repository-mutations',
+      'preflight-source-hash-checked-file-updates',
+      'draft-pull-request-creation-without-auto-merge',
+      'fresh-github-rest-readback-for-each-mutation',
       'independent-github-source-verification',
       'bounded-idempotent-read-only-recovery',
     ],

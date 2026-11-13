@@ -251,6 +251,9 @@ jobs:
       - name: Autopilot independent evidence verifier
         run: npm run test:autopilot-evidence-verifier
 
+      - name: Autopilot GitHub write adapter
+        run: npm run test:autopilot-github-write
+
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
 
