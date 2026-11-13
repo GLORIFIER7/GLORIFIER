@@ -23,7 +23,7 @@ test("Capability authorization policy regression cases", () => {
     assert.equal(policy.requiresHumanApproval, item.approval, `approval mismatch for ${item.id}`);
   }
   
-  for (const id of ['utility.web_search', 'utility.calculate', 'knowledge.search', 'knowledge.ask', 'agent.discover', 'github.get_repository', 'github.list_pull_requests', 'github.list_workflow_runs', 'github.read_file']) {
+  for (const id of ['utility.web_search', 'utility.calculate', 'knowledge.search', 'knowledge.ask', 'agent.discover', 'github.get_repository', 'github.list_pull_requests', 'github.list_workflow_runs', 'github.read_file', 'github.create_branch', 'github.update_file', 'github.create_pull_request']) {
     assert.equal(authorizeCapability({ capability: id }).allowed, true, `${id} should be policy-authorized`);
   }
   for (const id of ['tool.invoke', 'knowledge.accept_answer', 'service.publish', 'package.publish', 'deploy.production', 'move.funds', 'wallet.broadcast']) {
