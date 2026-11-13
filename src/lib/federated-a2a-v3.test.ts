@@ -223,3 +223,40 @@ test('Federated A2A rejects unbounded and non-integer envelope lifetimes', async
     );
   }
 });
+
+
+test('Federated A2A requires an assigned target before transitioning to RUNNING', async () => {
+  const { startFederatedA2ATask, getFederatedA2ATask } = await import('./federated-a2a-v3');
+  const start = startFederatedA2ATask as unknown as (...args: any[]) => Promise<unknown>;
+  const persisted: Array<{ state: string; targetAgentId: string | null }> = [];
+  const auditEvents: Array<{ state: string; actor: string; detail: unknown }> = [];
+  const persistence = {
+    audit: async (_taskId: string, state: string, actor: string, detail: unknown) => {
+      auditEvents.push({ state, actor, detail });
+      return 'audit-start';
+    },
+    persist: async (value: { state: string; targetAgentId: string | null }) => {
+      persisted.push({ state: value.state, targetAgentId: value.targetAgentId });
+    },
+  };
+
+  const task = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-start', capability: 'research', objective: 'start assigned task' },
+    async () => {},
+  );
+  const record = getFederatedA2ATask(task.id);
+  assert.ok(record);
+  record.state = 'ASSIGNED';
+  record.targetAgentId = 'neural-agent';
+  const started = await start(task.id, 'neural-agent', persistence);
+  assert.equal((started as { state: string }).state, 'RUNNING');
+  assert.deepEqual(persisted, [{ state: 'RUNNING', targetAgentId: 'neural-agent' }]);
+  assert.deepEqual(auditEvents, [{ state: 'RUNNING', actor: 'neural-agent', detail: { targetAgentId: 'neural-agent' } }]);
+
+  const unassigned = await createFederatedA2ATask(
+    { requesterAgentId: 'requester-not-assigned', capability: 'research', objective: 'reject early start' },
+    async () => {},
+  );
+  await assert.rejects(start(unassigned.id, 'neural-agent', persistence), /task must be ASSIGNED before RUNNING/i);
+  assert.equal(unassigned.state, 'DISCOVERED');
+});
