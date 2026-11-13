@@ -50,6 +50,9 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
         if: steps.authorization.outputs.enabled == 'true'
+      - name: Test continuous improvement failure semantics
+        if: steps.authorization.outputs.enabled == 'true'
+        run: npm run test:continuous-improvement-agent
       - name: AI improvement analysis
         id: improve
         if: steps.authorization.outputs.enabled == 'true'

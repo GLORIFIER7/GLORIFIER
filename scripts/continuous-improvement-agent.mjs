@@ -80,7 +80,7 @@ if (process.env.ALLOW_PAID_INFERENCE !== 'true') {
 
 const candidates=availableProviders();
 const executive=candidates[0] || {id:'none',model:'',score:0};
-if (executive.id==='none') { console.log('GLORIFIER_AI_DEGRADED_MODE reason=no_provider_configured action=skip_improvement'); process.exit(0); }
+if (executive.id==='none') { console.error('GLORIFIER_AI_DEGRADED_MODE reason=no_provider_configured action=skip_improvement'); process.exit(1); }
 
 console.log(`GLORIFIER_AI_CEO provider=${executive.id} model=${executive.model} capabilityScore=${executive.score}`);
 
@@ -97,8 +97,8 @@ for (const candidate of candidates) {
   }
 }
 if (!patch) {
-  console.log(`GLORIFIER_AI_DEGRADED_MODE reason=all_providers_unavailable action=queue_next_cycle errors=${errors.join(' | ')}`);
-  process.exit(0);
+  console.error(`GLORIFIER_AI_DEGRADED_MODE reason=all_providers_unavailable action=queue_next_cycle errors=${errors.join(' | ')}`);
+  process.exit(1);
 }
 if (patch==='NO_CHANGE') { console.log('GLORIFIER_NO_CHANGE'); process.exit(0); }
 patch=patch.replace(/^\`\`\`(?:diff)?\s*/i,'').replace(/\s*\`\`\`$/i,'').trim();
