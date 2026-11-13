@@ -245,6 +245,12 @@ jobs:
       - name: Autopilot orchestrator
         run: npm run test:autopilot-orchestrator
 
+      - name: Autopilot tool execution fabric
+        run: npm run test:autopilot-execution-fabric
+
+      - name: Autopilot independent evidence verifier
+        run: npm run test:autopilot-evidence-verifier
+
       - name: A2A task-list authorization regression tests
         run: npm run test:a2a-runtime
 
