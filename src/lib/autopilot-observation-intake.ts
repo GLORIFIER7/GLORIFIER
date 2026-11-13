@@ -71,10 +71,12 @@ export async function createAutopilotObservationMission(
   if (!['low', 'medium', 'high', 'critical'].includes(input.severity)) throw new Error('severity is invalid.');
   const evidenceRefs = input.evidenceRefs ?? [];
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length > 10) throw new Error('evidenceRefs must contain at most 10 references.');
-  const refs = evidenceRefs.map((ref, index) => requiredText(ref, `evidenceRefs[${index}]`, 2_048));
+  const refs = evidenceRefs.map((ref, index) => redact(requiredText(ref, `evidenceRefs[${index}]`, 2_048)));
   const digest = createHash('sha256').update(`${input.source}\n${sourceEventId}`).digest('hex');
   const idempotencyKey = `observation:${input.source}:${digest}`;
-  const existing = (await store.list(REQUESTER, 100, false)).find(mission => mission.idempotencyKey === idempotencyKey);
+  const existing = store.findByIdempotencyKey
+    ? await store.findByIdempotencyKey(REQUESTER, idempotencyKey)
+    : (await store.list(REQUESTER, 100, false)).find(mission => mission.idempotencyKey === idempotencyKey) ?? null;
   const title = `[${input.severity.toUpperCase()}] ${input.source}: ${summary}`.slice(0, 160);
   const objective = [
     'Investigate this system observation, identify its root cause, and propose the smallest policy-compliant remediation.',
