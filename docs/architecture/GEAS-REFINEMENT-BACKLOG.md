@@ -285,4 +285,10 @@ The article describes ten design tenets: distinct agent identification; linking,
 - The failed scan remains recorded. A fresh exact-head scan is required.
 - Corrective commit: \`ce00facddb770f35110712db95645b2404ad9e75\`.
 
+**Raw-text parser hardening:**
+- Automated review identified that nested-looking \`<script>\` or \`<style>\` strings inside JavaScript/CSS could increment the balanced-tag depth and cause the parser to discard valid later content.
+- Updated the scanner to treat script/style bodies as raw text and close on the first matching end tag, consistent with HTML raw-text parsing behavior.
+- Added regression coverage for nested-looking script/style strings followed by substantive architecture text.
+- Follow-up commits: \`e5c917d953da0f7870d2e9327fb873d37c40f789\` and \`fc817d7b65d14c61ca97419acaaf479e9147b7ae\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
