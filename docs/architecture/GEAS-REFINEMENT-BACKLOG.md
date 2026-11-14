@@ -181,3 +181,21 @@ Refinement:
 Unresolved:
 - This is a fail-closed admission refinement, not reviewer authentication or semantic verification.
 - No source claim, runtime deployment, invoice, OpenTelemetry collector, or production state is promoted by this change.
+
+## 2026-11-14 — NIST agent identity design tenets source registration
+
+**Auto-approval classification:** low risk; reversible; source metadata and regression coverage only. No runtime or production behavior is changed.
+
+**Observed public source:** NIST, *Design Tenets for Agent Identity Management Systems*, published October 27, 2026: https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems
+
+The article describes ten design tenets: distinct agent identification; linking, delegation and scope attenuation; least/zero standing privilege; short-lived, dynamic and revocable authorization; human-in-the-loop escalation triggers; signed mandates and constraints; separation of policy from reasoning; deterministic access decisions; continuous monitoring; and immutable evidence.
+
+**Repository refinement:**
+- Add the canonical NIST article as an active scanner source with a 14-day review cadence.
+- Associate it with the existing `agent-identity-delegation` analysis pattern.
+- Mirror the source metadata in the authoritative registry and enforce it through the existing scientist/catalogue tests.
+
+**Evidence boundary:** source discovery or content matching is analysis only. This registration does not establish that GLORIFIER implements these tenets, has cryptographically verified agent identities, uses zero-standing privileges, or has an independently verified immutable audit pipeline. The scheduled scanner has no trusted claim-support authenticator configured; claim-supported evidence must remain zero until a separately reviewed authenticator exists.
+
+**Verification targets:** `npm run test:geas-scientist`, authoritative source-registry validation, source-registry/cadence validation, and the exact-head GEAS architecture scan with its uploaded evidence artifact.
+
