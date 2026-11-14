@@ -41,7 +41,7 @@ jobs:
           echo "Required non-secret configuration is present."
 
       - name: Install pinned Databricks CLI
-        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180
+        uses: databricks/setup-cli@4f41a4c5291b531c1bb1e5760d677999cd484f89
         with:
           version: 1.22.1
 
