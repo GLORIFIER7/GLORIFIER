@@ -305,3 +305,33 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Follow-up commits: \`989f621394d30b94884ac86a257e1ca928e2d186\` and \`64cceaa2547e22cd4648464e2f29f7997ec14487\`.
 
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
+
+
+## 2026-11-14 — preserve substantive NIST agent-identity evidence when article includes a skip link
+
+**Auto-approval classification:** LOW risk; reversible; evidence-admission false-negative correction only. No production runtime, data, credentials, permissions, spending, or external integration behavior changes.
+
+**Observed evidence:**
+- Main SHA at inspection: `b7853ff6496b575727727e738150a8243809fa8a`.
+- PR #863 exact-head scan run: `43553317023`, source head `b0eb8c137cca5f9c4618cdd3a879c814b2d1b6b1`, base `b7853ff6496b575727727e738150a8243809fa8a`, tested merge `b317b52fed7e878f8a7301c928df277d41721f63`.
+- Artifact: `geas-architecture-scan-43553317023`, ID `14097047695`, SHA-256 `f3329a73ad0b0621edc592585cad3101653e486765287f7503e510a3a6c943e6`.
+- The artifact classified `nist-agent-identity-design-tenets` as HTTP 200 / `source-available`, despite the official NIST article containing the exact registered phrase `Distinct Agent Identification` and substantive descriptions of all ten identity design tenets.
+- The extractor's page-chrome marker set contained a standalone `skip to main content` rejection. A legitimate NIST article excerpt can include that accessible skip-link text immediately before substantive article content.
+- NIST's article was published 2026-10-27 and explicitly describes distinct agent identity, delegated-scope attenuation, zero standing privilege, short-lived revocable authorization, human escalation, signed mandates, policy/reasoning separation, deterministic access decisions, continuous monitoring, and immutable evidence: https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems
+
+**Analysis:** A single accessibility skip-link marker does not make an excerpt navigation-only when the same excerpt contains source-specific substantive architecture text. Rejecting it causes a false negative and leaves the AI domain without a discovered pattern, even though the primary NIST agent initiative and the secondary design-tenets source are registered. Removing this standalone marker does not allow the skip-link text alone to match a pattern: extraction still requires a source-specific pattern keyword, and all content-matched records remain analysis.
+
+**Implemented refinement:**
+- Remove the standalone `skip to main content` marker from the reject list.
+- Add a regression observation containing the NIST skip link plus the exact substantive `Distinct Agent Identification` passage.
+- Require the existing secondary-source fallback to create only an `analysis` pattern, never an observed fact.
+- Preserve all other navigation/interstitial marker groups, cache invalidation, source URL allowlists, claim-support authentication, and five-state verification requirements.
+
+**Affected files:**
+- `src/lib/governance/geas-architecture-scientist.ts`
+- `src/lib/governance/geas-architecture-scientist.test.ts`
+- `docs/architecture/GEAS-REFINEMENT-BACKLOG.md`
+
+**Required verification:** GEAS scientist tests, source-registry validation, cadence validation, evidence-policy validation, full CI, and a fresh exact-head architecture scan with artifact provenance. The previous successful scan predates this correction and does not verify the new head.
+
+**Deferred:** This correction does not authenticate NIST claims, verify GLORIFIER agent identity, configure a claim-support authenticator, or change the eight UNKNOWN drift findings.
