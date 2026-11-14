@@ -19,6 +19,7 @@ import {
   isTrustedCuratedRedirectTarget,
   formatCuratedRedirectTargetDiagnostic,
   findEarliestKeywordIndex,
+  getSourcePatternKeywords,
   type ArchitectureDomain,
   type ArchitecturePattern,
   type SourceObservation,
@@ -48,7 +49,17 @@ if (!nistAgentIdentityTenetsSource
     || nistAgentIdentityTenetsSource.cadenceHours !== 336
     || !nistAgentIdentityTenetsSource.patternIds.includes('agent-identity-delegation')
     || !nistAgentIdentityTenetsSource.claimsAllowed.includes('agent-identity-delegation')) {
-  throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and analysis-only identity/delegation association');
+  throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and explicit source-policy association');
+}
+const nistIdentityTenetKeywords = getSourcePatternKeywords('nist-agent-identity-design-tenets');
+const nistIdentityTenetText = 'Distinct Agent Identification and Agent Linking, Delegation & Attenuation require cryptographically verifiable identity and scoped authorization.';
+if (!nistIdentityTenetKeywords.includes('identity')
+    || !nistIdentityTenetKeywords.includes('agent')
+    || findEarliestKeywordIndex(nistIdentityTenetText, nistIdentityTenetKeywords) < 0) {
+  throw new Error('secondary NIST sources must inherit keywords from their explicitly associated architecture patterns');
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
 
 const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
@@ -426,6 +437,7 @@ if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
   'https://www.nist.gov/super-intelligence/si-agent-standards-initiative',
+  'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
   'https://owaspacs.org/docs/acs/',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
@@ -452,6 +464,7 @@ const rejectedCuratedSourceUrls = [
   'https://www.nist.gov:8443/forged',
   'file:///etc/passwd',
   'https://www.nist.gov/internal',
+  'https://www.nist.gov/blogs/cybersecurity-insights/unregistered-agent-identity-design-tenets',
   'https://owaspacs.org/docs/unregistered/',
   'https://docs.nats.io/unregistered/',
   'https://www.rfc-editor.org/rfc/rfc9110.html',
