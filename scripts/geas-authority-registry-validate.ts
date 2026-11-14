@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { compareCodeUnits } from '../src/lib/deterministic-string-order.ts';
 import { parseScannerSourceCatalog } from './geas-source-catalog-parser.ts';
 
 type Source = {
@@ -33,6 +34,19 @@ const isValidReviewCadenceDays = (value: unknown): value is number =>
   typeof value === 'number'
   && Number.isSafeInteger(value)
   && value >= 1
+
+const sameStringArrayIgnoringOrder = (left: readonly string[], right: readonly string[]): boolean => {
+  if (left.length !== right.length) return false;
+  const sortedLeft = [...left].sort(compareCodeUnits);
+  const sortedRight = [...right].sort(compareCodeUnits);
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+};
+
+if (!sameStringArrayIgnoringOrder(['alpha', 'beta'], ['beta', 'alpha'])
+    || sameStringArrayIgnoringOrder(['alpha'], ['beta'])
+    || sameStringArrayIgnoringOrder(['alpha', 'alpha'], ['alpha'])) {
+  throw new Error('claim allow-list parity must ignore order while preserving values and duplicate counts');
+}
   && Number.isSafeInteger(value * 24);
 
 if (!isValidReviewCadenceDays(14)
@@ -188,7 +202,8 @@ if (isRecord(parsed)) {
     const source = (parsed as Registry).sources.find((item) => item.id === id);
     if (source && source.scannerStatus !== 'active') failures.push(`scanner source ${id} must be marked active in registry`);
     if (source && scannerUrls.get(id) !== source.url) failures.push(`scanner source ${id} URL does not match authoritative registry`);
-    if (source && JSON.stringify(scannerClaimsAllowed.get(id)) !== JSON.stringify(source.claimsAllowed)) {
+    const scannerClaims = scannerClaimsAllowed.get(id);
+    if (source && (!scannerClaims || !sameStringArrayIgnoringOrder(scannerClaims, source.claimsAllowed))) {
       failures.push(`scanner source ${id} claimsAllowed does not match authoritative registry`);
     }
   }
