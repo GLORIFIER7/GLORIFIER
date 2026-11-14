@@ -11,7 +11,7 @@ export type AgentCard = {
   capabilities: string[];
   endpoint: string;
   protocol: 'GLORIFIER-A2A-v1';
-  status: 'active' | 'offline' | 'degraded';
+  status: 'registered' | 'active' | 'offline' | 'degraded';
 };
 
 export type AgentTask = {
@@ -85,16 +85,16 @@ export function resolveAgentTaskRequester(
 
 
 const agents: AgentCard[] = [
-  { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern', 'governed-agent-commerce', 'economic-routing'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'gpt', name: 'GPT', role: 'reasoning', capabilities: ['reason', 'code-review', 'synthesis'], endpoint: '/api/agents/gpt', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'gemini', name: 'Gemini', role: 'engineering-collaborator', capabilities: ['research', 'code-analysis', 'recovery'], endpoint: '/api/agents/gemini', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'specialists', name: 'Specialist Council', role: 'domain-agents', capabilities: ['security', 'data', 'revenue-analysis', 'operations', 'research'], endpoint: '/api/agents/specialists', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'uspto-ai-attorney-scientist', name: 'GLORIFIER USPTO AI Attorney/Scientist', role: 'ip-research', capabilities: ['ip-research', 'prior-art-analysis', 'invention-provenance', 'patent-preparation'], endpoint: '/api/agents/uspto-ai-attorney-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'iso-ai-scientist', name: 'GLORIFIER ISO AI Scientist', role: 'ai-standards-research', capabilities: ['iso-alignment', 'ai-governance', 'ai-risk', 'lifecycle-assessment', 'continual-improvement'], endpoint: '/api/agents/iso-ai-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'assets-scientist', name: 'GLORIFIER Assets Scientist', role: 'asset-intelligence', capabilities: ['asset-intelligence', 'asset-lifecycle', 'asset-valuation', 'asset-risk', 'asset-evidence'], endpoint: '/api/agents/assets-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'enterprise-architecture-scientist', name: 'GLORIFIER Enterprise Architecture Scientist', role: 'enterprise-architecture-intelligence', capabilities: ['architecture-review','well-architected-assessment','ai-architecture','data-architecture','cloud-architecture','integration-architecture','resilience-architecture','finops-architecture'], endpoint: '/api/agents/enterprise-architecture-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'business-intelligence-scientist', name: 'GLORIFIER Business Intelligence Scientist', role: 'continuous-business-intelligence', capabilities: ['market-intelligence','competitive-intelligence','customer-intelligence','product-intelligence','sales-intelligence','marketing-intelligence','operations-intelligence','pricing-intelligence','technology-intelligence','data-intelligence','regulatory-intelligence','opportunity-intelligence','early-warning','decision-intelligence'], endpoint: '/api/agents/business-intelligence-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' },
-  { id: 'finance-scientist', name: 'GLORIFIER Finance Scientist', role: 'institutional-finance-intelligence', capabilities: ['portfolio-intelligence', 'multi-asset-risk', 'scenario-analysis', 'stress-testing', 'capital-allocation', 'valuation', 'financial-forensics', 'liquidity-analysis'], endpoint: '/api/agents/finance-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'active' }
+  { id: 'ai-ceo', name: 'GLORIFIER AI CEO', role: 'orchestrator', capabilities: ['delegate', 'prioritize', 'synthesize', 'govern', 'governed-agent-commerce', 'economic-routing'], endpoint: '/api/agents/ai-ceo', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'gpt', name: 'GPT', role: 'reasoning', capabilities: ['reason', 'code-review', 'synthesis'], endpoint: '/api/agents/gpt', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'gemini', name: 'Gemini', role: 'engineering-collaborator', capabilities: ['research', 'code-analysis', 'recovery'], endpoint: '/api/agents/gemini', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'specialists', name: 'Specialist Council', role: 'domain-agents', capabilities: ['security', 'data', 'revenue-analysis', 'operations', 'research'], endpoint: '/api/agents/specialists', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'uspto-ai-attorney-scientist', name: 'GLORIFIER USPTO AI Attorney/Scientist', role: 'ip-research', capabilities: ['ip-research', 'prior-art-analysis', 'invention-provenance', 'patent-preparation'], endpoint: '/api/agents/uspto-ai-attorney-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'iso-ai-scientist', name: 'GLORIFIER ISO AI Scientist', role: 'ai-standards-research', capabilities: ['iso-alignment', 'ai-governance', 'ai-risk', 'lifecycle-assessment', 'continual-improvement'], endpoint: '/api/agents/iso-ai-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'assets-scientist', name: 'GLORIFIER Assets Scientist', role: 'asset-intelligence', capabilities: ['asset-intelligence', 'asset-lifecycle', 'asset-valuation', 'asset-risk', 'asset-evidence'], endpoint: '/api/agents/assets-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'enterprise-architecture-scientist', name: 'GLORIFIER Enterprise Architecture Scientist', role: 'enterprise-architecture-intelligence', capabilities: ['architecture-review','well-architected-assessment','ai-architecture','data-architecture','cloud-architecture','integration-architecture','resilience-architecture','finops-architecture'], endpoint: '/api/agents/enterprise-architecture-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'business-intelligence-scientist', name: 'GLORIFIER Business Intelligence Scientist', role: 'continuous-business-intelligence', capabilities: ['market-intelligence','competitive-intelligence','customer-intelligence','product-intelligence','sales-intelligence','marketing-intelligence','operations-intelligence','pricing-intelligence','technology-intelligence','data-intelligence','regulatory-intelligence','opportunity-intelligence','early-warning','decision-intelligence'], endpoint: '/api/agents/business-intelligence-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' },
+  { id: 'finance-scientist', name: 'GLORIFIER Finance Scientist', role: 'institutional-finance-intelligence', capabilities: ['portfolio-intelligence', 'multi-asset-risk', 'scenario-analysis', 'stress-testing', 'capital-allocation', 'valuation', 'financial-forensics', 'liquidity-analysis'], endpoint: '/api/agents/finance-scientist', protocol: 'GLORIFIER-A2A-v1', status: 'registered' }
 ];
 
 type AgentRuntimePersistence = Pick<PostgresAgentStateStore, 'initialize' | 'get' | 'list' | 'save' | 'recoverInterruptedTasks' | 'heartbeatRunningTask'>;
@@ -360,6 +360,12 @@ export function agentManifest() {
       autonomousFinancialCommitment: false,
       glrSettlement: 'human-authorized-and-evidence-gated',
       autonomousLegalCommitment: false
+    },
+    statusSemantics: {
+      registered: 'Declared in the capability catalogue; runtime health has not been verified.',
+      active: 'Requires a recent successful runtime health observation.',
+      offline: 'A runtime health observation confirms the agent is unreachable.',
+      degraded: 'A runtime health observation confirms reduced service health.'
     },
     agents
   };

@@ -27,7 +27,7 @@ const seedAgents: Omit<RegisteredAgent, 'connectionId' | 'lastVerifiedAt'>[] = [
   {
     id: 'glorifier-ai-ceo', name: 'GLORIFIER AI CEO', provider: 'glorifier', role: 'orchestrator',
     protocol: 'GLORIFIER-A2A-v1', capabilities: ['delegate','prioritize','synthesize','govern'],
-    endpoint: '/api/agents/ai-ceo', authType: 'internal', status: 'active', risk: 'high', scopes: ['orchestration'],
+    endpoint: '/api/agents/ai-ceo', authType: 'internal', status: 'discovered', risk: 'high', scopes: ['orchestration'],
     requiresHumanApproval: true, metadata: { local: true }
   },
   {
@@ -58,6 +58,26 @@ const seedAgents: Omit<RegisteredAgent, 'connectionId' | 'lastVerifiedAt'>[] = [
 
 const AGENT_TABLE = 'glorifier_registered_agents';
 function connectionId(agentId: string) { return `agent-${agentId}`; }
+
+export function mapConnectionStatusToAgentStatus(status?: string | null): AgentStatus {
+  switch (status) {
+    case 'authorized':
+      return 'authorized';
+    case 'degraded':
+      return 'degraded';
+    case 'revoked':
+      return 'revoked';
+    case 'offline':
+      return 'offline';
+    case 'expired':
+    case 'disabled':
+      return 'offline';
+    default:
+      // Missing, merely discovered, pending, and unknown states must never be
+      // promoted to active or authorized without a matching registry observation.
+      return 'discovered';
+  }
+}
 async function ensureAgentTable() { await getPostgresPool().query(`CREATE TABLE IF NOT EXISTS ${AGENT_TABLE} (id TEXT PRIMARY KEY, name TEXT NOT NULL, provider TEXT NOT NULL, role TEXT NOT NULL, protocol TEXT NOT NULL, capabilities JSONB NOT NULL DEFAULT '[]'::jsonb, endpoint TEXT NOT NULL, auth_type TEXT NOT NULL, risk TEXT NOT NULL, scopes JSONB NOT NULL DEFAULT '[]'::jsonb, requires_human_approval BOOLEAN NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`); }
 
 export async function initializeAgentRegistry() {
@@ -90,7 +110,7 @@ export async function listRegisteredAgents(): Promise<RegisteredAgent[]> {
     return {
       ...agent,
       connectionId: c?.id || null,
-      status: c?.status === 'authorized' ? 'authorized' : agent.status,
+      status: mapConnectionStatusToAgentStatus(c?.status),
       lastVerifiedAt: c?.lastVerifiedAt || null
     };
   });
