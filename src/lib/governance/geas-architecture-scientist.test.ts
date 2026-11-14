@@ -130,6 +130,24 @@ if (!nistIdentityTenetKeywords.includes('Distinct Agent Identification')
     || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf('Distinct Agent Identification')) {
   throw new Error('NIST secondary-source matching must select substantive design-tenet text rather than generic page chrome');
 }
+const nistIdentityTenetObservation: SourceObservation = {
+  sourceId: 'nist-agent-identity-design-tenets',
+  ok: true,
+  status: 200,
+  contentHash: 'd'.repeat(64),
+  observedAt: '2026-11-14T04:00:00.000Z',
+  finalUrl: 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
+  evidenceExcerpt: 'Skip to main content Design Tenets for Agent Identity Management Systems. Distinct Agent Identification: Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+  evidenceStatus: 'content-matched',
+};
+const nistIdentityTenetPattern = buildObservedArchitecturePatterns(
+  [nistIdentityTenetObservation],
+  nistIdentityTenetObservation.observedAt,
+).find((pattern) => pattern.id === 'agent-identity-delegation');
+if (!nistIdentityTenetPattern || nistIdentityTenetPattern.evidenceClass !== 'analysis') {
+  throw new Error('a substantive NIST agent-identity excerpt must remain admissible when its article contains an innocuous skip link, while remaining analysis only');
+}
+
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
