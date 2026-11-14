@@ -266,4 +266,10 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Added regression tests for nested navigation/header/aside, multiline role attributes, legitimate event-stream prose containing "news and announcements", and reuse of substantive cached evidence.
 - Follow-up commits: \`143769b1d7597224d2e22288a73e431da97d40fb\` and \`585f4bc5f4edd524a857e7a4361d71fd8b39d76f\`.
 
+**Exact-SHA failure correction:**
+- The first run on head \`8c5a703083fe03ea95ec5e6cf677f77bffab928c\` exposed two test-only defects: a curated-source fixture still expected the previous GitHub HTML URL, and an optional \`SourceObservation.finalUrl\` was passed where a required URL string was expected.
+- Updated the fixture to the canonical raw OpenTelemetry URL and introduced a required local URL constant for the legitimate-prose cache test.
+- No production behavior or security policy was weakened. The failed runs remain recorded as failures; the new head must pass fresh exact-SHA checks.
+- Corrective commit: \`61aa25ffb8ae606a3591a4fdb4735b78d09cfc3d\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
