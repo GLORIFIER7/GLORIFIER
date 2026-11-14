@@ -664,6 +664,53 @@ if (!articleIsolationText.includes('Distinct agent identification')
   throw new Error('article content must take precedence over main-region comments and reader-generated text');
 }
 
+const chromeBeforeArticleHtml = [
+  '<aside><article><p>Related card: generic marketing summary.</p></article></aside>',
+  '<main><article><h1>Substantive architecture article</h1>',
+  '<p>Delegated authorization must be attenuated and revocable at each agent boundary.</p>',
+  '</article></main>',
+].join('');
+const chromeBeforeArticleText = stripHtmlForEvidence(chromeBeforeArticleHtml);
+if (chromeBeforeArticleText.includes('Related card')
+    || !chromeBeforeArticleText.includes('Delegated authorization must be attenuated')) {
+  throw new Error('page chrome must be removed before selecting article content');
+}
+
+const nestedArticleHtml = [
+  '<main><article><p>Outer article establishes the architecture context.</p>',
+  '<article><p>Nested section defines evidence lineage.</p></article>',
+  '<p>Outer article concludes with independent verification requirements.</p>',
+  '</article></main>',
+].join('');
+const nestedArticleText = stripHtmlForEvidence(nestedArticleHtml);
+if (!nestedArticleText.includes('Outer article establishes')
+    || !nestedArticleText.includes('Nested section defines evidence lineage')
+    || !nestedArticleText.includes('Outer article concludes')) {
+  throw new Error('nested article elements must not truncate the selected evidence region');
+}
+
+const customContentTags = [
+  '<article-card><p>Custom card metadata must not be mistaken for an article element.</p></article-card>',
+  '<main-nav><p>Custom navigation component text.</p></main-nav>',
+  '<section><p>Fallback body content remains available.</p></section>',
+].join('');
+const customContentText = stripHtmlForEvidence(customContentTags);
+if (!customContentText.includes('Custom card metadata')
+    || !customContentText.includes('Custom navigation component')
+    || !customContentText.includes('Fallback body content')) {
+  throw new Error('custom article-card and main-nav tags must not be parsed as article/main containers');
+}
+
+const multipleArticleHtml = [
+  '<article><p>Short related-card teaser.</p></article>',
+  '<article><p>Longer primary article content with detailed architecture constraints, authenticated provenance, delegated identity, and independent runtime verification.</p></article>',
+].join('');
+const multipleArticleText = stripHtmlForEvidence(multipleArticleHtml);
+if (!multipleArticleText.includes('Longer primary article content')
+    || multipleArticleText.includes('Short related-card teaser')) {
+  throw new Error('the longest substantive article candidate must be selected after chrome removal');
+}
+
 const fallbackEvidenceHtml = [
   '<header>News and announcements</header>',
   '<div role="navigation">Home Docs Search Projects</div>',
