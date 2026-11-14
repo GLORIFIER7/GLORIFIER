@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
@@ -12,6 +12,9 @@ const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci
   read('../.github/workflows/ci.yml'),
   read('../.github/workflows/docker-image.yml'),
   read('../.github/workflows/glorifier-solana-devnet-reconcile.yml'),
+  read('../.github/workflows/global-collaboration.yml'),
+  read('../.github/workflows/mediator-expansion.yml'),
+  read('../.github/workflows/global-resolution.yml'),
 ]);
 function sliceBetweenMarkers(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -19,6 +22,26 @@ function sliceBetweenMarkers(source, startMarker, endMarker) {
   assert.ok(start >= 0 && end > start,
     'expected ordered workflow markers: ' + startMarker + ' -> ' + endMarker);
   return source.slice(start, end);
+}
+
+function extractStepEnv(source, stepName) {
+  const startMarker = '      - name: ' + stepName;
+  const start = source.indexOf(startMarker);
+  if (start < 0) return null;
+
+  // Every YAML step is a sibling, including unnamed steps that begin with "- uses:".
+  const end = source.indexOf('\n      - ', start + startMarker.length);
+  const step = source.slice(start, end < 0 ? undefined : end);
+  const lines = step.split('\n');
+  const envIndex = lines.findIndex((line) => line === '        env:');
+  if (envIndex < 0) return null;
+
+  const envLines = [];
+  for (const line of lines.slice(envIndex + 1)) {
+    if (line.trim() && !line.startsWith('          ')) break;
+    envLines.push(line);
+  }
+  return envLines.join('\n');
 }
 
 test('Code Guardian calls paid providers only after shared owner-authorized manual dispatch', () => {
@@ -102,3 +125,56 @@ test('Solana workflow registration write access is main-only and owner-gated for
 test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
 });
+
+
+test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
+  const cases = [
+    ['global collaboration', globalCollaboration, 'Run global collaboration and resolution cycle'],
+    ['mediator expansion', mediatorExpansion, 'Refresh mediator registry snapshot'],
+    ['global resolution', globalResolution, 'Discover and queue global resolution candidates'],
+  ];
+
+  for (const [label, workflow, stepName] of cases) {
+    const env = extractStepEnv(workflow, stepName);
+    assert.ok(env !== null, label + ' task step must define its own env block');
+    assert.match(
+      env,
+      /^          DATABASE_URL:\s*\$\{\{\s*secrets\.DATABASE_URL\s*\}\}\s*$/m,
+      label + ' must use the repository DATABASE_URL secret in its own env block',
+    );
+    assert.match(
+      env,
+      /^          NODE_ENV:\s*production\s*$/m,
+      label + ' must set NODE_ENV to the exact production value in its own env block',
+    );
+  }
+});
+
+test('PostgreSQL TLS assertions reject sibling-step and non-exact production decoys', () => {
+  const siblingStepDecoy = [
+    '      - name: database task',
+    '        run: ./run-database-task.sh',
+    '        env:',
+    '          NODE_ENV: staging',
+    '      - uses: actions/setup-node@v7',
+    '        env:',
+    '          NODE_ENV: production',
+  ].join('\n');
+  const siblingEnv = extractStepEnv(siblingStepDecoy, 'database task');
+  assert.ok(siblingEnv !== null);
+  assert.doesNotMatch(siblingEnv, /^          NODE_ENV:\s*production\s*$/m);
+
+  const nonExactProduction = [
+    '      - name: database task',
+    '        run: ./run-database-task.sh',
+    '        env:',
+    '          NODE_ENV: production-debug',
+  ].join('\n');
+  const debugEnv = extractStepEnv(nonExactProduction, 'database task');
+  assert.ok(debugEnv !== null);
+  assert.doesNotMatch(debugEnv, /^          NODE_ENV:\s*production\s*$/m);
+});
+
+
+
+

@@ -46,4 +46,5 @@ jobs:
       - name: Refresh mediator registry snapshot
         run: ./node_modules/.bin/tsx scripts/run-mediator-expansion.ts
         env:
+          NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

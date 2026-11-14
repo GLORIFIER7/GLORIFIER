@@ -57,5 +57,6 @@ jobs:
       - name: Run global collaboration and resolution cycle
         run: ./node_modules/.bin/tsx scripts/run-global-collaboration.ts
         env:
+          NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GLORIFIER_COLLABORATION_LIMIT: "200"
