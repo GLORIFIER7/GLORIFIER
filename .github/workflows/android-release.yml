@@ -47,7 +47,7 @@ jobs:
       # Download from Gradle's official distribution service with bounded retry.
       # Verify against Gradle's independently published SHA-256 before the wrapper uses it.
       - name: Restore Gradle distribution cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/gradle-8.14.3-bin.zip
           key: gradle-8.14.3-bin-${{ runner.os }}-v1
