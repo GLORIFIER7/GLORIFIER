@@ -652,6 +652,18 @@ if (semanticEvidenceText.includes('Sign in')
   throw new Error('evidence extraction must prefer semantic main content over header and footer navigation');
 }
 
+const articleIsolationHtml = [
+  '<main><article><h1>Official architecture guidance</h1>',
+  '<p>Distinct agent identification and delegated authority must be explicit.</p>',
+  '</article><section id="comments"><p>Reader comment: this is only a personal suggestion.</p></section></main>',
+].join('');
+const articleIsolationText = stripHtmlForEvidence(articleIsolationHtml);
+if (!articleIsolationText.includes('Distinct agent identification')
+    || articleIsolationText.includes('Reader comment')
+    || articleIsolationText.includes('personal suggestion')) {
+  throw new Error('article content must take precedence over main-region comments and reader-generated text');
+}
+
 const fallbackEvidenceHtml = [
   '<header>News and announcements</header>',
   '<div role="navigation">Home Docs Search Projects</div>',
@@ -684,7 +696,7 @@ if (nestedChromeText.includes('Home')
 }
 
 const rawTextChromeHtml = [
-  '<script>const example = "<script src=x>"; document.write("<script>");</script>',
+  '<script>for (let i = 0; i < n; i++) { x(); } const example = "<script src=x>"; document.write("<script>");</script>',
   '<style>.badge::after { content: "<style>"; }</style>',
   '<section><p>Runtime evidence must be independently authenticated and timestamped.</p></section>',
 ].join('');
