@@ -14,10 +14,10 @@ import {
   canAccessAgentTask,
   filterAgentTasksByRequester,
   resolveAgentTaskRequester,
+  agentManifest,
 } from './agent-runtime.ts';
 import type { PostgresAgentStateStore } from './agent-state-store.ts';
 import { test } from 'node:test';
-import { agentManifest } from './agent-runtime.ts';
 import { mapConnectionStatusToAgentStatus } from './agent-registry.ts';
 
 test('agent-runtime regression suite', async () => {
@@ -323,6 +323,7 @@ assert.equal(mapConnectionStatusToAgentStatus('discovered'), 'discovered');
 assert.equal(mapConnectionStatusToAgentStatus('authorized'), 'authorized');
 assert.equal(mapConnectionStatusToAgentStatus('degraded'), 'degraded');
 assert.equal(mapConnectionStatusToAgentStatus('revoked'), 'revoked');
+assert.equal(mapConnectionStatusToAgentStatus('offline'), 'offline');
 assert.equal(mapConnectionStatusToAgentStatus('expired'), 'offline');
 assert.equal(mapConnectionStatusToAgentStatus('disabled'), 'offline');
 assert.equal(mapConnectionStatusToAgentStatus('active'), 'discovered',
