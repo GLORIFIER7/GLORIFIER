@@ -3,7 +3,7 @@ import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './au
 
 const API_ROOT = 'https://api.github.com';
 const REPOSITORY_PATH = '/repos/GLORIFIER7/GLORIFIER';
-const VERIFIER_ID = 'github-rest-independent-read-v1';
+const VERIFIER_ID = 'github-rest-source-readback-v1';
 const MAX_RESPONSE_BYTES = 1_000_000;
 
 type JsonRecord = Record<string, unknown>;
@@ -48,8 +48,8 @@ const readJson = async (fetchImpl: FetchLike, url: string, readToken?: string): 
     redirect: 'error',
     signal: AbortSignal.timeout(8_000),
   });
-  if (!response.ok) throw new Error(`Independent GitHub evidence read failed with HTTP ${response.status}.`);
-  if (!response.body) throw new Error('Independent GitHub evidence source returned an empty response.');
+  if (!response.ok) throw new Error(`GitHub source-readback evidence read failed with HTTP ${response.status}.`);
+  if (!response.body) throw new Error('GitHub source-readback evidence source returned an empty response.');
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
@@ -61,7 +61,7 @@ const readJson = async (fetchImpl: FetchLike, url: string, readToken?: string): 
       totalBytes += part.value.byteLength;
       if (totalBytes > MAX_RESPONSE_BYTES) {
         await reader.cancel().catch(() => undefined);
-        throw new Error('Independent GitHub evidence response exceeded the 1 MB limit.');
+        throw new Error('GitHub source-readback evidence response exceeded the 1 MB limit.');
       }
       chunks.push(part.value);
     }
@@ -78,7 +78,7 @@ const readJson = async (fetchImpl: FetchLike, url: string, readToken?: string): 
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new Error('Independent GitHub evidence source returned invalid JSON.');
+    throw new Error('GitHub source-readback evidence source returned invalid JSON.');
   }
 };
 
@@ -136,11 +136,11 @@ const validateFileArguments = (args: JsonRecord): { path: string; ref: string } 
 
 const fileContent = (value: unknown): string => {
   if (!isRecord(value) || typeof value.content !== 'string' || value.encoding !== 'base64') {
-    throw new Error('Independent GitHub file response is not supported base64 text content.');
+    throw new Error('GitHub source-readback file response is not supported base64 text content.');
   }
   const compact = value.content.replace(/\s/g, '');
   if (compact.length > Math.ceil(MAX_RESPONSE_BYTES * 4 / 3)) {
-    throw new Error('Independent GitHub file exceeded the configured limit.');
+    throw new Error('GitHub source-readback file exceeded the configured limit.');
   }
   return Buffer.from(compact, 'base64').toString('utf8');
 };
@@ -189,7 +189,7 @@ export async function verifyGithubToolResult(
     const source = await readJson(fetchImpl, sourceUrl, readToken);
     if (!isRecord(source) || source.ref !== 'refs/heads/' + branch ||
         !isRecord(source.object) || typeof source.object.sha !== 'string') {
-      throw new Error('Independent GitHub branch evidence is invalid.');
+      throw new Error('GitHub source-readback branch evidence is invalid.');
     }
     if (!isRecord(executedResult)) throw new Error('GitHub branch execution result is invalid.');
     sourceProjection = { ref: source.ref, sha: source.object.sha };
@@ -197,14 +197,14 @@ export async function verifyGithubToolResult(
   } else if (toolName === 'github_update_file') {
     const branch = normalizeAutopilotWriteBranch(args.branch);
     if (!isAllowedAutopilotWritePath(args.path)) {
-      throw new Error('Independent verification path is outside the Autopilot maintenance scope.');
+      throw new Error('GitHub source-readback path is outside the Autopilot maintenance scope.');
     }
     const path = args.path as string;
     sourceUrl += '/contents/' + path.split('/').map(encodeURIComponent).join('/') + '?' +
       new URLSearchParams({ ref: branch }).toString();
     const source = await readJson(fetchImpl, sourceUrl, readToken);
     if (!isRecord(source) || source.path !== path || typeof source.sha !== 'string') {
-      throw new Error('Independent GitHub file-update evidence is invalid.');
+      throw new Error('GitHub source-readback file-update evidence is invalid.');
     }
     if (!isRecord(executedResult) || !isRecord(executedResult.content)) {
       throw new Error('GitHub file-update execution result is invalid.');
@@ -229,7 +229,7 @@ export async function verifyGithubToolResult(
           typeof value.draft !== 'boolean' || typeof value.html_url !== 'string' ||
           !isRecord(value.head) || value.head.ref !== branch ||
           !isRecord(value.base) || value.base.ref !== 'main') {
-        throw new Error('Independent GitHub pull-request evidence is invalid.');
+        throw new Error('GitHub source-readback pull-request evidence is invalid.');
       }
       return {
         number: value.number,
@@ -261,7 +261,7 @@ export async function verifyGithubToolResult(
     sourceProjection = summarizeSource(source);
     executionProjection = summarizeExecution(executedResult);
   } else {
-    throw new Error('No independent verifier exists for this GitHub tool.');
+    throw new Error('No GitHub source-readback verifier exists for this tool.');
   }
 
   const sourceSha256 = sha256(sourceProjection);
@@ -274,6 +274,6 @@ export async function verifyGithubToolResult(
     verifiedAt: new Date().toISOString(),
     sourceSha256,
     executionSha256,
-    ...(verified ? {} : { reason: 'independent-source-mismatch' }),
+    ...(verified ? {} : { reason: 'github-source-readback-mismatch' }),
   };
 }

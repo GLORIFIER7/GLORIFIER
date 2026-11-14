@@ -608,7 +608,7 @@ export async function completeAutopilotMissionStep(
   const currentTime = timestamp(now);
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
-  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-independent-read-v1' ||
+  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-source-readback-v1' ||
       !isTrustedGithubEvidenceUrl(verification.sourceUrl) || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
       Date.parse(verification.verifiedAt) > Date.parse(currentTime) ||
       !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||

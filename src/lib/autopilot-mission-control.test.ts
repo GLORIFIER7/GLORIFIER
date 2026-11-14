@@ -316,7 +316,7 @@ test('Autopilot stores independent verification before marking a read-only missi
   assert.equal(started.mission.steps[0].attemptCount, 1);
   const proof = {
     status: 'verified' as const,
-    verifierId: 'github-rest-independent-read-v1',
+    verifierId: 'github-rest-source-readback-v1',
     sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
     verifiedAt: '2026-11-13T08:04:00.000Z',
     sourceSha256: 'a'.repeat(64),

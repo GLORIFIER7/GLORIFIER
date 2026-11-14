@@ -19,7 +19,7 @@ test('Autopilot resolves only concrete read-only GitHub adapter capabilities', (
   assert.throws(() => normalizeGithubToolInvocation('github.list_workflow_runs', { per_page: 100 }), /between 1 and 20/);
 });
 
-test('Autopilot execution requires independent verification before returning success', async () => {
+test('Autopilot execution requires GitHub source readback before returning success', async () => {
   const result = await executeAutopilotToolStep('github.get_repository', {}, {
     adapter: async (toolName, args) => {
       assert.equal(toolName, 'github_get_repository');
@@ -28,7 +28,7 @@ test('Autopilot execution requires independent verification before returning suc
     },
     verifier: async (toolName, args, output) => ({
       verified: true,
-      verifierId: 'github-rest-independent-read-v1',
+      verifierId: 'github-rest-source-readback-v1',
       sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
       verifiedAt: '2026-11-13T09:00:00.000Z',
       sourceSha256: 'a'.repeat(64),
@@ -40,24 +40,41 @@ test('Autopilot execution requires independent verification before returning suc
   assert.match(result.executionSha256, /^[a-f0-9]{64}$/);
 });
 
-test('Autopilot refuses to treat a tool response as verified when the independent check fails', async () => {
+test('Autopilot refuses to treat a tool response as verified when GitHub source readback mismatches', async () => {
   await assert.rejects(
     () => executeAutopilotToolStep('github.get_repository', {}, {
       adapter: async () => ({ full_name: 'GLORIFIER7/GLORIFIER' }),
       verifier: async () => ({
         verified: false,
-        verifierId: 'github-rest-independent-read-v1',
+        verifierId: 'github-rest-source-readback-v1',
         sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
         verifiedAt: '2026-11-13T09:00:00.000Z',
         sourceSha256: 'b'.repeat(64),
         executionSha256: 'a'.repeat(64),
-        reason: 'independent-source-mismatch',
+        reason: 'github-source-readback-mismatch',
       }),
     }),
-    /independent evidence verification failed/,
+    /GitHub source-readback verification failed/,
   );
 });
 
+
+test('Autopilot rejects an unrecognized verifier identity even when readback hashes match', async () => {
+  await assert.rejects(
+    () => executeAutopilotToolStep('github.get_repository', {}, {
+      adapter: async () => ({ id: 1377237797, full_name: 'GLORIFIER7/GLORIFIER', default_branch: 'main' }),
+      verifier: async () => ({
+        verified: true,
+        verifierId: 'unrecognized-verifier-v1',
+        sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
+        verifiedAt: '2026-11-13T09:00:00.000Z',
+        sourceSha256: 'a'.repeat(64),
+        executionSha256: 'a'.repeat(64),
+      }),
+    }),
+    /GitHub source-readback verification failed/,
+  );
+});
 
 test('Autopilot normalizes only reversible branch-scoped GitHub write capabilities', () => {
   assert.deepEqual(normalizeGithubToolInvocation('github.create_branch', {
@@ -93,7 +110,7 @@ test('Autopilot normalizes only reversible branch-scoped GitHub write capabiliti
   }), /autopilot branch/);
 });
 
-test('Autopilot write execution also requires matching independent GitHub source evidence', async () => {
+test('Autopilot write execution also requires matching GitHub source readback', async () => {
   const result = await executeAutopilotToolStep('github.create_branch', {
     branch: 'autopilot/mission-123', base_ref: 'main',
   }, {
@@ -104,7 +121,7 @@ test('Autopilot write execution also requires matching independent GitHub source
     },
     verifier: async (toolName, args, output) => ({
       verified: true,
-      verifierId: 'github-rest-independent-read-v1',
+      verifierId: 'github-rest-source-readback-v1',
       sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/git/ref/heads/autopilot/mission-123',
       verifiedAt: '2026-11-13T09:00:00.000Z',
       sourceSha256: 'c'.repeat(64),
