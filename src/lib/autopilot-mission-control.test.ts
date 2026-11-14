@@ -300,7 +300,7 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
 });
 
 
-test('Autopilot stores independent verification before marking a read-only mission verified', async () => {
+test('Autopilot stores GitHub source readback before marking a read-only mission verified', async () => {
   const store = new MemoryMissionStore();
   await createAutopilotMission(store, {
     requester: 'owner',

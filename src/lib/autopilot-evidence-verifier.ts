@@ -126,10 +126,10 @@ const validateFileArguments = (args: JsonRecord): { path: string; ref: string } 
   const ref = typeof args.ref === 'string' ? args.ref : 'main';
   if (!path || path.length > 200 || path.startsWith('/') || path.includes('\\') || path.includes('\0') ||
       path.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
-    throw new Error('Invalid repository-relative file path for independent verification.');
+    throw new Error('Invalid repository-relative file path for GitHub source readback.');
   }
   if (!ref || ref.length > 128 || !/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes('..')) {
-    throw new Error('Invalid Git reference for independent verification.');
+    throw new Error('Invalid Git reference for GitHub source readback.');
   }
   return { path, ref };
 };
