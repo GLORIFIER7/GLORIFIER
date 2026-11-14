@@ -336,6 +336,18 @@
       "scannerStatus": "active"
     },
     {
+      "id": "nist-agent-identity-design-tenets",
+      "authority": "NIST",
+      "domain": "ai",
+      "url": "https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems",
+      "claimsAllowed": [
+        "agent-identity-delegation"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "nist-ai-rmf",
       "authority": "NIST",
       "domain": "ai",
