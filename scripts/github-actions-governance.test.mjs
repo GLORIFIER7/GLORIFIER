@@ -117,17 +117,17 @@ test('live PostgreSQL maintenance workflows explicitly enable verified productio
   for (const [label, workflow, stepName] of cases) {
     const start = workflow.indexOf(`      - name: ${stepName}`);
     assert.ok(start >= 0, `${label} task step must exist`);
-    const end = workflow.indexOf('\\n      - name: ', start + 1);
+    const end = workflow.indexOf('\n      - name: ', start + 1);
     const step = workflow.slice(start, end < 0 ? undefined : end);
 
     assert.match(
       step,
-      /DATABASE_URL:\\s*\\$\\{\\{\\s*secrets\\.DATABASE_URL\\s*\\}\\}/,
+      /DATABASE_URL:\s*\$\{\{\s*secrets\.DATABASE_URL\s*\}\}/,
       `${label} must use the repository DATABASE_URL secret`,
     );
     assert.match(
       step,
-      /NODE_ENV:\\s*production/,
+      /NODE_ENV:\s*production/,
       `${label} must select the verified production PostgreSQL TLS policy`,
     );
   }
