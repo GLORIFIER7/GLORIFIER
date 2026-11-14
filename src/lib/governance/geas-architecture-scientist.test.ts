@@ -16,6 +16,7 @@ import {
   createSourceFetchContext,
   reuseNotModifiedSourceObservation,
   stripHtml,
+  stripHtmlForEvidence,
   isTrustedArchitectureSourceUrl,
   isTrustedCuratedRedirectTarget,
   formatCuratedRedirectTargetDiagnostic,
@@ -627,6 +628,85 @@ if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cac
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
 if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
 if (stripHtml('<main>  alpha &amp; beta </main>') !== 'alpha and beta') throw new Error('HTML normalization failed');
+
+const semanticEvidenceHtml = [
+  '<header><nav>Security Reliability Cost Sign in</nav></header>',
+  '<main><article><h1>Cloud architecture</h1>',
+  '<p>The Well-Architected Framework treats security, reliability and cost optimization as design pillars.</p>',
+  '</article></main><footer>About AWS Careers Privacy</footer>',
+].join('');
+const semanticEvidenceText = stripHtmlForEvidence(semanticEvidenceHtml);
+if (semanticEvidenceText.includes('Sign in')
+    || semanticEvidenceText.includes('About AWS')
+    || findEarliestKeywordIndex(semanticEvidenceText, ['security', 'reliability', 'cost'])
+      !== semanticEvidenceText.toLowerCase().indexOf('security')) {
+  throw new Error('evidence extraction must prefer semantic main content over header and footer navigation');
+}
+
+const fallbackEvidenceHtml = [
+  '<header>News and announcements</header>',
+  '<div role="navigation">Home Docs Search Projects</div>',
+  '<aside>Related links and categories</aside>',
+  '<section><p>Delegated authority must attenuate at each agent boundary.</p></section>',
+  '<footer>Contact us Privacy Policy</footer>',
+].join('');
+const fallbackEvidenceText = stripHtmlForEvidence(fallbackEvidenceHtml);
+if (fallbackEvidenceText.includes('News and announcements')
+    || fallbackEvidenceText.includes('Home Docs Search Projects')
+    || fallbackEvidenceText.includes('Related links')
+    || !fallbackEvidenceText.includes('Delegated authority must attenuate')) {
+  throw new Error('evidence extraction must remove semantic navigation and preserve substantive fallback content');
+}
+
+const staleNavigationExcerpt = 'AWS homepage News and announcements AWS blog About AWS and product navigation';
+if (shouldReuseSourceObservation({
+  configuredUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  cachedUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  evidenceExcerpt: staleNavigationExcerpt,
+  evidenceStatus: 'content-matched',
+  cadenceHours: 336,
+  observedAt: '2026-11-14T03:00:00.000Z',
+  nowMs: Date.parse('2026-11-14T04:00:00.000Z'),
+})) {
+  throw new Error('stale navigation-only cached evidence must be invalidated for a full source refetch');
+}
+if (Object.keys(buildConditionalRequestHeaders(
+  'https://aws.amazon.com/architecture/well-architected/',
+  {
+    observed_at: '2026-11-14T03:00:00.000Z',
+    ok: true,
+    status: 200,
+    content_hash: 'a'.repeat(64),
+    evidence_excerpt: staleNavigationExcerpt,
+    evidence_status: 'content-matched',
+    final_url: 'https://aws.amazon.com/architecture/well-architected/',
+    etag: '"navigation-v1"',
+    source_url: 'https://aws.amazon.com/architecture/well-architected/',
+  },
+  Date.parse('2026-11-14T04:00:00.000Z'),
+)).length !== 0) {
+  throw new Error('navigation-only cached evidence must not supply conditional validators');
+}
+
+const staleNavigationObservation: SourceObservation = {
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  evidenceExcerpt: staleNavigationExcerpt,
+  evidenceStatus: 'content-matched',
+};
+if (buildObservedArchitecturePatterns(
+  [staleNavigationObservation],
+  staleNavigationObservation.observedAt,
+).some((pattern) => pattern.id === 'cross-cutting-cloud-controls')) {
+  throw new Error('navigation-only cached observations must not create architecture analysis patterns');
+}
 
 const cachedObservation = {
   observed_at: new Date(0).toISOString(),
