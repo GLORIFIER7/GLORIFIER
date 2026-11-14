@@ -760,6 +760,31 @@ if (nestedChromeText.includes('Home')
   throw new Error('balanced chrome removal must handle nested elements and multiline navigation-role attributes');
 }
 
+const unquotedNavigationHtml = [
+  '<div role=navigation>Home Docs Search Projects</div>',
+  '<section><p>Delegated authority must attenuate at each agent boundary.</p></section>',
+].join('');
+const unquotedNavigationText = stripHtmlForEvidence(unquotedNavigationHtml);
+if (unquotedNavigationText.includes('Home Docs Search Projects')
+    || !unquotedNavigationText.includes('Delegated authority must attenuate')) {
+  throw new Error('unquoted role=navigation attributes must be removed without losing substantive fallback content');
+}
+
+const dataRoleNavigationHtml = '<div data-role=navigation>Data-role metadata must remain ordinary content.</div>';
+const dataRoleNavigationText = stripHtmlForEvidence(dataRoleNavigationHtml);
+if (!dataRoleNavigationText.includes('Data-role metadata must remain ordinary content.')) {
+  throw new Error('data-role must not be mistaken for the ARIA role attribute');
+}
+
+const emptySemanticRegionHtml = [
+  '<section><p>Outside the selected semantic region must not become evidence.</p></section>',
+  '<main><nav>Navigation-only content.</nav></main>',
+].join('');
+const emptySemanticRegionText = stripHtmlForEvidence(emptySemanticRegionHtml);
+if (emptySemanticRegionText !== '') {
+  throw new Error('an empty semantic main region must not fall back to unrelated whole-page text');
+}
+
 const rawTextChromeHtml = [
   '<script>for (let i = 0; i < n; i++) { x(); } const example = "<script src=x>"; document.write("<script>");</script>',
   '<style>.badge::after { content: "<style>"; }</style>',
