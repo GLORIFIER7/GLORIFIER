@@ -524,7 +524,7 @@ const approvedCuratedSourceUrls = [
   'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
-  'https://focus.finops.org/docs/specification/v1-4/',
+  'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/',
   'https://focus.finops.org/focus-1-5-release-scope/',
   'https://docs.nats.io/concepts/jetstream',
   'https://www.rfc-editor.org/rfc/rfc9111.html',
