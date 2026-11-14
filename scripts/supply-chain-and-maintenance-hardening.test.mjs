@@ -355,7 +355,7 @@ test('Gemini PR review requires an explicit target PR and a pinned CLI release',
   );
   assert.match(geminiReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
   assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
-  assert.match(geminiReviewWorkflow, /gemini_cli_version: v0\.68\.0/);
+  assert.match(geminiReviewWorkflow, /gemini_cli_version: 0\.68\.0/);
   assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
 });
 
@@ -415,4 +415,10 @@ test('continuous improvement installs dependencies from the committed npm lockfi
   assertPinnedAction(source, 'actions/checkout', '3d3c42e5aac5ba805825da76410c181273ba90b1');
   assertPinnedAction(source, 'actions/setup-node', '949feb2413d6458794dcd2491c4babbbce0c15c1');
   assert.doesNotMatch(source, /run:\s*npm install\b/);
+});
+
+test('Gemini manual review pins a numeric CLI semver accepted by the npm installer', () => {
+  const version = geminiReviewWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  assert.equal(version, '0.68.0');
+  assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
