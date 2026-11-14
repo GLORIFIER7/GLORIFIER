@@ -572,6 +572,21 @@ export const stripHtml = (input: string): string => input
   .replace(/\s+/g, ' ')
   .trim();
 
+/**
+ * Extract evidence from the document's semantic content region, not site chrome.
+ * Prefer <main>, then <article>; otherwise remove common navigation/sidebar/footer
+ * elements before normalizing text. The full-page hash still uses stripHtml().
+ */
+export const stripHtmlForEvidence = (input: string): string => {
+  const mainContent = /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(input)?.[1];
+  const articleContent = /<article\b[^>]*>([\s\S]*?)<\/article\s*>/i.exec(input)?.[1];
+  const content = mainContent ?? articleContent ?? input;
+  const withoutNavigation = content
+    .replace(/<([a-z][\\w:-]*)\b(?=[^>]*\\brole\\s*=\\s*["']navigation["'])[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gi, ' ')
+    .replace(/<(nav|header|footer|aside|svg|noscript|template)\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gi, ' ');
+  return stripHtml(withoutNavigation);
+};
+
 export const isClaimSupportedEvidence = (
   status: EvidenceStatus,
   source?: SourceObservation,
@@ -760,8 +775,30 @@ const isSuccessfulHttpStatus = (status: number | null): boolean =>
 const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
+const PAGE_CHROME_MARKERS = [
+  'skip to main content',
+  'unauthorized frame window',
+  'you are being redirected to',
+  'news and announcements',
+  'member portal',
+  'initializing search',
+  'the opentelemetry logo',
+  'toggle theme light dark auto',
+  'home docs specification adoption',
+  'join search cncf projects',
+  'latest updates contacts',
+  'careers hr-resources',
+] as const;
+
+/** Reject known navigation/interstitial excerpts, including stale cached observations. */
+const isSubstantiveEvidenceExcerpt = (excerpt: string | null): excerpt is string => {
+  if (typeof excerpt !== 'string' || excerpt.trim().length === 0) return false;
+  const normalized = excerpt.toLowerCase();
+  return !PAGE_CHROME_MARKERS.some((marker) => normalized.includes(marker));
+};
+
 const isValidContentMatchedExcerpt = (excerpt: string | null): boolean =>
-  typeof excerpt === 'string' && excerpt.trim().length > 0;
+  isSubstantiveEvidenceExcerpt(excerpt);
 
 const isValidSourceAvailableExcerpt = (excerpt: string | null): boolean =>
   excerpt === null || excerpt.trim().length === 0;
@@ -1004,9 +1041,10 @@ const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
   text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
 
 const extractEvidence = (body: string, keywords: string[]): string | null => {
-  const text = stripHtml(body);
+  const text = stripHtmlForEvidence(body);
   const matchIndex = findEarliestKeywordIndex(text, keywords);
-  return matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+  const excerpt = matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+  return isSubstantiveEvidenceExcerpt(excerpt) ? excerpt : null;
 };
 
 const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
@@ -1412,8 +1450,7 @@ const isPatternSourceObservation = (
   source?.ok === true
   && (source.evidenceStatus === 'content-matched'
     || isClaimSupportedEvidence(source.evidenceStatus, source, patternId, authenticate, nowMs))
-  && typeof source.evidenceExcerpt === 'string'
-  && source.evidenceExcerpt.trim().length > 0;
+  && isSubstantiveEvidenceExcerpt(source.evidenceExcerpt);
 
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
