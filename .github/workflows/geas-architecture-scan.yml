@@ -44,6 +44,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Capture tested merge base
+        id: tested-base
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        shell: bash
+        run: |
+          base_sha="$(git cat-file -p "$GITHUB_SHA" | sed -n 's/^parent //p' | head -n 1)"
+          [[ "$base_sha" =~ ^[a-f0-9]{40}$ ]] || { echo "Unable to resolve tested merge base" >&2; exit 1; }
+          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -89,8 +98,11 @@ jobs:
         env:
           GEAS_SCAN_OUTPUT_DIR: artifacts/geas-architecture
           GEAS_SCAN_PERSIST: 'false'
+          GEAS_TESTED_BASE_SHA: ${{ steps.tested-base.outputs.sha }}
 
       - name: Validate scan safety and run provenance invariants
+        env:
+          GEAS_TESTED_BASE_SHA: ${{ steps.tested-base.outputs.sha }}
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -98,11 +110,14 @@ jobs:
           const provenance = result.runProvenance;
           if (result.irreversibleChangesExecuted !== false) process.exit(1);
           if (result.sourcePolicyVersion !== 'GEAS-AUTHORITY-2') process.exit(1);
-          if (!provenance || provenance.testedCommitSha !== process.env.GITHUB_SHA) process.exit(1);
+          if (!provenance || provenance.schemaVersion !== 'GEAS-RUN-PROVENANCE-2') process.exit(1);
+          if (provenance.testedCommitSha !== process.env.GITHUB_SHA) process.exit(1);
           if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
             const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
             if (provenance.sourceCommitSha !== event.pull_request?.head?.sha) process.exit(1);
             if (provenance.baseCommitSha !== event.pull_request?.base?.sha) process.exit(1);
+            if (!/^[a-f0-9]{40}$/.test(process.env.GEAS_TESTED_BASE_SHA || '')) process.exit(1);
+            if (provenance.testedBaseCommitSha !== process.env.GEAS_TESTED_BASE_SHA) process.exit(1);
             if (provenance.pullRequestNumber !== event.pull_request?.number) process.exit(1);
           }
           console.log('GEAS scan safety and run-provenance invariants verified');

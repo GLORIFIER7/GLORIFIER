@@ -151,6 +151,18 @@
       "scannerStatus": "active"
     },
     {
+      "id": "google-bigquery-external-data-sources",
+      "authority": "Google Cloud",
+      "domain": "data",
+      "url": "https://docs.cloud.google.com/bigquery/docs/external-data-sources",
+      "claimsAllowed": [
+        "federated-data-access"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "google-sre-workbook",
       "authority": "Google SRE",
       "domain": "reliability",
@@ -328,6 +340,18 @@
       "authority": "NIST",
       "domain": "ai",
       "url": "https://www.nist.gov/super-intelligence/si-agent-standards-initiative",
+      "claimsAllowed": [
+        "agent-identity-delegation"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
+      "id": "nist-agent-identity-design-tenets",
+      "authority": "NIST",
+      "domain": "ai",
+      "url": "https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems",
       "claimsAllowed": [
         "agent-identity-delegation"
       ],

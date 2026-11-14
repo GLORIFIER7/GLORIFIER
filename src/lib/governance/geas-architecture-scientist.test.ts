@@ -12,6 +12,7 @@ import {
   shouldReuseSourceObservation,
   buildConditionalRequestHeaders,
   buildArchitectureEvidence,
+  buildObservedArchitecturePatterns,
   createSourceFetchContext,
   reuseNotModifiedSourceObservation,
   stripHtml,
@@ -19,6 +20,7 @@ import {
   isTrustedCuratedRedirectTarget,
   formatCuratedRedirectTargetDiagnostic,
   findEarliestKeywordIndex,
+  getSourcePatternKeywords,
   type ArchitectureDomain,
   type ArchitecturePattern,
   type SourceObservation,
@@ -36,10 +38,99 @@ const googleArchitectureSource = model.sources.find((source) => source.id === 'g
 if (googleArchitectureSource?.url !== 'https://docs.cloud.google.com/architecture/framework') {
   throw new Error('Google Cloud architecture source must use the verified canonical Well-Architected Framework URL');
 }
+const googleBigQuerySource = model.sources.find((source) => source.id === 'google-bigquery-external-data-sources');
+if (!googleBigQuerySource
+    || googleBigQuerySource.url !== 'https://docs.cloud.google.com/bigquery/docs/external-data-sources'
+    || googleBigQuerySource.cadenceHours !== 336
+    || !googleBigQuerySource.patternIds.includes('federated-data-access')
+    || !googleBigQuerySource.claimsAllowed.includes('federated-data-access')) {
+  throw new Error('Google BigQuery external-data source must be registered with an exact URL, 14-day cadence and explicit federated-data association');
+}
+const googleArchitectureKeywords = getSourcePatternKeywords('google-architecture');
+const googleArchitectureNavigation = 'Google Cloud Architecture Center | Data analytics and pipelines | Access and resources management';
+if (googleArchitectureKeywords.includes('data')
+    || googleArchitectureKeywords.includes('access')
+    || googleArchitectureKeywords.includes('architecture')
+    || findEarliestKeywordIndex(googleArchitectureNavigation, googleArchitectureKeywords) >= 0) {
+  throw new Error('Google Cloud Well-Architected source matching must not use generic navigation terms');
+}
+const googleFederationKeywords = getSourcePatternKeywords('google-bigquery-external-data-sources');
+const googleFederationText = 'Introduction to external data sources | BigQuery. BigQuery can query data directly without first migrating it. BigLake tables use access delegation and federated queries.';
+const googleFederationMatch = findEarliestKeywordIndex(googleFederationText, googleFederationKeywords);
+if (!googleFederationKeywords.includes('without first migrating')
+    || !googleFederationKeywords.includes('access delegation')
+    || googleFederationKeywords.includes('federated queries')
+    || googleFederationKeywords.includes('external data sources')
+    || googleFederationMatch !== googleFederationText.indexOf('without first migrating')) {
+  throw new Error('Google secondary-source matching must select substantive federation guidance rather than a generic page title');
+}
+const googleSecondaryObservation: SourceObservation = {
+  sourceId: 'google-bigquery-external-data-sources',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://docs.cloud.google.com/bigquery/docs/external-data-sources',
+  evidenceExcerpt: 'BigQuery can query data directly without first migrating it. BigLake tables use access delegation.',
+  evidenceStatus: 'content-matched',
+};
+const googleSecondaryPattern = buildObservedArchitecturePatterns(
+  [googleSecondaryObservation],
+  googleSecondaryObservation.observedAt,
+).find((pattern) => pattern.id === 'federated-data-access');
+if (!googleSecondaryPattern
+    || googleSecondaryPattern.sourceId !== 'google-bigquery-external-data-sources'
+    || googleSecondaryPattern.evidenceClass !== 'analysis') {
+  throw new Error('a content-matched curated secondary source must preserve its analysis pattern when the primary source is unavailable');
+}
+const googlePrimaryObservation: SourceObservation = {
+  ...googleSecondaryObservation,
+  sourceId: 'google-architecture',
+  finalUrl: 'https://docs.cloud.google.com/architecture/framework',
+  evidenceExcerpt: 'Primary Google Cloud architecture guidance for federated data access.',
+};
+const googlePrimaryPreferred = buildObservedArchitecturePatterns(
+  [googleSecondaryObservation, googlePrimaryObservation],
+  googleSecondaryObservation.observedAt,
+).find((pattern) => pattern.id === 'federated-data-access');
+if (googlePrimaryPreferred?.sourceId !== 'google-architecture') {
+  throw new Error('the primary curated source must remain preferred when its content-matched evidence is available');
+}
+const googleSourceAvailableOnly: SourceObservation = {
+  ...googleSecondaryObservation,
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+};
+if (buildObservedArchitecturePatterns(
+  [googleSourceAvailableOnly],
+  googleSourceAvailableOnly.observedAt,
+).some((pattern) => pattern.id === 'federated-data-access')) {
+  throw new Error('source availability alone must never instantiate a secondary-source architecture pattern');
+}
 
 const nistAiAgentsSource = model.sources.find((source) => source.id === 'nist-ai-agents');
 if (nistAiAgentsSource?.url !== 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative') {
   throw new Error('NIST AI Agent Standards Initiative must use the current canonical SI Agent Standards Initiative URL');
+}
+
+const nistAgentIdentityTenetsSource = model.sources.find((source) => source.id === 'nist-agent-identity-design-tenets');
+if (!nistAgentIdentityTenetsSource
+    || nistAgentIdentityTenetsSource.url !== 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems'
+    || nistAgentIdentityTenetsSource.cadenceHours !== 336
+    || !nistAgentIdentityTenetsSource.patternIds.includes('agent-identity-delegation')
+    || !nistAgentIdentityTenetsSource.claimsAllowed.includes('agent-identity-delegation')) {
+  throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and explicit source-policy association');
+}
+const nistIdentityTenetKeywords = getSourcePatternKeywords('nist-agent-identity-design-tenets');
+const nistIdentityTenetText = 'Agent Identity Management Systems | NIST. Distinct Agent Identification requires cryptographically verifiable agent identity.';
+const nistIdentityTenetMatch = findEarliestKeywordIndex(nistIdentityTenetText, nistIdentityTenetKeywords);
+if (!nistIdentityTenetKeywords.includes('Distinct Agent Identification')
+    || nistIdentityTenetKeywords.includes('agent')
+    || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf('Distinct Agent Identification')) {
+  throw new Error('NIST secondary-source matching must select substantive design-tenet text rather than generic page chrome');
+}
+if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
+  throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
 
 const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
@@ -417,6 +508,8 @@ if (findEarliestKeywordIndex('resource enforcement and A2A-like or resource-A2A 
 const approvedCuratedSourceUrls = [
   'https://www.nist.gov/itl/ai-risk-management-framework',
   'https://www.nist.gov/super-intelligence/si-agent-standards-initiative',
+  'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
+  'https://docs.cloud.google.com/bigquery/docs/external-data-sources',
   'https://owaspacs.org/docs/acs/',
   'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
@@ -443,6 +536,8 @@ const rejectedCuratedSourceUrls = [
   'https://www.nist.gov:8443/forged',
   'file:///etc/passwd',
   'https://www.nist.gov/internal',
+  'https://www.nist.gov/blogs/cybersecurity-insights/unregistered-agent-identity-design-tenets',
+  'https://docs.cloud.google.com/bigquery/docs/forged-external-data-sources',
   'https://owaspacs.org/docs/unregistered/',
   'https://docs.nats.io/unregistered/',
   'https://www.rfc-editor.org/rfc/rfc9110.html',

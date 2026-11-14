@@ -1,5 +1,5 @@
 export interface GeasRunProvenance {
-  schemaVersion: 'GEAS-RUN-PROVENANCE-1';
+  schemaVersion: 'GEAS-RUN-PROVENANCE-2';
   eventName: string | null;
   workflowName: string | null;
   repository: string | null;
@@ -11,8 +11,10 @@ export interface GeasRunProvenance {
   testedCommitSha: string | null;
   /** The PR source head SHA, or the tested commit for non-PR events. */
   sourceCommitSha: string | null;
-  /** The target branch SHA captured in the pull_request event. */
+  /** The target branch SHA captured in the pull_request event payload. */
   baseCommitSha: string | null;
+  /** The first parent of the tested synthetic merge commit, read from the checked-out commit object. */
+  testedBaseCommitSha: string | null;
   pullRequestNumber: number | null;
 }
 
@@ -57,6 +59,7 @@ export function buildGeasRunProvenance(
   const base = asRecord(pullRequest?.base);
   const headSha = isPullRequestEvent ? shaValue(head?.sha) : null;
   const baseSha = isPullRequestEvent ? shaValue(base?.sha) : null;
+  const testedBaseCommitSha = isPullRequestEvent ? shaValue(environment.GEAS_TESTED_BASE_SHA) : null;
   const numberValue = pullRequest?.number;
   const pullRequestNumber = isPullRequestEvent && typeof numberValue === 'number'
       && Number.isSafeInteger(numberValue) && numberValue > 0
@@ -77,7 +80,7 @@ export function buildGeasRunProvenance(
   }
 
   return {
-    schemaVersion: 'GEAS-RUN-PROVENANCE-1',
+    schemaVersion: 'GEAS-RUN-PROVENANCE-2',
     eventName,
     workflowName,
     repository,
@@ -88,6 +91,7 @@ export function buildGeasRunProvenance(
     testedCommitSha,
     sourceCommitSha: isPullRequestEvent ? headSha : testedCommitSha,
     baseCommitSha: isPullRequestEvent ? baseSha : null,
+    testedBaseCommitSha,
     pullRequestNumber,
   };
 }

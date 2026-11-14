@@ -321,9 +321,11 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('microsoft-architecture', 'Microsoft', 'enterprise-architecture', 'https://learn.microsoft.com/en-us/azure/architecture/', ['cross-cutting-cloud-controls'], 336, ["cross-cutting-cloud-controls"]),
   createArchitectureSource('aws-well-architected', 'AWS', 'cloud', 'https://aws.amazon.com/architecture/well-architected/', ['cross-cutting-cloud-controls', 'durable-agent-execution'], 336, ["cross-cutting-cloud-controls"]),
   createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/framework', ['federated-data-access'], 336, ["federated-data-access"]),
+  createArchitectureSource('google-bigquery-external-data-sources', 'Google Cloud', 'data', 'https://docs.cloud.google.com/bigquery/docs/external-data-sources', ['federated-data-access'], 336, ["federated-data-access"]),
   createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720, ["ai-risk-governance","lifecycle-risk-management"]),
   createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720, ["ai-risk-governance","lifecycle-risk-management","governance-oversight"]),
   createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
+  createArchitectureSource('nist-agent-identity-design-tenets', 'NIST', 'ai', 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
   createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336, ["identity-risk-controls"]),
   createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336, ["software-supply-chain"]),
   createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336, ["vendor-neutral-telemetry"]),
@@ -463,7 +465,7 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   definePattern('token-lifecycle-protection', 'Token lifecycle protection', 'cybersecurity', 'nist-token-protection', 'Protect tokens and assertions against forgery, theft and misuse with verification, key management and lifecycle controls.', 'Token lifecycle contract + GEAS authorization gates', ['AUTH-01', 'SEC-01'], ['token', 'assertion', 'verification', 'key management']),
   definePattern('genai-agent-telemetry', 'GenAI agent telemetry semantics', 'observability', 'otel-genai-agents', 'Use common spans and attributes for agent creation, invocation, planning and tool execution.', 'Versioned GEAS agent telemetry contract', ['OBS-01', 'EVID-01'], ['agent', 'invoke', 'tool', 'span']),
   definePattern('zero-trust-resource-access', 'Resource-centric zero trust access', 'networking', 'nist-zero-trust', 'Authenticate and authorize subjects and devices before resource access without implicit trust from network location.', 'Per-resource GEAS capability and authorization gates', ['SEC-01', 'AUTH-01'], ['zero trust', 'resource', 'authorization', 'authentication']),
-  definePattern('federated-data-access', 'Federated data access', 'data', 'google-architecture', 'Use fit-for-purpose governed data access rather than assuming all workloads require centralized movement.', 'Data governance + provider-neutral connectors', ['DATA-01'], ['data', 'access', 'architecture']),
+  definePattern('federated-data-access', 'Federated data access', 'data', 'google-architecture', 'Use fit-for-purpose governed data access rather than assuming all workloads require centralized movement.', 'Data governance + provider-neutral connectors', ['DATA-01'], ['federated data access', 'data federation', 'access delegation', 'without first migrating']),
   definePattern('enterprise-architecture-traceability', 'Enterprise architecture traceability', 'enterprise-architecture', 'opengroup-togaf', 'Link business, information, application and technology architecture decisions to governed outcomes and traceable change.', 'GEAS architecture baseline and five-state reconciliation', ['TRACE-01', 'GOV-01'], ['architecture', 'capability', 'governance', 'traceability']),
   definePattern('oauth-security-best-practice', 'OAuth security best current practice', 'cybersecurity', 'ietf-oauth-security', 'Apply current OAuth security guidance including constrained authorization flows, secure redirect handling and token misuse defenses.', 'GEAS identity, delegation, audience and token lifecycle controls', ['AUTH-01', 'SEC-01'], ['OAuth', 'authorization', 'token', 'security']),
   definePattern('standard-api-error-contracts', 'Standard API error contracts', 'integration', 'ietf-http-problem-details', 'Use a consistent machine-readable HTTP API error representation without exposing sensitive implementation details.', 'Versioned API adapters and sanitized operational diagnostics', ['FED-01', 'OBS-01'], ['problem details', 'HTTP API', 'status', 'error']),
@@ -1245,10 +1247,43 @@ const fetchCuratedSource = async (
   return { response, finalUrl, body };
 };
 
-const getSourcePatternKeywords = (sourceId: string): string[] =>
-  PATTERN_DEFINITIONS
-    .filter((pattern) => pattern.sourceId === sourceId)
-    .flatMap((pattern) => pattern.keywords);
+const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'google-bigquery-external-data-sources': [
+    'without first migrating',
+    'access delegation',
+  ],
+  'nist-agent-identity-design-tenets': [
+    'Distinct Agent Identification',
+    'Agent Linking, Delegation & Attenuation',
+    'Least & Zero Standing Privilege',
+    'Short-Lived, Dynamic & Revocable Authorization',
+    'Human-in-the-Loop Triggers',
+    'Mandates and Constraints',
+    'Architectural Separation of Policy from Reasoning',
+    'Deterministic Access Decisions',
+    'Continuous Monitoring',
+    'Immutable Evidence',
+  ],
+};
+
+/**
+ * Resolve discovery keywords from a source's declared pattern associations.
+ * Source-specific phrases take precedence where broad pattern keywords would
+ * otherwise match navigation chrome instead of substantive source content.
+ * These excerpts remain analysis evidence, never claim verification.
+ */
+export const getSourcePatternKeywords = (sourceId: string): string[] => {
+  const source = SOURCES.find((item) => item.id === sourceId);
+  if (!source) return [];
+  const override = SOURCE_PATTERN_KEYWORD_OVERRIDES[sourceId];
+  if (override) return [...override];
+  const sourcePatternIds = new Set(source.patternIds);
+  return [...new Set(
+    PATTERN_DEFINITIONS
+      .filter((pattern) => sourcePatternIds.has(pattern.id))
+      .flatMap((pattern) => pattern.keywords),
+  )];
+};
 
 const createUnavailableSourceObservation = (
   sourceId: string,
@@ -1397,7 +1432,7 @@ const createObservedArchitecturePattern = (
   lastReviewed: source.observedAt,
 });
 
-const observedPatterns = (
+export const buildObservedArchitecturePatterns = (
   results: SourceObservation[],
   _scanCompletedAt: string,
   authenticate?: ClaimSupportAuthenticator,
@@ -1405,10 +1440,24 @@ const observedPatterns = (
 ): ArchitecturePattern[] => {
   const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
-    const source = observationsBySource.get(pattern.sourceId);
-    return isPatternSourceObservation(source, pattern.id, authenticate, nowMs)
-      ? [createObservedArchitecturePattern(pattern, source)]
-      : [];
+    const primarySource = observationsBySource.get(pattern.sourceId);
+    if (isPatternSourceObservation(primarySource, pattern.id, authenticate, nowMs)) {
+      return [createObservedArchitecturePattern(pattern, primarySource)];
+    }
+
+    // A curated secondary source may preserve an analysis pattern when its primary source
+    // is unavailable. Secondary sources never promote a pattern to observed-fact here.
+    const secondarySources = SOURCES
+      .filter((source) => source.id !== pattern.sourceId && source.patternIds.includes(pattern.id))
+      .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    for (const secondarySource of secondarySources) {
+      const observation = observationsBySource.get(secondarySource.id);
+      if (observation?.evidenceStatus === 'content-matched'
+          && isPatternSourceObservation(observation, pattern.id, undefined, nowMs)) {
+        return [createObservedArchitecturePattern(pattern, observation)];
+      }
+    }
+    return [];
   });
 };
 
@@ -1834,7 +1883,7 @@ const buildArchitectureScanResult = (
   sources: SourceObservation[],
 ): ArchitectureScanResult => {
   const completedAt = new Date().toISOString();
-  const patterns = observedPatterns(sources, completedAt);
+  const patterns = buildObservedArchitecturePatterns(sources, completedAt);
   const evidence = buildArchitectureEvidence(sources);
   return {
     scanId,
