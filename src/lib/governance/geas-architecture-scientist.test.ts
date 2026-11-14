@@ -683,6 +683,18 @@ if (nestedChromeText.includes('Home')
   throw new Error('balanced chrome removal must handle nested elements and multiline navigation-role attributes');
 }
 
+const rawTextChromeHtml = [
+  '<script>const example = "<script src=x>"; document.write("<script>");</script>',
+  '<style>.badge::after { content: "<style>"; }</style>',
+  '<section><p>Runtime evidence must be independently authenticated and timestamped.</p></section>',
+].join('');
+const rawTextEvidence = stripHtmlForEvidence(rawTextChromeHtml);
+if (rawTextEvidence.includes('const example')
+    || rawTextEvidence.includes('.badge::after')
+    || !rawTextEvidence.includes('Runtime evidence must be independently authenticated')) {
+  throw new Error('script/style text containing tag-like strings must not hide later substantive evidence');
+}
+
 const staleNavigationExcerpt = 'AWS homepage News and announcements AWS blog About AWS and product navigation';
 if (shouldReuseSourceObservation({
   configuredUrl: 'https://aws.amazon.com/architecture/well-architected/',
