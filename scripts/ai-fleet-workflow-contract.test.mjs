@@ -412,7 +412,8 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
   assert.ok(geminiCollaboratorWorkflow.includes('gemini_model: gemini-3.8-flash'));
-  assert.ok(geminiCollaboratorWorkflow.includes('gemini_cli_version: v0.68.0'));
+  const geminiCliVersion = geminiCollaboratorWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
   assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
   assert.ok(geminiCollaboratorWorkflow.includes('node --test scripts/ai-fleet-workflow-contract.test.mjs'));
@@ -694,4 +695,20 @@ test('Code Guardian manual paid-inference execution is restricted to main', () =
   assert.match(codeGuardianWorkflow, /MANUAL_PAID_INFERENCE_AUTHORIZATION: \$\{\{ inputs\.allow_paid_inference \}\}/);
   assert.match(codeGuardianWorkflow, /OPENAI_API_KEY: \$\{\{ steps\.authorization\.outputs\.enabled == 'true'/);
   assert.match(codeGuardianWorkflow, /GEMINI_API_KEY: \$\{\{ steps\.authorization\.outputs\.enabled == 'true'/);
+});
+
+
+test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
+  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
+  assert.ok(testJob, 'NEURAL CI must include its Python validation job');
+  assert.match(testJob, /uv export --locked --extra dev --no-emit-project --format requirements-txt --output-file \/tmp\/requirements\.txt/);
+  assert.match(testJob, /pip-audit --requirement \/tmp\/requirements\.txt/);
+  assert.doesNotMatch(testJob, /^\s+pip-audit\s*$/m,
+    'the audit must not inspect the installed editable glorifier-neural project itself');
+});
+
+test('Gemini collaborator pins CLI versions using npm semver rather than a Git tag', () => {
+  const version = geminiCollaboratorWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  assert.match(version ?? '', /^\d+\.\d+\.\d+$/,
+    'the action install step uses npm for plain semantic versions and GitHub source builds for v-prefixed tags');
 });
