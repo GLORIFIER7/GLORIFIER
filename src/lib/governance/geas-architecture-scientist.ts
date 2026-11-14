@@ -873,7 +873,6 @@ const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
 const PAGE_CHROME_MARKER_GROUPS: readonly (readonly string[])[] = [
-  ['skip to main content'],
   ['unauthorized frame window'],
   ['you are being redirected to'],
   ['news and announcements', 'aws blog', 'about aws'],
