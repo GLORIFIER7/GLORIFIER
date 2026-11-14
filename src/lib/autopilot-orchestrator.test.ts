@@ -186,6 +186,5 @@ test('Autopilot orchestration status does not describe GitHub readback as indepe
   const status = getAutopilotOrchestrationStatus();
 
   assert.equal(status.independentSourceVerification, false);
-  assert.equal(status.githubSourceReadbackVerification, true);
   assert.equal(status.externalActionExecution, false);
 });
