@@ -611,6 +611,16 @@ const removeHtmlChrome = (input: string): string => {
       continue;
     }
 
+    if (skipTag === 'script' || skipTag === 'style') {
+      // Script/style bodies are raw text: nested-looking tags inside strings are not elements.
+      if (closing && tag === skipTag) {
+        last = tagRe.lastIndex;
+        skipTag = null;
+        depth = 0;
+      }
+      continue;
+    }
+
     if (tag !== skipTag) continue;
     if (closing) depth -= 1;
     else if (!selfClosing) depth += 1;
