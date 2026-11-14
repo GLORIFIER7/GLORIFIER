@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyGithubToolResult } from './autopilot-evidence-verifier.ts';
 
-test('independent verifier confirms repository identity through a fresh GitHub REST read', async () => {
+test('GitHub source-readback verifier confirms repository identity through a fresh GitHub REST read', async () => {
   const result = await verifyGithubToolResult(
     'github_get_repository',
     {},
@@ -17,11 +17,11 @@ test('independent verifier confirms repository identity through a fresh GitHub R
     },
   );
   assert.equal(result.verified, true);
-  assert.equal(result.verifierId, 'github-rest-independent-read-v1');
+  assert.equal(result.verifierId, 'github-rest-source-readback-v1');
   assert.match(result.sourceSha256, /^[a-f0-9]{64}$/);
 });
 
-test('independent verifier rejects repository results that do not match the source read', async () => {
+test('GitHub source-readback verifier rejects repository results that do not match the source read', async () => {
   const result = await verifyGithubToolResult(
     'github_get_repository',
     {},
@@ -33,10 +33,10 @@ test('independent verifier rejects repository results that do not match the sour
     }),
   );
   assert.equal(result.verified, false);
-  assert.equal(result.reason, 'independent-source-mismatch');
+  assert.equal(result.reason, 'github-source-readback-mismatch');
 });
 
-test('independent verifier checks file content rather than trusting the executor artifact', async () => {
+test('GitHub source-readback verifier checks file content rather than trusting the executor artifact', async () => {
   const expected = 'safe public README content\n';
   const result = await verifyGithubToolResult(
     'github_read_file',
@@ -55,7 +55,7 @@ test('independent verifier checks file content rather than trusting the executor
 });
 
 
-test('independent verifier confirms a newly created branch from a fresh GitHub ref read', async () => {
+test('GitHub source-readback verifier confirms a newly created branch from a fresh GitHub ref read', async () => {
   const result = await verifyGithubToolResult(
     'github_create_branch',
     { branch: 'autopilot/mission-123', base_ref: 'main' },
@@ -71,7 +71,7 @@ test('independent verifier confirms a newly created branch from a fresh GitHub r
   assert.equal(result.verified, true);
 });
 
-test('independent verifier rejects file update evidence when branch content SHA differs', async () => {
+test('GitHub source-readback verifier rejects file update evidence when branch content SHA differs', async () => {
   const result = await verifyGithubToolResult(
     'github_update_file',
     { branch: 'autopilot/mission-123', path: 'src/lib/fix.ts' },
@@ -82,10 +82,10 @@ test('independent verifier rejects file update evidence when branch content SHA 
     },
   );
   assert.equal(result.verified, false);
-  assert.equal(result.reason, 'independent-source-mismatch');
+  assert.equal(result.reason, 'github-source-readback-mismatch');
 });
 
-test('independent verifier confirms a draft PR targets main and uses the expected maintenance branch', async () => {
+test('GitHub source-readback verifier confirms a draft PR targets main and uses the expected maintenance branch', async () => {
   const result = await verifyGithubToolResult(
     'github_create_pull_request',
     { branch: 'autopilot/mission-123' },
