@@ -246,6 +246,10 @@ The article describes ten design tenets: distinct agent identification; linking,
 **Implementation commits:**
 - \`58e023868a036809df15913c117238226ffad800\` — semantic evidence extraction and stale excerpt admission.
 - \`5d995788b3d905f24d62862af40e58f55ae01402\` — correct semantic navigation matcher.
-- \`2f771d2abb425c01251267c1f71d4d9983f57790\` — regression tests for semantic extraction, stale cache invalidation and pattern rejection.
+- \`2f771d2abb425c01251267c1f71d4d9983f57790\` — initial regression tests for semantic extraction, stale cache invalidation and pattern rejection.
+- \`0e73fecfbd7404828d7edd97e7680002b67e5410\` — record the auto-approved finding and evidence.
+- \`b1b4d06ff7a5c4eb8cf2c7d4b0e8be51e37d8a53\` — extend cache-invalidating markers to observed CNCF, OpenTelemetry, FinOps, NIST and Open Group page chrome.
+- \`0d874f16806c204ae264f4dddaa9650b72f0c32e\` — correct the llms.txt marker literal.
+- \`9c650d1fb53143df4042205259d5eae96b35d32c\` — verify 304 cannot revive stale navigation evidence and GitHub navigation cannot create an OTel pattern.
 
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
