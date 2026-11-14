@@ -667,6 +667,22 @@ if (fallbackEvidenceText.includes('News and announcements')
   throw new Error('evidence extraction must remove semantic navigation and preserve substantive fallback content');
 }
 
+const nestedChromeHtml = [
+  '<div role=',
+  '"navigation"><div>Home <div>Docs</div></div></div>',
+  '<header><header>Nested header link</header>Header link</header>',
+  '<aside><aside>Nested sidebar link</aside>Sidebar link</aside>',
+  '<section><p>Deterministic policy decisions must remain independent of model reasoning.</p></section>',
+].join('');
+const nestedChromeText = stripHtmlForEvidence(nestedChromeHtml);
+if (nestedChromeText.includes('Home')
+    || nestedChromeText.includes('Docs')
+    || nestedChromeText.includes('Nested header')
+    || nestedChromeText.includes('Sidebar link')
+    || !nestedChromeText.includes('Deterministic policy decisions')) {
+  throw new Error('balanced chrome removal must handle nested elements and multiline navigation-role attributes');
+}
+
 const staleNavigationExcerpt = 'AWS homepage News and announcements AWS blog About AWS and product navigation';
 if (shouldReuseSourceObservation({
   configuredUrl: 'https://aws.amazon.com/architecture/well-architected/',
@@ -754,6 +770,37 @@ if (buildObservedArchitecturePatterns(
   staleNavigationObservation.observedAt,
 ).some((pattern) => pattern.id === 'cross-cutting-cloud-controls')) {
   throw new Error('navigation-only cached observations must not create architecture analysis patterns');
+}
+
+const legitimateAnnouncementObservation: SourceObservation = {
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'c'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  evidenceExcerpt: 'News and announcements are delivered through durable, reliable and secure event streams with explicit cost controls.',
+  evidenceStatus: 'content-matched',
+};
+if (!buildObservedArchitecturePatterns(
+  [legitimateAnnouncementObservation],
+  legitimateAnnouncementObservation.observedAt,
+).some((pattern) => pattern.id === 'cross-cutting-cloud-controls')) {
+  throw new Error('ordinary architecture prose mentioning news and announcements must not be rejected as page chrome');
+}
+if (!shouldReuseSourceObservation({
+  configuredUrl: legitimateAnnouncementObservation.finalUrl,
+  cachedUrl: legitimateAnnouncementObservation.finalUrl,
+  ok: true,
+  status: 200,
+  contentHash: legitimateAnnouncementObservation.contentHash,
+  evidenceExcerpt: legitimateAnnouncementObservation.evidenceExcerpt,
+  evidenceStatus: 'content-matched',
+  cadenceHours: 336,
+  observedAt: legitimateAnnouncementObservation.observedAt,
+  nowMs: Date.parse('2026-11-14T04:00:00.000Z'),
+})) {
+  throw new Error('substantive cached excerpts must remain reusable when they contain ordinary news-and-announcements prose');
 }
 
 const cachedObservation = {
