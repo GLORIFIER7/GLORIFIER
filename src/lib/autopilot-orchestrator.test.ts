@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, getAutopilotOrchestrationStatus } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -179,4 +179,13 @@ test('Autopilot A2A context separator is a real newline, not a literal backslash
   const result = formatAutopilotA2AContext('analysis', { task: 1 });
   assert.equal(result, 'analysis\nExecution context: {"task":1}');
   assert.equal(result.includes('\\\\n'), false);
+});
+
+
+test('Autopilot orchestration status does not describe GitHub readback as independent-source verification', () => {
+  const status = getAutopilotOrchestrationStatus();
+
+  assert.equal(status.independentSourceVerification, false);
+  assert.equal(status.githubSourceReadbackVerification, true);
+  assert.equal(status.externalActionExecution, false);
 });

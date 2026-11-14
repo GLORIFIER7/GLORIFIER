@@ -476,7 +476,7 @@ export async function processNextAutopilotMission(
       const task = await createA2ATaskForProtocol({
         requesterAgentId: 'ai-ceo',
         capability: 'analyze.code',
-        objective: `Analyze the independently verified GitHub operation result for mission step ${step.id}. Separate observed fields, verified repository changes, interpretation, limitations, and recommendations. A verified branch or draft PR is not a merged change or deployment.`,
+        objective: `Analyze the GitHub source-readback-verified operation result for mission step ${step.id}. Separate observed fields, verified repository changes, interpretation, limitations, and recommendations. A verified branch or draft PR is not a merged change or deployment.`,
         input: {
           missionId: planned.id,
           missionObjective: planned.objective,
@@ -498,7 +498,7 @@ export async function processNextAutopilotMission(
           messages: [
             {
               role: 'system',
-              content: 'You are an analytical A2A worker. Analyze the supplied independently verified GitHub operation and its REST readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
+              content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
             },
             { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
           ],
@@ -609,7 +609,8 @@ export function getAutopilotOrchestrationStatus() {
     geasAuthorizationConnected: true,
     safeAnalysisCapabilities: repositoryWriteEnabled ? [...ALLOWED_TOOL_CAPABILITIES] : [...READ_ONLY_TOOL_CAPABILITIES],
     readOnlyToolExecution: true,
-    independentSourceVerification: true,
+    independentSourceVerification: false,
+    githubSourceReadbackVerification: true,
     writeToolExecution: repositoryWriteEnabled,
     reversibleRepositoryWriteCapabilities: repositoryWriteEnabled ? [...REVERSIBLE_REPOSITORY_WRITE_CAPABILITIES] : [],
     autoMerge: false,

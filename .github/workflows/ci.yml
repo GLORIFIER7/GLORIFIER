@@ -252,7 +252,7 @@ jobs:
       - name: Autopilot tool execution fabric
         run: npm run test:autopilot-execution-fabric
 
-      - name: Autopilot independent evidence verifier
+      - name: Autopilot GitHub source-readback verifier
         run: npm run test:autopilot-evidence-verifier
 
       - name: Autopilot GitHub write adapter

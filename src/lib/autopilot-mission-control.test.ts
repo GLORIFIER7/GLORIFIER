@@ -13,6 +13,8 @@ import {
   recordAutopilotMissionFailure,
   getAutopilotMission,
   listAutopilotMissions,
+  getAutopilotMissionControlStatus,
+  initializeAutopilotMissionControl,
   type AutopilotMission,
   type AutopilotMissionStore,
 } from './autopilot-mission-control.ts';
@@ -298,7 +300,7 @@ test('Autopilot mission updates reject stale versions instead of overwriting con
 });
 
 
-test('Autopilot stores independent verification before marking a read-only mission verified', async () => {
+test('Autopilot stores GitHub source readback before marking a read-only mission verified', async () => {
   const store = new MemoryMissionStore();
   await createAutopilotMission(store, {
     requester: 'owner',
@@ -314,7 +316,7 @@ test('Autopilot stores independent verification before marking a read-only missi
   assert.equal(started.mission.steps[0].attemptCount, 1);
   const proof = {
     status: 'verified' as const,
-    verifierId: 'github-rest-independent-read-v1',
+    verifierId: 'github-rest-source-readback-v1',
     sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER',
     verifiedAt: '2026-11-13T08:04:00.000Z',
     sourceSha256: 'a'.repeat(64),
@@ -486,4 +488,15 @@ test('Autopilot rejects impossible calendar dates but accepts valid leap days', 
     now: '2024-02-29T12:00:00.000+07:00',
   });
   assert.equal(leapDay.createdAt, '2024-02-29T05:00:00.000Z');
+});
+
+
+test('Autopilot distinguishes same-domain GitHub readback from independent outcome verification', async () => {
+  const store = new MemoryMissionStore();
+  await initializeAutopilotMissionControl(store);
+  const status = getAutopilotMissionControlStatus();
+
+  assert.equal(status.independentOutcomeVerificationEnabled, false);
+  assert.equal(status.githubSourceReadbackVerificationEnabled, true);
+  assert.ok(status.remainingCapabilities.includes('independent-verification-from-a-separate-trust-domain'));
 });

@@ -172,8 +172,8 @@ export async function executeAutopilotToolStep(
       !/^[a-f0-9]{64}$/.test(verification.sourceSha256) ||
       !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||
       verification.sourceSha256 !== verification.executionSha256 ||
-      !Number.isFinite(Date.parse(verification.verifiedAt)) || !verification.verifierId.trim()) {
-    throw new Error(`Autopilot independent evidence verification failed for ${invocation.toolName}: ${verification.reason || 'invalid or mismatched source proof'}.`);
+      !Number.isFinite(Date.parse(verification.verifiedAt)) || verification.verifierId !== 'github-rest-source-readback-v1') {
+    throw new Error(`Autopilot GitHub source-readback verification failed for ${invocation.toolName}: ${verification.reason || 'invalid or mismatched GitHub source readback'}.`);
   }
   return {
     toolName: invocation.toolName,

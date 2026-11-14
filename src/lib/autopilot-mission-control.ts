@@ -608,7 +608,7 @@ export async function completeAutopilotMissionStep(
   const currentTime = timestamp(now);
   if (!Array.isArray(evidenceRefs) || evidenceRefs.length < 1) throw new Error('completed mission steps require at least one evidence reference.');
   const refs = evidenceRefs.map((ref) => requireNonEmpty(ref, 'evidence reference', 2048));
-  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-independent-read-v1' ||
+  if (verification && (verification.status !== 'verified' || verification.verifierId !== 'github-rest-source-readback-v1' ||
       !isTrustedGithubEvidenceUrl(verification.sourceUrl) || !Number.isFinite(Date.parse(verification.verifiedAt)) ||
       Date.parse(verification.verifiedAt) > Date.parse(currentTime) ||
       !/^[a-f0-9]{64}$/.test(verification.sourceSha256) || !/^[a-f0-9]{64}$/.test(verification.executionSha256) ||
@@ -744,7 +744,8 @@ export function getAutopilotMissionControlStatus() {
     repositoryWriteScope: 'isolated-autopilot-branches-only',
     automaticPullRequestMergeEnabled: false,
     automaticProductionDeploymentEnabled: false,
-    independentOutcomeVerificationEnabled: autopilotStore !== null,
+    independentOutcomeVerificationEnabled: false,
+    githubSourceReadbackVerificationEnabled: autopilotStore !== null,
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
     providerInferenceEnabled: process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
@@ -771,7 +772,7 @@ export function getAutopilotMissionControlStatus() {
       'preflight-source-hash-checked-file-updates',
       'draft-pull-request-creation-without-auto-merge',
       'fresh-github-rest-readback-for-each-mutation',
-      'independent-github-source-verification',
+      'github-source-readback-verification',
       'bounded-idempotent-read-only-recovery',
     ],
     remainingCapabilities: [
