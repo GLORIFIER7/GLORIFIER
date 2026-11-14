@@ -105,7 +105,7 @@
       "id": "finops-focus-1-4",
       "authority": "FinOps Foundation",
       "domain": "finops",
-      "url": "https://focus.finops.org/docs/specification/v1-4/",
+      "url": "https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/",
       "claimsAllowed": [
         "focus-invoice-reconciliation"
       ],
