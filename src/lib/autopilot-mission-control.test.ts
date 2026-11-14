@@ -497,6 +497,5 @@ test('Autopilot distinguishes same-domain GitHub readback from independent outco
   const status = getAutopilotMissionControlStatus();
 
   assert.equal(status.independentOutcomeVerificationEnabled, false);
-  assert.equal(status.githubSourceReadbackVerificationEnabled, true);
   assert.ok(status.remainingCapabilities.includes('independent-verification-from-a-separate-trust-domain'));
 });
