@@ -140,8 +140,17 @@ if (owaspAgentControlSource?.url !== 'https://owaspacs.org/docs/acs/') {
 }
 
 const otelGenAiAgentSource = model.sources.find((source) => source.id === 'otel-genai-agents');
-if (otelGenAiAgentSource?.url !== 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md') {
+if (otelGenAiAgentSource?.url !== 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md') {
   throw new Error('OpenTelemetry GenAI agent source must target the canonical agent-span specification');
+}
+const otelAgentKeywords = getSourcePatternKeywords('otel-genai-agents');
+const otelAgentSpecExcerpt = 'Status: Development. Describes an in-process GenAI agent, workflow, or framework entrypoint invocation.';
+if (otelAgentKeywords.length !== 1
+    || otelAgentKeywords[0] !== 'Describes an in-process GenAI agent'
+    || findEarliestKeywordIndex(otelAgentSpecExcerpt, otelAgentKeywords)
+      !== otelAgentSpecExcerpt.indexOf('Describes an in-process GenAI agent')
+    || !isTrustedArchitectureSourceUrl('https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md')) {
+  throw new Error('OpenTelemetry agent-span evidence must use the raw authoritative specification and substantive source-specific matching');
 }
 const focus15Source = model.sources.find((source) => source.id === 'finops-focus-1-5-release-scope');
 if (focus15Source?.url !== 'https://focus.finops.org/focus-1-5-release-scope/' || focus15Source.cadenceHours !== 168) {
