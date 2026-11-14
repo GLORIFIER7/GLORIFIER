@@ -793,7 +793,7 @@ const PAGE_CHROME_MARKERS = [
   'announcement history blogs news releases resources',
   'how to submit a metric technical reports',
   'career hr-resources',
-  'for ai agents: the site\\'s llms.txt is at',
+  "for ai agents: the site's llms.txt is at",
 ] as const;
 
 /** Reject known navigation/interstitial excerpts, including stale cached observations. */
