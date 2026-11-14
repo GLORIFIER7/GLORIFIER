@@ -1246,14 +1246,32 @@ const fetchCuratedSource = async (
   return { response, finalUrl, body };
 };
 
+const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'nist-agent-identity-design-tenets': [
+    'Distinct Agent Identification',
+    'Agent Linking, Delegation & Attenuation',
+    'Least & Zero Standing Privilege',
+    'Short-Lived, Dynamic & Revocable Authorization',
+    'Human-in-the-Loop Triggers',
+    'Mandates and Constraints',
+    'Architectural Separation of Policy from Reasoning',
+    'Deterministic Access Decisions',
+    'Continuous Monitoring',
+    'Immutable Evidence',
+  ],
+};
+
 /**
- * Resolve discovery keywords from every pattern explicitly associated with a source.
- * Secondary sources must be able to contribute analysis evidence without becoming
- * the pattern's primary source or promoting content matches to observed facts.
+ * Resolve discovery keywords from a source's declared pattern associations.
+ * Source-specific phrases take precedence where broad pattern keywords would
+ * otherwise match navigation chrome instead of substantive source content.
+ * These excerpts remain analysis evidence, never claim verification.
  */
 export const getSourcePatternKeywords = (sourceId: string): string[] => {
   const source = SOURCES.find((item) => item.id === sourceId);
   if (!source) return [];
+  const override = SOURCE_PATTERN_KEYWORD_OVERRIDES[sourceId];
+  if (override) return [...override];
   const sourcePatternIds = new Set(source.patternIds);
   return [...new Set(
     PATTERN_DEFINITIONS
