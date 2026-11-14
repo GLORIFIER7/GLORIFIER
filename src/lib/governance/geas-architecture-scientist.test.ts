@@ -521,7 +521,7 @@ const approvedCuratedSourceUrls = [
   'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
   'https://docs.cloud.google.com/bigquery/docs/external-data-sources',
   'https://owaspacs.org/docs/acs/',
-  'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
+  'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
   'https://focus.finops.org/docs/specification/v1-4/',
@@ -744,7 +744,7 @@ const staleOpenTelemetryObservation: SourceObservation = {
   status: 200,
   contentHash: 'b'.repeat(64),
   observedAt: '2026-11-14T03:00:00.000Z',
-  finalUrl: 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
+  finalUrl: 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md',
   evidenceExcerpt: 'Navigation Menu Sign in Products Platform GitHub Repository hosting and collaboration',
   evidenceStatus: 'content-matched',
 };
@@ -772,13 +772,14 @@ if (buildObservedArchitecturePatterns(
   throw new Error('navigation-only cached observations must not create architecture analysis patterns');
 }
 
+const legitimateAnnouncementUrl = 'https://aws.amazon.com/architecture/well-architected/';
 const legitimateAnnouncementObservation: SourceObservation = {
   sourceId: 'aws-well-architected',
   ok: true,
   status: 200,
   contentHash: 'c'.repeat(64),
   observedAt: '2026-11-14T03:00:00.000Z',
-  finalUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  finalUrl: legitimateAnnouncementUrl,
   evidenceExcerpt: 'News and announcements are delivered through durable, reliable and secure event streams with explicit cost controls.',
   evidenceStatus: 'content-matched',
 };
@@ -789,8 +790,8 @@ if (!buildObservedArchitecturePatterns(
   throw new Error('ordinary architecture prose mentioning news and announcements must not be rejected as page chrome');
 }
 if (!shouldReuseSourceObservation({
-  configuredUrl: legitimateAnnouncementObservation.finalUrl,
-  cachedUrl: legitimateAnnouncementObservation.finalUrl,
+  configuredUrl: legitimateAnnouncementUrl,
+  cachedUrl: legitimateAnnouncementUrl,
   ok: true,
   status: 200,
   contentHash: legitimateAnnouncementObservation.contentHash,
