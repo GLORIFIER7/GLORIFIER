@@ -581,6 +581,7 @@ const removeHtmlChrome = (input: string): string => {
   const chromeTags = new Set([
     'nav', 'header', 'footer', 'aside', 'svg', 'noscript', 'template', 'script', 'style',
   ]);
+  const rawTextTags = new Set(['script', 'style']);
   const voidTags = new Set([
     'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr',
   ]);
@@ -604,20 +605,30 @@ const removeHtmlChrome = (input: string): string => {
         output += source.slice(last, match.index) + ' ';
         last = tagRe.lastIndex;
         if (!selfClosing) {
-          skipTag = tag;
-          depth = 1;
+          if (rawTextTags.has(tag)) {
+            // Do not tokenize raw-text bodies: JavaScript comparisons such as i < n look like tags.
+            const endTag = new RegExp('</' + tag + '\\s*>', 'ig');
+            endTag.lastIndex = tagRe.lastIndex;
+            const endMatch = endTag.exec(source);
+            if (!endMatch) return output;
+            last = endTag.lastIndex;
+            tagRe.lastIndex = last;
+          } else {
+            skipTag = tag;
+            depth = 1;
+          }
         }
       }
       continue;
     }
 
-    if (skipTag === 'script' || skipTag === 'style') {
-      // Script/style bodies are raw text: nested-looking tags inside strings are not elements.
-      if (closing && tag === skipTag) {
-        last = tagRe.lastIndex;
-        skipTag = null;
-        depth = 0;
-      }
+    if (!closing && rawTextTags.has(tag) && !selfClosing) {
+      // Skip nested raw-text bodies while already discarding a chrome container.
+      const endTag = new RegExp('</' + tag + '\\s*>', 'ig');
+      endTag.lastIndex = tagRe.lastIndex;
+      const endMatch = endTag.exec(source);
+      if (!endMatch) return output;
+      tagRe.lastIndex = endTag.lastIndex;
       continue;
     }
 
@@ -636,9 +647,9 @@ const removeHtmlChrome = (input: string): string => {
 };
 
 export const stripHtmlForEvidence = (input: string): string => {
-  const mainContent = /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(input)?.[1];
   const articleContent = /<article\b[^>]*>([\s\S]*?)<\/article\s*>/i.exec(input)?.[1];
-  const content = mainContent ?? articleContent ?? input;
+  const mainContent = /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(input)?.[1];
+  const content = articleContent ?? mainContent ?? input;
   return stripHtml(removeHtmlChrome(content));
 };
 
