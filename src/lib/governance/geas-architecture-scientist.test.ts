@@ -691,6 +691,45 @@ if (Object.keys(buildConditionalRequestHeaders(
   throw new Error('navigation-only cached evidence must not supply conditional validators');
 }
 
+const staleNavigationCache = {
+  observed_at: '2026-11-14T03:00:00.000Z',
+  ok: true,
+  status: 200,
+  content_hash: 'a'.repeat(64),
+  evidence_excerpt: staleNavigationExcerpt,
+  evidence_status: 'content-matched' as const,
+  final_url: 'https://aws.amazon.com/architecture/well-architected/',
+  etag: '"navigation-v1"',
+  last_modified: null,
+  source_url: 'https://aws.amazon.com/architecture/well-architected/',
+};
+if (reuseNotModifiedSourceObservation(
+  { id: 'aws-well-architected', url: staleNavigationCache.source_url },
+  staleNavigationCache,
+  { finalUrl: staleNavigationCache.final_url, etag: staleNavigationCache.etag, lastModified: null },
+  '2026-11-14T04:00:00.000Z',
+  Date.parse('2026-11-14T04:00:00.000Z'),
+) !== null) {
+  throw new Error('a 304 response must not revive stale navigation-only cached evidence');
+}
+
+const staleOpenTelemetryObservation: SourceObservation = {
+  sourceId: 'otel-genai-agents',
+  ok: true,
+  status: 200,
+  contentHash: 'b'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
+  evidenceExcerpt: 'Navigation Menu Sign in Products Platform GitHub Repository hosting and collaboration',
+  evidenceStatus: 'content-matched',
+};
+if (buildObservedArchitecturePatterns(
+  [staleOpenTelemetryObservation],
+  staleOpenTelemetryObservation.observedAt,
+).some((pattern) => pattern.id === 'genai-agent-telemetry')) {
+  throw new Error('GitHub navigation-only excerpts must not create OpenTelemetry architecture patterns');
+}
+
 const staleNavigationObservation: SourceObservation = {
   sourceId: 'aws-well-architected',
   ok: true,
