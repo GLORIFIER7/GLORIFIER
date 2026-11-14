@@ -444,7 +444,7 @@ test('Gemini PR review requires an explicit main-target PR number after owner au
   assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.match(geminiPrReviewWorkflow, /FREE_TIER_CONFIRMED: \$\{\{ vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED \}\}/);
   assert.match(geminiPrReviewWorkflow, /gemini_model: gemini-3\.8-flash/);
-  assert.match(geminiPrReviewWorkflow, /gemini_cli_version: v0\.68\.0/);
+  assert.match(geminiPrReviewWorkflow, /gemini_cli_version: 0\.68\.0/);
   assert.match(geminiPrReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1/);
@@ -701,7 +701,7 @@ test('Code Guardian manual paid-inference execution is restricted to main', () =
 test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
   assert.ok(testJob, 'NEURAL CI must include its Python validation job');
-  assert.match(testJob, /uv export --locked --extra dev --no-emit-project --format requirements-txt --output-file \/tmp\/requirements\.txt/);
+  assert.match(testJob, /uv export --locked --extra dev --extra neon --no-emit-project --format requirements-txt --output-file \/tmp\/requirements\.txt/);
   assert.match(testJob, /pip-audit --requirement \/tmp\/requirements\.txt/);
   assert.doesNotMatch(testJob, /^\s+pip-audit\s*$/m,
     'the audit must not inspect the installed editable glorifier-neural project itself');
@@ -711,4 +711,20 @@ test('Gemini collaborator pins CLI versions using npm semver rather than a Git t
   const version = geminiCollaboratorWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/,
     'the action install step uses npm for plain semantic versions and GitHub source builds for v-prefixed tags');
+});
+
+test('NEURAL dependency audit covers both development and production Neon extras', () => {
+  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
+  const exportStep = testJob.match(/uv export[^\n]+/);
+  assert.ok(exportStep, 'NEURAL CI must export the locked dependency set');
+  assert.match(exportStep[0], /--extra dev/);
+  assert.match(exportStep[0], /--extra neon/,
+    'the audit dependency set must include Psycopg and production-only Neon dependencies');
+  assert.match(testJob, /pip-audit --requirement \/tmp\/requirements\.txt/);
+});
+
+test('Gemini manual PR review uses the same npm-semver CLI pin as the collaborator', () => {
+  const version = geminiPrReviewWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  assert.equal(version, '0.68.0');
+  assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
