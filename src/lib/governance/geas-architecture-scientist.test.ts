@@ -770,6 +770,12 @@ if (unquotedNavigationText.includes('Home Docs Search Projects')
   throw new Error('unquoted role=navigation attributes must be removed without losing substantive fallback content');
 }
 
+const dataRoleNavigationHtml = '<div data-role=navigation>Data-role metadata must remain ordinary content.</div>';
+const dataRoleNavigationText = stripHtmlForEvidence(dataRoleNavigationHtml);
+if (!dataRoleNavigationText.includes('Data-role metadata must remain ordinary content.')) {
+  throw new Error('data-role must not be mistaken for the ARIA role attribute');
+}
+
 const emptySemanticRegionHtml = [
   '<section><p>Outside the selected semantic region must not become evidence.</p></section>',
   '<main><nav>Navigation-only content.</nav></main>',
