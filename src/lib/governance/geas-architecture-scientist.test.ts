@@ -52,11 +52,12 @@ if (!nistAgentIdentityTenetsSource
   throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and explicit source-policy association');
 }
 const nistIdentityTenetKeywords = getSourcePatternKeywords('nist-agent-identity-design-tenets');
-const nistIdentityTenetText = 'Distinct Agent Identification and Agent Linking, Delegation & Attenuation require cryptographically verifiable identity and scoped authorization.';
-if (!nistIdentityTenetKeywords.includes('identity')
-    || !nistIdentityTenetKeywords.includes('agent')
-    || findEarliestKeywordIndex(nistIdentityTenetText, nistIdentityTenetKeywords) < 0) {
-  throw new Error('secondary NIST sources must inherit keywords from their explicitly associated architecture patterns');
+const nistIdentityTenetText = 'Agent Identity Management Systems | NIST. Distinct Agent Identification requires cryptographically verifiable agent identity.';
+const nistIdentityTenetMatch = findEarliestKeywordIndex(nistIdentityTenetText, nistIdentityTenetKeywords);
+if (!nistIdentityTenetKeywords.includes('Distinct Agent Identification')
+    || nistIdentityTenetKeywords.includes('agent')
+    || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf('Distinct Agent Identification')) {
+  throw new Error('NIST secondary-source matching must select substantive design-tenet text rather than generic page chrome');
 }
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
