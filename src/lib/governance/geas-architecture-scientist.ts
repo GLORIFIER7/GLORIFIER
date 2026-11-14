@@ -324,6 +324,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720, ["ai-risk-governance","lifecycle-risk-management"]),
   createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720, ["ai-risk-governance","lifecycle-risk-management","governance-oversight"]),
   createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
+  createArchitectureSource('nist-agent-identity-design-tenets', 'NIST', 'ai', 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
   createArchitectureSource('nist-csf', 'NIST', 'cybersecurity', 'https://www.nist.gov/cyberframework', ['identity-risk-controls'], 336, ["identity-risk-controls"]),
   createArchitectureSource('nist-ssdf', 'NIST', 'software', 'https://csrc.nist.gov/Projects/ssdf', ['software-supply-chain'], 336, ["software-supply-chain"]),
   createArchitectureSource('opentelemetry-semconv', 'OpenTelemetry', 'observability', 'https://opentelemetry.io/docs/concepts/semantic-conventions/', ['vendor-neutral-telemetry', 'evidence-minimization'], 336, ["vendor-neutral-telemetry"]),
