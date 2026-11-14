@@ -34,6 +34,7 @@ const isValidReviewCadenceDays = (value: unknown): value is number =>
   typeof value === 'number'
   && Number.isSafeInteger(value)
   && value >= 1
+  && Number.isSafeInteger(value * 24);
 
 const sameStringArrayIgnoringOrder = (left: readonly string[], right: readonly string[]): boolean => {
   if (left.length !== right.length) return false;
@@ -47,7 +48,6 @@ if (!sameStringArrayIgnoringOrder(['alpha', 'beta'], ['beta', 'alpha'])
     || sameStringArrayIgnoringOrder(['alpha', 'alpha'], ['alpha'])) {
   throw new Error('claim allow-list parity must ignore order while preserving values and duplicate counts');
 }
-  && Number.isSafeInteger(value * 24);
 
 if (!isValidReviewCadenceDays(14)
     || isValidReviewCadenceDays(Number.MAX_SAFE_INTEGER)
