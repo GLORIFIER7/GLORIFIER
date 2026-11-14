@@ -63,7 +63,7 @@ jobs:
       - name: Audit Python dependencies
         run: |
           python -m pip install --only-binary=:all: --upgrade "setuptools>=83.0.0" pip-audit
-          pip-audit
+          pip-audit --requirement /tmp/requirements.txt
       - name: Build container image (no publish)
         run: docker build --tag glorifier-neural:ci .
       - name: Verify runtime image includes the Neon PostgreSQL driver
