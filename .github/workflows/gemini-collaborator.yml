@@ -100,7 +100,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: gemini-3.8-flash
-          gemini_cli_version: v0.68.0
+          gemini_cli_version: 0.68.0
           prompt: |
             You are the governed Gemini engineering collaborator for GLORIFIER.
             Read GEMINI.md and AGENTS.md when present before inspecting source files.
