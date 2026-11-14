@@ -46,10 +46,20 @@ if (!googleBigQuerySource
     || !googleBigQuerySource.claimsAllowed.includes('federated-data-access')) {
   throw new Error('Google BigQuery external-data source must be registered with an exact URL, 14-day cadence and explicit federated-data association');
 }
+const googleArchitectureKeywords = getSourcePatternKeywords('google-architecture');
+const googleArchitectureNavigation = 'Google Cloud Architecture Center | Data analytics and pipelines | Access and resources management';
+if (googleArchitectureKeywords.includes('data')
+    || googleArchitectureKeywords.includes('access')
+    || googleArchitectureKeywords.includes('architecture')
+    || findEarliestKeywordIndex(googleArchitectureNavigation, googleArchitectureKeywords) >= 0) {
+  throw new Error('Google Cloud Well-Architected source matching must not use generic navigation terms');
+}
 const googleFederationKeywords = getSourcePatternKeywords('google-bigquery-external-data-sources');
 const googleFederationText = 'Introduction to external data sources | BigQuery. BigQuery can query data directly without first migrating it. BigLake tables use access delegation and federated queries.';
 const googleFederationMatch = findEarliestKeywordIndex(googleFederationText, googleFederationKeywords);
 if (!googleFederationKeywords.includes('without first migrating')
+    || !googleFederationKeywords.includes('access delegation')
+    || googleFederationKeywords.includes('federated queries')
     || googleFederationKeywords.includes('external data sources')
     || googleFederationMatch !== googleFederationText.indexOf('without first migrating')) {
   throw new Error('Google secondary-source matching must select substantive federation guidance rather than a generic page title');
