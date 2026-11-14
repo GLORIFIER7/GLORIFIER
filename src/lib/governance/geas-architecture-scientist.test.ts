@@ -744,6 +744,26 @@ if (fallbackEvidenceText.includes('News and announcements')
   throw new Error('evidence extraction must remove semantic navigation and preserve substantive fallback content');
 }
 
+const unquotedNavigationHtml = [
+  '<div role=navigation>Home Docs Search</div>',
+  '<section><p>Substantive fallback content must remain available.</p></section>',
+].join('');
+const unquotedNavigationText = stripHtmlForEvidence(unquotedNavigationHtml);
+if (unquotedNavigationText.includes('Home')
+    || unquotedNavigationText.includes('Docs')
+    || !unquotedNavigationText.includes('Substantive fallback content must remain available')) {
+  throw new Error('unquoted role=navigation attributes must be removed without losing substantive fallback content');
+}
+
+const emptySemanticRegionHtml = [
+  '<main><article></article></main>',
+  '<p>Outside semantic content must not be admitted.</p>',
+].join('');
+const emptySemanticRegionText = stripHtmlForEvidence(emptySemanticRegionHtml);
+if (emptySemanticRegionText.includes('Outside semantic content')) {
+  throw new Error('an empty semantic article must not fall back to unrelated whole-page text');
+}
+
 const nestedChromeHtml = [
   '<div role=',
   '"navigation"><div>Home <div>Docs</div></div></div>',
