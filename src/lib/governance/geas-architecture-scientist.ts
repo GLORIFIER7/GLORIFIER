@@ -600,7 +600,7 @@ const removeHtmlChrome = (input: string): string => {
     const selfClosing = /\/\s*$/.test(attributes) || voidTags.has(tag);
 
     if (skipTag === null) {
-      const navigationRole = /\brole\s*=\s*["']navigation["']/i.test(attributes);
+      const navigationRole = /\brole\s*=\s*(?:"navigation"|'navigation'|navigation)(?=\s|\/|$)/i.test(attributes);
       if (!closing && (chromeTags.has(tag) || navigationRole)) {
         output += source.slice(last, match.index) + ' ';
         last = tagRe.lastIndex;
@@ -681,7 +681,7 @@ export const stripHtmlForEvidence = (input: string): string => {
     const text = stripHtml(candidate);
     if (text.length > best.length) best = text;
   }
-  return best || stripHtml(cleaned);
+  return best;
 };
 
 export const isClaimSupportedEvidence = (
