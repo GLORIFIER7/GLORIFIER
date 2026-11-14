@@ -582,8 +582,8 @@ export const stripHtmlForEvidence = (input: string): string => {
   const articleContent = /<article\b[^>]*>([\s\S]*?)<\/article\s*>/i.exec(input)?.[1];
   const content = mainContent ?? articleContent ?? input;
   const withoutNavigation = content
-    .replace(/<([a-z][\\w:-]*)\b(?=[^>]*\\brole\\s*=\\s*["']navigation["'])[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gi, ' ')
-    .replace(/<(nav|header|footer|aside|svg|noscript|template)\\b[^>]*>[\\s\\S]*?<\\/\\1\\s*>/gi, ' ');
+    .replace(/<([a-z][\w:-]*)\b(?=[^>]*\brole\s*=\s*["']navigation["'])[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<(nav|header|footer|aside|svg|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
   return stripHtml(withoutNavigation);
 };
 
