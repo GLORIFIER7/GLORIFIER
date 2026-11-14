@@ -352,7 +352,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336, ["rogue-agent-behavior"]),
   createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336, ["adversarial-ai-controls"]),
   createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336, ["token-lifecycle-protection"]),
-  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
+  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
   createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
   createArchitectureSource('finops-focus-1-5-release-scope', 'FinOps Foundation', 'finops', 'https://focus.finops.org/focus-1-5-release-scope/', ['focus-1-5-ai-cost-attribution'], 168, ["focus-1-5-ai-cost-attribution"]),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336, ["zero-trust-resource-access"]),
@@ -1292,6 +1292,9 @@ const fetchCuratedSource = async (
 };
 
 const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'otel-genai-agents': [
+    'Describes an in-process GenAI agent',
+  ],
   'google-bigquery-external-data-sources': [
     'without first migrating',
     'access delegation',
