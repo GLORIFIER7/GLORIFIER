@@ -14,6 +14,10 @@ const BLOCKED_SUFFIXES = [
   '.onion',
 ];
 
+// The direct Worker hostname is protected by Cloudflare Access for account members.
+// Public external conformance must enter through the public Pages route and its private service binding.
+const ACCESS_PROTECTED_WORKER_HOST = 'glorifier.glorifier.workers.dev';
+
 function normalizePublicHostname(value, label) {
   if (typeof value !== 'string' || value.length === 0 || value !== value.trim()) {
     throw new Error(`${label} must be a plain public DNS hostname.`);
@@ -85,6 +89,9 @@ export function validateMcpConformanceTarget(targetUrl, rawAllowedHosts) {
   }
 
   const hostname = normalizePublicHostname(parsed.hostname, 'MCP endpoint hostname');
+  if (hostname === ACCESS_PROTECTED_WORKER_HOST) {
+    throw new Error('The direct GLORIFIER Worker hostname is protected by Cloudflare Access; use https://glorifier.pages.dev/mcp for public conformance.');
+  }
   const allowedHosts = parseAllowedHosts(rawAllowedHosts);
   if (!allowedHosts.has(hostname)) {
     throw new Error('MCP endpoint hostname is not present in the exact hostname allowlist.');

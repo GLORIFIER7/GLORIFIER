@@ -36,8 +36,8 @@ jobs:
       - name: Validate HTTPS endpoint and exact hostname allowlist
         id: validate_target
         env:
-          GLORIFIER_MCP_CONFORMANCE_URL: ${{ vars.GLORIFIER_MCP_CONFORMANCE_URL }}
-          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS }}
+          GLORIFIER_MCP_CONFORMANCE_URL: ${{ vars.GLORIFIER_MCP_CONFORMANCE_URL || 'https://glorifier.pages.dev/mcp' }}
+          GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS: ${{ vars.GLORIFIER_MCP_CONFORMANCE_ALLOWED_HOSTS || 'glorifier.pages.dev' }}
         shell: bash
         run: |
           set -euo pipefail
