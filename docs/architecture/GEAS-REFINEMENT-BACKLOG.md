@@ -252,4 +252,11 @@ The article describes ten design tenets: distinct agent identification; linking,
 - \`0d874f16806c204ae264f4dddaa9650b72f0c32e\` — correct the llms.txt marker literal.
 - \`9c650d1fb53143df4042205259d5eae96b35d32c\` — verify 304 cannot revive stale navigation evidence and GitHub navigation cannot create an OTel pattern.
 
+**Follow-up source correction:**
+- The exact-SHA scan run \`43551806085\` showed that the OpenTelemetry agent-span GitHub HTML page still contributed repository navigation to \`genai-agent-telemetry\`, despite the semantic-region filter.
+- The official raw Markdown endpoint was independently fetched and confirmed to contain the agent-span specification, its \`Development\` status, and the substantive phrase "Describes an in-process GenAI agent".
+- Updated the scanner and authoritative registry to the exact raw GitHub content URL, which is on the already curated \`raw.githubusercontent.com\` host.
+- Added a source-specific phrase override and regression coverage for the exact URL, trusted-source admission, and substantive excerpt selection.
+- Follow-up commits: \`5fb0e01e961623bdc2eaf04c9bfd0354f8cd9f91\`, \`941e0ecd5f866b35d403a0b2f9949bff84a8769f\`, \`016cb83fce0b2bb299b05790ad6bc23c6add224d\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
