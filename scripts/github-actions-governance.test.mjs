@@ -176,29 +176,5 @@ test('PostgreSQL TLS assertions reject sibling-step and non-exact production dec
 });
 
 
-test('PostgreSQL TLS assertions reject sibling-step and non-exact production decoys', () => {
-  const siblingStepDecoy = [
-    '      - name: database task',
-    '        run: ./run-database-task.sh',
-    '        env:',
-    '          DATABASE_URL: ${{ secrets.DATABASE_URL }}',
-    '      - uses: actions/setup-node@v7',
-    '        env:',
-    '          NODE_ENV: production',
-  ].join('\\n');
-  const siblingEnv = extractStepEnv(siblingStepDecoy, 'database task');
-  assert.ok(siblingEnv !== null);
-  assert.doesNotMatch(siblingEnv, /^          NODE_ENV:\\s*production\\s*$/m);
 
-  const nonExactProduction = [
-    '      - name: database task',
-    '        run: ./run-database-task.sh',
-    '        env:',
-    '          DATABASE_URL: ${{ secrets.DATABASE_URL }}',
-    '          NODE_ENV: production-debug',
-  ].join('\\n');
-  const debugEnv = extractStepEnv(nonExactProduction, 'database task');
-  assert.ok(debugEnv !== null);
-  assert.doesNotMatch(debugEnv, /^          NODE_ENV:\\s*production\\s*$/m);
-});
 
