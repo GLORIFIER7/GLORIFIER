@@ -17,6 +17,8 @@ import {
 } from './agent-runtime.ts';
 import type { PostgresAgentStateStore } from './agent-state-store.ts';
 import { test } from 'node:test';
+import { agentManifest } from './agent-runtime.ts';
+import { mapConnectionStatusToAgentStatus } from './agent-registry.ts';
 
 test('agent-runtime regression suite', async () => {
 // Task ownership is enforced independently of authentication. Request-body identity
@@ -304,6 +306,28 @@ try {
   if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = previousDatabaseUrl;
 }
+
+// Static discovery metadata is not a runtime health observation.
+const manifest = agentManifest();
+assert.ok(manifest.agents.length > 0);
+assert.ok(
+  manifest.agents.every((agent) => agent.status === 'registered'),
+  'static agent manifest must not claim runtime health without an observed probe',
+);
+assert.match(
+  manifest.statusSemantics.registered,
+  /runtime (health|liveness) has not been verified/i,
+);
+
+assert.equal(mapConnectionStatusToAgentStatus('discovered'), 'discovered');
+assert.equal(mapConnectionStatusToAgentStatus('authorized'), 'authorized');
+assert.equal(mapConnectionStatusToAgentStatus('degraded'), 'degraded');
+assert.equal(mapConnectionStatusToAgentStatus('revoked'), 'revoked');
+assert.equal(mapConnectionStatusToAgentStatus('expired'), 'offline');
+assert.equal(mapConnectionStatusToAgentStatus('disabled'), 'offline');
+assert.equal(mapConnectionStatusToAgentStatus('active'), 'discovered',
+  'unrecognized connection status must fail closed instead of promoting active');
+assert.equal(mapConnectionStatusToAgentStatus(undefined), 'discovered');
 
 console.log('agent runtime persistence fallback tests: PASS');
 });
