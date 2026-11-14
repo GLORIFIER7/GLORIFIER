@@ -353,7 +353,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336, ["adversarial-ai-controls"]),
   createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336, ["token-lifecycle-protection"]),
   createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
-  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
+  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
   createArchitectureSource('finops-focus-1-5-release-scope', 'FinOps Foundation', 'finops', 'https://focus.finops.org/focus-1-5-release-scope/', ['focus-1-5-ai-cost-attribution'], 168, ["focus-1-5-ai-cost-attribution"]),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336, ["zero-trust-resource-access"]),
   createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336, ["provenance-graph"]),
@@ -1337,6 +1337,11 @@ const fetchCuratedSource = async (
 };
 
 const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'finops-focus-1-4': [
+    'The Invoice Detail dataset represents the definitive financial record of charges',
+    'PaymentCurrencyInvoiceDetailId provides the necessary lineage',
+    'Reconcile Multi-Currency Settlement Using Lineage IDs',
+  ],
   'otel-genai-agents': [
     'Describes an in-process GenAI agent',
   ],
