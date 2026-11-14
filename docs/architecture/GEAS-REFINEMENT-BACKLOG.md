@@ -199,3 +199,139 @@ The article describes ten design tenets: distinct agent identification; linking,
 
 **Verification targets:** `npm run test:geas-scientist`, authoritative source-registry validation, source-registry/cadence validation, and the exact-head GEAS architecture scan with its uploaded evidence artifact.
 
+
+
+## 2026-11-14 — reject navigation-only source excerpts and stale cached matches
+
+**Auto-approval classification:** LOW risk; reversible; source-evidence normalization and regression coverage only. No production runtime, data, policy authority, credential, or external integration behavior is changed. The change is fail-closed: questionable excerpts are excluded from analysis rather than promoted.
+
+**Observed repository evidence:**
+- Main commit: \`b7853ff6496b575727727e738150a8243809fa8a\`, containing merged PR #862.
+- Latest available GEAS scan artifact: run #43550232979, tested synthetic merge SHA \`ca3fdd219547a0b08f463d55dc539d9a95d0292f\`, PR head \`efc2c1c2e5d12983e667783034c188e4fd4c04b1\`, event base \`6b4e8a36c5383173806c026cc37b09c347381d97\`, tested merge base \`4c15055e35ecfc40fb45e83da5699549c5a50b8d\`.
+- Artifact SHA-256: \`cc29f77aee0c1a7d8c85e9bc6b85a64791bac38c04b0e3efa9f1e91ed77325c2\`.
+- The artifact reported 44 content-matched sources and 44 analysis patterns, but several excerpts began with navigation, promotional, or interstitial text rather than the source's substantive architecture guidance. Examples included AWS "News and announcements / AWS blog / About AWS", NIST "Skip to main content", NIST CSRC unauthorized-frame interstitials, OpenTelemetry site navigation, CNCF project navigation, and Open Group HR/certification navigation.
+- The scanner's previous \`stripHtml\` removed script/style and markup but retained semantic \`header\`, \`nav\`, \`footer\`, \`aside\` and navigation-role content. Keyword extraction selected the earliest matching phrase, allowing these regions to become content-matched excerpts.
+- Cached content-matched excerpts were reusable based on URL/status/hash/non-empty text; known navigation-only excerpts could therefore survive a code-only extractor refinement until cadence expiry.
+
+**Analysis:**
+- HTTP 200 and keyword presence are insufficient to establish that the captured excerpt substantively supports an architecture pattern.
+- Removing semantic page chrome before excerpt selection is a conservative quality improvement. Full-page content hashing remains unchanged.
+- Known navigation/interstitial excerpts must be inadmissible both for pattern creation and for cache/conditional-request reuse, forcing a full refetch rather than preserving stale low-quality evidence.
+- Content-matched excerpts remain analysis only. This refinement does not authorize or create claim-supported evidence.
+
+**Auto-approved finding:** GEAS evidence excerpts can be contaminated by navigation, sidebar, footer, promotional and interstitial page chrome; stale cached excerpts can preserve the contamination. The finding is auto-approved for a narrow, reversible evidence-quality refinement.
+
+**Implemented refinement:**
+- Add semantic evidence extraction that prefers \`<main>\`, then \`<article>\`, and otherwise removes \`nav\`, \`header\`, \`footer\`, \`aside\`, SVG/template/noscript and \`role=navigation\` regions.
+- Keep the existing full-page normalized content hash behavior unchanged.
+- Reject known navigation/interstitial markers in content-matched excerpt admission.
+- Make stale navigation-only cache entries inadmissible so they do not supply cached observations or conditional validators.
+- Ensure navigation-only cached observations cannot instantiate analysis patterns.
+- Preserve all claim-support authenticator and source-policy boundaries.
+
+**Affected files:**
+- \`src/lib/governance/geas-architecture-scientist.ts\`
+- \`src/lib/governance/geas-architecture-scientist.test.ts\`
+- \`docs/architecture/GEAS-REFINEMENT-BACKLOG.md\`
+
+**Regression and CI gates:**
+- Main/article extraction removes semantic header/footer navigation.
+- Fallback extraction removes navigation-role, sidebar and semantic chrome.
+- Substantive content remains available when semantic page regions are absent.
+- Navigation-only cached observations are invalidated for full refetch.
+- Navigation-only cache records cannot supply ETag/Last-Modified conditional headers.
+- Navigation-only cached observations cannot create architecture patterns.
+- Run \`npm run test:geas-scientist\`, source-registry validation, cadence validation, evidence-policy validation and the exact-SHA GEAS architecture scan with artifact provenance.
+
+**Implementation commits:**
+- \`58e023868a036809df15913c117238226ffad800\` — semantic evidence extraction and stale excerpt admission.
+- \`5d995788b3d905f24d62862af40e58f55ae01402\` — correct semantic navigation matcher.
+- \`2f771d2abb425c01251267c1f71d4d9983f57790\` — initial regression tests for semantic extraction, stale cache invalidation and pattern rejection.
+- \`0e73fecfbd7404828d7edd97e7680002b67e5410\` — record the auto-approved finding and evidence.
+- \`b1b4d06ff7a5c4eb8cf2c7d4b0e8be51e37d8a53\` — extend cache-invalidating markers to observed CNCF, OpenTelemetry, FinOps, NIST and Open Group page chrome.
+- \`0d874f16806c204ae264f4dddaa9650b72f0c32e\` — correct the llms.txt marker literal.
+- \`9c650d1fb53143df4042205259d5eae96b35d32c\` — verify 304 cannot revive stale navigation evidence and GitHub navigation cannot create an OTel pattern.
+
+**Follow-up source correction:**
+- The exact-SHA scan run \`43551806085\` showed that the OpenTelemetry agent-span GitHub HTML page still contributed repository navigation to \`genai-agent-telemetry\`, despite the semantic-region filter.
+- The official raw Markdown endpoint was independently fetched and confirmed to contain the agent-span specification, its \`Development\` status, and the substantive phrase "Describes an in-process GenAI agent".
+- Updated the scanner and authoritative registry to the exact raw GitHub content URL, which is on the already curated \`raw.githubusercontent.com\` host.
+- Added a source-specific phrase override and regression coverage for the exact URL, trusted-source admission, and substantive excerpt selection.
+- Follow-up commits: \`5fb0e01e961623bdc2eaf04c9bfd0354f8cd9f91\`, \`941e0ecd5f866b35d403a0b2f9949bff84a8769f\`, \`016cb83fce0b2bb299b05790ad6bc23c6add224d\`.
+
+**Review hardening after automated static-review findings:**
+- Review identified that a single lazy regex could stop at the first nested same-name closing tag and that the phrase \`news and announcements\` alone could reject legitimate architecture prose.
+- Replaced single-pass chrome regexes with a balanced tag scanner that tracks nested same-name elements, accepts multiline \`role=navigation\` attributes, removes script/style and semantic chrome, and fails closed by discarding the remainder when a chrome region is unterminated.
+- Replaced single-marker rejection with marker groups. The AWS navigation signature now requires the combined "news and announcements", "AWS blog", and "About AWS" cues; ordinary prose containing only "news and announcements" remains admissible.
+- Added regression tests for nested navigation/header/aside, multiline role attributes, legitimate event-stream prose containing "news and announcements", and reuse of substantive cached evidence.
+- Follow-up commits: \`143769b1d7597224d2e22288a73e431da97d40fb\` and \`585f4bc5f4edd524a857e7a4361d71fd8b39d76f\`.
+
+**Exact-SHA failure correction:**
+- The first run on head \`8c5a703083fe03ea95ec5e6cf677f77bffab928c\` exposed two test-only defects: a curated-source fixture still expected the previous GitHub HTML URL, and an optional \`SourceObservation.finalUrl\` was passed where a required URL string was expected.
+- Updated the fixture to the canonical raw OpenTelemetry URL and introduced a required local URL constant for the legitimate-prose cache test.
+- No production behavior or security policy was weakened. The failed runs remain recorded as failures; the new head must pass fresh exact-SHA checks.
+- Corrective commit: \`61aa25ffb8ae606a3591a4fdb4735b78d09cfc3d\`.
+
+**FOCUS 1.4 source-quality correction:**
+- The exact-head scan showed \`finops-focus-1-4\` was only source-available after page-chrome filtering. The root specification page's first matching invoice phrase was a use-case/navigation entry, not the substantive supported-feature definition.
+- The official FOCUS 1.4 Invoice Reconciliation page states that Invoice Detail is the definitive financial record of invoice charges, defines the join to Cost and Usage, documents \`PaymentCurrencyInvoiceDetailId\` lineage for divergent billing/payment currency grains, and provides reconciliation queries for invoice totals, multi-currency settlement, and tax variance.
+- Updated the source registry and scanner to the exact feature page URL and added source-specific matching phrases from that page.
+- Regression tests now require the exact URL, trusted-source admission, and selection of the substantive Invoice Detail definition.
+- Follow-up commits: \`bb689f69624400014d429052b504b9bfffb3b6aa\`, \`c2760870a0acb33694403a375f9e0c6dca4f312d\`, \`7afe2af62ee81552aa64cdde0edbd536cc305175\`.
+
+**FOCUS source-fixture correction:**
+- The exact-head scan on \`868e90775d74eb7d503f90a5c98c7c45ccff3d24\` failed its curated-source trust fixture because the test's approved-URL list still contained the old FOCUS specification landing-page URL.
+- Updated the fixture to the new exact FOCUS 1.4 Invoice Reconciliation feature URL. The registry and scanner URL already matched; this was a test fixture mismatch, not a source-policy failure.
+- The failed scan remains recorded. A fresh exact-head scan is required.
+- Corrective commit: \`ce00facddb770f35110712db95645b2404ad9e75\`.
+
+**Raw-text parser hardening:**
+- Automated review identified that nested-looking \`<script>\` or \`<style>\` strings inside JavaScript/CSS could increment the balanced-tag depth and cause the parser to discard valid later content.
+- Updated the scanner to treat script/style bodies as raw text and close on the first matching end tag, consistent with HTML raw-text parsing behavior.
+- Added regression coverage for nested-looking script/style strings followed by substantive architecture text.
+- Follow-up commits: \`e5c917d953da0f7870d2e9327fb873d37c40f789\` and \`fc817d7b65d14c61ca97419acaaf479e9147b7ae\`.
+
+**Raw-text tokenizer and article-isolation hardening:**
+- Further review found that even after raw-text mode was recognized, tokenizing script/style contents could interpret JavaScript comparisons such as \`i < n\` as malformed tags and swallow the actual closing tag.
+- Changed the parser to search directly for the literal closing \`</script>\` or \`</style>\` while in raw-text mode, without tokenizing the body. Nested raw-text elements inside a discarded navigation region are skipped the same way.
+- Changed evidence-region precedence to prefer \`<article>\` over \`<main>\`, preventing page-level comments or reader-generated content outside the article from being treated as source evidence.
+- Added tests for JavaScript less-than comparisons inside script, tag-like strings in script/style, and article-versus-comment isolation.
+- Follow-up commits: \`1e6707193abf35f1b639ff017c156054e657516d\` and \`5bbb76fc8b2041ed7fc6d733aa2a0566a3670cb1\`.
+
+**Article-region selection hardening:**
+- Automated review identified that selecting the first \`<article>\` before removing page chrome could choose a sidebar card, and a lazy regex could truncate nested article elements or match custom \`article-card\` / \`main-nav\` components.
+- The extractor now removes chrome first, tokenizes only exact \`article\` / \`main\` tag boundaries, tracks nested depth, prefers the longest substantive article candidate, and falls back to the longest main candidate only when no article exists.
+- Added regression tests for sidebar article cards, nested article sections, multiple article candidates, custom tags, and article-vs-comments isolation.
+- Follow-up commits: \`989f621394d30b94884ac86a257e1ca928e2d186\` and \`64cceaa2547e22cd4648464e2f29f7997ec14487\`.
+
+**Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
+
+
+## 2026-11-14 — preserve substantive NIST agent-identity evidence when article includes a skip link
+
+**Auto-approval classification:** LOW risk; reversible; evidence-admission false-negative correction only. No production runtime, data, credentials, permissions, spending, or external integration behavior changes.
+
+**Observed evidence:**
+- Main SHA at inspection: `b7853ff6496b575727727e738150a8243809fa8a`.
+- PR #863 exact-head scan run: `43553317023`, source head `b0eb8c137cca5f9c4618cdd3a879c814b2d1b6b1`, base `b7853ff6496b575727727e738150a8243809fa8a`, tested merge `b317b52fed7e878f8a7301c928df277d41721f63`.
+- Artifact: `geas-architecture-scan-43553317023`, ID `14097047695`, SHA-256 `f3329a73ad0b0621edc592585cad3101653e486765287f7503e510a3a6c943e6`.
+- The artifact classified `nist-agent-identity-design-tenets` as HTTP 200 / `source-available`, despite the official NIST article containing the exact registered phrase `Distinct Agent Identification` and substantive descriptions of all ten identity design tenets.
+- The extractor's page-chrome marker set contained a standalone `skip to main content` rejection. A legitimate NIST article excerpt can include that accessible skip-link text immediately before substantive article content.
+- NIST's article was published 2026-10-27 and explicitly describes distinct agent identity, delegated-scope attenuation, zero standing privilege, short-lived revocable authorization, human escalation, signed mandates, policy/reasoning separation, deterministic access decisions, continuous monitoring, and immutable evidence: https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems
+
+**Analysis:** A single accessibility skip-link marker does not make an excerpt navigation-only when the same excerpt contains source-specific substantive architecture text. Rejecting it causes a false negative and leaves the AI domain without a discovered pattern, even though the primary NIST agent initiative and the secondary design-tenets source are registered. Removing this standalone marker does not allow the skip-link text alone to match a pattern: extraction still requires a source-specific pattern keyword, and all content-matched records remain analysis.
+
+**Implemented refinement:**
+- Remove the standalone `skip to main content` marker from the reject list.
+- Add a regression observation containing the NIST skip link plus the exact substantive `Distinct Agent Identification` passage.
+- Require the existing secondary-source fallback to create only an `analysis` pattern, never an observed fact.
+- Preserve all other navigation/interstitial marker groups, cache invalidation, source URL allowlists, claim-support authentication, and five-state verification requirements.
+
+**Affected files:**
+- `src/lib/governance/geas-architecture-scientist.ts`
+- `src/lib/governance/geas-architecture-scientist.test.ts`
+- `docs/architecture/GEAS-REFINEMENT-BACKLOG.md`
+
+**Required verification:** GEAS scientist tests, source-registry validation, cadence validation, evidence-policy validation, full CI, and a fresh exact-head architecture scan with artifact provenance. The previous successful scan predates this correction and does not verify the new head.
+
+**Deferred:** This correction does not authenticate NIST claims, verify GLORIFIER agent identity, configure a claim-support authenticator, or change the eight UNKNOWN drift findings.

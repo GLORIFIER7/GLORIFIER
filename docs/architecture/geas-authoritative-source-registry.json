@@ -105,7 +105,7 @@
       "id": "finops-focus-1-4",
       "authority": "FinOps Foundation",
       "domain": "finops",
-      "url": "https://focus.finops.org/docs/specification/v1-4/",
+      "url": "https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/",
       "claimsAllowed": [
         "focus-invoice-reconciliation"
       ],
@@ -551,7 +551,7 @@
       "id": "otel-genai-agents",
       "authority": "OpenTelemetry",
       "domain": "observability",
-      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md",
+      "url": "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md",
       "claimsAllowed": [
         "genai-agent-telemetry"
       ],

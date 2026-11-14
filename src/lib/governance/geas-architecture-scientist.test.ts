@@ -16,6 +16,7 @@ import {
   createSourceFetchContext,
   reuseNotModifiedSourceObservation,
   stripHtml,
+  stripHtmlForEvidence,
   isTrustedArchitectureSourceUrl,
   isTrustedCuratedRedirectTarget,
   formatCuratedRedirectTargetDiagnostic,
@@ -129,6 +130,24 @@ if (!nistIdentityTenetKeywords.includes('Distinct Agent Identification')
     || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf('Distinct Agent Identification')) {
   throw new Error('NIST secondary-source matching must select substantive design-tenet text rather than generic page chrome');
 }
+const nistIdentityTenetObservation: SourceObservation = {
+  sourceId: 'nist-agent-identity-design-tenets',
+  ok: true,
+  status: 200,
+  contentHash: 'd'.repeat(64),
+  observedAt: '2026-11-14T04:00:00.000Z',
+  finalUrl: 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
+  evidenceExcerpt: 'Skip to main content Design Tenets for Agent Identity Management Systems. Distinct Agent Identification: Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+  evidenceStatus: 'content-matched',
+};
+const nistIdentityTenetPattern = buildObservedArchitecturePatterns(
+  [nistIdentityTenetObservation],
+  nistIdentityTenetObservation.observedAt,
+).find((pattern) => pattern.id === 'agent-identity-delegation');
+if (!nistIdentityTenetPattern || nistIdentityTenetPattern.evidenceClass !== 'analysis') {
+  throw new Error('a substantive NIST agent-identity excerpt must remain admissible when its article contains an innocuous skip link, while remaining analysis only');
+}
+
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
@@ -139,8 +158,17 @@ if (owaspAgentControlSource?.url !== 'https://owaspacs.org/docs/acs/') {
 }
 
 const otelGenAiAgentSource = model.sources.find((source) => source.id === 'otel-genai-agents');
-if (otelGenAiAgentSource?.url !== 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md') {
+if (otelGenAiAgentSource?.url !== 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md') {
   throw new Error('OpenTelemetry GenAI agent source must target the canonical agent-span specification');
+}
+const otelAgentKeywords = getSourcePatternKeywords('otel-genai-agents');
+const otelAgentSpecExcerpt = 'Status: Development. Describes an in-process GenAI agent, workflow, or framework entrypoint invocation.';
+if (otelAgentKeywords.length !== 1
+    || otelAgentKeywords[0] !== 'Describes an in-process GenAI agent'
+    || findEarliestKeywordIndex(otelAgentSpecExcerpt, otelAgentKeywords)
+      !== otelAgentSpecExcerpt.indexOf('Describes an in-process GenAI agent')
+    || !isTrustedArchitectureSourceUrl('https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md')) {
+  throw new Error('OpenTelemetry agent-span evidence must use the raw authoritative specification and substantive source-specific matching');
 }
 const focus15Source = model.sources.find((source) => source.id === 'finops-focus-1-5-release-scope');
 if (focus15Source?.url !== 'https://focus.finops.org/focus-1-5-release-scope/' || focus15Source.cadenceHours !== 168) {
@@ -511,10 +539,10 @@ const approvedCuratedSourceUrls = [
   'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
   'https://docs.cloud.google.com/bigquery/docs/external-data-sources',
   'https://owaspacs.org/docs/acs/',
-  'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md',
+  'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md',
   'https://airc.nist.gov/airmf-resources/playbook/',
   'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI01_Agent_Goal_Hijack.md',
-  'https://focus.finops.org/docs/specification/v1-4/',
+  'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/',
   'https://focus.finops.org/focus-1-5-release-scope/',
   'https://docs.nats.io/concepts/jetstream',
   'https://www.rfc-editor.org/rfc/rfc9111.html',
@@ -627,6 +655,243 @@ if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cac
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
 if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
 if (stripHtml('<main>  alpha &amp; beta </main>') !== 'alpha and beta') throw new Error('HTML normalization failed');
+
+const semanticEvidenceHtml = [
+  '<header><nav>Security Reliability Cost Sign in</nav></header>',
+  '<main><article><h1>Cloud architecture</h1>',
+  '<p>The Well-Architected Framework treats security, reliability and cost optimization as design pillars.</p>',
+  '</article></main><footer>About AWS Careers Privacy</footer>',
+].join('');
+const semanticEvidenceText = stripHtmlForEvidence(semanticEvidenceHtml);
+if (semanticEvidenceText.includes('Sign in')
+    || semanticEvidenceText.includes('About AWS')
+    || findEarliestKeywordIndex(semanticEvidenceText, ['security', 'reliability', 'cost'])
+      !== semanticEvidenceText.toLowerCase().indexOf('security')) {
+  throw new Error('evidence extraction must prefer semantic main content over header and footer navigation');
+}
+
+const articleIsolationHtml = [
+  '<main><article><h1>Official architecture guidance</h1>',
+  '<p>Distinct agent identification and delegated authority must be explicit.</p>',
+  '</article><section id="comments"><p>Reader comment: this is only a personal suggestion.</p></section></main>',
+].join('');
+const articleIsolationText = stripHtmlForEvidence(articleIsolationHtml);
+if (!articleIsolationText.includes('Distinct agent identification')
+    || articleIsolationText.includes('Reader comment')
+    || articleIsolationText.includes('personal suggestion')) {
+  throw new Error('article content must take precedence over main-region comments and reader-generated text');
+}
+
+const chromeBeforeArticleHtml = [
+  '<aside><article><p>Related card: generic marketing summary.</p></article></aside>',
+  '<main><article><h1>Substantive architecture article</h1>',
+  '<p>Delegated authorization must be attenuated and revocable at each agent boundary.</p>',
+  '</article></main>',
+].join('');
+const chromeBeforeArticleText = stripHtmlForEvidence(chromeBeforeArticleHtml);
+if (chromeBeforeArticleText.includes('Related card')
+    || !chromeBeforeArticleText.includes('Delegated authorization must be attenuated')) {
+  throw new Error('page chrome must be removed before selecting article content');
+}
+
+const nestedArticleHtml = [
+  '<main><article><p>Outer article establishes the architecture context.</p>',
+  '<article><p>Nested section defines evidence lineage.</p></article>',
+  '<p>Outer article concludes with independent verification requirements.</p>',
+  '</article></main>',
+].join('');
+const nestedArticleText = stripHtmlForEvidence(nestedArticleHtml);
+if (!nestedArticleText.includes('Outer article establishes')
+    || !nestedArticleText.includes('Nested section defines evidence lineage')
+    || !nestedArticleText.includes('Outer article concludes')) {
+  throw new Error('nested article elements must not truncate the selected evidence region');
+}
+
+const customContentTags = [
+  '<article-card><p>Custom card metadata must not be mistaken for an article element.</p></article-card>',
+  '<main-nav><p>Custom navigation component text.</p></main-nav>',
+  '<section><p>Fallback body content remains available.</p></section>',
+].join('');
+const customContentText = stripHtmlForEvidence(customContentTags);
+if (!customContentText.includes('Custom card metadata')
+    || !customContentText.includes('Custom navigation component')
+    || !customContentText.includes('Fallback body content')) {
+  throw new Error('custom article-card and main-nav tags must not be parsed as article/main containers');
+}
+
+const multipleArticleHtml = [
+  '<article><p>Short related-card teaser.</p></article>',
+  '<article><p>Longer primary article content with detailed architecture constraints, authenticated provenance, delegated identity, and independent runtime verification.</p></article>',
+].join('');
+const multipleArticleText = stripHtmlForEvidence(multipleArticleHtml);
+if (!multipleArticleText.includes('Longer primary article content')
+    || multipleArticleText.includes('Short related-card teaser')) {
+  throw new Error('the longest substantive article candidate must be selected after chrome removal');
+}
+
+const fallbackEvidenceHtml = [
+  '<header>News and announcements</header>',
+  '<div role="navigation">Home Docs Search Projects</div>',
+  '<aside>Related links and categories</aside>',
+  '<section><p>Delegated authority must attenuate at each agent boundary.</p></section>',
+  '<footer>Contact us Privacy Policy</footer>',
+].join('');
+const fallbackEvidenceText = stripHtmlForEvidence(fallbackEvidenceHtml);
+if (fallbackEvidenceText.includes('News and announcements')
+    || fallbackEvidenceText.includes('Home Docs Search Projects')
+    || fallbackEvidenceText.includes('Related links')
+    || !fallbackEvidenceText.includes('Delegated authority must attenuate')) {
+  throw new Error('evidence extraction must remove semantic navigation and preserve substantive fallback content');
+}
+
+const nestedChromeHtml = [
+  '<div role=',
+  '"navigation"><div>Home <div>Docs</div></div></div>',
+  '<header><header>Nested header link</header>Header link</header>',
+  '<aside><aside>Nested sidebar link</aside>Sidebar link</aside>',
+  '<section><p>Deterministic policy decisions must remain independent of model reasoning.</p></section>',
+].join('');
+const nestedChromeText = stripHtmlForEvidence(nestedChromeHtml);
+if (nestedChromeText.includes('Home')
+    || nestedChromeText.includes('Docs')
+    || nestedChromeText.includes('Nested header')
+    || nestedChromeText.includes('Sidebar link')
+    || !nestedChromeText.includes('Deterministic policy decisions')) {
+  throw new Error('balanced chrome removal must handle nested elements and multiline navigation-role attributes');
+}
+
+const rawTextChromeHtml = [
+  '<script>for (let i = 0; i < n; i++) { x(); } const example = "<script src=x>"; document.write("<script>");</script>',
+  '<style>.badge::after { content: "<style>"; }</style>',
+  '<section><p>Runtime evidence must be independently authenticated and timestamped.</p></section>',
+].join('');
+const rawTextEvidence = stripHtmlForEvidence(rawTextChromeHtml);
+if (rawTextEvidence.includes('const example')
+    || rawTextEvidence.includes('.badge::after')
+    || !rawTextEvidence.includes('Runtime evidence must be independently authenticated')) {
+  throw new Error('script/style text containing tag-like strings must not hide later substantive evidence');
+}
+
+const staleNavigationExcerpt = 'AWS homepage News and announcements AWS blog About AWS and product navigation';
+if (shouldReuseSourceObservation({
+  configuredUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  cachedUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  evidenceExcerpt: staleNavigationExcerpt,
+  evidenceStatus: 'content-matched',
+  cadenceHours: 336,
+  observedAt: '2026-11-14T03:00:00.000Z',
+  nowMs: Date.parse('2026-11-14T04:00:00.000Z'),
+})) {
+  throw new Error('stale navigation-only cached evidence must be invalidated for a full source refetch');
+}
+if (Object.keys(buildConditionalRequestHeaders(
+  'https://aws.amazon.com/architecture/well-architected/',
+  {
+    observed_at: '2026-11-14T03:00:00.000Z',
+    ok: true,
+    status: 200,
+    content_hash: 'a'.repeat(64),
+    evidence_excerpt: staleNavigationExcerpt,
+    evidence_status: 'content-matched',
+    final_url: 'https://aws.amazon.com/architecture/well-architected/',
+    etag: '"navigation-v1"',
+    source_url: 'https://aws.amazon.com/architecture/well-architected/',
+  },
+  Date.parse('2026-11-14T04:00:00.000Z'),
+)).length !== 0) {
+  throw new Error('navigation-only cached evidence must not supply conditional validators');
+}
+
+const staleNavigationCache = {
+  observed_at: '2026-11-14T03:00:00.000Z',
+  ok: true,
+  status: 200,
+  content_hash: 'a'.repeat(64),
+  evidence_excerpt: staleNavigationExcerpt,
+  evidence_status: 'content-matched' as const,
+  final_url: 'https://aws.amazon.com/architecture/well-architected/',
+  etag: '"navigation-v1"',
+  last_modified: null,
+  source_url: 'https://aws.amazon.com/architecture/well-architected/',
+};
+if (reuseNotModifiedSourceObservation(
+  { id: 'aws-well-architected', url: staleNavigationCache.source_url },
+  staleNavigationCache,
+  { finalUrl: staleNavigationCache.final_url, etag: staleNavigationCache.etag, lastModified: null },
+  '2026-11-14T04:00:00.000Z',
+  Date.parse('2026-11-14T04:00:00.000Z'),
+) !== null) {
+  throw new Error('a 304 response must not revive stale navigation-only cached evidence');
+}
+
+const staleOpenTelemetryObservation: SourceObservation = {
+  sourceId: 'otel-genai-agents',
+  ok: true,
+  status: 200,
+  contentHash: 'b'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md',
+  evidenceExcerpt: 'Navigation Menu Sign in Products Platform GitHub Repository hosting and collaboration',
+  evidenceStatus: 'content-matched',
+};
+if (buildObservedArchitecturePatterns(
+  [staleOpenTelemetryObservation],
+  staleOpenTelemetryObservation.observedAt,
+).some((pattern) => pattern.id === 'genai-agent-telemetry')) {
+  throw new Error('GitHub navigation-only excerpts must not create OpenTelemetry architecture patterns');
+}
+
+const staleNavigationObservation: SourceObservation = {
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'a'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: 'https://aws.amazon.com/architecture/well-architected/',
+  evidenceExcerpt: staleNavigationExcerpt,
+  evidenceStatus: 'content-matched',
+};
+if (buildObservedArchitecturePatterns(
+  [staleNavigationObservation],
+  staleNavigationObservation.observedAt,
+).some((pattern) => pattern.id === 'cross-cutting-cloud-controls')) {
+  throw new Error('navigation-only cached observations must not create architecture analysis patterns');
+}
+
+const legitimateAnnouncementUrl = 'https://aws.amazon.com/architecture/well-architected/';
+const legitimateAnnouncementObservation: SourceObservation = {
+  sourceId: 'aws-well-architected',
+  ok: true,
+  status: 200,
+  contentHash: 'c'.repeat(64),
+  observedAt: '2026-11-14T03:00:00.000Z',
+  finalUrl: legitimateAnnouncementUrl,
+  evidenceExcerpt: 'News and announcements are delivered through durable, reliable and secure event streams with explicit cost controls.',
+  evidenceStatus: 'content-matched',
+};
+if (!buildObservedArchitecturePatterns(
+  [legitimateAnnouncementObservation],
+  legitimateAnnouncementObservation.observedAt,
+).some((pattern) => pattern.id === 'cross-cutting-cloud-controls')) {
+  throw new Error('ordinary architecture prose mentioning news and announcements must not be rejected as page chrome');
+}
+if (!shouldReuseSourceObservation({
+  configuredUrl: legitimateAnnouncementUrl,
+  cachedUrl: legitimateAnnouncementUrl,
+  ok: true,
+  status: 200,
+  contentHash: legitimateAnnouncementObservation.contentHash,
+  evidenceExcerpt: legitimateAnnouncementObservation.evidenceExcerpt,
+  evidenceStatus: 'content-matched',
+  cadenceHours: 336,
+  observedAt: legitimateAnnouncementObservation.observedAt,
+  nowMs: Date.parse('2026-11-14T04:00:00.000Z'),
+})) {
+  throw new Error('substantive cached excerpts must remain reusable when they contain ordinary news-and-announcements prose');
+}
 
 const cachedObservation = {
   observed_at: new Date(0).toISOString(),
@@ -835,11 +1100,22 @@ const authoritativeRegistry = JSON.parse(readFileSync(
   new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url),
   'utf8',
 )) as {
-  sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[]; reviewCadenceDays: number; implementationStatus: string }>;
+  sources: Array<{ id: string; url: string; scannerStatus: string; claimsAllowed: string[]; reviewCadenceDays: number; implementationStatus: string }>;
 };
 const focusRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'finops-focus-1-4');
-if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || focusRegistryEntry.claimsAllowed.length !== 1 || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
-  throw new Error('FOCUS 1.4 registry must explicitly allow only its active invoice-reconciliation source for that claim type');
+if (!focusRegistryEntry
+    || focusRegistryEntry.url !== 'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/'
+    || focusRegistryEntry.scannerStatus !== 'active'
+    || focusRegistryEntry.claimsAllowed.length !== 1
+    || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
+  throw new Error('FOCUS 1.4 registry must point to the authoritative invoice-reconciliation feature and allow only its narrow claim type');
+}
+const focusInvoiceKeywords = getSourcePatternKeywords('finops-focus-1-4');
+const focusInvoiceText = 'The Invoice Detail dataset represents the definitive financial record of charges as they appear on an invoice. PaymentCurrencyInvoiceDetailId provides the necessary lineage.';
+if (focusInvoiceKeywords[0] !== 'The Invoice Detail dataset represents the definitive financial record of charges'
+    || findEarliestKeywordIndex(focusInvoiceText, focusInvoiceKeywords) !== focusInvoiceText.indexOf('The Invoice Detail dataset represents the definitive financial record of charges')
+    || !isTrustedArchitectureSourceUrl('https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/')) {
+  throw new Error('FOCUS 1.4 evidence must select substantive invoice-reconciliation requirements from the authoritative feature page');
 }
 
 const natsRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'nats-jetstream');

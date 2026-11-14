@@ -352,8 +352,8 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('owasp-agentic-asi10', 'OWASP GenAI Security Project', 'cybersecurity', 'https://raw.githubusercontent.com/GenAI-Security-Project/translations/main/owasp-top-10-for-agentic-applications-2026-12-6-1/_source/ASI10_Rogue_Agents.md', ['owasp-agentic-asi10'], 336, ["rogue-agent-behavior"]),
   createArchitectureSource('mitre-atlas', 'MITRE', 'cybersecurity', 'https://atlas.mitre.org/', ['adversarial-ai-controls'], 336, ["adversarial-ai-controls"]),
   createArchitectureSource('nist-token-protection', 'NIST', 'cybersecurity', 'https://www.nist.gov/publications/protecting-tokens-and-assertions-forgery-theft-and-misuse-implementation', ['token-lifecycle-protection'], 336, ["token-lifecycle-protection"]),
-  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
-  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
+  createArchitectureSource('otel-genai-agents', 'OpenTelemetry', 'observability', 'https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md', ['genai-agent-telemetry'], 336, ["genai-agent-telemetry"]),
+  createArchitectureSource('finops-focus-1-4', 'FinOps Foundation', 'finops', 'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/', ['focus-invoice-reconciliation'], 336, ["focus-invoice-reconciliation"]),
   createArchitectureSource('finops-focus-1-5-release-scope', 'FinOps Foundation', 'finops', 'https://focus.finops.org/focus-1-5-release-scope/', ['focus-1-5-ai-cost-attribution'], 168, ["focus-1-5-ai-cost-attribution"]),
   createArchitectureSource('nist-zero-trust', 'NIST', 'networking', 'https://csrc.nist.gov/pubs/sp/800/207/final', ['zero-trust-resource-access'], 336, ["zero-trust-resource-access"]),
   createArchitectureSource('nist-traceability', 'NIST', 'data', 'https://csrc.nist.gov/pubs/ir/8536/final', ['provenance-graph'], 336, ["provenance-graph"]),
@@ -572,6 +572,118 @@ export const stripHtml = (input: string): string => input
   .replace(/\s+/g, ' ')
   .trim();
 
+/**
+ * Extract evidence from the document's semantic content region, not site chrome.
+ * Prefer <main>, then <article>; otherwise remove common navigation/sidebar/footer
+ * elements before normalizing text. The full-page hash still uses stripHtml().
+ */
+const removeHtmlChrome = (input: string): string => {
+  const chromeTags = new Set([
+    'nav', 'header', 'footer', 'aside', 'svg', 'noscript', 'template', 'script', 'style',
+  ]);
+  const rawTextTags = new Set(['script', 'style']);
+  const voidTags = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr',
+  ]);
+  const source = input.replace(/<!--[\s\S]*?-->/g, ' ');
+  const tagRe = /<(\/)?([a-z][\w:-]*)\b([^>]*)>/gi;
+  let output = '';
+  let last = 0;
+  let skipTag: string | null = null;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRe.exec(source)) !== null) {
+    const closing = match[1] === '/';
+    const tag = match[2].toLowerCase();
+    const attributes = match[3] ?? '';
+    const selfClosing = /\/\s*$/.test(attributes) || voidTags.has(tag);
+
+    if (skipTag === null) {
+      const navigationRole = /\brole\s*=\s*["']navigation["']/i.test(attributes);
+      if (!closing && (chromeTags.has(tag) || navigationRole)) {
+        output += source.slice(last, match.index) + ' ';
+        last = tagRe.lastIndex;
+        if (!selfClosing) {
+          if (rawTextTags.has(tag)) {
+            // Do not tokenize raw-text bodies: JavaScript comparisons such as i < n look like tags.
+            const endTag = new RegExp('</' + tag + '\\s*>', 'ig');
+            endTag.lastIndex = tagRe.lastIndex;
+            const endMatch = endTag.exec(source);
+            if (!endMatch) return output;
+            last = endTag.lastIndex;
+            tagRe.lastIndex = last;
+          } else {
+            skipTag = tag;
+            depth = 1;
+          }
+        }
+      }
+      continue;
+    }
+
+    if (!closing && rawTextTags.has(tag) && !selfClosing) {
+      // Skip nested raw-text bodies while already discarding a chrome container.
+      const endTag = new RegExp('</' + tag + '\\s*>', 'ig');
+      endTag.lastIndex = tagRe.lastIndex;
+      const endMatch = endTag.exec(source);
+      if (!endMatch) return output;
+      tagRe.lastIndex = endTag.lastIndex;
+      continue;
+    }
+
+    if (tag !== skipTag) continue;
+    if (closing) depth -= 1;
+    else if (!selfClosing) depth += 1;
+
+    if (depth === 0) {
+      last = tagRe.lastIndex;
+      skipTag = null;
+    }
+  }
+
+  // An unterminated chrome region is discarded through end-of-input.
+  return skipTag === null ? output + source.slice(last) : output;
+};
+
+const extractTopLevelElements = (html: string, tag: 'article' | 'main'): string[] => {
+  const tokenPattern = new RegExp('<(/?)' + tag + '(?=[\\s>])[^>]*>', 'gi');
+  const results: string[] = [];
+  let depth = 0;
+  let contentStart = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenPattern.exec(html)) !== null) {
+    if (match[1] === '/') {
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0) results.push(html.slice(contentStart, match.index));
+    } else {
+      if (depth === 0) contentStart = tokenPattern.lastIndex;
+      depth += 1;
+    }
+  }
+
+  if (depth > 0) results.push(html.slice(contentStart));
+  return results;
+};
+
+export const stripHtmlForEvidence = (input: string): string => {
+  // Remove page chrome before selecting content regions so cards in nav/sidebars cannot win.
+  const cleaned = removeHtmlChrome(input);
+  const articleCandidates = extractTopLevelElements(cleaned, 'article');
+  const mainCandidates = extractTopLevelElements(cleaned, 'main');
+  const candidates = articleCandidates.length > 0 ? articleCandidates : mainCandidates;
+  if (candidates.length === 0) return stripHtml(cleaned);
+
+  let best = '';
+  for (const candidate of candidates) {
+    const text = stripHtml(candidate);
+    if (text.length > best.length) best = text;
+  }
+  return best || stripHtml(cleaned);
+};
+
 export const isClaimSupportedEvidence = (
   status: EvidenceStatus,
   source?: SourceObservation,
@@ -760,8 +872,35 @@ const isSuccessfulHttpStatus = (status: number | null): boolean =>
 const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
+const PAGE_CHROME_MARKER_GROUPS: readonly (readonly string[])[] = [
+  ['unauthorized frame window'],
+  ['you are being redirected to'],
+  ['news and announcements', 'aws blog', 'about aws'],
+  ['member portal', 'search for'],
+  ['initializing search'],
+  ['the opentelemetry logo'],
+  ['toggle theme light dark auto'],
+  ['home docs specification adoption'],
+  ['docs specification adoption'],
+  ['join search cncf projects'],
+  ['navigation menu sign in products platform'],
+  ['products platform github repository hosting'],
+  ['latest updates contacts'],
+  ['announcement history blogs news releases resources'],
+  ['how to submit a metric', 'technical reports'],
+  ['career hr-resources'],
+  ["for ai agents: the site's llms.txt is at"],
+];
+
+/** Reject known navigation/interstitial combinations without blacklisting ordinary prose. */
+const isSubstantiveEvidenceExcerpt = (excerpt: string | null): excerpt is string => {
+  if (typeof excerpt !== 'string' || excerpt.trim().length === 0) return false;
+  const normalized = excerpt.toLowerCase();
+  return !PAGE_CHROME_MARKER_GROUPS.some((group) => group.every((marker) => normalized.includes(marker)));
+};
+
 const isValidContentMatchedExcerpt = (excerpt: string | null): boolean =>
-  typeof excerpt === 'string' && excerpt.trim().length > 0;
+  isSubstantiveEvidenceExcerpt(excerpt);
 
 const isValidSourceAvailableExcerpt = (excerpt: string | null): boolean =>
   excerpt === null || excerpt.trim().length === 0;
@@ -1004,9 +1143,10 @@ const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
   text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
 
 const extractEvidence = (body: string, keywords: string[]): string | null => {
-  const text = stripHtml(body);
+  const text = stripHtmlForEvidence(body);
   const matchIndex = findEarliestKeywordIndex(text, keywords);
-  return matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+  const excerpt = matchIndex < 0 ? null : createEvidenceExcerpt(text, matchIndex);
+  return isSubstantiveEvidenceExcerpt(excerpt) ? excerpt : null;
 };
 
 const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
@@ -1248,6 +1388,14 @@ const fetchCuratedSource = async (
 };
 
 const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'finops-focus-1-4': [
+    'The Invoice Detail dataset represents the definitive financial record of charges',
+    'PaymentCurrencyInvoiceDetailId provides the necessary lineage',
+    'Reconcile Multi-Currency Settlement Using Lineage IDs',
+  ],
+  'otel-genai-agents': [
+    'Describes an in-process GenAI agent',
+  ],
   'google-bigquery-external-data-sources': [
     'without first migrating',
     'access delegation',
@@ -1412,8 +1560,7 @@ const isPatternSourceObservation = (
   source?.ok === true
   && (source.evidenceStatus === 'content-matched'
     || isClaimSupportedEvidence(source.evidenceStatus, source, patternId, authenticate, nowMs))
-  && typeof source.evidenceExcerpt === 'string'
-  && source.evidenceExcerpt.trim().length > 0;
+  && isSubstantiveEvidenceExcerpt(source.evidenceExcerpt);
 
 const createObservedArchitecturePattern = (
   pattern: PatternDefinition,
