@@ -1011,11 +1011,22 @@ const authoritativeRegistry = JSON.parse(readFileSync(
   new URL('../../../docs/architecture/geas-authoritative-source-registry.json', import.meta.url),
   'utf8',
 )) as {
-  sources: Array<{ id: string; scannerStatus: string; claimsAllowed: string[]; reviewCadenceDays: number; implementationStatus: string }>;
+  sources: Array<{ id: string; url: string; scannerStatus: string; claimsAllowed: string[]; reviewCadenceDays: number; implementationStatus: string }>;
 };
 const focusRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'finops-focus-1-4');
-if (!focusRegistryEntry || focusRegistryEntry.scannerStatus !== 'active' || focusRegistryEntry.claimsAllowed.length !== 1 || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
-  throw new Error('FOCUS 1.4 registry must explicitly allow only its active invoice-reconciliation source for that claim type');
+if (!focusRegistryEntry
+    || focusRegistryEntry.url !== 'https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/'
+    || focusRegistryEntry.scannerStatus !== 'active'
+    || focusRegistryEntry.claimsAllowed.length !== 1
+    || focusRegistryEntry.claimsAllowed[0] !== 'focus-invoice-reconciliation') {
+  throw new Error('FOCUS 1.4 registry must point to the authoritative invoice-reconciliation feature and allow only its narrow claim type');
+}
+const focusInvoiceKeywords = getSourcePatternKeywords('finops-focus-1-4');
+const focusInvoiceText = 'The Invoice Detail dataset represents the definitive financial record of charges as they appear on an invoice. PaymentCurrencyInvoiceDetailId provides the necessary lineage.';
+if (focusInvoiceKeywords[0] !== 'The Invoice Detail dataset represents the definitive financial record of charges'
+    || findEarliestKeywordIndex(focusInvoiceText, focusInvoiceKeywords) !== focusInvoiceText.indexOf('The Invoice Detail dataset represents the definitive financial record of charges')
+    || !isTrustedArchitectureSourceUrl('https://focus.finops.org/docs/specification/v1-4/features/invoice-reconciliation/')) {
+  throw new Error('FOCUS 1.4 evidence must select substantive invoice-reconciliation requirements from the authoritative feature page');
 }
 
 const natsRegistryEntry = authoritativeRegistry.sources.find((entry) => entry.id === 'nats-jetstream');
