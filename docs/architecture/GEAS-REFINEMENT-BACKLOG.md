@@ -272,4 +272,11 @@ The article describes ten design tenets: distinct agent identification; linking,
 - No production behavior or security policy was weakened. The failed runs remain recorded as failures; the new head must pass fresh exact-SHA checks.
 - Corrective commit: \`61aa25ffb8ae606a3591a4fdb4735b78d09cfc3d\`.
 
+**FOCUS 1.4 source-quality correction:**
+- The exact-head scan showed \`finops-focus-1-4\` was only source-available after page-chrome filtering. The root specification page's first matching invoice phrase was a use-case/navigation entry, not the substantive supported-feature definition.
+- The official FOCUS 1.4 Invoice Reconciliation page states that Invoice Detail is the definitive financial record of invoice charges, defines the join to Cost and Usage, documents \`PaymentCurrencyInvoiceDetailId\` lineage for divergent billing/payment currency grains, and provides reconciliation queries for invoice totals, multi-currency settlement, and tax variance.
+- Updated the source registry and scanner to the exact feature page URL and added source-specific matching phrases from that page.
+- Regression tests now require the exact URL, trusted-source admission, and selection of the substantive Invoice Detail definition.
+- Follow-up commits: \`bb689f69624400014d429052b504b9bfffb3b6aa\`, \`c2760870a0acb33694403a375f9e0c6dca4f312d\`, \`7afe2af62ee81552aa64cdde0edbd536cc305175\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
