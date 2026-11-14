@@ -785,9 +785,15 @@ const PAGE_CHROME_MARKERS = [
   'the opentelemetry logo',
   'toggle theme light dark auto',
   'home docs specification adoption',
+  'docs specification adoption',
   'join search cncf projects',
+  'navigation menu sign in products platform',
+  'products platform github repository hosting',
   'latest updates contacts',
-  'careers hr-resources',
+  'announcement history blogs news releases resources',
+  'how to submit a metric technical reports',
+  'career hr-resources',
+  'for ai agents: the site\\'s llms.txt is at',
 ] as const;
 
 /** Reject known navigation/interstitial excerpts, including stale cached observations. */
