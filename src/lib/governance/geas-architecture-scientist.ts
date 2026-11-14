@@ -646,11 +646,42 @@ const removeHtmlChrome = (input: string): string => {
   return skipTag === null ? output + source.slice(last) : output;
 };
 
+const extractTopLevelElements = (html: string, tag: 'article' | 'main'): string[] => {
+  const tokenPattern = new RegExp('<(/?)' + tag + '(?=[\\s>])[^>]*>', 'gi');
+  const results: string[] = [];
+  let depth = 0;
+  let contentStart = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenPattern.exec(html)) !== null) {
+    if (match[1] === '/') {
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0) results.push(html.slice(contentStart, match.index));
+    } else {
+      if (depth === 0) contentStart = tokenPattern.lastIndex;
+      depth += 1;
+    }
+  }
+
+  if (depth > 0) results.push(html.slice(contentStart));
+  return results;
+};
+
 export const stripHtmlForEvidence = (input: string): string => {
-  const articleContent = /<article\b[^>]*>([\s\S]*?)<\/article\s*>/i.exec(input)?.[1];
-  const mainContent = /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(input)?.[1];
-  const content = articleContent ?? mainContent ?? input;
-  return stripHtml(removeHtmlChrome(content));
+  // Remove page chrome before selecting content regions so cards in nav/sidebars cannot win.
+  const cleaned = removeHtmlChrome(input);
+  const articleCandidates = extractTopLevelElements(cleaned, 'article');
+  const mainCandidates = extractTopLevelElements(cleaned, 'main');
+  const candidates = articleCandidates.length > 0 ? articleCandidates : mainCandidates;
+  if (candidates.length === 0) return stripHtml(cleaned);
+
+  let best = '';
+  for (const candidate of candidates) {
+    const text = stripHtml(candidate);
+    if (text.length > best.length) best = text;
+  }
+  return best || stripHtml(cleaned);
 };
 
 export const isClaimSupportedEvidence = (
