@@ -362,7 +362,7 @@ export function agentManifest() {
       autonomousLegalCommitment: false
     },
     statusSemantics: {
-      registered: 'Declared in the capability catalogue; runtime health and liveness have not been verified.',
+      registered: 'Declared in the capability catalogue; runtime health has not been verified.',
       active: 'Requires a recent successful runtime health observation.',
       offline: 'A runtime health observation confirms the agent is unreachable.',
       degraded: 'A runtime health observation confirms reduced service health.'
