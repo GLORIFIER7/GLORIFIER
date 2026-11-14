@@ -298,4 +298,10 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Added tests for JavaScript less-than comparisons inside script, tag-like strings in script/style, and article-versus-comment isolation.
 - Follow-up commits: \`1e6707193abf35f1b639ff017c156054e657516d\` and \`5bbb76fc8b2041ed7fc6d733aa2a0566a3670cb1\`.
 
+**Article-region selection hardening:**
+- Automated review identified that selecting the first \`<article>\` before removing page chrome could choose a sidebar card, and a lazy regex could truncate nested article elements or match custom \`article-card\` / \`main-nav\` components.
+- The extractor now removes chrome first, tokenizes only exact \`article\` / \`main\` tag boundaries, tracks nested depth, prefers the longest substantive article candidate, and falls back to the longest main candidate only when no article exists.
+- Added regression tests for sidebar article cards, nested article sections, multiple article candidates, custom tags, and article-vs-comments isolation.
+- Follow-up commits: \`989f621394d30b94884ac86a257e1ca928e2d186\` and \`64cceaa2547e22cd4648464e2f29f7997ec14487\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
