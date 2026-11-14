@@ -42,6 +42,15 @@ if (nistAiAgentsSource?.url !== 'https://www.nist.gov/super-intelligence/si-agen
   throw new Error('NIST AI Agent Standards Initiative must use the current canonical SI Agent Standards Initiative URL');
 }
 
+const nistAgentIdentityTenetsSource = model.sources.find((source) => source.id === 'nist-agent-identity-design-tenets');
+if (!nistAgentIdentityTenetsSource
+    || nistAgentIdentityTenetsSource.url !== 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems'
+    || nistAgentIdentityTenetsSource.cadenceHours !== 336
+    || !nistAgentIdentityTenetsSource.patternIds.includes('agent-identity-delegation')
+    || !nistAgentIdentityTenetsSource.claimsAllowed.includes('agent-identity-delegation')) {
+  throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and analysis-only identity/delegation association');
+}
+
 const owaspAgentControlSource = model.sources.find((source) => source.id === 'owasp-agent-control');
 if (owaspAgentControlSource?.url !== 'https://owaspacs.org/docs/acs/') {
   throw new Error('OWASP Agent Control Standard must use its canonical specification documentation');
