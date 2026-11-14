@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
@@ -12,6 +12,9 @@ const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci
   read('../.github/workflows/ci.yml'),
   read('../.github/workflows/docker-image.yml'),
   read('../.github/workflows/glorifier-solana-devnet-reconcile.yml'),
+  read('../.github/workflows/global-collaboration.yml'),
+  read('../.github/workflows/mediator-expansion.yml'),
+  read('../.github/workflows/global-resolution.yml'),
 ]);
 function sliceBetweenMarkers(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -101,4 +104,31 @@ test('Solana workflow registration write access is main-only and owner-gated for
 
 test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
+});
+
+
+test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
+  const cases = [
+    ['global collaboration', globalCollaboration, 'Run global collaboration and resolution cycle'],
+    ['mediator expansion', mediatorExpansion, 'Refresh mediator registry snapshot'],
+    ['global resolution', globalResolution, 'Discover and queue global resolution candidates'],
+  ];
+
+  for (const [label, workflow, stepName] of cases) {
+    const start = workflow.indexOf(`      - name: ${stepName}`);
+    assert.ok(start >= 0, `${label} task step must exist`);
+    const end = workflow.indexOf('\\n      - name: ', start + 1);
+    const step = workflow.slice(start, end < 0 ? undefined : end);
+
+    assert.match(
+      step,
+      /DATABASE_URL:\\s*\\$\\{\\{\\s*secrets\\.DATABASE_URL\\s*\\}\\}/,
+      `${label} must use the repository DATABASE_URL secret`,
+    );
+    assert.match(
+      step,
+      /NODE_ENV:\\s*production/,
+      `${label} must select the verified production PostgreSQL TLS policy`,
+    );
+  }
 });
