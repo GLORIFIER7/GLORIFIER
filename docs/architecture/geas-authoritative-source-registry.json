@@ -551,7 +551,7 @@
       "id": "otel-genai-agents",
       "authority": "OpenTelemetry",
       "domain": "observability",
-      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md",
+      "url": "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/gen-ai-agent-spans.md",
       "claimsAllowed": [
         "genai-agent-telemetry"
       ],
