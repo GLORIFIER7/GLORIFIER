@@ -1252,7 +1252,6 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
     'without first migrating',
     'access delegation',
     'federated queries',
-    'external data sources',
   ],
   'nist-agent-identity-design-tenets': [
     'Distinct Agent Identification',
