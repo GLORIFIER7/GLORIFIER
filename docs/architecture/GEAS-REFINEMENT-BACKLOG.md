@@ -199,3 +199,53 @@ The article describes ten design tenets: distinct agent identification; linking,
 
 **Verification targets:** `npm run test:geas-scientist`, authoritative source-registry validation, source-registry/cadence validation, and the exact-head GEAS architecture scan with its uploaded evidence artifact.
 
+
+
+## 2026-11-14 — reject navigation-only source excerpts and stale cached matches
+
+**Auto-approval classification:** LOW risk; reversible; source-evidence normalization and regression coverage only. No production runtime, data, policy authority, credential, or external integration behavior is changed. The change is fail-closed: questionable excerpts are excluded from analysis rather than promoted.
+
+**Observed repository evidence:**
+- Main commit: \`b7853ff6496b575727727e738150a8243809fa8a\`, containing merged PR #862.
+- Latest available GEAS scan artifact: run #43550232979, tested synthetic merge SHA \`ca3fdd219547a0b08f463d55dc539d9a95d0292f\`, PR head \`efc2c1c2e5d12983e667783034c188e4fd4c04b1\`, event base \`6b4e8a36c5383173806c026cc37b09c347381d97\`, tested merge base \`4c15055e35ecfc40fb45e83da5699549c5a50b8d\`.
+- Artifact SHA-256: \`cc29f77aee0c1a7d8c85e9bc6b85a64791bac38c04b0e3efa9f1e91ed77325c2\`.
+- The artifact reported 44 content-matched sources and 44 analysis patterns, but several excerpts began with navigation, promotional, or interstitial text rather than the source's substantive architecture guidance. Examples included AWS "News and announcements / AWS blog / About AWS", NIST "Skip to main content", NIST CSRC unauthorized-frame interstitials, OpenTelemetry site navigation, CNCF project navigation, and Open Group HR/certification navigation.
+- The scanner's previous \`stripHtml\` removed script/style and markup but retained semantic \`header\`, \`nav\`, \`footer\`, \`aside\` and navigation-role content. Keyword extraction selected the earliest matching phrase, allowing these regions to become content-matched excerpts.
+- Cached content-matched excerpts were reusable based on URL/status/hash/non-empty text; known navigation-only excerpts could therefore survive a code-only extractor refinement until cadence expiry.
+
+**Analysis:**
+- HTTP 200 and keyword presence are insufficient to establish that the captured excerpt substantively supports an architecture pattern.
+- Removing semantic page chrome before excerpt selection is a conservative quality improvement. Full-page content hashing remains unchanged.
+- Known navigation/interstitial excerpts must be inadmissible both for pattern creation and for cache/conditional-request reuse, forcing a full refetch rather than preserving stale low-quality evidence.
+- Content-matched excerpts remain analysis only. This refinement does not authorize or create claim-supported evidence.
+
+**Auto-approved finding:** GEAS evidence excerpts can be contaminated by navigation, sidebar, footer, promotional and interstitial page chrome; stale cached excerpts can preserve the contamination. The finding is auto-approved for a narrow, reversible evidence-quality refinement.
+
+**Implemented refinement:**
+- Add semantic evidence extraction that prefers \`<main>\`, then \`<article>\`, and otherwise removes \`nav\`, \`header\`, \`footer\`, \`aside\`, SVG/template/noscript and \`role=navigation\` regions.
+- Keep the existing full-page normalized content hash behavior unchanged.
+- Reject known navigation/interstitial markers in content-matched excerpt admission.
+- Make stale navigation-only cache entries inadmissible so they do not supply cached observations or conditional validators.
+- Ensure navigation-only cached observations cannot instantiate analysis patterns.
+- Preserve all claim-support authenticator and source-policy boundaries.
+
+**Affected files:**
+- \`src/lib/governance/geas-architecture-scientist.ts\`
+- \`src/lib/governance/geas-architecture-scientist.test.ts\`
+- \`docs/architecture/GEAS-REFINEMENT-BACKLOG.md\`
+
+**Regression and CI gates:**
+- Main/article extraction removes semantic header/footer navigation.
+- Fallback extraction removes navigation-role, sidebar and semantic chrome.
+- Substantive content remains available when semantic page regions are absent.
+- Navigation-only cached observations are invalidated for full refetch.
+- Navigation-only cache records cannot supply ETag/Last-Modified conditional headers.
+- Navigation-only cached observations cannot create architecture patterns.
+- Run \`npm run test:geas-scientist\`, source-registry validation, cadence validation, evidence-policy validation and the exact-SHA GEAS architecture scan with artifact provenance.
+
+**Implementation commits:**
+- \`58e023868a036809df15913c117238226ffad800\` — semantic evidence extraction and stale excerpt admission.
+- \`5d995788b3d905f24d62862af40e58f55ae01402\` — correct semantic navigation matcher.
+- \`2f771d2abb425c01251267c1f71d4d9983f57790\` — regression tests for semantic extraction, stale cache invalidation and pattern rejection.
+
+**Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
