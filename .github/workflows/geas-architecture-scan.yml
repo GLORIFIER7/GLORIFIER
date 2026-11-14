@@ -101,6 +101,8 @@ jobs:
           GEAS_TESTED_BASE_SHA: ${{ steps.tested-base.outputs.sha }}
 
       - name: Validate scan safety and run provenance invariants
+        env:
+          GEAS_TESTED_BASE_SHA: ${{ steps.tested-base.outputs.sha }}
         run: |
           node <<'NODE'
           const fs = require('fs');
