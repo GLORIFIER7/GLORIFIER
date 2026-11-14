@@ -67,6 +67,8 @@ export function mapConnectionStatusToAgentStatus(status?: string | null): AgentS
       return 'degraded';
     case 'revoked':
       return 'revoked';
+    case 'offline':
+      return 'offline';
     case 'expired':
     case 'disabled':
       return 'offline';
