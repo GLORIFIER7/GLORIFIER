@@ -135,7 +135,7 @@
     "express-rate-limit": "^8.7.1",
     "firebase": "13.2.0",
     "firebase-admin": "^14.5.0",
-    "lucide-react": "^1.68.0",
+    "lucide-react": "^1.72.0",
     "mongodb": "^7.8.0",
     "motion": "14.9.1",
     "openai": "^7.50.0",
