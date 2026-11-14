@@ -291,4 +291,11 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Added regression coverage for nested-looking script/style strings followed by substantive architecture text.
 - Follow-up commits: \`e5c917d953da0f7870d2e9327fb873d37c40f789\` and \`fc817d7b65d14c61ca97419acaaf479e9147b7ae\`.
 
+**Raw-text tokenizer and article-isolation hardening:**
+- Further review found that even after raw-text mode was recognized, tokenizing script/style contents could interpret JavaScript comparisons such as \`i < n\` as malformed tags and swallow the actual closing tag.
+- Changed the parser to search directly for the literal closing \`</script>\` or \`</style>\` while in raw-text mode, without tokenizing the body. Nested raw-text elements inside a discarded navigation region are skipped the same way.
+- Changed evidence-region precedence to prefer \`<article>\` over \`<main>\`, preventing page-level comments or reader-generated content outside the article from being treated as source evidence.
+- Added tests for JavaScript less-than comparisons inside script, tag-like strings in script/style, and article-versus-comment isolation.
+- Follow-up commits: \`1e6707193abf35f1b639ff017c156054e657516d\` and \`5bbb76fc8b2041ed7fc6d733aa2a0566a3670cb1\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
