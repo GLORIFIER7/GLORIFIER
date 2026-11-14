@@ -54,7 +54,7 @@ jobs:
       - name: Validate committed dependency lock
         run: uv lock --check
       - name: Export hash-pinned development requirements
-        run: uv export --locked --extra dev --no-emit-project --format requirements-txt --output-file /tmp/requirements.txt
+        run: uv export --locked --extra dev --extra neon --no-emit-project --format requirements-txt --output-file /tmp/requirements.txt
       - name: Install only wheel distributions at locked versions
         run: "python -m pip install --only-binary=:all: --require-hashes -r /tmp/requirements.txt"
       - run: "python -m pip install --only-binary=:all: --no-deps -e ."
