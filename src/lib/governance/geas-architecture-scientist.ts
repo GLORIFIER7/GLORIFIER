@@ -1246,10 +1246,21 @@ const fetchCuratedSource = async (
   return { response, finalUrl, body };
 };
 
-const getSourcePatternKeywords = (sourceId: string): string[] =>
-  PATTERN_DEFINITIONS
-    .filter((pattern) => pattern.sourceId === sourceId)
-    .flatMap((pattern) => pattern.keywords);
+/**
+ * Resolve discovery keywords from every pattern explicitly associated with a source.
+ * Secondary sources must be able to contribute analysis evidence without becoming
+ * the pattern's primary source or promoting content matches to observed facts.
+ */
+export const getSourcePatternKeywords = (sourceId: string): string[] => {
+  const source = SOURCES.find((item) => item.id === sourceId);
+  if (!source) return [];
+  const sourcePatternIds = new Set(source.patternIds);
+  return [...new Set(
+    PATTERN_DEFINITIONS
+      .filter((pattern) => sourcePatternIds.has(pattern.id))
+      .flatMap((pattern) => pattern.keywords),
+  )];
+};
 
 const createUnavailableSourceObservation = (
   sourceId: string,
