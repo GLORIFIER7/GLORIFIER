@@ -577,14 +577,59 @@ export const stripHtml = (input: string): string => input
  * Prefer <main>, then <article>; otherwise remove common navigation/sidebar/footer
  * elements before normalizing text. The full-page hash still uses stripHtml().
  */
+const removeHtmlChrome = (input: string): string => {
+  const chromeTags = new Set([
+    'nav', 'header', 'footer', 'aside', 'svg', 'noscript', 'template', 'script', 'style',
+  ]);
+  const voidTags = new Set([
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr',
+  ]);
+  const source = input.replace(/<!--[\s\S]*?-->/g, ' ');
+  const tagRe = /<(\/)?([a-z][\w:-]*)\b([^>]*)>/gi;
+  let output = '';
+  let last = 0;
+  let skipTag: string | null = null;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRe.exec(source)) !== null) {
+    const closing = match[1] === '/';
+    const tag = match[2].toLowerCase();
+    const attributes = match[3] ?? '';
+    const selfClosing = /\/\s*$/.test(attributes) || voidTags.has(tag);
+
+    if (skipTag === null) {
+      const navigationRole = /\brole\s*=\s*["']navigation["']/i.test(attributes);
+      if (!closing && (chromeTags.has(tag) || navigationRole)) {
+        output += source.slice(last, match.index) + ' ';
+        last = tagRe.lastIndex;
+        if (!selfClosing) {
+          skipTag = tag;
+          depth = 1;
+        }
+      }
+      continue;
+    }
+
+    if (tag !== skipTag) continue;
+    if (closing) depth -= 1;
+    else if (!selfClosing) depth += 1;
+
+    if (depth === 0) {
+      last = tagRe.lastIndex;
+      skipTag = null;
+    }
+  }
+
+  // An unterminated chrome region is discarded through end-of-input.
+  return skipTag === null ? output + source.slice(last) : output;
+};
+
 export const stripHtmlForEvidence = (input: string): string => {
   const mainContent = /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(input)?.[1];
   const articleContent = /<article\b[^>]*>([\s\S]*?)<\/article\s*>/i.exec(input)?.[1];
   const content = mainContent ?? articleContent ?? input;
-  const withoutNavigation = content
-    .replace(/<([a-z][\w:-]*)\b(?=[^>]*\brole\s*=\s*["']navigation["'])[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<(nav|header|footer|aside|svg|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
-  return stripHtml(withoutNavigation);
+  return stripHtml(removeHtmlChrome(content));
 };
 
 export const isClaimSupportedEvidence = (
@@ -775,32 +820,32 @@ const isSuccessfulHttpStatus = (status: number | null): boolean =>
 const hasValidSha256ContentHash = (contentHash: string | null): boolean =>
   typeof contentHash === 'string' && /^[a-f0-9]{64}$/i.test(contentHash);
 
-const PAGE_CHROME_MARKERS = [
-  'skip to main content',
-  'unauthorized frame window',
-  'you are being redirected to',
-  'news and announcements',
-  'member portal',
-  'initializing search',
-  'the opentelemetry logo',
-  'toggle theme light dark auto',
-  'home docs specification adoption',
-  'docs specification adoption',
-  'join search cncf projects',
-  'navigation menu sign in products platform',
-  'products platform github repository hosting',
-  'latest updates contacts',
-  'announcement history blogs news releases resources',
-  'how to submit a metric technical reports',
-  'career hr-resources',
-  "for ai agents: the site's llms.txt is at",
-] as const;
+const PAGE_CHROME_MARKER_GROUPS: readonly (readonly string[])[] = [
+  ['skip to main content'],
+  ['unauthorized frame window'],
+  ['you are being redirected to'],
+  ['news and announcements', 'aws blog', 'about aws'],
+  ['member portal', 'search for'],
+  ['initializing search'],
+  ['the opentelemetry logo'],
+  ['toggle theme light dark auto'],
+  ['home docs specification adoption'],
+  ['docs specification adoption'],
+  ['join search cncf projects'],
+  ['navigation menu sign in products platform'],
+  ['products platform github repository hosting'],
+  ['latest updates contacts'],
+  ['announcement history blogs news releases resources'],
+  ['how to submit a metric', 'technical reports'],
+  ['career hr-resources'],
+  ["for ai agents: the site's llms.txt is at"],
+];
 
-/** Reject known navigation/interstitial excerpts, including stale cached observations. */
+/** Reject known navigation/interstitial combinations without blacklisting ordinary prose. */
 const isSubstantiveEvidenceExcerpt = (excerpt: string | null): excerpt is string => {
   if (typeof excerpt !== 'string' || excerpt.trim().length === 0) return false;
   const normalized = excerpt.toLowerCase();
-  return !PAGE_CHROME_MARKERS.some((marker) => normalized.includes(marker));
+  return !PAGE_CHROME_MARKER_GROUPS.some((group) => group.every((marker) => normalized.includes(marker)));
 };
 
 const isValidContentMatchedExcerpt = (excerpt: string | null): boolean =>
