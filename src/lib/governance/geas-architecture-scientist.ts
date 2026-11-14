@@ -321,6 +321,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('microsoft-architecture', 'Microsoft', 'enterprise-architecture', 'https://learn.microsoft.com/en-us/azure/architecture/', ['cross-cutting-cloud-controls'], 336, ["cross-cutting-cloud-controls"]),
   createArchitectureSource('aws-well-architected', 'AWS', 'cloud', 'https://aws.amazon.com/architecture/well-architected/', ['cross-cutting-cloud-controls', 'durable-agent-execution'], 336, ["cross-cutting-cloud-controls"]),
   createArchitectureSource('google-architecture', 'Google Cloud', 'cloud', 'https://docs.cloud.google.com/architecture/framework', ['federated-data-access'], 336, ["federated-data-access"]),
+  createArchitectureSource('google-bigquery-external-data-sources', 'Google Cloud', 'data', 'https://docs.cloud.google.com/bigquery/docs/external-data-sources', ['federated-data-access'], 336, ["federated-data-access"]),
   createArchitectureSource('nist-ai-rmf', 'NIST', 'ai', 'https://www.nist.gov/itl/ai-risk-management-framework', ['ai-lifecycle-risk'], 720, ["ai-risk-governance","lifecycle-risk-management"]),
   createArchitectureSource('nist-ai-rmf-playbook', 'NIST AI Resource Center', 'governance', 'https://airc.nist.gov/airmf-resources/playbook/', ['ai-governance-lifecycle'], 720, ["ai-risk-governance","lifecycle-risk-management","governance-oversight"]),
   createArchitectureSource('nist-ai-agents', 'NIST', 'ai', 'https://www.nist.gov/super-intelligence/si-agent-standards-initiative', ['agent-identity-delegation'], 336, ["agent-identity-delegation"]),
@@ -1247,6 +1248,12 @@ const fetchCuratedSource = async (
 };
 
 const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[]>> = {
+  'google-bigquery-external-data-sources': [
+    'without first migrating',
+    'access delegation',
+    'federated queries',
+    'external data sources',
+  ],
   'nist-agent-identity-design-tenets': [
     'Distinct Agent Identification',
     'Agent Linking, Delegation & Attenuation',
@@ -1427,7 +1434,7 @@ const createObservedArchitecturePattern = (
   lastReviewed: source.observedAt,
 });
 
-const observedPatterns = (
+export const buildObservedArchitecturePatterns = (
   results: SourceObservation[],
   _scanCompletedAt: string,
   authenticate?: ClaimSupportAuthenticator,
@@ -1435,10 +1442,24 @@ const observedPatterns = (
 ): ArchitecturePattern[] => {
   const observationsBySource = new Map(results.map((result) => [result.sourceId, result]));
   return PATTERN_DEFINITIONS.flatMap((pattern) => {
-    const source = observationsBySource.get(pattern.sourceId);
-    return isPatternSourceObservation(source, pattern.id, authenticate, nowMs)
-      ? [createObservedArchitecturePattern(pattern, source)]
-      : [];
+    const primarySource = observationsBySource.get(pattern.sourceId);
+    if (isPatternSourceObservation(primarySource, pattern.id, authenticate, nowMs)) {
+      return [createObservedArchitecturePattern(pattern, primarySource)];
+    }
+
+    // A curated secondary source may preserve an analysis pattern when its primary source
+    // is unavailable. Secondary sources never promote a pattern to observed-fact here.
+    const secondarySources = SOURCES
+      .filter((source) => source.id !== pattern.sourceId && source.patternIds.includes(pattern.id))
+      .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    for (const secondarySource of secondarySources) {
+      const observation = observationsBySource.get(secondarySource.id);
+      if (observation?.evidenceStatus === 'content-matched'
+          && isPatternSourceObservation(observation, pattern.id, undefined, nowMs)) {
+        return [createObservedArchitecturePattern(pattern, observation)];
+      }
+    }
+    return [];
   });
 };
 
@@ -1864,7 +1885,7 @@ const buildArchitectureScanResult = (
   sources: SourceObservation[],
 ): ArchitectureScanResult => {
   const completedAt = new Date().toISOString();
-  const patterns = observedPatterns(sources, completedAt);
+  const patterns = buildObservedArchitecturePatterns(sources, completedAt);
   const evidence = buildArchitectureEvidence(sources);
   return {
     scanId,
