@@ -259,4 +259,11 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Added a source-specific phrase override and regression coverage for the exact URL, trusted-source admission, and substantive excerpt selection.
 - Follow-up commits: \`5fb0e01e961623bdc2eaf04c9bfd0354f8cd9f91\`, \`941e0ecd5f866b35d403a0b2f9949bff84a8769f\`, \`016cb83fce0b2bb299b05790ad6bc23c6add224d\`.
 
+**Review hardening after automated static-review findings:**
+- Review identified that a single lazy regex could stop at the first nested same-name closing tag and that the phrase \`news and announcements\` alone could reject legitimate architecture prose.
+- Replaced single-pass chrome regexes with a balanced tag scanner that tracks nested same-name elements, accepts multiline \`role=navigation\` attributes, removes script/style and semantic chrome, and fails closed by discarding the remainder when a chrome region is unterminated.
+- Replaced single-marker rejection with marker groups. The AWS navigation signature now requires the combined "news and announcements", "AWS blog", and "About AWS" cues; ordinary prose containing only "news and announcements" remains admissible.
+- Added regression tests for nested navigation/header/aside, multiline role attributes, legitimate event-stream prose containing "news and announcements", and reuse of substantive cached evidence.
+- Follow-up commits: \`143769b1d7597224d2e22288a73e431da97d40fb\` and \`585f4bc5f4edd524a857e7a4361d71fd8b39d76f\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
