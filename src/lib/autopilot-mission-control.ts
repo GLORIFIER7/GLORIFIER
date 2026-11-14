@@ -744,7 +744,8 @@ export function getAutopilotMissionControlStatus() {
     repositoryWriteScope: 'isolated-autopilot-branches-only',
     automaticPullRequestMergeEnabled: false,
     automaticProductionDeploymentEnabled: false,
-    independentOutcomeVerificationEnabled: autopilotStore !== null,
+    independentOutcomeVerificationEnabled: false,
+    githubSourceReadbackVerificationEnabled: autopilotStore !== null,
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
     providerInferenceEnabled: process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
@@ -771,7 +772,7 @@ export function getAutopilotMissionControlStatus() {
       'preflight-source-hash-checked-file-updates',
       'draft-pull-request-creation-without-auto-merge',
       'fresh-github-rest-readback-for-each-mutation',
-      'independent-github-source-verification',
+      'github-source-readback-verification',
       'bounded-idempotent-read-only-recovery',
     ],
     remainingCapabilities: [
