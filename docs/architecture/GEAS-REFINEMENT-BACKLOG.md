@@ -279,4 +279,10 @@ The article describes ten design tenets: distinct agent identification; linking,
 - Regression tests now require the exact URL, trusted-source admission, and selection of the substantive Invoice Detail definition.
 - Follow-up commits: \`bb689f69624400014d429052b504b9bfffb3b6aa\`, \`c2760870a0acb33694403a375f9e0c6dca4f312d\`, \`7afe2af62ee81552aa64cdde0edbd536cc305175\`.
 
+**FOCUS source-fixture correction:**
+- The exact-head scan on \`868e90775d74eb7d503f90a5c98c7c45ccff3d24\` failed its curated-source trust fixture because the test's approved-URL list still contained the old FOCUS specification landing-page URL.
+- Updated the fixture to the new exact FOCUS 1.4 Invoice Reconciliation feature URL. The registry and scanner URL already matched; this was a test fixture mismatch, not a source-policy failure.
+- The failed scan remains recorded. A fresh exact-head scan is required.
+- Corrective commit: \`ce00facddb770f35110712db95645b2404ad9e75\`.
+
 **Deferred:** Full semantic relevance verification still requires source-specific evidence review or a trusted semantic verifier. This change only removes known page chrome and does not claim that every remaining keyword match substantively proves its pattern. No production/runtime, invoice, collector, deployment or external identity evidence is promoted.
