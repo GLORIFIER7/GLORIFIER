@@ -46,5 +46,6 @@ jobs:
       - name: Discover and queue global resolution candidates
         run: ./node_modules/.bin/tsx scripts/run-global-resolution.ts
         env:
+          NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GLORIFIER_RESOLUTION_LIMIT: "200"
