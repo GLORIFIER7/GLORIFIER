@@ -41,14 +41,30 @@ function parameterValueForColumn(
   statement: { sql: string; values?: unknown[] },
   columnName: string,
 ): unknown {
-  const match = statement.sql.match(/INSERT INTO\\s+[^ (]+\\s*\\(([^)]+)\\)\\s*VALUES\\s*\\(([^)]+)\\)/is);
-  assert.ok(match, 'Expected an INSERT statement with an explicit column/value list.');
-  const columns = match[1].split(',').map(column => column.trim());
-  const parameters = match[2].split(',').map(parameter => parameter.trim());
+  const insertStart = statement.sql.toUpperCase().indexOf('INSERT INTO');
+  const columnsStart = statement.sql.indexOf('(', insertStart);
+  const columnsEnd = statement.sql.indexOf(')', columnsStart);
+  const valuesKeyword = statement.sql.toUpperCase().indexOf('VALUES', columnsEnd);
+  const valuesStart = statement.sql.indexOf('(', valuesKeyword);
+  const valuesEnd = statement.sql.indexOf(')', valuesStart);
+
+  assert.ok(
+    insertStart >= 0 && columnsStart > insertStart && columnsEnd > columnsStart &&
+      valuesKeyword > columnsEnd && valuesStart > valuesKeyword && valuesEnd > valuesStart,
+    'Expected an INSERT statement with explicit column and value lists.',
+  );
+
+  const columns = statement.sql.slice(columnsStart + 1, columnsEnd)
+    .split(',').map(column => column.trim());
+  const parameters = statement.sql.slice(valuesStart + 1, valuesEnd)
+    .split(',').map(parameter => parameter.trim());
   const columnIndex = columns.indexOf(columnName);
-  assert.notEqual(columnIndex, -1, `Expected INSERT to include the ${columnName} column.`);
+  assert.notEqual(columnIndex, -1, 'Expected INSERT to include the requested column.');
   const placeholder = parameters[columnIndex];
-  assert.ok(placeholder && /^\\$[1-9]\\d*$/.test(placeholder), `Expected a bound SQL parameter for ${columnName}.`);
+  assert.ok(
+    placeholder && /^\$[1-9]\d*$/.test(placeholder),
+    'Expected a bound SQL parameter for the requested column.',
+  );
   const valueIndex = Number(placeholder.slice(1)) - 1;
   return statement.values?.[valueIndex];
 }
