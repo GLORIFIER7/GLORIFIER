@@ -73,18 +73,19 @@ test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag
   ];
 
   for (const { name, source, mode } of workflows) {
-    assert.match(source, /disableYoloMode:\\s*true/, name + ' must retain the administrator no-YOLO policy');
-    assert.match(
-      source,
-      new RegExp('gemini --model "\\\\$\\\\{GEMINI_MODEL\\\\}" --approval-mode ' + mode + ' --prompt "\\\\$\\\\{GEMINI_PROMPT\\\\}" --output-format json'),
+    assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
+    assert.ok(
+      source.includes('gemini --model "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
       name + ' must use the explicit bounded approval mode',
     );
-    assert.match(source, /npm install --global --silent --no-audit --prefer-offline "@google\\/gemini-cli@0\\.68\\.0"/, name + ' must install the pinned Gemini CLI version');
+    assert.ok(
+      source.includes('npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
+      name + ' must install the pinned Gemini CLI version',
+    );
     assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
-    assert.doesNotMatch(source, /\\bgemini\\b[^\\n]*--yolo/, name + ' must never pass the prohibited YOLO flag');
+    assert.doesNotMatch(source, /--yolo/, name + ' must never pass the prohibited YOLO flag');
   }
 });
-
 test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
   for (const source of foundryWorkflows) {
     assertPinnedAction(source, 'foundry-rs/foundry-toolchain', 'dba66c27052e63476d886f22216e119ba7e615bf');
