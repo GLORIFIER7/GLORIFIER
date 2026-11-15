@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import {
@@ -56,6 +57,7 @@ async function withA2AServer(
   aliceToken: string,
   bobToken: string,
   run: (origin: string) => Promise<void>,
+  _rateLimitLimit = 100,
 ): Promise<void> {
   const tasks = new Map<string, A2ATaskLike>();
   let nextId = 0;
@@ -88,6 +90,12 @@ async function withA2AServer(
   const app = express();
   configureA2AJsonRpcBodyParsing(app);
   app.use(express.json({ limit: '10mb' }));
+  app.use('/api', rateLimit({
+    windowMs: 60_000,
+    limit: _rateLimitLimit,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
   // Exercise the same bearer-token verifier and authentication middleware used
   // by the backend. The integration supplies locally signed RS256 tokens and
   // a local JWKS response; no production identity provider is contacted.
@@ -263,4 +271,27 @@ test('A2A authenticated exchange verifies bearer identity and scopes task lifecy
     if (previousAudience === undefined) delete process.env.AUTH0_AUDIENCE;
     else process.env.AUTH0_AUDIENCE = previousAudience;
   }
+});
+
+test('A2A integration harness rate-limits repeated unauthorized requests', async () => {
+  const envelope = (id: string): RpcEnvelope => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: id,
+        role: 'ROLE_USER',
+        parts: [{ text: 'This unauthorized request must not be stored.' }],
+      },
+    },
+  });
+
+  await withA2AServer('', '', async (origin) => {
+    const first = await postRpc(origin, undefined, envelope('rate-limit-first'));
+    const second = await postRpc(origin, undefined, envelope('rate-limit-second'));
+
+    assert.equal(first.status, 401, 'the first request must reach bearer authentication');
+    assert.equal(second.status, 429, 'repeated unauthorized requests must be rate-limited');
+  }, 1);
 });
