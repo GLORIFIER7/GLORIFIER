@@ -358,22 +358,28 @@ export async function handleAutopilotWorkerRequest(
         code: 'IDEMPOTENCY_KEY_REQUIRED',
       }, 400);
     }
+    let mission: AutopilotMission;
     try {
-      const mission = buildMission(
+      mission = buildMission(
         body,
         access.requester.trim(),
         idempotencyValue.trim(),
         dependencies.now(),
         dependencies.createId(),
       );
-      const created = await store.create(mission);
-      return jsonResponse({ ok: true, accepted: true, executionStarted: false, mission: created }, 201);
     } catch (error) {
       return jsonResponse({
         ok: false,
         code: 'AUTOPILOT_MISSION_INVALID',
         error: error instanceof Error ? error.message : 'Autopilot mission could not be accepted.',
       }, 400);
+    }
+
+    try {
+      const created = await store.create(mission);
+      return jsonResponse({ ok: true, accepted: true, executionStarted: false, mission: created }, 201);
+    } catch (error) {
+      return unavailableStoreResponse(error);
     }
   }
 
