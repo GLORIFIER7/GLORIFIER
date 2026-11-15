@@ -372,3 +372,25 @@ The article describes ten design tenets: distinct agent identification; linking,
 - **Verification status:** Source changes committed; exact-head GitHub Actions validation is pending. Do not describe the gates as passed until their run results are observed.
 - **Merge/deployment:** Not authorized by this auto-approval; no PR review approval, merge, production deployment, or production mutation is performed.
 
+### 2026-11-15 review follow-up — connect parity helpers to live validation
+
+#### Observed review feedback
+A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSourceMetadata` helpers were covered by fixtures but bypassed by the actual registry/cadence loops. It also questioned whether URL parity should compare raw strings or normalized URL values.
+
+#### Analysis and decision
+- The helper/live-path mismatch was valid and has been corrected: both validators now invoke the tested metadata helper in their actual per-source validation loops.
+- URL parity remains deliberately byte-for-byte. The exact configured URL is the cache identity; silently normalizing a trailing slash or other representation would hide a source-key change. URL normalization remains appropriate for duplicate-alias detection, which is a separate purpose.
+- A regression fixture now rejects a trailing-slash variant as a different source URL/cache identity.
+- The review was a COMMENTED advisory, not a GitHub approval. No PR approval was submitted.
+
+#### Auto-approval record
+- **Classification:** LOW risk; pre-authorized review refinement.
+- **Rationale:** Validator-only behavior plus explanatory comments and a deterministic regression fixture. No runtime fetch, production behavior, data, permissions, or security policy was weakened.
+- **Affected files:** `scripts/geas-source-cadence-validate.ts`, `scripts/geas-authority-registry-validate.ts`.
+- **Regression coverage:** Live metadata parity helper invocation in both validators; authority and domain mismatch fixtures; byte-different URL/cache-identity fixture.
+- **Commits:**
+  - `77c8359ad8c054b651a9ed615785dd8401f76602` — use the metadata helper in live cadence validation and assert exact URL identity.
+  - `916c95b4d88ec4f187abad94a524d417b60df05f` — use the metadata helper in live registry validation and document exact URL parity.
+- **Verification:** Exact-head CI must be rerun after these commits. The earlier GEAS scan validated head `3769dc79939705aa2cf448e50439a566379ef46d`; it does not validate these follow-up commits.
+- **Review/merge:** No PR review approval, merge, or deployment is performed.
+
