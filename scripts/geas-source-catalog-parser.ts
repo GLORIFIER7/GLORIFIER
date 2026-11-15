@@ -403,7 +403,7 @@ export const parseScannerSourceCatalog = (source: string): ScannerSourceCatalog 
   ranges.forEach((range, index) => {
     const entry = parseObjectEntry(tokens, range) ?? parseFactoryEntry(tokens, range);
     if (entry) entries.push(entry);
-    else failures.push(`scanner source at index ${index} must use literal ID, URL, and cadence values`);
+    else failures.push(`scanner source at index ${index} must use literal ID, authority, domain, URL, cadence, and claim-policy values`);
   });
   return { declaredCount: ranges.length, entries, failures };
 };
