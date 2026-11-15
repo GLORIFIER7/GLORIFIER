@@ -61,7 +61,7 @@
     "test:glr-solana-verifier": "node --import tsx/esm --test src/lib/glr-solana-verifier.test.ts",
     "test:alpaca-oauth-url": "tsx src/lib/alpaca-oauth-url.test.ts",
     "test:outcome-evidence-gates": "tsx src/lib/governance/outcome-evidence-gates.test.ts",
-    "test:cloudflare-worker": "tsx src/worker.test.ts && tsx src/worker-neural-diagnostic.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs && node --test scripts/mcp-conformance-target.test.mjs scripts/mcp-live-smoke.test.mjs",
+    "test:cloudflare-worker": "tsx src/worker.test.ts && tsx src/worker-neural-diagnostic.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs && node --test scripts/mcp-conformance-target.test.mjs scripts/mcp-live-smoke.test.mjs && npm run test:autopilot-worker-store && npm run test:autopilot-worker-route && npm run test:autopilot-worker-migration",
     "test:worker-integration-registry": "tsx src/lib/worker-integration-registry.test.ts",
     "test:opensea-worker": "tsx src/lib/opensea-worker.test.ts",
     "test:huggingface-space-deploy": "node scripts/huggingface-space-deploy.test.cjs",
@@ -122,7 +122,10 @@
     "test:autopilot-execution-fabric": "node --import tsx/esm --test src/lib/autopilot-execution-fabric.test.ts",
     "test:autopilot-evidence-verifier": "node --import tsx/esm --test src/lib/autopilot-evidence-verifier.test.ts",
     "test:autopilot-github-write": "node --import tsx/esm --test src/lib/autopilot-github-write.test.ts",
-    "test:continuous-improvement-agent": "node --test scripts/continuous-improvement-agent.test.mjs"
+    "test:continuous-improvement-agent": "node --test scripts/continuous-improvement-agent.test.mjs",
+    "test:autopilot-worker-store": "node --import tsx/esm --test src/lib/autopilot-worker-store.test.ts",
+    "test:autopilot-worker-route": "node --import tsx/esm --test src/lib/autopilot-worker-route.test.ts",
+    "test:autopilot-worker-migration": "node --test scripts/autopilot-worker-migration-contract.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
