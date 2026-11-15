@@ -411,8 +411,10 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('inputs.run_free_tier_gemini == true'));
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
-  assert.ok(geminiCollaboratorWorkflow.includes('gemini_model: gemini-3.8-flash'));
-  const geminiCliVersion = geminiCollaboratorWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  assert.ok(geminiCollaboratorWorkflow.includes('GEMINI_MODEL: gemini-3.8-flash'));
+  assert.ok(geminiCollaboratorWorkflow.includes('--approval-mode auto_edit'));
+  assert.doesNotMatch(geminiCollaboratorWorkflow, /run-gemini-cli|--yolo/);
+  const geminiCliVersion = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
   assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
@@ -443,8 +445,10 @@ test('Gemini PR review requires an explicit main-target PR number after owner au
   );
   assert.match(geminiPrReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.match(geminiPrReviewWorkflow, /FREE_TIER_CONFIRMED: \$\{\{ vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED \}\}/);
-  assert.match(geminiPrReviewWorkflow, /gemini_model: gemini-3\.8-flash/);
-  assert.match(geminiPrReviewWorkflow, /gemini_cli_version: 0\.68\.0/);
+  assert.match(geminiPrReviewWorkflow, /GEMINI_MODEL: gemini-3\.8-flash/);
+  assert.match(geminiPrReviewWorkflow, /@google\/gemini-cli@0\.68\.0/);
+  assert.match(geminiPrReviewWorkflow, /--approval-mode plan/);
+  assert.doesNotMatch(geminiPrReviewWorkflow, /run-gemini-cli|--yolo/);
   assert.match(geminiPrReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
   assert.doesNotMatch(geminiPrReviewWorkflow, /gh pr list --state open --base main --limit 1/);
@@ -708,7 +712,7 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
 });
 
 test('Gemini collaborator pins CLI versions using npm semver rather than a Git tag', () => {
-  const version = geminiCollaboratorWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  const version = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/,
     'the action install step uses npm for plain semantic versions and GitHub source builds for v-prefixed tags');
 });
@@ -724,7 +728,7 @@ test('NEURAL dependency audit covers both development and production Neon extras
 });
 
 test('Gemini manual PR review uses the same npm-semver CLI pin as the collaborator', () => {
-  const version = geminiPrReviewWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  const version = geminiPrReviewWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
