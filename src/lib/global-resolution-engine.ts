@@ -63,7 +63,7 @@ export async function runGlobalResolutionCycle(actor = 'ai-ceo-autonomous', limi
   let created = 0;
   for (const f of findings.rows) {
     await db.query(
-      'INSERT INTO glorifier_global_resolution_cases (id,source_finding_id,source_url,title,category,stage,evidence,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb) ON CONFLICT(source_finding_id) DO NOTHING',
+      'INSERT INTO glorifier_global_resolution_cases (id,source_finding_id,source_url,title,category,stage,evidence,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb) ON CONFLICT(source_finding_id) WHERE source_finding_id IS NOT NULL DO NOTHING',
       [
         'resolution-' + crypto.randomUUID(), f.id, f.url, f.title, f.category, 'EVIDENCE_PENDING',
         JSON.stringify({ discoveryFindingId: f.id, source: f.source_id, status: 'observed', evidence: f.evidence || {} }),

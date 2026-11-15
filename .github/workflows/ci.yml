@@ -227,6 +227,8 @@ jobs:
 
       - name: Shared PostgreSQL pool optional-connection regression tests
         run: npm run test:postgres-pool
+      - name: Global resolution partial-index contract regression test
+        run: ./node_modules/.bin/tsx --test src/lib/global-resolution-engine.test.ts
 
       - name: Internal-service authentication regression tests
         run: npm run test:backend-auth
