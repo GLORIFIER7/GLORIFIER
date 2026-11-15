@@ -46,6 +46,8 @@ const isValidReviewCadenceDays = (value: unknown): value is number =>
 const isValidScannerCadenceHours = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
 
+// Exact URL equality is intentional: the configured source URL is also the cache identity.
+// URL normalization is reserved for duplicate-alias detection, not cross-catalog parity.
 const isMatchingSourceUrl = (registryUrl: string, scannerUrl: string): boolean =>
   registryUrl === scannerUrl;
 
@@ -63,6 +65,9 @@ const verifySourceUrlConsistency = (): void => {
   }
   if (isMatchingSourceUrl(canonicalUrl, 'https://example.org/legacy')) {
     throw new Error('divergent registry and scanner source URLs must be rejected');
+  }
+  if (isMatchingSourceUrl(canonicalUrl, 'https://example.org/canonical/')) {
+    throw new Error('byte-different normalized URL forms must remain distinct cache identities');
   }
 };
 
@@ -257,11 +262,13 @@ for (const source of activeRegistry) {
     failures.push(`active registry source ${source.id} is missing from scanner catalog`);
     continue;
   }
-  if (entry.authority !== source.authority) {
-    failures.push(`source ${source.id} authority mismatch: scanner=${entry.authority} registry=${source.authority}`);
-  }
-  if (entry.domain !== source.domain) {
-    failures.push(`source ${source.id} domain mismatch: scanner=${entry.domain} registry=${source.domain}`);
+  if (!isMatchingSourceMetadata(source, entry)) {
+    if (entry.authority !== source.authority) {
+      failures.push(`source ${source.id} authority mismatch: scanner=${entry.authority} registry=${source.authority}`);
+    }
+    if (entry.domain !== source.domain) {
+      failures.push(`source ${source.id} domain mismatch: scanner=${entry.domain} registry=${source.domain}`);
+    }
   }
   if (!isMatchingSourceUrl(source.url, entry.url)) {
     failures.push(`source ${source.id} URL mismatch: scanner=${entry.url} registry=${source.url}`);
