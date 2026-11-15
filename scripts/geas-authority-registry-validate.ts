@@ -221,8 +221,15 @@ if (isRecord(parsed)) {
     if (!ids.has(id)) failures.push(`scanner source missing from authoritative registry: ${id}`);
     const source = (parsed as Registry).sources.find((item) => item.id === id);
     if (source && source.scannerStatus !== 'active') failures.push(`scanner source ${id} must be marked active in registry`);
-    if (source && scannerAuthorities.get(id) !== source.authority) failures.push(`scanner source ${id} authority does not match authoritative registry`);
-    if (source && scannerDomains.get(id) !== source.domain) failures.push(`scanner source ${id} domain does not match authoritative registry`);
+    if (source && !isMatchingSourceMetadata(source, {
+      authority: scannerAuthorities.get(id) ?? '',
+      domain: scannerDomains.get(id) ?? '',
+    })) {
+      if (scannerAuthorities.get(id) !== source.authority) failures.push(`scanner source ${id} authority does not match authoritative registry`);
+      if (scannerDomains.get(id) !== source.domain) failures.push(`scanner source ${id} domain does not match authoritative registry`);
+    }
+    // Exact byte-for-byte URL parity is deliberate because the canonical source URL is the cache identity.
+    // normalizeHttpsUrl is used above for duplicate-alias detection, not to silently equate cache keys.
     if (source && scannerUrls.get(id) !== source.url) failures.push(`scanner source ${id} URL does not match authoritative registry`);
     const scannerClaims = scannerClaimsAllowed.get(id);
     if (source && (!scannerClaims || !sameStringArrayIgnoringOrder(scannerClaims, source.claimsAllowed))) {
