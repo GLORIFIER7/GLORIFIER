@@ -3,6 +3,8 @@ import { parseScannerSourceCatalog } from './geas-source-catalog-parser.ts';
 
 type RegistrySource = {
   id: string;
+  authority: string;
+  domain: string;
   url: string;
   reviewCadenceDays: number;
   scannerStatus: 'active' | 'discovery-only';
@@ -47,6 +49,13 @@ const isValidScannerCadenceHours = (value: unknown): value is number =>
 const isMatchingSourceUrl = (registryUrl: string, scannerUrl: string): boolean =>
   registryUrl === scannerUrl;
 
+const isMatchingSourceMetadata = (
+  registry: { authority: string; domain: string },
+  scanner: { authority: string; domain: string },
+): boolean =>
+  registry.authority === scanner.authority
+  && registry.domain === scanner.domain;
+
 const verifySourceUrlConsistency = (): void => {
   const canonicalUrl = 'https://example.org/canonical';
   if (!isMatchingSourceUrl(canonicalUrl, canonicalUrl)) {
@@ -57,7 +66,21 @@ const verifySourceUrlConsistency = (): void => {
   }
 };
 
+const verifySourceMetadataConsistency = (): void => {
+  const registry = { authority: 'NIST', domain: 'ai' };
+  if (!isMatchingSourceMetadata(registry, { authority: 'NIST', domain: 'ai' })) {
+    throw new Error('identical registry and scanner authority/domain metadata must be accepted');
+  }
+  if (isMatchingSourceMetadata(registry, { authority: 'MITRE', domain: 'ai' })) {
+    throw new Error('divergent source authority metadata must be rejected');
+  }
+  if (isMatchingSourceMetadata(registry, { authority: 'NIST', domain: 'cybersecurity' })) {
+    throw new Error('divergent source domain metadata must be rejected');
+  }
+};
+
 verifySourceUrlConsistency();
+verifySourceMetadataConsistency();
 
 const verifyCadenceBounds = (): void => {
   if (!isValidReviewCadenceDays(14)) throw new Error('ordinary review cadence must remain valid');
@@ -91,8 +114,8 @@ const verifyParserHandlesFactoryCalls = (): void => {
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
   const expected = [
-    { id: 'factory-one', url: 'https://example.org/one', cadenceHours: 24, claimsAllowed: ['claim-one'] },
-    { id: 'factory-two', url: 'https://example.org/two', cadenceHours: 336, claimsAllowed: ['claim-two'] },
+    { id: 'factory-one', authority: 'Test', domain: 'cloud', url: 'https://example.org/one', cadenceHours: 24, claimsAllowed: ['claim-one'] },
+    { id: 'factory-two', authority: 'Test', domain: 'cloud', url: 'https://example.org/two', cadenceHours: 336, claimsAllowed: ['claim-two'] },
   ];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
     throw new Error('scanner parser must read factory-form ID and cadence values');
@@ -108,7 +131,7 @@ const verifyParserIgnoresCommentedFactoryCalls = (): void => {
     '];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
-  const expected = [{ id: 'active', url: 'https://example.org/active', cadenceHours: 24, claimsAllowed: ['active-claim'] }];
+  const expected = [{ id: 'active', authority: 'Test', domain: 'cloud', url: 'https://example.org/active', cadenceHours: 24, claimsAllowed: ['active-claim'] }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.declaredCount !== 1) {
     throw new Error('commented-out factory calls must not be counted as active scanner sources');
   }
@@ -122,7 +145,7 @@ const verifyParserHandlesBraceCharacters = (): void => {
     '}];',
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
-  const expected = [{ id: 'fixture', url: 'https://example.org/{architecture}', cadenceHours: 24, claimsAllowed: ['fixture-claim'] }];
+  const expected = [{ id: 'fixture', authority: 'Test {Authority}', domain: 'cloud', url: 'https://example.org/{architecture}', cadenceHours: 24, claimsAllowed: ['fixture-claim'] }];
   if (JSON.stringify(parsed.entries) !== JSON.stringify(expected) || parsed.failures.length > 0) {
     throw new Error('scanner parser failed its brace-containing string regression fixture');
   }
@@ -131,7 +154,7 @@ const verifyParserHandlesBraceCharacters = (): void => {
 const verifyParserRejectsUnsafeCadenceValues = (): void => {
   const fixtures = [
     "const SOURCES: ArchitectureSource[] = [createArchitectureSource('unsafe', 'Test', 'cloud', 'https://example.org', [], 9007199254740992, ['claim'])];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'unsafe', url: 'https://example.org', cadenceHours: 9007199254740992, claimsAllowed: ['claim'] }];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'unsafe', authority: 'Test', domain: 'cloud', url: 'https://example.org', cadenceHours: 9007199254740992, claimsAllowed: ['claim'] }];",
   ];
   for (const fixture of fixtures) {
     expectParserFailure(fixture, 'scanner parser accepted a cadence outside JavaScript safe-integer range');
@@ -143,7 +166,7 @@ const verifyParserRejectsComputedValues = (): void => {
     "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24, ['claim'])];",
     "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30, ['claim'])];",
     "const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', url: 'https://example.org', cadenceHours: 24, claimsAllowed: ['claim'] }];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'computed', url: 'https://example.org', cadenceHours: 24 * 30, claimsAllowed: ['claim'] }];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'computed', authority: 'Test', domain: 'cloud', url: 'https://example.org', cadenceHours: 24 * 30, claimsAllowed: ['claim'] }];",
   ];
   for (const fixture of fixtures) {
     expectParserFailure(fixture, 'scanner parser accepted a computed source ID or cadence value');
@@ -168,10 +191,10 @@ const verifyParserSkipsCommentsBeforeArrayInitializer = (): void => {
   const fixture = [
     'const SOURCES: ArchitectureSource[] =',
     "  /* fake catalog: [ { id: 'forged', url: 'https://forged.example', cadenceHours: 24, claimsAllowed: ['fake'] } ] */",
-    "  [{ id: 'real', url: 'https://real.example/source', cadenceHours: 24, claimsAllowed: ['real-claim'] }];",
+    "  [{ id: 'real', authority: 'Test', domain: 'cloud', url: 'https://real.example/source', cadenceHours: 24, claimsAllowed: ['real-claim'] }];",
   ].join('\n');
   const parsed = parseScannerSourceCatalog(fixture);
-  if (parsed.declaredCount !== 1 || parsed.entries.length !== 1 || parsed.entries[0]?.id !== 'real') {
+  if (parsed.declaredCount !== 1 || parsed.entries.length !== 1 || parsed.entries[0]?.id !== 'real' || parsed.entries[0]?.authority !== 'Test' || parsed.entries[0]?.domain !== 'cloud') {
     throw new Error('scanner parser must skip comments when locating the executable SOURCES initializer');
   }
 };
@@ -189,14 +212,14 @@ const verifyParserRejectsCommentOnlyFields = (): void => {
     'const SOURCES: ArchitectureSource[] = [{',
     "  // id: 'comment-only',",
     '  // cadenceHours: 24',
-    "  authority: 'Test', url: 'https://example.org/source', claimsAllowed: ['claim']",
+    "  authority: 'Test', domain: 'cloud', url: 'https://example.org/source', claimsAllowed: ['claim']",
     '}];',
   ].join('\n');
   expectParserFailure(fixture, 'scanner parser accepted ID and cadenceHours fields found only in comments');
 };
 
 const verifyParserRejectsUnterminatedLineComment = (): void => {
-  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', url: 'https://example.org', cadenceHours: 24 // no terminating newline or visible array close";
+  const fixture = "const SOURCES: ArchitectureSource[] = [{ id: 'fixture', authority: 'Test', domain: 'cloud', url: 'https://example.org', cadenceHours: 24 // no terminating newline or visible array close";
   expectParserFailure(fixture, 'scanner parser accepted a SOURCES array truncated inside a line comment');
 };
 
@@ -233,6 +256,12 @@ for (const source of activeRegistry) {
   if (!entry) {
     failures.push(`active registry source ${source.id} is missing from scanner catalog`);
     continue;
+  }
+  if (entry.authority !== source.authority) {
+    failures.push(`source ${source.id} authority mismatch: scanner=${entry.authority} registry=${source.authority}`);
+  }
+  if (entry.domain !== source.domain) {
+    failures.push(`source ${source.id} domain mismatch: scanner=${entry.domain} registry=${source.domain}`);
   }
   if (!isMatchingSourceUrl(source.url, entry.url)) {
     failures.push(`source ${source.id} URL mismatch: scanner=${entry.url} registry=${source.url}`);
