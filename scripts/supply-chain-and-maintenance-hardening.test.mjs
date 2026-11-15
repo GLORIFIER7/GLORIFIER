@@ -41,6 +41,10 @@ const geminiDevelopmentWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-development.yml', import.meta.url),
   'utf8',
 );
+const geminiPrReviewWorkflow = readFileSync(
+  new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url),
+  'utf8',
+);
 const foundryWorkflows = [
   readFileSync(new URL('../.github/workflows/glorifier-bnb-testnet-deploy.yml', import.meta.url), 'utf8'),
   readFileSync(new URL('../.github/workflows/glorifier-sepolia-rpc-check.yml', import.meta.url), 'utf8'),
@@ -61,10 +65,27 @@ test('Codex action is pinned to its reviewed immutable commit', () => {
   assertPinnedAction(codexWorkflow, 'openai/codex-action', 'bdf19a4a223ec2549a3e2274a0cf61556bc07675');
 });
 
-test('Gemini action is pinned to its reviewed immutable commit', () => {
-  assertPinnedAction(geminiWorkflow, 'google-github-actions/run-gemini-cli', 'f77273f4c914e4bf38440cf36a0369cb64a37489');
-});
+test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag', () => {
+  const workflows = [
+    { name: 'collaborator', source: geminiWorkflow, mode: 'auto_edit' },
+    { name: 'development', source: geminiDevelopmentWorkflow, mode: 'auto_edit' },
+    { name: 'PR review', source: geminiPrReviewWorkflow, mode: 'plan' },
+  ];
 
+  for (const { name, source, mode } of workflows) {
+    assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
+    assert.ok(
+      source.includes('gemini --model "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
+      name + ' must use the explicit bounded approval mode',
+    );
+    assert.ok(
+      source.includes('npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
+      name + ' must install the pinned Gemini CLI version',
+    );
+    assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
+    assert.doesNotMatch(source, /--yolo/, name + ' must never pass the prohibited YOLO flag');
+  }
+});
 test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
   for (const source of foundryWorkflows) {
     assertPinnedAction(source, 'foundry-rs/foundry-toolchain', 'dba66c27052e63476d886f22216e119ba7e615bf');
@@ -310,7 +331,9 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.doesNotMatch(geminiReviewWorkflow, /pull_request_target:/);
   assert.match(geminiReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.doesNotMatch(geminiReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
-  assert.match(modelJob, /gemini_model: gemini-3\.8-flash/);
+  assert.match(modelJob, /GEMINI_MODEL: gemini-3\.8-flash/);
+  assert.match(modelJob, /--approval-mode plan/);
+  assert.doesNotMatch(modelJob, /--yolo/);
   assert.match(geminiReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.deepEqual(geminiReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
@@ -355,8 +378,9 @@ test('Gemini PR review requires an explicit target PR and a pinned CLI release',
   );
   assert.match(geminiReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
   assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
-  assert.match(geminiReviewWorkflow, /gemini_cli_version: 0\.68\.0/);
-  assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
+  assert.match(geminiReviewWorkflow, /@google\/gemini-cli@0\.68\.0/);
+  assert.match(geminiReviewWorkflow, /--approval-mode plan/);
+  assert.doesNotMatch(geminiReviewWorkflow, /run-gemini-cli|--yolo/);
 });
 
 test('Gemini PR review fails visibly when the Gemini credential is unavailable', () => {
@@ -418,7 +442,7 @@ test('continuous improvement installs dependencies from the committed npm lockfi
 });
 
 test('Gemini manual review pins a numeric CLI semver accepted by the npm installer', () => {
-  const version = geminiReviewWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  const version = geminiReviewWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
