@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: GLORIFIER7/GLORIFIER-NEURAL
-          ref: main
+          ref: fix/actions-workflow-lockfile-20261115
           path: neural
           persist-credentials: false
 
