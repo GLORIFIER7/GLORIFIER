@@ -31,8 +31,8 @@ jobs:
           gh --version
           gh auth status --hostname github.com
           gh extension install github/gh-actions-lock
-          gh actions-lock
-          gh actions-lock --verify
+          gh actions-lock --no-narrow
+          gh actions-lock --verify --no-narrow
           test -s .github/workflows/actions.lock
           echo "Generated lockfile SHA-256:"
           sha256sum .github/workflows/actions.lock
