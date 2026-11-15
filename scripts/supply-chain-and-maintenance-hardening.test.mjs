@@ -41,6 +41,10 @@ const geminiDevelopmentWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-development.yml', import.meta.url),
   'utf8',
 );
+const geminiPrReviewWorkflow = readFileSync(
+  new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url),
+  'utf8',
+);
 const foundryWorkflows = [
   readFileSync(new URL('../.github/workflows/glorifier-bnb-testnet-deploy.yml', import.meta.url), 'utf8'),
   readFileSync(new URL('../.github/workflows/glorifier-sepolia-rpc-check.yml', import.meta.url), 'utf8'),
@@ -61,8 +65,24 @@ test('Codex action is pinned to its reviewed immutable commit', () => {
   assertPinnedAction(codexWorkflow, 'openai/codex-action', 'bdf19a4a223ec2549a3e2274a0cf61556bc07675');
 });
 
-test('Gemini action is pinned to its reviewed immutable commit', () => {
-  assertPinnedAction(geminiWorkflow, 'google-github-actions/run-gemini-cli', 'f77273f4c914e4bf38440cf36a0369cb64a37489');
+test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag', () => {
+  const workflows = [
+    { name: 'collaborator', source: geminiWorkflow, mode: 'auto_edit' },
+    { name: 'development', source: geminiDevelopmentWorkflow, mode: 'auto_edit' },
+    { name: 'PR review', source: geminiPrReviewWorkflow, mode: 'plan' },
+  ];
+
+  for (const { name, source, mode } of workflows) {
+    assert.match(source, /disableYoloMode:\\s*true/, name + ' must retain the administrator no-YOLO policy');
+    assert.match(
+      source,
+      new RegExp('gemini --model "\\\\$\\\\{GEMINI_MODEL\\\\}" --approval-mode ' + mode + ' --prompt "\\\\$\\\\{GEMINI_PROMPT\\\\}" --output-format json'),
+      name + ' must use the explicit bounded approval mode',
+    );
+    assert.match(source, /npm install --global --silent --no-audit --prefer-offline "@google\\/gemini-cli@0\\.68\\.0"/, name + ' must install the pinned Gemini CLI version');
+    assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
+    assert.doesNotMatch(source, /\\bgemini\\b[^\\n]*--yolo/, name + ' must never pass the prohibited YOLO flag');
+  }
 });
 
 test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
