@@ -165,7 +165,7 @@ const verifyParserRejectsComputedValues = (): void => {
   const fixtures = [
     "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed' + '-id', 'Test', 'cloud', 'https://example.org', [], 24, ['claim'])];",
     "const SOURCES: ArchitectureSource[] = [createArchitectureSource('computed', 'Test', 'cloud', 'https://example.org', [], 24 * 30, ['claim'])];",
-    "const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', url: 'https://example.org', cadenceHours: 24, claimsAllowed: ['claim'] }];",
+    "const SOURCES: ArchitectureSource[] = [{ id: 'computed' + '-id', authority: 'Test', domain: 'cloud', url: 'https://example.org', cadenceHours: 24, claimsAllowed: ['claim'] }];",
     "const SOURCES: ArchitectureSource[] = [{ id: 'computed', authority: 'Test', domain: 'cloud', url: 'https://example.org', cadenceHours: 24 * 30, claimsAllowed: ['claim'] }];",
   ];
   for (const fixture of fixtures) {
