@@ -168,3 +168,38 @@ test('Autopilot routes reject missing owner or internal-service authorization', 
   assert.ok(response, 'Expected the Autopilot authorization route to handle this path.');
   assert.equal(response.status, 401);
 });
+
+test('Autopilot mission intake returns a sanitized 503 when durable storage fails', async () => {
+  const fixture = createDependencies();
+  const store = fixture.dependencies.createStore();
+  const failingStore = {
+    ...store,
+    async create() {
+      throw new Error('sensitive database permission and credential details');
+    },
+  };
+  const dependencies = {
+    ...fixture.dependencies,
+    createStore: () => failingStore,
+  };
+  const response = await handleAutopilotWorkerRequest(
+    new Request('https://glorifier.pages.dev/api/autopilot/missions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'request-db-failure' },
+      body: JSON.stringify({
+        title: 'Store failure regression',
+        objective: 'Confirm persistence failures are not returned as validation errors.',
+      }),
+    }),
+    '/api/autopilot/missions',
+    env as never,
+    dependencies as never,
+  );
+  assert.ok(response, 'Expected the Autopilot mission intake route to handle this path.');
+  const body = await response.json() as { code?: string; error?: string };
+
+  assert.equal(response.status, 503);
+  assert.equal(body.code, 'AUTOPILOT_MISSION_STORE_UNAVAILABLE');
+  assert.equal(body.error, 'The Cloudflare Autopilot mission store could not be reached.');
+  assert.doesNotMatch(JSON.stringify(body), /sensitive database permission|credential details/i);
+});
