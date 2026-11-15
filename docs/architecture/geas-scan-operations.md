@@ -43,6 +43,6 @@ No retention period or destructive SQL is enabled by this refinement.
 ## Acceptance criteria
 
 - Unit tests cover URL-change invalidation, bounded retries for failed sources, and source-policy version consistency.
-- Registry validation confirms active scanner IDs are registered and duplicate URLs are intentional and documented.
+- GEAS registry/cadence validators confirm active scanner IDs, authority, domain, canonical URL, claim allow-lists, and review cadence match the authoritative registry; duplicate URLs are intentional and documented.
 - Runtime verification records the deployed revision, scan cadence, lease outcomes, source freshness, and database growth.
 - No production database rows, credentials, deployments, payments, blockchain state, or other irreversible resources are changed automatically.

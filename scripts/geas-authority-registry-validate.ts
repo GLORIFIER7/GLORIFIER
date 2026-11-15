@@ -83,12 +83,30 @@ if (fixtureResult.declaredCount !== 2
     || fixtureResult.entries.length !== 2
     || fixtureResult.failures.length > 0
     || fixtureResult.entries[0]?.id !== 'factory-source'
+    || fixtureResult.entries[0]?.authority !== 'Example'
+    || fixtureResult.entries[0]?.domain !== 'cloud'
     || fixtureResult.entries[0]?.url !== 'https://factory.example/source'
     || fixtureResult.entries[0]?.claimsAllowed[0] !== 'factory-claim'
     || fixtureResult.entries[1]?.id !== 'literal-source'
+    || fixtureResult.entries[1]?.authority !== 'Example'
+    || fixtureResult.entries[1]?.domain !== 'cloud'
     || fixtureResult.entries[1]?.url !== 'https://literal.example/source'
     || fixtureResult.entries[1]?.claimsAllowed[0] !== 'literal-claim') {
   throw new Error('scanner source parser must preserve factory-call and object-literal entries');
+}
+
+const isMatchingSourceMetadata = (
+  registrySource: { authority: string; domain: string },
+  scannerSource: { authority: string; domain: string },
+): boolean =>
+  registrySource.authority === scannerSource.authority
+  && registrySource.domain === scannerSource.domain;
+
+const metadataFixture = { authority: 'NIST', domain: 'ai' };
+if (!isMatchingSourceMetadata(metadataFixture, { authority: 'NIST', domain: 'ai' })
+    || isMatchingSourceMetadata(metadataFixture, { authority: 'MITRE', domain: 'ai' })
+    || isMatchingSourceMetadata(metadataFixture, { authority: 'NIST', domain: 'cybersecurity' })) {
+  throw new Error('scanner source authority/domain parity must reject either metadata mismatch');
 }
 
 const unsupportedScannerFixture = [
@@ -190,6 +208,8 @@ if (isRecord(parsed)) {
   failures.push(...scannerCatalog.failures);
   const scannerIds = scannerCatalog.entries.map((entry) => entry.id);
   const scannerIdSet = new Set(scannerIds);
+  const scannerAuthorities = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.authority]));
+  const scannerDomains = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.domain]));
   const scannerUrls = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.url]));
   const scannerClaimsAllowed = new Map(scannerCatalog.entries.map((entry) => [entry.id, entry.claimsAllowed]));
   if (scannerCatalog.declaredCount !== scannerCatalog.entries.length) {
@@ -201,6 +221,15 @@ if (isRecord(parsed)) {
     if (!ids.has(id)) failures.push(`scanner source missing from authoritative registry: ${id}`);
     const source = (parsed as Registry).sources.find((item) => item.id === id);
     if (source && source.scannerStatus !== 'active') failures.push(`scanner source ${id} must be marked active in registry`);
+    if (source && !isMatchingSourceMetadata(source, {
+      authority: scannerAuthorities.get(id) ?? '',
+      domain: scannerDomains.get(id) ?? '',
+    })) {
+      if (scannerAuthorities.get(id) !== source.authority) failures.push(`scanner source ${id} authority does not match authoritative registry`);
+      if (scannerDomains.get(id) !== source.domain) failures.push(`scanner source ${id} domain does not match authoritative registry`);
+    }
+    // Exact byte-for-byte URL parity is deliberate because the canonical source URL is the cache identity.
+    // normalizeHttpsUrl is used above for duplicate-alias detection, not to silently equate cache keys.
     if (source && scannerUrls.get(id) !== source.url) failures.push(`scanner source ${id} URL does not match authoritative registry`);
     const scannerClaims = scannerClaimsAllowed.get(id);
     if (source && (!scannerClaims || !sameStringArrayIgnoringOrder(scannerClaims, source.claimsAllowed))) {

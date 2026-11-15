@@ -4,7 +4,7 @@ type Range = { start: number; end: number };
 type LiteralValue = string | number | null;
 type DelimiterState = { expected: string[] };
 
-export type ScannerSourceEntry = { id: string; url: string; cadenceHours: number; claimsAllowed: string[] };
+export type ScannerSourceEntry = { id: string; authority: string; domain: string; url: string; cadenceHours: number; claimsAllowed: string[] };
 export type ScannerSourceCatalog = { declaredCount: number; entries: ScannerSourceEntry[]; failures: string[] };
 
 const isWhitespace = (value: string): boolean => /\s/.test(value);
@@ -237,12 +237,14 @@ const isNonEmptyStringValue = (value: LiteralValue): value is string =>
 const isPositiveIntegerValue = (value: LiteralValue): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
-type ValidSourceEntryValues = { id: string; url: string; cadenceHours: number; claimsAllowed: string[] };
+type ValidSourceEntryValues = { id: string; authority: string; domain: string; url: string; cadenceHours: number; claimsAllowed: string[] };
 
 const isValidSourceEntryValues = (
-  value: { id: LiteralValue; url: LiteralValue; cadenceHours: LiteralValue; claimsAllowed: string[] | null },
+  value: { id: LiteralValue; authority: LiteralValue; domain: LiteralValue; url: LiteralValue; cadenceHours: LiteralValue; claimsAllowed: string[] | null },
 ): value is ValidSourceEntryValues =>
   isNonEmptyStringValue(value.id)
+  && isNonEmptyStringValue(value.authority)
+  && isNonEmptyStringValue(value.domain)
   && isNonEmptyStringValue(value.url)
   && isPositiveIntegerValue(value.cadenceHours)
   && Array.isArray(value.claimsAllowed)
@@ -252,11 +254,13 @@ const isValidSourceEntryValues = (
 
 const createSourceEntry = (
   id: LiteralValue,
+  authority: LiteralValue,
+  domain: LiteralValue,
   url: LiteralValue,
   cadenceHours: LiteralValue,
   claimsAllowed: string[] | null,
 ): ScannerSourceEntry | null => {
-  const values = { id, url, cadenceHours, claimsAllowed };
+  const values = { id, authority, domain, url, cadenceHours, claimsAllowed };
   return isValidSourceEntryValues(values) ? values : null;
 };
 
@@ -270,10 +274,12 @@ const hasUnsupportedObjectSpread = (tokens: Token[], properties: Range[]): boole
 
 const readObjectSourceEntry = (tokens: Token[], properties: Range[]): ScannerSourceEntry | null => {
   const id = readLiteralProperty(tokens, properties, 'id', 'string');
+  const authority = readLiteralProperty(tokens, properties, 'authority', 'string');
+  const domain = readLiteralProperty(tokens, properties, 'domain', 'string');
   const url = readLiteralProperty(tokens, properties, 'url', 'string');
   const cadence = readLiteralProperty(tokens, properties, 'cadenceHours', 'number');
   const claimsAllowed = readLiteralStringArrayProperty(tokens, properties, 'claimsAllowed');
-  return createSourceEntry(id, url, cadence, claimsAllowed);
+  return createSourceEntry(id, authority, domain, url, cadence, claimsAllowed);
 };
 
 const parseObjectEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
@@ -334,7 +340,7 @@ const readFactorySourceEntry = (tokens: Token[], arguments_: Range[]): ScannerSo
   const cadence = readNumberArgument(tokens, arguments_, 5);
   const claimsAllowed = readLiteralStringArray(tokens, argumentRange(arguments_, 6));
   if (!authority || !domain) return null;
-  return createSourceEntry(id, url, cadence, claimsAllowed);
+  return createSourceEntry(id, authority, domain, url, cadence, claimsAllowed);
 };
 
 const parseFactoryEntry = (tokens: Token[], range: Range): ScannerSourceEntry | null => {
@@ -397,7 +403,7 @@ export const parseScannerSourceCatalog = (source: string): ScannerSourceCatalog 
   ranges.forEach((range, index) => {
     const entry = parseObjectEntry(tokens, range) ?? parseFactoryEntry(tokens, range);
     if (entry) entries.push(entry);
-    else failures.push(`scanner source at index ${index} must use literal ID, URL, and cadence values`);
+    else failures.push(`scanner source at index ${index} must use literal ID, authority, domain, URL, cadence, and claim-policy values`);
   });
   return { declaredCount: ranges.length, entries, failures };
 };

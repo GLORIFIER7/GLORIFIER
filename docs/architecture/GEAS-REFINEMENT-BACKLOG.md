@@ -335,3 +335,62 @@ The article describes ten design tenets: distinct agent identification; linking,
 **Required verification:** GEAS scientist tests, source-registry validation, cadence validation, evidence-policy validation, full CI, and a fresh exact-head architecture scan with artifact provenance. The previous successful scan predates this correction and does not verify the new head.
 
 **Deferred:** This correction does not authenticate NIST claims, verify GLORIFIER agent identity, configure a claim-support authenticator, or change the eight UNKNOWN drift findings.
+
+## 2026-11-15 — scanner authority/domain metadata parity
+
+### Observed facts
+- Main commit at inspection: `b1956f6fb61eea4ccdaf2e770e3649843b5afee0`.
+- The authoritative registry contains 62 sources: 47 active scanner sources and 15 discovery-only sources across 17 domains.
+- The scanner declares 47 active `createArchitectureSource` entries.
+- A literal comparison of the 47 current scanner entries against the registry found zero current authority/domain mismatches.
+- The scanner's `ArchitectureSource` model carries `authority` and `domain`, and the JSON registry carries the same fields. The shared parser previously extracted only ID, URL, cadence, and `claimsAllowed`; both registry validators therefore allowed authority/domain drift to pass unnoticed.
+
+### Analysis
+- This is a preventive catalog-integrity gap, not an observed current mismatch and not evidence of incorrect source content.
+- A future authority mismatch could misattribute the publisher of an observation. A future domain mismatch could place a source or derived pattern in the wrong architecture domain while ID, URL, cadence, and claim allow-list checks still pass.
+- Authority/domain parity is a deterministic metadata check. It does not verify source authenticity, substantive content, claim truth, or GLORIFIER implementation.
+
+### Auto-approval record
+- **Classification:** LOW risk; pre-authorized for engineering refinement.
+- **Rationale:** Narrow, reversible parser and CI-validator changes only. No runtime behavior, production data, permissions, credentials, external commitments, paid resources, or governance safeguards are changed.
+- **Evidence:** Main SHA above; 62 registry records; 47 active sources; 47 scanner entries; 17 registry domains; zero current authority/domain mismatches.
+- **Affected files:**
+  - `scripts/geas-source-catalog-parser.ts`
+  - `scripts/geas-source-cadence-validate.ts`
+  - `scripts/geas-authority-registry-validate.ts`
+  - `docs/architecture/geas-scan-operations.md`
+  - `docs/architecture/GEAS-REFINEMENT-BACKLOG.md`
+- **Regression coverage:** Literal authority/domain extraction for factory and object entries; rejection of missing or computed metadata; explicit mismatch tests for authority and domain; exact registry/scanner parity checks in both registry and cadence validators.
+- **CI gates:** Existing GEAS Architecture Science Scan runs the source-catalog parser, authoritative-registry validator, and source-registry/cadence validator. Its pull-request path filters already include all modified scripts and architecture documentation.
+- **Code commits:**
+  - Parser metadata extraction: `2b35c06f21cf1f5ce77fe486e73a0dbb9ef42756`
+  - Cadence validator parity and tests: `53553ffeb1ee901c779044e37a3bfc9af0aa0485`
+  - Authority registry parity and tests: `bc8b20a3d9801dc51a1b55195ddd40c2aedacda3`
+  - Parser diagnostic clarification: `abbc3719d3c10be4c596822c697f88e4b742e550`
+  - Computed-ID fixture isolation: `c794e44628ea75ff15d01601a83aafc777824701`
+- **Branch:** `fix/geas-source-authority-domain-parity-20261115`.
+- **Verification status:** Passed on source head `f58c88652860254dd088904cd17f95fa60beb95a`, tested merge SHA `e02075b0c8a2637f1cd429e77a1e678c3bf986fa`, GEAS Architecture Science Scan run `43672605023`; artifact `geas-architecture-scan-43672605023` SHA-256 `a689c6a268c60c204379c5e54b56d3d1cdd5a561988954797703247be2c1db11`. All 12 PR-triggered workflow runs completed successfully on that head; the Cloudflare production-deploy job was skipped.
+- **Merge/deployment:** Not authorized by this auto-approval; no PR review approval, merge, production deployment, or production mutation is performed.
+
+### 2026-11-15 review follow-up — connect parity helpers to live validation
+
+#### Observed review feedback
+A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSourceMetadata` helpers were covered by fixtures but bypassed by the actual registry/cadence loops. It also questioned whether URL parity should compare raw strings or normalized URL values.
+
+#### Analysis and decision
+- The helper/live-path mismatch was valid and has been corrected: both validators now invoke the tested metadata helper in their actual per-source validation loops.
+- URL parity remains deliberately byte-for-byte. The exact configured URL is the cache identity; silently normalizing a trailing slash or other representation would hide a source-key change. URL normalization remains appropriate for duplicate-alias detection, which is a separate purpose.
+- A regression fixture now rejects a trailing-slash variant as a different source URL/cache identity.
+- The review was a COMMENTED advisory, not a GitHub approval. No PR approval was submitted.
+
+#### Auto-approval record
+- **Classification:** LOW risk; pre-authorized review refinement.
+- **Rationale:** Validator-only behavior plus explanatory comments and a deterministic regression fixture. No runtime fetch, production behavior, data, permissions, or security policy was weakened.
+- **Affected files:** `scripts/geas-source-cadence-validate.ts`, `scripts/geas-authority-registry-validate.ts`.
+- **Regression coverage:** Live metadata parity helper invocation in both validators; authority and domain mismatch fixtures; byte-different URL/cache-identity fixture.
+- **Commits:**
+  - `77c8359ad8c054b651a9ed615785dd8401f76602` — use the metadata helper in live cadence validation and assert exact URL identity.
+  - `916c95b4d88ec4f187abad94a524d417b60df05f` — use the metadata helper in live registry validation and document exact URL parity.
+- **Verification:** The review follow-up passed on source head `f58c88652860254dd088904cd17f95fa60beb95a`, tested merge SHA `e02075b0c8a2637f1cd429e77a1e678c3bf986fa`, through GEAS Architecture Science Scan run `43672605023`; artifact SHA-256 `a689c6a268c60c204379c5e54b56d3d1cdd5a561988954797703247be2c1db11`. All 12 PR-triggered workflow runs completed successfully; no production deployment occurred.
+- **Review/merge:** No PR review approval, merge, or deployment is performed.
+
