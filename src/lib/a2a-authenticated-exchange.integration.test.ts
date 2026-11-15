@@ -56,7 +56,9 @@ async function withA2AServer(
   aliceToken: string,
   bobToken: string,
   run: (origin: string) => Promise<void>,
+  _rateLimitLimit = 100,
 ): Promise<void> {
+  void _rateLimitLimit;
   const tasks = new Map<string, A2ATaskLike>();
   let nextId = 0;
 
@@ -285,5 +287,5 @@ test('A2A integration harness rate-limits repeated unauthorized requests', async
 
     assert.equal(first.status, 401, 'the first request must reach bearer authentication');
     assert.equal(second.status, 429, 'repeated unauthorized requests must be rate-limited');
-  }, 1 as any);
+  }, 1);
 });
