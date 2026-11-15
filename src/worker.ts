@@ -12,6 +12,7 @@ import { getCryptographicAssetVerificationPolicy } from './lib/cryptographic-ass
 import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from './lib/worker-integration-registry';
 import { handleWorkerAppStateRequest, type WorkerAppStateRouteEnvironment } from './lib/worker-app-state-route';
 import { isWorkerInternalService } from './lib/auth/worker-auth';
+import { handleAutopilotWorkerRequest } from './lib/autopilot-worker-route';
 
 export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   CF_VERSION_METADATA?: {
@@ -1292,6 +1293,17 @@ export default {
     // configuration is missing.
     if (incomingUrl.pathname === '/api/app-state' || incomingUrl.pathname === '/api/auth/session') {
       return handleWorkerAppStateRequest(request, incomingUrl.pathname, env);
+    }
+
+    // Durable Autopilot mission intake and requester-scoped reads are native Worker routes.
+    // Planning/execution remains explicitly disabled until the orchestrator runtime is ported.
+    if (
+      incomingUrl.pathname === '/api/autopilot/status' ||
+      incomingUrl.pathname === '/api/autopilot/missions' ||
+      incomingUrl.pathname.startsWith('/api/autopilot/missions/')
+    ) {
+      const response = await handleAutopilotWorkerRequest(request, incomingUrl.pathname, env);
+      if (response) return response;
     }
 
     // Public build provenance is safe to expose for this public repository. It is
