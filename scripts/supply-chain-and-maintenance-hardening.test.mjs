@@ -331,7 +331,9 @@ test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can on
   assert.doesNotMatch(geminiReviewWorkflow, /pull_request_target:/);
   assert.match(geminiReviewWorkflow, /vars\.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED == 'true'/);
   assert.doesNotMatch(geminiReviewWorkflow, /GLORIFIER_GEMINI_PAID_INFERENCE_AUTHORIZED/);
-  assert.match(modelJob, /gemini_model: gemini-3\.8-flash/);
+  assert.match(modelJob, /GEMINI_MODEL: gemini-3\.8-flash/);
+  assert.match(modelJob, /--approval-mode plan/);
+  assert.doesNotMatch(modelJob, /--yolo/);
   assert.match(geminiReviewWorkflow, /fail without switching models, providers, or billing tiers/);
   assert.deepEqual(geminiReviewWorkflow.split(String.fromCharCode(10)).slice(0, 3), [
     'name: GLORIFIER Gemini PR Review',
@@ -376,8 +378,9 @@ test('Gemini PR review requires an explicit target PR and a pinned CLI release',
   );
   assert.match(geminiReviewWorkflow, /PR_NUMBER: \$\{\{ inputs\.pr_number \}\}/);
   assert.doesNotMatch(geminiReviewWorkflow, /gh pr list --state open --base main --limit 1/);
-  assert.match(geminiReviewWorkflow, /gemini_cli_version: 0\.68\.0/);
-  assert.doesNotMatch(geminiReviewWorkflow, /gemini_cli_version: latest/);
+  assert.match(geminiReviewWorkflow, /@google\/gemini-cli@0\.68\.0/);
+  assert.match(geminiReviewWorkflow, /--approval-mode plan/);
+  assert.doesNotMatch(geminiReviewWorkflow, /run-gemini-cli|--yolo/);
 });
 
 test('Gemini PR review fails visibly when the Gemini credential is unavailable', () => {
@@ -439,7 +442,7 @@ test('continuous improvement installs dependencies from the committed npm lockfi
 });
 
 test('Gemini manual review pins a numeric CLI semver accepted by the npm installer', () => {
-  const version = geminiReviewWorkflow.match(/^\s+gemini_cli_version:\s*(\S+)\s*$/m)?.[1];
+  const version = geminiReviewWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
