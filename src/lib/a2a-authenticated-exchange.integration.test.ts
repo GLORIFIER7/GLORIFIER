@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import {
@@ -58,7 +59,6 @@ async function withA2AServer(
   run: (origin: string) => Promise<void>,
   _rateLimitLimit = 100,
 ): Promise<void> {
-  void _rateLimitLimit;
   const tasks = new Map<string, A2ATaskLike>();
   let nextId = 0;
 
@@ -90,6 +90,12 @@ async function withA2AServer(
   const app = express();
   configureA2AJsonRpcBodyParsing(app);
   app.use(express.json({ limit: '10mb' }));
+  app.use('/api', rateLimit({
+    windowMs: 60_000,
+    limit: _rateLimitLimit,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
   // Exercise the same bearer-token verifier and authentication middleware used
   // by the backend. The integration supplies locally signed RS256 tokens and
   // a local JWKS response; no production identity provider is contacted.
