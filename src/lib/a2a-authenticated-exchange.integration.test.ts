@@ -264,3 +264,26 @@ test('A2A authenticated exchange verifies bearer identity and scopes task lifecy
     else process.env.AUTH0_AUDIENCE = previousAudience;
   }
 });
+
+test('A2A integration harness rate-limits repeated unauthorized requests', async () => {
+  const envelope = (id: string): RpcEnvelope => ({
+    jsonrpc: '2.0',
+    id,
+    method: 'SendMessage',
+    params: {
+      message: {
+        messageId: id,
+        role: 'ROLE_USER',
+        parts: [{ text: 'This unauthorized request must not be stored.' }],
+      },
+    },
+  });
+
+  await withA2AServer('', '', async (origin) => {
+    const first = await postRpc(origin, undefined, envelope('rate-limit-first'));
+    const second = await postRpc(origin, undefined, envelope('rate-limit-second'));
+
+    assert.equal(first.status, 401, 'the first request must reach bearer authentication');
+    assert.equal(second.status, 429, 'repeated unauthorized requests must be rate-limited');
+  }, 1 as any);
+});
