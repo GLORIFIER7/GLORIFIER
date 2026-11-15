@@ -48,6 +48,7 @@ test('Autopilot status reports durable Worker persistence separately from disabl
     env as never,
     fixture.dependencies as never,
   );
+  assert.ok(response, 'Expected the Autopilot route to handle this path.');
   const body = await response.json() as {
     ok?: boolean;
     control?: { mode?: string; available?: boolean; durable?: boolean };
@@ -81,6 +82,7 @@ test('Autopilot mission intake derives requester identity from verified access a
     env as never,
     fixture.dependencies as never,
   );
+  assert.ok(response, 'Expected the Autopilot route to handle this path.');
   const body = await response.json() as {
     accepted?: boolean;
     executionStarted?: boolean;
@@ -121,6 +123,7 @@ test('Autopilot mission listing returns the authorized mission set and a success
     env as never,
     fixture.dependencies as never,
   );
+  assert.ok(response, 'Expected the Autopilot route to handle this path.');
   const body = await response.json() as {
     ok?: boolean;
     missions?: Array<{ id?: string; requester?: string }>;
@@ -144,6 +147,7 @@ test('Autopilot routes fail closed when the dedicated Hyperdrive binding is abse
     {} as never,
     fixture.dependencies as never,
   );
+  assert.ok(response, 'Expected the Autopilot route to handle this path.');
   const body = await response.json() as { code?: string };
   assert.equal(response.status, 503);
   assert.equal(body.code, 'AUTOPILOT_HYPERDRIVE_NOT_CONFIGURED');
@@ -161,5 +165,6 @@ test('Autopilot routes reject missing owner or internal-service authorization', 
     env as never,
     dependencies as never,
   );
+  assert.ok(response, 'Expected the Autopilot authorization route to handle this path.');
   assert.equal(response.status, 401);
 });
