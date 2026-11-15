@@ -335,3 +335,40 @@ The article describes ten design tenets: distinct agent identification; linking,
 **Required verification:** GEAS scientist tests, source-registry validation, cadence validation, evidence-policy validation, full CI, and a fresh exact-head architecture scan with artifact provenance. The previous successful scan predates this correction and does not verify the new head.
 
 **Deferred:** This correction does not authenticate NIST claims, verify GLORIFIER agent identity, configure a claim-support authenticator, or change the eight UNKNOWN drift findings.
+
+## 2026-11-15 — scanner authority/domain metadata parity
+
+### Observed facts
+- Main commit at inspection: `b1956f6fb61eea4ccdaf2e770e3649843b5afee0`.
+- The authoritative registry contains 62 sources: 47 active scanner sources and 15 discovery-only sources across 17 domains.
+- The scanner declares 47 active `createArchitectureSource` entries.
+- A literal comparison of the 47 current scanner entries against the registry found zero current authority/domain mismatches.
+- The scanner's `ArchitectureSource` model carries `authority` and `domain`, and the JSON registry carries the same fields. The shared parser previously extracted only ID, URL, cadence, and `claimsAllowed`; both registry validators therefore allowed authority/domain drift to pass unnoticed.
+
+### Analysis
+- This is a preventive catalog-integrity gap, not an observed current mismatch and not evidence of incorrect source content.
+- A future authority mismatch could misattribute the publisher of an observation. A future domain mismatch could place a source or derived pattern in the wrong architecture domain while ID, URL, cadence, and claim allow-list checks still pass.
+- Authority/domain parity is a deterministic metadata check. It does not verify source authenticity, substantive content, claim truth, or GLORIFIER implementation.
+
+### Auto-approval record
+- **Classification:** LOW risk; pre-authorized for engineering refinement.
+- **Rationale:** Narrow, reversible parser and CI-validator changes only. No runtime behavior, production data, permissions, credentials, external commitments, paid resources, or governance safeguards are changed.
+- **Evidence:** Main SHA above; 62 registry records; 47 active sources; 47 scanner entries; 17 registry domains; zero current authority/domain mismatches.
+- **Affected files:**
+  - `scripts/geas-source-catalog-parser.ts`
+  - `scripts/geas-source-cadence-validate.ts`
+  - `scripts/geas-authority-registry-validate.ts`
+  - `docs/architecture/geas-scan-operations.md`
+  - `docs/architecture/GEAS-REFINEMENT-BACKLOG.md`
+- **Regression coverage:** Literal authority/domain extraction for factory and object entries; rejection of missing or computed metadata; explicit mismatch tests for authority and domain; exact registry/scanner parity checks in both registry and cadence validators.
+- **CI gates:** Existing GEAS Architecture Science Scan runs the source-catalog parser, authoritative-registry validator, and source-registry/cadence validator. Its pull-request path filters already include all modified scripts and architecture documentation.
+- **Code commits:**
+  - Parser metadata extraction: `2b35c06f21cf1f5ce77fe486e73a0dbb9ef42756`
+  - Cadence validator parity and tests: `53553ffeb1ee901c779044e37a3bfc9af0aa0485`
+  - Authority registry parity and tests: `bc8b20a3d9801dc51a1b55195ddd40c2aedacda3`
+  - Parser diagnostic clarification: `abbc3719d3c10be4c596822c697f88e4b742e550`
+  - Computed-ID fixture isolation: `c794e44628ea75ff15d01601a83aafc777824701`
+- **Branch:** `fix/geas-source-authority-domain-parity-20261115`.
+- **Verification status:** Source changes committed; exact-head GitHub Actions validation is pending. Do not describe the gates as passed until their run results are observed.
+- **Merge/deployment:** Not authorized by this auto-approval; no PR review approval, merge, production deployment, or production mutation is performed.
+
