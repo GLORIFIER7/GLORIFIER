@@ -73,13 +73,13 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Run Gemini CLI
+        id: gemini
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
-        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_CLI_SYSTEM_SETTINGS_PATH: /etc/glorifier/gemini-system-settings.json
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          prompt: |
+          GEMINI_MODEL: gemini-3.8-flash
+          GEMINI_PROMPT: |
             Repository-owner task instructions:
             Use only the restricted workspace file tools configured by the system policy.
             Do not attempt shell execution, network access, credential inspection, or GitHub operations.
@@ -94,10 +94,30 @@ jobs:
             Never read or modify secrets, credentials, workflow files, deployment configuration,
             or infrastructure. Do not claim verification unless the command ran. Do not merge anything.
             The workflow will publish any permitted changes for review; never merge anything.
-
+            
             BEGIN UNTRUSTED TASK TEXT
             ${{ inputs.task }}
             END UNTRUSTED TASK TEXT
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"
+          gemini --version
+          GEMINI_OUTPUT="$RUNNER_TEMP/gemini-output.json"
+          gemini --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT"
+          python - "$GEMINI_OUTPUT" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          response = payload.get("response")
+          if not isinstance(response, str) or not response.strip():
+              raise SystemExit("Gemini CLI returned an empty response.")
+          escaped = response.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          with open(sys.argv[2], "a", encoding="utf-8") as handle:
+              handle.write("summary=" + escaped + "\n")
+          PY
       - name: Report missing Gemini key
         if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
         shell: bash
