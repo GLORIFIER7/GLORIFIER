@@ -369,7 +369,7 @@ The article describes ten design tenets: distinct agent identification; linking,
   - Parser diagnostic clarification: `abbc3719d3c10be4c596822c697f88e4b742e550`
   - Computed-ID fixture isolation: `c794e44628ea75ff15d01601a83aafc777824701`
 - **Branch:** `fix/geas-source-authority-domain-parity-20261115`.
-- **Verification status:** Source changes committed; exact-head GitHub Actions validation is pending. Do not describe the gates as passed until their run results are observed.
+- **Verification status:** Passed on source head `f58c88652860254dd088904cd17f95fa60beb95a`, tested merge SHA `e02075b0c8a2637f1cd429e77a1e678c3bf986fa`, GEAS Architecture Science Scan run `43672605023`; artifact `geas-architecture-scan-43672605023` SHA-256 `a689c6a268c60c204379c5e54b56d3d1cdd5a561988954797703247be2c1db11`. All 12 PR-triggered workflow runs completed successfully on that head; the Cloudflare production-deploy job was skipped.
 - **Merge/deployment:** Not authorized by this auto-approval; no PR review approval, merge, production deployment, or production mutation is performed.
 
 ### 2026-11-15 review follow-up — connect parity helpers to live validation
@@ -391,6 +391,6 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Commits:**
   - `77c8359ad8c054b651a9ed615785dd8401f76602` — use the metadata helper in live cadence validation and assert exact URL identity.
   - `916c95b4d88ec4f187abad94a524d417b60df05f` — use the metadata helper in live registry validation and document exact URL parity.
-- **Verification:** Exact-head CI must be rerun after these commits. The earlier GEAS scan validated head `3769dc79939705aa2cf448e50439a566379ef46d`; it does not validate these follow-up commits.
+- **Verification:** The review follow-up passed on source head `f58c88652860254dd088904cd17f95fa60beb95a`, tested merge SHA `e02075b0c8a2637f1cd429e77a1e678c3bf986fa`, through GEAS Architecture Science Scan run `43672605023`; artifact SHA-256 `a689c6a268c60c204379c5e54b56d3d1cdd5a561988954797703247be2c1db11`. All 12 PR-triggered workflow runs completed successfully; no production deployment occurred.
 - **Review/merge:** No PR review approval, merge, or deployment is performed.
 
