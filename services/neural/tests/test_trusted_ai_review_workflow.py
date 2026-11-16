@@ -101,9 +101,19 @@ def test_monorepo_neural_ci_does_not_run_policy_on_restricted_review_events():
     assert "pull_request_review:" not in WORKFLOW
     assert "pull_request_review_comment:" not in WORKFLOW
     assert "  ai-review-policy:" not in WORKFLOW
+    top_level_permissions = re.search(
+        r"(?ms)^permissions:\\n((?:^  [a-z-]+: [a-z]+\\n)+)",
+        WORKFLOW,
+    )
+    test_job_permissions = re.search(
+        r"(?ms)^    permissions:\\n((?:^      [a-z-]+: [a-z]+\\n)+)",
+        WORKFLOW,
+    )
+    assert top_level_permissions is not None
+    assert test_job_permissions is not None
+    assert top_level_permissions.group(1).strip() == "contents: read"
+    assert test_job_permissions.group(1).strip() == "contents: read"
     assert "persist-credentials: false" in WORKFLOW
-    assert "contents: read" in WORKFLOW
-    assert "pull-requests: write" not in WORKFLOW
     assert "gh pr merge" not in WORKFLOW
     assert "--auto" not in WORKFLOW
 
