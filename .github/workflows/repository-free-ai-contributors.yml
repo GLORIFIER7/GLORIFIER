@@ -1,0 +1,56 @@
+name: Repository Free-Tier AI Contributor Policy
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "src/lib/ai/repository-contributor-policy.mjs"
+      - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/specialist-council.ts"
+      - "src/lib/autopilot-orchestrator.ts"
+      - "src/lib/autopilot-orchestrator.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/repository-free-ai-contributors.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/ai/repository-contributor-policy.mjs"
+      - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/specialist-council.ts"
+      - "src/lib/autopilot-orchestrator.ts"
+      - "src/lib/autopilot-orchestrator.test.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/repository-free-ai-contributors.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-free-ai-contributors-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Free-only provider and repository contribution contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Test free-only provider eligibility and budget invariants
+        run: npm run test:repository-contributor-policy
+      - name: TypeScript type check
+        run: npm run lint
