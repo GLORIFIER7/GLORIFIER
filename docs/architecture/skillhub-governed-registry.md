@@ -23,8 +23,8 @@ Reviewed source: [iflytek/skillhub](https://github.com/iflytek/skillhub), pinned
 
 The upstream repository declares Apache License 2.0. This GLORIFIER implementation is an independent, minimal TypeScript implementation of the described package-governance concepts; it does not copy upstream source files. Upstream references:
 
-- [README and architecture overview](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfdfd/README.md)
-- [Package path and file validation policy](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfdfd/server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/validation/SkillPackagePolicy.java)
+- [README and architecture overview](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd/README.md)
+- [Package path and file validation policy](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd/server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/validation/SkillPackagePolicy.java)
 - [Skill publishing and version API guide](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd/docs/skillhub/en/guide/skill-publish.md)
 - [Content safety policy](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd/docs/CONTENT_SAFETY.md)
 - [Security scanner operational guide](https://github.com/iflytek/skillhub/blob/3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd/docs/security-scanning.md)

@@ -54,6 +54,14 @@ test('accepts a valid, pinned skill package without granting runtime authority',
   assert.equal(result.canonicalFilePaths[0], 'SKILL.md');
 });
 
+test('rejects non-string root file digests without throwing', () => {
+  const result = validateSkillCandidate(validCandidate({
+    files: [packageFile('SKILL.md', skillMd, { sha256: 42 })]
+  }));
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join(' '), /SHA-256 digest/i);
+});
+
 test('normalizes Windows separators and rejects path traversal, absolute and drive paths', () => {
   assert.equal(normalizeSkillEntryPath('references\\guide.md'), 'references/guide.md');
   for (const path of ['../secrets.txt', 'references/../../secret', '/etc/passwd', 'C:\\windows\\win.ini', 'a//b.md', 'a/./b.md']) {
@@ -79,8 +87,9 @@ test('enforces package file allowlist and size/count limits', () => {
   });
   assert.match(validateSkillCandidate(unsupported).errors.join(' '), /extension/i);
 
+  const oversizedContent = 'x'.repeat(10 * 1024 * 1024 + 1);
   const oversized = validCandidate({
-    files: [packageFile('SKILL.md', skillMd), { ...packageFile('large.md'), sizeBytes: 10 * 1024 * 1024 + 1 }]
+    files: [packageFile('SKILL.md', skillMd), packageFile('large.md', oversizedContent)]
   });
   assert.match(validateSkillCandidate(oversized).errors.join(' '), /file size/i);
 
@@ -104,7 +113,7 @@ test('requires root SKILL.md with bounded, matching frontmatter', () => {
 
 test('rejects floating or insecure source references and unpinned dependencies', () => {
   const floating = validateSkillCandidate(validCandidate({ sourceRevision: 'main' }));
-  assert.match(floating.errors.join(' '), /immutable.*revision/i);
+  assert.match(floating.errors.join(' '), /sourceRevision.*immutable/i);
 
   const insecure = validateSkillCandidate(validCandidate({ sourceUrl: 'http://example.com/skill' }));
   assert.match(insecure.errors.join(' '), /https/i);
@@ -147,6 +156,27 @@ test('computes order-independent package fingerprints and reports version diffs'
   const changed = [packageFile('SKILL.md', skillMd), packageFile('references/a.md', 'B')];
   assert.equal(createSkillFingerprint(first), createSkillFingerprint(reversed));
   assert.notEqual(createSkillFingerprint(first), createSkillFingerprint(changed));
+
+  const localeSensitive = [
+    packageFile('references/a_b.md', 'underscore'),
+    packageFile('references/aB.md', 'uppercase'),
+    packageFile('references/a-b.md', 'hyphen')
+  ];
+  const canonical = localeSensitive
+    .map((file) => ({ path: normalizeSkillEntryPath(file.path), digest: file.sha256 }))
+    .sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
+    .map((entry) => entry.path + ':' + entry.digest + '\n')
+    .join('');
+  const expectedFingerprint = 'sha256:' + createHash('sha256').update(canonical, 'utf8').digest('hex');
+  assert.equal(createSkillFingerprint(localeSensitive), expectedFingerprint);
+
+  assert.deepEqual(
+    diffSkillFiles(undefined, {
+      'SKILL.md': first[0].sha256,
+      'references/a.md': first[1].sha256
+    }),
+    ['SKILL.md', 'references/a.md']
+  );
   assert.deepEqual(
     diffSkillFiles(
       { 'SKILL.md': first[0].sha256, 'references/a.md': first[1].sha256 },
@@ -185,7 +215,7 @@ test('promotion requires every review gate and never authorizes execution', () =
     auditReference: ''
   });
   assert.equal(blocked.eligible, false);
-  assert.ok(blocked.blockers.length >= 5);
+  assert.equal(blocked.blockers.length, 6);
   assert.equal(blocked.runtimeExecutionAuthorized, false);
 });
 
@@ -199,4 +229,5 @@ test('checked-in policy keeps the SkillHub connector disabled and fail-closed', 
   assert.equal(policy.trust.autoExecute, false);
   assert.equal(policy.trust.networkFetchDuringProductionRequests, false);
   assert.equal(policy.promotion.securityScanFailureBlocksPromotion, true);
+  assert.equal(policy.trust.scannerFailureBlocksPromotion, true);
 });

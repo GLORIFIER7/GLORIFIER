@@ -137,7 +137,10 @@ function parseSkillFrontmatter(content: string): { name: string; description: st
   if (!match) throw new Error('root SKILL.md must begin with bounded YAML frontmatter');
 
   const readScalar = (key: string): string => {
-    const lines = match[1].split(/\r?\n/).filter((line) => new RegExp('^' + key + '\\s*:').test(line));
+    const lines = match[1].split(/\r?\n/).filter((line) => {
+      if (!line.startsWith(key)) return false;
+      return line.slice(key.length).trimStart().startsWith(':');
+    });
     if (lines.length !== 1) throw new Error('SKILL.md frontmatter must contain exactly one ' + key);
     const raw = lines[0].slice(lines[0].indexOf(':') + 1).trim();
     const value = raw.length >= 2 && ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'")))
@@ -387,7 +390,7 @@ export function createSkillFingerprint(files: readonly SkillPackageFile[]): stri
     const path = normalizeSkillEntryPath(file.path);
     if (!HEX_SHA256.test(file.sha256)) throw new Error('invalid SHA-256 digest for ' + path);
     return { path, digest: digestValue(file.sha256) };
-  }).sort((left, right) => left.path.localeCompare(right.path));
+  }).sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
 
   const seen = new Set<string>();
   for (const entry of entries) {
@@ -405,7 +408,7 @@ export function diffSkillFiles(
   baseline: Readonly<Record<string, string>> | undefined,
   current: Readonly<Record<string, string>>
 ): string[] {
-  if (!baseline) return [];
+  if (!baseline) return Object.keys(current).sort();
   const paths = new Set([...Object.keys(baseline), ...Object.keys(current)]);
   return [...paths].filter((path) => baseline[path] !== current[path]).sort();
 }

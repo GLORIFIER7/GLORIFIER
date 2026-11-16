@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: skillhub-registry-\${{ github.ref }}
+  group: skillhub-registry-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
