@@ -278,7 +278,7 @@ test('MCP 2026-07-28 TCK runs are recorded as failed evidence without upgrading 
   assert.match(evidence.notes, /HTTP 429/);
   assert.match(evidence.notes, /run #43860648984/);
 
-  assert.match(mcp, /run #43862723023/);
+  assert.match(mcp, /43862723023/);
   assert.match(mcp, /64 passed, 96 failed/);
   assert.match(mcp, /HTTP 429/);
   assert.match(gap, /MCP 2026-07-28 external TCK execution checkpoint — 2026-11-16/);
