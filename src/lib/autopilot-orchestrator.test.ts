@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, getAutopilotOrchestrationStatus } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -188,4 +188,230 @@ test('Autopilot orchestration status does not describe GitHub readback as indepe
   assert.equal(status.independentSourceVerification, false);
   assert.equal(status.githubSourceReadbackVerification, true);
   assert.equal(status.externalActionExecution, false);
+});
+
+
+test('Autopilot repository inference requires owner-attested free providers and never accepts paid authorization', () => {
+  const now = '2026-11-16T15:00:00.000Z';
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+    GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([
+      {
+        providerId: 'gemini',
+        mode: 'vendor-free-tier',
+        status: 'owner-attested',
+        modelId: 'gemini-2.5-flash',
+        endpointUrl: 'https://generativelanguage.googleapis.com',
+        evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+        attestedAt: '2026-11-16T14:00:00.000Z',
+        expiresAt: '2026-11-16T16:00:00.000Z',
+        planName: 'Free',
+        monthlyPaidSpendLimitUsd: 0,
+        autoTopUpEnabled: false,
+        payAsYouGoEnabled: false,
+        paidFallbackEnabled: false,
+        monthlyInvoicingEnabled: false,
+        billingEnabled: false,
+        modelFree: true,
+        requestsPerMinute: 10,
+        requestsPerDay: 100,
+        maxTokensPerDay: 60000,
+        maxInputTokens: 12000,
+        maxOutputTokens: 2048
+      }
+    ])
+  };
+  const configured = [
+    { id: 'gemini', name: 'Google Gemini', status: 'connected', models: ['gemini-2.5-flash'] }
+  ];
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized(env, configured, now), true);
+  const policy = getAutopilotRepositoryContributorPolicy(env, configured, now);
+  assert.equal(policy.monthlyPaidBudgetUsd, 0);
+  assert.equal(policy.paidInferenceAuthorized, false);
+  assert.deepEqual(policy.eligibleProviders.map(provider => provider.providerId), ['gemini']);
+
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized({
+    ...env,
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true'
+  }, configured, now), false);
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized({
+    ...env,
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true'
+  }, configured, now), false);
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized({
+    ...env,
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '1'
+  }, configured, now), false);
+});
+
+test('Autopilot repository provider pool fails closed without a free attestation or configured adapter', () => {
+  const now = '2026-11-16T15:00:00.000Z';
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false'
+  };
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized(env, [], now), false);
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized(env, [
+    { id: 'gemini', status: 'connected', models: ['gemini-2.5-flash'] }
+  ], now), false);
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized({
+    ...env,
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'false'
+  }, [
+    { id: 'gemini', status: 'connected', models: ['gemini-2.5-flash'] }
+  ], now), false);
+});
+
+test('Autopilot free contribution policy does not treat model availability as vendor verification', () => {
+  const now = '2026-11-16T15:00:00.000Z';
+  const policy = getAutopilotRepositoryContributorPolicy({
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+    GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([{
+      providerId: 'nvidia',
+      mode: 'developer-program',
+      status: 'owner-attested',
+      modelId: 'nvidia/nemotron',
+      endpointUrl: 'https://integrate.api.nvidia.com/v1',
+      evidenceUrl: 'https://docs.api.nvidia.com/nim/docs/product',
+      attestedAt: '2026-11-16T14:00:00.000Z',
+      expiresAt: '2026-11-16T16:00:00.000Z',
+      planName: 'NVIDIA Developer Program',
+      developerProgramActive: true,
+      nonProduction: true,
+      monthlyPaidSpendLimitUsd: 0,
+      autoTopUpEnabled: false,
+      payAsYouGoEnabled: false,
+      paidFallbackEnabled: false,
+      monthlyInvoicingEnabled: false,
+      billingEnabled: false,
+      requestsPerMinute: 5,
+      requestsPerDay: 50,
+      maxTokensPerDay: 30000,
+      maxInputTokens: 8000,
+      maxOutputTokens: 1024
+    }])
+  }, [{ id: 'nvidia', status: 'connected', models: ['nvidia/nemotron'] }], now);
+  assert.equal(policy.eligibleProviders[0].verificationLevel, 'owner-attested-not-vendor-verified');
+});
+
+
+test('Repository contribution attribution records the official GitHub App writer and each AI provider/model', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [
+      { role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' },
+      { role: { id: 'cybersecurity-scientist' }, provider: 'nvidia', model: 'nemotron-test-model' },
+      { role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' },
+    ],
+  );
+
+  assert.deepEqual(attribution.writerIdentity, {
+    type: 'github-app',
+    login: 'glorifier-contributor[bot]',
+    appSlug: 'glorifier-contributor',
+    appOwner: 'GLORIFIER7',
+  });
+  assert.deepEqual(attribution.aiCeo, { provider: 'openai', model: 'gpt-test-model' });
+  assert.equal(attribution.specialists.length, 2, 'duplicate specialist records are collapsed');
+  assert.equal(attribution.specialists[0].provider, 'gemini');
+  assert.equal(attribution.specialists[1].model, 'nemotron-test-model');
+  assert.equal(attribution.attributionBasis, 'GLORIFIER runtime response metadata; not provider-signed');
+});
+
+test('Repository contribution attribution is appended as durable PR provenance within GitHub body limits', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [{ role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' }],
+  );
+  const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
+
+  assert.ok(body.includes('Official GitHub writer:** glorifier-contributor[bot]'));
+  assert.ok(body.includes('| engineering-scientist | gemini | gemini-test-model |'));
+  assert.ok(body.includes('<!-- GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
+  assert.ok(body.includes('"provider":"gemini"'));
+  assert.ok(body.length <= 20_000);
+});
+
+test('Repository contribution attribution preserves provenance when an AI-generated PR body is oversized', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [{ role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' }],
+  );
+  const body = appendRepositoryContributionAttribution('x'.repeat(20_000), attribution);
+
+  assert.ok(body.length <= 20_000);
+  assert.ok(body.includes('AI-generated PR description truncated'));
+  assert.ok(body.includes('GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
+});
+
+test('Repository contribution attribution escapes backslashes before Markdown table delimiters', () => {
+  const slash = String.fromCharCode(92);
+  const unsafeProvider = 'openai' + slash + '|spoof';
+  const unsafeModel = 'gpt' + slash + 'internal';
+  const expectedProvider = 'openai' + slash.repeat(3) + '|spoof';
+  const expectedModel = 'gpt' + slash.repeat(2) + 'internal';
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: unsafeProvider, model: unsafeModel },
+    [{ role: { id: 'engineering-scientist' }, provider: unsafeProvider, model: unsafeModel }],
+  );
+
+  assert.equal(attribution.specialists[0].provider, unsafeProvider, 'structured provenance retains the provider identity');
+  assert.equal(attribution.specialists[0].model, unsafeModel, 'structured provenance retains the model identity');
+  const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
+  assert.ok(body.includes('| engineering-scientist | ' + expectedProvider + ' | ' + expectedModel + ' |'));
+});
+
+test('Autopilot free-provider authorization rejects an attested model absent from the configured provider catalog', () => {
+  const now = '2026-11-16T15:00:00.000Z';
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+    GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([{
+      providerId: 'gemini',
+      mode: 'vendor-free-tier',
+      status: 'owner-attested',
+      modelId: 'gemini-attested-model',
+      endpointUrl: 'https://generativelanguage.googleapis.com',
+      evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+      attestedAt: '2026-11-16T14:00:00.000Z',
+      expiresAt: '2026-11-16T16:00:00.000Z',
+      monthlyPaidSpendLimitUsd: 0,
+      autoTopUpEnabled: false,
+      payAsYouGoEnabled: false,
+      paidFallbackEnabled: false,
+      monthlyInvoicingEnabled: false,
+      billingEnabled: false,
+      modelFree: true,
+      requestsPerMinute: 10,
+      requestsPerDay: 100,
+      maxTokensPerDay: 60000,
+      maxInputTokens: 12000,
+      maxOutputTokens: 2048,
+    }]),
+  };
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized(env, [
+    { id: 'gemini', status: 'connected', models: ['different-model'] },
+  ], now), false);
 });

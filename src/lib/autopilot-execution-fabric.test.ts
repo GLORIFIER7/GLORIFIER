@@ -114,6 +114,11 @@ test('Autopilot write execution also requires matching GitHub source readback', 
   const result = await executeAutopilotToolStep('github.create_branch', {
     branch: 'autopilot/mission-123', base_ref: 'main',
   }, {
+    appTokenProvider: async () => ({
+      token: 'ghs_test_installation_token',
+      expiresAt: '2026-11-16T17:00:00.000Z',
+      identity: { appId: 12345, appSlug: 'glorifier-contributor', botLogin: 'glorifier-contributor[bot]', installationId: 67890, repository: 'GLORIFIER7/GLORIFIER' },
+    }),
     adapter: async (toolName, args) => {
       assert.equal(toolName, 'github_create_branch');
       assert.deepEqual(args, { branch: 'autopilot/mission-123', base_ref: 'main' });
@@ -140,4 +145,61 @@ test('Autopilot read path validation rejects single backslashes and null bytes',
   assert.throws(() => normalizeGithubToolInvocation('github.read_file', {
     path: 'src/lib/' + String.fromCharCode(0) + 'service.ts',
   }), /valid repository-relative path/);
+});
+
+
+test('Autopilot write execution records the verified owner-controlled GitHub App identity', async () => {
+  const result = await executeAutopilotToolStep('github.create_branch', {
+    branch: 'autopilot/mission-123', base_ref: 'main',
+  }, {
+    adapter: async () => ({ ref: 'refs/heads/autopilot/mission-123', sha: 'd'.repeat(40), idempotent: false }),
+    verifier: async () => ({
+      verified: true,
+      verifierId: 'github-rest-source-readback-v1',
+      sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/git/ref/heads/autopilot/mission-123',
+      verifiedAt: '2026-11-16T16:00:00.000Z',
+      sourceSha256: 'd'.repeat(64),
+      executionSha256: 'd'.repeat(64),
+    }),
+    appTokenProvider: async () => ({
+      token: 'ghs_test_installation_token',
+      expiresAt: '2026-11-16T17:00:00.000Z',
+      identity: {
+        appId: 12345,
+        appSlug: 'glorifier-contributor',
+        botLogin: 'glorifier-contributor[bot]',
+        installationId: 67890,
+        repository: 'GLORIFIER7/GLORIFIER',
+      },
+    }),
+  });
+  assert.deepEqual(result.writerIdentity, {
+    appId: 12345,
+    appSlug: 'glorifier-contributor',
+    botLogin: 'glorifier-contributor[bot]',
+    installationId: 67890,
+    repository: 'GLORIFIER7/GLORIFIER',
+  });
+});
+
+
+test('Autopilot cannot authorize a custom GitHub writer without the owner-controlled App token', async () => {
+  let called = false;
+  await assert.rejects(
+    () => executeAutopilotToolStep('github.create_branch', {
+      branch: 'autopilot/mission-123', base_ref: 'main',
+    }, {
+      adapter: async () => { called = true; return {}; },
+      verifier: async () => ({
+        verified: true,
+        verifierId: 'github-rest-source-readback-v1',
+        sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/git/ref/heads/autopilot/mission-123',
+        verifiedAt: '2026-11-16T16:00:00.000Z',
+        sourceSha256: 'e'.repeat(64),
+        executionSha256: 'e'.repeat(64),
+      }),
+    }),
+    /Owner-controlled GitHub App credentials are not configured/,
+  );
+  assert.equal(called, false);
 });

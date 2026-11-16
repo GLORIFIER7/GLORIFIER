@@ -32,6 +32,13 @@ const providers: AIProvider[] = [
  * Normalize the UI/API "auto" sentinel to an omitted model so providers use
  * their own configured defaults. Explicit model IDs remain exact and strict.
  */
+export function getProviderEndpointUrl(providerId: string): string | null {
+  if (providerId === 'gemini') return 'https://generativelanguage.googleapis.com';
+  if (providerId === 'anthropic') return 'https://api.anthropic.com';
+  const provider = providers.find((entry) => entry.id === providerId);
+  return provider instanceof OpenAICompatibleProvider ? provider.endpointUrl() : null;
+}
+
 export function normalizeRequestedModel(requestedModel?: string): string | undefined {
   const normalized = requestedModel?.trim();
   return !normalized || normalized.toLowerCase() === 'auto' ? undefined : normalized;

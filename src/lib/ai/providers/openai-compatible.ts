@@ -30,6 +30,10 @@ export class OpenAICompatibleProvider implements AIProvider {
     return process.env[this.config.baseUrlEnv] || this.config.defaultBaseUrl;
   }
 
+  endpointUrl(): string | null {
+    return this.baseUrl || null;
+  }
+
   private get defaultModel() {
     return process.env[this.config.modelEnv] || this.config.defaultModel;
   }

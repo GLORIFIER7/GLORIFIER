@@ -5,6 +5,7 @@ import {
   normalizeAutopilotWriteBranch,
   type GithubWriteToolName,
 } from './autopilot-github-write';
+import { createGithubAppInstallationToken, type GithubAppInstallationToken } from './github-app-auth';
 import { verifyGithubToolResult, type GithubVerificationResult } from './autopilot-evidence-verifier';
 
 type JsonRecord = Record<string, unknown>;
@@ -140,21 +141,28 @@ export function normalizeGithubToolInvocation(
 export async function executeAutopilotToolStep(
   capability: string,
   argumentsValue: unknown,
-  dependencies: { adapter?: Adapter; verifier?: Verifier } = {},
+  dependencies: {
+    adapter?: Adapter;
+    verifier?: Verifier;
+    appTokenProvider?: () => Promise<GithubAppInstallationToken>;
+  } = {},
 ) {
   const invocation = normalizeGithubToolInvocation(capability, argumentsValue);
-  const adapter = dependencies.adapter ?? ((toolName, args) => isWriteTool(toolName)
-    ? executeGithubWriteTool(toolName, args, process.env.GLORIFIER_GITHUB_WRITE_TOKEN)
-    : executeGithubReadTool(toolName, args, process.env.GITHUB_MCP_READ_TOKEN));
+  const writeOperation = isWriteTool(invocation.toolName);
+  const needsAppToken = writeOperation;
+  const appToken = needsAppToken
+    ? await (dependencies.appTokenProvider ?? (() => createGithubAppInstallationToken(process.env)))()
+    : null;
+  const adapter = dependencies.adapter ?? ((toolName, args) => writeOperation
+    ? executeGithubWriteTool(toolName as GithubWriteToolName, args, appToken?.token)
+    : executeGithubReadTool(toolName as GithubReadToolName, args, process.env.GITHUB_MCP_READ_TOKEN));
   const verifier = dependencies.verifier ?? ((toolName, args, output) =>
     verifyGithubToolResult(
       toolName,
       args,
       output,
       fetch,
-      isWriteTool(toolName)
-        ? process.env.GLORIFIER_GITHUB_WRITE_TOKEN
-        : process.env.GITHUB_MCP_READ_TOKEN,
+      writeOperation ? appToken?.token : process.env.GITHUB_MCP_READ_TOKEN,
     ));
   const executionResult = await adapter(invocation.toolName, invocation.arguments);
   const verification = await verifier(invocation.toolName, invocation.arguments, executionResult);
@@ -181,5 +189,6 @@ export async function executeAutopilotToolStep(
     executionResult,
     executionSha256,
     verification,
+    writerIdentity: appToken?.identity ?? null,
   };
 }

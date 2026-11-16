@@ -1,0 +1,106 @@
+name: Repository Free-Tier AI Contributor Policy
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "config/skillhub-registry-policy.json"
+      - "src/lib/ai/repository-contributor-policy.mjs"
+      - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/repository-provider-budget.ts"
+      - "src/lib/ai/repository-provider-budget.test.ts"
+      - "src/lib/ai/specialist-council.ts"
+      - "src/lib/ai/specialist-council.test.ts"
+      - "src/lib/autopilot-mission-control.test.ts"
+      - "src/lib/autopilot-mission-control.ts"
+      - "src/lib/ai/providers/openai-compatible.ts"
+      - "src/lib/ai/providers/gemini.ts"
+      - "src/lib/ai/registry.ts"
+      - "src/lib/ai/types.ts"
+      - "src/lib/autopilot-orchestrator.ts"
+      - "src/lib/autopilot-orchestrator.test.ts"
+      - "src/lib/github-app-auth.ts"
+      - "src/lib/github-app-auth.test.ts"
+      - "src/lib/autopilot-github-write.ts"
+      - "src/lib/autopilot-github-write.test.ts"
+      - "src/lib/autopilot-execution-fabric.ts"
+      - "src/lib/autopilot-execution-fabric.test.ts"
+      - ".env.example"
+      - "server.ts"
+      - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/repository-free-ai-contributors.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "config/skillhub-registry-policy.json"
+      - "src/lib/ai/repository-contributor-policy.mjs"
+      - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/repository-provider-budget.ts"
+      - "src/lib/ai/repository-provider-budget.test.ts"
+      - "src/lib/ai/specialist-council.ts"
+      - "src/lib/ai/specialist-council.test.ts"
+      - "src/lib/autopilot-mission-control.test.ts"
+      - "src/lib/autopilot-mission-control.ts"
+      - "src/lib/ai/providers/openai-compatible.ts"
+      - "src/lib/ai/providers/gemini.ts"
+      - "src/lib/ai/registry.ts"
+      - "src/lib/ai/types.ts"
+      - "src/lib/autopilot-orchestrator.ts"
+      - "src/lib/autopilot-orchestrator.test.ts"
+      - "src/lib/github-app-auth.ts"
+      - "src/lib/github-app-auth.test.ts"
+      - "src/lib/autopilot-github-write.ts"
+      - "src/lib/autopilot-github-write.test.ts"
+      - "src/lib/autopilot-execution-fabric.ts"
+      - "src/lib/autopilot-execution-fabric.test.ts"
+      - ".env.example"
+      - "server.ts"
+      - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/repository-free-ai-contributors.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-free-ai-contributors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Free-only provider and repository contribution contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Test free-only provider eligibility and budget invariants
+        run: npm run test:repository-contributor-policy
+      - name: Test durable provider request and token quotas
+        run: npm run test:repository-provider-budget
+      - name: Test guarded specialist council assignments and provider failures
+        run: npm run test:specialist-council
+      - name: Test owner-controlled GitHub App authentication
+        run: npm run test:github-app-auth
+      - name: Test branch-scoped GitHub write adapter
+        run: npm run test:autopilot-github-write
+      - name: Test the single GitHub App execution and attribution path
+        run: npm run test:autopilot-execution-fabric
+      - name: Test Autopilot attribution and governance contracts
+        run: npm run test:autopilot-orchestrator
+      - name: TypeScript type check
+        run: npm run lint
