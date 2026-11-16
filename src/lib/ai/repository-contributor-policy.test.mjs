@@ -5,7 +5,8 @@ import {
   evaluateRepositoryProviderAttestation,
   getRepositoryFreeContributorPolicy,
   listEligibleRepositoryContributors,
-  normalizeRepositoryProviderId
+  normalizeRepositoryProviderId,
+  normalizeRepositoryProviderEndpoint
 } from './repository-contributor-policy.mjs';
 
 const NOW = '2026-11-16T15:00:00.000Z';
@@ -27,8 +28,35 @@ const BASE = {
   maxOutputTokens: 2048
 };
 
+const PROVIDER_ENDPOINTS = Object.freeze({
+  gemini: 'https://generativelanguage.googleapis.com',
+  nvidia: 'https://integrate.api.nvidia.com/v1',
+  anthropic: 'https://api.anthropic.com',
+  xai: 'https://api.x.ai/v1',
+  meta: 'http://127.0.0.1:8000/v1',
+  openai: 'https://api.openai.com/v1',
+  groq: 'https://api.groq.com/openai/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  huggingface: 'https://router.huggingface.co/v1',
+  ollama: 'http://127.0.0.1:11434/v1',
+  mistral: 'https://api.mistral.ai/v1',
+  qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  together: 'https://api.together.ai/v1',
+  fireworks: 'https://api.fireworks.ai/inference/v1',
+  llmsrelay: 'https://api.llmsrelay.com/v1',
+  cloudflare_workers_ai: 'https://api.cloudflare.com/client/v4'
+});
+
 function attestation(providerId, mode, overrides = {}) {
-  return { ...BASE, providerId, mode, modelId: providerId + '-free-model', ...overrides };
+  return {
+    ...BASE,
+    providerId,
+    mode,
+    endpointUrl: PROVIDER_ENDPOINTS[providerId],
+    modelId: providerId + '-free-model',
+    ...overrides
+  };
 }
 
 test('normalizes common provider aliases without inventing unknown providers', () => {
@@ -329,4 +357,37 @@ test('Cloudflare Workers AI stays excluded without the approved authoritative bi
     accountQuotaHardCapEnforced: true,
   });
   assert.equal(evaluateRepositoryProviderAttestation('cloudflare_workers_ai', attestationValue, NOW).eligible, false);
+});
+
+
+test('attestation endpoint must match the provider host and local modes must use loopback HTTP only', () => {
+  assert.equal(
+    normalizeRepositoryProviderEndpoint('gemini', 'https://generativelanguage.googleapis.com/v1beta'),
+    'https://generativelanguage.googleapis.com/v1beta',
+  );
+  assert.equal(
+    normalizeRepositoryProviderEndpoint('ollama', 'http://127.0.0.1:11434/v1'),
+    'http://127.0.0.1:11434/v1',
+  );
+  assert.equal(normalizeRepositoryProviderEndpoint('ollama', 'https://ollama.example/v1'), null);
+  assert.equal(normalizeRepositoryProviderEndpoint('ollama', 'http://192.168.1.10:11434/v1'), null);
+  assert.equal(normalizeRepositoryProviderEndpoint('gemini', 'https://api.openai.com/v1'), null);
+  assert.equal(normalizeRepositoryProviderEndpoint('gemini', 'https://user@generativelanguage.googleapis.com'), null);
+  assert.equal(normalizeRepositoryProviderEndpoint('gemini', 'https://generativelanguage.googleapis.com?redirect=1'), null);
+});
+
+test('owner attestation endpoint URL is required and normalized before provider eligibility', () => {
+  const valid = attestation('gemini', 'vendor-free-tier', {
+    evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+    billingEnabled: false,
+    modelFree: true,
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', valid, NOW).eligible, true);
+  const mismatch = evaluateRepositoryProviderAttestation(
+    'gemini',
+    { ...valid, endpointUrl: 'https://api.openai.com/v1' },
+    NOW,
+  );
+  assert.equal(mismatch.eligible, false);
+  assert.match(mismatch.reasons.join(' '), /provider-endpoint/i);
 });
