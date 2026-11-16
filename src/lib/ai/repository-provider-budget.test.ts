@@ -183,3 +183,34 @@ test('rejects zero, invalid, and unsafe provider limits before opening a transac
   );
   assert.equal(pool.calls.length, 0);
 });
+
+
+test('rejects request ceilings that exceed PostgreSQL INTEGER storage', async () => {
+  const pool = fakePool();
+  for (const key of ['requestsPerMinute', 'requestsPerDay'] as const) {
+    await assert.rejects(
+      () => reserveRepositoryProviderRequest({
+        providerId: 'gemini',
+        limits: { ...limits, [key]: 2_147_483_648 },
+        inputTokenUpperBound: 200,
+        pool
+      }),
+      /PostgreSQL INTEGER range/
+    );
+  }
+  assert.equal(pool.calls.length, 0);
+});
+
+test('uses PostgreSQL server time for quota windows, not individual worker clocks', async () => {
+  const pool = fakePool();
+  await reserveRepositoryProviderRequest({
+    providerId: 'gemini',
+    limits,
+    inputTokenUpperBound: 200,
+    pool
+  });
+  const reservations = pool.calls.filter(call => call.sql.startsWith('INSERT INTO glorifier_repository_provider_usage'));
+  assert.equal(reservations.length, 2);
+  assert.ok(reservations.every(call => /date_trunc\(\$2, CURRENT_TIMESTAMP\)/.test(call.sql)));
+  assert.ok(reservations.every(call => call.values?.[2] === undefined));
+});
