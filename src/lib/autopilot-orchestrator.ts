@@ -45,9 +45,40 @@ const COUNCIL_ROLES = ['engineering-scientist', 'software-architect', 'cybersecu
 type PlannedStep = AutopilotMissionPlanStep;
 type RepositoryProviderSelection = {
   providerId: string;
+  providerName: string;
   modelId: string;
+  verificationLevel: string;
   limits: RepositoryProviderUsageLimits;
 };
+type RepositoryContributorProfile = {
+  providerId: string;
+  name: string;
+  freeModes: string[];
+  note: string;
+  configured: boolean;
+  eligibility: string;
+};
+type RepositoryFreeContributorPolicy = {
+  authorized: boolean;
+  mode: string;
+  monthlyPaidBudgetUsd: number;
+  paidInferenceAuthorized: false;
+  broadExternalDataEgress: false;
+  authorizationReasons: string[];
+  eligibleProviders: RepositoryProviderSelection[];
+  eligibleProviderCount: number;
+  maxProvidersPerCycle: number;
+  required: Record<string, boolean>;
+  providerProfiles: RepositoryContributorProfile[];
+};
+type RepositoryProviderConfiguration = { id: string; status: string; models: string[] };
+const evaluateRepositoryFreeContributorPolicy = getRepositoryFreeContributorPolicy as unknown as (
+  input: {
+    env: Record<string, string | undefined>;
+    configuredProviders: RepositoryProviderConfiguration[];
+    now: string;
+  }
+) => RepositoryFreeContributorPolicy;
 
 async function generateRepositoryFreeProvider(
   selection: RepositoryProviderSelection,
@@ -81,10 +112,10 @@ export function isAutopilotInferenceAuthorized(env: Record<string, string | unde
 
 export function getAutopilotRepositoryContributorPolicy(
   env: Record<string, string | undefined> = process.env,
-  configuredProviders: Array<{ id: string; status: string; models: string[] }> = aiOrchestrator.registry(),
+  configuredProviders: RepositoryProviderConfiguration[] = aiOrchestrator.registry(),
   now: string = new Date().toISOString(),
 ) {
-  return getRepositoryFreeContributorPolicy({ env, configuredProviders, now });
+  return evaluateRepositoryFreeContributorPolicy({ env, configuredProviders, now });
 }
 
 export function isAutopilotRepositoryFreeInferenceAuthorized(
