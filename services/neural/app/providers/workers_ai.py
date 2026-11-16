@@ -37,7 +37,7 @@ class WorkersAIAdapter(ProviderAdapter):
     ) -> None:
         self._ai = ai_binding
         self._model = model.strip() if isinstance(model, str) else ""
-        self._workers_plan = workers_plan.strip().casefold()
+        self._workers_plan = workers_plan.strip().casefold() if isinstance(workers_plan, str) else ""
         self._free_only_enabled = free_only_enabled is True
         if not 0 < timeout_seconds <= 30:
             raise ValueError("timeout_seconds must be greater than 0 and at most 30")
@@ -88,16 +88,14 @@ class WorkersAIAdapter(ProviderAdapter):
             raise ValueError("Prompt is empty or exceeds the supported limit")
 
         try:
-            payload = await asyncio.wait_for(
-                self._ai.run(
-                    self._model,
-                    {
-                        "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": self.max_output_tokens,
-                    },
-                ),
-                timeout=self._timeout,
+            request = self._ai.run(
+                self._model,
+                {
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": self.max_output_tokens,
+                },
             )
+            payload = await asyncio.wait_for(request, timeout=self._timeout)
         except TimeoutError:
             raise RuntimeError("Cloudflare Workers AI request exceeded its timeout") from None
         except Exception as exc:  # noqa: BLE001 - do not leak runtime binding details
