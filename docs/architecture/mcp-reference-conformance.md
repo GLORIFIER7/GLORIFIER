@@ -190,7 +190,7 @@ Cloudflare account configuration observed on 2026-11-13:
 
 The external conformance workflow now falls back to the canonical Pages URL and hostname when repository variables are absent. The target validator explicitly rejects the account-protected direct Worker hostname even when it is accidentally added to the allowlist. The regression suite now checks this rejection and verifies that a public Pages `POST /mcp` request preserves its MCP method, body, origin, and protocol headers through the service-binding proxy.
 
-**Verification boundary:** Cloudflare control-plane configuration and the latest Pages deployment were inspected. A live external `POST /mcp` request and the official MCP TCK have not yet been run from this environment. Therefore public transport success and MCP conformance remain **NOT VERIFIED** until the workflow is dispatched and its reports are inspected. The configured public target fixes the known Access-host mismatch; it does not upgrade the protocol capability status by itself.
+**Verification boundary at the 2026-11-13 checkpoint:** Cloudflare control-plane configuration and the latest Pages deployment were inspected. At that time, a live external `POST /mcp` request and the official MCP TCK had not yet been run from this environment. Therefore public transport success and MCP conformance remain **NOT VERIFIED** until the workflow is dispatched and its reports are inspected. The configured public target fixes the known Access-host mismatch; it does not upgrade the protocol capability status by itself.
 
 
 ## Live MCP TCK execution checkpoint — 2026-11-16
