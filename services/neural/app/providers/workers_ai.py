@@ -62,17 +62,28 @@ class WorkersAIAdapter(ProviderAdapter):
         raise RuntimeError("Cloudflare Workers AI requires the asynchronous Worker runtime")
 
     @staticmethod
+    def _field(value: Any, name: str) -> Any:
+        """Read one result field from mappings or Worker binding proxy objects."""
+        if isinstance(value, Mapping):
+            return value.get(name)
+        try:
+            return value[name]
+        except (KeyError, TypeError, AttributeError, IndexError):
+            return getattr(value, name, None)
+
+    @staticmethod
     def _response_text(payload: Any) -> str:
-        """Extract only the documented response field from a Workers AI result."""
-        if isinstance(payload, Mapping):
-            text = payload.get("response")
-        else:
-            text = getattr(payload, "response", None)
-            if text is None:
-                try:
-                    text = payload["response"]
-                except (KeyError, TypeError, AttributeError):
-                    text = None
+        """Extract the native response or first chat-completion choice content."""
+        text = WorkersAIAdapter._field(payload, "response")
+        if not isinstance(text, str) or not text.strip():
+            choices = WorkersAIAdapter._field(payload, "choices")
+            try:
+                first_choice = choices[0]
+            except (KeyError, TypeError, AttributeError, IndexError):
+                first_choice = None
+            message = WorkersAIAdapter._field(first_choice, "message")
+            text = WorkersAIAdapter._field(message, "content")
+
         if not isinstance(text, str):
             raise TypeError("Cloudflare Workers AI returned an invalid response")
         text = text.strip()
