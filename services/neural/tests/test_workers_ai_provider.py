@@ -282,3 +282,21 @@ def test_runtime_denies_workers_ai_when_external_or_paid_authorization_is_set(fl
     orchestrator = build_orchestrator_from_environment(env)
 
     assert orchestrator._allow_inference is False
+
+def test_runtime_keeps_workers_ai_disabled_without_explicit_inference_opt_in():
+    binding = _FakeWorkersAIBinding()
+    env = {
+        "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
+        "GLORIFIER_ENABLE_INFERENCE": "false",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+        "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
+        "GLORIFIER_WORKERS_PLAN": "free",
+        "AI": binding,
+    }
+
+    orchestrator = build_orchestrator_from_environment(env)
+
+    assert orchestrator._allow_inference is False
+    assert orchestrator._providers.get("cloudflare_workers_ai") is None
+    assert binding.calls == []
