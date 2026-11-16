@@ -12,7 +12,7 @@ from app.schemas import TaskRequest
 
 class _FakeWorkersAIBinding:
     def __init__(self, response=None):
-        self.response = response or {"response": "A verified synthetic response for testing."}
+        self.response = (\n            {"response": "A verified synthetic response for testing."}\n            if response is None else response\n        )
         self.calls = []
 
     async def run(self, model, inputs):
@@ -38,10 +38,16 @@ def test_workers_ai_adapter_requires_verified_free_plan_and_explicit_free_only_m
         workers_plan="free",
         free_only_enabled=False,
     )
+    missing_plan = WorkersAIAdapter(
+        binding,
+        workers_plan=None,
+        free_only_enabled=True,
+    )
 
     assert not unverified_plan.is_configured()
     assert not paid_plan.is_configured()
     assert not not_free_only.is_configured()
+    assert not missing_plan.is_configured()
 
 
 def test_workers_ai_adapter_accepts_only_the_pinned_free_model():
@@ -212,3 +218,28 @@ def test_runtime_executes_only_the_explicit_workers_ai_provider():
     assert result.provider == "cloudflare_workers_ai"
     assert result.result == "A verified synthetic response for testing."
     assert len(binding.calls) == 1
+
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS", "true"),
+        ("GLORIFIER_PAID_INFERENCE_AUTHORIZED", "true"),
+    ],
+)
+def test_runtime_denies_workers_ai_when_external_or_paid_authorization_is_set(flag, value):
+    env = {
+        "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
+        "GLORIFIER_ENABLE_INFERENCE": "true",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+        "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
+        "GLORIFIER_WORKERS_PLAN": "free",
+        "AI": _FakeWorkersAIBinding(),
+    }
+    env[flag] = value
+
+    orchestrator = build_orchestrator_from_environment(env)
+
+    assert orchestrator._allow_inference is False
