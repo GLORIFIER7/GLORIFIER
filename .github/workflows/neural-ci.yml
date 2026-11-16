@@ -56,7 +56,7 @@ jobs:
       - run: ruff check .
       - run: pytest
       - name: Audit Python dependencies
-        run: uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt
+        run: uvx --no-build --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt
       - name: Build container image (no publish)
         run: docker build --tag glorifier-neural:ci .
       - name: Verify runtime image includes the Neon PostgreSQL driver
