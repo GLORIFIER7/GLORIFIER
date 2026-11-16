@@ -298,5 +298,13 @@ def test_runtime_keeps_workers_ai_disabled_without_explicit_inference_opt_in():
     orchestrator = build_orchestrator_from_environment(env)
 
     assert orchestrator._allow_inference is False
-    assert orchestrator._providers.get("cloudflare_workers_ai") is None
+    response = asyncio.run(
+        orchestrator.arun(
+            TaskRequest(task="Do not execute while inference is disabled.", require_approval=False)
+        )
+    )
+
+    assert response.status == "NOT_VERIFIED"
+    assert "inference:disabled" in response.evidence
+    assert "execution:none" in response.evidence
     assert binding.calls == []
