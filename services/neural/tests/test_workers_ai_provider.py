@@ -12,7 +12,10 @@ from app.schemas import TaskRequest
 
 class _FakeWorkersAIBinding:
     def __init__(self, response=None):
-        self.response = (\n            {"response": "A verified synthetic response for testing."}\n            if response is None else response\n        )
+        self.response = (
+            {"response": "A verified synthetic response for testing."}
+            if response is None else response
+        )
         self.calls = []
 
     async def run(self, model, inputs):
