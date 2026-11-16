@@ -51,7 +51,7 @@ def test_neural_validation_remains_a_read_only_python_matrix():
     assert 'python-version: ["3.11", "3.12"]' in test_job
     assert "ruff check ." in test_job
     assert "- run: pytest" in test_job
-    assert "uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt" in test_job
+    assert "uvx --only-binary :all: --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt" in test_job
 
 
 def test_untrusted_test_job_does_not_persist_github_token():
