@@ -16,6 +16,21 @@ def _sql(path: Path) -> str:
     return re.sub(r"--[^\n]*", "", path.read_text(encoding="utf-8")).lower()
 
 
+def test_disposable_database_workflow_pins_postgres_image_by_digest():
+    workflow = (
+        ROOT.parents[1]
+        / ".github"
+        / "workflows"
+        / "neural-database-integration.yml"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "image: postgres:16@sha256:"
+        "63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"
+    ) in workflow
+    assert "image: postgres:16\n" not in workflow
+
+
 def test_neon_task_run_migration_keeps_exact_utc_retention_bounds():
     sql = _sql(NEON_SQL)
     assert "create table glorifier.task_runs" in sql
