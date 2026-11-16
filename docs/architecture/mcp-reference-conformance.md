@@ -1,6 +1,6 @@
 # MCP endpoint implementation and conformance status
 
-**Status:** a fixed-scope, read-only GitHub MCP Worker endpoint implements a modern stateless `2026-07-28` request path plus legacy `2025` compatibility. Local Worker contract tests cover the declared surface. Full MCP conformance and external-client interoperability remain **NOT VERIFIED**.  
+**Status:** a fixed-scope, read-only GitHub MCP Worker endpoint implements a modern stateless `2026-07-28` request path plus legacy `2025` compatibility. Two owner-dispatched official server-TCK runs were performed on 2026-11-16 and both failed; the modern read-only smoke passed once and was rate-limited after the second full run. Full MCP conformance and independent external-client interoperability remain **NOT VERIFIED**.  
 **Repository:** `GLORIFIER7/GLORIFIER`  
 **Reviewed:** 2026-11-05  
 **Production route:** `POST /mcp` on the `glorifier` Cloudflare Worker  
@@ -167,9 +167,9 @@ The target validator rejects non-HTTPS URLs, URL credentials, non-default ports,
 ### Revision-pinned conformance checks
 
 1. The workflow checks out the official `modelcontextprotocol/conformance` runner at immutable commit `96a6f9478b7f2e125cf0360a213383cf57533893`. That pinned snapshot contains the frozen requirement set for MCP revision `2026-07-28`.
-2. It runs the official **server-side required scenarios** for the frozen `2026-07-28` revision using `server --requirements 2026-07-28`. This is the scored server requirement set for that specification revision, not merely a single tools-list smoke. The runner executes server scenarios sequentially, records scenario/check outcomes, and returns a failing exit code when any scored requirement fails. The 30-minute job ceiling accommodates the complete sequential suite while keeping the run bounded.
+2. It first runs a separate scoped `2026-07-28` stateless smoke: `server/discover`, two `tools/list` calls to check deterministic order, and one `tools/call` for the fixed read-only `github_get_repository` tool. This smoke is four bounded POST requests, with a 15-second per-request timeout, redirects disabled, and no caller-supplied arbitrary tool name. It runs before the high-volume suite so earlier TCK calls cannot consume its per-IP tool-call budget.
 3. It separately runs the official legacy `tools-list` server scenario at `2025-11-25`, exercising the supported initialize/list compatibility path.
-4. It then runs a separate scoped `2026-07-28` stateless smoke: `server/discover`, two `tools/list` calls to check deterministic order, and one `tools/call` for the fixed read-only `github_get_repository` tool. This smoke is four bounded POST requests, with a 15-second per-request timeout, redirects disabled, and no caller-supplied arbitrary tool name.
+4. It then runs the official **server-side required scenarios** for the frozen `2026-07-28` revision using `server --requirements 2026-07-28`. This is the scored server requirement set for that specification revision, not merely a single tools-list smoke. The runner executes server scenarios sequentially, records scenario/check outcomes, and returns a failing exit code when any scored requirement fails. It is configured to run independently when target validation and runner build succeed, even if the earlier smoke fails.
 5. Conformance reports and smoke evidence are retained as workflow artifacts for 14 days.
 
 The complete official server requirement set intentionally tests protocol surfaces beyond the current four-tool GitHub bridge, including resources, prompts, content variants, and streaming-related requirements. Those failures are findings, not reasons to widen the endpoint's scope or weaken the test. The TCK server leg does not test independent MCP clients. **Full MCP 2026-07-28 conformance and independent external-client interoperability remain NOT VERIFIED** until the scored server requirements pass and separate independent-client tests have their own evidence. The workflow still does not run A2A tests, provider inference, paid operations, or write operations.
@@ -191,3 +191,19 @@ Cloudflare account configuration observed on 2026-11-13:
 The external conformance workflow now falls back to the canonical Pages URL and hostname when repository variables are absent. The target validator explicitly rejects the account-protected direct Worker hostname even when it is accidentally added to the allowlist. The regression suite now checks this rejection and verifies that a public Pages `POST /mcp` request preserves its MCP method, body, origin, and protocol headers through the service-binding proxy.
 
 **Verification boundary:** Cloudflare control-plane configuration and the latest Pages deployment were inspected. A live external `POST /mcp` request and the official MCP TCK have not yet been run from this environment. Therefore public transport success and MCP conformance remain **NOT VERIFIED** until the workflow is dispatched and its reports are inspected. The configured public target fixes the known Access-host mismatch; it does not upgrade the protocol capability status by itself.
+
+
+## Live MCP TCK execution checkpoint — 2026-11-16
+
+The optional external workflow was dispatched twice against the owner-configured public Pages ingress, `https://glorifier.pages.dev/mcp`, on main commit `eebc2fa17b32fa1cbe05b4bf888b5c7f68eda984`.
+
+| Run | Official 2026-07-28 TCK | Legacy 2025-11-25 tools-list | Modern stateless smoke |
+|---|---|---|---|
+| [#43860648984](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43860648984) | Failed; 64 passed, 97 failed | Passed | Passed |
+| [#43862723023](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43862723023) | Failed; 64 passed, 96 failed | Passed | Failed with HTTP 429 |
+
+In both runs, HTTPS target validation, the immutable official runner checkout, and runner installation/build succeeded. The runner separately reported 13 extension/pending scenarios (12 failing) as **not scored** and explicitly stated that those scenarios do not affect conformance. The scored server requirements still failed across multiple areas, including server-stateless behavior, completion, multimedia/embedded tool content, progress, resources, prompts, DNS-rebinding protection, caching, and input-request capabilities. These are real conformance failures; the limited four-tool bridge must not be represented as a fully general-purpose MCP server.
+
+The HTTP 429 occurred only in the second run's modern smoke, which was scheduled after the high-volume official suite. The evidence and regression test added in GLORIFIER PR [#902](https://github.com/GLORIFIER7/GLORIFIER/pull/902) reorder the workflow so the bounded smoke runs first, while the official TCK remains enabled independently and its failure is not softened. This workflow adjustment does not fix the underlying unsupported server capabilities.
+
+**Current evidence boundary:** the public endpoint was reached by the official runner and passed the legacy tools-list scenario, but the official 2026-07-28 server requirements did not pass. No separate independent MCP client handshake or external A2A test was performed. The broad `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**.
