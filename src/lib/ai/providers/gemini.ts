@@ -58,7 +58,7 @@ export class GeminiProvider implements AIProvider {
 
     let lastError: any = null;
     for (const model of fallbackModels) {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < (request.disableRetries ? 1 : 2); attempt++) {
         try {
           const response = await client.models.generateContent({
             model,
@@ -88,7 +88,7 @@ export class GeminiProvider implements AIProvider {
             break;
           }
 
-          if (isUnavailable && attempt === 0) {
+          if (isUnavailable && attempt === 0 && !request.disableRetries) {
             // Brief backoff before next attempt
             await new Promise((r) => setTimeout(r, 600));
             continue;
