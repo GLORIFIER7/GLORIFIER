@@ -22,6 +22,8 @@ interface RepositoryProviderBudgetPool {
   connect(): Promise<RepositoryProviderBudgetClient>;
 }
 
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+
 const isPositiveInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
@@ -46,6 +48,9 @@ function validateLimits(limits: RepositoryProviderUsageLimits): void {
       throw new Error('Repository provider usage limit ' + key + ' must be a positive integer.');
     }
   }
+  if (limits.requestsPerMinute > POSTGRES_INTEGER_MAX || limits.requestsPerDay > POSTGRES_INTEGER_MAX) {
+    throw new Error('Repository provider request limits must fit PostgreSQL INTEGER range.');
+  }
   if (limits.maxTokensPerDay < limits.maxOutputTokens) {
     throw new Error('Daily token allowance must cover at least one maximum-output reservation.');
   }
@@ -61,13 +66,11 @@ export async function reserveRepositoryProviderRequest({
   providerId,
   limits,
   inputTokenUpperBound,
-  now = new Date(),
   pool = getPostgresPool() as unknown as RepositoryProviderBudgetPool
 }: {
   providerId: string;
   limits: RepositoryProviderUsageLimits;
   inputTokenUpperBound: number;
-  now?: Date;
   pool?: RepositoryProviderBudgetPool;
 }): Promise<{ providerId: string; inputTokenUpperBound: number; maxOutputTokens: number; reservedTokens: number }> {
   if (typeof providerId !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(providerId)) {
@@ -81,13 +84,6 @@ export async function reserveRepositoryProviderRequest({
   if (!Number.isSafeInteger(reservedTokens) || reservedTokens > limits.maxTokensPerDay) {
     throw new Error('One repository contribution exceeds the owner-attested daily token budget.');
   }
-  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
-    throw new Error('Repository provider quota clock is invalid.');
-  }
-
-  const minuteStart = new Date(now);
-  minuteStart.setUTCSeconds(0, 0);
-  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const client = await pool.connect();
   let inTransaction = false;
   try {
@@ -99,21 +95,20 @@ export async function reserveRepositoryProviderRequest({
 
     const reserveWindow = async (
       kind: 'minute' | 'day',
-      windowStart: Date,
       maxRequests: number,
       maxTokens: number | null
     ): Promise<void> => {
       const result = await client.query(
-        'INSERT INTO glorifier_repository_provider_usage (provider_id, window_kind, window_started_at, requests_used, tokens_reserved, updated_at) VALUES ($1, $2, $3, 1, $4, NOW()) ON CONFLICT (provider_id, window_kind, window_started_at) DO UPDATE SET requests_used = glorifier_repository_provider_usage.requests_used + 1, tokens_reserved = glorifier_repository_provider_usage.tokens_reserved + $4, updated_at = NOW() WHERE glorifier_repository_provider_usage.requests_used < $5 AND ($6::BIGINT IS NULL OR glorifier_repository_provider_usage.tokens_reserved + $4 <= $6) RETURNING requests_used',
-        [providerId, kind, windowStart.toISOString(), reservedTokens, maxRequests, maxTokens]
+        'INSERT INTO glorifier_repository_provider_usage (provider_id, window_kind, window_started_at, requests_used, tokens_reserved, updated_at) VALUES ($1, $2, date_trunc($2, CURRENT_TIMESTAMP), 1, $3, NOW()) ON CONFLICT (provider_id, window_kind, window_started_at) DO UPDATE SET requests_used = glorifier_repository_provider_usage.requests_used + 1, tokens_reserved = glorifier_repository_provider_usage.tokens_reserved + $3, updated_at = NOW() WHERE glorifier_repository_provider_usage.requests_used < $4 AND ($5::BIGINT IS NULL OR glorifier_repository_provider_usage.tokens_reserved + $3 <= $5) RETURNING requests_used',
+        [providerId, kind, reservedTokens, maxRequests, maxTokens]
       );
       if ((result.rowCount ?? result.rows?.length ?? 0) !== 1) {
         throw new Error('Repository provider ' + providerId + ' free ' + kind + ' quota is exhausted; provider execution was blocked.');
       }
     };
 
-    await reserveWindow('minute', minuteStart, limits.requestsPerMinute, null);
-    await reserveWindow('day', dayStart, limits.requestsPerDay, limits.maxTokensPerDay);
+    await reserveWindow('minute', limits.requestsPerMinute, null);
+    await reserveWindow('day', limits.requestsPerDay, limits.maxTokensPerDay);
     await client.query('COMMIT');
     inTransaction = false;
     return { providerId, inputTokenUpperBound, maxOutputTokens: limits.maxOutputTokens, reservedTokens };
