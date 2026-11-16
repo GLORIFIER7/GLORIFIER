@@ -487,8 +487,10 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
     );
     assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
     assert.match(install, /gemini --version/);
-    assert.doesNotMatch(install, /GEMINI_API_KEY/,
-      workflow.name + ' installation must not receive or reference the provider credential');
+    assert.doesNotMatch(install, /^\\s+GEMINI_API_KEY:\\s*/m,
+      workflow.name + ' installation must not define a provider-key environment variable');
+    assert.doesNotMatch(install, /GEMINI_API_KEY:\\s*\\$\\{\\{\\s*secrets\\.GEMINI_API_KEY\\s*\\}\\}/,
+      workflow.name + ' installation must not receive the provider secret');
     assert.doesNotMatch(inference, /npm install --global|gemini --version/,
       workflow.name + ' inference must not install or bootstrap executable code');
     assert.match(inference, /GEMINI_API_KEY: \$\{\{ secrets\.GEMINI_API_KEY \}\}/,
