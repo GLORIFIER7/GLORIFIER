@@ -182,6 +182,34 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo current production configuration contract")
+def test_monorepo_runbook_records_current_default_deny_and_observability_state():
+    runbook = (
+        SERVICE_ROOT / "docs" / "PRODUCTION_READINESS.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Current production configuration observation — 2026-11-16" in runbook
+    assert "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false" in runbook
+    assert "GLORIFIER_ENABLE_INFERENCE=false" in runbook
+    assert "GLORIFIER_PAID_INFERENCE_AUTHORIZED=false" in runbook
+    assert "observability.redact_query_string=false" in runbook
+    assert "PR #894" in runbook
+    assert "source-only and has not been deployed" in runbook
+    assert "secret values were not read" in runbook
+
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo PostgreSQL image digest maintenance contract")
+def test_monorepo_runbook_documents_postgres_image_digest_refresh():
+    runbook = (
+        SERVICE_ROOT / "docs" / "PRODUCTION_READINESS.md"
+    ).read_text(encoding="utf-8")
+
+    assert "CI dependency maintenance" in runbook
+    assert "neural-database-integration.yml" in runbook
+    assert "test_migration_contracts.py" in runbook
+    assert "63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9" in runbook
+
+
 def test_monorepo_release_runbook_matches_advisory_ai_review_policy():
     runbook = (
         SERVICE_ROOT / "docs" / "PRODUCTION_READINESS.md"
