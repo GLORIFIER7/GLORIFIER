@@ -83,7 +83,11 @@ function fakeFetch(options: {
 test('GitHub App write configuration requires all app credentials and never treats a PAT as a bot identity', () => {
   assert.equal(hasGithubAppWriteConfiguration(baseEnv), true);
   assert.equal(hasGithubAppWriteConfiguration({ GLORIFIER_GITHUB_WRITE_TOKEN: 'ghp_legacy_token' }), false);
-  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_SLUG: '' }), false);\n  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_ID: '0' }), false);\n  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_INSTALLATION_ID: '0' }), false);\n  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_ID: '9999999999999999' }), false);\n  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----invalid-----END PRIVATE KEY-----' }), false);
+  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_SLUG: '' }), false);
+  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_ID: '0' }), false);
+  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_INSTALLATION_ID: '0' }), false);
+  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_ID: '9999999999999999' }), false);
+  assert.equal(hasGithubAppWriteConfiguration({ ...baseEnv, GLORIFIER_GITHUB_APP_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----invalid-----END PRIVATE KEY-----' }), false);
 });
 
 test('GitHub App installation token is repository-scoped and verifies the owner-controlled bot identity', async () => {
