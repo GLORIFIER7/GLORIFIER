@@ -335,6 +335,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('etsi-eni', 'ETSI', 'networking', 'https://www.etsi.org/technical-groups/eni/', ['federated-continuum', 'intent-closed-loop'], 336, ["federated-continuum"]),
   createArchitectureSource('ietf-rfcs', 'IETF', 'integration', 'https://www.ietf.org/process/rfcs/', ['protocol-neutral-interoperability'], 336, ["protocol-neutral-interoperability"]),
   createArchitectureSource('nist-iot', 'NIST', 'iot', 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program', ['iot-device-boundaries'], 336, ["iot-device-boundaries"]),
+  createArchitectureSource('nist-ir-8259r1', 'NIST', 'iot', 'https://csrc.nist.gov/pubs/ir/8259/r1/final', ['iot-product-cybersecurity-lifecycle'], 336, ['iot-product-cybersecurity-lifecycle-guidance']),
   createArchitectureSource('etsi-edge', 'ETSI', 'edge', 'https://www.etsi.org/technologies/multi-access-edge-computing', ['edge-degradation'], 336, ["edge-degradation"]),
   createArchitectureSource('nist-blockchain', 'NIST', 'blockchain', 'https://csrc.nist.gov/pubs/ir/8202/final', ['selective-trust-anchoring'], 336, ["selective-trust-anchoring"]),
   createArchitectureSource('iso-42001', 'ISO', 'governance', 'https://www.iso.org/standard/42001', ['ai-management-system'], 336, ["ai-management-system"]),
@@ -445,6 +446,7 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   definePattern('intent-closed-loop', 'Intent-driven closed-loop automation', 'networking', 'etsi-eni', 'Translate high-level intent into policy-driven automated actions with assurance.', 'GEAS policy → governed execution + verification', ['POL-01', 'GOV-01'], ['intent', 'policy', 'automated', 'assurance']),
   definePattern('protocol-neutral-interoperability', 'Protocol-neutral interoperability', 'integration', 'ietf-rfcs', 'Prefer explicit, versioned protocols and interoperable interfaces over provider-specific coupling.', 'A2A/MCP/API adapters + capability registry', ['FED-01'], ['protocol', 'interoperability', 'interface']),
   definePattern('iot-device-boundaries', 'Explicit IoT device security boundaries', 'iot', 'nist-iot', 'Treat device identity, security capabilities and lifecycle boundaries as explicit controls.', 'Device identity + capability + lifecycle governance', ['SEC-01'], ['device', 'identity', 'lifecycle']),
+  definePattern('iot-product-cybersecurity-lifecycle', 'IoT product cybersecurity lifecycle', 'iot', 'nist-ir-8259r1', 'Use manufacturer security activities across IoT product development and support, including pre-market preparation, post-market maintenance, customer communications, and end-of-life.', 'Analysis only: this source describes NIST guidance for IoT product manufacturers; it does not prove GLORIFIER manufactures, deploys, or operates IoT products.', ['SEC-01', 'SUPPLY-01'], ['pre-market', 'post-market', 'maintenance', 'end-of-life']),
   definePattern('edge-degradation', 'Edge graceful degradation', 'edge', 'etsi-edge', 'Design edge systems around constrained connectivity, locality and resilient operation.', 'Degraded-mode contracts', ['REL-01', 'FED-01'], ['edge', 'connectivity', 'resilience']),
   definePattern('selective-trust-anchoring', 'Selective distributed trust anchoring', 'blockchain', 'nist-blockchain', 'Use distributed ledger concepts selectively where multi-party integrity or provenance requires them.', 'Optional external receipt/proof anchoring', ['EVID-01'], ['blockchain', 'distributed', 'ledger', 'trust']),
   definePattern('ai-management-system', 'AI management system', 'governance', 'iso-42001', 'Establish and continually improve a management system for responsible AI governance.', 'GEAS governance lifecycle + audit evidence', ['AI-01', 'GOV-01'], ['management system', 'AI', 'continuous', 'governance']),
@@ -1411,6 +1413,9 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
     'Deterministic Access Decisions',
     'Continuous Monitoring',
     'Immutable Evidence',
+  ],
+  'nist-ir-8259r1': [
+    'This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.',
   ],
 };
 
