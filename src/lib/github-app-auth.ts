@@ -78,7 +78,7 @@ async function githubAppRequest(
 ): Promise<unknown> {
   const url = new URL(path, API_ROOT);
   const approvedPath = url.pathname === '/app' ||
-    /^\\/app\\/installations\\/\\d+\\/access_tokens$/.test(url.pathname);
+    /^\/app\/installations\/\d+\/access_tokens$/.test(url.pathname);
   if (url.origin !== API_ROOT || url.protocol !== 'https:' || !approvedPath) {
     throw new Error('Blocked GitHub App authentication request outside approved GitHub App endpoints.');
   }
