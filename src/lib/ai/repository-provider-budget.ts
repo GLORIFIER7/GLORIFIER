@@ -34,8 +34,17 @@ export async function initializeRepositoryProviderBudget(): Promise<void> {
 }
 
 function validateLimits(limits: RepositoryProviderUsageLimits): void {
-  for (const [key, value] of Object.entries(limits)) {
-    if (!isPositiveInteger(value)) throw new Error('Repository provider usage limit ' + key + ' must be a positive integer.');
+  const requiredLimits: Array<keyof RepositoryProviderUsageLimits> = [
+    'requestsPerMinute',
+    'requestsPerDay',
+    'maxTokensPerDay',
+    'maxInputTokens',
+    'maxOutputTokens',
+  ];
+  for (const key of requiredLimits) {
+    if (!isPositiveInteger(limits[key])) {
+      throw new Error('Repository provider usage limit ' + key + ' must be a positive integer.');
+    }
   }
   if (limits.maxTokensPerDay < limits.maxOutputTokens) {
     throw new Error('Daily token allowance must cover at least one maximum-output reservation.');
@@ -69,7 +78,7 @@ export async function reserveRepositoryProviderRequest({
     throw new Error('Repository contribution exceeds the owner-attested maximum input-token limit.');
   }
   const reservedTokens = inputTokenUpperBound + limits.maxOutputTokens;
-  if (reservedTokens > limits.maxTokensPerDay) {
+  if (!Number.isSafeInteger(reservedTokens) || reservedTokens > limits.maxTokensPerDay) {
     throw new Error('One repository contribution exceeds the owner-attested daily token budget.');
   }
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
@@ -84,6 +93,9 @@ export async function reserveRepositoryProviderRequest({
   try {
     await client.query('BEGIN');
     inTransaction = true;
+    // Periodic-on-write cleanup keeps long-lived workers from retaining expired
+    // minute/day quota windows indefinitely after their one-time startup pass.
+    await client.query("DELETE FROM glorifier_repository_provider_usage WHERE window_started_at < NOW() - INTERVAL '3 days'");
 
     const reserveWindow = async (
       kind: 'minute' | 'day',
@@ -119,9 +131,16 @@ export async function reserveRepositoryProviderRequest({
 export function estimateRepositoryInputTokenUpperBound(messages: readonly { role: string; content: string }[]): number {
   if (!Array.isArray(messages) || messages.length === 0) throw new Error('Repository contribution messages are required.');
   const bytes = messages.reduce((total, message) => {
-    if (!message || typeof message.content !== 'string') throw new Error('Repository contribution messages must contain text.');
-    return total + Buffer.byteLength(message.content, 'utf8');
-  }, 0);
+    if (!message || typeof message.role !== 'string' || !message.role.trim() ||
+        typeof message.content !== 'string') {
+      throw new Error('Repository contribution messages must contain a valid role and text.');
+    }
+    // UTF-8 byte count is a conservative content estimate. Add explicit per-
+    // message role/framing overhead plus fixed conversation framing because
+    // providers count their own message boundaries and role tokens too.
+    return total + Buffer.byteLength(message.role, 'utf8')
+      + Buffer.byteLength(message.content, 'utf8') + 32;
+  }, 16);
   if (!Number.isSafeInteger(bytes) || bytes <= 0) throw new Error('Repository contribution input size is invalid.');
   return bytes;
 }
