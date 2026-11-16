@@ -74,7 +74,7 @@ class WorkersAIAdapter(ProviderAdapter):
                 except (KeyError, TypeError, AttributeError):
                     text = None
         if not isinstance(text, str):
-            raise RuntimeError("Cloudflare Workers AI returned an invalid response")
+            raise TypeError("Cloudflare Workers AI returned an invalid response")
         text = text.strip()
         if not text or len(text) > WorkersAIAdapter.max_output_chars:
             raise RuntimeError("Cloudflare Workers AI returned an empty or oversized response")
@@ -98,7 +98,7 @@ class WorkersAIAdapter(ProviderAdapter):
                 ),
                 timeout=self._timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise RuntimeError("Cloudflare Workers AI request exceeded its timeout") from None
         except Exception as exc:  # noqa: BLE001 - do not leak runtime binding details
             raise RuntimeError(
