@@ -500,3 +500,48 @@ test('Autopilot distinguishes same-domain GitHub readback from independent outco
   assert.equal(status.githubSourceReadbackVerificationEnabled, true);
   assert.ok(status.remainingCapabilities.includes('independent-verification-from-a-separate-trust-domain'));
 });
+
+
+test('Autopilot status never treats paid-inference flags or a legacy PAT as free inference or App write readiness', async () => {
+  const names = [
+    'GLORIFIER_ENABLE_INFERENCE',
+    'GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS',
+    'GLORIFIER_PAID_INFERENCE_AUTHORIZED',
+    'GLORIFIER_GITHUB_WRITE_TOKEN',
+    'GLORIFIER_GITHUB_APP_ID',
+    'GLORIFIER_GITHUB_APP_INSTALLATION_ID',
+    'GLORIFIER_GITHUB_APP_PRIVATE_KEY',
+    'GLORIFIER_GITHUB_APP_SLUG',
+    'GLORIFIER_REPOSITORY_AI_FREE_ONLY',
+    'GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS',
+    'GLORIFIER_MONTHLY_AI_BUDGET_USD',
+    'GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON',
+  ] as const;
+  const original = new Map(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.GLORIFIER_ENABLE_INFERENCE = 'true';
+    process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS = 'true';
+    process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED = 'true';
+    process.env.GLORIFIER_GITHUB_WRITE_TOKEN = 'ghp_legacy_personal_token';
+    process.env.GLORIFIER_REPOSITORY_AI_FREE_ONLY = 'false';
+    process.env.GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS = 'false';
+    process.env.GLORIFIER_MONTHLY_AI_BUDGET_USD = '0';
+    process.env.GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON = '[]';
+    delete process.env.GLORIFIER_GITHUB_APP_ID;
+    delete process.env.GLORIFIER_GITHUB_APP_INSTALLATION_ID;
+    delete process.env.GLORIFIER_GITHUB_APP_PRIVATE_KEY;
+    delete process.env.GLORIFIER_GITHUB_APP_SLUG;
+
+    const status = getAutopilotMissionControlStatus();
+    assert.equal(status.providerInferenceEnabled, false);
+    assert.equal(status.writeCredentialConfigured, false);
+    assert.equal(status.writeToolExecutionEnabled, false);
+    assert.equal(status.autonomousPlanningEnabled, false);
+  } finally {
+    for (const name of names) {
+      const value = original.get(name);
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
