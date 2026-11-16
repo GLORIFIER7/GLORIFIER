@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildRepositoryCouncilAssignments,
   evaluateRepositoryProviderAttestation,
   getRepositoryFreeContributorPolicy,
   listEligibleRepositoryContributors,
@@ -193,6 +194,35 @@ test('only configured providers with valid attestations enter the repository con
   ];
   const pool = listEligibleRepositoryContributors({ attestations, configuredProviders: configured, now: NOW });
   assert.deepEqual(pool.map((entry) => entry.providerId), ['gemini', 'nvidia']);
+});
+
+
+test('assigns every eligible provider an explicit model and a review role without duplication', () => {
+  const providers = [
+    { providerId: 'gemini', modelId: 'gemini-flash' },
+    { providerId: 'nvidia', modelId: 'nemotron' },
+    { providerId: 'anthropic', modelId: 'claude-haiku' },
+    { providerId: 'xai', modelId: 'grok-mini' },
+    { providerId: 'openai', modelId: 'gpt-mini' },
+    { providerId: 'meta', modelId: 'llama-local' },
+    { providerId: 'groq', modelId: 'llama-fast' },
+    { providerId: 'openrouter', modelId: 'provider/free' },
+    { providerId: 'huggingface', modelId: 'hf-free' }
+  ];
+  const roles = [
+    { id: 'engineering-scientist' },
+    { id: 'software-architect' }
+  ];
+  const assignments = buildRepositoryCouncilAssignments(providers, roles);
+  assert.equal(assignments.length, 8);
+  assert.deepEqual(assignments.map((entry) => entry.providerId), providers.slice(0, 8).map((entry) => entry.providerId));
+  assert.deepEqual(assignments.map((entry) => entry.role.id), [
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect'
+  ]);
+  assert.equal(new Set(assignments.map((entry) => entry.providerId)).size, assignments.length);
 });
 
 test('requires an explicit repository-only free mode and $0 paid-inference policy', () => {
