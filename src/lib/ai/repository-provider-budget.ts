@@ -99,7 +99,7 @@ export async function reserveRepositoryProviderRequest({
       maxTokens: number | null
     ): Promise<void> => {
       const result = await client.query(
-        'INSERT INTO glorifier_repository_provider_usage (provider_id, window_kind, window_started_at, requests_used, tokens_reserved, updated_at) VALUES ($1, $2, date_trunc($2, CURRENT_TIMESTAMP), 1, $3, NOW()) ON CONFLICT (provider_id, window_kind, window_started_at) DO UPDATE SET requests_used = glorifier_repository_provider_usage.requests_used + 1, tokens_reserved = glorifier_repository_provider_usage.tokens_reserved + $3, updated_at = NOW() WHERE glorifier_repository_provider_usage.requests_used < $4 AND ($5::BIGINT IS NULL OR glorifier_repository_provider_usage.tokens_reserved + $3 <= $5) RETURNING requests_used',
+        'INSERT INTO glorifier_repository_provider_usage (provider_id, window_kind, window_started_at, requests_used, tokens_reserved, updated_at) VALUES ($1, $2, date_trunc($2, CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC', 1, $3, NOW()) ON CONFLICT (provider_id, window_kind, window_started_at) DO UPDATE SET requests_used = glorifier_repository_provider_usage.requests_used + 1, tokens_reserved = glorifier_repository_provider_usage.tokens_reserved + $3, updated_at = NOW() WHERE glorifier_repository_provider_usage.requests_used < $4 AND ($5::BIGINT IS NULL OR glorifier_repository_provider_usage.tokens_reserved + $3 <= $5) RETURNING requests_used',
         [providerId, kind, reservedTokens, maxRequests, maxTokens]
       );
       if ((result.rowCount ?? result.rows?.length ?? 0) !== 1) {
