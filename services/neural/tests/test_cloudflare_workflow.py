@@ -247,3 +247,34 @@ def test_cloudflare_worker_keeps_external_egress_and_inference_disabled_by_defau
     assert variables.get("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") == "false"
     assert variables.get("GLORIFIER_ENABLE_INFERENCE", "false").casefold() == "false"
     assert variables.get("GLORIFIER_PAID_INFERENCE_AUTHORIZED", "false").casefold() == "false"
+
+
+def test_cloudflare_local_validation_does_not_bind_workers_ai_before_free_plan_verification():
+    config_path = SERVICE_ROOT / "cloudflare" / "wrangler.jsonc"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    variables = config.get("vars", {})
+
+    assert "ai" not in config, (
+        "Do not attach a Workers AI binding to local validation before account plan "
+        "and model eligibility are independently verified; local AI calls access the account."
+    )
+    assert variables.get("GLORIFIER_WORKERS_PLAN") == "unverified"
+    assert variables.get("GLORIFIER_WORKERS_AI_FREE_ONLY") == "false"
+    assert variables.get("GLORIFIER_ENABLE_INFERENCE") == "false"
+    assert variables.get("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") == "false"
+    assert variables.get("GLORIFIER_PAID_INFERENCE_AUTHORIZED") == "false"
+
+
+def test_cloudflare_worker_ci_caches_uv_packages_for_faster_repeat_runs():
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    setup_uv_count = len(
+        re.findall(r"(?m)^\s+- uses: astral-sh/setup-uv@[0-9a-f]{40}", workflow)
+    )
+    cache_enabled_count = len(
+        re.findall(r"(?m)^\s+enable-cache: true$", workflow)
+    )
+
+    assert setup_uv_count == 2, "Both Cloudflare Worker jobs must pin setup-uv immutably"
+    assert cache_enabled_count == setup_uv_count, (
+        "Both validation and approved-deploy dependency installs must reuse the uv cache."
+    )
