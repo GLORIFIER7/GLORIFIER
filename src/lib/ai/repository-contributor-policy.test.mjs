@@ -210,16 +210,28 @@ test('assigns every eligible provider an explicit model and a review role withou
     { providerId: 'meta', modelId: 'llama-local' },
     { providerId: 'groq', modelId: 'llama-fast' },
     { providerId: 'openrouter', modelId: 'provider/free' },
-    { providerId: 'huggingface', modelId: 'hf-free' }
+    { providerId: 'huggingface', modelId: 'hf-free' },
+    { providerId: 'ollama', modelId: 'llama3-local' },
+    { providerId: 'mistral', modelId: 'mistral-free' },
+    { providerId: 'qwen', modelId: 'qwen-free' },
+    { providerId: 'deepseek', modelId: 'deepseek-credit' },
+    { providerId: 'together', modelId: 'together-credit' },
+    { providerId: 'fireworks', modelId: 'fireworks-credit' },
+    { providerId: 'llmsrelay', modelId: 'llmsrelay-credit' },
+    { providerId: 'cloudflare_workers_ai', modelId: 'workers-ai-free' }
   ];
   const roles = [
     { id: 'engineering-scientist' },
     { id: 'software-architect' }
   ];
   const assignments = buildRepositoryCouncilAssignments(providers, roles);
-  assert.equal(assignments.length, 8);
-  assert.deepEqual(assignments.map((entry) => entry.providerId), providers.slice(0, 8).map((entry) => entry.providerId));
+  assert.equal(assignments.length, 16);
+  assert.deepEqual(assignments.map((entry) => entry.providerId), providers.slice(0, 16).map((entry) => entry.providerId));
   assert.deepEqual(assignments.map((entry) => entry.role.id), [
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect',
+    'engineering-scientist', 'software-architect',
     'engineering-scientist', 'software-architect',
     'engineering-scientist', 'software-architect',
     'engineering-scientist', 'software-architect',
