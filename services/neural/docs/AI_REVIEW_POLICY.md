@@ -42,14 +42,15 @@ Do not add AI Review Policy (diagnostic) to required status checks or describe i
 A read-only GitHub API read-back of the primary GLORIFIER repository reports:
 
 - Ruleset: Protect main, ID 24038955; enforcement is active.
-- Pull-request parameters: zero required approving reviews; code-owner review required; review-thread resolution required; merge, squash, and rebase are allowed.
+- Pull-request parameters: zero required approving reviews; the code-owner-review and review-thread-resolution settings are enabled; merge, squash, and rebase are allowed.
+- Repository inspection found no `CODEOWNERS` file at the root, `.github/CODEOWNERS`, or `docs/CODEOWNERS`. The ruleset's code-owner-review flag is configured, but no path-level ownership coverage is evidenced; effective code-owner approval coverage is **NOT VERIFIED** until an administrator adds and verifies an appropriate ownership map.
 - Code quality enforcement is enabled at all configured severities.
 - Code scanning covers CodeQL and Dependabot, with the configured high-or-higher security-alert thresholds.
 - Copilot code review is enabled on pushes and draft pull requests.
 - The returned ruleset does not contain a required-status-checks rule. A successful workflow run must not be described as a required merge check unless a separate live ruleset read-back confirms that requirement.
 - Bypass actors in the returned payload include a DeployKey and repository roles with actor IDs 2, 4, and 5; each has bypass mode always. The API read-back reports current_user_can_bypass: always.
 
-**Administrator follow-up — bypass risk:** The listed always-bypass actors can bypass the ruleset's required reviews and other protections when exercising that bypass. Consequently, code-owner review and review-thread resolution are not absolute controls against those actors. An administrator should review the identities and operational need for each bypass actor, then narrow or remove always-bypass access where it is not essential. Do not use a bypass for routine maintenance or treat this observation as authorization to bypass a review.
+**Administrator follow-up — governance coverage and bypass risk:** The listed always-bypass actors can bypass the ruleset's required reviews and other protections when exercising that bypass. Review-thread resolution is therefore not an absolute control against those actors. Separately, no supported `CODEOWNERS` file location was found, so code-owner approval coverage is not verified despite the enabled ruleset flag. An administrator should add and verify an appropriate ownership map, review the identities and operational need for each bypass actor, and narrow or remove always-bypass access where it is not essential. Do not use a bypass for routine maintenance or treat this observation as authorization to bypass a review.
 
 This is an observation of the remote ruleset, not a change made by this maintenance PR. It supersedes the older 2026-11-05 ruleset notes in this file. In particular, do not claim that the current main ruleset has zero bypass actors or that the connected principal cannot bypass it.
 
