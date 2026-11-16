@@ -96,16 +96,14 @@ def test_trusted_policy_workflow_run_is_limited_to_default_branch_ci():
 
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo-specific policy contract")
-def test_monorepo_neural_ci_uses_a_trusted_read_only_review_checkout():
+def test_monorepo_neural_ci_does_not_run_policy_on_restricted_review_events():
     assert "pull_request:" in WORKFLOW
-    assert "pull_request_review:" in WORKFLOW
-    assert "pull_request_review_comment:" in WORKFLOW
-    assert "github.event_name == 'pull_request_review_comment'" in WORKFLOW
-    assert "  ai-review-policy:" in WORKFLOW
-    assert "pull-requests: read" in WORKFLOW
+    assert "pull_request_review:" not in WORKFLOW
+    assert "pull_request_review_comment:" not in WORKFLOW
+    assert "  ai-review-policy:" not in WORKFLOW
     assert "persist-credentials: false" in WORKFLOW
-    assert "github.event.pull_request.base.sha" in WORKFLOW
-    assert "github.event.pull_request.head.sha" not in WORKFLOW
+    assert "contents: read" in WORKFLOW
+    assert "pull-requests: write" not in WORKFLOW
     assert "gh pr merge" not in WORKFLOW
     assert "--auto" not in WORKFLOW
 
