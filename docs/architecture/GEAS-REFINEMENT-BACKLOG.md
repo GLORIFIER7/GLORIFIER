@@ -394,3 +394,31 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Verification:** The review follow-up passed on source head `f58c88652860254dd088904cd17f95fa60beb95a`, tested merge SHA `e02075b0c8a2637f1cd429e77a1e678c3bf986fa`, through GEAS Architecture Science Scan run `43672605023`; artifact SHA-256 `a689c6a268c60c204379c5e54b56d3d1cdd5a561988954797703247be2c1db11`. All 12 PR-triggered workflow runs completed successfully; no production deployment occurred.
 - **Review/merge:** No PR review approval, merge, or deployment is performed.
 
+
+
+## 2026-11-16 — NIST IR 8259 Rev. 1 IoT product lifecycle source
+
+### Observed facts
+- Current main at inspection: `ed43ce47f1b115aa4caed76f75e68af83690c454`.
+- The authoritative registry contained the general NIST Cybersecurity for IoT Program page but no dedicated entry for the final NIST IR 8259 Revision 1 publication.
+- NIST CSRC identifies `https://csrc.nist.gov/pubs/ir/8259/r1/final` as **NIST IR 8259 Rev. 1, Foundational Cybersecurity Activities for IoT Product Manufacturers**, published April 2026 and superseding the May 2020 IR 8259. Its abstract describes recommended manufacturer activities before IoT products are sold to customers.
+- NIST's April 20, 2026 announcement explicitly describes the revision as spanning pre-market through post-market activities and broadening customer communications about cybersecurity, maintenance, support, and end-of-life.
+- The official publication page is content-backed; this is evidence about NIST guidance, not about GLORIFIER's IoT implementation.
+
+### Analysis
+- A dedicated final-publication source improves specificity and gives the IoT domain a distinct lifecycle-guidance pattern instead of relying only on the general NIST IoT program landing page.
+- The pattern is limited to analysis of manufacturer guidance. It does not establish that GLORIFIER manufactures, deploys, or operates IoT products, nor that it conforms to NIST IR 8259 Rev. 1.
+
+### Auto-approval record
+- **Classification:** LOW risk; pre-authorized for engineering refinement.
+- **Rationale:** Registry/scanner metadata, a source-specific excerpt selector, an analysis-only pattern, regression tests, and existing CI validators only. No production behavior, runtime security posture, production data, credentials, permissions, paid resources, or external commitments change.
+- **Source:** NIST CSRC, NIST IR 8259 Rev. 1, final publication, April 2026: https://csrc.nist.gov/pubs/ir/8259/r1/final.
+- **Corroborating source:** NIST, “Sharpening the Focus on Product Requirements and Cybersecurity Risks,” April 20, 2026: https://www.nist.gov/news-events/news/2026/04/sharpening-focus-product-requirements-and-cybersecurity-risks-updated.
+- **Registry entry:** `nist-ir-8259r1`; authority NIST; domain `iot`; exact URL above; 14-day review cadence / 336-hour scanner cadence; implementation status `not-assessed`; claim type `iot-product-cybersecurity-lifecycle-guidance`.
+- **Analysis pattern:** `iot-product-cybersecurity-lifecycle`; remains `analysis` only.
+- **Affected files:** `docs/architecture/geas-authoritative-source-registry.json`, `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`, and this backlog.
+- **Regression tests:** Exact canonical URL and trust admission; 336-hour cadence; source-pattern and claimsAllowed linkage; exact substantive abstract sentence selection; content-matched observation produces only an IoT analysis pattern; source-available-only observation produces no pattern.
+- **CI gates:** Existing GEAS source-registry/cadence parity, authoritative-registry validation, scientist tests, evidence-policy tests, and exact-head architecture scan.
+- **Branch:** `geas/nist-ir-8259r1-iot-lifecycle-source-20261116`.
+- **Implementation commits:** Recorded in the PR and final run report after GitHub returns the commit SHAs.
+- **Governance:** This finding is auto-approved for refinement only. No PR review approval, merge, deployment, or production change is authorized.
