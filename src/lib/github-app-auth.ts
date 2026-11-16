@@ -69,6 +69,35 @@ function createAppJwt(appId: number, privateKey: string, nowMs: number): string 
   return signingInput + '.' + signature;
 }
 
+async function readBoundedResponseText(response: Response): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_CHARS) {
+        try { await reader.cancel(); } catch { /* retain bounded-response failure */ }
+        throw new Error('GitHub App authentication response exceeded the configured size limit.');
+      }
+      chunks.push(value);
+    }
+    const combined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder().decode(combined);
+  } finally {
+    try { reader.releaseLock(); } catch { /* reader may already be cancelled */ }
+  }
+}
+
 async function githubAppRequest(
   fetchImpl: FetchLike,
   path: string,
@@ -95,10 +124,7 @@ async function githubAppRequest(
     redirect: 'error',
     signal: AbortSignal.timeout(8_000),
   });
-  const responseText = await response.text();
-  if (responseText.length > MAX_RESPONSE_CHARS) {
-    throw new Error('GitHub App authentication response exceeded the configured size limit.');
-  }
+  const responseText = await readBoundedResponseText(response);
   let data: unknown = null;
   if (responseText) {
     try {
@@ -145,13 +171,20 @@ export async function createGithubAppInstallationToken(
   if (app.slug !== expectedSlug || typeof app.slug !== 'string') {
     throw new Error('GitHub App slug does not match the configured GLORIFIER App identity.');
   }
+  const appPermissions = isRecord(app.permissions) ? app.permissions : {};
+  const allowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
+  if (appPermissions.contents !== 'write' || appPermissions.pull_requests !== 'write' ||
+      (appPermissions.metadata !== undefined && appPermissions.metadata !== 'read') ||
+      Object.keys(appPermissions).some(name => !allowedPermissionNames.has(name))) {
+    throw new Error('GLORIFIER GitHub App may request only contents:write, pull_requests:write and optional metadata:read permissions.');
+  }
 
   const installation = await githubAppRequest(
     fetchImpl,
     '/app/installations/' + installationId + '/access_tokens',
     'Bearer ' + jwt,
     'POST',
-    { repositories: ['GLORIFIER'] },
+    { repositories: ['GLORIFIER'], permissions: { contents: 'write', pull_requests: 'write' } },
   );
 
   if (!isRecord(installation) || typeof installation.token !== 'string' ||
@@ -168,8 +201,11 @@ export async function createGithubAppInstallationToken(
   }
 
   const permissions = isRecord(installation.permissions) ? installation.permissions : {};
-  if (permissions.contents !== 'write' || permissions.pull_requests !== 'write') {
-    throw new Error('GLORIFIER GitHub App installation must grant contents:write and pull_requests:write.');
+  const allowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
+  if (permissions.contents !== 'write' || permissions.pull_requests !== 'write' ||
+      (permissions.metadata !== undefined && permissions.metadata !== 'read') ||
+      Object.keys(permissions).some(name => !allowedPermissionNames.has(name))) {
+    throw new Error('GLORIFIER GitHub App installation must use only contents:write, pull_requests:write and optional metadata:read permissions.');
   }
 
   const repositories = Array.isArray(installation.repositories) ? installation.repositories : [];
