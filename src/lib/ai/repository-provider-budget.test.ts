@@ -36,8 +36,8 @@ function fakePool(responses: Array<{ rowCount?: number; rows?: unknown[] }> = [{
 }
 
 test('estimates a conservative byte upper bound and rejects empty or invalid message sets', () => {
-  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'abc' }]), 51);
-  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'é' }]), 50);
+  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'abc' }]), 55);
+  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'é' }]), 54);
   assert.throws(() => estimateRepositoryInputTokenUpperBound([]), /required/);
   assert.throws(() => estimateRepositoryInputTokenUpperBound([{ role: 'user', content: '' }]), /invalid/);
 });
@@ -66,7 +66,7 @@ test('reserves request and token ceilings for minute and daily windows in one tr
   assert.equal(minuteReservation?.values?.[4], 3);
   assert.equal(minuteReservation?.values?.[5], null);
   assert.equal(dailyReservation?.values?.[2], '2026-11-16T00:00:00.000Z');
-  assert.equal(dailyReservation?.values?.[3], 1248);
+  assert.equal(dailyReservation?.values?.[3], 1252);
   assert.equal(dailyReservation?.values?.[4], 20);
   assert.equal(dailyReservation?.values?.[5], 40_000);
   assert.equal(pool.calls.at(-1)?.sql, 'COMMIT');
