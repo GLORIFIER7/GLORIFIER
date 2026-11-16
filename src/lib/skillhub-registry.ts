@@ -29,6 +29,8 @@ export interface SkillPackageFile {
   path: string;
   sizeBytes: number;
   sha256: string;
+  /** Actual bytes from the quarantined package; required to verify the digest. */
+  contentBytes: Uint8Array;
   executable?: boolean;
   isSymlink?: boolean;
 }
@@ -292,7 +294,7 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
 
     const seen = new Set<string>();
     let totalBytes = 0;
-    let rootSkillFile: SkillPackageFile | undefined;
+    let rootSkillFile: Record<string, unknown> | undefined;
 
     for (const entry of files) {
       if (!isRecord(entry)) {
@@ -332,11 +334,24 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
       const sha256 = typeof entry.sha256 === 'string' ? entry.sha256 : '';
       if (!HEX_SHA256.test(sha256)) errors.push('file must include a SHA-256 digest: ' + path);
 
+      const contentBytes = entry.contentBytes;
+      if (!(contentBytes instanceof Uint8Array)) {
+        errors.push('actual file content bytes are required to verify package integrity: ' + path);
+      } else {
+        if (Number.isSafeInteger(sizeBytes) && sizeBytes !== contentBytes.byteLength) {
+          errors.push('declared file size does not match actual content bytes: ' + path);
+        }
+        if (HEX_SHA256.test(sha256)) {
+          const actualDigest = createHash('sha256').update(contentBytes).digest('hex');
+          if (digestValue(sha256) !== actualDigest) errors.push('file content does not match its SHA-256 digest: ' + path);
+        }
+      }
+
       const executable = entry.executable === true || SCRIPT_EXTENSIONS.has(extension);
       if (executable) warnings.push('executable or script content requires isolated security review: ' + path);
 
       if (path === 'SKILL.md' && isRecord(entry)) {
-        rootSkillFile = entry as unknown as SkillPackageFile;
+        rootSkillFile = entry;
       }
     }
 
@@ -346,12 +361,10 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
     if (!rootSkillFile) {
       errors.push('package must contain a root-level SKILL.md');
     } else if (skillMdContent) {
-      const expectedDigest = createHash('sha256').update(skillMdContent, 'utf8').digest('hex');
-      if (digestValue(rootSkillFile.sha256) !== expectedDigest) {
-        errors.push('root SKILL.md content does not match its declared SHA-256 digest');
-      }
-      if (rootSkillFile.sizeBytes !== Buffer.byteLength(skillMdContent, 'utf8')) {
-        errors.push('root SKILL.md content does not match its declared byte size');
+      const expectedBytes = Buffer.from(skillMdContent, 'utf8');
+      const rootBytes = rootSkillFile.contentBytes;
+      if (!(rootBytes instanceof Uint8Array) || !Buffer.from(rootBytes).equals(expectedBytes)) {
+        errors.push('root SKILL.md content does not match the parsed frontmatter source');
       }
     }
   }
