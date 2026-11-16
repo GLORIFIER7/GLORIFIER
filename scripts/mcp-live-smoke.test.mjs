@@ -190,3 +190,17 @@ test('legacy official MCP scenario requires both target validation and runner bu
     "if: ${{ always() && steps.validate_target.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}",
   );
 });
+
+
+test('modern read-only smoke runs before the exhaustive MCP TCK to avoid rate-limit contamination', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/external-mcp-conformance.yml', import.meta.url), 'utf8');
+  const smokeStep = workflow.indexOf('- name: Run modern stateless read-only smoke (2026-07-28)');
+  const officialTckStep = workflow.indexOf('- name: Run official MCP 2026-07-28 frozen server requirements');
+  const legacyTckStep = workflow.indexOf('- name: Run official MCP legacy tools-list scenario (2025-11-25)');
+
+  assert.notEqual(smokeStep, -1, 'modern read-only smoke step must exist');
+  assert.notEqual(officialTckStep, -1, 'official MCP TCK step must exist');
+  assert.notEqual(legacyTckStep, -1, 'legacy MCP compatibility step must exist');
+  assert.ok(smokeStep < officialTckStep, 'smoke must run before the high-volume TCK suite');
+  assert.ok(smokeStep < legacyTckStep, 'smoke must run before the legacy TCK scenario');
+});
