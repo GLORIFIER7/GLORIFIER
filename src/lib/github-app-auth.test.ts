@@ -57,11 +57,13 @@ function fakeFetch(options: {
         id: 12345,
         slug: 'glorifier-contributor',
         owner: { login: 'GLORIFIER7' },
+        permissions: { contents: 'write', pull_requests: 'write' },
       });
     }
     if (url.pathname === '/app/installations/67890/access_tokens' && method === 'POST') {
       assert.match(authorization, /^Bearer [A-Za-z0-9_.-]+$/);
-      options.onTokenRequest?.(body || {}, authorization);
+      const jwt = authorization.slice('Bearer '.length);
+      options.onTokenRequest?.(body || {}, jwt);
       return Response.json(options.installation ?? {
         token: 'ghs_test_installation_token',
         expires_at: new Date(now + 60 * 60_000).toISOString(),
@@ -87,7 +89,12 @@ test('GitHub App write configuration requires all app credentials and never trea
 test('GitHub App installation token is repository-scoped and verifies the owner-controlled bot identity', async () => {
   let requestedBody: Record<string, unknown> | undefined;
   const { fetchImpl, calls } = fakeFetch({
-    onTokenRequest: (body) => { requestedBody = body; },
+    onTokenRequest: (body, jwt) => {
+      requestedBody = body;
+      const decoded = decodeJwt(jwt);
+      assert.equal(decoded.header.alg, 'RS256');
+      assert.equal(decoded.payload.iss, 12345);
+    },
   });
   const result = await createGithubAppInstallationToken(baseEnv, fetchImpl, now);
 
@@ -99,7 +106,10 @@ test('GitHub App installation token is repository-scoped and verifies the owner-
     installationId: 67890,
     repository: 'GLORIFIER7/GLORIFIER',
   });
-  assert.deepEqual(requestedBody, { repositories: ['GLORIFIER'] });
+  assert.deepEqual(requestedBody, {
+    repositories: ['GLORIFIER'],
+    permissions: { contents: 'write', pull_requests: 'write' },
+  });
   assert.equal(calls.length, 2);
   assert.equal(new URL(calls[1].url).pathname, '/app/installations/67890/access_tokens');
 });
@@ -167,4 +177,52 @@ test('GitHub App authentication rejects missing app credentials before making an
     /Owner-controlled GitHub App credentials are not configured/,
   );
   assert.equal(requested, false);
+});
+
+
+test('GitHub App fails closed when it has permissions outside the approved writer scope', async () => {
+  const { fetchImpl } = fakeFetch({ app: {
+    id: 12345,
+    slug: 'glorifier-contributor',
+    owner: { login: 'GLORIFIER7' },
+    permissions: { contents: 'write', pull_requests: 'write', administration: 'write' },
+  } });
+  await assert.rejects(
+    () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
+    /only contents:write and pull_requests:write/,
+  );
+});
+
+test('GitHub App fails closed when installation token carries an extra permission', async () => {
+  const { fetchImpl } = fakeFetch({ installation: {
+    token: 'ghs_test_installation_token',
+    expires_at: new Date(now + 60 * 60_000).toISOString(),
+    permissions: { contents: 'write', pull_requests: 'write', actions: 'write' },
+    repositories: [{ full_name: 'GLORIFIER7/GLORIFIER' }],
+  } });
+  await assert.rejects(
+    () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
+    /only contents:write and pull_requests:write/,
+  );
+});
+
+test('GitHub App response bodies are cancelled when they exceed the bounded stream limit', async () => {
+  let cancelled = false;
+  const fetchImpl = async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/app') {
+      return new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(32_001).fill(65));
+        },
+        cancel() { cancelled = true; },
+      }));
+    }
+    throw new Error('installation request must not run after oversized response');
+  };
+  await assert.rejects(
+    () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
+    /response exceeded the configured size limit/,
+  );
+  assert.equal(cancelled, true);
 });
