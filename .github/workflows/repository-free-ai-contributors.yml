@@ -6,6 +6,8 @@ on:
     paths:
       - "src/lib/ai/repository-contributor-policy.mjs"
       - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/repository-provider-budget.ts"
+      - "src/lib/ai/repository-provider-budget.test.ts"
       - "src/lib/ai/specialist-council.ts"
       - "src/lib/autopilot-orchestrator.ts"
       - "src/lib/autopilot-orchestrator.test.ts"
@@ -52,5 +54,7 @@ jobs:
         run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Test free-only provider eligibility and budget invariants
         run: npm run test:repository-contributor-policy
+      - name: Test durable provider request and token quotas
+        run: npm run test:repository-provider-budget
       - name: TypeScript type check
         run: npm run lint
