@@ -140,7 +140,7 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
     addReason(reasons, attestation.mode === 'developer-program'
       && attestation.developerProgramActive === true
       && attestation.nonProduction === true, 'NVIDIA Developer Program prototype entitlement is required');
-  } else if (['openai', 'anthropic', 'xai', 'deepseek', 'together', 'fireworks', 'llmsrelay'].includes(providerId)) {
+  } else if (['openai', 'anthropic', 'xai', 'mistral', 'qwen', 'deepseek', 'together', 'fireworks', 'llmsrelay'].includes(providerId)) {
     addReason(reasons, attestation.mode === 'promotional-credits'
       && typeof attestation.remainingFreeCreditsUsd === 'number'
       && Number.isFinite(attestation.remainingFreeCreditsUsd)
@@ -162,7 +162,8 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
       && (modelId === 'openrouter/free' || modelId.endsWith(':free')), 'OpenRouter only permits explicit free model IDs');
     addReason(reasons, attestation.billingEnabled === false && attestation.creditsPurchased === false,
       'OpenRouter must be an unfunded Free account');
-    addReason(reasons, attestation.requestsPerMinute <= 20 && attestation.requestsPerDay <= 50,
+    addReason(reasons, isPositiveInteger(attestation.requestsPerMinute) && attestation.requestsPerMinute <= 20
+      && isPositiveInteger(attestation.requestsPerDay) && attestation.requestsPerDay <= 50,
       'OpenRouter Free account limits cannot exceed 20 requests/minute and 50 requests/day');
   } else if (providerId === 'huggingface') {
     addReason(reasons, attestation.mode === 'monthly-credit-grant'
@@ -174,11 +175,11 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
       && attestation.remainingFreeCreditsUsd <= attestation.monthlyFreeGrantUsd,
       'Hugging Face Free user monthly grant must be positive and no greater than USD 0.10');
   } else if (providerId === 'cloudflare_workers_ai') {
-    addReason(reasons, attestation.mode === 'cloudflare-workers-free'
-      && attestation.authoritativeWorkersFreePlanRead === true
-      && attestation.modelFree === true
-      && attestation.accountQuotaHardCapEnforced === true,
-      'Cloudflare Workers Free plan, model eligibility, and hard account quota cap require authoritative evidence');
+    // The current policy accepts owner-submitted attestations only. Cloudflare
+    // Workers AI must remain excluded until an authorized Billing Read and a
+    // separately approved server-side verifier can attest the live account plan.
+    addReason(reasons, false,
+      'Cloudflare Workers AI is disabled until an authorized Billing Read and approved authoritative attestation mechanism are implemented');
   } else {
     addReason(reasons, ['vendor-free-tier', 'promotional-credits'].includes(attestation.mode),
       'provider-specific free tier or promotional grant required');
@@ -195,8 +196,7 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
       requestsPerDay: attestation.requestsPerDay,
       maxTokensPerDay: attestation.maxTokensPerDay,
       maxInputTokens: attestation.maxInputTokens,
-      maxOutputTokens: attestation.maxOutputTokens,
-      remainingFreeCreditsUsd: typeof attestation.remainingFreeCreditsUsd === 'number' ? attestation.remainingFreeCreditsUsd : 0
+      maxOutputTokens: attestation.maxOutputTokens
     } : null
   };
 }
@@ -216,13 +216,13 @@ export function listEligibleRepositoryContributors({ attestations = [], configur
     byId.set(providerId, attestation);
   }
 
-  const configuredById = new Map(configuredProviders
+  const configuredProviderMap = new Map(configuredProviders
     .filter((provider) => isRecord(provider) && typeof provider.id === 'string')
     .map((provider) => [normalizeRepositoryProviderId(provider.id), provider])
     .filter(([providerId]) => Boolean(providerId)));
 
   return PROVIDER_PROFILES.flatMap((profile) => {
-    const provider = configuredById.get(profile.id);
+    const provider = configuredProviderMap.get(profile.id);
     if (!provider || provider.status !== 'connected') return [];
     const attestation = byId.get(profile.id);
     const evaluation = evaluateRepositoryProviderAttestation(profile.id, attestation, now);
