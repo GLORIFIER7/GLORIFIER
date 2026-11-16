@@ -63,8 +63,8 @@ test('reserves request and token ceilings for minute and daily windows in one tr
   assert.match(minuteReservation.sql, /window_kind/);
   assert.equal(minuteReservation.values?.[1], 'minute');
   const dailyReservation = pool.calls.find(call => call.values?.[1] === 'day');
-  assert.match(minuteReservation.sql, /date_trunc\(\$2, CURRENT_TIMESTAMP\)/);
-  assert.match(dailyReservation?.sql || '', /date_trunc\(\$2, CURRENT_TIMESTAMP\)/);
+  assert.match(minuteReservation.sql, /date_trunc\(\$2, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\) AT TIME ZONE 'UTC'/);
+  assert.match(dailyReservation?.sql || '', /date_trunc\(\$2, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\) AT TIME ZONE 'UTC'/);
   assert.equal(minuteReservation?.values?.[2], 1200);
   assert.equal(minuteReservation?.values?.[3], 3);
   assert.equal(minuteReservation?.values?.[4], null);
@@ -199,7 +199,7 @@ test('rejects request ceilings that exceed PostgreSQL INTEGER storage', async ()
   assert.equal(pool.calls.length, 0);
 });
 
-test('uses PostgreSQL server time for quota windows, not individual worker clocks', async () => {
+test('uses PostgreSQL server time and explicit UTC boundaries for quota windows', async () => {
   const pool = fakePool();
   await reserveRepositoryProviderRequest({
     providerId: 'gemini',
@@ -209,6 +209,6 @@ test('uses PostgreSQL server time for quota windows, not individual worker clock
   });
   const reservations = pool.calls.filter(call => call.sql.startsWith('INSERT INTO glorifier_repository_provider_usage'));
   assert.equal(reservations.length, 2);
-  assert.ok(reservations.every(call => /date_trunc\(\$2, CURRENT_TIMESTAMP\)/.test(call.sql)));
+  assert.ok(reservations.every(call => /date_trunc\(\$2, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\) AT TIME ZONE 'UTC'/.test(call.sql)));
   assert.ok(reservations.every(call => !call.values?.some(value => value instanceof Date || (typeof value === 'string' && /T\d{2}:\d{2}:\d{2}\.\d{3}Z/.test(value)))));
 });
