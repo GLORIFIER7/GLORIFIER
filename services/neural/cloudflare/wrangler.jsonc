@@ -9,6 +9,9 @@
   "workers_dev": true,
   "preview_urls": false,
   "previews": {},
+  "ai": {
+    "binding": "AI"
+  },
   "ratelimits": [
     {
       "name": "GLORIFIER_RATE_LIMITER",
@@ -57,6 +60,9 @@
     "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
     "GLORIFIER_ENABLE_INFERENCE": "false",
     "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+    "GLORIFIER_WORKERS_PLAN": "unverified",
+    "GLORIFIER_WORKERS_AI_FREE_ONLY": "false",
+    "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
     "GEMINI_MODEL": "gemini-3.8-flash",
     "ANTHROPIC_MODEL": "claude-sonnet-5"
   },
