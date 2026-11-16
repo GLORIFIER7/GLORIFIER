@@ -451,6 +451,18 @@
       "aliasOf": "nist-iot"
     },
     {
+      "id": "nist-ir-8259r1",
+      "authority": "NIST",
+      "domain": "iot",
+      "url": "https://csrc.nist.gov/pubs/ir/8259/r1/final",
+      "claimsAllowed": [
+        "iot-product-cybersecurity-lifecycle-guidance"
+      ],
+      "reviewCadenceDays": 14,
+      "implementationStatus": "not-assessed",
+      "scannerStatus": "active"
+    },
+    {
       "id": "nist-ssdf",
       "authority": "NIST",
       "domain": "software",
