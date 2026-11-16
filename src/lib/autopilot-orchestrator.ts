@@ -173,6 +173,7 @@ const attributionText = (value: unknown, maximum = 120): string =>
   (typeof value === 'string' ? value : String(value ?? 'unknown'))
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/[<>]/g, '')
+    .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .replace(/\s+/g, ' ')
     .trim()
