@@ -93,7 +93,7 @@ function digestValue(value: string): string {
 function isIpLiteralHostname(host: string): boolean {
   const normalized = host.toLowerCase();
   const labels = normalized.split('.');
-  if (labels.length > 1 && labels.every((label) => /^\\d+$/.test(label))) return true;
+  if (labels.length > 1 && labels.every((label) => label.length > 0 && [...label].every((char) => char >= '0' && char <= '9'))) return true;
   try {
     return new URL('https://' + normalized).hostname.toLowerCase() !== normalized;
   } catch {
