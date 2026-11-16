@@ -466,18 +466,16 @@ def test_monorepo_neural_ci_schedules_validation_without_running_review_policy()
         r"(?ms)^  test:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         workflow,
     )
-    review_job = re.search(
-        r"(?ms)^  ai-review-policy:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
-        workflow,
-    )
     assert test_job is not None, "Scheduled NEURAL validation job must exist"
-    assert review_job is not None, "Pull-request review gate must exist"
 
     assert 'cron: "23 2 * * *"' in workflow
-    assert "if: github.event_name != 'pull_request_review'" in test_job.group(1)
-    assert "github.event_name == 'pull_request'" in review_job.group(1)
-    assert "github.event_name == 'pull_request_review'" in review_job.group(1)
-    assert "github.event_name == 'schedule'" not in review_job.group(1)
+    assert "workflow_dispatch:" in workflow
+    assert "schedule:" in workflow
+    assert "pull_request_review:" not in workflow
+    assert "pull_request_review_comment:" not in workflow
+    assert "ai-review-policy:" not in workflow
+    assert 'python-version: ["3.11", "3.12"]' in workflow
+    assert "pytest" in test_job.group(1)
 
 
 @pytest.mark.skipif(
