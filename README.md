@@ -111,6 +111,7 @@ The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push t
 ## Documentation
 
 - [Universal AI Enterprise operating model](docs/architecture/universal-ai-enterprise-operating-model.md)
+- [Ruflo capability assessment and GLORIFIER adoption boundary](docs/architecture/ruflo-capability-adoption.md)
 - [Humanity-first universal enterprise charter](docs/architecture/humanity-first-universal-enterprise-charter.md)
 - [Governed AI and GLR economic layer](docs/GLORIFIER-GOVERNED-AI-ECONOMIC-LAYER.md)
 - [Official motto and organizational architecture](docs/official-motto-and-organizational-architecture.md)
