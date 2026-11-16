@@ -1,8 +1,8 @@
 # Ruflo capability assessment and GLORIFIER adoption boundary
 
-**Status:** Design accepted for selective reuse; no Ruflo runtime dependency is approved by this assessment.  
-**Assessment date:** 2026-11-17 (Asia/Vientiane).  
-**GLORIFIER baseline:** `main` at `eb82672ee5fa44cb863178a8670efd3dcf02c431` (PR #899).  
+**Status:** Design accepted for selective reuse; no Ruflo runtime dependency is approved by this assessment.
+**Assessment date:** 2026-11-17 (Asia/Vientiane).
+**GLORIFIER baseline:** `main` at `eb82672ee5fa44cb863178a8670efd3dcf02c431` (PR #899).
 **Upstream baseline:** `ruvnet/ruflo` `main` at `8cb2fbc7a1e9e08f20fc5fc6a45e1046ad0369b9`.
 
 ## Decision
