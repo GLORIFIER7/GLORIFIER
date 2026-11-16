@@ -54,7 +54,7 @@ test('accepts Gemini only with current free-tier proof and billing disabled', ()
   );
   assert.match(
     evaluateRepositoryProviderAttestation('gemini', { ...valid, modelFree: false }, NOW).reasons.join(' '),
-    /free model/i
+    /Free Tier eligible model/i
   );
 });
 
@@ -63,7 +63,8 @@ test('accepts NVIDIA only for an active developer program and prototype scope', 
     evidenceUrl: 'https://docs.api.nvidia.com/nim/docs/product',
     planName: 'NVIDIA Developer Program',
     developerProgramActive: true,
-    nonProduction: true
+    nonProduction: true,
+    billingEnabled: false
   });
   assert.equal(evaluateRepositoryProviderAttestation('nvidia', valid, NOW).eligible, true);
   assert.match(
@@ -118,7 +119,8 @@ test('allows Llama only on an existing local runtime with no paid compute or net
     cloudComputePaid: false,
     incrementalComputeCostUsd: 0,
     modelLicenseReviewed: true,
-    networkEgress: false
+    networkEgress: false,
+    billingEnabled: false
   });
   assert.equal(evaluateRepositoryProviderAttestation('meta', valid, NOW).eligible, true);
   assert.equal(
