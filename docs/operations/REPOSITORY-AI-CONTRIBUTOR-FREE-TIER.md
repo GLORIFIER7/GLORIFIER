@@ -1,6 +1,6 @@
 # GLORIFIER Repository AI Contributors — Free-Only Operating Policy
 
-**Status:** Implementation candidate on a draft PR. The contributor pool remains disabled until an owner supplies current account-specific attestations and server-side provider credentials. No provider is considered connected or free-eligible merely because its adapter exists.
+**Status:** Implementation candidate; contributor execution remains disabled until owner-controlled provider and public-content approvals are configured. The contributor pool remains disabled until an owner supplies current account-specific attestations and server-side provider credentials. No provider is considered connected or free-eligible merely because its adapter exists.
 
 ## Objective
 
@@ -22,7 +22,7 @@ This permission covers public repository source and review material only. It doe
 
 ## Supported provider pool
 
-Provider adapters already present in GLORIFIER include:
+The policy recognises the provider profiles below. Runtime adapter availability is separate; Cloudflare Workers AI is only a disabled policy profile and has no active inference adapter.
 
 | Provider | Free eligibility accepted by this policy | Default state |
 |---|---|---|
@@ -37,7 +37,7 @@ Provider adapters already present in GLORIFIER include:
 | Hugging Face | Free-user monthly inference grant only, currently capped by policy at USD 0.10; no pay-as-you-go | Not eligible until attested |
 | Ollama | Existing local runtime only; no rented GPU or paid inference endpoint | Not eligible until attested |
 | Mistral, Qwen, DeepSeek, Together, Fireworks, LLMsRelay | Current documented free plan or explicit promotional grant, verified for the account | Not eligible until attested |
-| Cloudflare Workers AI | Authoritative Workers Free plan read, exact model free eligibility, and account-wide hard quota cap | Not eligible until attested |
+| Cloudflare Workers AI (disabled policy profile only) | No runtime inference adapter; requires future authoritative Workers Free plan read, exact model eligibility, and account-wide hard quota cap | Permanently excluded until those controls exist |
 
 A provider adapter, model catalog entry, API key, HTTP 200 model-list response, or a developer-console screenshot alone does not prove that a particular inference is free. Each provider requires a fresh owner attestation. The policy deliberately records this as owner-attested-not-vendor-verified, not as independent vendor verification.
 
@@ -89,9 +89,10 @@ GLORIFIER_MONTHLY_AI_BUDGET_USD=0
 GLORIFIER_PAID_INFERENCE_AUTHORIZED=false
 GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false
 GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON=<owner-attested provider JSON>
+GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON=["mission-id-approved-by-owner"]
 ~~~
 
-The repository public-code egress setting is a narrow permission for explicitly selected public GLORIFIER source and mission text. It does not turn on general external-data egress. The paid-inference authorization flag must remain false.
+The repository public-code egress setting is necessary but not sufficient. Before any provider request, the exact mission ID must also appear in GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON, a server-side owner-maintained JSON array. That approval applies to the complete mission objective and public repository context for that mission only. An absent, malformed, or non-matching list blocks all provider calls. Never add private/customer data, private code, credentials, security secrets, environment variables, or production records to the approved mission context. This does not turn on general external-data egress. The paid-inference authorization flag must remain false.
 
 Provider credentials use the provider adapters' existing server-side environment names, for example GEMINI_API_KEY, NVIDIA_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY, OPENAI_API_KEY, HF_TOKEN, and GROQ_API_KEY. Configure only credentials that the corresponding provider has entitled for the stated free/promotional mode. Never add these values as repository variables or commit them.
 
@@ -153,7 +154,7 @@ The byte-based input upper bound is deliberately conservative. It is a local gua
 
 The intended flow is:
 
-Owner-attested free provider pool -> GEAS mission authorization -> provider-specific specialist review -> AI CEO plan -> source inspection -> credential screening -> durable quota reservation -> isolated branch -> bounded file updates -> independent GitHub readback -> draft PR
+Owner-attested free provider pool -> exact owner-approved public mission ID -> GEAS mission authorization -> whole-payload credential screening -> provider-specific specialist review -> AI CEO plan -> source inspection -> credential screening -> durable quota reservation -> isolated branch -> bounded file updates -> independent GitHub readback -> draft PR
 
 All eligible providers can contribute one independent specialist analysis per mission (up to sixteen providers). Provider/model attribution is retained in findings. Multiple responses are not treated as consensus; disagreements and missing evidence remain visible.
 
