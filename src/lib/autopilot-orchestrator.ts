@@ -215,8 +215,9 @@ export function appendRepositoryContributionAttribution(
   const separator = original ? '\n\n' : '';
   const available = 20_000 - separator.length - section.length;
   if (available < 0) throw new Error('AI contribution attribution exceeds the pull-request body limit.');
+  const truncationNotice = '\n\n[AI-generated PR description truncated to preserve contribution provenance.]';
   const preserved = original.length > available
-    ? original.slice(0, Math.max(0, available - 70)) + '\n\n[AI-generated PR description truncated to preserve contribution provenance.]'
+    ? original.slice(0, Math.max(0, available - truncationNotice.length)) + truncationNotice
     : original;
   return preserved + (preserved ? separator : '') + section;
 }
