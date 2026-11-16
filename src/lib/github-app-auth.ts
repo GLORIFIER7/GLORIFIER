@@ -172,10 +172,10 @@ export async function createGithubAppInstallationToken(
     throw new Error('GitHub App slug does not match the configured GLORIFIER App identity.');
   }
   const appPermissions = isRecord(app.permissions) ? app.permissions : {};
-  const allowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
+  const appAllowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
   if (appPermissions.contents !== 'write' || appPermissions.pull_requests !== 'write' ||
       (appPermissions.metadata !== undefined && appPermissions.metadata !== 'read') ||
-      Object.keys(appPermissions).some(name => !allowedPermissionNames.has(name))) {
+      Object.keys(appPermissions).some(name => !appAllowedPermissionNames.has(name))) {
     throw new Error('GLORIFIER GitHub App may request only contents:write, pull_requests:write and optional metadata:read permissions.');
   }
 
@@ -201,10 +201,10 @@ export async function createGithubAppInstallationToken(
   }
 
   const permissions = isRecord(installation.permissions) ? installation.permissions : {};
-  const allowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
+  const installationAllowedPermissionNames = new Set(['metadata', 'contents', 'pull_requests']);
   if (permissions.contents !== 'write' || permissions.pull_requests !== 'write' ||
       (permissions.metadata !== undefined && permissions.metadata !== 'read') ||
-      Object.keys(permissions).some(name => !allowedPermissionNames.has(name))) {
+      Object.keys(permissions).some(name => !installationAllowedPermissionNames.has(name))) {
     throw new Error('GLORIFIER GitHub App installation must use only contents:write, pull_requests:write and optional metadata:read permissions.');
   }
 
