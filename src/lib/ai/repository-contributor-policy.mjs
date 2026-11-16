@@ -379,16 +379,48 @@ export function buildRepositoryCouncilAssignments(eligibleProviders, roles) {
 }
 
 export function isSafeRepositoryContributionInput(value) {
-  if (typeof value !== 'string' || value.length > 24_000) return false;
+  let text;
+  if (typeof value === 'string') {
+    text = value;
+  } else if (Array.isArray(value)) {
+    if (value.some((message) => !isRecord(message) || typeof message.content !== 'string')) return false;
+    // Join without separators so a token split across message boundaries is
+    // still detected. This is deliberately conservative for security.
+    text = value.map((message) => message.content).join('');
+  } else {
+    return false;
+  }
+  if (text.length > 24_000) return false;
   const secretPatterns = [
-    /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/i,
-    /\bgithub_pat_[A-Za-z0-9_]{20,}\b/i,
-    /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/,
-    /\bAKIA[0-9A-Z]{16}\b/,
-    /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
+    /\\bgh[pousr]_[A-Za-z0-9_]{20,}\\b/i,
+    /\\bgithub_pat_[A-Za-z0-9_]{20,}\\b/i,
+    /\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\\b/,
+    /\\bAKIA[0-9A-Z]{16}\\b/,
+    /\\bxox[baprs]-[A-Za-z0-9-]{10,}\\b/,
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-    /\bAIza[0-9A-Za-z_-]{30,}\b/,
-    /\b(?:api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{16,}/i
+    /\\bAIza[0-9A-Za-z_-]{30,}\\b/,
+    /\\b(?:api[_-]?key|access[_-]?token|client[_-]?secret)\\s*[:=]\\s*["']?[A-Za-z0-9._~+/-]{16,}/i,
+    /\\bauthorization\\s*:\\s*bearer\\s+[A-Za-z0-9._~+/-]{16,}/i
   ];
-  return !secretPatterns.some((pattern) => pattern.test(value));
+  return !secretPatterns.some((pattern) => pattern.test(text));
+}
+
+/**
+ * A broad public-code egress setting is not enough to approve arbitrary
+ * mission text. Owners must explicitly enumerate mission IDs whose complete
+ * objective and public repository context may be sent to external providers.
+ */
+export function isRepositoryMissionPublicContentApproved(env, missionId) {
+  if (!env || typeof env !== 'object' || typeof missionId !== 'string' ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(missionId)) return false;
+  const raw = env.GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON;
+  if (typeof raw !== 'string' || raw.length > 8_000) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length <= 100 &&
+      parsed.every((id) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(id)) &&
+      parsed.includes(missionId);
+  } catch {
+    return false;
+  }
 }
