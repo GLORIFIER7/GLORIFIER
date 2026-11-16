@@ -77,8 +77,9 @@ async function githubAppRequest(
   body?: JsonRecord,
 ): Promise<unknown> {
   const url = new URL(path, API_ROOT);
-  if (url.origin !== API_ROOT || url.protocol !== 'https:' ||
-      !['/app', '/app/installations'].some(prefix => url.pathname.startsWith(prefix))) {
+  const approvedPath = url.pathname === '/app' ||
+    /^\\/app\\/installations\\/\\d+\\/access_tokens$/.test(url.pathname);
+  if (url.origin !== API_ROOT || url.protocol !== 'https:' || !approvedPath) {
     throw new Error('Blocked GitHub App authentication request outside approved GitHub App endpoints.');
   }
   const response = await fetchImpl(url.href, {
