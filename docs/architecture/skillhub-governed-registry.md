@@ -43,7 +43,7 @@ The module src/lib/skillhub-registry.ts exports:
 - diffSkillFiles: reports exactly which paths changed between package versions.
 - evaluateSkillPromotion: blocks promotion unless provenance, license, dependency, permission, security, test, least-privilege, human-approval, reviewer, and audit gates are all satisfied.
 
-The initial package limits follow the conservative upstream defaults: 500 files, 10 MiB per file, and 100 MiB total. They are policy bounds, not evidence that a package has been scanned.
+The validator requires the caller to supply the actual bytes for every file; it recomputes each digest and byte length instead of trusting package metadata. Archive extraction and transport remain separate responsibilities and have not been wired to a live SkillHub instance. The initial package limits follow the conservative upstream defaults: 500 files, 10 MiB per file, and 100 MiB total. They are policy bounds, not evidence that a package has been scanned.
 
 ### Trust and execution boundaries
 
