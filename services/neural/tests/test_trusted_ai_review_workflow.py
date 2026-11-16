@@ -177,6 +177,8 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "bypass actors" in documentation.lower()
     assert "always-bypass actors can bypass the ruleset" in documentation.lower()
     assert "administrator follow-up" in documentation.lower()
+    assert "no `codeowners` file" in documentation.lower()
+    assert "effective code-owner approval coverage is **not verified**" in documentation.lower()
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
@@ -194,6 +196,8 @@ def test_monorepo_release_runbook_matches_advisory_ai_review_policy():
     assert "not a required merge status" in release_procedure.lower()
     assert "ID 24038955" in release_procedure
     assert "code-owner review" in release_procedure.lower()
+    assert "no `codeowners` file was found" in release_procedure.lower()
+    assert "code-owner coverage is not verified" in release_procedure.lower()
     assert "review-thread resolution" in release_procedure.lower()
     assert "exact AI Review Policy status check" not in release_procedure
     assert "PR-controlled workflow-definition trust limitation" not in release_procedure
