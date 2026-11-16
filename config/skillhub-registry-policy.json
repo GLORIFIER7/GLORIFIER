@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "integration": {
+    "provider": "SkillHub",
+    "sourceRepository": "https://github.com/iflytek/skillhub",
+    "reviewedSourceRevision": "3a3ae6d9b882ef5e521d7226df7045f6f4b38cfd",
+    "mode": "manual-candidate-intake",
+    "enabled": false,
+    "connectionState": "not-configured",
+    "apiBaseUrl": null,
+    "credentialsConfigured": false
+  },
+  "trust": {
+    "registryIsUntrustedInput": true,
+    "skillInstructionsMayOverrideGeasPolicy": false,
+    "autoInstall": false,
+    "autoExecute": false,
+    "networkFetchDuringProductionRequests": false,
+    "missingEvidenceState": "NOT VERIFIED",
+    "scannerFailureBlocksPromotion": true,
+    "approvalDoesNotGrantRuntimeAuthority": true
+  },
+  "packageLimits": {
+    "maxFiles": 500,
+    "maxSingleFileBytes": 10485760,
+    "maxPackageBytes": 104857600,
+    "maxPathLength": 240,
+    "maxPathSegmentLength": 100,
+    "requireRootSkillMd": true,
+    "requireSha256PerFile": true,
+    "rejectSymbolicLinks": true,
+    "rejectPathTraversal": true,
+    "requirePinnedSourceRevision": true,
+    "requirePinnedDependencies": true
+  },
+  "promotion": {
+    "requireLicenseReview": true,
+    "requireDependencyReview": true,
+    "requirePermissionDisclosureReview": true,
+    "requireSecurityScan": true,
+    "securityScanFailureBlocksPromotion": true,
+    "requireContractTests": true,
+    "requireLeastPrivilegeReview": true,
+    "requireHumanApproval": true,
+    "requireNamedReviewer": true,
+    "requireAuditReference": true,
+    "runtimeExecutionRequiresSeparateAuthorization": true
+  },
+  "prohibitedAutonomousActions": [
+    "install-skill",
+    "execute-skill",
+    "publish-skill",
+    "promote-skill",
+    "change-geas-policy",
+    "grant-permissions",
+    "merge-pull-request",
+    "deploy-production",
+    "spend-funds",
+    "transfer-assets",
+    "delete-production-data"
+  ]
+}
