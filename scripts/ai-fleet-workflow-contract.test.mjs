@@ -273,11 +273,20 @@ test('NEURAL CI retains ordinary PR validation and excludes restricted review ev
   assert.ok(neuralCiWorkflow.includes('\n  test:\n'));
   assert.ok(!neuralCiWorkflow.includes('\n  review-scope:\n'));
   assert.ok(!neuralCiWorkflow.includes('\n  ai-review-policy:\n'));
-  assert.ok(neuralCiWorkflow.includes('python-version: ["3.11", "3.12"]'));
-  assert.ok(neuralCiWorkflow.includes('ruff check .'));
-  assert.ok(neuralCiWorkflow.includes('pytest'));
-  assert.ok(neuralCiWorkflow.includes('contents: read'));
-  assert.ok(!neuralCiWorkflow.includes('pull-requests: write'));
+
+  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
+  assert.ok(testJob, 'NEURAL CI must include its Python validation job');
+  assert.doesNotMatch(testJob, /^    if:/m,
+    'ordinary pull requests must not be skipped by a job-level condition');
+  assert.match(testJob, /^      - run: pytest$/m);
+
+  const topLevelPermissions = neuralCiWorkflow.match(/^permissions:\n((?:  [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  const jobPermissions = testJob.match(/^    permissions:\n((?:      [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  assert.equal(topLevelPermissions.trim(), 'contents: read');
+  assert.equal(jobPermissions.trim(), 'contents: read');
+  assert.ok(testJob.includes('python-version: ["3.11", "3.12"]'));
+  assert.ok(testJob.includes('ruff check .'));
+  assert.ok(testJob.includes('uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt'));
 });
 
 test('NEURAL review diagnostics remain isolated in a default-branch advisory workflow', () => {
@@ -289,6 +298,12 @@ test('NEURAL review diagnostics remain isolated in a default-branch advisory wor
   assert.ok(statusWorkflow.includes('statuses: write'));
   assert.ok(!statusWorkflow.includes('\n  pull_request:\n'));
   assert.ok(!statusWorkflow.includes('\n  pull_request_target:\n'));
+
+  const topLevelPermissions = statusWorkflow.match(/^permissions:\n((?:  [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  const jobPermissions = statusWorkflow.match(/^    permissions:\n((?:      [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  assert.equal(topLevelPermissions.trim(), 'contents: read');
+  const writeScopes = [...jobPermissions.matchAll(/^      ([a-z-]+): write$/gm)].map((match) => match[1]);
+  assert.deepEqual(writeScopes, ['statuses']);
 });
 
 function neuralJobSection(source, name) {
