@@ -266,55 +266,16 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
 });
 
 
-function locateReviewJobs(source) {
-  const scope = /^  review-scope:[ \t]*\r?$/m.exec(source);
-  const policy = /^  ai-review-policy:[ \t]*\r?$/m.exec(source);
-  return {
-    scopeStart: scope?.index ?? -1,
-    policyStart: policy?.index ?? -1,
-  };
-}
-
-test('NEURAL review job boundaries handle LF, CRLF, and missing markers', () => {
-  const lf = [
-    '  review-scope:',
-    '    runs-on: ubuntu-latest',
-    '  ai-review-policy:',
-    '    runs-on: ubuntu-latest',
-  ].join('\n');
-  const crlf = lf.replaceAll('\n', '\r\n');
-  for (const source of [lf, crlf]) {
-    const { scopeStart, policyStart } = locateReviewJobs(source);
-    assert.ok(scopeStart >= 0 && policyStart > scopeStart);
-  }
-  assert.equal(locateReviewJobs('  ai-review-policy:\n').scopeStart, -1);
-});
-
-test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
-  const { scopeStart, policyStart } = locateReviewJobs(neuralCiWorkflow);
-  assert.ok(scopeStart >= 0 && policyStart > scopeStart,
-    'NEURAL review scope must be evaluated before the AI review policy');
-  const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
-  const policy = neuralCiWorkflow.slice(policyStart);
-
-  assert.match(scope, /if: github\.event_name == 'pull_request_review' \|\| github\.event_name == 'pull_request_review_comment'/);
-  assert.match(scope, /gh api --paginate/);
-  assert.match(scope, /previous_filename/);
-  assert.match(scope, /pull-requests: read/);
-  assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
-  assert.ok(scope.includes('fail_closed_on_api_error() {'));
-  assert.ok(scope.includes('if ! changed_file_count='));
-  assert.ok(scope.includes('if ! changed_paths='));
-  assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
-  assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
-  assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
-  assert.ok(scope.includes('echo "required=true" >> "$GITHUB_OUTPUT"'));
-  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \'.github/workflows/neural-ci.yml\' <<<"$changed_paths"; then'));
-  assert.match(policy, /needs: \[review-scope\]/);
-  assert.match(policy, /always\(\)/);
-  assert.match(policy, /needs\.review-scope\.result != 'success'/);
-  assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
-  assert.match(policy, /github\.event_name == 'pull_request'/);
+test('NEURAL CI does not depend on restricted review events or a blocking AI reviewer gate', () => {
+  const eventSection = neuralCiWorkflow.slice(
+    neuralCiWorkflow.indexOf('on:\\n'),
+    neuralCiWorkflow.indexOf('\\n\\npermissions:'),
+  );
+  assert.match(eventSection, /^  pull_request:\\n/m);
+  assert.doesNotMatch(eventSection, /^  pull_request_review(?:_comment)?:/m);
+  assert.match(neuralCiWorkflow, /^  test:\\n/m);
+  assert.doesNotMatch(neuralCiWorkflow, /^  (?:review-scope|ai-review-policy):\\n/m);
+  assert.doesNotMatch(neuralCiWorkflow, /Wait for both AI reviewers and enforce their findings/);
 });
 
 function neuralJobSection(source, name) {
