@@ -724,7 +724,7 @@ export function getAutopilotMissionControlStatus() {
   const a2aRuntime = getA2ARuntimeStatus();
   const repositoryPolicy = getRepositoryFreeContributorPolicy({
     env: process.env,
-    configuredProviders: aiOrchestrator.registry(),
+    configuredProviders: aiOrchestrator.registry() as unknown as never[],
   });
   const inferenceAuthorized = repositoryPolicy.authorized && repositoryPolicy.eligibleProviderCount > 0;
   const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
