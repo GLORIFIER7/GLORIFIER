@@ -392,15 +392,15 @@ export function isSafeRepositoryContributionInput(value) {
   }
   if (text.length > 24_000) return false;
   const secretPatterns = [
-    /\\bgh[pousr]_[A-Za-z0-9_]{20,}\\b/i,
-    /\\bgithub_pat_[A-Za-z0-9_]{20,}\\b/i,
-    /\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\\b/,
-    /\\bAKIA[0-9A-Z]{16}\\b/,
-    /\\bxox[baprs]-[A-Za-z0-9-]{10,}\\b/,
+    /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/i,
+    /\bgithub_pat_[A-Za-z0-9_]{20,}\b/i,
+    /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/,
+    /\bAKIA[0-9A-Z]{16}\b/,
+    /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-    /\\bAIza[0-9A-Za-z_-]{30,}\\b/,
-    /\\b(?:api[_-]?key|access[_-]?token|client[_-]?secret)\\s*[:=]\\s*["']?[A-Za-z0-9._~+/-]{16,}/i,
-    /\\bauthorization\\s*:\\s*bearer\\s+[A-Za-z0-9._~+/-]{16,}/i
+    /\bAIza[0-9A-Za-z_-]{30,}\b/,
+    /\b(?:api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{16,}/i,
+    /\bauthorization\s*:\s*bearer\s+[A-Za-z0-9._~+/-]{16,}/i
   ];
   return !secretPatterns.some((pattern) => pattern.test(text));
 }
