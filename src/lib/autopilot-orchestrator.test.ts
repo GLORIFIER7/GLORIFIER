@@ -360,3 +360,22 @@ test('Repository contribution attribution preserves provenance when an AI-genera
   assert.ok(body.includes('AI-generated PR description truncated'));
   assert.ok(body.includes('GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
 });
+
+test('Repository contribution attribution escapes backslashes before Markdown table delimiters', () => {
+  const slash = String.fromCharCode(92);
+  const unsafeProvider = 'openai' + slash + '|spoof';
+  const unsafeModel = 'gpt' + slash + 'internal';
+  const expectedProvider = 'openai' + slash.repeat(3) + '|spoof';
+  const expectedModel = 'gpt' + slash.repeat(2) + 'internal';
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: unsafeProvider, model: unsafeModel },
+    [],
+  );
+
+  assert.equal(attribution.aiCeo.provider, expectedProvider);
+  assert.equal(attribution.aiCeo.model, expectedModel);
+  const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
+  assert.ok(body.includes('| ' + expectedProvider + ' | ' + expectedModel + ' |'));
+});
