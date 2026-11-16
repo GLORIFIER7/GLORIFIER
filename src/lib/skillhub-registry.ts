@@ -90,6 +90,17 @@ function digestValue(value: string): string {
   return value.toLowerCase().replace(/^sha256:/, '');
 }
 
+function isIpLiteralHostname(host: string): boolean {
+  const normalized = host.toLowerCase();
+  const labels = normalized.split('.');
+  if (labels.length > 1 && labels.every((label) => /^\\d+$/.test(label))) return true;
+  try {
+    return new URL('https://' + normalized).hostname.toLowerCase() !== normalized;
+  } catch {
+    return false;
+  }
+}
+
 function fileExtension(path: string): string {
   const name = path.split('/').at(-1) ?? '';
   const dot = name.lastIndexOf('.');
@@ -258,14 +269,19 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
   const permissions = validateStringList(input.permissions, 'permissions', errors);
   const networkHosts = validateStringList(input.networkHosts, 'networkHosts', errors);
   for (const host of networkHosts) {
+    const normalizedHost = host.toLowerCase();
     if (
+      isIpLiteralHostname(host) ||
       host.includes('*') ||
       host.includes('/') ||
       host.includes('@') ||
       host.includes(':') ||
-      host === 'localhost' ||
-      host.endsWith('.local') ||
-      host.endsWith('.internal') ||
+      normalizedHost === 'localhost' ||
+      normalizedHost.endsWith('.localhost') ||
+      normalizedHost.endsWith('.local') ||
+      normalizedHost.endsWith('.internal') ||
+      normalizedHost.endsWith('.test') ||
+      normalizedHost.endsWith('.invalid') ||
       !/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(host)
     ) {
       errors.push('networkHosts must contain exact public DNS hostnames, not wildcards or URLs');

@@ -113,7 +113,7 @@ test('requires root SKILL.md with bounded, matching frontmatter', () => {
 
 test('rejects floating or insecure source references and unpinned dependencies', () => {
   const floating = validateSkillCandidate(validCandidate({ sourceRevision: 'main' }));
-  assert.match(floating.errors.join(' '), /sourceRevision.*immutable/i);
+  assert.match(floating.errors.join(' '), /immutable source revision/i);
 
   const insecure = validateSkillCandidate(validCandidate({ sourceUrl: 'http://example.com/skill' }));
   assert.match(insecure.errors.join(' '), /https/i);
@@ -124,6 +124,13 @@ test('rejects floating or insecure source references and unpinned dependencies',
   assert.match(unpinned.errors.join(' '), /pinned/i);
 });
 
+
+test('rejects IP literals and local-only network hosts', () => {
+  for (const host of ['127.0.0.1', '127.1', '2130706433', '0x7f000001', 'api.localhost', 'api.local', 'api.internal']) {
+    const result = validateSkillCandidate(validCandidate({ networkHosts: [host] }));
+    assert.match(result.errors.join(' '), /exact public DNS hostnames/i, host);
+  }
+});
 
 test('rejects a supplied digest that does not match the actual file bytes', () => {
   const result = validateSkillCandidate(validCandidate({
