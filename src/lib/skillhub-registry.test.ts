@@ -54,8 +54,8 @@ test('accepts a valid, pinned skill package without granting runtime authority',
 });
 
 test('normalizes Windows separators and rejects path traversal, absolute and drive paths', () => {
-  assert.equal(normalizeSkillEntryPath('references\\\\guide.md'), 'references/guide.md');
-  for (const path of ['../secrets.txt', 'references/../../secret', '/etc/passwd', 'C:\\\\windows\\\\win.ini', 'a//b.md', 'a/./b.md']) {
+  assert.equal(normalizeSkillEntryPath('references\\guide.md'), 'references/guide.md');
+  for (const path of ['../secrets.txt', 'references/../../secret', '/etc/passwd', 'C:\\windows\\win.ini', 'a//b.md', 'a/./b.md']) {
     assert.throws(() => normalizeSkillEntryPath(path));
   }
 });
@@ -91,7 +91,7 @@ test('requires root SKILL.md with bounded, matching frontmatter', () => {
   const nested = validCandidate({
     files: [packageFile('nested/SKILL.md', skillMd)]
   });
-  assert.match(validateSkillCandidate(nested).errors.join(' '), /root.*SKILL\\.md/i);
+  assert.match(validateSkillCandidate(nested).errors.join(' '), /root.*SKILL\.md/i);
 
   const mismatched = skillMd.replace('name: meeting-action-extractor', 'name: other-skill');
   const result = validateSkillCandidate(validCandidate({
