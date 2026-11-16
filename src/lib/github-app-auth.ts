@@ -42,7 +42,7 @@ const base64Url = (value: string | Buffer): string =>
   Buffer.from(value).toString('base64url');
 
 const isPositiveSafeIntegerString = (value: string | undefined): boolean => {
-  if (typeof value !== 'string' || !/^\\d{1,16}$/.test(value.trim())) return false;
+  if (typeof value !== 'string' || !/^\d{1,16}$/.test(value.trim())) return false;
   const parsed = Number(value.trim());
   return Number.isSafeInteger(parsed) && parsed > 0;
 };
@@ -50,7 +50,7 @@ const isPositiveSafeIntegerString = (value: string | undefined): boolean => {
 const isUsableRsaPrivateKey = (value: string | undefined): boolean => {
   if (typeof value !== 'string' || !value.trim()) return false;
   try {
-    const key = createPrivateKey(value.trim().replace(/\\\\n/g, '\\n'));
+    const key = createPrivateKey(value.trim().replace(/\\n/g, '\n'));
     return key.type === 'private' && key.asymmetricKeyType === 'rsa';
   } catch {
     return false;
