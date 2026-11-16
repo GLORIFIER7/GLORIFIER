@@ -274,7 +274,7 @@ test('MCP 2026-07-28 TCK runs are recorded as failed evidence without upgrading 
   assert.ok(evidence, 'latest failed official MCP TCK run must be preserved as evidence');
   assert.equal(evidence.kind, 'live-probe');
   assert.equal(evidence.observedAt, '2026-11-16T12:01:15Z');
-  assert.match(evidence.notes, /64 passed, 96 failed/);
+  assert.match(evidence.notes, /64 passed and 96 failed/);
   assert.match(evidence.notes, /HTTP 429/);
   assert.match(evidence.notes, /run #43860648984/);
 
