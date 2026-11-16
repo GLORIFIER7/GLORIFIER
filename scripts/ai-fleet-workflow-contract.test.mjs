@@ -266,53 +266,29 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
 });
 
 
-test('NEURAL CI does not depend on restricted review events or a blocking AI reviewer gate', () => {
-  const eventSection = neuralCiWorkflow.slice(
-    neuralCiWorkflow.indexOf('on:\\n'),
-    neuralCiWorkflow.indexOf('\\n\\npermissions:'),
-  );
-  assert.match(eventSection, /^  pull_request:\\n/m);
-  assert.doesNotMatch(eventSection, /^  pull_request_review(?:_comment)?:/m);
-  assert.match(neuralCiWorkflow, /^  test:\\n/m);
-  assert.doesNotMatch(neuralCiWorkflow, /^  (?:review-scope|ai-review-policy):\\n/m);
-  assert.doesNotMatch(neuralCiWorkflow, /Wait for both AI reviewers and enforce their findings/);
+test('NEURAL CI retains ordinary PR validation and excludes restricted review events', () => {
+  assert.ok(neuralCiWorkflow.includes('\n  pull_request:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  pull_request_review:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  pull_request_review_comment:\n'));
+  assert.ok(neuralCiWorkflow.includes('\n  test:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  review-scope:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  ai-review-policy:\n'));
+  assert.ok(neuralCiWorkflow.includes('python-version: ["3.11", "3.12"]'));
+  assert.ok(neuralCiWorkflow.includes('ruff check .'));
+  assert.ok(neuralCiWorkflow.includes('pytest'));
+  assert.ok(neuralCiWorkflow.includes('contents: read'));
+  assert.ok(!neuralCiWorkflow.includes('pull-requests: write'));
 });
 
-function neuralJobSection(source, name) {
-  const heading = '\n  ' + name + ':\n';
-  const start = source.indexOf(heading);
-  if (start < 0) return '';
-  const contentStart = start + heading.length;
-  const remainder = source.slice(contentStart);
-  let offset = 0;
-  for (const line of remainder.split('\n')) {
-    if (line.startsWith('  ') && !line.startsWith('    ') && line.trimEnd().endsWith(':')) {
-      return remainder.slice(0, offset);
-    }
-    offset += line.length + 1;
-  }
-  return remainder;
-}
-
-test('NEURAL review events serialize policy without cancelling CI validation', () => {
-  assert.equal(neuralCiWorkflow.split('\n').filter((line) => line === 'concurrency:').length, 0,
-    'workflow-level cancellation must not let a review-only event cancel the test job');
-
-  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
-  const policyJob = neuralJobSection(neuralCiWorkflow, 'ai-review-policy');
-  assert.ok(testJob && policyJob, 'both NEURAL validation and review-policy jobs must exist');
-
-  assert.ok(testJob.includes("if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'"),
-    'review-only events must not start a duplicate full validation job');
-  assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}'),
-    'test runs must serialize within their own CI concurrency group');
-  assert.ok(testJob.includes('cancel-in-progress: true'),
-    'a newer code update may supersede an older test run');
-
-  assert.ok(policyJob.includes('group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}'),
-    'PR and review events must serialize policy evaluations in a separate group');
-  assert.ok(policyJob.includes('cancel-in-progress: true'),
-    'new review evidence must supersede stale policy evaluations');
+test('NEURAL review diagnostics remain isolated in a default-branch advisory workflow', () => {
+  const statusWorkflow = readFileSync(new URL('../.github/workflows/neural-ai-review-status.yml', import.meta.url), 'utf8');
+  assert.ok(statusWorkflow.includes('schedule:'));
+  assert.ok(statusWorkflow.includes('workflows: ["NEURAL Service CI"]'));
+  assert.ok(statusWorkflow.includes('branches: [main]'));
+  assert.ok(statusWorkflow.includes('ref: main'));
+  assert.ok(statusWorkflow.includes('statuses: write'));
+  assert.ok(!statusWorkflow.includes('\n  pull_request:\n'));
+  assert.ok(!statusWorkflow.includes('\n  pull_request_target:\n'));
 });
 
 function assertGeminiAuthorizationWorkflow(item) {
