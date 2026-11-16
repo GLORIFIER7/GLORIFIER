@@ -286,7 +286,7 @@ test('NEURAL CI retains ordinary PR validation and excludes restricted review ev
   assert.equal(jobPermissions.trim(), 'contents: read');
   assert.ok(testJob.includes('python-version: ["3.11", "3.12"]'));
   assert.ok(testJob.includes('ruff check .'));
-  assert.ok(testJob.includes('uvx --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt'));
+  assert.ok(testJob.includes('uvx --no-build --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt'));
 });
 
 test('NEURAL review diagnostics remain isolated in a default-branch advisory workflow', () => {
