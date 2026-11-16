@@ -42,14 +42,37 @@ jobs:
           sut_host = os.environ.get("SUT_HOST", "").strip()
           allowed_host = os.environ.get("ALLOWED_HOST", "").strip()
           token = os.environ.get("A2A_TCK_TOKEN", "")
-          if not allowed_host or not token:
+          if not allowed_host:
               raise SystemExit(
-                  "A2A staging gate is not configured. Set the environment secret "
-                  "GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN and variable "
-                  "GLORIFIER_A2A_TCK_STAGING_HOST before dispatch."
+                  "Missing environment variable GLORIFIER_A2A_TCK_STAGING_HOST "
+                  "in the a2a-tck-staging environment."
               )
-          if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", allowed_host):
+          if not token:
+              raise SystemExit(
+                  "Missing environment secret GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN "
+                  "in the a2a-tck-staging environment."
+              )
+          if "://" in allowed_host or "/" in allowed_host:
+              raise SystemExit(
+                  "GLORIFIER_A2A_TCK_STAGING_HOST must be configured as a hostname only "
+                  "(no scheme, path, port, or trailing slash)."
+              )
+          label = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+          if len(allowed_host) > 253 or not re.fullmatch(rf"{label}(?:\.{label})*", allowed_host):
               raise SystemExit("GLORIFIER_A2A_TCK_STAGING_HOST must be one exact DNS hostname.")
+          allowed_host = allowed_host.lower()
+          reserved_suffixes = (
+              ".example", ".example.com", ".example.net", ".example.org",
+              ".invalid", ".test", ".localhost",
+          )
+          if (
+              allowed_host in {"example", "example.com", "example.net", "example.org", "localhost"}
+              or allowed_host.endswith(reserved_suffixes)
+          ):
+              raise SystemExit(
+                  "A2A staging target is a reserved placeholder hostname; configure a real "
+                  "HTTPS staging hostname controlled by GLORIFIER."
+              )
           parsed = urlsplit(sut_host)
           if (
               parsed.scheme != "https"
@@ -87,8 +110,17 @@ jobs:
           if not jsonrpc:
               raise SystemExit("Agent Card does not advertise the A2A 1.0 JSONRPC interface.")
           endpoint = urlsplit(jsonrpc[0].get("url", ""))
-          if endpoint.scheme != "https" or endpoint.hostname != parsed.hostname:
-              raise SystemExit("A2A JSONRPC interface must remain on the allowlisted staging host.")
+          if (
+              endpoint.scheme != "https"
+              or not endpoint.hostname
+              or endpoint.hostname.lower() != parsed.hostname.lower()
+              or endpoint.username is not None
+              or endpoint.password is not None
+              or endpoint.port not in (None, 443)
+              or endpoint.query
+              or endpoint.fragment
+          ):
+              raise SystemExit("A2A JSONRPC interface must remain on the exact allowlisted HTTPS staging host.")
           if "bearer" not in (card.get("securitySchemes") or {}):
               raise SystemExit("Agent Card does not declare the expected bearer security scheme.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
