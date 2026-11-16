@@ -4,6 +4,7 @@ on:
   push:
     branches: ["**"]
     paths:
+      - "config/skillhub-registry-policy.json"
       - "src/lib/ai/repository-contributor-policy.mjs"
       - "src/lib/ai/repository-contributor-policy.test.mjs"
       - "src/lib/ai/repository-provider-budget.ts"
@@ -11,17 +12,24 @@ on:
       - "src/lib/ai/specialist-council.ts"
       - "src/lib/autopilot-orchestrator.ts"
       - "src/lib/autopilot-orchestrator.test.ts"
+      - "server.ts"
+      - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/repository-free-ai-contributors.yml"
   pull_request:
     branches: [main]
     paths:
+      - "config/skillhub-registry-policy.json"
       - "src/lib/ai/repository-contributor-policy.mjs"
       - "src/lib/ai/repository-contributor-policy.test.mjs"
+      - "src/lib/ai/repository-provider-budget.ts"
+      - "src/lib/ai/repository-provider-budget.test.ts"
       - "src/lib/ai/specialist-council.ts"
       - "src/lib/autopilot-orchestrator.ts"
       - "src/lib/autopilot-orchestrator.test.ts"
+      - "server.ts"
+      - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/repository-free-ai-contributors.yml"
@@ -31,7 +39,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: repository-free-ai-contributors-\${{ github.ref }}
+  group: repository-free-ai-contributors-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
