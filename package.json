@@ -127,7 +127,8 @@
     "test:autopilot-worker-route": "node --import tsx/esm --test src/lib/autopilot-worker-route.test.ts",
     "test:autopilot-worker-migration": "node --test scripts/autopilot-worker-migration-contract.test.mjs",
     "test:repository-contributor-policy": "node --test src/lib/ai/repository-contributor-policy.test.mjs",
-    "test:repository-provider-budget": "node --import tsx/esm --test src/lib/ai/repository-provider-budget.test.ts"
+    "test:repository-provider-budget": "node --import tsx/esm --test src/lib/ai/repository-provider-budget.test.ts",
+    "test:github-app-auth": "node --import tsx/esm --test src/lib/github-app-auth.test.ts",
     "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts"
   },
   "dependencies": {
