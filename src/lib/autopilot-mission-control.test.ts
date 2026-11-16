@@ -545,3 +545,54 @@ test('Autopilot status never treats paid-inference flags or a legacy PAT as free
     }
   }
 });
+
+test('Autopilot provider readiness requires exact attested endpoints and never honors paid inference flags', () => {
+  const originalBaseUrl = process.env.OPENAI_BASE_URL;
+  try {
+    delete process.env.OPENAI_BASE_URL;
+    const now = '2026-11-16T15:00:00.000Z';
+    const env = {
+      GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+      GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+      GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+      GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+      GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+      GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([{
+        providerId: 'openai',
+        mode: 'promotional-credits',
+        status: 'owner-attested',
+        modelId: 'gpt-free-credit-model',
+        endpointUrl: 'https://api.openai.com/v1',
+        evidenceUrl: 'https://platform.openai.com/settings/organization/billing',
+        attestedAt: '2026-11-16T14:00:00.000Z',
+        expiresAt: '2026-11-16T16:00:00.000Z',
+        monthlyPaidSpendLimitUsd: 0,
+        autoTopUpEnabled: false,
+        payAsYouGoEnabled: false,
+        paidFallbackEnabled: false,
+        monthlyInvoicingEnabled: false,
+        billingEnabled: false,
+        remainingFreeCreditsUsd: 1,
+        requestsPerMinute: 10,
+        requestsPerDay: 100,
+        maxTokensPerDay: 60000,
+        maxInputTokens: 12000,
+        maxOutputTokens: 2048,
+      }]),
+    };
+    const configuredProviders = [{ id: 'openai', status: 'connected', models: ['gpt-free-credit-model'] }];
+    assert.equal(getAutopilotMissionControlStatus({ env, configuredProviders }).providerInferenceEnabled, true);
+
+    process.env.OPENAI_BASE_URL = 'https://example.invalid/v1';
+    assert.equal(getAutopilotMissionControlStatus({ env, configuredProviders }).providerInferenceEnabled, false);
+
+    delete process.env.OPENAI_BASE_URL;
+    assert.equal(getAutopilotMissionControlStatus({
+      env: { ...env, GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true' },
+      configuredProviders,
+    }).providerInferenceEnabled, false);
+  } finally {
+    if (originalBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = originalBaseUrl;
+  }
+});
