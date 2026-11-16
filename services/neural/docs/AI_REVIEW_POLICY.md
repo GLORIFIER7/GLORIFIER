@@ -49,6 +49,8 @@ A read-only GitHub API read-back of the primary GLORIFIER repository reports:
 - The returned ruleset does not contain a required-status-checks rule. A successful workflow run must not be described as a required merge check unless a separate live ruleset read-back confirms that requirement.
 - Bypass actors in the returned payload include a DeployKey and repository roles with actor IDs 2, 4, and 5; each has bypass mode always. The API read-back reports current_user_can_bypass: always.
 
+**Administrator follow-up — bypass risk:** The listed always-bypass actors can bypass the ruleset's required reviews and other protections when exercising that bypass. Consequently, code-owner review and review-thread resolution are not absolute controls against those actors. An administrator should review the identities and operational need for each bypass actor, then narrow or remove always-bypass access where it is not essential. Do not use a bypass for routine maintenance or treat this observation as authorization to bypass a review.
+
 This is an observation of the remote ruleset, not a change made by this maintenance PR. It supersedes the older 2026-11-05 ruleset notes in this file. In particular, do not claim that the current main ruleset has zero bypass actors or that the connected principal cannot bypass it.
 
 ## Administrative boundary
