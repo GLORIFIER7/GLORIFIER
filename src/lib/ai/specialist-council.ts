@@ -1,6 +1,6 @@
 import { aiOrchestrator } from './orchestrator';
 import { buildRepositoryCouncilAssignments } from './repository-contributor-policy.mjs';
-import type { AIProviderId, AIResponse } from './types';
+import type { AIMessage, AIProviderId, AIResponse } from './types';
 
 export type SpecialistDomain =
   | 'policy' | 'legal' | 'patent' | 'compliance' | 'ethics' | 'finance' | 'revenue' | 'risk' | 'data'
@@ -75,6 +75,7 @@ export interface CouncilRequest {
   roles?: string[];
   providerIds?: AIProviderId[];
   providerSelections?: Array<{ providerId: AIProviderId; modelId: string }>;
+  generateProvider?: (selection: { providerId: AIProviderId; modelId: string }, messages: AIMessage[], temperature: number) => Promise<AIResponse>;
   temperature?: number;
   standingMission?: boolean;
 }
@@ -152,16 +153,20 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
     modelId: undefined as string | undefined
   }));
   const responses = await Promise.allSettled(executionUnits.map(async ({ role, providerId, modelId }) => {
-    const response = await aiOrchestrator.generate({
-      provider: providerId,
-      ...(modelId ? { model: modelId } : {}),
-      messages: [
-        { role: 'system', content: specialistPrompt(role, request.objective, standingMission) },
-        { role: 'user', content: request.objective }
-      ],
-      temperature: request.temperature ?? 0.2,
-      evaluate: true
-    });
+    const messages: AIMessage[] = [
+      { role: 'system', content: specialistPrompt(role, request.objective, standingMission) },
+      { role: 'user', content: request.objective }
+    ];
+    const temperature = request.temperature ?? 0.2;
+    const response = request.generateProvider && modelId
+      ? await request.generateProvider({ providerId, modelId }, messages, temperature)
+      : await aiOrchestrator.generate({
+          provider: providerId,
+          ...(modelId ? { model: modelId } : {}),
+          messages,
+          temperature,
+          evaluate: true
+        });
     return { role, response };
   }));
 
