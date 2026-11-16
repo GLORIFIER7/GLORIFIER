@@ -93,6 +93,49 @@ function addReason(reasons, condition, message) {
  * verification: the caller must inspect the provider console and keep this
  * server-only attestation fresh. No request is accepted from model output.
  */
+
+const PROVIDER_ENDPOINT_HOSTS = Object.freeze({
+  gemini: ['generativelanguage.googleapis.com'],
+  nvidia: ['integrate.api.nvidia.com'],
+  anthropic: ['api.anthropic.com'],
+  xai: ['api.x.ai'],
+  meta: [],
+  openai: ['api.openai.com'],
+  groq: ['api.groq.com'],
+  openrouter: ['openrouter.ai'],
+  huggingface: ['router.huggingface.co'],
+  ollama: [],
+  mistral: ['api.mistral.ai'],
+  qwen: ['dashscope-intl.aliyuncs.com', 'dashscope.aliyuncs.com', 'dashscope-us.aliyuncs.com'],
+  deepseek: ['api.deepseek.com'],
+  together: ['api.together.ai'],
+  fireworks: ['api.fireworks.ai'],
+  llmsrelay: ['api.llmsrelay.com'],
+  cloudflare_workers_ai: ['api.cloudflare.com']
+});
+
+export function normalizeRepositoryProviderEndpoint(providerIdValue, rawUrl) {
+  const providerId = normalizeRepositoryProviderId(providerIdValue);
+  if (!providerId || typeof rawUrl !== 'string' || !rawUrl.trim()) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (url.username || url.password || url.search || url.hash) return null;
+    const hostname = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+    if (providerId === 'meta' || providerId === 'ollama') {
+      const loopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+      if (url.protocol !== 'http:' || !loopback) return null;
+    } else {
+      const allowedHosts = PROVIDER_ENDPOINT_HOSTS[providerId] || [];
+      if (url.protocol !== 'https:' || (url.port && url.port !== '443') ||
+          !allowedHosts.some((host) => hostname === host || hostname.endsWith('.' + host))) return null;
+    }
+    const normalizedPath = url.pathname.replace(/\\/+$/, '');
+    return url.origin + normalizedPath;
+  } catch {
+    return null;
+  }
+}
+
 export function evaluateRepositoryProviderAttestation(providerIdValue, attestation, nowValue = new Date().toISOString()) {
   const providerId = normalizeRepositoryProviderId(providerIdValue);
   const reasons = [];
@@ -128,6 +171,9 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
   addReason(reasons, isPositiveInteger(attestation.maxTokensPerDay), 'current-account-daily-token-limit-required');
   addReason(reasons, isPositiveInteger(attestation.maxInputTokens), 'bounded-max-input-token-limit-required');
   addReason(reasons, isPositiveInteger(attestation.maxOutputTokens), 'bounded-max-output-token-limit-required');
+
+  const endpointUrl = normalizeRepositoryProviderEndpoint(providerId, attestation.endpointUrl);
+  addReason(reasons, Boolean(endpointUrl), 'provider-endpoint-must-match-the-attested-provider-and-local-modes-must-use-loopback');
 
   const modelId = typeof attestation.modelId === 'string' ? attestation.modelId.trim() : '';
   addReason(reasons, Boolean(modelId) && modelId.length <= 200, 'exact-model-id-required');
@@ -189,6 +235,7 @@ export function evaluateRepositoryProviderAttestation(providerIdValue, attestati
     eligible: reasons.length === 0,
     providerId,
     modelId: modelId || null,
+    endpointUrl,
     verificationLevel: 'owner-attested-not-vendor-verified',
     reasons,
     limits: reasons.length === 0 ? {
@@ -234,6 +281,7 @@ export function listEligibleRepositoryContributors({ attestations = [], configur
       providerId: profile.id,
       providerName: profile.name,
       modelId: evaluation.modelId,
+      endpointUrl: evaluation.endpointUrl,
       verificationLevel: evaluation.verificationLevel,
       limits: evaluation.limits
     }];
