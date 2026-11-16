@@ -10,7 +10,7 @@ import {
   validateSkillCandidate
 } from './skillhub-registry.js';
 
-const skillMd = \`---
+const skillMd = `---
 name: meeting-action-extractor
 description: Extract decisions and action items from meeting notes.
 ---
@@ -18,13 +18,14 @@ description: Extract decisions and action items from meeting notes.
 # Meeting Action Extractor
 
 Produce a concise, evidence-linked action list from supplied meeting notes.
-\`;
+`;
 
 function packageFile(path: string, content = 'reviewed content', extra: Record<string, unknown> = {}) {
   return {
     path,
     sizeBytes: Buffer.byteLength(content),
     sha256: createHash('sha256').update(content).digest('hex'),
+    contentBytes: Buffer.from(content),
     ...extra
   };
 }
@@ -112,6 +113,21 @@ test('rejects floating or insecure source references and unpinned dependencies',
     dependencies: [{ name: 'example-lib', version: '^2.1.0' }]
   }));
   assert.match(unpinned.errors.join(' '), /pinned/i);
+});
+
+
+test('rejects a supplied digest that does not match the actual file bytes', () => {
+  const result = validateSkillCandidate(validCandidate({
+    files: [packageFile('SKILL.md', skillMd, { sha256: '0'.repeat(64) })]
+  }));
+  assert.match(result.errors.join(' '), /does not match its SHA-256 digest/i);
+});
+
+test('requires actual bytes instead of accepting digest-only metadata', () => {
+  const result = validateSkillCandidate(validCandidate({
+    files: [packageFile('SKILL.md', skillMd, { contentBytes: undefined })]
+  }));
+  assert.match(result.errors.join(' '), /actual file content bytes are required/i);
 });
 
 test('flags executable scripts and network access for explicit review', () => {
