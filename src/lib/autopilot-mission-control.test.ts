@@ -548,6 +548,7 @@ test('Autopilot status never treats paid-inference flags or a legacy PAT as free
 
 test('Autopilot provider readiness requires exact attested endpoints and never honors paid inference flags', () => {
   const originalBaseUrl = process.env.OPENAI_BASE_URL;
+  const now = '2026-11-16T15:00:00.000Z';
   try {
     delete process.env.OPENAI_BASE_URL;
     const now = '2026-11-16T15:00:00.000Z';
@@ -581,7 +582,7 @@ test('Autopilot provider readiness requires exact attested endpoints and never h
       }]),
     };
     const configuredProviders = [{ id: 'openai', status: 'connected', models: ['gpt-free-credit-model'] }];
-    assert.equal(getAutopilotMissionControlStatus({ env, configuredProviders }).providerInferenceEnabled, true);
+    assert.equal(getAutopilotMissionControlStatus({ env, configuredProviders, now }).providerInferenceEnabled, true);
 
     process.env.OPENAI_BASE_URL = 'https://example.invalid/v1';
     assert.equal(getAutopilotMissionControlStatus({ env, configuredProviders }).providerInferenceEnabled, false);
@@ -590,6 +591,7 @@ test('Autopilot provider readiness requires exact attested endpoints and never h
     assert.equal(getAutopilotMissionControlStatus({
       env: { ...env, GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true' },
       configuredProviders,
+      now,
     }).providerInferenceEnabled, false);
   } finally {
     if (originalBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
