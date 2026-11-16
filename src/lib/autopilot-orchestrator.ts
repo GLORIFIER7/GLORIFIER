@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { aiCeoPolicy } from './ai-ceo';
 import { aiOrchestrator } from './ai/orchestrator';
+import { getProviderEndpointUrl } from './ai/registry';
 import { runSpecialistCouncil } from './ai/specialist-council';
-import { getRepositoryFreeContributorPolicy, isSafeRepositoryContributionInput } from './ai/repository-contributor-policy.mjs';
+import { getRepositoryFreeContributorPolicy, isSafeRepositoryContributionInput, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
 import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderRequest, type RepositoryProviderUsageLimits } from './ai/repository-provider-budget';
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
@@ -48,6 +49,7 @@ type RepositoryProviderSelection = {
   providerId: string;
   providerName: string;
   modelId: string;
+  endpointUrl: string;
   verificationLevel: string;
   limits: RepositoryProviderUsageLimits;
 };
@@ -89,18 +91,42 @@ async function generateRepositoryFreeProvider(
   if (!Array.isArray(messages) || messages.some(message => !isSafeRepositoryContributionInput(message.content))) {
     throw new Error('Repository contribution input was withheld because it is oversized or may contain credentials.');
   }
+
+  // Re-evaluate every exact model/endpoint attestation immediately before every
+  // provider request. A pool snapshot from the start of a mission is not valid
+  // authorization for a later request after its attestation expires or changes.
+  const currentPolicy = getAutopilotRepositoryContributorPolicy();
+  if (!currentPolicy.authorized) {
+    throw new Error('Repository free-tier provider policy is no longer authorized; inference was blocked.');
+  }
+  const currentSelection = currentPolicy.eligibleProviders.find(provider =>
+    provider.providerId === selection.providerId &&
+    provider.modelId === selection.modelId &&
+    provider.endpointUrl === selection.endpointUrl,
+  );
+  const configuredEndpoint = getProviderEndpointUrl(selection.providerId);
+  const normalizedConfiguredEndpoint = normalizeRepositoryProviderEndpoint(
+    selection.providerId,
+    configuredEndpoint || '',
+  );
+  if (!currentSelection || !normalizedConfiguredEndpoint ||
+      normalizedConfiguredEndpoint !== currentSelection.endpointUrl) {
+    throw new Error('Repository provider/model endpoint no longer matches its fresh owner attestation; inference was blocked.');
+  }
+
   const inputTokenUpperBound = estimateRepositoryInputTokenUpperBound(messages);
   const reservation = await reserveRepositoryProviderRequest({
-    providerId: selection.providerId,
-    limits: selection.limits,
+    providerId: currentSelection.providerId,
+    limits: currentSelection.limits,
     inputTokenUpperBound,
   });
   return aiOrchestrator.generate({
-    provider: selection.providerId,
-    model: selection.modelId,
+    provider: currentSelection.providerId,
+    model: currentSelection.modelId,
     messages,
     temperature,
     maxTokens: reservation.maxOutputTokens,
+    disableRetries: true,
     evaluate: true,
   });
 }
@@ -466,10 +492,10 @@ async function planMission(objective: string, missionId: string) {
     inspectedPaths: inspectedFiles.map(file => file.path),
     expectedSourceHashes: Object.fromEntries(inspectedFiles.map(file => [file.path, file.expectedContentSha256])),
   });
-  const contributionAttribution = writeIdentityConfigured
+  const contributionAttribution = writePlanningEnabled
     ? buildRepositoryContributionAttribution(
         missionId,
-        String(process.env.GLORIFIER_GITHUB_APP_SLUG || ''),
+        String(process.env.GLORIFIER_GITHUB_APP_SLUG || '').trim(),
         { provider: executive.provider, model: executive.model },
         council.result.findings.map(finding => ({
           role: finding.role,
@@ -704,18 +730,18 @@ export async function processNextAutopilotMission(
         maxAttempts: 1,
       });
       const completed = await executeA2ATask(task, async (prompt, options) => {
-        const response = await aiOrchestrator.generate({
-          provider: 'auto',
-          temperature: 0.1,
-          evaluate: true,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
-            },
-            { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
-          ],
-        });
+        const currentPolicy = getAutopilotRepositoryContributorPolicy();
+        if (!currentPolicy.authorized || currentPolicy.eligibleProviders.length === 0) {
+          throw new Error('A2A analysis blocked because no currently attested free repository provider is eligible.');
+        }
+        const analyst = currentPolicy.eligibleProviders[0];
+        const response = await generateRepositoryFreeProvider(analyst, [
+          {
+            role: 'system',
+            content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
+          },
+          { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
+        ], 0.1);
         return { text: response.text, model: `${response.provider}:${response.model}` };
       });
       if (completed.status !== 'completed' || !completed.evidenceId) {
