@@ -36,11 +36,11 @@ def test_neural_validation_remains_a_read_only_python_matrix():
     test_job = _job_section("test")
 
     top_level_permissions = re.search(
-        r"(?ms)^permissions:\\n((?:^  [a-z-]+: [a-z]+\\n)+)",
+        r"(?ms)^permissions:\n((?:^  [a-z-]+: [a-z]+\n)+)",
         WORKFLOW,
     )
     job_permissions = re.search(
-        r"(?ms)^    permissions:\\n((?:^      [a-z-]+: [a-z]+\\n)+)",
+        r"(?ms)^    permissions:\n((?:^      [a-z-]+: [a-z]+\n)+)",
         test_job,
     )
     assert top_level_permissions is not None
