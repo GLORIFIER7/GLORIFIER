@@ -75,7 +75,7 @@ class WorkersAIAdapter(ProviderAdapter):
     def _response_text(payload: Any) -> str:
         """Extract the native response or first chat-completion choice content."""
         text = WorkersAIAdapter._field(payload, "response")
-        if not isinstance(text, str) or not text.strip():
+        if text is None:
             choices = WorkersAIAdapter._field(payload, "choices")
             try:
                 first_choice = choices[0]
