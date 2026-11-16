@@ -1,6 +1,9 @@
 import { newId } from './new-id';
 import { getPostgresPool } from './db/postgres';
 import { getA2ARuntimeStatus } from './a2a-runtime';
+import { aiOrchestrator } from './ai/orchestrator';
+import { getRepositoryFreeContributorPolicy } from './ai/repository-contributor-policy.mjs';
+import { hasGithubAppWriteConfiguration } from './github-app-auth';
 
 export type AutopilotMissionStatus =
   | 'queued'
@@ -719,13 +722,15 @@ export function getAutopilotMissionStore(): AutopilotMissionStore | null {
 
 export function getAutopilotMissionControlStatus() {
   const a2aRuntime = getA2ARuntimeStatus();
-  const inferenceAuthorized = process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
-    && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
-    && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
+  const repositoryPolicy = getRepositoryFreeContributorPolicy({
+    env: process.env,
+    configuredProviders: aiOrchestrator.registry(),
+  });
+  const inferenceAuthorized = repositoryPolicy.authorized && repositoryPolicy.eligibleProviderCount > 0;
   const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
     && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
     && a2aRuntime.durable && inferenceAuthorized;
-  const writeCredentialConfigured = Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim());
+  const writeCredentialConfigured = hasGithubAppWriteConfiguration();
   return {
     mode: autopilotPersistenceMode,
     available: autopilotStore !== null,
@@ -748,9 +753,8 @@ export function getAutopilotMissionControlStatus() {
     githubSourceReadbackVerificationEnabled: autopilotStore !== null,
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
-    providerInferenceEnabled: process.env.GLORIFIER_ENABLE_INFERENCE === 'true'
-      && process.env.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true'
-      && process.env.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true',
+    providerInferenceEnabled: inferenceAuthorized,
+    repositoryFreeContributorCount: repositoryPolicy.eligibleProviderCount,
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
