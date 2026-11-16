@@ -304,7 +304,7 @@ def test_runtime_keeps_workers_ai_disabled_without_explicit_inference_opt_in():
         )
     )
 
-    assert response.status == "NOT_VERIFIED"
+    assert response.status == "NOT VERIFIED"
     assert "inference:disabled" in response.evidence
     assert "execution:none" in response.evidence
     assert binding.calls == []
