@@ -281,7 +281,7 @@ export async function executeGithubWriteTool(
   fetchImpl: FetchLike = fetch,
 ): Promise<unknown> {
   const token = typeof writeToken === 'string' ? writeToken.trim() : '';
-  if (!token) throw new Error('GLORIFIER_GITHUB_WRITE_TOKEN is not configured.');
+  if (!token) throw new Error('GitHub App installation access token is not configured.');
   if (token.length > 512 || /[\r\n]/.test(token)) {
     throw new Error('GLORIFIER_GITHUB_WRITE_TOKEN has an invalid format.');
   }
