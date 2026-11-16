@@ -291,6 +291,22 @@ test('NEURAL review diagnostics remain isolated in a default-branch advisory wor
   assert.ok(!statusWorkflow.includes('\n  pull_request_target:\n'));
 });
 
+function neuralJobSection(source, name) {
+  const heading = '\n  ' + name + ':\n';
+  const start = source.indexOf(heading);
+  if (start < 0) return '';
+  const contentStart = start + heading.length;
+  const remainder = source.slice(contentStart);
+  let offset = 0;
+  for (const line of remainder.split('\n')) {
+    if (line.startsWith('  ') && !line.startsWith('    ') && line.trimEnd().endsWith(':')) {
+      return remainder.slice(0, offset);
+    }
+    offset += line.length + 1;
+  }
+  return remainder;
+}
+
 function assertGeminiAuthorizationWorkflow(item) {
   const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
   assert.match(condition, /github.event_name == 'workflow_dispatch'/);
