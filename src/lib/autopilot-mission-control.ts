@@ -721,11 +721,16 @@ export function getAutopilotMissionStore(): AutopilotMissionStore | null {
   return autopilotStore;
 }
 
-export function getAutopilotMissionControlStatus() {
+export function getAutopilotMissionControlStatus(options: {
+  env?: Record<string, string | undefined>;
+  configuredProviders?: Array<{ id: string; status: string; models: string[] }>;
+} = {}) {
+  const env = options.env ?? process.env;
+  const configuredProviders = options.configuredProviders ?? aiOrchestrator.registry();
   const a2aRuntime = getA2ARuntimeStatus();
   const repositoryPolicy = getRepositoryFreeContributorPolicy({
-    env: process.env,
-    configuredProviders: aiOrchestrator.registry() as unknown as never[],
+    env,
+    configuredProviders: configuredProviders as unknown as never[],
   });
   const endpointMatchedProviders = repositoryPolicy.eligibleProviders.filter(provider => {
     const configuredEndpoint = getProviderEndpointUrl(provider.providerId) || '';
@@ -735,7 +740,7 @@ export function getAutopilotMissionControlStatus() {
   const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
     && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
     && a2aRuntime.durable && inferenceAuthorized;
-  const writeCredentialConfigured = hasGithubAppWriteConfiguration();
+  const writeCredentialConfigured = hasGithubAppWriteConfiguration(env);
   return {
     mode: autopilotPersistenceMode,
     available: autopilotStore !== null,
