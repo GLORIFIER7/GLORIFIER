@@ -210,5 +210,5 @@ test('uses PostgreSQL server time for quota windows, not individual worker clock
   const reservations = pool.calls.filter(call => call.sql.startsWith('INSERT INTO glorifier_repository_provider_usage'));
   assert.equal(reservations.length, 2);
   assert.ok(reservations.every(call => /date_trunc\(\$2, CURRENT_TIMESTAMP\)/.test(call.sql)));
-  assert.ok(reservations.every(call => !call.values?.some(value => value instanceof Date || (typeof value === 'string' && /T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z/.test(value)))));
+  assert.ok(reservations.every(call => !call.values?.some(value => value instanceof Date || (typeof value === 'string' && /T\d{2}:\d{2}:\d{2}\.\d{3}Z/.test(value)))));
 });
