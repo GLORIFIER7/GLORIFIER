@@ -198,7 +198,7 @@ test('Autopilot GitHub write adapter refuses missing write credentials', async (
     () => executeGithubWriteTool('github_create_branch', {
       branch: 'autopilot/mission-123', base_ref: 'main',
     }, '', async () => { throw new Error('network must not be called'); }),
-    /GLORIFIER_GITHUB_WRITE_TOKEN is not configured/,
+    /GitHub App installation access token is not configured/,
   );
 });
 
