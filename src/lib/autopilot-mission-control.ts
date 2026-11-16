@@ -724,13 +724,16 @@ export function getAutopilotMissionStore(): AutopilotMissionStore | null {
 export function getAutopilotMissionControlStatus(options: {
   env?: Record<string, string | undefined>;
   configuredProviders?: Array<{ id: string; status: string; models: string[] }>;
+  now?: string;
 } = {}) {
   const env = options.env ?? process.env;
+  const now = options.now ?? new Date().toISOString();
   const configuredProviders = options.configuredProviders ?? aiOrchestrator.registry();
   const a2aRuntime = getA2ARuntimeStatus();
   const repositoryPolicy = getRepositoryFreeContributorPolicy({
     env,
     configuredProviders: configuredProviders as unknown as never[],
+    now,
   });
   const endpointMatchedProviders = repositoryPolicy.eligibleProviders.filter(provider => {
     const configuredEndpoint = getProviderEndpointUrl(provider.providerId) || '';
