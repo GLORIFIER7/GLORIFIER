@@ -63,8 +63,8 @@ test('reserves request and token ceilings for minute and daily windows in one tr
   assert.match(minuteReservation.sql, /window_kind/);
   assert.equal(minuteReservation.values?.[1], 'minute');
   const dailyReservation = pool.calls.find(call => call.values?.[1] === 'day');
-  assert.match(minuteReservation.sql, /date_trunc\\(\\$2, CURRENT_TIMESTAMP\\)/);
-  assert.match(dailyReservation?.sql || '', /date_trunc\\(\\$2, CURRENT_TIMESTAMP\\)/);
+  assert.match(minuteReservation.sql, /date_trunc\(\$2, CURRENT_TIMESTAMP\)/);
+  assert.match(dailyReservation?.sql || '', /date_trunc\(\$2, CURRENT_TIMESTAMP\)/);
   assert.equal(minuteReservation?.values?.[2], 1200);
   assert.equal(minuteReservation?.values?.[3], 3);
   assert.equal(minuteReservation?.values?.[4], null);
