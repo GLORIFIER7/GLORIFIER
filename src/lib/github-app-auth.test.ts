@@ -58,7 +58,6 @@ function fakeFetch(options: {
         slug: 'glorifier-contributor',
         owner: { login: 'GLORIFIER7' },
         permissions: { contents: 'write', pull_requests: 'write' },
-        permissions: { contents: 'write', pull_requests: 'write' },
       });
     }
     if (url.pathname === '/app/installations/67890/access_tokens' && method === 'POST') {
