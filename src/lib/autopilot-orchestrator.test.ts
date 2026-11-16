@@ -374,8 +374,8 @@ test('Repository contribution attribution escapes backslashes before Markdown ta
     [],
   );
 
-  assert.equal(attribution.aiCeo.provider, expectedProvider);
-  assert.equal(attribution.aiCeo.model, expectedModel);
+  assert.equal(attribution.aiCeo.provider, unsafeProvider, 'structured provenance retains the sanitized provider identity');
+  assert.equal(attribution.aiCeo.model, unsafeModel, 'structured provenance retains the sanitized model identity');
   const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
   assert.ok(body.includes('| ' + expectedProvider + ' | ' + expectedModel + ' |'));
 });
