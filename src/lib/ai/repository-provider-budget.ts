@@ -28,7 +28,7 @@ const isPositiveInteger = (value: unknown): value is number =>
 /** Create a durable local counter. Vendor-side free caps and disabled billing remain mandatory. */
 export async function initializeRepositoryProviderBudget(): Promise<void> {
   const db = getPostgresPool();
-  await db.query('CREATE TABLE IF NOT EXISTS glorifier_repository_provider_usage (provider_id TEXT NOT NULL, window_kind TEXT NOT NULL CHECK (window_kind IN (''minute'', ''day'')), window_started_at TIMESTAMPTZ NOT NULL, requests_used INTEGER NOT NULL DEFAULT 0 CHECK (requests_used >= 0), tokens_reserved BIGINT NOT NULL DEFAULT 0 CHECK (tokens_reserved >= 0), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (provider_id, window_kind, window_started_at))');
+  await db.query("CREATE TABLE IF NOT EXISTS glorifier_repository_provider_usage (provider_id TEXT NOT NULL, window_kind TEXT NOT NULL CHECK (window_kind IN ('minute', 'day')), window_started_at TIMESTAMPTZ NOT NULL, requests_used INTEGER NOT NULL DEFAULT 0 CHECK (requests_used >= 0), tokens_reserved BIGINT NOT NULL DEFAULT 0 CHECK (tokens_reserved >= 0), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (provider_id, window_kind, window_started_at))");
   await db.query('CREATE INDEX IF NOT EXISTS glorifier_repository_provider_usage_window_idx ON glorifier_repository_provider_usage (window_started_at)');
   await db.query("DELETE FROM glorifier_repository_provider_usage WHERE window_started_at < NOW() - INTERVAL '3 days'");
 }
