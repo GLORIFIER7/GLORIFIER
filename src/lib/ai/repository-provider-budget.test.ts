@@ -49,7 +49,6 @@ test('reserves request and token ceilings for minute and daily windows in one tr
     providerId: 'gemini',
     limits,
     inputTokenUpperBound: 200,
-    now: new Date('2026-11-16T15:47:55.000Z'),
     pool
   });
   assert.deepEqual(result, {
@@ -64,13 +63,14 @@ test('reserves request and token ceilings for minute and daily windows in one tr
   assert.match(minuteReservation.sql, /window_kind/);
   assert.equal(minuteReservation.values?.[1], 'minute');
   const dailyReservation = pool.calls.find(call => call.values?.[1] === 'day');
-  assert.equal(minuteReservation?.values?.[2], '2026-11-16T15:47:00.000Z');
-  assert.equal(minuteReservation?.values?.[4], 3);
-  assert.equal(minuteReservation?.values?.[5], null);
-  assert.equal(dailyReservation?.values?.[2], '2026-11-16T00:00:00.000Z');
-  assert.equal(dailyReservation?.values?.[3], 1200);
-  assert.equal(dailyReservation?.values?.[4], 20);
-  assert.equal(dailyReservation?.values?.[5], 40_000);
+  assert.match(minuteReservation.sql, /date_trunc\\(\\$2, CURRENT_TIMESTAMP\\)/);
+  assert.match(dailyReservation?.sql || '', /date_trunc\\(\\$2, CURRENT_TIMESTAMP\\)/);
+  assert.equal(minuteReservation?.values?.[2], 1200);
+  assert.equal(minuteReservation?.values?.[3], 3);
+  assert.equal(minuteReservation?.values?.[4], null);
+  assert.equal(dailyReservation?.values?.[2], 1200);
+  assert.equal(dailyReservation?.values?.[3], 20);
+  assert.equal(dailyReservation?.values?.[4], 40_000);
   assert.equal(pool.calls.at(-1)?.sql, 'COMMIT');
   assert.equal(pool.released, true);
 });
@@ -82,7 +82,6 @@ test('rolls back and blocks a request when the minute ceiling is already exhaust
       providerId: 'nvidia',
       limits,
       inputTokenUpperBound: 200,
-      now: new Date('2026-11-16T15:47:55.000Z'),
       pool
     }),
     /free minute quota is exhausted/
@@ -98,7 +97,6 @@ test('rolls back the minute reservation when the daily request/token ceiling is 
       providerId: 'anthropic',
       limits,
       inputTokenUpperBound: 200,
-      now: new Date('2026-11-16T15:47:55.000Z'),
       pool
     }),
     /free day quota is exhausted/
