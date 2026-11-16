@@ -147,6 +147,9 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
   if (request.providerSelections !== undefined && (!explicitAssignments || explicitAssignments.length === 0)) {
     throw new Error('Repository free-tier council requires at least one eligible provider/model assignment.');
   }
+  if (request.providerSelections !== undefined && typeof request.generateProvider !== 'function') {
+    throw new Error('Repository free-tier council requires a guarded provider generator; direct provider routing is disabled.');
+  }
   const executionUnits = explicitAssignments ?? selected.map((role) => ({
     role,
     providerId: 'auto' as AIProviderId,
@@ -158,8 +161,8 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
       { role: 'user', content: request.objective }
     ];
     const temperature = request.temperature ?? 0.2;
-    const response = request.generateProvider && modelId
-      ? await request.generateProvider({ providerId, modelId }, messages, temperature)
+    const response = request.providerSelections !== undefined
+      ? await request.generateProvider!({ providerId, modelId: modelId! }, messages, temperature)
       : await aiOrchestrator.generate({
           provider: providerId,
           ...(modelId ? { model: modelId } : {}),
@@ -169,6 +172,21 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
         });
     return { role, response };
   }));
+
+  if (request.providerSelections !== undefined) {
+    const failedAssignments = responses
+      .map((response, index) => ({ response, assignment: explicitAssignments![index] }))
+      .filter((entry) => entry.response.status === 'rejected');
+    if (failedAssignments.length > 0) {
+      const failedProviders = failedAssignments
+        .map(({ assignment }) => assignment.providerId + ':' + assignment.modelId)
+        .join(', ');
+      throw new Error(
+        'Repository free-tier council blocked: ' + failedAssignments.length +
+        ' of ' + executionUnits.length + ' guarded provider/model calls failed (' + failedProviders + ').',
+      );
+    }
+  }
 
   const findings: SpecialistFinding[] = responses
     .filter((r): r is PromiseFulfilledResult<{ role: SpecialistRole; response: AIResponse }> => r.status === 'fulfilled')
