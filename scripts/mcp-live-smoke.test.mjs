@@ -204,5 +204,5 @@ test('modern read-only smoke runs before the exhaustive MCP TCK to avoid rate-li
   assert.ok(smokeStep < officialTckStep, 'smoke must run before the high-volume TCK suite');
   assert.ok(smokeStep < legacyTckStep, 'smoke must run before the legacy TCK scenario');
   const officialStep = workflow.slice(officialTckStep, officialTckStep + 320);
-  assert.match(officialStep, /if: \\${\\{ always\\(\\)/, 'official TCK must still run when the earlier smoke fails');
+  assert.ok(officialStep.includes('if: ${{ always()'), 'official TCK must still run when the earlier smoke fails');
 });
