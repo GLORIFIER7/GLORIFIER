@@ -2,7 +2,7 @@
 
 This runbook describes the controls required before declaring the Cloudflare Worker production-ready.
 
-> **Evidence freshness — 2026-11-12:** Current production provider selection, Worker deployment/version/traffic, external-egress setting, inference flag, database connectivity, secret-binding presence, and live readiness are **NOT VERIFIED**. The 2026-11-05 Cloudflare inventory and 2026-11-11 smoke evidence are historical observations, not current production read-backs. The last recorded smoke reported provider-disabled safe mode (`/health` HTTP 200; `/ready` HTTP 503; provider `NOT VERIFIED`; database, authentication, and rate limiting `VERIFIED`; `inference_performed=false`). Configuration examples below describe intended controls and do not assert that those values are currently deployed.
+> **Evidence freshness — 2026-11-16 (read-only configuration checks):** The `glorifier-neural` Worker settings read at 2026-11-16T06:26:29Z–06:27:45Z (UTC) verified `GLORIFIER_PROVIDER=openai`, `GLORIFIER_NEON_CONNECTIVITY_ENABLED=true`, `GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false`, `GLORIFIER_ENABLE_INFERENCE=false`, and `GLORIFIER_PAID_INFERENCE_AUTHORIZED=false`. The secret-binding inventory verified the presence of binding names only; secret values were not read. Both Workers' observability settings reported `redact_query_string=false`. These checks establish configuration, not successful provider or database connectivity, live readiness, or inference. The active Worker deployment/version/traffic and current live `/health` and `/ready` results remain **NOT VERIFIED**. The last cited readiness probe is historical and reported provider-disabled safe mode (`/health` HTTP 200; `/ready` HTTP 503; `inference_performed=false`). Configuration examples below are desired settings, not claims about deployed state.
 
 ## Deployment target
 
@@ -182,7 +182,7 @@ Direct Cloudflare configuration inventory was read at approximately 16:28 local 
 Historical conclusion for the 2026-11-05 observation: Cloudflare deployment and the configured read-only production readiness checks were **VERIFIED at that time**. The production inference flag and external-egress consent were recorded as `true` in that historical configuration read-back; their current values are **NOT VERIFIED**. Live inference, inference quality, end-to-end task execution, optional audit/task-run writes, and externally verified economic outcomes remain **NOT VERIFIED**. Do not infer successful model execution from a successful readiness probe.
 ## Release procedure
 
-1. Make code changes on a branch and open a pull request. The active repository ruleset targets `~DEFAULT_BRANCH`, requires the exact `AI Review Policy` status check with strict latest-commit enforcement, retains CodeQL/code-quality constraints, prohibits deletion and non-fast-forward updates, has zero required human approvals, and has no bypass actors. The AI policy workflow itself still has a PR-controlled workflow-definition trust limitation; see `docs/AI_REVIEW_POLICY.md`.
+1. Make code changes on a branch and open a pull request. Re-read the active ruleset before each release because repository governance can change. The primary GLORIFIER main-branch ruleset read-back on 2026-11-16 (Protect main, ID 24038955) records enabled code-owner review and review-thread resolution settings, zero required approving reviews, and no required-status-checks rule. No `CODEOWNERS` file was found in the supported root, `.github`, or `docs` locations, so code-owner coverage is NOT VERIFIED; do not treat the enabled flag as proof of an active path-level reviewer requirement. The ruleset also lists always-bypass actors; an administrator must review their scope and business need. CodeQL/security scanning and code-quality controls remain active. The NEURAL `AI Review Policy` status is advisory only; it is not a required merge status. Do not wait for that diagnostic as a merge prerequisite, bypass the active ruleset, or weaken quality thresholds to obtain a green result. See `docs/AI_REVIEW_POLICY.md` for the diagnostic's limitations and exact evidence boundary.
 2. Require the repository's CI, security checks, and Cloudflare dry-run validation to pass. Do not bypass the active ruleset or weaken quality thresholds to obtain a green result.
 3. After an approved merge to `main`, use the protected `.github/workflows/neural-cloudflare-worker.yml` workflow with a manual `workflow_dispatch` and `deploy=true` from `main` to promote NEURAL production. Workers Builds on `main` is validation-only (`--prepare-only`) and is not a production release. Verify the protected deployment job and exact active Worker version/traffic before announcing release.
 4. Require live `/health` and `/ready` checks. Expect `/ready` HTTP 200 when the selected provider, database, authentication, and rate-limit checks are verified. Accept HTTP 503 only for the explicit provider-disabled safe-mode response when the other required controls are verified and `inference_performed=false`; that response is not provider-ready.
@@ -246,3 +246,33 @@ Secret changes are release-sensitive. Do not use Dashboard Deploy or `wrangler s
 7. Do not enable provider egress, perform inference, execute authenticated tasks, or enable write persistence until the owner has separately approved the provider cost/data-transmission boundary and the necessary least-privilege persistence design.
 
 No deployment, secret mutation, provider request, inference, authenticated task, database migration, wallet action, or financial operation was performed for this observation.
+
+## Current production configuration observation — 2026-11-16
+
+Read-only Cloudflare settings were retrieved between 2026-11-16T06:26:29Z and 2026-11-16T06:27:45Z (UTC). This records configuration only; it does not establish provider availability, task execution, or inference.
+
+### NEURAL Worker non-secret configuration
+
+The glorifier-neural Worker reported:
+
+- GLORIFIER_PROVIDER=openai
+- GLORIFIER_NEON_CONNECTIVITY_ENABLED=true
+- GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false
+- GLORIFIER_ENABLE_INFERENCE=false
+- GLORIFIER_PAID_INFERENCE_AUTHORIZED=false
+
+Secret-binding names present were GLORIFIER_API_TOKEN, GLORIFIER_INTERNAL_SERVICE_TOKEN, NVIDIA_NIM_API_KEY, and OPENAI_API_KEY. Only names were inspected; no secret values were read.
+
+### Live observability privacy settings
+
+A read-only script-settings read between 2026-11-16T06:27:42Z and 2026-11-16T06:27:45Z reported observability.redact_query_string=false for both glorifier and glorifier-neural. Logs and traces were enabled and persisted on both Workers. Query strings are therefore not yet redacted at the live Worker-settings layer. GLORIFIER PR #894 adds redact_query_string: true to both tracked Wrangler configurations and regression tests, but is source-only and has not been deployed. Do not claim the production privacy setting is fixed until a reviewed deployment and fresh Cloudflare read-back confirm true.
+
+The November 5 and November 10 production flags recorded elsewhere in this document are historical and superseded for the non-secret values listed above. Keep external data egress, inference, and paid-inference authorization disabled. A same-day earlier unauthenticated probe reported NEURAL process liveness as PARTIALLY VERIFIED and /ready HTTP 503; readiness must be freshly checked before any later release announcement. Do not enable egress or inference merely to turn readiness green, and do not submit prompts or authenticated tasks without separate owner authorization.
+
+## CI dependency maintenance
+
+### Disposable PostgreSQL image digest
+
+The disposable PostgreSQL service in .github/workflows/neural-database-integration.yml is pinned to postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9. Treat this digest as a manually reviewed dependency; do not assume Dependabot automatically refreshes this service-container field in workflow YAML.
+
+During monthly dependency review, verify the official PostgreSQL 16 image and its immutable digest, update the service image in .github/workflows/neural-database-integration.yml, update the corresponding digest assertion in services/neural/tests/test_migration_contracts.py, run the focused NEURAL migration-contract tests, and execute the disposable PostgreSQL migration workflow on the proposed branch. Keep the major version at 16 unless a separate compatibility review authorizes a major upgrade.

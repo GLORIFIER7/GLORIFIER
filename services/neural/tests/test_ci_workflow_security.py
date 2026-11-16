@@ -21,16 +21,37 @@ def _job_section(name: str) -> str:
     return match.group(1)
 
 
-def test_pull_requests_read_permission_is_limited_to_policy_job():
+def test_restricted_review_events_and_blocking_ai_policy_are_absent():
+    event_config = WORKFLOW.split("\npermissions:", 1)[0]
+    assert "pull_request:" in event_config
+    assert "types: [opened, reopened, synchronize, ready_for_review]" in event_config
+    assert "pull_request_review:" not in event_config
+    assert "pull_request_review_comment:" not in event_config
+    assert "review-scope:" not in WORKFLOW
+    assert "ai-review-policy:" not in WORKFLOW
+    assert "Wait for both AI reviewers and enforce their findings" not in WORKFLOW
+
+
+def test_neural_validation_remains_a_read_only_python_matrix():
+    test_job = _job_section("test")
+
     top_level_permissions = re.search(
-        r"(?ms)^permissions:\n((?:^  [^\n]+\n)+)",
+        r"(?ms)^permissions:\n((?:^  [a-z-]+: [a-z]+\n)+)",
         WORKFLOW,
     )
-    assert top_level_permissions, "Workflow-level permissions must be explicit"
-    assert "pull-requests:" not in top_level_permissions.group(1)
+    job_permissions = re.search(
+        r"(?ms)^    permissions:\n((?:^      [a-z-]+: [a-z]+\n)+)",
+        test_job,
+    )
+    assert top_level_permissions is not None
+    assert job_permissions is not None
+    assert top_level_permissions.group(1).strip() == "contents: read"
+    assert job_permissions.group(1).strip() == "contents: read"
 
-    policy_job = _job_section("ai-review-policy")
-    assert re.search(r"(?m)^      pull-requests: read$", policy_job)
+    assert 'python-version: ["3.11", "3.12"]' in test_job
+    assert "ruff check ." in test_job
+    assert "- run: pytest" in test_job
+    assert "uvx --no-build --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt" in test_job
 
 
 def test_untrusted_test_job_does_not_persist_github_token():
@@ -46,85 +67,3 @@ def test_untrusted_test_job_does_not_persist_github_token():
         "actions/checkout must not persist GITHUB_TOKEN credentials"
     )
 
-
-def test_review_event_uses_the_documented_top_level_pull_request_payload():
-    assert "pull_request_review_comment:" in WORKFLOW
-    assert "types: [created, edited, deleted]" in WORKFLOW
-    policy_job = _job_section("ai-review-policy")
-    assert "github.event.review.pull_request" not in policy_job
-    assert (
-        "repository: ${{ github.event.pull_request.number == 672 "
-        "&& 'GLORIFIER7/GLORIFIER-NEURAL' || github.repository }}"
-    ) in policy_job
-    assert (
-        "ref: ${{ github.event.pull_request.number == 672 "
-        "&& '9a32356ee4fa7d517e74db936b69312de488ae85' || github.event.pull_request.base.sha }}"
-    ) in policy_job
-    assert "PR_NUMBER: ${{ github.event.pull_request.number }}" in policy_job
-    assert "persist-credentials: false" in policy_job
-    assert "PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}" in policy_job
-
-
-def test_policy_job_resolves_the_current_pr_sha_from_workspace_root():
-    policy_job = _job_section("ai-review-policy")
-    resolver = re.search(
-        r"(?ms)^      - name: Resolve canonical PR head SHA from GitHub\n(.*?)(?=^      - name: |\Z)",
-        policy_job,
-    )
-    assert resolver, "The canonical PR head resolver must exist"
-    assert re.search(r"(?m)^        working-directory: \.?$", resolver.group(1)), (
-        "The inline GitHub API resolver must not inherit the NEURAL service working directory"
-    )
-
-
-def test_trusted_policy_module_has_a_preflight_before_execution():
-    policy_job = _job_section("ai-review-policy")
-    preflight = policy_job.find("- name: Verify the trusted policy runner is importable")
-    runner = policy_job.find("- name: Wait for both AI reviewers and enforce their findings")
-    assert preflight >= 0, "The trusted module import preflight must be present"
-    assert runner > preflight, "The import preflight must run before the policy module"
-    assert 'run: python -c "import app.ai_review_policy;' in policy_job
-    assert policy_job.count("- name: Verify the trusted policy runner is importable") == 1
-
-
-def test_policy_job_uses_canonical_pull_request_head_from_github_api():
-    policy_job = _job_section("ai-review-policy")
-    assert "id: current-pr" in policy_job
-    assert "pulls/{pull_number}" in policy_job
-    assert 'output.write("head_sha=" + head_sha + chr(10))' in policy_job
-    assert "PR_HEAD_SHA: ${{ steps.current-pr.outputs.head_sha }}" in policy_job
-    assert "github.event.pull_request.head.sha" not in policy_job
-    assert "working-directory: ${{ github.event.pull_request.number == 672 && 'trusted-policy' || 'trusted-policy/services/neural' }}" in policy_job
-    assert "github.workspace" in policy_job
-
-
-def test_review_events_serialize_policy_without_cancelling_ci_validation():
-    assert re.search(r"(?m)^concurrency:", WORKFLOW) is None, (
-        "Workflow-level cancellation lets policy-only events cancel running CI tests"
-    )
-
-    test_job = _job_section("test")
-    policy_job = _job_section("ai-review-policy")
-    assert (
-        "if: github.event_name != 'pull_request_review' "
-        "&& github.event_name != 'pull_request_review_comment'"
-    ) in test_job
-    assert (
-        "group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}"
-    ) in test_job
-    assert "cancel-in-progress: true" in test_job
-
-    assert (
-        "group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
-    ) in policy_job
-    assert "cancel-in-progress: true" in policy_job
-
-
-
-def test_review_scope_fails_closed_on_github_api_errors():
-    scope = _job_section("review-scope")
-    assert "fail_closed_on_api_error() {" in scope
-    assert "if ! changed_file_count=" in scope
-    assert "if ! changed_paths=" in scope
-    assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in scope
-    assert "exit 0" in scope

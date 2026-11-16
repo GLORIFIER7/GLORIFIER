@@ -266,55 +266,44 @@ test('CI runs the Claude direct CLI runner regression suite', () => {
 });
 
 
-function locateReviewJobs(source) {
-  const scope = /^  review-scope:[ \t]*\r?$/m.exec(source);
-  const policy = /^  ai-review-policy:[ \t]*\r?$/m.exec(source);
-  return {
-    scopeStart: scope?.index ?? -1,
-    policyStart: policy?.index ?? -1,
-  };
-}
+test('NEURAL CI retains ordinary PR validation and excludes restricted review events', () => {
+  assert.ok(neuralCiWorkflow.includes('\n  pull_request:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  pull_request_review:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  pull_request_review_comment:\n'));
+  assert.ok(neuralCiWorkflow.includes('\n  test:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  review-scope:\n'));
+  assert.ok(!neuralCiWorkflow.includes('\n  ai-review-policy:\n'));
 
-test('NEURAL review job boundaries handle LF, CRLF, and missing markers', () => {
-  const lf = [
-    '  review-scope:',
-    '    runs-on: ubuntu-latest',
-    '  ai-review-policy:',
-    '    runs-on: ubuntu-latest',
-  ].join('\n');
-  const crlf = lf.replaceAll('\n', '\r\n');
-  for (const source of [lf, crlf]) {
-    const { scopeStart, policyStart } = locateReviewJobs(source);
-    assert.ok(scopeStart >= 0 && policyStart > scopeStart);
-  }
-  assert.equal(locateReviewJobs('  ai-review-policy:\n').scopeStart, -1);
+  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
+  assert.ok(testJob, 'NEURAL CI must include its Python validation job');
+  assert.doesNotMatch(testJob, /^    if:/m,
+    'ordinary pull requests must not be skipped by a job-level condition');
+  assert.match(testJob, /^      - run: pytest$/m);
+
+  const topLevelPermissions = neuralCiWorkflow.match(/^permissions:\n((?:  [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  const jobPermissions = testJob.match(/^    permissions:\n((?:      [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  assert.equal(topLevelPermissions.trim(), 'contents: read');
+  assert.equal(jobPermissions.trim(), 'contents: read');
+  assert.ok(testJob.includes('python-version: ["3.11", "3.12"]'));
+  assert.ok(testJob.includes('ruff check .'));
+  assert.ok(testJob.includes('uvx --no-build --from pip-audit==2.9.0 pip-audit -r /tmp/requirements.txt'));
 });
 
-test('NEURAL review events scope the AI policy to relevant files and fail closed on lookup errors', () => {
-  const { scopeStart, policyStart } = locateReviewJobs(neuralCiWorkflow);
-  assert.ok(scopeStart >= 0 && policyStart > scopeStart,
-    'NEURAL review scope must be evaluated before the AI review policy');
-  const scope = neuralCiWorkflow.slice(scopeStart, policyStart);
-  const policy = neuralCiWorkflow.slice(policyStart);
+test('NEURAL review diagnostics remain isolated in a default-branch advisory workflow', () => {
+  const statusWorkflow = readFileSync(new URL('../.github/workflows/neural-ai-review-status.yml', import.meta.url), 'utf8');
+  assert.ok(statusWorkflow.includes('schedule:'));
+  assert.ok(statusWorkflow.includes('workflows: ["NEURAL Service CI"]'));
+  assert.ok(statusWorkflow.includes('branches: [main]'));
+  assert.ok(statusWorkflow.includes('ref: main'));
+  assert.ok(statusWorkflow.includes('statuses: write'));
+  assert.ok(!statusWorkflow.includes('\n  pull_request:\n'));
+  assert.ok(!statusWorkflow.includes('\n  pull_request_target:\n'));
 
-  assert.match(scope, /if: github\.event_name == 'pull_request_review' \|\| github\.event_name == 'pull_request_review_comment'/);
-  assert.match(scope, /gh api --paginate/);
-  assert.match(scope, /previous_filename/);
-  assert.match(scope, /pull-requests: read/);
-  assert.doesNotMatch(scope, /contents: write|pull-requests: write/);
-  assert.ok(scope.includes('fail_closed_on_api_error() {'));
-  assert.ok(scope.includes('if ! changed_file_count='));
-  assert.ok(scope.includes('if ! changed_paths='));
-  assert.ok(scope.includes("changed_file_count=\"$(gh api \"repos/${GH_REPO}/pulls/${PR_NUMBER}\" --jq '.changed_files')\""));
-  assert.ok(scope.includes('if [[ ! "$changed_file_count" =~ ^[0-9]+$ ]]; then'));
-  assert.ok(scope.includes('if (( changed_file_count >= 3000 )); then'));
-  assert.ok(scope.includes('echo "required=true" >> "$GITHUB_OUTPUT"'));
-  assert.ok(scope.includes('if grep -Eq \'^services/neural/\' <<<"$changed_paths" || grep -Fqx \'.github/workflows/neural-ci.yml\' <<<"$changed_paths"; then'));
-  assert.match(policy, /needs: \[review-scope\]/);
-  assert.match(policy, /always\(\)/);
-  assert.match(policy, /needs\.review-scope\.result != 'success'/);
-  assert.match(policy, /needs\.review-scope\.outputs\.required == 'true'/);
-  assert.match(policy, /github\.event_name == 'pull_request'/);
+  const topLevelPermissions = statusWorkflow.match(/^permissions:\n((?:  [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  const jobPermissions = statusWorkflow.match(/^    permissions:\n((?:      [a-z-]+: [a-z]+\n)+)/m)?.[1] ?? '';
+  assert.equal(topLevelPermissions.trim(), 'contents: read');
+  const writeScopes = [...jobPermissions.matchAll(/^      ([a-z-]+): write$/gm)].map((match) => match[1]);
+  assert.deepEqual(writeScopes, ['statuses']);
 });
 
 function neuralJobSection(source, name) {
@@ -332,27 +321,6 @@ function neuralJobSection(source, name) {
   }
   return remainder;
 }
-
-test('NEURAL review events serialize policy without cancelling CI validation', () => {
-  assert.equal(neuralCiWorkflow.split('\n').filter((line) => line === 'concurrency:').length, 0,
-    'workflow-level cancellation must not let a review-only event cancel the test job');
-
-  const testJob = neuralJobSection(neuralCiWorkflow, 'test');
-  const policyJob = neuralJobSection(neuralCiWorkflow, 'ai-review-policy');
-  assert.ok(testJob && policyJob, 'both NEURAL validation and review-policy jobs must exist');
-
-  assert.ok(testJob.includes("if: github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'"),
-    'review-only events must not start a duplicate full validation job');
-  assert.ok(testJob.includes('group: neural-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ matrix.python-version }}'),
-    'test runs must serialize within their own CI concurrency group');
-  assert.ok(testJob.includes('cancel-in-progress: true'),
-    'a newer code update may supersede an older test run');
-
-  assert.ok(policyJob.includes('group: neural-policy-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}'),
-    'PR and review events must serialize policy evaluations in a separate group');
-  assert.ok(policyJob.includes('cancel-in-progress: true'),
-    'new review evidence must supersede stale policy evaluations');
-});
 
 function assertGeminiAuthorizationWorkflow(item) {
   const condition = item.source.match(/^    if:\s*\$\{\{([^\r\n]*?)\}\}\s*$/m)?.[1] ?? '';
@@ -706,7 +674,7 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
   assert.ok(testJob, 'NEURAL CI must include its Python validation job');
   assert.match(testJob, /uv export --locked --extra dev --extra neon --no-emit-project --format requirements-txt --output-file \/tmp\/requirements\.txt/);
-  assert.match(testJob, /pip-audit --requirement \/tmp\/requirements\.txt/);
+  assert.match(testJob, /uvx --no-build --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
   assert.doesNotMatch(testJob, /^\s+pip-audit\s*$/m,
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
@@ -724,7 +692,7 @@ test('NEURAL dependency audit covers both development and production Neon extras
   assert.match(exportStep[0], /--extra dev/);
   assert.match(exportStep[0], /--extra neon/,
     'the audit dependency set must include Psycopg and production-only Neon dependencies');
-  assert.match(testJob, /pip-audit --requirement \/tmp\/requirements\.txt/);
+  assert.match(testJob, /uvx --no-build --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
 });
 
 test('Gemini manual PR review uses the same npm-semver CLI pin as the collaborator', () => {

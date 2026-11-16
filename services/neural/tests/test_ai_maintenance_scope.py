@@ -658,8 +658,10 @@ def test_monorepo_nvidia_maintenance_proposals_remain_human_governed():
     assert "No auto-merge, deployment, secret changes" in maintenance
     assert "Production health: NOT VERIFIED" in maintenance
 
-    assert "pull_request_review:" in neural_ci
-    assert "ai-review-policy:" in neural_ci
+    assert "pull_request:" in neural_ci
+    assert "pull_request_review:" not in neural_ci
+    assert "pull_request_review_comment:" not in neural_ci
+    assert "ai-review-policy:" not in neural_ci
+    assert "review-scope:" not in neural_ci
     assert "persist-credentials: false" in neural_ci
-    assert "github.event.pull_request.base.sha" in neural_ci
-    assert "pull-requests: read" in neural_ci
+    assert "pull-requests: read" not in neural_ci

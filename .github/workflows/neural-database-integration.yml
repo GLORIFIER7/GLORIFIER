@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-temporary
