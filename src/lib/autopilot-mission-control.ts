@@ -2,7 +2,8 @@ import { newId } from './new-id';
 import { getPostgresPool } from './db/postgres';
 import { getA2ARuntimeStatus } from './a2a-runtime';
 import { aiOrchestrator } from './ai/orchestrator';
-import { getRepositoryFreeContributorPolicy } from './ai/repository-contributor-policy.mjs';
+import { getProviderEndpointUrl } from './ai/registry';
+import { getRepositoryFreeContributorPolicy, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
 import { hasGithubAppWriteConfiguration } from './github-app-auth';
 
 export type AutopilotMissionStatus =
@@ -726,7 +727,11 @@ export function getAutopilotMissionControlStatus() {
     env: process.env,
     configuredProviders: aiOrchestrator.registry() as unknown as never[],
   });
-  const inferenceAuthorized = repositoryPolicy.authorized && repositoryPolicy.eligibleProviderCount > 0;
+  const endpointMatchedProviders = repositoryPolicy.eligibleProviders.filter(provider => {
+    const configuredEndpoint = getProviderEndpointUrl(provider.providerId) || '';
+    return normalizeRepositoryProviderEndpoint(provider.providerId, configuredEndpoint) === provider.endpointUrl;
+  });
+  const inferenceAuthorized = repositoryPolicy.authorized && endpointMatchedProviders.length > 0;
   const persistentExecutionReady = autopilotStore !== null && Boolean(process.env.DATABASE_URL)
     && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
     && a2aRuntime.durable && inferenceAuthorized;
@@ -754,7 +759,7 @@ export function getAutopilotMissionControlStatus() {
     boundedReadOnlyRetryEnabled: autopilotStore !== null,
     eventDrivenTriggersEnabled: false,
     providerInferenceEnabled: inferenceAuthorized,
-    repositoryFreeContributorCount: repositoryPolicy.eligibleProviderCount,
+    repositoryFreeContributorCount: endpointMatchedProviders.length,
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
