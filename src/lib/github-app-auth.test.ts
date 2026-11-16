@@ -164,7 +164,7 @@ test('GitHub App authentication rejects missing app credentials before making an
       requested = true;
       return Response.json({});
     }, now),
-    /owner-controlled GitHub App credentials are not configured/,
+    /Owner-controlled GitHub App credentials are not configured/,
   );
   assert.equal(requested, false);
 });
