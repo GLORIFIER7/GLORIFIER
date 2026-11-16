@@ -147,7 +147,7 @@ test('GitHub App installation token fails closed unless both required write perm
   } });
   await assert.rejects(
     () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
-    /contents:write and pull_requests:write/,
+    /contents:write, pull_requests:write/,
   );
 });
 
@@ -189,7 +189,7 @@ test('GitHub App fails closed when it has permissions outside the approved write
   } });
   await assert.rejects(
     () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
-    /only contents:write and pull_requests:write/,
+    /only contents:write, pull_requests:write/,
   );
 });
 
@@ -202,7 +202,7 @@ test('GitHub App fails closed when installation token carries an extra permissio
   } });
   await assert.rejects(
     () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
-    /only contents:write and pull_requests:write/,
+    /only contents:write, pull_requests:write/,
   );
 });
 
