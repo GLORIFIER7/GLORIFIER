@@ -439,3 +439,12 @@ test('requires the exact attested model ID to be present in the configured provi
   });
   assert.deepEqual(eligible, []);
 });
+
+test('a mission public-content approval can be revoked before a subsequent provider request', () => {
+  const env = {
+    GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON: JSON.stringify(['mission-revocable']),
+  };
+  assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-revocable'), true);
+  env.GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON = '[]';
+  assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-revocable'), false);
+});
