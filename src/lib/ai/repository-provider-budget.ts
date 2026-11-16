@@ -132,7 +132,7 @@ export function estimateRepositoryInputTokenUpperBound(messages: readonly { role
   if (!Array.isArray(messages) || messages.length === 0) throw new Error('Repository contribution messages are required.');
   const bytes = messages.reduce((total, message) => {
     if (!message || typeof message.role !== 'string' || !message.role.trim() ||
-        typeof message.content !== 'string') {
+        typeof message.content !== 'string' || !message.content.trim()) {
       throw new Error('Repository contribution messages must contain a valid role and text.');
     }
     // UTF-8 byte count is a conservative content estimate. Add explicit per-
