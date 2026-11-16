@@ -54,3 +54,13 @@ test('A2A TCK publishes reports as an immutable artifact without granting reposi
   assert.match(workflow, /reports\//);
   assert.match(workflow, /persist-credentials: false/);
 });
+
+test('A2A TCK gives distinct staging configuration errors and rejects reserved placeholder hosts', () => {
+  assert.match(workflow, /if not allowed_host:/);
+  assert.match(workflow, /GLORIFIER_A2A_TCK_STAGING_HOST must be configured as a hostname only/);
+  assert.match(workflow, /if not token:/);
+  assert.match(workflow, /GLORIFIER_A2A_TCK_STAGING_BEARER_TOKEN must be configured as an environment secret/);
+  assert.match(workflow, /example\\.com|example\\.net|example\\.org/);
+  assert.match(workflow, /reserved placeholder hostname/);
+  assert.match(workflow, /endpoint\\.hostname\\.lower\\(\\) != parsed\\.hostname\\.lower\\(\\)/);
+});
