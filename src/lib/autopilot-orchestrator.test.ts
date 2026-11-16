@@ -371,11 +371,11 @@ test('Repository contribution attribution escapes backslashes before Markdown ta
     'mission-471',
     'glorifier-contributor',
     { provider: unsafeProvider, model: unsafeModel },
-    [],
+    [{ role: { id: 'engineering-scientist' }, provider: unsafeProvider, model: unsafeModel }],
   );
 
-  assert.equal(attribution.aiCeo.provider, unsafeProvider, 'structured provenance retains the sanitized provider identity');
-  assert.equal(attribution.aiCeo.model, unsafeModel, 'structured provenance retains the sanitized model identity');
+  assert.equal(attribution.specialists[0].provider, unsafeProvider, 'structured provenance retains the provider identity');
+  assert.equal(attribution.specialists[0].model, unsafeModel, 'structured provenance retains the model identity');
   const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
-  assert.ok(body.includes('| ' + expectedProvider + ' | ' + expectedModel + ' |'));
+  assert.ok(body.includes('| engineering-scientist | ' + expectedProvider + ' | ' + expectedModel + ' |'));
 });
