@@ -1,4 +1,5 @@
 import { aiOrchestrator } from './orchestrator';
+import { buildRepositoryCouncilAssignments } from './repository-contributor-policy.mjs';
 import type { AIProviderId, AIResponse } from './types';
 
 export type SpecialistDomain =
@@ -73,6 +74,7 @@ export interface CouncilRequest {
   objective: string;
   roles?: string[];
   providerIds?: AIProviderId[];
+  providerSelections?: Array<{ providerId: AIProviderId; modelId: string }>;
   temperature?: number;
   standingMission?: boolean;
 }
@@ -138,9 +140,21 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
   ).slice(0, 40);
 
   const standingMission = request.standingMission === true;
-  const responses = await Promise.allSettled(selected.map(async (role) => {
+  const explicitAssignments = request.providerSelections === undefined
+    ? null
+    : buildRepositoryCouncilAssignments(request.providerSelections, selected);
+  if (request.providerSelections !== undefined && (!explicitAssignments || explicitAssignments.length === 0)) {
+    throw new Error('Repository free-tier council requires at least one eligible provider/model assignment.');
+  }
+  const executionUnits = explicitAssignments ?? selected.map((role) => ({
+    role,
+    providerId: 'auto' as AIProviderId,
+    modelId: undefined as string | undefined
+  }));
+  const responses = await Promise.allSettled(executionUnits.map(async ({ role, providerId, modelId }) => {
     const response = await aiOrchestrator.generate({
-      provider: 'auto',
+      provider: providerId,
+      ...(modelId ? { model: modelId } : {}),
       messages: [
         { role: 'system', content: specialistPrompt(role, request.objective, standingMission) },
         { role: 'user', content: request.objective }
@@ -168,6 +182,7 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
     standingMission: standingMission ? STANDING_REVENUE_MISSION : null,
     availableRoles: specialistRoles,
     selectedRoles: selected,
+    providerAssignments: explicitAssignments?.map(({ role, providerId, modelId }) => ({ roleId: role.id, providerId, modelId })) ?? null,
     result: reconcile(request.objective, findings)
   };
 }
