@@ -558,3 +558,29 @@ This checkpoint records source and branch-CI changes proposed in GLORIFIER PR [#
 - A2A/MCP external protocol conformance, a live authenticated GLORIFIER–NEURAL task exchange, canonical organization identity, cryptographic agent identity, runtime sandbox isolation, GPU/Kubernetes/NVIDIA Dynamo execution, fresh chain RPC observations, provider billing reconciliation, and independent economic outcomes remain **NOT VERIFIED**.
 
 **Decision:** Issue #471 remains OPEN. The branch hardens the source-level A2A/NEURAL orchestration path and adds a guarded external conformance workflow; it does not certify live interoperability or production execution.
+
+
+## MCP 2026-07-28 external TCK execution checkpoint — 2026-11-16 12:01 UTC / 19:01 Asia/Vientiane
+
+This checkpoint supersedes the earlier 2026-11-13 statement that the external MCP TCK had not yet been dispatched. The owner-dispatched, read-only workflow was run twice against the public Pages MCP ingress, `https://glorifier.pages.dev/mcp`, using main source commit `eebc2fa17b32fa1cbe05b4bf888b5c7f68eda984`.
+
+| Run | Official MCP 2026-07-28 server requirements | Legacy 2025-11-25 tools-list | Modern stateless smoke |
+|---|---|---|---|
+| [#43860648984](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43860648984) | Failed — 64 passed, 97 failed | Passed | Passed |
+| [#43862723023](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43862723023) | Failed — 64 passed, 96 failed | Passed | Failed — HTTP 429 |
+
+### What the runs establish
+
+- Both runs passed exact HTTPS endpoint/hostname validation, pinned official conformance-runner checkout, and runner installation/build.
+- The legacy tools-list compatibility scenario passed in both runs.
+- The official frozen 2026-07-28 server requirements suite failed in both runs. The run summaries include failures in server-stateless behavior, completion, multimedia and embedded tool content, progress, resources, prompts, DNS-rebinding protection, caching, and input-request capabilities.
+- The runner separately identified 13 extension/pending scenarios (12 failing) as **not scored** and explicitly stated that those scenarios do not affect conformance. The suite's overall failing exit status remains; the unscored cases are not being represented as scored failures.
+- In run #2, the modern smoke was ordered after the full suite and its final read-only `tools/call` returned HTTP 429. Run #1's smoke passed. This isolated CI-ordering issue is addressed by GLORIFIER PR [#902](https://github.com/GLORIFIER7/GLORIFIER/pull/902): the smoke is moved ahead of the high-volume TCK, while the official suite remains enabled independently and retains its failure signal. PR #902's checks are the acceptance gate for that workflow repair.
+
+### Evidence boundary and decision
+
+The production endpoint was reached by the official runner and passed legacy tools-list, but the official 2026-07-28 server requirements did not pass. The four-tool public GitHub bridge intentionally does not implement the wider resource, prompt, multimedia, sampling/elicitation, and other general-purpose MCP surface tested by the suite. This checkpoint is not a reason to add ungoverned capabilities or weaken the official TCK.
+
+No independent external MCP client handshake, A2A TCK, authenticated two-agent exchange, Linux-host enrollment, provider inference, paid action, Worker deployment, or production setting mutation was performed during these runs. The overall `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**.
+
+**Decision:** Issue #471 remains OPEN. The test-order false-negative is being repaired in PR #902; the actual MCP full-server conformance, A2A interoperability, Linux host, identity, NEURAL execution, GPU/provider, and economic evidence gates remain separate and incomplete.
