@@ -24,7 +24,8 @@ The feature/cloudflare-workers-ai-free-only branch introduces:
 - A binding-only asynchronous Workers AI adapter with one exact model allowlist.
 - A separate runtime gate that does not reuse paid-inference authorization or external-egress consent.
 - Tests for unknown model rejection, missing binding, non-Free plan rejection, paid-provider denial, bounded prompts/responses, and the explicit Workers AI route.
-- A Wrangler AI binding that is inert by default: GLORIFIER_WORKERS_PLAN=unverified, GLORIFIER_WORKERS_AI_FREE_ONLY=false, GLORIFIER_ENABLE_INFERENCE=false, and paid/external egress flags remain false.
+- The Workers AI binding is deliberately omitted from the Wrangler configuration while the account plan and model eligibility remain unverified. Cloudflare documents that local development with a Workers AI binding accesses the account and can incur usage charges; routine CI therefore stays local and does not exercise the model.
+- The adapter is tested with an isolated fake binding only. Add the real binding only after authorized plan/model verification and a separately approved, bounded inference test. The plan and inference flags remain fail-closed by default.
 
 This branch is not production deployment evidence. The adapter has not yet passed CI, a live free-plan verification, or a controlled real-model smoke test. Until those steps succeed, production inference remains DISABLED / FREE-ONLY PATH NOT YET VERIFIED.
 
