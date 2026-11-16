@@ -181,7 +181,8 @@ test('only configured providers with valid attestations enter the repository con
     attestation('nvidia', 'developer-program', {
       evidenceUrl: 'https://docs.api.nvidia.com/nim/docs/product',
       developerProgramActive: true,
-      nonProduction: true
+      nonProduction: true,
+      billingEnabled: false
     }),
     attestation('xai', 'promotional-credits', {
       evidenceUrl: 'https://console.x.ai/team/default/billing',
