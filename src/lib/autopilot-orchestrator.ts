@@ -87,7 +87,15 @@ async function generateRepositoryFreeProvider(
   selection: RepositoryProviderSelection,
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   temperature: number,
+  missionId: string,
 ) {
+  const assertMissionPublicContentApproval = () => {
+    if (!isRepositoryMissionPublicContentApproved(process.env, missionId)) {
+      throw new Error('Repository AI contribution is blocked: public-content approval for this exact mission was revoked or is missing.');
+    }
+  };
+  assertMissionPublicContentApproval();
+
   if (!Array.isArray(messages) || !isSafeRepositoryContributionInput(messages)) {
     throw new Error('Repository contribution input was withheld because it is oversized or may contain credentials.');
   }
@@ -120,6 +128,9 @@ async function generateRepositoryFreeProvider(
     limits: currentSelection.limits,
     inputTokenUpperBound,
   });
+  // Quota reservation can await the database. Recheck owner approval after
+  // that await and immediately before handing content to the provider adapter.
+  assertMissionPublicContentApproval();
   return aiOrchestrator.generate({
     provider: currentSelection.providerId,
     model: currentSelection.modelId,
@@ -394,7 +405,7 @@ async function planMission(objective: string, missionId: string) {
     generateProvider: (selection, messages, temperature) => {
       const attested = providerSelections.find(provider => provider.providerId === selection.providerId && provider.modelId === selection.modelId);
       if (!attested) throw new Error('Specialist Council requested a provider/model outside the owner-attested free contributor pool.');
-      return generateRepositoryFreeProvider(attested, messages, temperature);
+      return generateRepositoryFreeProvider(attested, messages, temperature, missionId);
     },
     temperature: 0.1,
   });
@@ -419,7 +430,7 @@ async function planMission(objective: string, missionId: string) {
       },
     ];
     try {
-      const discovery = await generateRepositoryFreeProvider(discoveryProvider, discoveryMessages, 0.1);
+      const discovery = await generateRepositoryFreeProvider(discoveryProvider, discoveryMessages, 0.1, missionId);
       const discoveryText = discovery.text.trim()
         .replace(/^\`\`\`(?:json)?\s*/i, '')
         .replace(/\s*\`\`\`$/, '');
@@ -516,7 +527,7 @@ async function planMission(objective: string, missionId: string) {
   if (!executiveInputFits) {
     throw new Error('Owner-attested provider input ceiling is too small for the bounded executive plan; no inference was sent.');
   }
-  const executive = await generateRepositoryFreeProvider(executiveProvider, executiveMessages, 0.1);
+  const executive = await generateRepositoryFreeProvider(executiveProvider, executiveMessages, 0.1, missionId);
   const steps = validateAutopilotPlan(executive.text, {
     expectedBranch,
     allowWrites: writePlanningEnabled,
@@ -772,7 +783,7 @@ export async function processNextAutopilotMission(
             content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
           },
           { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
-        ], 0.1);
+        ], 0.1, planned.id);
         return { text: response.text, model: `${response.provider}:${response.model}` };
       });
       if (completed.status !== 'completed' || !completed.evidenceId) {
