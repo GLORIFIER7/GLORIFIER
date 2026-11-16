@@ -246,3 +246,33 @@ Secret changes are release-sensitive. Do not use Dashboard Deploy or `wrangler s
 7. Do not enable provider egress, perform inference, execute authenticated tasks, or enable write persistence until the owner has separately approved the provider cost/data-transmission boundary and the necessary least-privilege persistence design.
 
 No deployment, secret mutation, provider request, inference, authenticated task, database migration, wallet action, or financial operation was performed for this observation.
+
+## Current production configuration observation — 2026-11-16
+
+Read-only Cloudflare settings were retrieved between 2026-11-16T06:26:29Z and 2026-11-16T06:27:45Z (UTC). This records configuration only; it does not establish provider availability, task execution, or inference.
+
+### NEURAL Worker non-secret configuration
+
+The glorifier-neural Worker reported:
+
+- GLORIFIER_PROVIDER=openai
+- GLORIFIER_NEON_CONNECTIVITY_ENABLED=true
+- GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false
+- GLORIFIER_ENABLE_INFERENCE=false
+- GLORIFIER_PAID_INFERENCE_AUTHORIZED=false
+
+Secret-binding names present were GLORIFIER_API_TOKEN, GLORIFIER_INTERNAL_SERVICE_TOKEN, NVIDIA_NIM_API_KEY, and OPENAI_API_KEY. Only names were inspected; no secret values were read.
+
+### Live observability privacy settings
+
+A read-only script-settings read between 2026-11-16T06:27:42Z and 2026-11-16T06:27:45Z reported observability.redact_query_string=false for both glorifier and glorifier-neural. Logs and traces were enabled and persisted on both Workers. Query strings are therefore not yet redacted at the live Worker-settings layer. GLORIFIER PR #894 adds redact_query_string: true to both tracked Wrangler configurations and regression tests, but is source-only and has not been deployed. Do not claim the production privacy setting is fixed until a reviewed deployment and fresh Cloudflare read-back confirm true.
+
+The November 5 and November 10 production flags recorded elsewhere in this document are historical and superseded for the non-secret values listed above. Keep external data egress, inference, and paid-inference authorization disabled. A same-day earlier unauthenticated probe reported NEURAL process liveness as PARTIALLY VERIFIED and /ready HTTP 503; readiness must be freshly checked before any later release announcement. Do not enable egress or inference merely to turn readiness green, and do not submit prompts or authenticated tasks without separate owner authorization.
+
+## CI dependency maintenance
+
+### Disposable PostgreSQL image digest
+
+The disposable PostgreSQL service in .github/workflows/neural-database-integration.yml is pinned to postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9. Treat this digest as a manually reviewed dependency; do not assume Dependabot automatically refreshes this service-container field in workflow YAML.
+
+During monthly dependency review, verify the official PostgreSQL 16 image and its immutable digest, update the service image in .github/workflows/neural-database-integration.yml, update the corresponding digest assertion in services/neural/tests/test_migration_contracts.py, run the focused NEURAL migration-contract tests, and execute the disposable PostgreSQL migration workflow on the proposed branch. Keep the major version at 16 unless a separate compatibility review authorizes a major upgrade.
