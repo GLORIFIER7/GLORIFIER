@@ -9,6 +9,7 @@ import { authorizeCapability } from './capability-authorization';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
+import { hasGithubAppWriteConfiguration, type GithubAppWriterIdentity } from './github-app-auth';
 import {
   claimNextAutopilotMission,
   recordAutopilotMissionPlan,
@@ -125,6 +126,99 @@ export function isAutopilotRepositoryFreeInferenceAuthorized(
 ): boolean {
   const policy = getAutopilotRepositoryContributorPolicy(env, configuredProviders, now);
   return policy.authorized && policy.eligibleProviderCount > 0;
+}
+
+
+export interface RepositoryContributionAttribution {
+  schemaVersion: 1;
+  missionId: string;
+  writerIdentity: {
+    type: 'github-app';
+    login: string;
+    appSlug: string;
+    appOwner: 'GLORIFIER7';
+  };
+  aiCeo: { provider: string; model: string };
+  specialists: Array<{ role: string; provider: string; model: string }>;
+  attributionBasis: 'GLORIFIER runtime response metadata; not provider-signed';
+}
+
+const attributionText = (value: unknown, maximum = 120): string =>
+  (typeof value === 'string' ? value : String(value ?? 'unknown'))
+    .replace(/[\\u0000-\\u001f\\u007f]/g, ' ')
+    .replace(/[<>\x60]/g, '')
+    .replace(/\|/g, '\\\\|')
+    .replace(/\\s+/g, ' ')
+    .trim()
+    .slice(0, maximum) || 'unknown';
+
+export function buildRepositoryContributionAttribution(
+  missionId: string,
+  writerAppSlug: string,
+  aiCeo: { provider: string; model: string },
+  findings: Array<{ role: { id: string }; provider: string; model: string }>,
+): RepositoryContributionAttribution {
+  if (!/^[a-z0-9-]{1,100}$/.test(writerAppSlug)) {
+    throw new Error('A validated GLORIFIER GitHub App slug is required for contribution attribution.');
+  }
+  const specialists = [...new Map(findings.slice(0, 16).map(finding => {
+    const record = {
+      role: attributionText(finding.role?.id, 80),
+      provider: attributionText(finding.provider, 80),
+      model: attributionText(finding.model, 120),
+    };
+    return [record.role + '|' + record.provider + '|' + record.model, record] as const;
+  })).values()];
+  return {
+    schemaVersion: 1,
+    missionId: attributionText(missionId, 128),
+    writerIdentity: {
+      type: 'github-app',
+      login: writerAppSlug + '[bot]',
+      appSlug: writerAppSlug,
+      appOwner: 'GLORIFIER7',
+    },
+    aiCeo: {
+      provider: attributionText(aiCeo.provider, 80),
+      model: attributionText(aiCeo.model, 120),
+    },
+    specialists,
+    attributionBasis: 'GLORIFIER runtime response metadata; not provider-signed',
+  };
+}
+
+export function appendRepositoryContributionAttribution(
+  body: string,
+  attribution: RepositoryContributionAttribution,
+): string {
+  const rows = attribution.specialists.length
+    ? attribution.specialists.map(item => '| ' + item.role + ' | ' + item.provider + ' | ' + item.model + ' |').join('\\n')
+    : '| No specialist response recorded | — | — |';
+  const section = [
+    '## AI contribution attribution',
+    '',
+    '- **Official GitHub writer:** `' + attribution.writerIdentity.login + '` (owner-controlled GitHub App)',
+    '- **Mission:** `' + attribution.missionId + '`',
+    '- **AI CEO:** `' + attribution.aiCeo.provider + ' / ' + attribution.aiCeo.model + '`',
+    '',
+    '| Specialist role | Provider | Model |',
+    '| --- | --- | --- |',
+    rows,
+    '',
+    'Attribution is recorded from GLORIFIER runtime response metadata. It is not a provider-signed authorship claim or independent review approval.',
+    '',
+    '<!-- GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1',
+    JSON.stringify(attribution),
+    '-->',
+  ].join('\\n');
+  const original = body.trim();
+  const separator = original ? '\\n\\n' : '';
+  const available = 20_000 - separator.length - section.length;
+  if (available < 0) throw new Error('AI contribution attribution exceeds the pull-request body limit.');
+  const preserved = original.length > available
+    ? original.slice(0, Math.max(0, available - 70)) + '\\n\\n[AI-generated PR description truncated to preserve contribution provenance.]'
+    : original;
+  return preserved + (preserved ? separator : '') + section;
 }
 
 export function getAutopilotMaintenanceBranchName(missionId: string): string {
@@ -270,10 +364,10 @@ async function planMission(objective: string, missionId: string) {
   });
   if (council.result.findings.length === 0) throw new Error('Specialist Council returned no findings; planning is blocked.');
 
-  const writeToken = String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim();
+  const writeIdentityConfigured = hasGithubAppWriteConfiguration();
   const expectedBranch = getAutopilotMaintenanceBranchName(missionId);
   const inspectedFiles: Array<{ path: string; content: string; expectedContentSha256: string; sourceSha256: string }> = [];
-  if (writeToken) {
+  if (writeIdentityConfigured) {
     const discoveryProvider = providerSelections[0];
     const discoveryMessages = [
       {
@@ -321,7 +415,7 @@ async function planMission(objective: string, missionId: string) {
     }
   }
 
-  const writePlanningEnabled = Boolean(writeToken && inspectedFiles.length > 0);
+  const writePlanningEnabled = Boolean(writeIdentityConfigured && inspectedFiles.length > 0);
   const systemPrompt = writePlanningEnabled
     ? [
         'You are the GLORIFIER AI CEO. Prepare a bounded repository repair as an isolated branch and draft pull request. Never change main.',
@@ -371,10 +465,35 @@ async function planMission(objective: string, missionId: string) {
     inspectedPaths: inspectedFiles.map(file => file.path),
     expectedSourceHashes: Object.fromEntries(inspectedFiles.map(file => [file.path, file.expectedContentSha256])),
   });
+  const contributionAttribution = buildRepositoryContributionAttribution(
+    missionId,
+    String(process.env.GLORIFIER_GITHUB_APP_SLUG || ''),
+    { provider: executive.provider, model: executive.model },
+    council.result.findings.map(finding => ({
+      role: finding.role,
+      provider: finding.provider,
+      model: finding.model,
+    })),
+  );
+  const attributedSteps = writePlanningEnabled
+    ? steps.map(step => step.capability === 'github.create_pull_request'
+      ? {
+          ...step,
+          toolArguments: {
+            ...step.toolArguments,
+            body: appendRepositoryContributionAttribution(
+              String(step.toolArguments?.body || ''),
+              contributionAttribution,
+            ),
+          },
+        }
+      : step)
+    : steps;
   return {
-    steps,
+    steps: attributedSteps,
     council,
     executive: { provider: executive.provider, model: executive.model },
+    contributionAttribution,
     repositoryWritePlanningEnabled: writePlanningEnabled,
   };
 }
@@ -390,7 +509,7 @@ const authorizeStep = (step: AutopilotMissionPlanStep) => {
     throw new Error(`Autopilot step ${step.id} has an invalid effect for a read-only operation.`);
   }
   if (isRepositoryWrite && (step.effect !== 'reversible' ||
-      !String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim())) {
+      !hasGithubAppWriteConfiguration())) {
     throw new Error(`Autopilot step ${step.id} requires the scoped GitHub write adapter and reversible branch-only policy.`);
   }
   if (!isReadOnly && !isRepositoryWrite) {
@@ -508,6 +627,7 @@ export async function processNextAutopilotMission(
     let planningMetadata: {
       executive: { provider: string; model: string };
       council: { result: { specialistCount: number; conflicts: unknown } };
+      contributionAttribution: RepositoryContributionAttribution;
     } | null = null;
     let planned: AutopilotMission;
 
@@ -520,7 +640,7 @@ export async function processNextAutopilotMission(
       planned = await recordAutopilotMissionPlan(
         store, mission.id, current.version, WORKER_ID, plan.steps, clock(),
       );
-      planningMetadata = { executive: plan.executive, council: plan.council };
+      planningMetadata = { executive: plan.executive, council: plan.council, contributionAttribution: plan.contributionAttribution };
       resumeHeartbeat();
     } else {
       // Existing steps are resumed only when the durable store preserved a prior
@@ -539,6 +659,7 @@ export async function processNextAutopilotMission(
       executionSha256: string;
       verifierId: string;
       sourceUrl: string;
+      writerIdentity: GithubAppWriterIdentity | null;
     }> = [];
 
     for (const step of planned.steps) {
@@ -630,6 +751,7 @@ export async function processNextAutopilotMission(
         executionSha256: execution.executionSha256,
         verifierId: execution.verification.verifierId,
         sourceUrl: execution.verification.sourceUrl,
+        writerIdentity: execution.writerIdentity,
       });
       if (saved.status !== 'completed') resumeHeartbeat();
       else break;
@@ -643,6 +765,8 @@ export async function processNextAutopilotMission(
       aiCeo: planningMetadata?.executive ?? null,
       specialistCount: planningMetadata?.council.result.specialistCount ?? null,
       specialistConflicts: planningMetadata?.council.result.conflicts ?? null,
+      contributionAttribution: planningMetadata?.contributionAttribution ?? null,
+      githubWriterIdentity: results.find(result => result.writerIdentity)?.writerIdentity ?? null,
       dispatchedSteps: results,
       verification: finalMission?.verificationState === 'verified'
         ? 'INDEPENDENT_GITHUB_SOURCE_MATCH'
@@ -679,7 +803,7 @@ export function getAutopilotOrchestrationStatus() {
   // Repository maintenance is free-tier-only. Legacy paid-inference flags do not
   // authorize this contributor path and cannot act as a paid fallback.
   const inferenceAuthorized = repositoryPolicy.authorized && providerReady;
-  const repositoryWriteEnabled = Boolean(String(process.env.GLORIFIER_GITHUB_WRITE_TOKEN || '').trim());
+  const repositoryWriteEnabled = hasGithubAppWriteConfiguration();
   const a2aRuntime = getA2ARuntimeStatus();
   const runtimeEnabled = persistence.available && Boolean(process.env.DATABASE_URL)
     && Boolean(String(process.env.GLORIFIER_A2A_SIGNING_SECRET || '').trim())
