@@ -12,6 +12,7 @@ import { verifyEthereumGLRTransfer } from './src/lib/glr-ethereum-verifier';
 import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
 import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
+import { initializeRepositoryProviderBudget } from './src/lib/ai/repository-provider-budget';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { DEFAULT_MODEL_COUNCIL_TIMEOUT_MS, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
 import { executeModelCouncilRequest } from './src/lib/ai/model-council-execution.mjs';
@@ -4151,6 +4152,7 @@ async function initializeBackend(): Promise<void> {
   }
 
   const initializers: Array<[string, () => Promise<unknown>]> = [
+    ['repository free AI provider quota ledger', initializeRepositoryProviderBudget],
     ['federated A2A v3 persistence', initializeFederatedA2AV3],
     ['agent task persistence', initializeAgentRuntimePersistence],
     ['Autopilot mission persistence', initializeAutopilotMissionControl],
