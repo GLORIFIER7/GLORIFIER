@@ -128,9 +128,12 @@ def test_workers_ai_adapter_rejects_invalid_or_oversized_responses():
         free_only_enabled=True,
     )
 
-    for adapter in (empty, oversized, malformed):
+    for adapter in (empty, oversized):
         with pytest.raises(RuntimeError):
             asyncio.run(adapter.ainfer("safe synthetic prompt"))
+
+    with pytest.raises(TypeError):
+        asyncio.run(malformed.ainfer("safe synthetic prompt"))
 
 
 def test_runtime_registers_workers_ai_only_when_all_free_only_gates_are_satisfied():
