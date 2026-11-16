@@ -94,7 +94,8 @@ def build_orchestrator_from_environment(
             workers_plan=workers_plan,
             free_only_enabled=free_only_enabled,
         )
-        if workers_ai.is_configured():
+        workers_ai_configured = workers_ai.is_configured()
+        if workers_ai_configured:
             registry.register(workers_ai)
 
         # Workers AI is a distinct binding-only path. It is never allowed to
@@ -102,7 +103,7 @@ def build_orchestrator_from_environment(
         # for the exact Workers Free + free-only opt-in.
         enabled = (
             inference_enabled
-            and workers_ai.is_configured()
+            and workers_ai_configured
             and not external_egress_allowed
             and not paid_inference_authorized
         )
