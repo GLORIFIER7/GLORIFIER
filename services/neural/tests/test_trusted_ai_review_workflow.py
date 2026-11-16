@@ -151,3 +151,18 @@ def test_monorepo_trusted_status_publisher_uses_least_privilege_permissions():
         "      statuses: write",
     ]
     assert "${{ secrets." not in workflow
+
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo AI-review documentation contract")
+def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
+    documentation = (
+        SERVICE_ROOT / "docs" / "AI_REVIEW_POLICY.md"
+    ).read_text(encoding="utf-8")
+
+    assert "advisory only" in documentation.lower()
+    assert "not a required merge status" in documentation.lower()
+    assert "The blocking AI-review job is removed" in documentation
+    assert "ruleset 24038955" in documentation
+    assert "2026-11-16" in documentation
+    assert "current_user_can_bypass: always" in documentation
+    assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
+
