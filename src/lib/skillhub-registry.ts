@@ -231,7 +231,7 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
   else {
     try { assertExternalHttpsUrl(sourceUrl); } catch (error) { errors.push((error as Error).message); }
   }
-  if (!PINNED_REVISION.test(sourceRevision)) errors.push('sourceRevision must be an immutable 40/64-character commit or SHA-256 digest');
+  if (!PINNED_REVISION.test(sourceRevision)) errors.push('source revision must be an immutable 40/64-character commit or SHA-256 digest');
   if (!license || license.length > 120 || /[\u0000-\u001f\u007f]/.test(license) || /^(?:unknown|unlicensed|noassertion)$/i.test(license)) {
     errors.push('license must be an explicit, reviewable license identifier or expression');
   }
