@@ -125,7 +125,8 @@
     "test:continuous-improvement-agent": "node --test scripts/continuous-improvement-agent.test.mjs",
     "test:autopilot-worker-store": "node --import tsx/esm --test src/lib/autopilot-worker-store.test.ts",
     "test:autopilot-worker-route": "node --import tsx/esm --test src/lib/autopilot-worker-route.test.ts",
-    "test:autopilot-worker-migration": "node --test scripts/autopilot-worker-migration-contract.test.mjs"
+    "test:autopilot-worker-migration": "node --test scripts/autopilot-worker-migration-contract.test.mjs",
+    "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
