@@ -674,7 +674,7 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
   assert.ok(testJob, 'NEURAL CI must include its Python validation job');
   assert.match(testJob, /uv export --locked --extra dev --extra neon --no-emit-project --format requirements-txt --output-file \/tmp\/requirements\.txt/);
-  assert.match(testJob, /uvx --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
+  assert.match(testJob, /uvx --no-build --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
   assert.doesNotMatch(testJob, /^\s+pip-audit\s*$/m,
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
@@ -692,7 +692,7 @@ test('NEURAL dependency audit covers both development and production Neon extras
   assert.match(exportStep[0], /--extra dev/);
   assert.match(exportStep[0], /--extra neon/,
     'the audit dependency set must include Psycopg and production-only Neon dependencies');
-  assert.match(testJob, /uvx --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
+  assert.match(testJob, /uvx --no-build --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
 });
 
 test('Gemini manual PR review uses the same npm-semver CLI pin as the collaborator', () => {
