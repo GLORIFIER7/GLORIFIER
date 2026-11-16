@@ -9,9 +9,6 @@
   "workers_dev": true,
   "preview_urls": false,
   "previews": {},
-  "ai": {
-    "binding": "AI"
-  },
   "ratelimits": [
     {
       "name": "GLORIFIER_RATE_LIMITER",
