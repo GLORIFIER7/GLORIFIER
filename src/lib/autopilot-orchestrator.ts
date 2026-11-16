@@ -256,7 +256,7 @@ async function planMission(objective: string, missionId: string) {
   if (!repositoryPolicy.authorized || repositoryPolicy.eligibleProviders.length === 0) {
     throw new Error('Repository AI contribution is blocked: configure at least one currently owner-attested free provider, keep all paid routes disabled, and verify the exact account quota.');
   }
-  const providerSelections: RepositoryProviderSelection[] = repositoryPolicy.eligibleProviders.slice(0, 8);
+  const providerSelections: RepositoryProviderSelection[] = repositoryPolicy.eligibleProviders.slice(0, 16);
   const council = await runSpecialistCouncil({
     objective: `Analyze this mission and identify constraints, risks, and acceptance criteria: ${objective}`,
     roles: COUNCIL_ROLES,
