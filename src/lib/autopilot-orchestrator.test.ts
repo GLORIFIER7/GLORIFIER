@@ -379,3 +379,39 @@ test('Repository contribution attribution escapes backslashes before Markdown ta
   const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
   assert.ok(body.includes('| engineering-scientist | ' + expectedProvider + ' | ' + expectedModel + ' |'));
 });
+
+test('Autopilot free-provider authorization rejects an attested model absent from the configured provider catalog', () => {
+  const now = '2026-11-16T15:00:00.000Z';
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
+    GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([{
+      providerId: 'gemini',
+      mode: 'vendor-free-tier',
+      status: 'owner-attested',
+      modelId: 'gemini-attested-model',
+      endpointUrl: 'https://generativelanguage.googleapis.com',
+      evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+      attestedAt: '2026-11-16T14:00:00.000Z',
+      expiresAt: '2026-11-16T16:00:00.000Z',
+      monthlyPaidSpendLimitUsd: 0,
+      autoTopUpEnabled: false,
+      payAsYouGoEnabled: false,
+      paidFallbackEnabled: false,
+      monthlyInvoicingEnabled: false,
+      billingEnabled: false,
+      modelFree: true,
+      requestsPerMinute: 10,
+      requestsPerDay: 100,
+      maxTokensPerDay: 60000,
+      maxInputTokens: 12000,
+      maxOutputTokens: 2048,
+    }]),
+  };
+  assert.equal(isAutopilotRepositoryFreeInferenceAuthorized(env, [
+    { id: 'gemini', status: 'connected', models: ['different-model'] },
+  ], now), false);
+});
