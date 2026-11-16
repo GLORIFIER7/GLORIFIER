@@ -509,6 +509,7 @@ async function planMission(objective: string, missionId: string) {
   if (!executiveInputFits) {
     throw new Error('Owner-attested provider input ceiling is too small for the bounded executive plan; no inference was sent.');
   }
+  const executive = await generateRepositoryFreeProvider(executiveProvider, executiveMessages, 0.1);
   const steps = validateAutopilotPlan(executive.text, {
     expectedBranch,
     allowWrites: writePlanningEnabled,
