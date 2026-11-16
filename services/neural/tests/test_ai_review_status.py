@@ -498,3 +498,7 @@ def test_monorepo_neural_trusted_status_publisher_is_scheduled_from_main():
     assert "statuses: write" in workflow
     assert "ref: main" in workflow
     assert "run: python -m app.ai_review_status" in workflow
+    assert not re.search(
+        r"(?m)^  pull_request(?:_target|_review|_review_comment)?:",
+        workflow,
+    )
