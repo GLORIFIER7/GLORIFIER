@@ -3,7 +3,7 @@ import { aiCeoPolicy } from './ai-ceo';
 import { aiOrchestrator } from './ai/orchestrator';
 import { getProviderEndpointUrl } from './ai/registry';
 import { runSpecialistCouncil } from './ai/specialist-council';
-import { getRepositoryFreeContributorPolicy, isSafeRepositoryContributionInput, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
+import { getRepositoryFreeContributorPolicy, isSafeRepositoryContributionInput, isRepositoryMissionPublicContentApproved, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
 import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderRequest, type RepositoryProviderUsageLimits } from './ai/repository-provider-budget';
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
@@ -88,7 +88,7 @@ async function generateRepositoryFreeProvider(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   temperature: number,
 ) {
-  if (!Array.isArray(messages) || messages.some(message => !isSafeRepositoryContributionInput(message.content))) {
+  if (!Array.isArray(messages) || !isSafeRepositoryContributionInput(messages)) {
     throw new Error('Repository contribution input was withheld because it is oversized or may contain credentials.');
   }
 
@@ -379,6 +379,9 @@ export function validateAutopilotPlan(
 }
 
 async function planMission(objective: string, missionId: string) {
+  if (!isRepositoryMissionPublicContentApproved(process.env, missionId)) {
+    throw new Error('Repository AI contribution is blocked: this exact mission ID has no owner-approved public-content egress attestation.');
+  }
   const repositoryPolicy = getAutopilotRepositoryContributorPolicy();
   if (!repositoryPolicy.authorized || repositoryPolicy.eligibleProviders.length === 0) {
     throw new Error('Repository AI contribution is blocked: configure at least one currently owner-attested free provider, keep all paid routes disabled, and verify the exact account quota.');
@@ -497,9 +500,8 @@ async function planMission(objective: string, missionId: string) {
 
   let executiveMessages = buildExecutiveMessages();
   while (writePlanningEnabled) {
-    const fitsProviderInput = executiveMessages.every(message =>
-      isSafeRepositoryContributionInput(message.content),
-    ) && estimateRepositoryInputTokenUpperBound(executiveMessages) <= executiveProvider.limits.maxInputTokens;
+    const fitsProviderInput = isSafeRepositoryContributionInput(executiveMessages)
+      && estimateRepositoryInputTokenUpperBound(executiveMessages) <= executiveProvider.limits.maxInputTokens;
     if (fitsProviderInput) break;
 
     // Do not send partial source files to an AI writer: drop the largest/latest
@@ -509,9 +511,8 @@ async function planMission(objective: string, missionId: string) {
     writePlanningEnabled = inspectedFiles.length > 0;
     executiveMessages = buildExecutiveMessages();
   }
-  const executiveInputFits = executiveMessages.every(message =>
-    isSafeRepositoryContributionInput(message.content),
-  ) && estimateRepositoryInputTokenUpperBound(executiveMessages) <= executiveProvider.limits.maxInputTokens;
+  const executiveInputFits = isSafeRepositoryContributionInput(executiveMessages)
+    && estimateRepositoryInputTokenUpperBound(executiveMessages) <= executiveProvider.limits.maxInputTokens;
   if (!executiveInputFits) {
     throw new Error('Owner-attested provider input ceiling is too small for the bounded executive plan; no inference was sent.');
   }
