@@ -176,3 +176,23 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "current_user_can_bypass: always" in documentation
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
+def test_monorepo_release_runbook_matches_advisory_ai_review_policy():
+    runbook = (
+        SERVICE_ROOT / "docs" / "PRODUCTION_READINESS.md"
+    ).read_text(encoding="utf-8")
+    release_procedure = runbook.partition("## Release procedure")[2].partition(
+        "\n## "
+    )[0]
+
+    assert release_procedure
+    assert "AI Review Policy" in release_procedure
+    assert "advisory only" in release_procedure.lower()
+    assert "not a required merge status" in release_procedure.lower()
+    assert "ID 24038955" in release_procedure
+    assert "code-owner review" in release_procedure.lower()
+    assert "review-thread resolution" in release_procedure.lower()
+    assert "exact AI Review Policy status check" not in release_procedure
+    assert "PR-controlled workflow-definition trust limitation" not in release_procedure
+
+
