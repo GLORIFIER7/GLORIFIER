@@ -45,6 +45,8 @@ The milestone was merged into `main` in [PR #742](https://github.com/GLORIFIER7/
 
 ## Architecture
 
+**Agentic workflow governance:** The [GitHub Agentic Workflows adoption assessment](docs/architecture/github-agentic-workflows-adoption.md) records the selectively adopted gh-aw patterns and the conditions required before activating its runtime. The repository policy overlay is at [`.github/aw/instructions.md`](.github/aw/instructions.md); it does not install or activate gh-aw.
+
 The repository includes a web application, API/server code, AI-provider integrations, governance components, and blockchain-related contracts and evidence records.
 
 **NEURAL service:** The Python/FastAPI service is maintained in this repository at [`services/neural/`](services/neural/README.md). It retains its own Python dependency lock, tests, Docker build context and independently deployable Cloudflare Worker. GLORIFIER remains the governance/control plane; NEURAL remains a separately deployable execution service. See [the NEURAL integration contract](docs/architecture/neural-engine-integration.md).
