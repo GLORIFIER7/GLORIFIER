@@ -113,6 +113,7 @@ def test_monorepo_neural_ci_does_not_run_policy_on_restricted_review_events():
     assert test_job_permissions is not None
     assert top_level_permissions.group(1).strip() == "contents: read"
     assert test_job_permissions.group(1).strip() == "contents: read"
+    assert "pull-requests: write" not in WORKFLOW
     assert "persist-credentials: false" in WORKFLOW
     assert "gh pr merge" not in WORKFLOW
     assert "--auto" not in WORKFLOW
@@ -173,7 +174,9 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "The blocking AI-review job is removed" in documentation
     assert "ID 24038955" in documentation
     assert "2026-11-16" in documentation
-    assert "current_user_can_bypass: always" in documentation
+    assert "bypass actors" in documentation.lower()
+    assert "required reviews can be bypassed" in documentation.lower()
+    assert "administrator follow-up" in documentation.lower()
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
