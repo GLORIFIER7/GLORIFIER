@@ -9,6 +9,16 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "neural-cloudflare-worker.yml"
 
 
+def test_cloudflare_worker_redacts_query_strings_in_observability():
+    config_path = SERVICE_ROOT / "cloudflare" / "wrangler.jsonc"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    observability = config.get("observability", {})
+
+    assert observability.get("redact_query_string") is True, (
+        "Worker request URLs must be redacted in persisted logs and traces"
+    )
+
+
 def test_cloudflare_production_deployment_is_restricted_to_main():
     workflow_path = WORKFLOW_PATH
     workflow = workflow_path.read_text(encoding="utf-8")
