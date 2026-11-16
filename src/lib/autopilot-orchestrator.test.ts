@@ -338,7 +338,7 @@ test('Repository contribution attribution is appended as durable PR provenance w
   );
   const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
 
-  assert.ok(body.includes('Official GitHub writer: glorifier-contributor[bot]'));
+  assert.ok(body.includes('Official GitHub writer:** glorifier-contributor[bot]'));
   assert.ok(body.includes('| engineering-scientist | gemini | gemini-test-model |'));
   assert.ok(body.includes('<!-- GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
   assert.ok(body.includes('"provider":"gemini"'));
