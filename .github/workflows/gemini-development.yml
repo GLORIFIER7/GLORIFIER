@@ -72,6 +72,14 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --ignore-scripts
+      - name: Install pinned Gemini CLI without provider credentials
+        if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"
+          gemini --version
+
       - name: Run Gemini CLI
         id: gemini
         if: ${{ env.HAS_GEMINI_API_KEY == 'true' }}
@@ -101,12 +109,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"
-          gemini --version
           GEMINI_OUTPUT="$RUNNER_TEMP/gemini-output.json"
           gemini --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT"
           python - "$GEMINI_OUTPUT" "$GITHUB_OUTPUT" <<'PY'
           import json
+          import secrets
           import sys
 
           with open(sys.argv[1], encoding="utf-8") as handle:
@@ -114,9 +121,13 @@ jobs:
           response = payload.get("response")
           if not isinstance(response, str) or not response.strip():
               raise SystemExit("Gemini CLI returned an empty response.")
-          escaped = response.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          delimiter = "GEMINI_" + secrets.token_hex(16)
+          while delimiter in response:
+              delimiter = "GEMINI_" + secrets.token_hex(16)
           with open(sys.argv[2], "a", encoding="utf-8") as handle:
-              handle.write("summary=" + escaped + "\n")
+              handle.write(f"summary<<{delimiter}\n")
+              handle.write(response)
+              handle.write(f"\n{delimiter}\n")
           PY
       - name: Report missing Gemini key
         if: ${{ env.HAS_GEMINI_API_KEY != 'true' }}
