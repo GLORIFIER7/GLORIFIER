@@ -173,11 +173,12 @@ const attributionText = (value: unknown, maximum = 120): string =>
   (typeof value === 'string' ? value : String(value ?? 'unknown'))
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/[<>]/g, '')
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maximum) || 'unknown';
+
+const markdownTableCell = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 
 export function buildRepositoryContributionAttribution(
   missionId: string,
@@ -219,7 +220,11 @@ export function appendRepositoryContributionAttribution(
   attribution: RepositoryContributionAttribution,
 ): string {
   const rows = attribution.specialists.length
-    ? attribution.specialists.map(item => '| ' + item.role + ' | ' + item.provider + ' | ' + item.model + ' |').join('\n')
+    ? attribution.specialists.map(item =>
+        '| ' + markdownTableCell(item.role) + ' | ' +
+        markdownTableCell(item.provider) + ' | ' +
+        markdownTableCell(item.model) + ' |'
+      ).join('\n')
     : '| No specialist response recorded | — | — |';
   const section = [
     '## AI contribution attribution',
