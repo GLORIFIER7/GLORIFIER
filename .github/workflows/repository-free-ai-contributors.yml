@@ -12,6 +12,13 @@ on:
       - "src/lib/ai/specialist-council.ts"
       - "src/lib/autopilot-orchestrator.ts"
       - "src/lib/autopilot-orchestrator.test.ts"
+      - "src/lib/github-app-auth.ts"
+      - "src/lib/github-app-auth.test.ts"
+      - "src/lib/autopilot-github-write.ts"
+      - "src/lib/autopilot-github-write.test.ts"
+      - "src/lib/autopilot-execution-fabric.ts"
+      - "src/lib/autopilot-execution-fabric.test.ts"
+      - ".env.example"
       - "server.ts"
       - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
       - "package.json"
@@ -28,6 +35,13 @@ on:
       - "src/lib/ai/specialist-council.ts"
       - "src/lib/autopilot-orchestrator.ts"
       - "src/lib/autopilot-orchestrator.test.ts"
+      - "src/lib/github-app-auth.ts"
+      - "src/lib/github-app-auth.test.ts"
+      - "src/lib/autopilot-github-write.ts"
+      - "src/lib/autopilot-github-write.test.ts"
+      - "src/lib/autopilot-execution-fabric.ts"
+      - "src/lib/autopilot-execution-fabric.test.ts"
+      - ".env.example"
       - "server.ts"
       - "docs/operations/REPOSITORY-AI-CONTRIBUTOR-FREE-TIER.md"
       - "package.json"
@@ -64,5 +78,13 @@ jobs:
         run: npm run test:repository-contributor-policy
       - name: Test durable provider request and token quotas
         run: npm run test:repository-provider-budget
+      - name: Test owner-controlled GitHub App authentication
+        run: npm run test:github-app-auth
+      - name: Test branch-scoped GitHub write adapter
+        run: npm run test:autopilot-github-write
+      - name: Test the single GitHub App execution and attribution path
+        run: npm run test:autopilot-execution-fabric
+      - name: Test Autopilot attribution and governance contracts
+        run: npm run test:autopilot-orchestrator
       - name: TypeScript type check
         run: npm run lint
