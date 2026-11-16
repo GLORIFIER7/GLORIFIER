@@ -104,6 +104,37 @@ def test_workers_ai_adapter_runs_one_bounded_async_inference_without_paid_creden
     assert inputs["max_tokens"] <= WorkersAIAdapter.max_output_tokens
 
 
+def test_workers_ai_adapter_extracts_gemma_chat_completion_choice_content():
+    binding = _FakeWorkersAIBinding(
+        {
+            "id": "synthetic-completion",
+            "object": "chat.completion",
+            "model": DEFAULT_WORKERS_AI_MODEL,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "A verified synthetic Gemma response.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+        }
+    )
+    adapter = WorkersAIAdapter(
+        binding,
+        model=DEFAULT_WORKERS_AI_MODEL,
+        workers_plan="free",
+        free_only_enabled=True,
+    )
+
+    result = asyncio.run(adapter.ainfer("Use only synthetic test data."))
+
+    assert result.text == "A verified synthetic Gemma response."
+    assert len(binding.calls) == 1
+
+
 def test_workers_ai_adapter_rejects_empty_or_oversized_prompts_without_calling_binding():
     binding = _FakeWorkersAIBinding()
     adapter = WorkersAIAdapter(
@@ -136,13 +167,19 @@ def test_workers_ai_adapter_rejects_invalid_or_oversized_responses():
         workers_plan="free",
         free_only_enabled=True,
     )
+    empty_choice = WorkersAIAdapter(
+        _FakeWorkersAIBinding({"choices": [{"message": {"content": None}}]}),
+        workers_plan="free",
+        free_only_enabled=True,
+    )
 
     for adapter in (empty, oversized):
         with pytest.raises(RuntimeError):
             asyncio.run(adapter.ainfer("safe synthetic prompt"))
 
-    with pytest.raises(TypeError):
-        asyncio.run(malformed.ainfer("safe synthetic prompt"))
+    for adapter in (malformed, empty_choice):
+        with pytest.raises(TypeError):
+            asyncio.run(adapter.ainfer("safe synthetic prompt"))
 
 
 def test_runtime_registers_workers_ai_only_when_all_free_only_gates_are_satisfied():
@@ -221,7 +258,6 @@ def test_runtime_executes_only_the_explicit_workers_ai_provider():
     assert result.provider == "cloudflare_workers_ai"
     assert result.result == "A verified synthetic response for testing."
     assert len(binding.calls) == 1
-
 
 
 @pytest.mark.parametrize(
