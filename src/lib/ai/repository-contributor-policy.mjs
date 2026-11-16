@@ -120,16 +120,16 @@ export function normalizeRepositoryProviderEndpoint(providerIdValue, rawUrl) {
   try {
     const url = new URL(rawUrl);
     if (url.username || url.password || url.search || url.hash) return null;
-    const hostname = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
     if (providerId === 'meta' || providerId === 'ollama') {
       const loopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-      if (url.protocol !== 'http:' || !loopback) return null;
+      if (url.protocol !== 'http:' || !loopback || (url.port && !/^\d{1,5}$/.test(url.port))) return null;
     } else {
       const allowedHosts = PROVIDER_ENDPOINT_HOSTS[providerId] || [];
       if (url.protocol !== 'https:' || (url.port && url.port !== '443') ||
           !allowedHosts.some((host) => hostname === host || hostname.endsWith('.' + host))) return null;
     }
-    const normalizedPath = url.pathname.replace(/\\/+$/, '');
+    const normalizedPath = url.pathname.replace(/\/+$/, '');
     return url.origin + normalizedPath;
   } catch {
     return null;
