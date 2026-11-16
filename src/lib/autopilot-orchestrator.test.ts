@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, getAutopilotOrchestrationStatus } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -301,4 +301,60 @@ test('Autopilot free contribution policy does not treat model availability as ve
     }])
   }, [{ id: 'nvidia', status: 'connected', models: ['nvidia/nemotron'] }], now);
   assert.equal(policy.eligibleProviders[0].verificationLevel, 'owner-attested-not-vendor-verified');
+});
+
+
+test('Repository contribution attribution records the official GitHub App writer and each AI provider/model', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [
+      { role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' },
+      { role: { id: 'cybersecurity-scientist' }, provider: 'nvidia', model: 'nemotron-test-model' },
+      { role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' },
+    ],
+  );
+
+  assert.deepEqual(attribution.writerIdentity, {
+    type: 'github-app',
+    login: 'glorifier-contributor[bot]',
+    appSlug: 'glorifier-contributor',
+    appOwner: 'GLORIFIER7',
+  });
+  assert.deepEqual(attribution.aiCeo, { provider: 'openai', model: 'gpt-test-model' });
+  assert.equal(attribution.specialists.length, 2, 'duplicate specialist records are collapsed');
+  assert.equal(attribution.specialists[0].provider, 'gemini');
+  assert.equal(attribution.specialists[1].model, 'nemotron-test-model');
+  assert.equal(attribution.attributionBasis, 'GLORIFIER runtime response metadata; not provider-signed');
+});
+
+test('Repository contribution attribution is appended as durable PR provenance within GitHub body limits', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [{ role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' }],
+  );
+  const body = appendRepositoryContributionAttribution('Automated repair summary.', attribution);
+
+  assert.ok(body.includes('Official GitHub writer: glorifier-contributor[bot]'));
+  assert.ok(body.includes('| engineering-scientist | gemini | gemini-test-model |'));
+  assert.ok(body.includes('<!-- GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
+  assert.ok(body.includes('"provider":"gemini"'));
+  assert.ok(body.length <= 20_000);
+});
+
+test('Repository contribution attribution preserves provenance when an AI-generated PR body is oversized', () => {
+  const attribution = buildRepositoryContributionAttribution(
+    'mission-471',
+    'glorifier-contributor',
+    { provider: 'openai', model: 'gpt-test-model' },
+    [{ role: { id: 'engineering-scientist' }, provider: 'gemini', model: 'gemini-test-model' }],
+  );
+  const body = appendRepositoryContributionAttribution('x'.repeat(20_000), attribution);
+
+  assert.ok(body.length <= 20_000);
+  assert.ok(body.includes('AI-generated PR description truncated'));
+  assert.ok(body.includes('GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1'));
 });
