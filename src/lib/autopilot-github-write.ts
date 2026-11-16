@@ -283,7 +283,7 @@ export async function executeGithubWriteTool(
   const token = typeof writeToken === 'string' ? writeToken.trim() : '';
   if (!token) throw new Error('GitHub App installation access token is not configured.');
   if (token.length > 512 || /[\r\n]/.test(token)) {
-    throw new Error('GLORIFIER_GITHUB_WRITE_TOKEN has an invalid format.');
+    throw new Error('GitHub App installation access token has an invalid format.');
   }
   if (!isRecord(argumentsValue)) throw new Error('Autopilot GitHub write arguments must be an object.');
   const args = argumentsValue;
