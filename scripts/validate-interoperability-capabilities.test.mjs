@@ -259,3 +259,28 @@ test('Issue 471 A2A and NEURAL branch evidence does not promote external capabil
   assert.match(gap, /No owner-authorized Linux host was enrolled/);
   assert.match(gap, /Issue #471 remains OPEN/);
 });
+
+
+test('MCP 2026-07-28 TCK runs are recorded as failed evidence without upgrading conformance', async () => {
+  const registry = JSON.parse(await readFile(documents[0], 'utf8'));
+  const gap = await readFile(gapRegister, 'utf8');
+  const mcp = await readFile(new URL('../docs/architecture/mcp-reference-conformance.md', import.meta.url), 'utf8');
+  const protocol = registry.capabilities.find((item) => item.id === 'protocol.a2a-mcp-adapters');
+
+  assert.ok(protocol);
+  assert.equal(protocol.status, 'NOT VERIFIED');
+  const evidence = protocol.evidence.find((item) =>
+    item.reference === 'https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43862723023');
+  assert.ok(evidence, 'latest failed official MCP TCK run must be preserved as evidence');
+  assert.equal(evidence.kind, 'live-probe');
+  assert.equal(evidence.observedAt, '2026-11-16T12:01:15Z');
+  assert.match(evidence.notes, /64 passed and 96 failed/);
+  assert.match(evidence.notes, /HTTP 429/);
+  assert.match(evidence.notes, /run #43860648984/);
+
+  assert.match(mcp, /43862723023/);
+  assert.match(mcp, /64 passed, 96 failed/);
+  assert.match(mcp, /HTTP 429/);
+  assert.match(gap, /MCP 2026-07-28 external TCK execution checkpoint — 2026-11-16/);
+  assert.match(gap, /Issue #471 remains OPEN/);
+});

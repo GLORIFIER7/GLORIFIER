@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-13T02:58:54Z",
+  "updatedAt": "2026-11-16T12:01:15Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -908,8 +908,8 @@
       "status": "NOT VERIFIED",
       "targetEnvironments": [
         "GLORIFIER main source and the 2026-11-11 production Worker v1002 release source; standard A2A Agent Card and authenticated proxy/backend task-handler implementation are present",
-        "No general external A2A/MCP client-server conformance run, authenticated two-agent exchange, or official conformance report is recorded",
-        "Optional read-only MCP external server TCK workflow merged by GLORIFIER PR #819; owner-controlled endpoint configuration required; workflow_dispatch only with run_external_mcp_checks defaulting to false; no TCK run recorded."
+        "No full official A2A/MCP conformance pass, authenticated two-agent exchange, or independent external-client handshake has been recorded; the two 2026-11-16 MCP server-TCK runs failed.",
+        "Optional read-only MCP external server TCK workflow merged by GLORIFIER PR #819; manually dispatched twice on 2026-11-16 against the public Pages ingress; both reports failed and do not establish full conformance."
       ],
       "evidence": [
         {
@@ -1065,6 +1065,13 @@
           "targetEnvironment": "Public production GLORIFIER Cloudflare Worker; unauthenticated GET via public fetch",
           "observedAt": "2026-11-13T02:58:54Z",
           "notes": "An external read-only GET fetch was attempted, but Cloudflare Access intercepted the request and returned login_required before the Worker Agent Card could be read. This is not evidence that the Agent Card route is absent or malformed; it means unauthenticated external discovery from this probe context is not observable. No access token was supplied and no authenticated A2A POST, task exchange, TCK run, or two-agent test was performed."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43862723023",
+          "targetEnvironment": "Public Cloudflare Pages MCP ingress https://glorifier.pages.dev/mcp; GitHub Actions runner on main commit eebc2fa17b32fa1cbe05b4bf888b5c7f68eda984; official MCP 2026-07-28 server conformance",
+          "observedAt": "2026-11-16T12:01:15Z",
+          "notes": "Second owner-dispatched official MCP server-TCK run. HTTPS target validation and pinned runner build passed. Frozen 2026-07-28 suite reported 64 passed and 96 failed; the runner separately identified 13 extension/pending scenarios (12 failing) as not scored and stated they do not affect conformance. Legacy 2025-11-25 tools-list scenario passed. The following modern read-only smoke returned HTTP 429 because it was ordered after the high-volume suite, which had consumed the endpoint's per-IP tools/call quota. First run #43860648984 reported 64 passed and 97 failed; legacy tools-list passed and the modern smoke passed. The official server suite did not pass; no independent MCP client handshake or A2A client/task exchange was performed. Capability remains NOT VERIFIED."
         }
       ],
       "limitations": [
@@ -1078,8 +1085,8 @@
         "The fixed-scope GitHub MCP endpoint exposes only four read-only tools for the single public GLORIFIER7/GLORIFIER repository. MCP resources, prompts, private-repository access, arbitrary upstream URLs, and write-capable tools are not implemented or advertised.",
         "No external MCP client/server integration or live modern MCP client handshake has been recorded. Local Worker tests, mocked GitHub responses, CircleCI, or GitHub Actions do not independently prove production transport or cross-client interoperability.",
         "No arbitrary proxy or implied provider fallback is authorized.",
-        "PR #819 adds an owner-controlled manual-only external MCP server TCK path for frozen 2026-07-28 server requirements and a separate 2025-11-25 legacy tools-list scenario. The input defaults to false; no endpoint configuration, run, report, or independent client handshake is recorded.",
-        "PR #833 adds a workflow_dispatch-only official A2A TCK runner pinned to a signature-verified upstream revision, with an exact HTTPS staging-host allowlist, a dedicated staging bearer secret, and read-only GitHub permissions. The staging Environment variable/secret have not been configured and the TCK has not been dispatched; external A2A conformance remains NOT VERIFIED."
+        "PR #833 adds a workflow_dispatch-only official A2A TCK runner pinned to a signature-verified upstream revision, with an exact HTTPS staging-host allowlist, a dedicated staging bearer secret, and read-only GitHub permissions. The staging Environment variable/secret have not been configured and the TCK has not been dispatched; external A2A conformance remains NOT VERIFIED.",
+        "The official MCP 2026-07-28 server TCK was dispatched twice on 2026-11-16 against the public Pages ingress. Both runs passed target validation, runner build, and the legacy tools-list scenario, but the frozen server suite failed (run #43860648984: 64 passed / 97 failed; run #43862723023: 64 passed / 96 failed). The runner explicitly identified 13 extension/pending scenarios (12 failing) as unscored and stated they do not affect conformance. The second run's following modern smoke returned HTTP 429 after the high-volume suite consumed the endpoint's per-IP tool-call quota. These results are failure evidence, not conformance; the capability remains NOT VERIFIED."
       ]
     },
     {
