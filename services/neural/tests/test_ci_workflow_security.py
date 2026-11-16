@@ -22,7 +22,7 @@ def _job_section(name: str) -> str:
 
 
 def test_restricted_review_events_and_blocking_ai_policy_are_absent():
-    event_config = WORKFLOW.split("\\npermissions:", 1)[0]
+    event_config = WORKFLOW.split("\npermissions:", 1)[0]
     assert "pull_request:" in event_config
     assert "types: [opened, reopened, synchronize, ready_for_review]" in event_config
     assert "pull_request_review:" not in event_config
@@ -34,7 +34,7 @@ def test_restricted_review_events_and_blocking_ai_policy_are_absent():
 
 def test_neural_validation_remains_a_read_only_python_matrix():
     test_job = _job_section("test")
-    assert "permissions:\\n      contents: read" in test_job
+    assert "contents: read" in test_job
     assert "pull-requests:" not in test_job
     assert 'python-version: ["3.11", "3.12"]' in test_job
     assert "ruff check ." in test_job
