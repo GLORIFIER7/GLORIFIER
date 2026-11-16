@@ -36,8 +36,8 @@ function fakePool(responses: Array<{ rowCount?: number; rows?: unknown[] }> = [{
 }
 
 test('estimates a conservative byte upper bound and rejects empty or invalid message sets', () => {
-  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'abc' }]), 3);
-  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'é' }]), 2);
+  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'abc' }]), 51);
+  assert.equal(estimateRepositoryInputTokenUpperBound([{ role: 'user', content: 'é' }]), 50);
   assert.throws(() => estimateRepositoryInputTokenUpperBound([]), /required/);
   assert.throws(() => estimateRepositoryInputTokenUpperBound([{ role: 'user', content: '' }]), /invalid/);
 });
@@ -60,11 +60,16 @@ test('reserves request and token ceilings for minute and daily windows in one tr
   assert.equal(pool.calls[0].sql, 'BEGIN');
   assert.match(pool.calls[1].sql, /window_kind/);
   assert.equal(pool.calls[1].values?.[1], 'minute');
-  assert.equal(pool.calls[1].values?.[2], '2026-11-16T15:47:00.000Z');
-  assert.equal(pool.calls[2].values?.[1], 'day');
-  assert.equal(pool.calls[2].values?.[2], '2026-11-16T00:00:00.000Z');
-  assert.equal(pool.calls[2].values?.[3], 1200);
-  assert.equal(pool.calls[3].sql, 'COMMIT');
+  const minuteReservation = pool.calls.find(call => call.values?.[1] === 'minute');
+  const dailyReservation = pool.calls.find(call => call.values?.[1] === 'day');
+  assert.equal(minuteReservation?.values?.[2], '2026-11-16T15:47:00.000Z');
+  assert.equal(minuteReservation?.values?.[4], 3);
+  assert.equal(minuteReservation?.values?.[5], null);
+  assert.equal(dailyReservation?.values?.[2], '2026-11-16T00:00:00.000Z');
+  assert.equal(dailyReservation?.values?.[3], 1248);
+  assert.equal(dailyReservation?.values?.[4], 20);
+  assert.equal(dailyReservation?.values?.[5], 40_000);
+  assert.equal(pool.calls.at(-1)?.sql, 'COMMIT');
   assert.equal(pool.released, true);
 });
 
@@ -124,6 +129,42 @@ test('rejects zero, invalid, and unsafe provider limits before opening a transac
     () => reserveRepositoryProviderRequest({
       providerId: 'gemini',
       limits: { ...limits, requestsPerMinute: 0 },
+      inputTokenUpperBound: 200,
+      pool
+    }),
+    /must be a positive integer/
+  );
+  await assert.rejects(
+    () => reserveRepositoryProviderRequest({
+      providerId: 'gemini',
+      limits: { ...limits, maxInputTokens: Number.NaN },
+      inputTokenUpperBound: 200,
+      pool
+    }),
+    /must be a positive integer/
+  );
+  await assert.rejects(
+    () => reserveRepositoryProviderRequest({
+      providerId: 'gemini',
+      limits: { ...limits, maxOutputTokens: 1.5 },
+      inputTokenUpperBound: 200,
+      pool
+    }),
+    /must be a positive integer/
+  );
+  await assert.rejects(
+    () => reserveRepositoryProviderRequest({
+      providerId: 'gemini',
+      limits: { ...limits, maxTokensPerDay: -1 },
+      inputTokenUpperBound: 200,
+      pool
+    }),
+    /must be a positive integer/
+  );
+  await assert.rejects(
+    () => reserveRepositoryProviderRequest({
+      providerId: 'gemini',
+      limits: { ...limits, requestsPerDay: Number.MAX_SAFE_INTEGER + 1 },
       inputTokenUpperBound: 200,
       pool
     }),
