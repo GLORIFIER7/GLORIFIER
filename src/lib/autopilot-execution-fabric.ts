@@ -149,10 +149,7 @@ export async function executeAutopilotToolStep(
 ) {
   const invocation = normalizeGithubToolInvocation(capability, argumentsValue);
   const writeOperation = isWriteTool(invocation.toolName);
-  const needsAppToken = writeOperation && (
-    dependencies.appTokenProvider !== undefined ||
-    !(dependencies.adapter && dependencies.verifier)
-  );
+  const needsAppToken = writeOperation;
   const appToken = needsAppToken
     ? await (dependencies.appTokenProvider ?? (() => createGithubAppInstallationToken(process.env)))()
     : null;
