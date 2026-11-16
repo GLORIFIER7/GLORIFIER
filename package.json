@@ -129,7 +129,8 @@
     "test:repository-contributor-policy": "node --test src/lib/ai/repository-contributor-policy.test.mjs",
     "test:repository-provider-budget": "node --import tsx/esm --test src/lib/ai/repository-provider-budget.test.ts",
     "test:github-app-auth": "node --import tsx/esm --test src/lib/github-app-auth.test.ts",
-    "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts"
+    "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts",
+    "test:specialist-council": "node --import tsx/esm --test src/lib/ai/specialist-council.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
