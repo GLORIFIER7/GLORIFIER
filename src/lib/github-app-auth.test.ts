@@ -58,6 +58,7 @@ function fakeFetch(options: {
         slug: 'glorifier-contributor',
         owner: { login: 'GLORIFIER7' },
         permissions: { contents: 'write', pull_requests: 'write' },
+        permissions: { contents: 'write', pull_requests: 'write' },
       });
     }
     if (url.pathname === '/app/installations/67890/access_tokens' && method === 'POST') {
@@ -225,4 +226,37 @@ test('GitHub App response bodies are cancelled when they exceed the bounded stre
     /response exceeded the configured size limit/,
   );
   assert.equal(cancelled, true);
+});
+
+
+test('GitHub App rejects excessive app-level permissions before creating an installation token', async () => {
+  let installationRequested = false;
+  const { fetchImpl } = fakeFetch({ app: {
+    id: 12345,
+    slug: 'glorifier-contributor',
+    owner: { login: 'GLORIFIER7' },
+    permissions: { contents: 'write', pull_requests: 'write', administration: 'write' },
+  } });
+  const guardedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname.endsWith('/access_tokens')) installationRequested = true;
+    return fetchImpl(input, init);
+  };
+  await assert.rejects(
+    () => createGithubAppInstallationToken(baseEnv, guardedFetch, now),
+    /only contents:write, pull_requests:write and optional metadata:read/,
+  );
+  assert.equal(installationRequested, false);
+});
+
+test('GitHub App rejects excessive installation permissions', async () => {
+  const { fetchImpl } = fakeFetch({ installation: {
+    token: 'ghs_test_installation_token',
+    expires_at: new Date(now + 60 * 60_000).toISOString(),
+    permissions: { contents: 'write', pull_requests: 'write', actions: 'write' },
+    repositories: [{ full_name: 'GLORIFIER7/GLORIFIER' }],
+  } });
+  await assert.rejects(
+    () => createGithubAppInstallationToken(baseEnv, fetchImpl, now),
+    /only contents:write, pull_requests:write and optional metadata:read/,
+  );
 });
