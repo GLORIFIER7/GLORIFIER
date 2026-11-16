@@ -26,6 +26,7 @@ function fakePool(responses: Array<{ rowCount?: number; rows?: unknown[] }> = [{
         async query(sql: string, values?: unknown[]) {
           calls.push({ sql, values });
           if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rowCount: null, rows: [] };
+          if (sql.startsWith('DELETE FROM glorifier_repository_provider_usage')) return { rowCount: 0, rows: [] };
           const response = responses[index++];
           return response ?? { rowCount: 1, rows: [] };
         },
