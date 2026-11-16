@@ -124,7 +124,7 @@ The intended flow is:
 
 Owner-attested free provider pool -> GEAS mission authorization -> provider-specific specialist review -> AI CEO plan -> source inspection -> credential screening -> durable quota reservation -> isolated branch -> bounded file updates -> independent GitHub readback -> draft PR
 
-All eligible providers can contribute one independent specialist analysis per mission (up to eight providers). Provider/model attribution is retained in findings. Multiple responses are not treated as consensus; disagreements and missing evidence remain visible.
+All eligible providers can contribute one independent specialist analysis per mission (up to sixteen providers). Provider/model attribution is retained in findings. Multiple responses are not treated as consensus; disagreements and missing evidence remain visible.
 
 Each repository mission can edit at most two already-inspected files under the existing Autopilot allowlist. The plan must create one isolated branch from main, re-read inspected files on that branch, update only those files with their inspected content hashes, and end by creating a draft PR.
 
