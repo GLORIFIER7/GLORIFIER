@@ -1,0 +1,229 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  evaluateRepositoryProviderAttestation,
+  getRepositoryFreeContributorPolicy,
+  listEligibleRepositoryContributors,
+  normalizeRepositoryProviderId
+} from './repository-contributor-policy.mjs';
+
+const NOW = '2026-11-16T15:00:00.000Z';
+const BASE = {
+  status: 'owner-attested',
+  planName: 'Free',
+  evidenceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
+  attestedAt: '2026-11-16T14:00:00.000Z',
+  expiresAt: '2026-11-16T16:00:00.000Z',
+  monthlyPaidSpendLimitUsd: 0,
+  autoTopUpEnabled: false,
+  payAsYouGoEnabled: false,
+  paidFallbackEnabled: false,
+  monthlyInvoicingEnabled: false,
+  requestsPerMinute: 10,
+  requestsPerDay: 100,
+  maxTokensPerDay: 60000,
+  maxInputTokens: 12000,
+  maxOutputTokens: 2048
+};
+
+function attestation(providerId, mode, overrides = {}) {
+  return { ...BASE, providerId, mode, modelId: providerId + '-free-model', ...overrides };
+}
+
+test('normalizes common provider aliases without inventing unknown providers', () => {
+  assert.equal(normalizeRepositoryProviderId('GPT'), 'openai');
+  assert.equal(normalizeRepositoryProviderId('Grok'), 'xai');
+  assert.equal(normalizeRepositoryProviderId('Llama'), 'meta');
+  assert.equal(normalizeRepositoryProviderId('NVIDIA'), 'nvidia');
+  assert.equal(normalizeRepositoryProviderId('Gemini'), 'gemini');
+  assert.equal(normalizeRepositoryProviderId('not-a-provider'), null);
+});
+
+test('accepts Gemini only with current free-tier proof and billing disabled', () => {
+  const valid = attestation('gemini', 'vendor-free-tier', {
+    evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+    billingEnabled: false,
+    modelFree: true
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', valid, NOW).eligible, true);
+
+  assert.match(
+    evaluateRepositoryProviderAttestation('gemini', { ...valid, billingEnabled: true }, NOW).reasons.join(' '),
+    /billing/i
+  );
+  assert.match(
+    evaluateRepositoryProviderAttestation('gemini', { ...valid, modelFree: false }, NOW).reasons.join(' '),
+    /free model/i
+  );
+});
+
+test('accepts NVIDIA only for an active developer program and prototype scope', () => {
+  const valid = attestation('nvidia', 'developer-program', {
+    evidenceUrl: 'https://docs.api.nvidia.com/nim/docs/product',
+    planName: 'NVIDIA Developer Program',
+    developerProgramActive: true,
+    nonProduction: true
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('nvidia', valid, NOW).eligible, true);
+  assert.match(
+    evaluateRepositoryProviderAttestation('nvidia', { ...valid, nonProduction: false }, NOW).reasons.join(' '),
+    /prototype|non-production/i
+  );
+});
+
+test('requires a positive promotional grant and a hard no-billing boundary for GPT, Claude and Grok', () => {
+  for (const providerId of ['openai', 'anthropic', 'xai']) {
+    const valid = attestation(providerId, 'promotional-credits', {
+      evidenceUrl: providerId === 'openai'
+        ? 'https://platform.openai.com/settings/organization/billing'
+        : providerId === 'anthropic'
+          ? 'https://platform.claude.com/settings/billing'
+          : 'https://console.x.ai/team/default/billing',
+      planName: 'Promotional API credits',
+      billingEnabled: false,
+      remainingFreeCreditsUsd: 2
+    });
+    assert.equal(evaluateRepositoryProviderAttestation(providerId, valid, NOW).eligible, true);
+    assert.match(
+      evaluateRepositoryProviderAttestation(providerId, { ...valid, remainingFreeCreditsUsd: 0 }, NOW).reasons.join(' '),
+      /credit|grant/i
+    );
+  }
+});
+
+test('blocks Grok, GPT or Claude when invoicing, top-up, pay-as-you-go or fallback is enabled', () => {
+  const valid = attestation('xai', 'promotional-credits', {
+    evidenceUrl: 'https://console.x.ai/team/default/billing',
+    remainingFreeCreditsUsd: 2,
+    billingEnabled: false
+  });
+  for (const override of [
+    { autoTopUpEnabled: true },
+    { payAsYouGoEnabled: true },
+    { paidFallbackEnabled: true },
+    { monthlyInvoicingEnabled: true },
+    { monthlyPaidSpendLimitUsd: 1 }
+  ]) {
+    assert.equal(evaluateRepositoryProviderAttestation('xai', { ...valid, ...override }, NOW).eligible, false);
+  }
+});
+
+test('allows Llama only on an existing local runtime with no paid compute or network egress', () => {
+  const valid = attestation('meta', 'local-self-hosted', {
+    evidenceUrl: 'https://ai.meta.com/resources/models-and-libraries/llama-downloads/',
+    planName: 'Local Llama runtime',
+    localExecution: true,
+    endpointKind: 'loopback',
+    cloudComputePaid: false,
+    incrementalComputeCostUsd: 0,
+    modelLicenseReviewed: true,
+    networkEgress: false
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('meta', valid, NOW).eligible, true);
+  assert.equal(
+    evaluateRepositoryProviderAttestation('meta', { ...valid, endpointKind: 'public-cloud' }, NOW).eligible,
+    false
+  );
+});
+
+test('enforces OpenRouter free-model identifiers and documented free-plan request ceilings', () => {
+  const valid = attestation('openrouter', 'free-model', {
+    evidenceUrl: 'https://openrouter.ai/pricing',
+    modelId: 'meta-llama/llama-3.3-70b-instruct:free',
+    planName: 'Free',
+    billingEnabled: false,
+    creditsPurchased: false,
+    requestsPerMinute: 20,
+    requestsPerDay: 50
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('openrouter', valid, NOW).eligible, true);
+  assert.equal(evaluateRepositoryProviderAttestation('openrouter', { ...valid, modelId: 'openai/gpt-4o' }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('openrouter', { ...valid, requestsPerDay: 51 }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('openrouter', { ...valid, requestsPerMinute: 21 }, NOW).eligible, false);
+});
+
+test('caps Hugging Face monthly free grant at ten cents and disables pay-as-you-go', () => {
+  const valid = attestation('huggingface', 'monthly-credit-grant', {
+    evidenceUrl: 'https://huggingface.co/docs/inference-providers/pricing',
+    planName: 'Free user monthly grant',
+    monthlyFreeGrantUsd: 0.1,
+    remainingFreeCreditsUsd: 0.05,
+    billingEnabled: false
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('huggingface', valid, NOW).eligible, true);
+  assert.equal(evaluateRepositoryProviderAttestation('huggingface', { ...valid, monthlyFreeGrantUsd: 0.11 }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('huggingface', { ...valid, payAsYouGoEnabled: true }, NOW).eligible, false);
+});
+
+test('rejects stale, expired, unpinned, unsupported and over-budget attestations', () => {
+  const valid = attestation('gemini', 'vendor-free-tier', {
+    evidenceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
+    billingEnabled: false,
+    modelFree: true
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', { ...valid, attestedAt: '2026-11-15T10:00:00.000Z' }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', { ...valid, expiresAt: '2026-11-16T14:59:00.000Z' }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', { ...valid, evidenceUrl: 'https://example.com/claims' }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', { ...valid, monthlyPaidSpendLimitUsd: 0.01 }, NOW).eligible, false);
+  assert.equal(evaluateRepositoryProviderAttestation('gemini', { ...valid, status: 'verified-by-model' }, NOW).eligible, false);
+});
+
+test('only configured providers with valid attestations enter the repository contribution pool', () => {
+  const attestations = [
+    attestation('gemini', 'vendor-free-tier', {
+      evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+      billingEnabled: false,
+      modelFree: true
+    }),
+    attestation('nvidia', 'developer-program', {
+      evidenceUrl: 'https://docs.api.nvidia.com/nim/docs/product',
+      developerProgramActive: true,
+      nonProduction: true
+    }),
+    attestation('xai', 'promotional-credits', {
+      evidenceUrl: 'https://console.x.ai/team/default/billing',
+      remainingFreeCreditsUsd: 0
+    })
+  ];
+  const configured = [
+    { id: 'gemini', status: 'connected', models: ['gemini-free-model'] },
+    { id: 'nvidia', status: 'connected', models: ['nvidia-free-model'] },
+    { id: 'xai', status: 'connected', models: ['xai-free-model'] },
+    { id: 'openai', status: 'disconnected', models: ['gpt-4o'] }
+  ];
+  const pool = listEligibleRepositoryContributors({ attestations, configuredProviders: configured, now: NOW });
+  assert.deepEqual(pool.map((entry) => entry.providerId), ['gemini', 'nvidia']);
+});
+
+test('requires an explicit repository-only free mode and $0 paid-inference policy', () => {
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
+    GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true',
+    GLORIFIER_MONTHLY_AI_BUDGET_USD: '0',
+    GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false',
+    GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false'
+  };
+  assert.equal(getRepositoryFreeContributorPolicy({ env, configuredProviders: [], now: NOW }).authorized, true);
+  assert.equal(getRepositoryFreeContributorPolicy({ env: { ...env, GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'true' }, configuredProviders: [], now: NOW }).authorized, false);
+  assert.equal(getRepositoryFreeContributorPolicy({ env: { ...env, GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'true' }, configuredProviders: [], now: NOW }).authorized, false);
+  assert.equal(getRepositoryFreeContributorPolicy({ env: { ...env, GLORIFIER_MONTHLY_AI_BUDGET_USD: '1' }, configuredProviders: [], now: NOW }).authorized, false);
+});
+
+test('does not expose provider API keys or secrets in contributor status', () => {
+  const env = {
+    GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([
+      attestation('gemini', 'vendor-free-tier', {
+        evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+        billingEnabled: false,
+        modelFree: true
+      })
+    ]),
+    GEMINI_API_KEY: 'must-never-be-returned'
+  };
+  const result = getRepositoryFreeContributorPolicy({
+    env: { ...env, GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true', GLORIFIER_REPOSITORY_PUBLIC_CODE_EGRESS: 'true', GLORIFIER_MONTHLY_AI_BUDGET_USD: '0', GLORIFIER_PAID_INFERENCE_AUTHORIZED: 'false', GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false' },
+    configuredProviders: [{ id: 'gemini', status: 'connected', models: ['gemini-free-model'] }],
+    now: NOW
+  });
+  assert.doesNotMatch(JSON.stringify(result), /must-never-be-returned/);
+});
