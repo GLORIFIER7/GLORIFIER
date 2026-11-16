@@ -175,7 +175,7 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "ID 24038955" in documentation
     assert "2026-11-16" in documentation
     assert "bypass actors" in documentation.lower()
-    assert "required reviews can be bypassed" in documentation.lower()
+    assert "always-bypass actors can bypass the ruleset" in documentation.lower()
     assert "administrator follow-up" in documentation.lower()
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
