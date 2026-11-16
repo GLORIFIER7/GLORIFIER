@@ -58,7 +58,7 @@ jobs:
                   "(no scheme, path, port, or trailing slash)."
               )
           label = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-          if len(allowed_host) > 253 or not re.fullmatch(rf"{label}(?:\\.{label})*", allowed_host):
+          if len(allowed_host) > 253 or not re.fullmatch(rf"{label}(?:\.{label})*", allowed_host):
               raise SystemExit("GLORIFIER_A2A_TCK_STAGING_HOST must be one exact DNS hostname.")
           allowed_host = allowed_host.lower()
           reserved_suffixes = (
