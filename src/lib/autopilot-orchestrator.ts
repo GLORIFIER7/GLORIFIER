@@ -145,10 +145,10 @@ export interface RepositoryContributionAttribution {
 
 const attributionText = (value: unknown, maximum = 120): string =>
   (typeof value === 'string' ? value : String(value ?? 'unknown'))
-    .replace(/[\\u0000-\\u001f\\u007f]/g, ' ')
-    .replace(/[<>\x60]/g, '')
-    .replace(/\|/g, '\\\\|')
-    .replace(/\\s+/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\|/g, '\\|')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maximum) || 'unknown';
 
@@ -192,14 +192,14 @@ export function appendRepositoryContributionAttribution(
   attribution: RepositoryContributionAttribution,
 ): string {
   const rows = attribution.specialists.length
-    ? attribution.specialists.map(item => '| ' + item.role + ' | ' + item.provider + ' | ' + item.model + ' |').join('\\n')
+    ? attribution.specialists.map(item => '| ' + item.role + ' | ' + item.provider + ' | ' + item.model + ' |').join('\n')
     : '| No specialist response recorded | — | — |';
   const section = [
     '## AI contribution attribution',
     '',
-    '- **Official GitHub writer:** `' + attribution.writerIdentity.login + '` (owner-controlled GitHub App)',
-    '- **Mission:** `' + attribution.missionId + '`',
-    '- **AI CEO:** `' + attribution.aiCeo.provider + ' / ' + attribution.aiCeo.model + '`',
+    '- **Official GitHub writer:** ' + attribution.writerIdentity.login + ' (owner-controlled GitHub App)',
+    '- **Mission:** ' + attribution.missionId,
+    '- **AI CEO:** ' + attribution.aiCeo.provider + ' / ' + attribution.aiCeo.model,
     '',
     '| Specialist role | Provider | Model |',
     '| --- | --- | --- |',
@@ -210,13 +210,13 @@ export function appendRepositoryContributionAttribution(
     '<!-- GLORIFIER_AI_CONTRIBUTION_ATTRIBUTION_V1',
     JSON.stringify(attribution),
     '-->',
-  ].join('\\n');
+  ].join('\n');
   const original = body.trim();
-  const separator = original ? '\\n\\n' : '';
+  const separator = original ? '\n\n' : '';
   const available = 20_000 - separator.length - section.length;
   if (available < 0) throw new Error('AI contribution attribution exceeds the pull-request body limit.');
   const preserved = original.length > available
-    ? original.slice(0, Math.max(0, available - 70)) + '\\n\\n[AI-generated PR description truncated to preserve contribution provenance.]'
+    ? original.slice(0, Math.max(0, available - 70)) + '\n\n[AI-generated PR description truncated to preserve contribution provenance.]'
     : original;
   return preserved + (preserved ? separator : '') + section;
 }
@@ -465,17 +465,19 @@ async function planMission(objective: string, missionId: string) {
     inspectedPaths: inspectedFiles.map(file => file.path),
     expectedSourceHashes: Object.fromEntries(inspectedFiles.map(file => [file.path, file.expectedContentSha256])),
   });
-  const contributionAttribution = buildRepositoryContributionAttribution(
-    missionId,
-    String(process.env.GLORIFIER_GITHUB_APP_SLUG || ''),
-    { provider: executive.provider, model: executive.model },
-    council.result.findings.map(finding => ({
-      role: finding.role,
-      provider: finding.provider,
-      model: finding.model,
-    })),
-  );
-  const attributedSteps = writePlanningEnabled
+  const contributionAttribution = writeIdentityConfigured
+    ? buildRepositoryContributionAttribution(
+        missionId,
+        String(process.env.GLORIFIER_GITHUB_APP_SLUG || ''),
+        { provider: executive.provider, model: executive.model },
+        council.result.findings.map(finding => ({
+          role: finding.role,
+          provider: finding.provider,
+          model: finding.model,
+        })),
+      )
+    : null;
+  const attributedSteps = writePlanningEnabled && contributionAttribution
     ? steps.map(step => step.capability === 'github.create_pull_request'
       ? {
           ...step,
@@ -627,7 +629,7 @@ export async function processNextAutopilotMission(
     let planningMetadata: {
       executive: { provider: string; model: string };
       council: { result: { specialistCount: number; conflicts: unknown } };
-      contributionAttribution: RepositoryContributionAttribution;
+      contributionAttribution: RepositoryContributionAttribution | null;
     } | null = null;
     let planned: AutopilotMission;
 
