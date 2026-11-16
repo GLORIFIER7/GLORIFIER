@@ -268,10 +268,10 @@ def test_cloudflare_local_validation_does_not_bind_workers_ai_before_free_plan_v
 def test_cloudflare_worker_ci_caches_uv_packages_for_faster_repeat_runs():
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     setup_uv_count = len(
-        re.findall(r"(?m)^\\s+- uses: astral-sh/setup-uv@[0-9a-f]{40}", workflow)
+        re.findall(r"(?m)^\s+- uses: astral-sh/setup-uv@[0-9a-f]{40}", workflow)
     )
     cache_enabled_count = len(
-        re.findall(r"(?m)^\\s+enable-cache: true$", workflow)
+        re.findall(r"(?m)^\s+enable-cache: true$", workflow)
     )
 
     assert setup_uv_count == 2, "Both Cloudflare Worker jobs must pin setup-uv immutably"
