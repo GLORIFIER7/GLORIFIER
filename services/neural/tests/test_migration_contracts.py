@@ -16,13 +16,32 @@ def _sql(path: Path) -> str:
     return re.sub(r"--[^\n]*", "", path.read_text(encoding="utf-8")).lower()
 
 
+def _database_integration_workflow_path(root: Path) -> Path:
+    if root.name == "neural" and root.parent.name == "services":
+        repository_root = root.parents[1]
+        workflow_name = "neural-database-integration.yml"
+    else:
+        repository_root = root
+        workflow_name = "database-integration.yml"
+    return repository_root / ".github" / "workflows" / workflow_name
+
+
+def test_database_integration_workflow_path_supports_both_repository_layouts(tmp_path):
+    monorepo_neural_root = tmp_path / "GLORIFIER" / "services" / "neural"
+    standalone_neural_root = tmp_path / "GLORIFIER-NEURAL"
+
+    assert _database_integration_workflow_path(monorepo_neural_root) == (
+        tmp_path / "GLORIFIER" / ".github" / "workflows" / "neural-database-integration.yml"
+    )
+    assert _database_integration_workflow_path(standalone_neural_root) == (
+        standalone_neural_root / ".github" / "workflows" / "database-integration.yml"
+    )
+
+
 def test_disposable_database_workflow_pins_postgres_image_by_digest():
-    workflow = (
-        ROOT.parents[1]
-        / ".github"
-        / "workflows"
-        / "neural-database-integration.yml"
-    ).read_text(encoding="utf-8")
+    workflow = _database_integration_workflow_path(ROOT).read_text(
+        encoding="utf-8"
+    )
 
     assert (
         "image: postgres:16@sha256:"
