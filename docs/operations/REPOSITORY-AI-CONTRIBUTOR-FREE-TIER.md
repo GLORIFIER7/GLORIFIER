@@ -72,7 +72,7 @@ GLORIFIER_GITHUB_APP_PRIVATE_KEY=<App PEM private key; store newlines securely>
 GLORIFIER_GITHUB_APP_SLUG=<exact GitHub App slug>
 ~~~
 
-The runtime verifies the authenticated App ID, App owner (`GLORIFIER7`), configured slug, installation scope, token expiry, and the exact `contents:write` plus `pull_requests:write` permissions. It requests an installation token restricted to the single `GLORIFIER` repository. Any mismatch blocks the write. Tokens are short-lived and are not logged or persisted.
+The runtime verifies the authenticated App ID, App owner (`GLORIFIER7`), configured slug, App-level permission set, installation scope, token expiry, and installation-token permission set. The only accepted write permissions are `contents:write` and `pull_requests:write`; optional `metadata:read` is allowed, and any other permission blocks the writer. It requests an installation token restricted to the single `GLORIFIER` repository with those two explicit permissions. App responses are read through a bounded stream; oversized responses are cancelled. Any mismatch blocks the write. Tokens are short-lived and are not logged or persisted.
 
 The App slug's bot login (for example, `<app-slug>[bot]`) is the official GitHub writer. Each AI mission records the AI CEO provider/model and each successful specialist provider/model in the draft PR's visible attribution section and machine-readable provenance comment. This is runtime-reported attribution, not a provider-signed claim that a particular model authored the output.
 
@@ -104,6 +104,7 @@ The attestation JSON is not a credential store. It contains only plan evidence a
     "mode": "vendor-free-tier",
     "status": "owner-attested",
     "modelId": "gemini-2.5-flash",
+    "endpointUrl": "https://generativelanguage.googleapis.com",
     "evidenceUrl": "https://ai.google.dev/gemini-api/docs/rate-limits",
     "attestedAt": "2026-11-16T14:00:00.000Z",
     "expiresAt": "2026-11-16T16:00:00.000Z",
@@ -128,17 +129,20 @@ Those example quota values are not a recommendation or a statement of your accou
 
 Attestations expire after 24 hours and cannot be set more than seven days into the future. Re-read the provider console when renewing. If the limit, billing mode, model entitlement, or credit balance cannot be confirmed, leave that provider out.
 
+
+Each provider attestation must include an `endpointUrl` that matches the actual configured adapter endpoint. Public providers are restricted to the provider's approved HTTPS host; custom hosts, redirects, credentials in URLs, query strings, and fragments are rejected. Meta Llama and Ollama local modes are restricted to loopback HTTP endpoints only (`localhost`, `127.0.0.1`, or `::1`); private LAN, public-cloud, and rented GPU endpoints are not accepted. The endpoint is re-read and revalidated before every inference request. Cloudflare Workers AI remains explicitly ineligible until an authorized Billing Read and an approved authoritative account-attestation mechanism exist; an owner-supplied boolean is not sufficient.
+
 ## Usage enforcement
 
 Before each repository AI call, GLORIFIER:
 
-1. Checks the server-side owner-attested provider pool and exact configured model ID.
+1. Re-reads the server-side owner-attested provider pool and exact configured model ID, including the exact endpoint actually resolved by the provider adapter.
 2. Rejects the call if the attestation is stale, expired, missing, malformed, or unsupported.
 3. Rejects the call if any paid top-up, pay-as-you-go, paid fallback, monthly invoice, or non-zero paid budget setting is detected.
 4. Checks the full message payload for common credential patterns and withholds unsafe/oversized source text.
 5. Computes a conservative UTF-8 byte upper bound for the prompt and rejects it if it exceeds the attested input limit.
 6. Atomically reserves one request in both the current UTC minute and current UTC day, plus the input upper bound and full maximum output allowance, in the persistent PostgreSQL table glorifier_repository_provider_usage.
-7. Calls the exact provider/model with its attested maximum output token count. There is no provider fallback.
+7. Calls the exact provider/model/endpoint with its attested maximum output token count, with provider-internal retries disabled. There is no provider fallback.
 8. Records a reservation before the API call. Failed calls remain counted conservatively; reservations are not refunded to avoid quota-reset abuse.
 
 The persistent quota ledger requires GLORIFIER's configured PostgreSQL database. If the DB, budget table, transaction, quota reservation, provider key, model, or attestation is unavailable, that provider call is blocked. Vendor-side free-plan restrictions and billing-disabled settings remain mandatory in addition to this local ledger.
@@ -173,6 +177,11 @@ The focused checks are:
 ~~~sh
 npm run test:repository-contributor-policy
 npm run test:repository-provider-budget
+npm run test:github-app-auth
+npm run test:autopilot-github-write
+npm run test:autopilot-execution-fabric
+npm run test:autopilot-orchestrator
+npm run test:specialist-council
 npm run lint
 ~~~
 
