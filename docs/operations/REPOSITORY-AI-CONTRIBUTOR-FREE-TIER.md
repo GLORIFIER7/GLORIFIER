@@ -51,6 +51,33 @@ Provider-specific rules are intentionally conservative:
 - OpenRouter participation is restricted to :free models or openrouter/free and is further capped at 20 requests per minute and 50 per day.
 - Hugging Face participation is limited to the documented Free-user monthly credit grant, not purchased credits or pay-as-you-go.
 
+## Owner-controlled GitHub App writing identity
+
+All Autopilot repository writes use one dedicated GitHub App owned by the `GLORIFIER7` account. AI providers never receive GitHub credentials and never write directly to GitHub. The App installation token is the single official author identity for Autopilot branches, commits, and draft pull requests.
+
+Create the App in the GitHub account settings for `GLORIFIER7`, then configure only these repository permissions:
+
+- **Contents:** Read and write.
+- **Pull requests:** Read and write.
+- **Metadata:** Read-only (required by GitHub).
+
+Do not grant administration, Actions, deployments, secrets, packages, issues, organization administration, or other permissions. Install the App on **only** `GLORIFIER7/GLORIFIER`. Do not install it across all repositories.
+
+Set these values in the backend's server-side secret/environment manager, never in a committed file, workflow YAML, issue, pull request, or chat:
+
+~~~dotenv
+GLORIFIER_GITHUB_APP_ID=<numeric GitHub App ID>
+GLORIFIER_GITHUB_APP_INSTALLATION_ID=<numeric installation ID for GLORIFIER7/GLORIFIER>
+GLORIFIER_GITHUB_APP_PRIVATE_KEY=<App PEM private key; store newlines securely>
+GLORIFIER_GITHUB_APP_SLUG=<exact GitHub App slug>
+~~~
+
+The runtime verifies the authenticated App ID, App owner (`GLORIFIER7`), configured slug, installation scope, token expiry, and the exact `contents:write` plus `pull_requests:write` permissions. It requests an installation token restricted to the single `GLORIFIER` repository. Any mismatch blocks the write. Tokens are short-lived and are not logged or persisted.
+
+The App slug's bot login (for example, `<app-slug>[bot]`) is the official GitHub writer. Each AI mission records the AI CEO provider/model and each successful specialist provider/model in the draft PR's visible attribution section and machine-readable provenance comment. This is runtime-reported attribution, not a provider-signed claim that a particular model authored the output.
+
+The legacy `GLORIFIER_GITHUB_WRITE_TOKEN` personal-token path is not accepted for Autopilot writes. Do not create or configure a personal access token as a fallback. A configured App is still not proof that an installation is active until the runtime successfully validates it during a write.
+
 ## Required server-side settings
 
 The backend must receive the following settings through its existing secret/environment manager. Do not put secrets into source files, issue comments, PR text, workflow YAML, or this conversation.
