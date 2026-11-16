@@ -446,3 +446,78 @@ test('Gemini manual review pins a numeric CLI semver accepted by the npm install
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
+
+
+function geminiWorkflowStep(source, stepName) {
+  const marker = '      - name: ' + stepName;
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, 'missing Gemini workflow step: ' + stepName);
+  const next = source.indexOf('\n      - name:', start + marker.length);
+  return source.slice(start, next < 0 ? source.length : next);
+}
+
+test('Gemini CLI installation is isolated from every provider-credential-bearing step', () => {
+  const workflows = [
+    {
+      name: 'collaborator',
+      source: geminiWorkflow,
+      install: 'Install pinned Gemini CLI without provider credentials',
+      inference: 'Run Gemini engineering collaboration',
+    },
+    {
+      name: 'development',
+      source: geminiDevelopmentWorkflow,
+      install: 'Install pinned Gemini CLI without provider credentials',
+      inference: 'Run Gemini CLI',
+    },
+    {
+      name: 'PR review',
+      source: geminiPrReviewWorkflow,
+      install: 'Install pinned Gemini CLI without provider credentials',
+      inference: 'Run Gemini free-tier advisory review',
+    },
+  ];
+
+  for (const workflow of workflows) {
+    const install = geminiWorkflowStep(workflow.source, workflow.install);
+    const inference = geminiWorkflowStep(workflow.source, workflow.inference);
+    assert.ok(
+      workflow.source.indexOf(workflow.install) < workflow.source.indexOf(workflow.inference),
+      workflow.name + ' must install the pinned CLI before credential-bearing inference',
+    );
+    assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
+    assert.match(install, /gemini --version/);
+    assert.doesNotMatch(install, /GEMINI_API_KEY/,
+      workflow.name + ' installation must not receive or reference the provider credential');
+    assert.doesNotMatch(inference, /npm install --global|gemini --version/,
+      workflow.name + ' inference must not install or bootstrap executable code');
+    assert.match(inference, /GEMINI_API_KEY: \$\{\{ secrets\.GEMINI_API_KEY \}\}/,
+      workflow.name + ' must scope the provider credential to the inference step');
+  }
+});
+
+test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT delimiters', () => {
+  const workflows = [
+    { name: 'collaborator', source: geminiWorkflow, step: 'Run Gemini engineering collaboration' },
+    { name: 'development', source: geminiDevelopmentWorkflow, step: 'Run Gemini CLI' },
+    { name: 'PR review', source: geminiPrReviewWorkflow, step: 'Run Gemini free-tier advisory review' },
+  ];
+
+  for (const workflow of workflows) {
+    const inference = geminiWorkflowStep(workflow.source, workflow.step);
+    assert.match(inference, /import secrets/,
+      workflow.name + ' must generate a fresh output delimiter');
+    assert.match(inference, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/,
+      workflow.name + ' must use an unpredictable delimiter');
+    assert.match(inference, /while delimiter in response:/,
+      workflow.name + ' must reject delimiter collisions with the model response');
+    assert.match(inference, /handle\.write\(f"summary<<\{delimiter\}\\n"\)/,
+      workflow.name + ' must start a GitHub multiline output');
+    assert.match(inference, /handle\.write\(response\)/,
+      workflow.name + ' must preserve the complete model response');
+    assert.match(inference, /handle\.write\(f"\\n\{delimiter\}\\n"\)/,
+      workflow.name + ' must terminate the GitHub multiline output');
+    assert.doesNotMatch(inference, /response\.replace\("%", "%25"\)/);
+    assert.doesNotMatch(inference, /response\.replace\("\\n", "%0A"\)/);
+  }
+});
