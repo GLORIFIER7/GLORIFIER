@@ -310,6 +310,26 @@ function configuredProvidersArray(providers) {
   return Array.isArray(providers) ? providers : [];
 }
 
+
+/** Assign every eligible provider exactly one bounded independent council contribution. */
+export function buildRepositoryCouncilAssignments(eligibleProviders, roles) {
+  if (!Array.isArray(eligibleProviders) || !Array.isArray(roles) || roles.length === 0) return [];
+  const safeRoles = roles.filter((role) => isRecord(role) && typeof role.id === 'string' && role.id.trim());
+  const seen = new Set();
+  const providers = eligibleProviders.filter((provider) => {
+    if (!isRecord(provider) || typeof provider.providerId !== 'string' || typeof provider.modelId !== 'string') return false;
+    if (!provider.providerId.trim() || !provider.modelId.trim() || seen.has(provider.providerId)) return false;
+    seen.add(provider.providerId);
+    return true;
+  }).slice(0, MAX_REPOSITORY_CONTRIBUTOR_PROVIDERS);
+  if (!safeRoles.length) return [];
+  return providers.map((provider, index) => ({
+    providerId: provider.providerId,
+    modelId: provider.modelId,
+    role: safeRoles[index % safeRoles.length]
+  }));
+}
+
 export function isSafeRepositoryContributionInput(value) {
   if (typeof value !== 'string' || value.length > 24_000) return false;
   const secretPatterns = [
