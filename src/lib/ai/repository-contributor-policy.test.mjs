@@ -272,3 +272,61 @@ test('does not expose provider API keys or secrets in contributor status', () =>
   });
   assert.doesNotMatch(JSON.stringify(result), /must-never-be-returned/);
 });
+
+
+test('Mistral and Qwen promotional-credit attestations require a positive remaining grant', () => {
+  for (const [providerId, evidenceUrl] of [
+    ['mistral', 'https://console.mistral.ai/billing/'],
+    ['qwen', 'https://dashscope.console.aliyun.com/billing'],
+  ]) {
+    const funded = attestation(providerId, 'promotional-credits', {
+      evidenceUrl,
+      planName: 'Promotional API credits',
+      billingEnabled: false,
+      remainingFreeCreditsUsd: 0.25,
+    });
+    assert.equal(evaluateRepositoryProviderAttestation(providerId, funded, NOW).eligible, true);
+    for (const invalidGrant of [0, null, undefined, Number.NaN, -0.01]) {
+      const result = evaluateRepositoryProviderAttestation(
+        providerId,
+        { ...funded, remainingFreeCreditsUsd: invalidGrant },
+        NOW,
+      );
+      assert.equal(result.eligible, false);
+      assert.match(result.reasons.join(' '), /positive promotional API credit grant/i);
+    }
+  }
+});
+
+test('OpenRouter fails closed when request ceilings are missing, null, zero, or unsafe', () => {
+  const valid = attestation('openrouter', 'free-model', {
+    evidenceUrl: 'https://openrouter.ai/pricing',
+    modelId: 'meta-llama/llama-3.3-70b-instruct:free',
+    planName: 'Free',
+    billingEnabled: false,
+    creditsPurchased: false,
+    requestsPerMinute: 20,
+    requestsPerDay: 50,
+  });
+  for (const override of [
+    { requestsPerMinute: undefined },
+    { requestsPerMinute: null },
+    { requestsPerDay: undefined },
+    { requestsPerDay: null },
+    { requestsPerMinute: 0 },
+    { requestsPerDay: Number.MAX_SAFE_INTEGER + 1 },
+  ]) {
+    assert.equal(evaluateRepositoryProviderAttestation('openrouter', { ...valid, ...override }, NOW).eligible, false);
+  }
+});
+
+test('Cloudflare Workers AI stays excluded without the approved authoritative billing-read mechanism', () => {
+  const attestationValue = attestation('cloudflare_workers_ai', 'cloudflare-workers-free', {
+    evidenceUrl: 'https://developers.cloudflare.com/workers-ai/platform/pricing/',
+    planName: 'Free',
+    authoritativeWorkersFreePlanRead: true,
+    modelFree: true,
+    accountQuotaHardCapEnforced: true,
+  });
+  assert.equal(evaluateRepositoryProviderAttestation('cloudflare_workers_ai', attestationValue, NOW).eligible, false);
+});
