@@ -195,7 +195,7 @@ def test_monorepo_runbook_records_current_default_deny_and_observability_state()
     assert "observability.redact_query_string=false" in runbook
     assert "PR #894" in runbook
     assert "source-only and has not been deployed" in runbook
-    assert "secret values were not read" in runbook
+    assert "no secret values were read" in runbook
 
 
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo PostgreSQL image digest maintenance contract")
