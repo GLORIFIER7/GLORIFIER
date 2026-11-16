@@ -424,3 +424,18 @@ test('only exact owner-approved public mission IDs authorize mission-content egr
     GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON: '{"mission-public-1":true}',
   }, 'mission-public-1'), false);
 });
+
+
+test('requires the exact attested model ID to be present in the configured provider catalog', () => {
+  const valid = attestation('gemini', 'vendor-free-tier', {
+    evidenceUrl: 'https://ai.google.dev/gemini-api/docs/rate-limits',
+    billingEnabled: false,
+    modelFree: true,
+  });
+  const eligible = listEligibleRepositoryContributors({
+    attestations: [valid],
+    configuredProviders: [{ id: 'gemini', status: 'connected', models: ['different-model'] }],
+    now: NOW,
+  });
+  assert.deepEqual(eligible, []);
+});
