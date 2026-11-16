@@ -1,4 +1,4 @@
-import { createSign } from 'node:crypto';
+import { createPrivateKey, createSign } from 'node:crypto';
 
 const API_ROOT = 'https://api.github.com';
 const TARGET_REPOSITORY = 'GLORIFIER7/GLORIFIER';
@@ -41,18 +41,30 @@ const readPositiveInteger = (value: string | undefined, label: string): number =
 const base64Url = (value: string | Buffer): string =>
   Buffer.from(value).toString('base64url');
 
+const isPositiveSafeIntegerString = (value: string | undefined): boolean => {
+  if (typeof value !== 'string' || !/^\\d{1,16}$/.test(value.trim())) return false;
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) && parsed > 0;
+};
+
+const isUsableRsaPrivateKey = (value: string | undefined): boolean => {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    const key = createPrivateKey(value.trim().replace(/\\\\n/g, '\\n'));
+    return key.type === 'private' && key.asymmetricKeyType === 'rsa';
+  } catch {
+    return false;
+  }
+};
+
 export function hasGithubAppWriteConfiguration(env: GithubAppEnvironment = process.env): boolean {
-  const appId = typeof env.GLORIFIER_GITHUB_APP_ID === 'string'
-    && /^\d{1,16}$/.test(env.GLORIFIER_GITHUB_APP_ID.trim());
-  const installationId = typeof env.GLORIFIER_GITHUB_APP_INSTALLATION_ID === 'string'
-    && /^\d{1,16}$/.test(env.GLORIFIER_GITHUB_APP_INSTALLATION_ID.trim());
-  const privateKey = typeof env.GLORIFIER_GITHUB_APP_PRIVATE_KEY === 'string'
-    && env.GLORIFIER_GITHUB_APP_PRIVATE_KEY.includes('PRIVATE KEY');
+  const appId = isPositiveSafeIntegerString(env.GLORIFIER_GITHUB_APP_ID);
+  const installationId = isPositiveSafeIntegerString(env.GLORIFIER_GITHUB_APP_INSTALLATION_ID);
+  const privateKey = isUsableRsaPrivateKey(env.GLORIFIER_GITHUB_APP_PRIVATE_KEY);
   const slug = typeof env.GLORIFIER_GITHUB_APP_SLUG === 'string'
     && /^[a-z0-9-]{1,100}$/.test(env.GLORIFIER_GITHUB_APP_SLUG.trim());
   return appId && installationId && privateKey && slug;
 }
-
 function createAppJwt(appId: number, privateKey: string, nowMs: number): string {
   const issuedAt = Math.floor(nowMs / 1000) - 60;
   const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
