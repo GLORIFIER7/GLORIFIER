@@ -148,6 +148,56 @@ if (!nistIdentityTenetPattern || nistIdentityTenetPattern.evidenceClass !== 'ana
   throw new Error('a substantive NIST agent-identity excerpt must remain admissible when its article contains an innocuous skip link, while remaining analysis only');
 }
 
+const nistIot8259Source = model.sources.find((source) => source.id === 'nist-ir-8259r1');
+if (!nistIot8259Source
+    || nistIot8259Source.url !== 'https://csrc.nist.gov/pubs/ir/8259/r1/final'
+    || nistIot8259Source.cadenceHours !== 336
+    || !nistIot8259Source.patternIds.includes('iot-product-cybersecurity-lifecycle')
+    || !nistIot8259Source.claimsAllowed.includes('iot-product-cybersecurity-lifecycle-guidance')
+    || !isTrustedArchitectureSourceUrl('https://csrc.nist.gov/pubs/ir/8259/r1/final')) {
+  throw new Error('NIST IR 8259 Rev. 1 must use its exact official publication URL, 14-day cadence, and explicit IoT source-policy associations');
+}
+const nistIot8259Keywords = getSourcePatternKeywords('nist-ir-8259r1');
+const nistIot8259Text = 'NIST IR 8259 Rev. 1. This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.';
+if (nistIot8259Keywords.length !== 1
+    || nistIot8259Keywords[0] !== 'This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.'
+    || findEarliestKeywordIndex(nistIot8259Text, nistIot8259Keywords) !== nistIot8259Text.indexOf('This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.')) {
+  throw new Error('NIST IR 8259 Rev. 1 must select its substantive manufacturer-activity statement, not generic page chrome');
+}
+const nistIot8259Observation: SourceObservation = {
+  sourceId: 'nist-ir-8259r1',
+  ok: true,
+  status: 200,
+  contentHash: 'e'.repeat(64),
+  observedAt: '2026-11-16T03:00:00.000Z',
+  finalUrl: 'https://csrc.nist.gov/pubs/ir/8259/r1/final',
+  evidenceExcerpt: 'NIST IR 8259 Rev. 1. This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers. The revision broadens consideration of customer communications about cybersecurity, maintenance, support, and end-of-life.',
+  evidenceStatus: 'content-matched',
+};
+const nistIot8259Pattern = buildObservedArchitecturePatterns(
+  [nistIot8259Observation],
+  nistIot8259Observation.observedAt,
+).find((pattern) => pattern.id === 'iot-product-cybersecurity-lifecycle');
+if (!nistIot8259Pattern
+    || nistIot8259Pattern.sourceId !== 'nist-ir-8259r1'
+    || nistIot8259Pattern.domain !== 'iot'
+    || nistIot8259Pattern.evidenceClass !== 'analysis'
+    || !nistIot8259Pattern.GLORIFIERMapping.includes('Analysis only')
+    || !nistIot8259Pattern.GLORIFIERMapping.includes('does not prove GLORIFIER')) {
+  throw new Error('NIST IR 8259 Rev. 1 may add only an IoT analysis pattern and must not imply GLORIFIER implementation');
+}
+const nistIot8259SourceAvailableOnly: SourceObservation = {
+  ...nistIot8259Observation,
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+};
+if (buildObservedArchitecturePatterns(
+  [nistIot8259SourceAvailableOnly],
+  nistIot8259SourceAvailableOnly.observedAt,
+).some((pattern) => pattern.id === 'iot-product-cybersecurity-lifecycle')) {
+  throw new Error('NIST IR 8259 source availability alone must never instantiate the IoT lifecycle pattern');
+}
+
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
