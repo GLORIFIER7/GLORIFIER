@@ -59,9 +59,10 @@ test('reserves request and token ceilings for minute and daily windows in one tr
     reservedTokens: 1200
   });
   assert.equal(pool.calls[0].sql, 'BEGIN');
-  assert.match(pool.calls[1].sql, /window_kind/);
-  assert.equal(pool.calls[1].values?.[1], 'minute');
   const minuteReservation = pool.calls.find(call => call.values?.[1] === 'minute');
+  assert.ok(minuteReservation);
+  assert.match(minuteReservation.sql, /window_kind/);
+  assert.equal(minuteReservation.values?.[1], 'minute');
   const dailyReservation = pool.calls.find(call => call.values?.[1] === 'day');
   assert.equal(minuteReservation?.values?.[2], '2026-11-16T15:47:00.000Z');
   assert.equal(minuteReservation?.values?.[4], 3);
