@@ -6,7 +6,9 @@ import {
   getRepositoryFreeContributorPolicy,
   listEligibleRepositoryContributors,
   normalizeRepositoryProviderId,
-  normalizeRepositoryProviderEndpoint
+  normalizeRepositoryProviderEndpoint,
+  isSafeRepositoryContributionInput,
+  isRepositoryMissionPublicContentApproved
 } from './repository-contributor-policy.mjs';
 
 const NOW = '2026-11-16T15:00:00.000Z';
@@ -390,4 +392,35 @@ test('owner attestation endpoint URL is required and normalized before provider 
   );
   assert.equal(mismatch.eligible, false);
   assert.match(mismatch.reasons.join(' '), /provider-endpoint/i);
+});
+
+
+test('screens the combined provider conversation for split credentials and bearer tokens', () => {
+  const githubToken = 'ghp_' + 'A'.repeat(24);
+  assert.equal(isSafeRepositoryContributionInput([
+    { role: 'system', content: 'Public repository maintenance.' },
+    { role: 'user', content: githubToken.slice(0, 4) },
+    { role: 'assistant', content: githubToken.slice(4) },
+  ]), false);
+  const bearer = 'Authorization: ' + 'Bearer ' + 'opaque-token-value-123456789';
+  assert.equal(isSafeRepositoryContributionInput([
+    { role: 'system', content: bearer.slice(0, 14) },
+    { role: 'user', content: bearer.slice(14) },
+  ]), false);
+  assert.equal(isSafeRepositoryContributionInput([
+    { role: 'user', content: 'x'.repeat(12_500) },
+    { role: 'assistant', content: 'y'.repeat(12_500) },
+  ]), false);
+});
+
+test('only exact owner-approved public mission IDs authorize mission-content egress', () => {
+  const env = {
+    GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON: JSON.stringify(['mission-public-1']),
+  };
+  assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-public-1'), true);
+  assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-private-2'), false);
+  assert.equal(isRepositoryMissionPublicContentApproved({}, 'mission-public-1'), false);
+  assert.equal(isRepositoryMissionPublicContentApproved({
+    GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON: '{"mission-public-1":true}',
+  }, 'mission-public-1'), false);
 });
