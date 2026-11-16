@@ -5,7 +5,7 @@ import {
   normalizeAutopilotWriteBranch,
   type GithubWriteToolName,
 } from './autopilot-github-write';
-import { createGithubAppInstallationToken, type GithubAppWriterIdentity, type GithubAppInstallationToken } from './github-app-auth';
+import { createGithubAppInstallationToken, type GithubAppInstallationToken } from './github-app-auth';
 import { verifyGithubToolResult, type GithubVerificationResult } from './autopilot-evidence-verifier';
 
 type JsonRecord = Record<string, unknown>;
