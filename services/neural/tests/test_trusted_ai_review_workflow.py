@@ -181,7 +181,6 @@ def test_monorepo_ai_review_documentation_matches_advisory_only_workflows():
     assert "effective code-owner approval coverage is **not verified**" in documentation.lower()
     assert "old AI Review Policy job remains a defense-in-depth check" not in documentation
 
-@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
 @pytest.mark.skipif(not IS_MONOREPO, reason="monorepo current production configuration contract")
 def test_monorepo_runbook_records_current_default_deny_and_observability_state():
     runbook = (
@@ -210,6 +209,7 @@ def test_monorepo_runbook_documents_postgres_image_digest_refresh():
     assert "63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9" in runbook
 
 
+@pytest.mark.skipif(not IS_MONOREPO, reason="monorepo production release runbook contract")
 def test_monorepo_release_runbook_matches_advisory_ai_review_policy():
     runbook = (
         SERVICE_ROOT / "docs" / "PRODUCTION_READINESS.md"
