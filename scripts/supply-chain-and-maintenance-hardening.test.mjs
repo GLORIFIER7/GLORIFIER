@@ -397,7 +397,8 @@ test('Gemini collaborator runs only in a filtered temporary workspace and drops 
   assert.match(modelJob, /cd "\$GEMINI_WORKSPACE"/);
   assert.ok(patchStep.includes('safe_paths = [path for path in paths if not protected.search(path)]'));
   assert.ok(patchStep.includes('Filtered protected-file changes from the Antigravity proposal'));
-  assert.ok(patchStep.includes('"--", *safe_paths'));
+  assert.ok(patchStep.includes('literal_paths = [":(literal)" + path for path in safe_paths]'));
+  assert.ok(patchStep.includes('"--", *literal_paths'));
   assert.doesNotMatch(patchStep, /Gemini changed protected paths/);
   assert.ok(geminiWorkflow.includes('HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version'));
 });
