@@ -55,7 +55,7 @@ test('classifies provider failures without returning their raw message', () => {
     error: 'Credit balance is too low; private diagnostic detail',
   });
   const result = classifyClaudeOutput(raw);
-  assert.deepEqual(result, { ok: false, code: 'provider_rejected_request' });
+  assert.deepEqual(result, { ok: false, code: 'provider_invalid_request', httpStatus: 400 });
   assert.ok(!JSON.stringify(result).includes('private diagnostic detail'));
 });
 
@@ -118,7 +118,7 @@ test('fails closed on provider errors and never returns sensitive CLI output', a
     wrapper,
     env: { ...process.env, ANTHROPIC_API_KEY: 'test-only' },
   });
-  assert.deepEqual(result, { exitCode: 1, code: 'provider_rejected_request' });
+  assert.deepEqual(result, { exitCode: 1, code: 'provider_invalid_request', httpStatus: 400 });
   assert.ok(!JSON.stringify(result).includes('private'));
 });
 
@@ -184,4 +184,31 @@ test('rejects missing task, wrapper or credential before launching the CLI', () 
   assert.equal(runClaude({ taskText: '', wrapper: '/bin/true', env: { ANTHROPIC_API_KEY: 'x' } }).code, 'missing_task');
   assert.equal(runClaude({ taskText: 'x', wrapper: '', env: { ANTHROPIC_API_KEY: 'x' } }).code, 'missing_cli_wrapper');
   assert.equal(runClaude({ taskText: 'x', wrapper: '/bin/true', env: {} }).code, 'missing_api_key');
+});
+
+
+test('classifies common Anthropic HTTP failures into safe actionable categories', () => {
+  const cases = [
+    [400, 'provider_invalid_request'],
+    [401, 'authentication_or_access_error'],
+    [402, 'provider_billing_error'],
+    [403, 'authentication_or_access_error'],
+    [404, 'provider_model_or_endpoint_not_found'],
+    [408, 'provider_request_timeout'],
+    [413, 'provider_request_too_large'],
+    [422, 'provider_invalid_request'],
+    [429, 'provider_rate_limited'],
+    [500, 'provider_unavailable'],
+    [529, 'provider_unavailable'],
+  ];
+
+  for (const [status, code] of cases) {
+    const result = classifyClaudeOutput(JSON.stringify({
+      is_error: true,
+      api_error_status: status,
+      error: 'private diagnostic content must not escape',
+    }));
+    assert.deepEqual(result, { ok: false, code, httpStatus: status });
+    assert.ok(!JSON.stringify(result).includes('private diagnostic content'));
+  }
 });
