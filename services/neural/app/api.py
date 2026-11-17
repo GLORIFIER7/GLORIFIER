@@ -680,26 +680,26 @@ async def autopilot_workers_ai_readiness(
     ):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    workers_plan = _request_environment_value(
-        request, "GLORIFIER_WORKERS_PLAN", "unverified"
+    workers_plan = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_PLAN") or "unverified"
     ).strip().casefold()
-    free_only = _request_environment_value(
-        request, "GLORIFIER_WORKERS_AI_FREE_ONLY"
+    free_only = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_AI_FREE_ONLY") or ""
     ).strip().casefold() == "true"
-    inference_enabled = _request_environment_value(
-        request, "GLORIFIER_ENABLE_INFERENCE"
+    inference_enabled = (
+        _request_environment_value(request, "GLORIFIER_ENABLE_INFERENCE") or ""
     ).strip().casefold() == "true"
-    external_egress = _request_environment_value(
-        request, "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS"
+    external_egress = (
+        _request_environment_value(request, "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") or ""
     ).strip().casefold() == "true"
-    paid_authorized = _request_environment_value(
-        request, "GLORIFIER_PAID_INFERENCE_AUTHORIZED"
+    paid_authorized = (
+        _request_environment_value(request, "GLORIFIER_PAID_INFERENCE_AUTHORIZED") or ""
     ).strip().casefold() == "true"
-    provider_name = _request_environment_value(
-        request, "GLORIFIER_PROVIDER"
+    provider_name = (
+        _request_environment_value(request, "GLORIFIER_PROVIDER") or ""
     ).strip().casefold()
-    model = _request_environment_value(
-        request, "GLORIFIER_WORKERS_AI_MODEL"
+    model = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_AI_MODEL") or ""
     ).strip()
 
     # ProviderRegistry.get() returns only an adapter whose own is_configured()
