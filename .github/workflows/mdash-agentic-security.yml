@@ -47,7 +47,7 @@ jobs:
           [[ -n "$DEFENDER_ASPM_CLIENT_ID" ]] || missing+=("DEFENDER_ASPM_CLIENT_ID")
           [[ -n "$DEFENDER_ASPM_CLIENT_SECRET" ]] || missing+=("DEFENDER_ASPM_CLIENT_SECRET")
           if (( ${#missing[@]} > 0 )); then
-            printf 'MDASH is not configured. Add the required secrets to the protected mdash-security environment: %s\\n' "${missing[*]}" >&2
+            printf 'MDASH is not configured. Add the required secrets to the protected mdash-security environment: %s\n' "${missing[*]}" >&2
             exit 1
           fi
           if [[ ! "$DEFENDER_CLI_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
@@ -63,10 +63,10 @@ jobs:
         run: |
           set -euo pipefail
           defender="$RUNNER_TEMP/defender"
-          curl --fail --location --silent --show-error --retry 3 \\
-            "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \\
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \
             --output "$defender"
-          printf '%s  %s\\n' "$DEFENDER_CLI_SHA256" "$defender" | sha256sum --check --status
+          printf '%s  %s\n' "$DEFENDER_CLI_SHA256" "$defender" | sha256sum --check --status
           chmod 700 "$defender"
           test -s "$defender"
           echo "Defender CLI SHA-256 verification passed."
@@ -102,7 +102,7 @@ jobs:
             exit 1
           fi
 
-          job_id="$(sed -nE 's/^Job submitted:[[:space:]]*([^[:space:]]+).*$/\\1/p' "$submission_file" | tail -n 1)"
+          job_id="$(sed -nE 's/^Job submitted:[[:space:]]*([^[:space:]]+).*$/\1/p' "$submission_file" | tail -n 1)"
           if [[ -z "$job_id" ]]; then
             echo "Defender CLI did not return a recognizable job ID; refusing to claim a scan ran." >&2
             exit 1
