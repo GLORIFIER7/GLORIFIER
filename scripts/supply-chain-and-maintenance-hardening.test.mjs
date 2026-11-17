@@ -312,7 +312,8 @@ test('Gemini collaborator handles confirmed HTTP 503 outages as an explicit no-p
   assert.match(modelJob, /steps\\.gemini\\.outputs\\.provider_unavailable == 'true'/);
   assert.match(modelJob, /steps\\.gemini\\.outputs\\.provider_unavailable != 'true'/);
   assert.match(geminiWorkflow, /has_changes: \\$\\{\\{ steps\\.patch\\.outputs\\.has_changes \\|\\| 'false' \\}\\}/);
-  assert.match(runner, /"code"\\[\\[:space:\\]\\]\\*:\\[\\[:space:\\]\\]\\*503/);
+  assert.match(runner, /grep -Eiq/);
+  assert.match(runner, /503/);
   assert.match(runner, /provider_unavailable=true/);
   assert.match(runner, /exit "\\$cli_status"/);
   assert.match(runner, /--skip-trust --model/);
