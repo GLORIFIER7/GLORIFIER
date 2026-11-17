@@ -1163,19 +1163,19 @@ export function trimEvidenceExcerptToWordBoundaries(
   if (
     startIndex > 0
     && startIndex < text.length
-    && !/\\s/u.test(text[startIndex - 1])
-    && !/\\s/u.test(text[startIndex])
+    && !/\s/u.test(text[startIndex - 1])
+    && !/\s/u.test(text[startIndex])
   ) {
-    while (startIndex > 0 && !/\\s/u.test(text[startIndex - 1])) startIndex -= 1;
+    while (startIndex > 0 && !/\s/u.test(text[startIndex - 1])) startIndex -= 1;
   }
 
   if (
     endIndex > startIndex
     && endIndex < text.length
-    && !/\\s/u.test(text[endIndex - 1])
-    && !/\\s/u.test(text[endIndex])
+    && !/\s/u.test(text[endIndex - 1])
+    && !/\s/u.test(text[endIndex])
   ) {
-    while (endIndex < text.length && !/\\s/u.test(text[endIndex])) endIndex += 1;
+    while (endIndex < text.length && !/\s/u.test(text[endIndex])) endIndex += 1;
   }
 
   return text.slice(startIndex, endIndex).trim();
