@@ -662,6 +662,83 @@ async def _process_authenticated_task(
     return result
 
 
+
+@app.get("/__internal/autopilot/readiness", include_in_schema=False)
+async def autopilot_workers_ai_readiness(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
+    """Expose only boolean free-tier readiness to the trusted GLORIFIER Worker."""
+    worker_env = request.scope.get("env")
+    if worker_env is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    expected = _request_environment_value(request, "GLORIFIER_API_TOKEN")
+    supplied = (authorization or "").strip()
+    if not expected or not hmac.compare_digest(
+        supplied.encode("utf-8"), f"Bearer {expected}".encode("utf-8")
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    workers_plan = _request_environment_value(
+        request, "GLORIFIER_WORKERS_PLAN", "unverified"
+    ).strip().casefold()
+    free_only = _request_environment_value(
+        request, "GLORIFIER_WORKERS_AI_FREE_ONLY"
+    ).strip().casefold() == "true"
+    inference_enabled = _request_environment_value(
+        request, "GLORIFIER_ENABLE_INFERENCE"
+    ).strip().casefold() == "true"
+    external_egress = _request_environment_value(
+        request, "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS"
+    ).strip().casefold() == "true"
+    paid_authorized = _request_environment_value(
+        request, "GLORIFIER_PAID_INFERENCE_AUTHORIZED"
+    ).strip().casefold() == "true"
+    provider_name = _request_environment_value(
+        request, "GLORIFIER_PROVIDER"
+    ).strip().casefold()
+    model = _request_environment_value(
+        request, "GLORIFIER_WORKERS_AI_MODEL"
+    ).strip()
+
+    # ProviderRegistry.get() returns only an adapter whose own is_configured()
+    # contract passes, including the real AI binding, pinned model and Free plan.
+    runtime = _request_orchestrator(request)
+    provider = runtime._providers.get("cloudflare_workers_ai")
+    eligible = (
+        workers_plan == "free"
+        and free_only
+        and inference_enabled
+        and not external_egress
+        and not paid_authorized
+        and provider_name == "cloudflare_workers_ai"
+        and provider is not None
+        and runtime._allow_inference is True
+    )
+    reason = (
+        "ready"
+        if eligible
+        else "workers-ai-free-only-configuration-not-verified"
+    )
+    return JSONResponse(
+        status_code=200,
+        content={
+            "eligible": eligible,
+            "reason": reason,
+            "provider": "cloudflare_workers_ai",
+            "model": model or None,
+            "workersPlan": "free" if workers_plan == "free" else "unverified",
+            "freeOnly": free_only,
+            "inferenceEnabled": inference_enabled,
+            "externalDataEgress": external_egress,
+            "paidInferenceAuthorized": paid_authorized,
+            "factualVerification": False,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.post("/v1/tasks", response_model=TaskResponse, tags=["orchestration"])
 async def run_task(
     task_request: TaskRequest,
