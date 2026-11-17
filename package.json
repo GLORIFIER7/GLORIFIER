@@ -133,7 +133,10 @@
     "test:github-app-auth": "node --import tsx/esm --test src/lib/github-app-auth.test.ts",
     "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts",
     "test:specialist-council": "node --import tsx/esm --test src/lib/ai/specialist-council.test.ts",
-    "test:autopilot-worker-orchestrator": "node --import tsx/esm --test src/lib/autopilot-worker-orchestrator.test.ts src/lib/autopilot-worker-scheduler.test.ts"
+    "test:autopilot-worker-orchestrator": "node --import tsx/esm --test src/lib/autopilot-worker-orchestrator.test.ts src/lib/autopilot-worker-scheduler.test.ts",
+    "start:frontend": "node scripts/serve-frontend.mjs",
+    "test:frontend-static-server": "node --test scripts/frontend-static-server.test.mjs",
+    "test:mphr-hosting": "npm run test:frontend-static-server && node --test scripts/mphr-hosting-contract.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
