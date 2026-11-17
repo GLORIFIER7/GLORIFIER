@@ -39,13 +39,22 @@ test("duplicateJsonKeys handles escaped quotes and backslashes in values", () =>
 
 test("standalone build entry points run package manifest integrity first", () => {
   const manifest = JSON.parse(packageJsonText);
-  for (const script of ["build:frontend", "build:server", "build:android"]) {
-    assert.equal(
-      manifest.scripts?.["pre" + script],
-      "npm run test:package-manifest-integrity && npm run test:brand-assets",
-      script + " must run the package manifest integrity gate before building",
-    );
-  }
+  const commonPrebuild = "npm run test:package-manifest-integrity && npm run test:brand-assets";
+  assert.equal(
+    manifest.scripts?.["prebuild:server"],
+    commonPrebuild,
+    "build:server must run the package manifest integrity gate before building",
+  );
+  assert.equal(
+    manifest.scripts?.["prebuild:android"],
+    commonPrebuild,
+    "build:android must run the package manifest integrity gate before building",
+  );
+  assert.equal(
+    manifest.scripts?.["prebuild:frontend"],
+    commonPrebuild + " && npm run test:public-static-status",
+    "build:frontend must run integrity, brand, and static public status checks before building",
+  );
 });
 
 test("rimraf override follows its direct dependency spec", () => {
