@@ -71,12 +71,12 @@ jobs:
           cmp public/_routes.json dist/_routes.json
 
       - name: Build portable static frontend container
-        run: docker build --pull --file Dockerfile.frontend --tag glorifier/frontend-mphr:${GITHUB_SHA} .
+        run: docker build --pull --file Dockerfile.frontend --tag "glorifier/frontend-mphr:${GITHUB_SHA}" .
 
       - name: Verify the frontend container runs as non-root
         run: |
           set -euo pipefail
-          configured_user="$(docker image inspect --format '{{.Config.User}}' glorifier/frontend-mphr:${GITHUB_SHA})"
+          configured_user="$(docker image inspect --format '{{.Config.User}}' "glorifier/frontend-mphr:${GITHUB_SHA}")"
           test "$configured_user" = "node"
 
       - name: Smoke-test static frontend and fail-closed API boundary
@@ -87,10 +87,11 @@ jobs:
           output="$RUNNER_TEMP/glorifier-mphr-response.json"
           trap 'docker logs "$container" 2>/dev/null || true; docker rm --force "$container" >/dev/null 2>&1 || true; rm -f "$output"' EXIT
 
-          docker run --detach --name "$container" --publish 127.0.0.1:18080:8080 glorifier/frontend-mphr:${GITHUB_SHA}
+          docker run --detach --name "$container" --publish 127.0.0.1:18080:8080 "glorifier/frontend-mphr:${GITHUB_SHA}"
 
           ready=false
           for attempt in $(seq 1 30); do
+            echo "Waiting for static frontend readiness (attempt ${attempt}/30)"
             if curl --fail --silent --show-error http://127.0.0.1:18080/healthz --output "$output"; then
               ready=true
               break
