@@ -218,12 +218,12 @@ test('internal-service mission intake uses the fixed requester partition', async
     source: 'internal-service' as const,
   };
   let capturedAccess: unknown;
-  let capturedMission: Record<string, unknown> | null = null;
+  const capturedMissions: Record<string, unknown>[] = [];
   const baseStore = fixture.dependencies.createStore();
   const serviceStore = {
     ...baseStore,
     async create(mission: Record<string, unknown>) {
-      capturedMission = mission;
+      capturedMissions.push(mission);
       return baseStore.create(mission);
     },
   };
@@ -261,7 +261,7 @@ test('internal-service mission intake uses the fixed requester partition', async
   assert.equal(body.accepted, true);
   assert.equal(body.executionStarted, false);
   assert.deepEqual(capturedAccess, serviceAccess);
-  assert.equal(capturedMission?.requester, 'glorifier-internal-service');
+  assert.equal(capturedMissions[0]?.requester, 'glorifier-internal-service');
   assert.equal(body.mission?.requester, 'glorifier-internal-service');
   assert.equal(body.mission?.status, 'queued');
   assert.equal(fixture.missions.length, 1);
