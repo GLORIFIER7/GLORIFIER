@@ -30,14 +30,14 @@ with open(sys.argv[2], "a", encoding="utf-8") as handle:
     handle.write(f"\\n{delimiter}\\n")
 PY
   exit 0
-fi
-
-cli_status=$?
-if grep -Eiq '"code"[[:space:]]*:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*503|status:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*"UNAVAILABLE"' "$GEMINI_ERROR"; then
+else
+  cli_status=$?
+  if grep -Eiq '"code"[[:space:]]*:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*503|status:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*"UNAVAILABLE"' "$GEMINI_ERROR"; then
   printf 'provider_unavailable=true\\n' >> "$GITHUB_OUTPUT"
   echo "::warning::Gemini API returned HTTP 503 (temporarily overloaded or unavailable) after the CLI exhausted its retries. No fallback provider or paid tier was used; no patch will be published."
-  exit 0
-fi
+    exit 0
+  fi
 
-cat "$GEMINI_ERROR" >&2
-exit "$cli_status"
+  cat "$GEMINI_ERROR" >&2
+  exit "$cli_status"
+fi
