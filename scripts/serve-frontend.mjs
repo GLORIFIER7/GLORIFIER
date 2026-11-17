@@ -135,6 +135,29 @@ export function createFrontendServer(options = {}) {
 
       const pathname = requestUrl.pathname;
       if (pathname === '/healthz') {
+        try {
+          const rootRealPath = await realpath(root);
+          const entry = await resolveStaticFile(rootRealPath, '/');
+          if (!entry.filePath) {
+            sendJson(response, 503, {
+              ok: false,
+              service: 'glorifier-static-frontend',
+              status: 'static-assets-unavailable',
+              code: 'FRONTEND_ASSETS_NOT_READY',
+              backend: 'not-probed',
+            });
+            return;
+          }
+        } catch {
+          sendJson(response, 503, {
+            ok: false,
+            service: 'glorifier-static-frontend',
+            status: 'static-assets-unavailable',
+            code: 'FRONTEND_ASSETS_NOT_READY',
+            backend: 'not-probed',
+          });
+          return;
+        }
         sendJson(response, 200, {
           ok: true,
           service: 'glorifier-static-frontend',
@@ -161,7 +184,9 @@ export function createFrontendServer(options = {}) {
         return;
       }
 
-      if (resolved.status === 404 && path.extname(pathname) === '') {
+      if (resolved.status === 404 &&
+          path.extname(pathname) === '' &&
+          !pathname.startsWith('/assets/')) {
         resolved = await resolveStaticFile(rootRealPath, '/index.html');
       }
 
