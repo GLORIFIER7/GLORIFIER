@@ -19,6 +19,7 @@ from app.api_support import (
 )
 from app.database.neon import NeonConnectivityProbe
 from app.database.task_runs import TaskRunRepository
+from app.providers.workers_ai import DEFAULT_WORKERS_AI_MODEL
 from app.neural.torch_status import pytorch_status
 from app.runtime import build_orchestrator_from_environment
 from app.request_limits import RequestBodyLimitMiddleware
@@ -707,12 +708,13 @@ async def autopilot_workers_ai_readiness(
         _request_environment_value(request, "GLORIFIER_PROVIDER") or ""
     ).strip().casefold()
     model = (
-        _request_environment_value(request, "GLORIFIER_WORKERS_AI_MODEL") or ""
+        _request_environment_value(request, "GLORIFIER_WORKERS_AI_MODEL")
+        or DEFAULT_WORKERS_AI_MODEL
     ).strip()
 
-    # Registry.get() validates the AI binding, model, and owner-attested plan.
+    # Use the public runtime contract; readiness must not depend on private fields.
     runtime = _request_orchestrator(request)
-    provider = runtime._providers.get("cloudflare_workers_ai")
+    provider_configured = runtime.has_configured_provider("cloudflare_workers_ai")
     eligible = (
         workers_plan == "free"
         and workers_plan_verified
@@ -721,8 +723,8 @@ async def autopilot_workers_ai_readiness(
         and not external_egress
         and not paid_authorized
         and provider_name == "cloudflare_workers_ai"
-        and provider is not None
-        and runtime._allow_inference is True
+        and provider_configured
+        and runtime.inference_enabled is True
     )
     reason = (
         "ready"
