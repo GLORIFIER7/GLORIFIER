@@ -389,7 +389,7 @@ test('Gemini collaborator runs only in a filtered temporary workspace and drops 
     geminiWorkflow.indexOf('      - name: Upload isolated patch'),
   );
 
-  assert.ok(workspacePreparation.includes('git ls-files'));
+  assert.ok(workspacePreparation.includes('"git", "ls-files", "-z"'));
   assert.ok(workspacePreparation.includes('protected = re.compile'));
   assert.ok(workspacePreparation.includes('shutil.copy2'));
   assert.ok(workspacePreparation.includes('git("init", "--quiet")'));
@@ -400,7 +400,7 @@ test('Gemini collaborator runs only in a filtered temporary workspace and drops 
   assert.ok(patchStep.includes('literal_paths = [":(literal)" + path for path in safe_paths]'));
   assert.ok(patchStep.includes('"--", *literal_paths'));
   assert.doesNotMatch(patchStep, /Gemini changed protected paths/);
-  assert.ok(geminiWorkflow.includes('HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version'));
+  assert.ok(geminiWorkflow.includes('env HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version'));
 });
 
 test('Gemini collaborator treats provider throttling and overload as a no-patch result', () => {
