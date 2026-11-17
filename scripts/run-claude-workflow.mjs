@@ -72,19 +72,25 @@ export function classifyClaudeOutput(stdout) {
     const status = Number.isInteger(payload.api_error_status)
       ? payload.api_error_status
       : null;
-    if (status === 401 || status === 403) {
-      return { ok: false, code: 'authentication_or_access_error' };
+    let code = 'provider_error';
+    if (status === 400 || status === 422) {
+      code = 'provider_invalid_request';
+    } else if (status === 401 || status === 403) {
+      code = 'authentication_or_access_error';
+    } else if (status === 402) {
+      code = 'provider_billing_error';
+    } else if (status === 404) {
+      code = 'provider_model_or_endpoint_not_found';
+    } else if (status === 408) {
+      code = 'provider_request_timeout';
+    } else if (status === 413) {
+      code = 'provider_request_too_large';
+    } else if (status === 429) {
+      code = 'provider_rate_limited';
+    } else if (status !== null && status >= 500) {
+      code = 'provider_unavailable';
     }
-    if (status === 400) {
-      return { ok: false, code: 'provider_rejected_request' };
-    }
-    if (status === 429) {
-      return { ok: false, code: 'provider_rate_limited' };
-    }
-    if (status !== null && status >= 500) {
-      return { ok: false, code: 'provider_unavailable' };
-    }
-    return { ok: false, code: 'provider_error' };
+    return { ok: false, code, httpStatus: status };
   }
 
   if (payload.is_error !== false || typeof payload.result !== 'string') {
@@ -128,7 +134,7 @@ export function runClaude({ taskText, wrapper, env = process.env, timeoutMs = CL
 
   const classification = classifyClaudeOutput(result.stdout ?? '');
   if (!classification.ok) {
-    return { exitCode: 1, code: classification.code };
+    return { exitCode: 1, code: classification.code, httpStatus: classification.httpStatus };
   }
 
   if (result.status !== 0) {
@@ -149,7 +155,8 @@ async function main() {
     return;
   }
 
-  process.stderr.write('::error::Claude CLI failed (' + result.code + '); raw provider output and stderr were suppressed.\n');
+  const statusSuffix = Number.isInteger(result.httpStatus) ? '; HTTP ' + result.httpStatus : '';
+  process.stderr.write('::error::Claude CLI failed (' + result.code + statusSuffix + '); provider response body and stderr were suppressed.' + String.fromCharCode(10));
   process.exitCode = result.exitCode;
 }
 
