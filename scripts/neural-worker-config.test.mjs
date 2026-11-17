@@ -80,8 +80,8 @@ assert.equal(productionVars.GLORIFIER_WORKERS_AI_FREE_ONLY, 'false',
 assert.equal(previewVars.GLORIFIER_WORKERS_PLAN, 'unverified');
 assert.equal(previewVars.GLORIFIER_WORKERS_AI_FREE_ONLY, 'false');
 
-assert.equal(neuralWorkerConfig.ai?.binding, 'AI',
-  'NEURAL must expose the first-party Workers AI binding without an external API key');
+assert.equal('ai' in neuralWorkerConfig, false,
+  'Do not bind Workers AI to local validation or production before Free-plan entitlement is verified');
 assert.equal(neuralWorkerConfig.vars.GLORIFIER_PROVIDER, 'cloudflare_workers_ai');
 assert.equal(neuralWorkerConfig.vars.GLORIFIER_WORKERS_PLAN, 'unverified');
 assert.equal(neuralWorkerConfig.vars.GLORIFIER_WORKERS_PLAN_VERIFIED, 'false');
