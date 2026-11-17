@@ -95,7 +95,7 @@
         </div>
         <div class="snapshot">
           <div>PUBLIC EVIDENCE SNAPSHOT</div>
-          <div>Evidence retrieved 17 November 2026 · 04:56–04:57 UTC</div>
+          <div>Evidence retrieved 17 November 2026 · 06:26 UTC (13:26 Vientiane)</div>
         </div>
       </div>
     </header>
@@ -113,12 +113,12 @@
         <div class="card">
           <div class="card-label">Public frontend</div>
           <div class="state good">Deployed</div>
-          <div class="detail">Cloudflare Pages production deployment had succeeded for the latest recorded main commit at snapshot time.</div>
+          <div class="detail">Cloudflare Pages production deployment succeeded for the merged main commit at 06:14:16 UTC.</div>
         </div>
         <div class="card">
           <div class="card-label">Backend Worker</div>
           <div class="state warn">Older revision</div>
-          <div class="detail">A Worker is deployed, but at snapshot time its recorded source trailed main by 16 commits.</div>
+          <div class="detail">A Worker is deployed, but its active source still trails the merged main commit by 17 commits.</div>
         </div>
         <div class="card">
           <div class="card-label">Live AI execution</div>
@@ -132,14 +132,14 @@
         <p class="section-intro">The public static page is served from Cloudflare Pages. The deployment facts below are a historical snapshot, not automatically refreshed.</p>
         <div class="evidence">
           <div>
-            <h3>Most recent production source at snapshot time</h3>
-            <p>At snapshot time, Cloudflare Pages reported a successful production deployment from branch <span class="mono">main</span> at commit:</p>
-            <div class="mono">744dee7508fc7ca1e1370e2c56049b51770daf5b</div>
-            <p>Deployment <span class="mono">8e9c873b-5edd-4738-a41d-ab4b16eef0fa</span>; deploy stage completed at 04:56:07 UTC on 17 November 2026.</p>
+            <h3>Latest production Pages deployment</h3>
+            <p>Cloudflare Pages reported a successful production deployment from branch <span class="mono">main</span> at merged commit:</p>
+            <div class="mono">5e0078ff2202f79eebd4b5127ae283c2d9c6f834</div>
+            <p>Deployment <span class="mono">4c4181d6-0069-4ad4-b623-9011b7416e07</span>; deploy stage completed at 06:14:16 UTC on 17 November 2026.</p>
             <div class="links">
               <a href="https://glorifier.pages.dev/">Open public site</a>
-              <a href="https://8e9c873b.glorifier.pages.dev/">Open this deployment</a>
-              <a href="https://github.com/GLORIFIER7/GLORIFIER/commit/744dee7508fc7ca1e1370e2c56049b51770daf5b">View deployed commit</a>
+              <a href="https://4c4181d6.glorifier.pages.dev/">Open this production deployment</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/commit/5e0078ff2202f79eebd4b5127ae283c2d9c6f834">View deployed commit</a>
             </div>
           </div>
           <div class="evidence-status">DEPLOYED</div>
@@ -147,9 +147,9 @@
         <div class="evidence">
           <div>
             <h3>Frontend build and type check</h3>
-            <p>GitHub Actions frontend build completed successfully on the same commit. TypeScript typecheck, production build, and output verification steps passed.</p>
+            <p>GitHub Actions ran on this exact merged commit. TypeScript typecheck, production build, and frontend output verification all completed successfully.</p>
             <div class="links">
-              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44020385234">Frontend build run #44020385234</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44029633089">Main-commit build run #44029633089</a>
             </div>
           </div>
           <div class="evidence-status">PASSED</div>
@@ -164,7 +164,7 @@
             <h3>Last recorded Worker deployment</h3>
             <p>Cloudflare records Worker version <span class="mono">c17f6566-2a05-4d60-b136-839141c2893e</span> as receiving 100% of traffic. Its source commit is:</p>
             <div class="mono">394b99f66cf5f6380fee801fc203559252c9a8d1</div>
-            <p>The deployment occurred on 16 November 2026. At snapshot time, main was 16 commits ahead of that Worker source. These records therefore did not establish that the Worker contained the snapshot's main revision.</p>
+            <p>Cloudflare's active deployment assigns 100% of traffic to this version. Its last recorded deployment was created on 16 November 2026 at 07:09:54 UTC. Comparing the active Worker source commit with merged main shows main is 17 commits ahead. The Worker is therefore not synchronized with the current repository source.</p>
             <div class="links">
               <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43821688548">Last successful Worker deployment run #43821688548</a>
             </div>
@@ -173,13 +173,15 @@
         </div>
         <div class="evidence">
           <div>
-            <h3>Worker validation on the snapshot's main revision</h3>
-            <p>Validation, type checks, tests, and dry-run bundle validation passed on the snapshot's main commit <span class="mono">744dee7508fc7ca1e1370e2c56049b51770daf5b</span>. The production deployment job was skipped because this was a push-triggered validation run, not an explicitly authorized production dispatch.</p>
+            <h3>Worker build and deployment gate after merge</h3>
+            <p>The PR's Worker validation, tests, and Wrangler dry-run passed before merge. On the merge push, Cloudflare's Workers Builds record was stopped with outcome <span class="mono">skipped</span>, not a source-build failure. The configured build deploy command is validation-only; production releases remain gated by the repository's manual workflow dispatch, the <span class="mono">deploy_production=true</span> input, <span class="mono">CLOUDFLARE_DEPLOY_ENABLED=true</span>, and required secret checks. No Worker production release is evidenced for the merged commit.</p>
             <div class="links">
-              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44020388850">Worker workflow run #44020388850</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44029168023">Worker validation run #44029168023</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/runs/133858181455">Post-merge Workers Builds check</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/blob/5e0078ff2202f79eebd4b5127ae283c2d9c6f834/.github/workflows/cloudflare-worker.yml">Production deployment workflow at snapshot commit</a>
             </div>
           </div>
-          <div class="evidence-status">VALIDATION ONLY</div>
+          <div class="evidence-status">NOT DEPLOYED</div>
         </div>
       </section>
 
@@ -242,7 +244,7 @@
     </main>
 
     <footer>
-      <div class="wrap">GLORIFIER · Public evidence snapshot · Last evidence retrieval: 17 November 2026, 04:56–04:57 UTC · This is not a live monitoring dashboard.</div>
+      <div class="wrap">GLORIFIER · Public evidence snapshot · Last evidence retrieval: 17 November 2026, 06:26 UTC (13:26 Vientiane) · This is not a live monitoring dashboard.</div>
     </footer>
   </body>
 </html>
