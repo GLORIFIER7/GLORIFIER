@@ -1,5 +1,6 @@
+import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -109,6 +110,25 @@ function cacheControlFor(pathname, filePath) {
   return 'public, max-age=300';
 }
 
+function contentSecurityPolicy(nonce) {
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'nonce-" + nonce + "'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https: wss:",
+    "frame-src 'self' https://accounts.google.com https://firebaseapp.com https://*.firebaseapp.com https://*.web.app https://*.auth0.com",
+    "form-action 'self' https://accounts.google.com https://*.auth0.com",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "upgrade-insecure-requests",
+  ].join('; ');
+}
+
 export function createFrontendServer(options = {}) {
   const configuredRoot = options.root || process.env.FRONTEND_DIST_DIR || DEFAULT_ROOT;
   const root = path.resolve(configuredRoot);
@@ -198,16 +218,35 @@ export function createFrontendServer(options = {}) {
       const extension = path.extname(resolved.filePath).toLowerCase();
       const headers = securityHeaders({
         'Content-Type': MIME_TYPES.get(extension) || 'application/octet-stream',
-        'Content-Length': String(resolved.metadata.size),
         'Cache-Control': cacheControlFor(pathname, resolved.filePath),
       });
-      response.writeHead(200, headers);
 
       if (request.method === 'HEAD') {
+        response.writeHead(200, headers);
         response.end();
         return;
       }
 
+      if (extension === '.html') {
+        const nonce = randomBytes(18).toString('base64');
+        const html = await readFile(resolved.filePath, 'utf8');
+        const securedHtml = html.replace(
+          /<script(?![^>]*\\ssrc\\s*=)([^>]*)>/gi,
+          (_match, attributes) => '<script' + attributes + ' nonce="' + nonce + '">',
+        );
+        const payload = Buffer.from(securedHtml);
+        response.writeHead(200, securityHeaders({
+          ...headers,
+          'Content-Length': String(payload.byteLength),
+          'Content-Security-Policy': contentSecurityPolicy(nonce),
+        }));
+        response.end(payload);
+        return;
+      }
+
+      // Streamed asset bodies omit Content-Length so an asset changed after stat()
+      // cannot leave a stale advertised size and a truncated/hanging client response.
+      response.writeHead(200, headers);
       const stream = createReadStream(resolved.filePath);
       stream.on('error', () => {
         if (!response.headersSent) sendJson(response, 500, { ok: false, code: 'STATIC_ASSET_READ_FAILED' });
