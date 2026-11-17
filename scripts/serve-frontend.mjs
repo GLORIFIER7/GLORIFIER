@@ -28,7 +28,7 @@ const MIME_TYPES = new Map([
   ['.xml', 'application/xml; charset=utf-8'],
 ]);
 
-const RESERVED_RUNTIME_PATH = /^(?:\/api(?:\/|$)|\/auth(?:\/|$)|\/mcp(?:\/|$)|\/.well-known(?:\/|$))/;
+const RESERVED_RUNTIME_PATH = /^(?:\/api(?:\/|$)|\/auth(?:\/|$)|\/mcp(?:\/|$)|\/\.well-known(?:\/|$))/;
 
 function securityHeaders(extra = {}) {
   return {
