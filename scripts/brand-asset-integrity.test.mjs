@@ -65,12 +65,11 @@ test("browser and installed-app icons use the same canonical PNG", () => {
   }
 });
 
-test("the legacy project page redirects to the canonical status page", () => {
-  assert.match(projectPage, /http-equiv="refresh" content="0; url=\.\//);
-  assert.match(projectPage, /GLORIFIER — Public Status/);
+test("the secondary GitHub Pages project page retains the canonical artwork", () => {
   assert.ok(projectPage.includes(appPath));
-  assert.doesNotMatch(projectPage, /autonomous AI enterprise/i);
+  assert.match(projectPage, /autonomous AI enterprise/i);
   assert.ok(!projectPage.includes(legacyAvatarFingerprint));
+  assert.ok(!projectPage.includes('<span class="mark" aria-hidden="true">G</span>'));
   assert.ok(appIcon.includes(appPath));
   assert.ok(!appIcon.includes(legacyAvatarFingerprint));
 });
