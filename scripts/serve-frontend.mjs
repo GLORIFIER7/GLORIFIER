@@ -201,6 +201,10 @@ export function createFrontendServer(options = {}) {
       const headers = securityHeaders({
         'Content-Type': MIME_TYPES.get(extension) || 'application/octet-stream',
         'Cache-Control': cacheControlFor(pathname, resolved.filePath),
+        ...(extension === '.html' ? {
+          'Content-Length': String(resolved.metadata.size),
+          'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+        } : {}),
       });
 
       if (request.method === 'HEAD') {
@@ -214,7 +218,6 @@ export function createFrontendServer(options = {}) {
         response.writeHead(200, securityHeaders({
           ...headers,
           'Content-Length': String(html.byteLength),
-          'Content-Security-Policy': CONTENT_SECURITY_POLICY,
         }));
         response.end(html);
         return;
