@@ -234,6 +234,55 @@ test('Autopilot does not send a credential-like mission title to NEURAL', async 
   assert.equal(taskRequests, 0);
   assert.equal(fixture.state.saved.length, 1);
 });
+test('Autopilot readiness Service Binding is bounded by an outer timeout', async () => {
+  const pending = runCloudflareAutopilotCycle(freeEnvironment as never, {
+    fetchNeural: async () => new Promise<Response>(() => undefined),
+    readinessTimeoutMs: 10,
+  } as never);
+  const outcome = await Promise.race([
+    pending,
+    new Promise<'watchdog-expired'>(resolve => setTimeout(() => resolve('watchdog-expired'), 100)),
+  ]);
+  assert.notEqual(outcome, 'watchdog-expired');
+  assert.equal(outcome.status, 'blocked');
+  assert.equal(outcome.reason, 'neural-readiness-probe-failed');
+});
+
+test('Autopilot task Service Binding timeout saves terminal failure and releases its lease', async () => {
+  const fixture = storeFixture();
+  const pending = runCloudflareAutopilotCycle(freeEnvironment as never, {
+    createStore: () => fixture.store as never,
+    taskTimeoutMs: 10,
+    fetchNeural: async (request) => request.method === 'GET'
+      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false })
+      : new Promise<Response>(() => undefined),
+  } as never);
+  const outcome = await Promise.race([
+    pending,
+    new Promise<'watchdog-expired'>(resolve => setTimeout(() => resolve('watchdog-expired'), 100)),
+  ]);
+  assert.notEqual(outcome, 'watchdog-expired');
+  assert.equal(outcome.status, 'blocked');
+  assert.equal(outcome.reason, 'neural-task-unavailable');
+  assert.equal(fixture.state.saved.length, 1);
+  assert.equal(fixture.state.saved[0].mission.status, 'failed');
+  assert.equal(fixture.state.saved[0].mission.leaseOwner, undefined);
+});
+
+test('Autopilot rejects JSON null and releases the claimed mission', async () => {
+  const fixture = storeFixture();
+  const result = await runCloudflareAutopilotCycle(freeEnvironment as never, {
+    createStore: () => fixture.store as never,
+    fetchNeural: async (request) => request.method === 'GET'
+      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false })
+      : Response.json(null),
+  });
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'neural-response-invalid');
+  assert.equal(fixture.state.saved.length, 1);
+  assert.equal(fixture.state.saved[0].mission.status, 'failed');
+  assert.equal(fixture.state.saved[0].mission.leaseOwner, undefined);
+});
 test('Autopilot scheduler uses requester-scoped internal-service access, never cross-requester access', async () => {
   let receivedAccess: { requester: string; allowAll?: boolean; source?: string } | null = null;
   const fixture = storeFixture();
