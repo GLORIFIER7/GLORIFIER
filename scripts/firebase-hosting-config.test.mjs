@@ -151,12 +151,12 @@ test('the main startup status asset is reused as a same-origin script with no in
   const startupStatus = fixture('startupStatus');
   const bootCss = fixture('bootCss');
   assert.match(indexHtml, /src="[/]startup-status[.]js"/);
-  assert.match(indexHtml, /<script[^>]*\\bdefer\\b[^>]*>/);
+  assert.match(indexHtml, /<script[^>]*\bdefer\b[^>]*>/);
   assert.match(indexHtml, /<link[^>]+href="[/]boot[.]css"[^>]*>/);
   assert.doesNotMatch(indexHtml, /<script\b(?![^>]*\ssrc\s*=)[^>]*>/i);
   assert.doesNotMatch(indexHtml, /\sstyle=/i);
-  assert.match(startupWatchdog, /window\.addEventListener\(\s*['\"]unhandledrejection['\"]/);
-  assert.match(startupWatchdog, /window\.setTimeout\(/);
-  assert.match(startupWatchdog, /status\.setAttribute\('data-startup-state',\s*'failed'\)/);
+  assert.match(startupStatus, /window\.addEventListener\(\s*['\"]unhandledrejection['\"]/);
+  assert.match(startupStatus, /window\.setTimeout\(/);
+  assert.match(startupStatus, /status\.setAttribute\('data-startup-state',\s*'failed'\)/);
   assert.match(bootCss, /boot-status/);
 });
