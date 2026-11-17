@@ -1,0 +1,37 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci --no-audit --no-fund",
+  "buildCommand": "npm run build:frontend",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": "https://glorifier.pages.dev/api"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://glorifier.pages.dev/api/:path*"
+    },
+    {
+      "source": "/auth",
+      "destination": "https://glorifier.pages.dev/auth"
+    },
+    {
+      "source": "/auth/:path*",
+      "destination": "https://glorifier.pages.dev/auth/:path*"
+    },
+    {
+      "source": "/mcp",
+      "destination": "https://glorifier.pages.dev/mcp"
+    },
+    {
+      "source": "/.well-known/agent-card.json",
+      "destination": "https://glorifier.pages.dev/.well-known/agent-card.json"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
