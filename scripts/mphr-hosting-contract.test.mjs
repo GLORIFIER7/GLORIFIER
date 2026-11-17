@@ -23,6 +23,7 @@ test('Vercel forwards only documented runtime paths to the current Cloudflare Pa
     ['/auth', 'https://glorifier.pages.dev/auth'],
     ['/auth/:path*', 'https://glorifier.pages.dev/auth/:path*'],
     ['/mcp', 'https://glorifier.pages.dev/mcp'],
+    ['/mcp/:path*', 'https://glorifier.pages.dev/mcp/:path*'],
     ['/.well-known/agent-card.json', 'https://glorifier.pages.dev/.well-known/agent-card.json'],
   ];
   for (const [source, destination] of expected) {
@@ -47,6 +48,28 @@ test('the frontend container is non-root and reports static availability separat
   assert.match(server, /BACKEND_NOT_CONFIGURED/);
   assert.match(server, /backend:\s*'not-probed'/);
   assert.match(server, /STATIC_ASSET_NOT_FOUND/);
+});
+
+
+test('the shared Docker build context excludes local secrets and unnecessary state', () => {
+  const dockerignore = read('.dockerignore');
+  for (const required of [
+    '.env',
+    '.env.*',
+    '.npmrc',
+    '**/.npmrc',
+    '*.pem',
+    '*.key',
+    '*.p12',
+    '*.pfx',
+    'secrets/',
+    'credentials/',
+    'node_modules',
+    '.git',
+  ]) {
+    assert.ok(dockerignore.split('\n').some((line) => line.trim() === required),
+      '.dockerignore must exclude ' + required);
+  }
 });
 
 test('the test and build commands are exposed through package.json', () => {
