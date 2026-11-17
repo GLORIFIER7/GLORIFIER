@@ -82,8 +82,8 @@ async function defaultAuthorize(
   }
   if (isWorkerInternalService(request, environment)) {
     return {
-      requester: identity?.uid?.trim() || 'glorifier-internal-service',
-      allowAll: true,
+      requester: 'glorifier-internal-service',
+      allowAll: false,
       source: 'internal-service',
     };
   }
@@ -319,7 +319,11 @@ export async function handleAutopilotWorkerRequest(
   } catch {
     access = null;
   }
-  if (!access || !access.requester?.trim() || access.allowAll !== true) {
+  const ownerAccess = access?.source === 'owner' && access.allowAll === true;
+  const scopedInternalServiceAccess = access?.source === 'internal-service' &&
+    access.allowAll === false &&
+    access.requester === 'glorifier-internal-service';
+  if (!access || !access.requester?.trim() || (!ownerAccess && !scopedInternalServiceAccess)) {
     return jsonResponse({
       ok: false,
       status: 'unauthenticated',
@@ -408,7 +412,7 @@ export async function handleAutopilotWorkerRequest(
 
   if (pathname === MISSIONS_PATH) {
     try {
-      const missions = await store.list(access.requester.trim(), 50, true);
+      const missions = await store.list(access.requester.trim(), 50, access.allowAll === true);
       return jsonResponse({ ok: true, missions, control: buildWorkerControl() });
     } catch (error) {
       return unavailableStoreResponse(error);
