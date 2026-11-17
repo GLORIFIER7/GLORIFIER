@@ -44,7 +44,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: live-ai-inference-verification-${{ github.event_name }}-${{ inputs.provider || 'contract' }}
+  group: live-ai-inference-verification-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -94,14 +94,15 @@ jobs:
 
   inference:
     needs: preflight
-    if: needs.preflight.result == 'success' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 && inputs.allow_free_inference == true
-    runs-on: ubuntu-latest
+    if: needs.preflight.result == 'success' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 && vars.LIVE_AI_PROBE_ENABLED == 'true' && inputs.allow_free_inference == true
+    runs-on: ${{ (inputs.provider == 'meta' || inputs.provider == 'ollama') && fromJSON('["self-hosted","linux","x64","glorifier-local-ai"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     environment: live-ai-probe
     permissions:
       contents: read
     env:
       LIVE_AI_PROVIDER: ${{ inputs.provider }}
+      LIVE_AI_PROBE_ENABLED: ${{ vars.LIVE_AI_PROBE_ENABLED }}
       ALLOW_FREE_INFERENCE: ${{ inputs.allow_free_inference && 'true' || 'false' }}
       GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: ${{ vars.GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON }}
       OPENAI_API_KEY: ${{ inputs.provider == 'openai' && secrets.OPENAI_API_KEY || '' }}
@@ -120,22 +121,22 @@ jobs:
       LLMSRELAY_API_KEY: ${{ inputs.provider == 'llmsrelay' && secrets.LLMSRELAY_API_KEY || '' }}
       NVIDIA_API_KEY: ${{ inputs.provider == 'nvidia' && secrets.NVIDIA_API_KEY || '' }}
       OLLAMA_AUTH_TOKEN: ${{ inputs.provider == 'ollama' && secrets.OLLAMA_AUTH_TOKEN || '' }}
-      OPENAI_MODEL: ${{ inputs.model || vars.OPENAI_MODEL }}
-      GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL }}
-      ANTHROPIC_MODEL: ${{ inputs.model || vars.ANTHROPIC_MODEL }}
-      META_MODEL: ${{ inputs.model || vars.META_MODEL }}
-      QWEN_MODEL: ${{ inputs.model || vars.QWEN_MODEL }}
-      XAI_MODEL: ${{ inputs.model || vars.XAI_MODEL }}
-      MISTRAL_MODEL: ${{ inputs.model || vars.MISTRAL_MODEL }}
-      DEEPSEEK_MODEL: ${{ inputs.model || vars.DEEPSEEK_MODEL }}
-      GROQ_MODEL: ${{ inputs.model || vars.GROQ_MODEL }}
-      TOGETHER_MODEL: ${{ inputs.model || vars.TOGETHER_MODEL }}
-      FIREWORKS_MODEL: ${{ inputs.model || vars.FIREWORKS_MODEL }}
-      OPENROUTER_MODEL: ${{ inputs.model || vars.OPENROUTER_MODEL }}
-      HF_MODEL: ${{ inputs.model || vars.HF_MODEL }}
-      LLMSRELAY_MODEL: ${{ inputs.model || vars.LLMSRELAY_MODEL }}
-      NVIDIA_MODEL: ${{ inputs.model || vars.NVIDIA_MODEL }}
-      OLLAMA_MODEL: ${{ inputs.model || vars.OLLAMA_MODEL }}
+      OPENAI_MODEL: ${{ inputs.provider == 'openai' && inputs.model || vars.OPENAI_MODEL }}
+      GEMINI_MODEL: ${{ inputs.provider == 'gemini' && inputs.model || vars.GEMINI_MODEL }}
+      ANTHROPIC_MODEL: ${{ inputs.provider == 'anthropic' && inputs.model || vars.ANTHROPIC_MODEL }}
+      META_MODEL: ${{ inputs.provider == 'meta' && inputs.model || vars.META_MODEL }}
+      QWEN_MODEL: ${{ inputs.provider == 'qwen' && inputs.model || vars.QWEN_MODEL }}
+      XAI_MODEL: ${{ inputs.provider == 'xai' && inputs.model || vars.XAI_MODEL }}
+      MISTRAL_MODEL: ${{ inputs.provider == 'mistral' && inputs.model || vars.MISTRAL_MODEL }}
+      DEEPSEEK_MODEL: ${{ inputs.provider == 'deepseek' && inputs.model || vars.DEEPSEEK_MODEL }}
+      GROQ_MODEL: ${{ inputs.provider == 'groq' && inputs.model || vars.GROQ_MODEL }}
+      TOGETHER_MODEL: ${{ inputs.provider == 'together' && inputs.model || vars.TOGETHER_MODEL }}
+      FIREWORKS_MODEL: ${{ inputs.provider == 'fireworks' && inputs.model || vars.FIREWORKS_MODEL }}
+      OPENROUTER_MODEL: ${{ inputs.provider == 'openrouter' && inputs.model || vars.OPENROUTER_MODEL }}
+      HF_MODEL: ${{ inputs.provider == 'huggingface' && inputs.model || vars.HF_MODEL }}
+      LLMSRELAY_MODEL: ${{ inputs.provider == 'llmsrelay' && inputs.model || vars.LLMSRELAY_MODEL }}
+      NVIDIA_MODEL: ${{ inputs.provider == 'nvidia' && inputs.model || vars.NVIDIA_MODEL }}
+      OLLAMA_MODEL: ${{ inputs.provider == 'ollama' && inputs.model || vars.OLLAMA_MODEL }}
       OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
       META_BASE_URL: ${{ vars.META_BASE_URL }}
       QWEN_BASE_URL: ${{ vars.QWEN_BASE_URL }}
