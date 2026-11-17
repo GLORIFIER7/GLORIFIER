@@ -1,13 +1,13 @@
 {
   "id": "./",
-  "name": "GLORIFIER — Public Status",
+  "name": "GLORIFIER — Autonomous AI Enterprise",
   "short_name": "GLORIFIER",
-  "description": "A static public status page with timestamped deployment evidence and clearly identified unverified capabilities.",
+  "description": "AI-first autonomous enterprise operating model with governed agent execution, evidence-backed outcomes, and human authority.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#101312",
-  "theme_color": "#101312",
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "icons": [
     {
       "src": "glorifier-services-official-logo-001.png",
@@ -19,6 +19,7 @@
   "orientation": "any",
   "categories": [
     "business",
-    "productivity"
+    "productivity",
+    "utilities"
   ]
 }
