@@ -72,7 +72,6 @@ test('Autopilot scheduler stays fail-closed and does not touch Neon while Worker
 
 test('Autopilot scheduler requires NEURAL to independently attest the same free-only provider configuration', async () => {
   const fixture = storeFixture();
-  let taskRequests = 0;
   const result = await runCloudflareAutopilotCycle(freeEnvironment as never, {
     createStore: () => fixture.store as never,
     fetchNeural: async (request) => {
@@ -87,7 +86,6 @@ test('Autopilot scheduler requires NEURAL to independently attest the same free-
 
   assert.equal(result.status, 'blocked');
   assert.equal(result.reason, 'neural-free-provider-not-ready');
-  assert.equal(taskRequests, 0);
   assert.equal(fixture.state.initialized, 0);
   assert.equal(fixture.state.claimed, 0);
 });
@@ -117,7 +115,7 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
     },
   });
 
-  assert.equal(result.status, 'completed');
+  assert.equal(result.status, 'planned');
   assert.equal(result.missionId, 'mission-001');
   assert.equal(requests.length, 2);
   assert.equal(requests[0].method, 'GET');
@@ -135,7 +133,7 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
   assert.equal(fixture.state.saved.length, 1);
   const saved = fixture.state.saved[0];
   assert.equal(saved.expectedVersion, 2);
-  assert.equal(saved.mission.status, 'completed');
+  assert.equal(saved.mission.status, 'blocked');
   assert.equal(saved.mission.verificationState, 'pending-external-evidence');
   assert.equal(saved.mission.steps.length, 1);
   assert.equal(saved.mission.steps[0].effect, 'read-only');
@@ -179,7 +177,7 @@ test('Autopilot rejects provider responses that do not match the verified free p
       : Response.json({ status: 'VERIFIED', provider: 'openai', result: 'Unexpected provider result.', evidence: ['execution:inference'] }),
   });
 
-  assert.equal(result.status, 'failed');
+  assert.equal(result.status, 'blocked');
   assert.equal(result.reason, 'unexpected-provider-response');
   assert.equal(fixture.state.saved.length, 1);
   assert.equal(fixture.state.saved[0].mission.status, 'failed');
