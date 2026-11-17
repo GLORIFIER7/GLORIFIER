@@ -14,7 +14,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:broker-console-truthfulness": "node --test scripts/broker-console-truthfulness.test.mjs",
-    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache",
+    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache && npm run test:firebase-hosting-config",
     "test:service-worker-cache": "node --test scripts/service-worker-cache.test.mjs",
     "build:frontend": "vite build",
     "prebuild:android": "npm run test:package-manifest-integrity && npm run test:brand-assets",
@@ -137,6 +137,7 @@
     "start:frontend": "node scripts/serve-frontend.mjs",
     "test:frontend-static-server": "node --test scripts/frontend-static-server.test.mjs",
     "test:mphr-hosting": "npm run test:frontend-static-server && node --test scripts/mphr-hosting-contract.test.mjs"
+    "test:firebase-hosting-config": "node --test scripts/firebase-hosting-config.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
