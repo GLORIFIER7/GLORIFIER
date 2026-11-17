@@ -185,9 +185,9 @@ jobs:
           while delimiter in response:
               delimiter = "GEMINI_" + secrets.token_hex(16)
           with open(sys.argv[2], "a", encoding="utf-8") as handle:
-              handle.write(f"summary<<{delimiter}\\n")
+              handle.write(f"summary<<{delimiter}\n")
               handle.write(response)
-              handle.write(f"\\n{delimiter}\\n")
+              handle.write(f"\n{delimiter}\n")
           PY
       - name: Prepare and validate Gemini patch
         id: patch

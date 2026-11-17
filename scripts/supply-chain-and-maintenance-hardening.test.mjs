@@ -65,18 +65,21 @@ test('Codex action is pinned to its reviewed immutable commit', () => {
   assertPinnedAction(codexWorkflow, 'openai/codex-action', 'bdf19a4a223ec2549a3e2274a0cf61556bc07675');
 });
 
-test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag', () => {
+test('Gemini workflows use explicit bounded CLI modes and never enable unrestricted execution', () => {
+  assert.ok(geminiWorkflow.includes('"command(*)"'), 'collaborator must deny every shell command');
+  assert.ok(geminiWorkflow.includes('"unsandboxed(*)"'), 'collaborator must deny unsandboxed command execution');
+  assert.ok(geminiWorkflow.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL" --mode accept-edits'));
+  assert.doesNotMatch(geminiWorkflow, /--yolo/);
+  assert.equal(geminiWorkflow.includes('@google/gemini-cli'), false);
+
   const workflows = [
-    { name: 'collaborator', source: geminiWorkflow, mode: 'auto_edit' },
     { name: 'development', source: geminiDevelopmentWorkflow, mode: 'auto_edit' },
     { name: 'PR review', source: geminiPrReviewWorkflow, mode: 'plan' },
   ];
-
   for (const { name, source, mode } of workflows) {
     assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
-    const commandPrefix = name === 'collaborator' ? 'gemini --skip-trust --model' : 'gemini --model';
     assert.ok(
-      source.includes(commandPrefix + ' "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
+      source.includes('gemini --model "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
       name + ' must use the explicit bounded approval mode',
     );
     assert.ok(
@@ -86,8 +89,7 @@ test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag
     assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
     assert.doesNotMatch(source, /--yolo/, name + ' must never pass the prohibited YOLO flag');
   }
-});
-test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
+});test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
   for (const source of foundryWorkflows) {
     assertPinnedAction(source, 'foundry-rs/foundry-toolchain', 'dba66c27052e63476d886f22216e119ba7e615bf');
   }
@@ -264,16 +266,23 @@ const geminiReviewWorkflow = readFileSync(
 );
 
 function readGeminiSystemSettings(source) {
-  const match = source.match(
+  const antigravitySettings = source.match(
+    /cat > "\$HOME\/\.gemini\/antigravity-cli\/settings\.json" <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
+  );
+  if (antigravitySettings) {
+    assert.match(source, /install -d -m 700 "\$HOME\/\.gemini\/antigravity-cli"/);
+    assert.match(source, /chmod 600 "\$HOME\/\.gemini\/antigravity-cli\/settings\.json"/);
+    return JSON.parse(antigravitySettings[1]);
+  }
+  const rootOwnedSettings = source.match(
     /sudo tee \/etc\/glorifier\/gemini-system-settings\.json >\/dev\/null <<'JSON'\r?\n([\s\S]*?)\r?\n[ \t]*JSON/,
   );
-  assert.ok(match, 'Gemini workflow must create its system settings in the root-owned trusted directory');
+  assert.ok(rootOwnedSettings, 'Gemini workflow must create its system settings in a trusted settings path');
   assert.match(source, /sudo install -d -o root -g root -m 755 \/etc\/glorifier/);
   assert.match(source, /sudo chown root:root \/etc\/glorifier\/gemini-system-settings\.json/);
   assert.match(source, /sudo chmod 644 \/etc\/glorifier\/gemini-system-settings\.json/);
-  return JSON.parse(match[1]);
+  return JSON.parse(rootOwnedSettings[1]);
 }
-
 function jobSection(source, jobName, nextJobName) {
   const start = source.indexOf('  ' + jobName + ':');
   assert.ok(start >= 0, 'missing ' + jobName + ' job');
@@ -297,31 +306,43 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
-  assert.match(modelJob, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
-});
-
-test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
-  for (const source of [geminiWorkflow, geminiDevelopmentWorkflow]) {
-    const settings = readGeminiSystemSettings(source);
-    assert.deepEqual(settings.tools.core, [
-      'read_file',
-      'glob',
-      'grep_search',
-      'list_directory',
-      'read_many_files',
-      'write_file',
-      'replace',
-    ]);
-    assert.equal(settings.general.defaultApprovalMode, 'auto_edit');
-    assert.equal(settings.security.disableYoloMode, true);
-    assert.equal(settings.security.environmentVariableRedaction.enabled, true);
-    assert.equal(settings.security.enableConseca, true);
-    assert.doesNotMatch(JSON.stringify(settings.tools.core), /run_shell_command/);
-    assert.match(source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:\s*\/etc\/glorifier\/gemini-system-settings\.json/);
+  assert.match(modelJob, /agy -p "\$GEMINI_PROMPT" --model "\$AGY_MODEL" --mode accept-edits/);
+  assert.match(modelJob, /AGY_MODEL: gemini-3\.8-flash-medium/);
+});test('Gemini coding workflows limit the collaborator to workspace file edits and deny external tools', () => {
+  const collaboratorSettings = readGeminiSystemSettings(geminiWorkflow);
+  assert.equal(collaboratorSettings.modelProvider, 'gemini');
+  assert.equal(collaboratorSettings.agentMode, 'accept-edits');
+  assert.ok(collaboratorSettings.permissions.deny.includes('command(*)'));
+  assert.ok(collaboratorSettings.permissions.deny.includes('unsandboxed(*)'));
+  assert.ok(collaboratorSettings.permissions.deny.includes('read_url(*)'));
+  assert.ok(collaboratorSettings.permissions.deny.includes('execute_url(*)'));
+  assert.ok(collaboratorSettings.permissions.deny.includes('mcp(*)'));
+  for (const protectedPath of ['.github/', 'GEMINI.md', 'AGENTS.md', 'package.json', 'package-lock.json', '.env', 'secrets/', 'credentials/', 'signing/', '.git/']) {
+    assert.ok(
+      collaboratorSettings.permissions.deny.includes('write_file(' + protectedPath + ')'),
+      'collaborator must be unable to write protected path ' + protectedPath,
+    );
   }
-});
+  assert.ok(geminiWorkflow.includes('GEMINI_API_KEY: \${{ secrets.GEMINI_API_KEY }}'));
+  assert.equal(geminiWorkflow.includes('GEMINI_CLI_SYSTEM_SETTINGS_PATH'), false);
 
-test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can only publish a comment', () => {
+  const developmentSettings = readGeminiSystemSettings(geminiDevelopmentWorkflow);
+  assert.deepEqual(developmentSettings.tools.core, [
+    'read_file',
+    'glob',
+    'grep_search',
+    'list_directory',
+    'read_many_files',
+    'write_file',
+    'replace',
+  ]);
+  assert.equal(developmentSettings.general.defaultApprovalMode, 'auto_edit');
+  assert.equal(developmentSettings.security.disableYoloMode, true);
+  assert.equal(developmentSettings.security.environmentVariableRedaction.enabled, true);
+  assert.equal(developmentSettings.security.enableConseca, true);
+  assert.doesNotMatch(JSON.stringify(developmentSettings.tools.core), /run_shell_command/);
+  assert.match(geminiDevelopmentWorkflow, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:/);
+});test('Gemini PR review is read-only, uses untrusted PR diffs as data, and can only publish a comment', () => {
   const modelJob = jobSection(geminiReviewWorkflow, 'gemini-review', 'publish-review');
   const publisherJob = jobSection(geminiReviewWorkflow, 'publish-review', null);
   const settings = readGeminiSystemSettings(geminiReviewWorkflow);
@@ -463,7 +484,7 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
     {
       name: 'collaborator',
       source: geminiWorkflow,
-      install: 'Install pinned Gemini CLI without provider credentials',
+      install: 'Install pinned Antigravity CLI and verify release digest',
       inference: 'Run Gemini engineering collaboration',
     },
     {
@@ -487,20 +508,25 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
       workflow.source.indexOf(workflow.install) < workflow.source.indexOf(workflow.inference),
       workflow.name + ' must install the pinned CLI before credential-bearing inference',
     );
-    assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
-    assert.match(install, /gemini --version/);
+    if (workflow.name === 'collaborator') {
+      assert.ok(install.includes('agy_cli_linux_x64.tar.gz'));
+      assert.ok(install.includes('sha256sum --check --strict'));
+      assert.ok(install.includes('install -m 755'));
+      assert.ok(install.includes('agy --version'));
+    } else {
+      assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
+      assert.match(install, /gemini --version/);
+    }
     assert.doesNotMatch(install, /secrets\.GEMINI_API_KEY/,
       workflow.name + ' installation must not receive the provider secret');
     assert.doesNotMatch(install, /^\s+GEMINI_API_KEY:/m,
       workflow.name + ' installation must not define a provider-key environment variable');
-    assert.doesNotMatch(inference, /npm install --global|gemini --version/,
+    assert.doesNotMatch(inference, /npm install --global|gemini --version|agy --version/,
       workflow.name + ' inference must not install or bootstrap executable code');
-    assert.match(inference, /GEMINI_API_KEY: \$\{\{ secrets\.GEMINI_API_KEY \}\}/,
+    assert.ok(inference.includes('GEMINI_API_KEY: \${{ secrets.GEMINI_API_KEY }}'),
       workflow.name + ' must scope the provider credential to the inference step');
   }
-});
-
-test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT delimiters', () => {
+});test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT delimiters', () => {
   const workflows = [
     { name: 'collaborator', source: geminiWorkflow, step: 'Run Gemini engineering collaboration' },
     { name: 'development', source: geminiDevelopmentWorkflow, step: 'Run Gemini CLI' },
