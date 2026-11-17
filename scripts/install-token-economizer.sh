@@ -93,8 +93,7 @@ fi
 # Keep optimization local and free of extra model calls by default:
 # envfacts is LLM-free, toolprune=propose requires a human to apply changes,
 # and loopguard=off disables the judge/nudge side calls.
-"$PLUGIN_DIR/scripts/te" --host codex --cwd "$REPOSITORY_ROOT" config set \
-  microskills=envfacts toolprune=propose loopguard=off
+"$PLUGIN_DIR/scripts/te" --host codex --cwd "$REPOSITORY_ROOT" config set microskills=envfacts toolprune=propose loopguard=off
 
 codex plugin marketplace add "$INSTALL_DIR"
 codex plugin add "$MARKETPLACE_NAME@$MARKETPLACE_NAME"
