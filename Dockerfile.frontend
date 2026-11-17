@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+
+# Build the same React/Vite application used by the Cloudflare and Vercel targets.
+FROM node:24-trixie-slim AS build
+
+ENV NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    NPM_CONFIG_FUND=false
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
+ && npm ci --include=dev --ignore-scripts --no-audit --no-fund
+
+COPY . .
+RUN npm run build:frontend
+
+# This is a static frontend container, not the GLORIFIER API/backend runtime.
+FROM node:24-trixie-slim AS runtime
+
+ENV NODE_ENV=production \
+    PORT=8080 \
+    FRONTEND_DIST_DIR=/app/dist
+
+WORKDIR /app
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --chown=node:node scripts/serve-frontend.mjs ./scripts/serve-frontend.mjs
+
+USER node
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+
+CMD ["node", "scripts/serve-frontend.mjs"]
