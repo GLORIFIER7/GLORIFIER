@@ -58,11 +58,12 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
   assert.match(vercelCsp, /object-src 'none'/);
   assert.match(vercelCsp, /frame-ancestors 'none'/);
   const connectSrc = vercelCsp.split(';').find((directive) => directive.trim().startsWith('connect-src ')) || '';
-  assert.match(connectSrc, /https:\\/\\/api\\.openai\\.com/);
-  assert.match(connectSrc, /https:\\/\\/generativelanguage\\.googleapis\\.com/);
-  assert.doesNotMatch(connectSrc, /(?:^|\\s)https:(?:\\s|;)/,
+  const connectSources = connectSrc.trim().split(' ').filter(Boolean);
+  assert.ok(connectSources.includes('https://api.openai.com'));
+  assert.ok(connectSources.includes('https://generativelanguage.googleapis.com'));
+  assert.equal(connectSources.includes('https:'), false,
     'connect-src must not allow every HTTPS origin');
-  assert.doesNotMatch(connectSrc, /(?:^|\\s)wss:(?:\\s|;)/,
+  assert.equal(connectSources.includes('wss:'), false,
     'connect-src must not allow every WebSocket origin');
   assert.match(cloudflareHeaders, /Content-Security-Policy:/);
   assert.ok(cloudflareHeaders.includes(vercelCsp),
@@ -148,7 +149,7 @@ test('public documentation distinguishes the hosting design from live deployment
   const architecture = read('docs/architecture/geas-multi-provider-hosting-resilience.md');
   const readme = read('README.md');
   const legacy = read('docs/architecture/cloudflare-workers-only-migration.md');
-  assert.match(readme, /GEAS[^\\n]*Multi-Provider Hosting Resilience/);
+  assert.ok(readme.split('\n').some((line) => line.includes('GEAS') && line.includes('Multi-Provider Hosting Resilience')));
   assert.ok(architecture.includes('Automatic traffic failover: **NOT ENABLED**'));
   assert.ok(architecture.includes('Vercel project: **NOT LINKED**'));
   assert.ok(architecture.includes('Docker frontend runtime: **NOT DEPLOYED**'));
