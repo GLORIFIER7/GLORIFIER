@@ -167,12 +167,10 @@ test('internal-service claiming and recovery remain requester-scoped with allowA
   assert.deepEqual(settings.values, ['glorifier-internal-service', 'false']);
 });
 
-test('internal-service source cannot claim or recover for a non-service requester', async () => {
-  const store = new WorkerAutopilotMissionStore(binding, {
+test('internal-service source rejects a non-service requester at construction', () => {
+  assert.throws(() => new WorkerAutopilotMissionStore(binding, {
     requester: 'owner-uid', allowAll: false, source: 'internal-service',
-  }, fakeFactory(() => ({ rows: [] })).factory as never);
-  await assert.rejects(() => store.claimNext('scheduler', 60_000, '2026-11-15T10:00:00.000Z'), /internal|elevated/i);
-  await assert.rejects(() => store.recoverExpired('2026-11-15T10:00:00.000Z'), /internal|elevated/i);
+  }, fakeFactory(() => ({ rows: [] })).factory as never), /Internal-service access must use the fixed requester partition/);
 });
 test('Worker Autopilot store rolls back a failed mission write and always closes its connection', async () => {
   const fake = fakeFactory((sql) => {
