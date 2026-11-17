@@ -9,7 +9,7 @@ const fixturePaths = {
   firestoreRules: { path: '../firestore.rules', json: false },
   collaborationModal: { path: '../src/components/AllAiCollaborationModal.tsx', json: false },
   indexHtml: { path: '../index.html', json: false },
-  startupWatchdog: { path: '../public/startup-watchdog.js', json: false },
+  startupStatus: { path: '../public/startup-status.js', json: false },
   bootCss: { path: '../public/boot.css', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
   requiredWorkerSecrets: { path: '../scripts/cloudflare-worker-required-secrets.json', json: true },
@@ -146,11 +146,12 @@ test('the Hosting CSP does not require unsafe-inline for the app progress indica
   assert.doesNotMatch(fixture('collaborationModal'), /style=\{\{/);
 });
 
-test('startup watchdog is loaded as a same-origin asset with no inline scripts or styles', () => {
+test('the main startup status asset is reused as a same-origin script with no inline scripts or styles', () => {
   const indexHtml = fixture('indexHtml');
-  const startupWatchdog = fixture('startupWatchdog');
+  const startupStatus = fixture('startupStatus');
   const bootCss = fixture('bootCss');
-  assert.match(indexHtml, /<script[^>]+src="[/]startup-watchdog[.]js"[^>]+defer[^>]*><[/]script>/);
+  assert.match(indexHtml, /src="[/]startup-status[.]js"/);
+  assert.match(indexHtml, /<script[^>]*\\bdefer\\b[^>]*>/);
   assert.match(indexHtml, /<link[^>]+href="[/]boot[.]css"[^>]*>/);
   assert.doesNotMatch(indexHtml, /<script\b(?![^>]*\ssrc\s*=)[^>]*>/i);
   assert.doesNotMatch(indexHtml, /\sstyle=/i);
