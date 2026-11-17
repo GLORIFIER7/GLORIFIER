@@ -69,8 +69,8 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
 test('frontend container Dockerfile declares a non-root runtime and truthful static-only health contract', () => {
   const dockerfile = read('Dockerfile.frontend');
   const server = read('scripts/serve-frontend.mjs');
-  assert.match(dockerfile, /FROM node:24\\.22\\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS build/);
-  assert.match(dockerfile, /FROM node:24\\.22\\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS runtime/);
+  assert.match(dockerfile, /FROM node:24\.22\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS build/);
+  assert.match(dockerfile, /FROM node:24\.22\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS runtime/);
   assert.match(dockerfile, /npm run build:frontend/);
   assert.match(dockerfile, /USER node/);
   assert.match(dockerfile, /EXPOSE 8080/);
@@ -78,7 +78,7 @@ test('frontend container Dockerfile declares a non-root runtime and truthful sta
   assert.match(server, /BACKEND_NOT_CONFIGURED/);
   assert.match(server, /backend:\s*'not-probed'/);
   assert.match(server, /STATIC_ASSET_NOT_FOUND/);
-  assert.match(server, /process\\.once\\('SIGTERM'/);
+  assert.match(server, /process\.once\('SIGTERM'/);
   assert.match(server, /function decodeRoutePath/);
   assert.match(server, /export function isInsideRoot/);
 });
