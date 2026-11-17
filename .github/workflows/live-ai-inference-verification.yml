@@ -167,4 +167,6 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
           GITHUB_ACTOR_ID: ${{ github.actor_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: node scripts/live-ai-inference-verification.mjs | tee "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -euo pipefail
+          node scripts/live-ai-inference-verification.mjs | tee "$GITHUB_STEP_SUMMARY"
