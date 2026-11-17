@@ -198,6 +198,58 @@ if (buildObservedArchitecturePatterns(
   throw new Error('NIST IR 8259 source availability alone must never instantiate the IoT lifecycle pattern');
 }
 
+
+const nistIr8621Source = model.sources.find((source) => source.id === 'nist-ir-8621');
+if (!nistIr8621Source
+    || nistIr8621Source.url !== 'https://csrc.nist.gov/pubs/ir/8621/final'
+    || nistIr8621Source.cadenceHours !== 336
+    || !nistIr8621Source.patternIds.includes('si-incident-management-evidence')
+    || !nistIr8621Source.claimsAllowed.includes('si-incident-management-guidance')
+    || !isTrustedArchitectureSourceUrl('https://csrc.nist.gov/pubs/ir/8621/final')) {
+  throw new Error('NIST IR 8621 must use its exact official publication URL, 14-day cadence, and explicit incident-evidence source-policy associations');
+}
+const nistIr8621Keywords = getSourcePatternKeywords('nist-ir-8621');
+const nistIr8621Text = 'NIST IR 8621. Participants emphasized critical operational needs, including reasoning-layer telemetry, non-human identity governance, authorization-scoped containment, clear evidentiary and reporting schemas.';
+if (nistIr8621Keywords.length !== 1
+    || nistIr8621Keywords[0] !== 'reasoning-layer telemetry, non-human identity governance, authorization-scoped containment'
+    || findEarliestKeywordIndex(nistIr8621Text, nistIr8621Keywords) !== nistIr8621Text.indexOf('reasoning-layer telemetry, non-human identity governance, authorization-scoped containment')) {
+  throw new Error('NIST IR 8621 must select its substantive incident-telemetry finding rather than generic page chrome');
+}
+const nistIr8621Observation: SourceObservation = {
+  sourceId: 'nist-ir-8621',
+  ok: true,
+  status: 200,
+  contentHash: 'f'.repeat(64),
+  observedAt: '2026-11-17T03:00:00.000Z',
+  finalUrl: 'https://csrc.nist.gov/pubs/ir/8621/final',
+  evidenceExcerpt: 'Participants emphasized critical operational needs, including reasoning-layer telemetry, non-human identity governance, authorization-scoped containment, clear evidentiary and reporting schemas.',
+  evidenceStatus: 'content-matched',
+};
+const nistIr8621Pattern = buildObservedArchitecturePatterns(
+  [nistIr8621Observation],
+  nistIr8621Observation.observedAt,
+).find((pattern) => pattern.id === 'si-incident-management-evidence');
+if (!nistIr8621Pattern
+    || nistIr8621Pattern.sourceId !== 'nist-ir-8621'
+    || nistIr8621Pattern.domain !== 'cybersecurity'
+    || nistIr8621Pattern.evidenceClass !== 'analysis'
+    || !nistIr8621Pattern.GLORIFIERMapping.includes('Analysis only')
+    || !nistIr8621Pattern.GLORIFIERMapping.includes('not a conformance standard')
+    || !nistIr8621Pattern.GLORIFIERMapping.includes('does not prove GLORIFIER')) {
+  throw new Error('NIST IR 8621 may add only a cybersecurity analysis pattern and must not imply GLORIFIER implementation or conformance');
+}
+const nistIr8621SourceAvailableOnly: SourceObservation = {
+  ...nistIr8621Observation,
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+};
+if (buildObservedArchitecturePatterns(
+  [nistIr8621SourceAvailableOnly],
+  nistIr8621SourceAvailableOnly.observedAt,
+).some((pattern) => pattern.id === 'si-incident-management-evidence')) {
+  throw new Error('NIST IR 8621 source availability alone must never instantiate the incident-evidence pattern');
+}
+
 if (classifyArchitectureEvidence('content-matched') !== 'analysis') {
   throw new Error('NIST content matches must remain analysis and must not become claim-supported facts');
 }
