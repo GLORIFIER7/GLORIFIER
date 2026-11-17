@@ -1,6 +1,6 @@
 # Cloudflare Workers-only migration
 
-> **Hosting-strategy supersession:** **Superseded by GEAS MPHR** ([Multi-Provider Hosting Resilience](./geas-multi-provider-hosting-resilience.md). This document remains the historical route-by-route Cloudflare Worker migration/evidence record. Its former Cloudflare-only hosting decision is no longer the approved long-term hosting strategy. Do not use the historical decision below to remove Vercel or Docker recovery targets; use the current MPHR release gates. The historical observations and remaining API migration requirements are retained as evidence and are not automatically refreshed by this notice.
+> **Hosting-strategy supersession:** **Superseded by GEAS MPHR** ([Multi-Provider Hosting Resilience](./geas-multi-provider-hosting-resilience.md)). This document remains the historical route-by-route Cloudflare Worker migration/evidence record. Its former Cloudflare-only hosting decision is no longer the approved long-term hosting strategy. Do not use the historical decision below to remove Vercel or Docker recovery targets; use the current MPHR release gates. The historical observations and remaining API migration requirements are retained as evidence and are not automatically refreshed by this notice.
 
 ## Decision (superseded by GEAS MPHR)
 
