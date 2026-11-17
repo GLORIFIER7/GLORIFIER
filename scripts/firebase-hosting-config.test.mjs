@@ -8,6 +8,9 @@ const fixturePaths = {
   hosting: { path: '../firebase.json', json: true },
   firestoreRules: { path: '../firestore.rules', json: false },
   collaborationModal: { path: '../src/components/AllAiCollaborationModal.tsx', json: false },
+  indexHtml: { path: '../index.html', json: false },
+  startupWatchdog: { path: '../public/startup-watchdog.js', json: false },
+  bootCss: { path: '../public/boot.css', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
 };
 
@@ -81,13 +84,23 @@ test('Hosting publishes clickjacking, content-loading, and cache-control protect
   assert.equal(values['X-Frame-Options'], 'DENY');
   assert.equal(values['Referrer-Policy'], 'strict-origin-when-cross-origin');
   assert.equal(values['Permissions-Policy'], 'camera=(), microphone=(), geolocation=()');
-  assert.match(values['Content-Security-Policy'] || '', /default-src 'self'/);
-  assert.match(values['Content-Security-Policy'] || '', /object-src 'none'/);
   const csp = values['Content-Security-Policy'] || '';
-  assert.match(csp, /frame-ancestors 'none'/);
-  const styleSource = csp.split(';').map((directive) => directive.trim()).find((directive) => directive.startsWith('style-src '));
-  assert.ok(styleSource, 'CSP must define style-src');
-  assert.doesNotMatch(styleSource, /unsafe-inline/);
+  const directives = Object.fromEntries(csp.split(';').map((directive) => {
+    const [name, ...sources] = directive.trim().split(/\\s+/);
+    return [name, sources.join(' ')];
+  }));
+  assert.equal(directives['default-src'], "'self'");
+  assert.equal(directives['base-uri'], "'self'");
+  assert.equal(directives['object-src'], "'none'");
+  assert.equal(directives['frame-ancestors'], "'none'");
+  assert.equal(directives['script-src'], "'self' https://www.gstatic.com https://apis.google.com");
+  assert.equal(directives['style-src'], "'self' https://fonts.googleapis.com");
+  assert.equal(directives['font-src'], "'self' https://fonts.gstatic.com data:");
+  assert.equal(directives['img-src'], "'self' data: blob: https:");
+  assert.match(directives['connect-src'], /https:\\/\\/\\*\\.auth0\\.com/);
+  assert.match(directives['frame-src'], /https:\\/\\/\\*\\.auth0\\.com/);
+  assert.equal(directives['form-action'], "'self' https://accounts.google.com");
+  assert.doesNotMatch(csp, /unsafe-inline/);
   const indexHeaders = hosting.hosting.headers.find((entry) => entry.source === '/index.html');
   assert.deepEqual(indexHeaders?.headers, [{ key: 'Cache-Control', value: 'no-cache' }]);
 });
@@ -119,3 +132,17 @@ test('Cloudflare Worker Firebase verification targets the registered project and
 test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
   assert.doesNotMatch(fixture('collaborationModal'), /style=\{\{/);
 });
+
+test('startup watchdog is loaded as a same-origin asset with no inline scripts or styles', () => {
+  const indexHtml = fixture('indexHtml');
+  const startupWatchdog = fixture('startupWatchdog');
+  const bootCss = fixture('bootCss');
+  assert.match(indexHtml, /<script[^>]+src="\\/startup-watchdog\\.js"[^>]+defer[^>]*><\\/script>/);
+  assert.match(indexHtml, /<link[^>]+href="\\/boot\\.css"[^>]*>/);
+  assert.doesNotMatch(indexHtml, /<script\\b(?![^>]*\\bsrc=)[^>]*>/i);
+  assert.doesNotMatch(indexHtml, /\\sstyle=/i);
+  assert.match(startupWatchdog, /unhandledrejection/);
+  assert.match(startupWatchdog, /setTimeout/);
+  assert.match(bootCss, /boot-status/);
+});
+
