@@ -61,7 +61,7 @@ function safeRequestUrl(base, suffix) {
   url.hash = "";
   const queryIndex = suffix.indexOf("?");
   const pathnameSuffix = queryIndex >= 0 ? suffix.slice(0, queryIndex) : suffix;
-  url.pathname = url.pathname.replace(/\\/+$/, "") + pathnameSuffix;
+  url.pathname = url.pathname.replace(/\/+$/, "") + pathnameSuffix;
   if (queryIndex >= 0) url.search = suffix.slice(queryIndex);
   return url.toString();
 }
