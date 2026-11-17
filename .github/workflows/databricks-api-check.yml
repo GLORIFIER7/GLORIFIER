@@ -24,6 +24,12 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      # Databricks service-principal federation policy must match these claims:
+      # issuer: https://token.actions.githubusercontent.com
+      # subject: repo:GLORIFIER7@32674233/GLORIFIER@1377237797:environment:databricks-readonly
+      # audience: 11bcb30d-f5e8-42dc-a186-dcd824e4c045 (Databricks account ID)
+      # Databricks recommends using the account ID as the OIDC audience.
+      DATABRICKS_TOKEN_AUDIENCE: 11bcb30d-f5e8-42dc-a186-dcd824e4c045
 
     steps:
       - name: Validate configuration
@@ -34,8 +40,12 @@ jobs:
             echo "::error::DATABRICKS_HOST must be an HTTPS workspace URL without a path."
             exit 1
           fi
-          if [[ ! "$DATABRICKS_CLIENT_ID" =~ ^[0-9a-fA-F-]{16,}$ ]]; then
-            echo "::error::DATABRICKS_CLIENT_ID is missing or does not look like an application ID."
+          if [[ ! "$DATABRICKS_CLIENT_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::DATABRICKS_CLIENT_ID must be a UUID service-principal application ID."
+            exit 1
+          fi
+          if [[ ! "$DATABRICKS_TOKEN_AUDIENCE" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::DATABRICKS_TOKEN_AUDIENCE must be the Databricks account ID UUID."
             exit 1
           fi
           echo "Required non-secret configuration is present."
