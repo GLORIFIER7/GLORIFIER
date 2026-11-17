@@ -69,7 +69,7 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
 test('frontend container Dockerfile declares a non-root runtime and truthful static-only health contract', () => {
   const dockerfile = read('Dockerfile.frontend');
   const server = read('scripts/serve-frontend.mjs');
-  const nodeImages = [...dockerfile.matchAll(/^FROM (node:24\\.22\\.3-trixie-slim@sha256:[a-f0-9]{64}) AS (build|runtime)$/gm)];
+  const nodeImages = [...dockerfile.matchAll(/^FROM (node:24\.22\.3-trixie-slim@sha256:[a-f0-9]{64}) AS (build|runtime)$/gm)];
   assert.equal(nodeImages.length, 2, 'build and runtime stages must both pin the Node base image');
   assert.deepEqual(nodeImages.map(([, , stage]) => stage), ['build', 'runtime']);
   assert.equal(nodeImages[0][1], nodeImages[1][1],
