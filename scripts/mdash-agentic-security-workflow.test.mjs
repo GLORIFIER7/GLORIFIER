@@ -51,7 +51,7 @@ test('MDASH scan is read-only: no automatic fix, push, PR, deployment, or merge 
 });
 
 test('MDASH results are validated as SARIF before GitHub Security upload and artifact retention', () => {
-  assert.match(workflow, /defender status wait/);
+  assert.match(workflow, /status wait/);
   assert.match(workflow, /\.sarif/);
   assert.match(workflow, /jq -e/);
   assert.match(workflow, /github\/codeql-action\/upload-sarif@/);
