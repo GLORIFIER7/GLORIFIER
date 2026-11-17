@@ -69,7 +69,7 @@ test('does not pretend backend write routes are available on a static-only host'
 
 test('encoded and multiply encoded backend route prefixes fail closed before SPA routing', async (t) => {
   const { origin } = await startFixture(t);
-  for (const route of ['/%61pi/health', '/api%2Fhealth', '/%2561pi/health', '/%252561pi/health']) {
+  for (const route of ['/%61pi/health', '/api%2Fhealth', '/%2561pi/health', '/%252561pi/health', '/API/health', '/Auth/session']) {
     const response = await fetch(origin + route);
     assert.equal(response.status, 503, route);
     assert.equal((await response.json()).code, 'BACKEND_NOT_CONFIGURED');
