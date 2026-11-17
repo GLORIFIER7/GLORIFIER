@@ -119,4 +119,3 @@ test('Cloudflare Worker Firebase verification targets the registered project and
 test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
   assert.doesNotMatch(fixture('collaborationModal'), /style=\{\{/);
 });
-});
