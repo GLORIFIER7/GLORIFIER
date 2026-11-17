@@ -37,6 +37,8 @@ The Vercel project configuration builds the canonical Vite output directory (`di
 
 The `/healthz` endpoint reports static frontend availability only. Its `backend` field is `not-probed`. API, auth, MCP, and Agent Card paths return a no-store JSON HTTP 503 with `BACKEND_NOT_CONFIGURED`; they never fall through to the React SPA shell. This prevents a static frontend container from falsely claiming to be a healthy full application.
 
+The backend currently remains on the Cloudflare Worker: Vercel and the static Docker frontend are frontend-only targets, not independent backend replicas.
+
 The existing root `Dockerfile` is the distinct Node/Express application image. Publishing that image to Docker Hub does not create a running host, database, TLS endpoint, or automatic route failover.
 
 ## Evidence-based current status
