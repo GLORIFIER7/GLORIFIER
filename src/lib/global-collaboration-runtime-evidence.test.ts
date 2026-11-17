@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { getGlobalCollaborationPolicy } from './global-collaboration-orchestrator';
 
-const workflow = readFileSync(new URL('../../.github/workflows/global-collaboration.yml', import.meta.url), 'utf8');
-const documentation = readFileSync(new URL('../../docs/GLORIFIER-GLOBAL-COLLABORATION.md', import.meta.url), 'utf8');
-const collaborationOrchestrator = readFileSync(new URL('./global-collaboration-orchestrator.ts', import.meta.url), 'utf8');
-const scheduledEntrypoint = readFileSync(new URL('../../scripts/run-global-collaboration.ts', import.meta.url), 'utf8');
+const readSource = (relativePath: string): string =>
+  readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 
 test('global collaboration claims match the scheduled workflow and observed execution scope', () => {
+  const workflow = readSource('../../.github/workflows/global-collaboration.yml');
+  const documentation = readSource('../../docs/GLORIFIER-GLOBAL-COLLABORATION.md');
   const policy = getGlobalCollaborationPolicy();
 
   assert.equal(policy.continuous, false);
@@ -33,6 +33,9 @@ test('global collaboration claims match the scheduled workflow and observed exec
 });
 
 test('scheduled collaboration entrypoint remains limited to discovery and resolution', () => {
+  const collaborationOrchestrator = readSource('./global-collaboration-orchestrator.ts');
+  const scheduledEntrypoint = readSource('../../scripts/run-global-collaboration.ts');
+  const workflow = readSource('../../.github/workflows/global-collaboration.yml');
   const cycle = collaborationOrchestrator.match(
     /export async function runGlobalCollaborationCycle[\s\S]*?^\}/m,
   )?.[0];
