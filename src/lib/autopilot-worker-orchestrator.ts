@@ -225,10 +225,13 @@ export async function runCloudflareAutopilotCycle(
   const binding = environment.APP_STATE_HYPERDRIVE;
   if (!binding) return { status: 'unavailable', reason: 'autopilot-hyperdrive-not-configured' };
 
-  const requester = 'glorifier-cloudflare-autopilot';
+  // Restrict the scheduled service to missions explicitly created by the
+  // authenticated internal-service identity. RLS remains requester-scoped;
+  // this worker must never claim arbitrary owner or customer missions.
+  const requester = 'glorifier-internal-service';
   const access: WorkerAutopilotMissionAccess = {
     requester,
-    allowAll: true,
+    allowAll: false,
     source: 'internal-service',
   };
   const createStore = dependencies.createStore ?? defaultCreateStore;
