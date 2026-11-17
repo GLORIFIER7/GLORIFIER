@@ -3,26 +3,26 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const fixturePaths = {
-  firebaseConfig: '../firebase-applet-config.json',
-  firebaseRc: '../.firebaserc',
-  hosting: '../firebase.json',
-  firestoreRules: '../firestore.rules',
-  wrangler: '../wrangler.jsonc',
+  firebaseConfig: { path: '../firebase-applet-config.json', json: true },
+  firebaseRc: { path: '../.firebaserc', json: true },
+  hosting: { path: '../firebase.json', json: true },
+  firestoreRules: { path: '../firestore.rules', json: false },
+  wrangler: { path: '../wrangler.jsonc', json: true },
 };
 
-const loadFixture = async (name, relativePath, parseJson = false) => {
+const loadFixture = async (name, { path, json }) => {
   try {
-    const contents = await readFile(new URL(relativePath, import.meta.url), 'utf8');
-    return { ok: true, value: parseJson ? JSON.parse(contents) : contents };
+    const contents = await readFile(new URL(path, import.meta.url), 'utf8');
+    return { ok: true, value: json ? JSON.parse(contents) : contents };
   } catch (error) {
     return { ok: false, error };
   }
 };
 
 const fixtureResults = Object.fromEntries(await Promise.all(
-  Object.entries(fixturePaths).map(async ([name, relativePath]) => [
+  Object.entries(fixturePaths).map(async ([name, fixtureSpec]) => [
     name,
-    await loadFixture(name, relativePath, relativePath.endsWith('.json') || relativePath.endsWith('.jsonc')),
+    await loadFixture(name, fixtureSpec),
   ]),
 ));
 
