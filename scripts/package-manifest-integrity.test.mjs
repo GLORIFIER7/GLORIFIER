@@ -37,15 +37,31 @@ test("duplicateJsonKeys handles escaped quotes and backslashes in values", () =>
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
 });
 
-test("standalone build entry points run package manifest integrity first", () => {
+test("standalone build entry points run package integrity and relevant prebuild checks", () => {
   const manifest = JSON.parse(packageJsonText);
-  for (const script of ["build:frontend", "build:server", "build:android"]) {
+  const sharedPrebuild = "npm run test:package-manifest-integrity && npm run test:brand-assets";
+  for (const script of ["build:server", "build:android"]) {
     assert.equal(
       manifest.scripts?.["pre" + script],
-      "npm run test:package-manifest-integrity && npm run test:brand-assets",
-      script + " must run the package manifest integrity gate before building",
+      sharedPrebuild,
+      script + " must run package manifest integrity and brand asset gates before building",
     );
   }
+  assert.equal(
+    manifest.scripts?.prebuildFrontend,
+    undefined,
+    "frontend prebuild must use the canonical npm lifecycle key",
+  );
+  assert.equal(
+    manifest.scripts?.["prebuild:frontend"],
+    sharedPrebuild + " && npm run test:service-worker-cache",
+    "frontend builds must also verify retired service-worker cache cleanup",
+  );
+  assert.equal(
+    manifest.scripts?.["test:service-worker-cache"],
+    "node --test scripts/service-worker-cache.test.mjs",
+    "the service-worker cache migration test must be runnable independently",
+  );
 });
 
 test("rimraf override follows its direct dependency spec", () => {
