@@ -47,7 +47,7 @@ test('serves real static assets with their content type and cache policy', async
 
 test('does not return the SPA shell for API, auth, MCP or agent-card routes', async (t) => {
   const { origin } = await startFixture(t);
-  for (const route of ['/api/health', '/auth/session', '/mcp', '/.well-known/agent-card.json']) {
+  for (const route of ['/api/health', '/auth/session', '/mcp', '/mcp/tools/list', '/.well-known/agent-card.json']) {
     const response = await fetch(origin + route);
     assert.equal(response.status, 503, route + ' must fail closed without a backend');
     assert.match(response.headers.get('content-type') || '', /application\/json/);
