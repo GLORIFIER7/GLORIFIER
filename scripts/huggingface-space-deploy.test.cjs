@@ -41,7 +41,8 @@ test('secondary deployment paths are gated and existing Pages content is preserv
   assert.doesNotMatch(aiCeoWorkflow, /^\s{2}pull_request\s*:/m, 'pull requests must not trigger AI CEO Pages publishing');
 
   const projectPage = readFileSync(join(__dirname, '../public/project.html'), 'utf8');
-  const sitemap = readFileSync(join(__dirname, '../public/sitemap.xml'), 'utf8');
+  const sitemap = readFileSync(join(__dirname, '../public/github-pages-sitemap.xml'), 'utf8');
+  const cloudflareSitemap = readFileSync(join(__dirname, '../public/sitemap.xml'), 'utf8');
   
   assert.match(
     projectPage,
@@ -51,7 +52,12 @@ test('secondary deployment paths are gated and existing Pages content is preserv
   assert.match(
     sitemap,
     /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/,
-    'the existing public GitHub Pages project URL must remain listed in the sitemap',
+    'the existing public GitHub Pages project URL must remain listed in its origin-specific sitemap',
+  );
+  assert.doesNotMatch(
+    cloudflareSitemap,
+    /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/,
+    'the Cloudflare sitemap must not contain a URL on the GitHub Pages host',
   );
   
   const workflow = readFileSync(join(__dirname, '../.github/workflows/huggingface-space-deploy.yml'), 'utf8');
