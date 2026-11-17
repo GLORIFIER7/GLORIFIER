@@ -51,8 +51,8 @@ test('Autopilot status reports durable Worker persistence separately from disabl
   assert.ok(response, 'Expected the Autopilot route to handle this path.');
   const body = await response.json() as {
     ok?: boolean;
-    control?: { mode?: string; available?: boolean; durable?: boolean };
-    orchestration?: { enabled?: boolean; reason?: string; autoMerge?: boolean; autoDeploy?: boolean };
+    control?: { mode?: string; available?: boolean; durable?: boolean; scheduledTriggerEnabled?: boolean; scheduledTriggerCron?: string };
+    orchestration?: { enabled?: boolean; reason?: string; autoMerge?: boolean; autoDeploy?: boolean; selectedProvider?: string; workersPlan?: string };
   };
 
   assert.equal(response.status, 200);
@@ -61,7 +61,11 @@ test('Autopilot status reports durable Worker persistence separately from disabl
   assert.equal(body.control?.available, true);
   assert.equal(body.control?.durable, true);
   assert.equal(body.orchestration?.enabled, false);
-  assert.equal(body.orchestration?.reason, 'cloudflare-orchestrator-runtime-not-migrated');
+  assert.equal(body.control?.scheduledTriggerEnabled, true);
+  assert.equal(body.control?.scheduledTriggerCron, '*/5 * * * *');
+  assert.equal(body.orchestration?.reason, 'workers-free-plan-not-verified');
+  assert.equal(body.orchestration?.selectedProvider, 'cloudflare_workers_ai');
+  assert.equal(body.orchestration?.workersPlan, 'unverified');
   assert.equal(body.orchestration?.autoMerge, false);
   assert.equal(body.orchestration?.autoDeploy, false);
 });
