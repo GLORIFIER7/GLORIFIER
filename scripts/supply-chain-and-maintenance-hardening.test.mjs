@@ -341,18 +341,34 @@ test('Gemini collaborator settings deny command execution, network access, MCP, 
   for (const deniedAction of ['command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)']) {
     assert.ok(settings.permissions.deny.includes(deniedAction), 'missing deny rule: ' + deniedAction);
   }
-  const protectedPaths = [
+  const protectedWritePaths = [
     '.github/', 'GEMINI.md', 'AGENTS.md', 'package.json', 'package-lock.json',
     'npm-shrinkwrap.json', '.npmrc', '.env', '.env.local', '.env.production',
     '.dev.vars', '.wrangler/', 'secrets/', 'credentials/', 'signing/',
+    '.ssh/', '.aws/', 'private/', 'certs/', 'keys/',
     'wrangler.toml', 'vercel.json', 'railway.toml', 'Dockerfile', '.git/',
   ];
-  for (const protectedPath of protectedPaths) {
+  for (const protectedPath of protectedWritePaths) {
     assert.ok(
       settings.permissions.deny.includes('write_file(' + protectedPath + ')'),
       'collaborator must be unable to write protected path ' + protectedPath,
     );
   }
+  const protectedReadPaths = [
+    '.github/', '.env', '.env.local', '.env.production', '.dev.vars',
+    '.npmrc', '.wrangler/', 'secrets/', 'credentials/', 'signing/',
+    '.ssh/', '.aws/', 'private/', 'certs/', 'keys/',
+    'package.json', 'package-lock.json', 'npm-shrinkwrap.json',
+    'wrangler.toml', 'vercel.json', 'railway.toml', 'Dockerfile', '.git/',
+  ];
+  for (const protectedPath of protectedReadPaths) {
+    assert.ok(
+      settings.permissions.deny.includes('read_file(' + protectedPath + ')'),
+      'collaborator must be unable to read protected path ' + protectedPath,
+    );
+  }
+  assert.match(geminiWorkflow, /repository_read_rule = f"read_file\(\{repository_root\}\)"/);
+  assert.ok(geminiWorkflow.includes('denied.append(repository_read_rule)'));
 });
 
 test('Gemini collaborator does not invoke the retired Gemini runner after Antigravity', () => {
@@ -360,6 +376,30 @@ test('Gemini collaborator does not invoke the retired Gemini runner after Antigr
   assert.match(modelJob, /agy -p "\$GEMINI_PROMPT"/);
   assert.doesNotMatch(modelJob, /bash scripts\/run-gemini-collaboration\.sh/);
   assert.doesNotMatch(modelJob, /gemini --skip-trust/);
+});
+
+test('Gemini collaborator runs only in a filtered temporary workspace and drops protected edits', () => {
+  const workspacePreparation = geminiWorkflow.slice(
+    geminiWorkflow.indexOf('      - name: Prepare filtered Antigravity workspace'),
+    geminiWorkflow.indexOf('      - name: Run Gemini engineering collaboration'),
+  );
+  const modelJob = jobSection(geminiWorkflow, 'gemini', 'publish');
+  const patchStep = geminiWorkflow.slice(
+    geminiWorkflow.indexOf('      - name: Prepare and validate Gemini patch'),
+    geminiWorkflow.indexOf('      - name: Upload isolated patch'),
+  );
+
+  assert.ok(workspacePreparation.includes('git ls-files'));
+  assert.ok(workspacePreparation.includes('protected = re.compile'));
+  assert.ok(workspacePreparation.includes('shutil.copy2'));
+  assert.ok(workspacePreparation.includes('git("init", "--quiet")'));
+  assert.ok(workspacePreparation.includes('Filtered workspace baseline'));
+  assert.match(modelJob, /cd "\$GEMINI_WORKSPACE"/);
+  assert.ok(patchStep.includes('safe_paths = [path for path in paths if not protected.search(path)]'));
+  assert.ok(patchStep.includes('Filtered protected-file changes from the Antigravity proposal'));
+  assert.ok(patchStep.includes('"--", *safe_paths'));
+  assert.doesNotMatch(patchStep, /Gemini changed protected paths/);
+  assert.ok(geminiWorkflow.includes('HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version'));
 });
 
 test('Gemini collaborator treats provider throttling and overload as a no-patch result', () => {
