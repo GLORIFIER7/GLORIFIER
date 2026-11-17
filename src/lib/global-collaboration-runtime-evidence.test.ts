@@ -26,24 +26,24 @@ test('global collaboration claims match the scheduled workflow and observed exec
     /does not invoke provider inference, Specialist Council execution, A2A task execution, MCP, or Autopilot mission execution/i,
   );
 
-  assert.match(workflow, /cron:\\s*["']47 \\*\/6 \\* \\* \\*["']/);
+  assert.match(workflow, /cron:\s*["']47 \*\/6 \* \* \*["']/);
   assert.match(documentation, /every six hours/i);
   assert.doesNotMatch(documentation, /every 15 minutes/i);
-  assert.match(documentation, /persistent daemon status is \\*\\*NOT VERIFIED\\*\\*/i);
+  assert.match(documentation, /persistent daemon status is \*\*NOT VERIFIED\*\*/i);
 });
 
 test('scheduled collaboration entrypoint remains limited to discovery and resolution', () => {
   const cycle = collaborationOrchestrator.match(
-    /export async function runGlobalCollaborationCycle[\\s\\S]*?^\\}/m,
+    /export async function runGlobalCollaborationCycle[\s\S]*?^\}/m,
   )?.[0];
 
   assert.ok(cycle, 'global collaboration cycle implementation must remain inspectable');
-  assert.match(cycle, /run24x7OpportunityDiscoveryCycle\\(actor\\)/);
-  assert.match(cycle, /runGlobalResolutionCycle\\(actor, limit\\)/);
+  assert.match(cycle, /run24x7OpportunityDiscoveryCycle\(actor\)/);
+  assert.match(cycle, /runGlobalResolutionCycle\(actor, limit\)/);
   assert.doesNotMatch(
     cycle,
-    /\\b(?:aiOrchestrator\\.generate|runSpecialistCouncil|createA2ATaskForProtocol|executeA2ATask|githubMcpRoute|runCloudflareAutopilotCycle)\\b/,
+    /\b(?:aiOrchestrator\.generate|runSpecialistCouncil|createA2ATaskForProtocol|executeA2ATask|githubMcpRoute|runCloudflareAutopilotCycle)\b/,
   );
-  assert.match(scheduledEntrypoint, /runGlobalCollaborationCycle\\('github-actions-global-collaboration'/);
-  assert.match(workflow, /tsx scripts\\/run-global-collaboration\\.ts/);
+  assert.match(scheduledEntrypoint, /runGlobalCollaborationCycle\('github-actions-global-collaboration'/);
+  assert.match(workflow, /tsx scripts\/run-global-collaboration\.ts/);
 });
