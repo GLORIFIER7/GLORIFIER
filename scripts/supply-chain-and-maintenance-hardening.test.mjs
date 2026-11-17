@@ -7,6 +7,7 @@ import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 import './octopus-deploy-task-output.test.mjs';
 import './package-metadata-validation.test.mjs';
+import './run-gemini-collaboration.test.mjs';
 
 const agaveSources = [
   readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
@@ -298,6 +299,23 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
   assert.match(modelJob, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
+});
+
+test('Gemini collaborator handles confirmed HTTP 503 outages as an explicit no-patch result', () => {
+  const modelJob = jobSection(geminiWorkflow, 'gemini', 'publish');
+  const runner = readFileSync(
+    new URL('./run-gemini-collaboration.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(modelJob, /bash scripts\\/run-gemini-collaboration\\.sh/);
+  assert.match(modelJob, /steps\\.gemini\\.outputs\\.provider_unavailable == 'true'/);
+  assert.match(modelJob, /steps\\.gemini\\.outputs\\.provider_unavailable != 'true'/);
+  assert.match(geminiWorkflow, /has_changes: \\$\\{\\{ steps\\.patch\\.outputs\\.has_changes \\|\\| 'false' \\}\\}/);
+  assert.match(runner, /"code"\\[\\[:space:\\]\\]\\*:\\[\\[:space:\\]\\]\\*503/);
+  assert.match(runner, /provider_unavailable=true/);
+  assert.match(runner, /exit "\\$cli_status"/);
+  assert.match(runner, /--skip-trust --model/);
 });
 
 test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
