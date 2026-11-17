@@ -109,6 +109,10 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
           inferenceEnabled: true,
           externalDataEgress: false,
           paidInferenceAuthorized: false,
+          freeOnly: true,
+          inferenceEnabled: true,
+          externalDataEgress: false,
+          paidInferenceAuthorized: false,
         });
       }
       return Response.json({
