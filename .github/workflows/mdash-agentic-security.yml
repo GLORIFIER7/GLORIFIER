@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
   security-events: write
 
 concurrency:
@@ -23,7 +22,8 @@ concurrency:
 jobs:
   mdash-scan:
     name: Microsoft Defender MDASH scan
-    if: github.event_name == 'workflow_dispatch' && inputs.authorize_source_upload == true
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.authorize_source_upload == true
+    environment: mdash-security
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -33,12 +33,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Check Microsoft Entra credentials
+      - name: Check protected environment configuration
         shell: bash
         env:
           DEFENDER_ASPM_TENANT_ID: ${{ secrets.DEFENDER_ASPM_TENANT_ID }}
           DEFENDER_ASPM_CLIENT_ID: ${{ secrets.DEFENDER_ASPM_CLIENT_ID }}
           DEFENDER_ASPM_CLIENT_SECRET: ${{ secrets.DEFENDER_ASPM_CLIENT_SECRET }}
+          DEFENDER_CLI_SHA256: ${{ vars.DEFENDER_CLI_SHA256 }}
         run: |
           set -euo pipefail
           missing=()
@@ -46,20 +47,29 @@ jobs:
           [[ -n "$DEFENDER_ASPM_CLIENT_ID" ]] || missing+=("DEFENDER_ASPM_CLIENT_ID")
           [[ -n "$DEFENDER_ASPM_CLIENT_SECRET" ]] || missing+=("DEFENDER_ASPM_CLIENT_SECRET")
           if (( ${#missing[@]} > 0 )); then
-            printf 'MDASH is not configured. Add the required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            printf 'MDASH is not configured. Add the required secrets to the protected mdash-security environment: %s\\n' "${missing[*]}" >&2
             exit 1
           fi
-          echo "Microsoft Entra secret presence check passed; values were not printed."
+          if [[ ! "$DEFENDER_CLI_SHA256" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "MDASH is not configured: set DEFENDER_CLI_SHA256 to a 64-character SHA-256 digest verified through a trusted Microsoft channel." >&2
+            exit 1
+          fi
+          echo "Protected environment configuration is present; credential values were not printed."
 
-      - name: Download Defender CLI
+      - name: Download and verify Defender CLI
         shell: bash
+        env:
+          DEFENDER_CLI_SHA256: ${{ vars.DEFENDER_CLI_SHA256 }}
         run: |
           set -euo pipefail
-          curl --fail --location --silent --show-error --retry 3 \
-            "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \
-            --output "$RUNNER_TEMP/defender"
-          chmod 700 "$RUNNER_TEMP/defender"
-          test -s "$RUNNER_TEMP/defender"
+          defender="$RUNNER_TEMP/defender"
+          curl --fail --location --silent --show-error --retry 3 \\
+            "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \\
+            --output "$defender"
+          printf '%s  %s\\n' "$DEFENDER_CLI_SHA256" "$defender" | sha256sum --check --status
+          chmod 700 "$defender"
+          test -s "$defender"
+          echo "Defender CLI SHA-256 verification passed."
 
       - name: Submit MDASH scan and collect SARIF
         shell: bash
@@ -71,22 +81,39 @@ jobs:
           set -euo pipefail
           defender="$RUNNER_TEMP/defender"
           sarif_file="$RUNNER_TEMP/mdash-results.sarif"
+          submission_file="$RUNNER_TEMP/mdash-submission.txt"
+          job_id=""
+          scan_completed=false
+          cancel_attempted=false
 
-          # This step uploads checked-out repository source to Microsoft Defender MDASH.
-          # It runs only after the manual workflow-dispatch authorization gate.
-          if ! submission_log="$("$defender" scan ai-scan submit . --model-profile gpt-general-profile --force 2>&1)"; then
-            printf '%s\n' "$submission_log" >&2
+          cancel_scan() {
+            if [[ -n "$job_id" && "$scan_completed" != true && "$cancel_attempted" != true ]]; then
+              cancel_attempted=true
+              timeout 10s "$defender" status cancel "$job_id" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cancel_scan EXIT
+          trap 'cancel_scan; exit 130' INT TERM
+
+          # This command uploads checked-out repository source to Microsoft Defender MDASH.
+          # The job is main-branch-only, environment-protected, and requires explicit dispatch approval.
+          if ! "$defender" scan ai-scan submit . --model-profile standard >"$submission_file" 2>&1; then
+            echo "MDASH scan submission failed; CLI output is suppressed to avoid credential disclosure." >&2
             exit 1
           fi
-          printf '%s\n' "$submission_log"
 
-          job_id="$(printf '%s\n' "$submission_log" | sed -nE 's/^.*Job submitted:[[:space:]]*([^[:space:]]+).*$/\1/p' | tail -n 1)"
+          job_id="$(sed -nE 's/^Job submitted:[[:space:]]*([^[:space:]]+).*$/\\1/p' "$submission_file" | tail -n 1)"
           if [[ -z "$job_id" ]]; then
-            echo "Defender CLI did not return a recognizable MDASH job ID; refusing to claim a scan ran." >&2
+            echo "Defender CLI did not return a recognizable job ID; refusing to claim a scan ran." >&2
             exit 1
           fi
+          echo "::add-mask::$job_id"
 
-          "$defender" status wait "$job_id" -o "$sarif_file"
+          if ! "$defender" status wait "$job_id" -o "$sarif_file" >/dev/null 2>&1; then
+            echo "MDASH scan did not complete successfully; a cancellation will be attempted." >&2
+            exit 1
+          fi
+          scan_completed=true
           test -s "$sarif_file"
           echo "MDASH job completed and returned a SARIF file."
 
@@ -103,7 +130,7 @@ jobs:
           echo "SARIF 2.1.0 structure validated."
 
       - name: Retain MDASH SARIF evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-mdash-sarif
           path: ${{ runner.temp }}/mdash-results.sarif
