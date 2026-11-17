@@ -7,14 +7,14 @@ import {
 } from "./live-ai-inference-verification.mjs";
 
 const workflow = readFileSync(new URL("../.github/workflows/live-ai-inference-verification.yml", import.meta.url), "utf8");
-const now = new Date("2026-11-17T00:00:00.000Z");
+const now = new Date();
 const attestation = {
   providerId: "openai",
   mode: "promotional-credits",
   status: "owner-attested",
   evidenceUrl: "https://platform.openai.com/docs/guides/rate-limits",
-  attestedAt: "2026-11-17T00:00:00.000Z",
-  expiresAt: "2026-11-17T01:00:00.000Z",
+  attestedAt: new Date(now.getTime() - 60_000).toISOString(),
+  expiresAt: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
   monthlyPaidSpendLimitUsd: 0,
   autoTopUpEnabled: false,
   payAsYouGoEnabled: false,
@@ -181,6 +181,38 @@ test("Anthropic model catalogue preserves its query string and uses the Messages
   assert.equal(JSON.stringify(result).includes("test-anthropic-secret"), false);
 });
 
+test("missing owner attestation denies inference before network access", async () => {
+  let calls = 0;
+  const result = await verifySelectedLiveAiProvider("openai", {
+    ALLOW_FREE_INFERENCE: "true", OPENAI_API_KEY: "test-key", OPENAI_MODEL: "gpt-4o",
+  }, { now, fetchImpl: async () => { calls += 1; throw new Error("must not call network"); } });
+  assert.equal(result.status, "BLOCKED_BY_POLICY");
+  assert.equal(calls, 0);
+});
+
+test("a full echoed probe prompt is not accepted as a successful response", async () => {
+  const fetchImpl = async (_url, init) => init.method === "GET"
+    ? new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 })
+    : new Response(JSON.stringify({ choices: [{ message: { content: "Return exactly this token and nothing else: GLORIFIER_RUNTIME_PROBE_OK" } }] }), { status: 200 });
+  const result = await verifySelectedLiveAiProvider("openai", {
+    ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([attestation]),
+    OPENAI_API_KEY: "test-key", OPENAI_MODEL: "gpt-4o",
+  }, { now, fetchImpl });
+  assert.equal(result.status, "FAILED");
+  assert.equal(result.reason, "verification-marker-not-returned");
+});
+
+test("probe bytes are not compared with the attested input-token count", async () => {
+  const bounded = { ...attestation, maxInputTokens: 100 };
+  const fetchImpl = async (_url, init) => init.method === "GET"
+    ? new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 })
+    : new Response(JSON.stringify({ choices: [{ message: { content: "GLORIFIER_RUNTIME_PROBE_OK" } }] }), { status: 200 });
+  const result = await verifySelectedLiveAiProvider("openai", {
+    ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([bounded]),
+    OPENAI_API_KEY: "test-key", OPENAI_MODEL: "gpt-4o",
+  }, { now, fetchImpl });
+  assert.equal(result.status, "VERIFIED");
+});
 test("configured endpoint and exact model must match the current attestation", async () => {
   let calls = 0;
   const result = await verifySelectedLiveAiProvider("openai", {
