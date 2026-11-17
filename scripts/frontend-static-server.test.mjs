@@ -76,6 +76,23 @@ test('exposes a static-server-only health endpoint with no backend readiness cla
   });
 });
 
+test('does not SPA-fallback extensionless paths under the assets directory', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await fetch(origin + '/assets/missing');
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).code, 'STATIC_ASSET_NOT_FOUND');
+});
+
+test('does not report static readiness when the React entry document is missing', async (t) => {
+  const { root, origin } = await startFixture(t);
+  await rm(path.join(root, 'index.html'));
+  const response = await fetch(origin + '/healthz');
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.code, 'FRONTEND_ASSETS_NOT_READY');
+  assert.equal(body.backend, 'not-probed');
+});
+
 test('supports HEAD without returning a response body and rejects unsupported methods', async (t) => {
   const { origin } = await startFixture(t);
   const head = await fetch(origin + '/', { method: 'HEAD' });
