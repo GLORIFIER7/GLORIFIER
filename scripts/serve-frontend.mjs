@@ -161,7 +161,7 @@ export function createFrontendServer(options = {}) {
         sendJson(response, 400, { ok: false, code: 'INVALID_PATH_ENCODING' });
         return;
       }
-      const normalizedRoutePath = '/' + routePath.replace(/^\\/+/, '');
+      const normalizedRoutePath = '/' + routePath.replace(/^\/+/, '');
       if (RESERVED_RUNTIME_PATH.test(normalizedRoutePath.toLowerCase())) {
         sendJson(response, 503, {
           ok: false,
