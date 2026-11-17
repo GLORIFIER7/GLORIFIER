@@ -122,6 +122,24 @@ jobs:
           }
           JSON
           chmod 600 "$HOME/.gemini/antigravity-cli/settings.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          settings_path = Path.home() / ".gemini" / "antigravity-cli" / "settings.json"
+          with settings_path.open(encoding="utf-8") as handle:
+              settings = json.load(handle)
+          repository_root = os.path.realpath(os.environ["GITHUB_WORKSPACE"])
+          denied = settings["permissions"]["deny"]
+          repository_read_rule = f"read_file({repository_root})"
+          if repository_read_rule not in denied:
+              denied.append(repository_read_rule)
+          with settings_path.open("w", encoding="utf-8") as handle:
+              json.dump(settings, handle, indent=2)
+              handle.write("\\n")
+          os.chmod(settings_path, 0o600)
+          PY
 
       - name: Avoid duplicate open Gemini engineering proposals
         id: duplicate
