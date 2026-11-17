@@ -127,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           GEMINI_OUTPUT="$RUNNER_TEMP/gemini-output.json"
-          gemini --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT"
+          gemini --skip-trust --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT"
           python - "$GEMINI_OUTPUT" "$GITHUB_OUTPUT" <<'PY'
           import json
           import secrets
