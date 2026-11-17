@@ -30,6 +30,25 @@ const MIME_TYPES = new Map([
 
 const RESERVED_RUNTIME_PATH = /^(?:\/api(?:\/|$)|\/auth(?:\/|$)|\/mcp(?:\/|$)|\/\.well-known(?:\/|$))/;
 
+function decodeRoutePath(pathname) {
+  let decoded = pathname;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let next;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return null;
+    }
+    if (next === decoded) return decoded;
+    decoded = next;
+  }
+  try {
+    return decodeURIComponent(decoded) === decoded ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 function securityHeaders(extra = {}) {
   return {
     'X-Content-Type-Options': 'nosniff',
@@ -49,8 +68,13 @@ function sendJson(response, status, body) {
   response.end(payload);
 }
 
-function isInsideRoot(root, candidate) {
-  return candidate === root || candidate.startsWith(root + path.sep);
+export function isInsideRoot(root, candidate) {
+  const normalizedRoot = path.resolve(root);
+  const normalizedCandidate = path.resolve(candidate);
+  const boundary = normalizedRoot.endsWith(path.sep)
+    ? normalizedRoot
+    : normalizedRoot + path.sep;
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(boundary);
 }
 
 async function resolveStaticFile(root, pathname) {
@@ -126,7 +150,12 @@ export function createFrontendServer(options = {}) {
       }
 
       const pathname = requestUrl.pathname;
-      if (RESERVED_RUNTIME_PATH.test(pathname)) {
+      const routePath = decodeRoutePath(pathname);
+      if (routePath === null) {
+        sendJson(response, 400, { ok: false, code: 'INVALID_PATH_ENCODING' });
+        return;
+      }
+      if (RESERVED_RUNTIME_PATH.test(routePath)) {
         sendJson(response, 503, {
           ok: false,
           status: 'unavailable',
@@ -253,7 +282,21 @@ if (isMain) {
   } else {
     const server = createFrontendServer();
     server.listen(port, '0.0.0.0', () => {
-      process.stdout.write('GLORIFIER static frontend listening on port ' + port + '.\n');
+      process.stdout.write('GLORIFIER static frontend listening on port ' + port + '.\\n');
     });
+    const shutdown = (signal) => {
+      process.stdout.write('Received ' + signal + '; closing static frontend server.\\n');
+      const forceClose = setTimeout(() => server.closeAllConnections(), 5000);
+      forceClose.unref();
+      server.close((error) => {
+        clearTimeout(forceClose);
+        if (error) {
+          process.stderr.write('Static frontend shutdown failed: ' + error.message + '\\n');
+          process.exitCode = 1;
+        }
+      });
+    };
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    process.once('SIGINT', () => shutdown('SIGINT'));
   }
 }
