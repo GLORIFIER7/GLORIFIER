@@ -69,16 +69,24 @@ export function classifyClaudeOutput(stdout) {
   }
 
   if (payload.is_error === true) {
-    const status = Number.isInteger(payload.api_error_status)
+    const rawStatus = Number.isSafeInteger(payload.api_error_status)
       ? payload.api_error_status
       : null;
+    const status = rawStatus !== null && rawStatus >= 100 && rawStatus <= 599
+      ? rawStatus
+      : null;
+    const providerErrorText = typeof payload.error === 'string'
+      ? payload.error.slice(0, 2048)
+      : '';
+    const isLowCreditFailure = /credit balance.{0,40}(?:too\\s+low|low|insufficient|exhausted)|(?:too\\s+low|low|insufficient|exhausted).{0,40}credit balance/i
+      .test(providerErrorText);
     let code = 'provider_error';
-    if (status === 400 || status === 422) {
+    if (status === 402 || (status === 400 && isLowCreditFailure)) {
+      code = 'provider_billing_error';
+    } else if (status === 400 || status === 422) {
       code = 'provider_invalid_request';
     } else if (status === 401 || status === 403) {
       code = 'authentication_or_access_error';
-    } else if (status === 402) {
-      code = 'provider_billing_error';
     } else if (status === 404) {
       code = 'provider_model_or_endpoint_not_found';
     } else if (status === 408) {
