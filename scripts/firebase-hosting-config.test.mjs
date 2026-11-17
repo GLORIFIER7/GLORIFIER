@@ -27,6 +27,21 @@ const fixtureResults = Object.fromEntries(await Promise.all(
   ]),
 ));
 
+const extractNamedMatchBlock = (source, escapedPath) => {
+  const match = new RegExp(`match ${escapedPath}\\s*\\{`).exec(source);
+  if (!match) return null;
+  const openingBrace = match.index + match[0].lastIndexOf('{');
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(match.index, index + 1);
+    }
+  }
+  return null;
+};
+
 const fixture = (name) => {
   const result = fixtureResults[name];
   assert.ok(
@@ -88,7 +103,7 @@ test('Firebase CLI deploys the repository-owned Firestore rules with owner check
   assert.match(userMatch, /allow create, update: if isOwner\(userId\) && isValidId\(userId\);/);
 });
 
-test('Cloudflare Worker Firebase verification targets the same project and web key as the registered browser app', () => {
+test('Cloudflare Worker Firebase verification targets the registered project and requires its API key as a secret', () => {
   const firebaseConfig = fixture('firebaseConfig');
   const wrangler = fixture('wrangler');
   assert.equal(wrangler.vars.FIREBASE_PROJECT_ID, firebaseConfig.projectId);
