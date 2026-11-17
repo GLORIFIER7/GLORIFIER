@@ -17,6 +17,8 @@ export type AutopilotWorkerRouteEnvironment = WorkerAuthEnvironment & {
   GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS?: string;
   GLORIFIER_ENABLE_INFERENCE?: string;
   GLORIFIER_PAID_INFERENCE_AUTHORIZED?: string;
+  GLORIFIER_WORKERS_PLAN?: string;
+  GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
 };
 
 type AutopilotWorkerAccess = WorkerAutopilotMissionAccess & {
@@ -160,7 +162,7 @@ function buildWorkerControl() {
     missionPersistence: 'available',
     autonomousPlanningEnabled: false,
     autonomousStepExecutionEnabled: false,
-    readOnlyToolExecutionEnabled: true,
+    readOnlyToolExecutionEnabled: false,
     writeToolExecutionEnabled: false,
     writeCredentialConfigured: false,
     writeCredentialPermissionVerification: 'not-configured',
@@ -171,34 +173,56 @@ function buildWorkerControl() {
     githubSourceReadbackVerificationEnabled: false,
     boundedReadOnlyRetryEnabled: false,
     eventDrivenTriggersEnabled: false,
+    scheduledTriggerEnabled: true,
+    scheduledTriggerCron: '*/5 * * * *',
+    scheduledAnalysisMode: 'workers-ai-free-only-read-only',
     automaticReplay: false,
     expiredExecutionPolicy: 'reconciliation-required',
     approvalBoundary: 'irreversible-actions-require-recorded-human-approval',
-    runtime: 'worker-native-mission-persistence-only',
+    runtime: 'worker-native-scheduled-read-only-analysis',
   };
 }
 
 function buildWorkerOrchestration(environment: AutopilotWorkerRouteEnvironment) {
-  const authorized = inferenceAuthorized(environment);
+  const freePlanVerified = environment.GLORIFIER_WORKERS_PLAN === 'free';
+  const freeOnlyEnabled = environment.GLORIFIER_WORKERS_AI_FREE_ONLY === 'true';
+  const inferenceEnabled = environment.GLORIFIER_ENABLE_INFERENCE === 'true';
+  const externalEgressDisabled = environment.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'false';
+  const paidInferenceDisabled = environment.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'false';
+  const localGateReady = freePlanVerified && freeOnlyEnabled && inferenceEnabled &&
+    externalEgressDisabled && paidInferenceDisabled;
+  const reason = !freePlanVerified ? 'workers-free-plan-not-verified'
+    : !freeOnlyEnabled ? 'workers-ai-free-only-mode-not-enabled'
+    : !inferenceEnabled ? 'workers-ai-inference-not-owner-enabled'
+    : !externalEgressDisabled ? 'external-data-egress-must-remain-disabled'
+    : !paidInferenceDisabled ? 'paid-inference-must-remain-disabled'
+    : 'neural-free-provider-readiness-probe-required';
+
   return {
     enabled: false,
     aiCeoConnected: false,
     specialistCouncilConnected: false,
     providerOrchestratorConnected: false,
-    inferenceAuthorized: authorized,
-    inferenceMode: authorized ? 'owner-authorized-flags-present-but-executor-not-migrated' : 'disabled-zero-budget-default',
-    selectedProvider: null,
-    selectedModel: null,
+    inferenceAuthorized: localGateReady,
+    inferenceMode: localGateReady
+      ? 'free-only-neural-readiness-required'
+      : 'disabled-zero-paid-budget-default',
+    selectedProvider: 'cloudflare_workers_ai',
+    selectedModel: '@cf/google/gemma-4-26b-a4b-it',
+    workersPlan: freePlanVerified ? 'free' : 'unverified',
+    workersAiFreeOnly: freeOnlyEnabled,
     a2aConnected: false,
     writeToolExecution: false,
     autoMerge: false,
     autoDeploy: false,
     externalActionExecution: false,
-    reason: 'cloudflare-orchestrator-runtime-not-migrated',
+    scheduledReadOnlyAnalysis: localGateReady,
+    reason,
     limitations: [
-      'Worker-native durable mission persistence is available after the Neon migration is applied.',
-      'AI CEO planning and specialist execution have not yet been ported from the Node runtime.',
-      'No mission is automatically claimed, planned, executed, retried, merged, or deployed by this route.',
+      'Scheduled cycles require both the GLORIFIER Worker and NEURAL to attest the exact Workers Free plan and free-only provider configuration.',
+      'A cycle performs one bounded read-only analysis; it does not execute repository writes, external actions, merges, or deployments.',
+      'Completed analysis remains blocked pending capability execution and independent external evidence verification.',
+      'No mission is replayed automatically after a failed or interrupted execution.',
     ],
   };
 }
