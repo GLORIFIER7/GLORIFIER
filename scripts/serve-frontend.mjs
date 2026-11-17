@@ -133,7 +133,7 @@ function cacheControlFor(pathname, filePath) {
   return 'public, max-age=300';
 }
 
-const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' https://accounts.google.com https://firebaseapp.com https://*.firebaseapp.com https://*.web.app https://*.auth0.com; form-action 'self' https://accounts.google.com https://*.auth0.com; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
+const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://glorifier.pages.dev https://glorifier.glorifier.workers.dev https://glorifier-neural.glorifier.workers.dev https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com https://api.x.ai https://api.mistral.ai https://api.deepseek.com https://integrate.api.nvidia.com https://api.groq.com https://openrouter.ai https://router.huggingface.co https://api.llmsrelay.com https://api.together.xyz https://api.fireworks.ai https://dashscope.aliyuncs.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://merchant-center-1660617751955.firebaseapp.com https://*.auth0.com; frame-src 'self' https://accounts.google.com https://merchant-center-1660617751955.firebaseapp.com https://firebaseapp.com https://*.firebaseapp.com https://*.web.app https://*.auth0.com; form-action 'self' https://accounts.google.com https://*.auth0.com; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
 
 export function createFrontendServer(options = {}) {
   const configuredRoot = options.root || process.env.FRONTEND_DIST_DIR || DEFAULT_ROOT;
@@ -141,21 +141,28 @@ export function createFrontendServer(options = {}) {
 
   return createServer(async (request, response) => {
     try {
-      let requestUrl;
+      const requestTarget = request.url || '/';
+      let pathname;
       try {
-        requestUrl = new URL(request.url || '/', 'http://localhost');
+        if (requestTarget.startsWith('//')) {
+          // Preserve a protocol-relative origin-form target as a path. Passing it
+          // directly to URL() would reinterpret the first segment as a hostname.
+          pathname = requestTarget.split(/[?#]/, 1)[0];
+        } else {
+          pathname = new URL(requestTarget, 'http://localhost').pathname;
+        }
       } catch {
         sendJson(response, 400, { ok: false, code: 'INVALID_REQUEST_URL' });
         return;
       }
 
-      const pathname = requestUrl.pathname;
       const routePath = decodeRoutePath(pathname);
       if (routePath === null) {
         sendJson(response, 400, { ok: false, code: 'INVALID_PATH_ENCODING' });
         return;
       }
-      if (RESERVED_RUNTIME_PATH.test(routePath.toLowerCase())) {
+      const normalizedRoutePath = '/' + routePath.replace(/^\\/+/, '');
+      if (RESERVED_RUNTIME_PATH.test(normalizedRoutePath.toLowerCase())) {
         sendJson(response, 503, {
           ok: false,
           status: 'unavailable',
@@ -175,7 +182,7 @@ export function createFrontendServer(options = {}) {
         return;
       }
 
-      if (pathname === '/healthz') {
+      if (normalizedRoutePath === '/healthz') {
         try {
           const rootRealPath = await realpath(root);
           const entry = await resolveStaticFile(rootRealPath, '/');
@@ -209,15 +216,15 @@ export function createFrontendServer(options = {}) {
       }
 
       const rootRealPath = await realpath(root);
-      let resolved = await resolveStaticFile(rootRealPath, pathname);
+      let resolved = await resolveStaticFile(rootRealPath, normalizedRoutePath);
       if (resolved.status === 400 || resolved.status === 403) {
         sendJson(response, resolved.status, { ok: false, code: resolved.error });
         return;
       }
 
       if (resolved.status === 404 &&
-          path.extname(pathname) === '' &&
-          !pathname.startsWith('/assets/')) {
+          path.extname(normalizedRoutePath) === '' &&
+          !normalizedRoutePath.startsWith('/assets/')) {
         resolved = await resolveStaticFile(rootRealPath, '/index.html');
       }
 
@@ -255,7 +262,10 @@ export function createFrontendServer(options = {}) {
       // Streamed asset bodies omit Content-Length so an asset changed after stat()
       // cannot leave a stale advertised size and a truncated/hanging client response.
       response.writeHead(200, headers);
-      const stream = createReadStream(resolved.filePath);
+      const stream = (options.createReadStream || createReadStream)(resolved.filePath);
+      response.on('close', () => {
+        if (!response.writableEnded) stream.destroy();
+      });
       stream.on('error', () => {
         if (!response.headersSent) sendJson(response, 500, { ok: false, code: 'STATIC_ASSET_READ_FAILED' });
         else response.destroy();
