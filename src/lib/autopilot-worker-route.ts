@@ -18,6 +18,7 @@ export type AutopilotWorkerRouteEnvironment = WorkerAuthEnvironment & {
   GLORIFIER_ENABLE_INFERENCE?: string;
   GLORIFIER_PAID_INFERENCE_AUTHORIZED?: string;
   GLORIFIER_WORKERS_PLAN?: string;
+  GLORIFIER_WORKERS_PLAN_VERIFIED?: string;
   GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
 };
 
@@ -184,7 +185,8 @@ function buildWorkerControl() {
 }
 
 function buildWorkerOrchestration(environment: AutopilotWorkerRouteEnvironment) {
-  const freePlanVerified = environment.GLORIFIER_WORKERS_PLAN === 'free';
+  const freePlanVerified = environment.GLORIFIER_WORKERS_PLAN === 'free' &&
+    environment.GLORIFIER_WORKERS_PLAN_VERIFIED === 'true';
   const freeOnlyEnabled = environment.GLORIFIER_WORKERS_AI_FREE_ONLY === 'true';
   const inferenceEnabled = environment.GLORIFIER_ENABLE_INFERENCE === 'true';
   const externalEgressDisabled = environment.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'false';
@@ -210,6 +212,7 @@ function buildWorkerOrchestration(environment: AutopilotWorkerRouteEnvironment) 
     selectedProvider: 'cloudflare_workers_ai',
     selectedModel: '@cf/google/gemma-4-26b-a4b-it',
     workersPlan: freePlanVerified ? 'free' : 'unverified',
+    workersPlanVerified: freePlanVerified,
     workersAiFreeOnly: freeOnlyEnabled,
     a2aConnected: false,
     writeToolExecution: false,
