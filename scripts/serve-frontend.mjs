@@ -155,7 +155,7 @@ export function createFrontendServer(options = {}) {
         sendJson(response, 400, { ok: false, code: 'INVALID_PATH_ENCODING' });
         return;
       }
-      if (RESERVED_RUNTIME_PATH.test(routePath)) {
+      if (RESERVED_RUNTIME_PATH.test(routePath.toLowerCase())) {
         sendJson(response, 503, {
           ok: false,
           status: 'unavailable',
