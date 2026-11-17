@@ -9,7 +9,6 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
-const geminiCollaboratorRunner = readFileSync(new URL('./run-gemini-collaboration.sh', import.meta.url), 'utf8');
 const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
 assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
 const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
@@ -379,7 +378,7 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes("github.event_name == 'schedule'"));
   assert.ok(geminiCollaboratorWorkflow.includes('inputs.run_free_tier_gemini == true'));
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
-  assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: \${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
+  assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
   assert.ok(geminiCollaboratorWorkflow.includes('"modelProvider": "gemini"'));
   assert.ok(geminiCollaboratorWorkflow.includes('"agentMode": "accept-edits"'));
   for (const denied of ['command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)']) {
