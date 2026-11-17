@@ -65,11 +65,12 @@ test("browser and installed-app icons use the same canonical PNG", () => {
   }
 });
 
-test("the project page and compatibility SVG use the same canonical artwork", () => {
+test("the legacy project page redirects to the canonical status page", () => {
+  assert.match(projectPage, /http-equiv="refresh" content="0; url=\.\//);
+  assert.match(projectPage, /GLORIFIER — Public Status/);
   assert.ok(projectPage.includes(appPath));
-  assert.match(projectPage, /autonomous AI enterprise/i);
+  assert.doesNotMatch(projectPage, /autonomous AI enterprise/i);
   assert.ok(!projectPage.includes(legacyAvatarFingerprint));
-  assert.ok(!projectPage.includes('<span class="mark" aria-hidden="true">G</span>'));
   assert.ok(appIcon.includes(appPath));
   assert.ok(!appIcon.includes(legacyAvatarFingerprint));
 });
