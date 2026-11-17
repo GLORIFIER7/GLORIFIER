@@ -44,7 +44,8 @@ def test_autopilot_readiness_rejects_missing_or_invalid_worker_bearer():
     with pytest.raises(HTTPException) as rejected:
         asyncio.run(
             autopilot_workers_ai_readiness(
-                _request(_free_environment(), token="wrong-token")
+                _request(_free_environment(), token="wrong-token"),
+                "Bearer wrong-token",
             )
         )
 
@@ -55,7 +56,7 @@ def test_autopilot_readiness_requires_exact_free_only_runtime_and_ai_binding():
     environment = _free_environment()
     environment["GLORIFIER_WORKERS_PLAN"] = "unverified"
     response = asyncio.run(
-        autopilot_workers_ai_readiness(_request(environment))
+        autopilot_workers_ai_readiness(_request(environment), "Bearer test-api-token")
     )
 
     assert response.status_code == 200
@@ -70,7 +71,7 @@ def test_autopilot_readiness_requires_exact_free_only_runtime_and_ai_binding():
 
 def test_autopilot_readiness_accepts_only_the_pinned_free_workers_ai_path():
     response = asyncio.run(
-        autopilot_workers_ai_readiness(_request(_free_environment()))
+        autopilot_workers_ai_readiness(_request(_free_environment()), "Bearer test-api-token")
     )
 
     assert response.status_code == 200
