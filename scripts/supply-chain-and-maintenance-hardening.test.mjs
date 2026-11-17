@@ -38,6 +38,10 @@ const geminiWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url),
   'utf8',
 );
+const geminiRunner = readFileSync(
+  new URL('./run-gemini-collaboration.sh', import.meta.url),
+  'utf8',
+);
 const geminiDevelopmentWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-development.yml', import.meta.url),
   'utf8',
@@ -75,9 +79,10 @@ test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag
 
   for (const { name, source, mode } of workflows) {
     assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
+    const commandSource = name === 'collaborator' ? geminiRunner : source;
     const commandPrefix = name === 'collaborator' ? 'gemini --skip-trust --model' : 'gemini --model';
     assert.ok(
-      source.includes(commandPrefix + ' "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
+      commandSource.includes(commandPrefix + ' "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
       name + ' must use the explicit bounded approval mode',
     );
     assert.ok(
@@ -85,7 +90,7 @@ test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag
       name + ' must install the pinned Gemini CLI version',
     );
     assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
-    assert.doesNotMatch(source, /--yolo/, name + ' must never pass the prohibited YOLO flag');
+    assert.doesNotMatch(source + commandSource, /--yolo/, name + ' must never pass the prohibited YOLO flag');
   }
 });
 test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
@@ -298,7 +303,8 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
-  assert.match(modelJob, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
+  assert.ok(modelJob.includes('bash scripts/run-gemini-collaboration.sh'));
+  assert.match(geminiRunner, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
 });
 
 test('Gemini collaborator handles confirmed HTTP 503 outages as an explicit no-patch result', () => {
@@ -527,7 +533,9 @@ test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT de
   ];
 
   for (const workflow of workflows) {
-    const inference = geminiWorkflowStep(workflow.source, workflow.step);
+    const inference = workflow.name === 'collaborator'
+      ? geminiRunner
+      : geminiWorkflowStep(workflow.source, workflow.step);
     assert.match(inference, /import secrets/,
       workflow.name + ' must generate a fresh output delimiter');
     assert.match(inference, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/,
