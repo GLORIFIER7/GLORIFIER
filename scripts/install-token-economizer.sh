@@ -69,9 +69,27 @@ if [[ -e "$INSTALL_DIR" ]]; then
     echo "error: existing checkout has an unexpected origin: $CURRENT_REMOTE" >&2
     exit 1
   fi
-  if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain)" ]]; then
-    echo "error: existing TokenEconomizer checkout has local changes; inspect it before updating." >&2
-    exit 1
+  if git -C "$INSTALL_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+    if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain --untracked-files=all)" ]]; then
+      echo "error: existing TokenEconomizer checkout has local changes; inspect it before updating." >&2
+      exit 1
+    fi
+  else
+    # A previous interrupted clone/fetch/checkout can leave an empty index.
+    # Recover only when every reported change is a deletion; preserve any
+    # untracked or modified user data and require manual inspection instead.
+    INCOMPLETE_STATUS="$(git -C "$INSTALL_DIR" status --porcelain --untracked-files=all)"
+    if [[ -n "$INCOMPLETE_STATUS" ]]; then
+      while IFS= read -r status_line; do
+        [[ -z "$status_line" ]] && continue
+        status_code="${status_line:0:2}"
+        if [[ "$status_code" != " D" && "$status_code" != "D " ]]; then
+          echo "error: incomplete TokenEconomizer checkout contains untracked or modified files; inspect it before recovery." >&2
+          exit 1
+        fi
+      done <<< "$INCOMPLETE_STATUS"
+    fi
+    echo "Recovering incomplete TokenEconomizer checkout at: $INSTALL_DIR"
   fi
 else
   git clone --filter=blob:none --no-checkout "$UPSTREAM_URL" "$INSTALL_DIR"
