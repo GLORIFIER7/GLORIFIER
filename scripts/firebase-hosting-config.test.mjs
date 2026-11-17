@@ -86,8 +86,8 @@ test('Hosting publishes clickjacking, content-loading, and cache-control protect
   assert.equal(values['Permissions-Policy'], 'camera=(), microphone=(), geolocation=()');
   const csp = values['Content-Security-Policy'] || '';
   const directives = Object.fromEntries(csp.split(';').map((directive) => {
-  const directives = Object.fromEntries(csp.split(';').map((directive) => {
-    const [name, ...sources] = directive.trim().split(/\s+/);
+    const parts = directive.trim().split(' ').filter(Boolean);
+    return [parts[0], parts.slice(1).join(' ')];
   }));
   assert.equal(directives['default-src'], "'self'");
   assert.equal(directives['base-uri'], "'self'");
