@@ -1,115 +1,169 @@
 name: Live AI Inference Verification
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/live-ai-inference-verification.yml'
+      - 'scripts/live-ai-inference-verification.mjs'
+      - 'scripts/live-ai-inference-verification.test.mjs'
+      - 'src/lib/ai/repository-contributor-policy.mjs'
   workflow_dispatch:
     inputs:
       provider:
-        description: "Provider to test using a GitHub Actions secret"
+        description: "Select one registered GLORIFIER AI provider to verify"
         required: true
         type: choice
         options:
+          - openai
+          - gemini
+          - anthropic
+          - meta
+          - qwen
+          - xai
+          - mistral
+          - deepseek
+          - groq
+          - together
+          - fireworks
+          - openrouter
+          - huggingface
+          - llmsrelay
           - nvidia
+          - ollama
       model:
-        description: "Optional model override (otherwise NVIDIA_MODEL or repository default)"
+        description: "Optional exact model override; it must match the current owner attestation"
         required: false
         type: string
+      allow_free_inference:
+        description: "Explicitly authorize one bounded inference request only after free entitlement and zero-spend attestation"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: live-ai-inference-verification
+  group: live-ai-inference-verification-${{ github.event_name }}-${{ inputs.provider || 'contract' }}
   cancel-in-progress: false
 
 jobs:
-  inference:
-    name: Real NVIDIA inference (no secret output)
+  contract-tests:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - name: Execute one minimal live inference request
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Test provider coverage, owner attestation, and no-fallback controls
+        run: node --test scripts/live-ai-inference-verification.test.mjs
+
+  preflight:
+    # Manual owner-only dispatch on main, explicit opt-in, and an existing protected
+    # environment are required before any provider secret is exposed to a runner.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 && vars.LIVE_AI_PROBE_ENABLED == 'true' && inputs.allow_free_inference == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout exact dispatched commit without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify independent reviewer and main-only environment protection
         env:
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          NVIDIA_MODEL_SECRET: ${{ secrets.NVIDIA_MODEL }}
-          MODEL_INPUT: ${{ inputs.model }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${NVIDIA_API_KEY:-}" ]]; then
-            echo "::error::NVIDIA_API_KEY repository or organization secret is missing. Add it in Settings > Secrets and variables > Actions; never put the key in workflow files."
-            exit 1
-          fi
-          model="${MODEL_INPUT:-${NVIDIA_MODEL_SECRET:-nvidia/nemotron-3.5-super-vl-120b-a12b}}"
-          body="$(mktemp)"
-          request="$(mktemp)"
-          trap 'rm -f "$body" "$request"' EXIT
-          MODEL="$model" node -e 'process.stdout.write(JSON.stringify({model:process.env.MODEL,messages:[{role:"user",content:"Return exactly this token and nothing else: GLORIFIER_RUNTIME_PROBE_OK"}],max_tokens:128,temperature:0,reasoning_effort:"none",stream:false}))' > "$request"
-          status="$(curl --silent --show-error --connect-timeout 10 --max-time 90 \
-            -o "$body" -w '%{http_code}' \
-            https://integrate.api.nvidia.com/v1/chat/completions \
-            -H "Authorization: Bearer ${NVIDIA_API_KEY}" \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json' \
-            --data-binary "@$request")"
-          echo "Provider: NVIDIA NIM"
-          echo "HTTP status: $status"
-          if [[ "$status" != "200" ]]; then
-            # Print only a bounded, redacted diagnostic; never print headers or the API key.
-            node - "$body" "$status" <<'NODE'
-          const fs = require('node:fs');
-          const status = process.argv[3];
-          let message = 'Provider request failed; response omitted to avoid exposing provider details.';
-          try {
-            const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-            const candidate = data?.error?.message || data?.message;
-            if (typeof candidate === 'string') message = candidate.replace(/(?:sk-[A-Za-z0-9_-]{12,}|nvapi-[A-Za-z0-9_-]{12,})/g, '[REDACTED]').slice(0, 240);
-          } catch {}
-          console.error(`::error::NVIDIA inference failed (HTTP ${status}): ${message}`);
-          process.exit(1);
-          NODE
-          fi
-          MODEL="$model" node - "$body" <<'NODE'
-          const fs = require('node:fs');
-          let data;
-          try {
-            data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          } catch {
-            console.error('::error::NVIDIA returned HTTP 200 with a non-JSON response; response body omitted.');
-            process.exit(1);
-          }
-          const choice = Array.isArray(data?.choices) ? data.choices[0] : undefined;
-          const message = choice?.message;
-          const rawContent = message?.content;
-          const text = typeof rawContent === 'string'
-            ? rawContent
-            : Array.isArray(rawContent)
-              ? rawContent.filter(part => typeof part?.text === 'string').map(part => part.text).join('')
-              : '';
-          const model = process.env.MODEL;
-          if (!text.includes('GLORIFIER_RUNTIME_PROBE_OK')) {
-            // Safe response-shape diagnostics only: do not print generated content or request headers.
-            console.error('::error::NVIDIA returned HTTP 200, but the inference probe marker was absent.');
-            console.error(JSON.stringify({
-              diagnostic: 'marker_missing',
-              model,
-              choicesCount: Array.isArray(data?.choices) ? data.choices.length : 0,
-              finishReason: choice?.finish_reason ?? null,
-              messageRole: message?.role ?? null,
-              contentType: rawContent === null ? 'null' : Array.isArray(rawContent) ? 'array' : typeof rawContent,
-              contentLength: text.length,
-              refusalPresent: typeof message?.refusal === 'string' && message.refusal.length > 0,
-              errorType: typeof data?.error?.type === 'string' ? data.error.type : null,
-              errorCode: typeof data?.error?.code === 'string' || typeof data?.error?.code === 'number' ? data.error.code : null
-            }, null, 2));
-            process.exit(1);
-          }
-          console.log(JSON.stringify({
-            status: 'VERIFIED',
-            provider: 'NVIDIA NIM',
-            model,
-            inferenceExecuted: true,
-            expectedMarkerReturned: true,
-            usage: data.usage ?? null,
-            responseText: '[omitted]'
-          }, null, 2));
-          NODE
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: node scripts/verify-live-ai-probe-environment.mjs
+
+  inference:
+    needs: preflight
+    if: needs.preflight.result == 'success' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.run_attempt == 1 && inputs.allow_free_inference == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: live-ai-probe
+    permissions:
+      contents: read
+    env:
+      LIVE_AI_PROVIDER: ${{ inputs.provider }}
+      ALLOW_FREE_INFERENCE: ${{ inputs.allow_free_inference && 'true' || 'false' }}
+      GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: ${{ vars.GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON }}
+      OPENAI_API_KEY: ${{ inputs.provider == 'openai' && secrets.OPENAI_API_KEY || '' }}
+      GEMINI_API_KEY: ${{ inputs.provider == 'gemini' && secrets.GEMINI_API_KEY || '' }}
+      ANTHROPIC_API_KEY: ${{ inputs.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY || '' }}
+      META_API_KEY: ${{ inputs.provider == 'meta' && secrets.META_API_KEY || '' }}
+      QWEN_API_KEY: ${{ inputs.provider == 'qwen' && secrets.QWEN_API_KEY || '' }}
+      XAI_API_KEY: ${{ inputs.provider == 'xai' && secrets.XAI_API_KEY || '' }}
+      MISTRAL_API_KEY: ${{ inputs.provider == 'mistral' && secrets.MISTRAL_API_KEY || '' }}
+      DEEPSEEK_API_KEY: ${{ inputs.provider == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
+      GROQ_API_KEY: ${{ inputs.provider == 'groq' && secrets.GROQ_API_KEY || '' }}
+      TOGETHER_API_KEY: ${{ inputs.provider == 'together' && secrets.TOGETHER_API_KEY || '' }}
+      FIREWORKS_API_KEY: ${{ inputs.provider == 'fireworks' && secrets.FIREWORKS_API_KEY || '' }}
+      OPENROUTER_API_KEY: ${{ inputs.provider == 'openrouter' && secrets.OPENROUTER_API_KEY || '' }}
+      HF_TOKEN: ${{ inputs.provider == 'huggingface' && secrets.HF_TOKEN || '' }}
+      LLMSRELAY_API_KEY: ${{ inputs.provider == 'llmsrelay' && secrets.LLMSRELAY_API_KEY || '' }}
+      NVIDIA_API_KEY: ${{ inputs.provider == 'nvidia' && secrets.NVIDIA_API_KEY || '' }}
+      OLLAMA_AUTH_TOKEN: ${{ inputs.provider == 'ollama' && secrets.OLLAMA_AUTH_TOKEN || '' }}
+      OPENAI_MODEL: ${{ inputs.model || vars.OPENAI_MODEL }}
+      GEMINI_MODEL: ${{ inputs.model || vars.GEMINI_MODEL }}
+      ANTHROPIC_MODEL: ${{ inputs.model || vars.ANTHROPIC_MODEL }}
+      META_MODEL: ${{ inputs.model || vars.META_MODEL }}
+      QWEN_MODEL: ${{ inputs.model || vars.QWEN_MODEL }}
+      XAI_MODEL: ${{ inputs.model || vars.XAI_MODEL }}
+      MISTRAL_MODEL: ${{ inputs.model || vars.MISTRAL_MODEL }}
+      DEEPSEEK_MODEL: ${{ inputs.model || vars.DEEPSEEK_MODEL }}
+      GROQ_MODEL: ${{ inputs.model || vars.GROQ_MODEL }}
+      TOGETHER_MODEL: ${{ inputs.model || vars.TOGETHER_MODEL }}
+      FIREWORKS_MODEL: ${{ inputs.model || vars.FIREWORKS_MODEL }}
+      OPENROUTER_MODEL: ${{ inputs.model || vars.OPENROUTER_MODEL }}
+      HF_MODEL: ${{ inputs.model || vars.HF_MODEL }}
+      LLMSRELAY_MODEL: ${{ inputs.model || vars.LLMSRELAY_MODEL }}
+      NVIDIA_MODEL: ${{ inputs.model || vars.NVIDIA_MODEL }}
+      OLLAMA_MODEL: ${{ inputs.model || vars.OLLAMA_MODEL }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+      META_BASE_URL: ${{ vars.META_BASE_URL }}
+      QWEN_BASE_URL: ${{ vars.QWEN_BASE_URL }}
+      XAI_BASE_URL: ${{ vars.XAI_BASE_URL }}
+      MISTRAL_BASE_URL: ${{ vars.MISTRAL_BASE_URL }}
+      DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL }}
+      GROQ_BASE_URL: ${{ vars.GROQ_BASE_URL }}
+      TOGETHER_BASE_URL: ${{ vars.TOGETHER_BASE_URL }}
+      FIREWORKS_BASE_URL: ${{ vars.FIREWORKS_BASE_URL }}
+      OPENROUTER_BASE_URL: ${{ vars.OPENROUTER_BASE_URL }}
+      HF_BASE_URL: ${{ vars.HF_BASE_URL }}
+      LLMSRELAY_BASE_URL: ${{ vars.LLMSRELAY_BASE_URL }}
+      NVIDIA_BASE_URL: ${{ vars.NVIDIA_BASE_URL }}
+      OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+    steps:
+      - name: Checkout exact dispatched commit without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Run one-provider, zero-paid-budget inference verification
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_ACTOR_ID: ${{ github.actor_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: node scripts/live-ai-inference-verification.mjs | tee "$GITHUB_STEP_SUMMARY"
