@@ -454,17 +454,20 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 ## 2026-11-17 — Evidence excerpt word-boundary integrity
 
 ### Observed fact
-- The exact-head scan artifact for NIST IR 8621 contained a content-matched excerpt whose leading character window began mid-word (`resentations`). The source URL, full-source SHA-256, and content-matched classification remained intact.
+- The exact-head artifact for PR #909 (run 44013438199; source head 35d5068e7b4f8acec394f08c9272792e6ed52b2c; tested merge 26e9e5e52d40166a9a56f45c2c51938bd65465cc; ZIP SHA-256 1b573ac499578ce6bedd8f507ed2d44fb17b858c577365071a7d2f05e81e2c19) contains an NIST IR 8621 excerpt beginning with the complete word "presentations" and ending with "reporting schemas." The official NIST abstract says "Discussions and technical presentations highlighted..." The excerpt omits the preceding adjective "technical" but does not split the word. The source URL, content SHA-256, and analysis classification remain intact.
+- NIST source: https://csrc.nist.gov/pubs/ir/8621/final, full abstract lines 76–78; publication history identifies IR 8621 Final on 2026-11-02.
 
 ### Analysis
-- The existing fixed-character excerpt window could split the first or last word when a keyword occurred near a character boundary.
-- This is an evidence-presentation defect, not a source-integrity or claim-verification failure. It must not change the source digest, evidence class, or claim-support admission.
+- A synthetic regression fixture demonstrated that a fixed character offset can split a word when the selected start or end falls inside a token.
+- The new helper expands offsets to whole-word boundaries. The live artifact confirms a word-aligned excerpt; the omitted adjective is context truncation, not a mid-word integrity defect.
+- This is evidence-presentation behavior only. It does not alter the source digest, evidence class, claim authorization, or claim-support admission.
 
 ### Auto-approval record
-- **Classification:** LOW risk; pre-authorized for engineering refinement.
-- **Rationale:** Deterministic excerpt formatting only. No source trust, claim authorization, evidence classification, production behavior, data, security posture, permissions, or budget changes.
-- **Affected files:** `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`, and this backlog.
-- **Implementation:** Add `trimEvidenceExcerptToWordBoundaries` and use it for source evidence excerpts.
-- **Regression tests:** Leading and trailing mid-word offsets are expanded to whole-word boundaries; out-of-range offsets are clamped to source length.
-- **Commits:** `65ac91bb9f95cd892146fc56eb1c3af1b1081dd6` (helper); `f71ba7acae5c8351366e0f002ba4fcddcd594df6` (tests).
-- **Governance:** Excerpt formatting only. No claim promotion, PR review approval, merge, deployment, or production mutation.
+- Classification: LOW risk; pre-authorized for engineering refinement.
+- Rationale: Deterministic excerpt formatting only. No source trust, claim authorization, evidence classification, production behavior, data, security posture, permissions, or budget changes.
+- Affected files: src/lib/governance/geas-architecture-scientist.ts, src/lib/governance/geas-architecture-scientist.test.ts, and this backlog.
+- Implementation: Add trimEvidenceExcerptToWordBoundaries and use it in createEvidenceExcerpt.
+- Regression tests: Synthetic leading and trailing mid-word offsets expand to whole-word boundaries; out-of-range offsets clamp to source length.
+- Commits: 65ac91bb9f95cd892146fc56eb1c3af1b1081dd6 (helper); f71ba7acae5c8351366e0f002ba4fcddcd594df6 (tests).
+- Verification limitation: Run 44013438199 is the exact-head artifact for the source head above. Its ZIP was independently downloaded and SHA-256 verified. No claim was promoted to claim-supported.
+- Governance: Excerpt formatting only. No claim promotion, PR review approval, merge, deployment, or production mutation.
