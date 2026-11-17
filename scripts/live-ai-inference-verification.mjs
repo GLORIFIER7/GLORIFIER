@@ -4,6 +4,7 @@ import { evaluateRepositoryProviderAttestation, normalizeRepositoryProviderEndpo
 
 const PROBE = "Return exactly this token and nothing else: GLORIFIER_RUNTIME_PROBE_OK";
 const MAX_OUTPUT_TOKENS = 16;
+const MAX_PROBE_BYTES = 512;
 const TIMEOUT_MS = 15_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
 
@@ -17,8 +18,8 @@ const PROVIDERS = Object.freeze({
   mistral: { name: "Mistral AI", keyEnv: "MISTRAL_API_KEY", modelEnv: "MISTRAL_MODEL", baseEnv: "MISTRAL_BASE_URL", defaultBase: "https://api.mistral.ai/v1", kind: "openai" },
   deepseek: { name: "DeepSeek", keyEnv: "DEEPSEEK_API_KEY", modelEnv: "DEEPSEEK_MODEL", baseEnv: "DEEPSEEK_BASE_URL", defaultBase: "https://api.deepseek.com/v1", kind: "openai" },
   groq: { name: "Groq", keyEnv: "GROQ_API_KEY", modelEnv: "GROQ_MODEL", baseEnv: "GROQ_BASE_URL", defaultBase: "https://api.groq.com/openai/v1", kind: "openai" },
-  together: { name: "Together AI", keyEnv: "TOGETHER_API_KEY", modelEnv: "TOGETHER_MODEL", baseEnv: "TOGETHER_BASE_URL", kind: "openai" },
-  fireworks: { name: "Fireworks AI", keyEnv: "FIREWORKS_API_KEY", modelEnv: "FIREWORKS_MODEL", baseEnv: "FIREWORKS_BASE_URL", kind: "openai" },
+  together: { name: "Together AI", keyEnv: "TOGETHER_API_KEY", modelEnv: "TOGETHER_MODEL", baseEnv: "TOGETHER_BASE_URL", defaultBase: "https://api.together.ai/v1", kind: "openai" },
+  fireworks: { name: "Fireworks AI", keyEnv: "FIREWORKS_API_KEY", modelEnv: "FIREWORKS_MODEL", baseEnv: "FIREWORKS_BASE_URL", defaultBase: "https://api.fireworks.ai/inference/v1", kind: "openai" },
   openrouter: { name: "OpenRouter", keyEnv: "OPENROUTER_API_KEY", modelEnv: "OPENROUTER_MODEL", baseEnv: "OPENROUTER_BASE_URL", defaultBase: "https://openrouter.ai/api/v1", kind: "openai" },
   huggingface: { name: "Hugging Face Inference Providers", keyEnv: "HF_TOKEN", modelEnv: "HF_MODEL", baseEnv: "HF_BASE_URL", defaultBase: "https://router.huggingface.co/v1", kind: "openai" },
   llmsrelay: { name: "LLMsRelay", keyEnv: "LLMSRELAY_API_KEY", modelEnv: "LLMSRELAY_MODEL", baseEnv: "LLMSRELAY_BASE_URL", defaultBase: "https://api.llmsrelay.com/v1", kind: "openai" },
@@ -145,7 +146,7 @@ function modelCatalogUrl(config, base) {
   return safeRequestUrl(base, "/models");
 }
 
-function inferenceRequest(config, base, model, key, maxTokens) {
+function inferenceRequest(providerId, config, base, model, key, maxTokens) {
   const headers = { "Content-Type": "application/json", ...headersFor(config, key) };
   if (config.kind === "gemini") {
     return {
@@ -179,6 +180,7 @@ function inferenceRequest(config, base, model, key, maxTokens) {
     init: { method: "POST", headers, body: JSON.stringify({
       model, max_tokens: maxTokens, temperature: 0, stream: false,
       messages: [{ role: "user", content: PROBE }],
+      ...(providerId === "openrouter" ? { provider: { allow_fallbacks: false } } : {}),
     }) },
   };
 }
@@ -247,8 +249,8 @@ export async function verifySelectedLiveAiProvider(providerId, env = process.env
       reason: "configured-model-does-not-match-owner-attestation" };
   }
   const maxTokens = Math.min(MAX_OUTPUT_TOKENS, evaluation.limits.maxOutputTokens);
-  const inputUpperBound = Buffer.byteLength(PROBE, "utf8") + 32;
-  if (inputUpperBound > evaluation.limits.maxInputTokens || maxTokens < 1) {
+  const probeBytes = Buffer.byteLength(PROBE, "utf8");
+  if (probeBytes > MAX_PROBE_BYTES || maxTokens < 1) {
     return { status: "BLOCKED_BY_POLICY", providerId, providerName: config.name, observedAt,
       reason: "probe-exceeds-owner-attested-request-limits" };
   }
@@ -270,7 +272,7 @@ export async function verifySelectedLiveAiProvider(providerId, env = process.env
       inferenceExecuted: false, discoveredModelCount: modelIds.length };
   }
 
-  const call = inferenceRequest(config, base, model, key, maxTokens);
+  const call = inferenceRequest(providerId, config, base, model, key, maxTokens);
   const inferenceStarted = Date.now();
   const inference = await requestJson(fetchImpl, call.url, call.init);
   const inferenceLatencyMs = Date.now() - inferenceStarted;
@@ -280,7 +282,7 @@ export async function verifySelectedLiveAiProvider(providerId, env = process.env
       reason: failureReason(inference), inferenceExecuted: true };
   }
   const answer = responseText(config, inference.payload).trim();
-  if (!answer.includes("GLORIFIER_RUNTIME_PROBE_OK")) {
+  if (answer !== "GLORIFIER_RUNTIME_PROBE_OK") {
     return { status: "FAILED", providerId, providerName: config.name, observedAt,
       stage: "live-inference", httpStatus: inference.status, latencyMs: inferenceLatencyMs,
       reason: "verification-marker-not-returned", inferenceExecuted: true,
@@ -311,6 +313,7 @@ async function main() {
     firstAttempt: process.env.GITHUB_RUN_ATTEMPT === "1",
     selectedProvider: typeof process.env.LIVE_AI_PROVIDER === "string" && Boolean(process.env.LIVE_AI_PROVIDER),
     explicitOptIn: process.env.ALLOW_FREE_INFERENCE === "true",
+    releaseSwitch: process.env.LIVE_AI_PROBE_ENABLED === "true",
   };
   if (Object.values(required).some((value) => !value)) {
     process.stdout.write(JSON.stringify({ status: "BLOCKED_BY_POLICY", reason: "owner-main-first-attempt-manual-free-opt-in-required", required }, null, 2) + "\n");
