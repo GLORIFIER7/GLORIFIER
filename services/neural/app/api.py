@@ -676,7 +676,7 @@ async def autopilot_workers_ai_readiness(
     expected = _request_environment_value(request, "GLORIFIER_API_TOKEN")
     supplied = (authorization or "").strip()
     if not expected or not hmac.compare_digest(
-        supplied.encode("utf-8"), f"Bearer {expected}".encode("utf-8")
+        supplied.encode("utf-8"), f"Bearer {expected}".encode()
     ):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
