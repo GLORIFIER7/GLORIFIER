@@ -8,7 +8,7 @@ const html = read('../index.html');
 const manifest = JSON.parse(read('../public/manifest.webmanifest'));
 const serviceWorker = read('../public/sw.js');
 const sitemap = read('../public/sitemap.xml');
-const githubPagesSitemap = read('../public/github-pages-sitemap.xml');
+const projectPage = read('../public/project.html');
 
 test('public production entry is a single static evidence page', () => {
   assert.match(html, /GLORIFIER — Public Status/);
@@ -91,7 +91,8 @@ test('the Cloudflare sitemap contains only URLs on its canonical Pages host', ()
   assert.doesNotMatch(sitemap, /https:\/\/glorifier7\.github\.io\//);
 });
 
-test('the GitHub Pages project URL remains in its origin-specific sitemap', () => {
-  assert.match(githubPagesSitemap, /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/);
-  assert.doesNotMatch(githubPagesSitemap, /https:\/\/glorifier\.pages\.dev\//);
+test('the legacy project route is an inert redirect to the canonical evidence page', () => {
+  assert.match(projectPage, /<meta http-equiv=["']refresh["'] content=["']0;\s*url=https:\/\/glorifier\.pages\.dev\//i);
+  assert.match(projectPage, /<link rel=["']canonical["'] href=["']https:\/\/glorifier\.pages\.dev\//i);
+  assert.doesNotMatch(projectPage, /<script\b|Autonomous AI Enterprise|AI-first autonomous enterprise/i);
 });
