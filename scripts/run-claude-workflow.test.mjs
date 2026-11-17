@@ -55,7 +55,7 @@ test('classifies provider failures without returning their raw message', () => {
     error: 'Credit balance is too low; private diagnostic detail',
   });
   const result = classifyClaudeOutput(raw);
-  assert.deepEqual(result, { ok: false, code: 'provider_invalid_request', httpStatus: 400 });
+  assert.deepEqual(result, { ok: false, code: 'provider_billing_error', httpStatus: 400 });
   assert.ok(!JSON.stringify(result).includes('private diagnostic detail'));
 });
 
@@ -210,5 +210,27 @@ test('classifies common Anthropic HTTP failures into safe actionable categories'
     }));
     assert.deepEqual(result, { ok: false, code, httpStatus: status });
     assert.ok(!JSON.stringify(result).includes('private diagnostic content'));
+  }
+});
+
+
+test('classifies low-credit HTTP 400 responses as billing failures without exposing text', () => {
+  const result = classifyClaudeOutput(JSON.stringify({
+    is_error: true,
+    api_error_status: 400,
+    error: 'Credit balance is too low; private billing diagnostic',
+  }));
+  assert.deepEqual(result, { ok: false, code: 'provider_billing_error', httpStatus: 400 });
+  assert.ok(!JSON.stringify(result).includes('private billing diagnostic'));
+});
+
+test('rejects malformed provider HTTP status values', () => {
+  for (const invalidStatus of [0, 99, 600, -1, 1.5, '400']) {
+    const result = classifyClaudeOutput(JSON.stringify({
+      is_error: true,
+      api_error_status: invalidStatus,
+      error: 'generic provider error',
+    }));
+    assert.deepEqual(result, { ok: false, code: 'provider_error', httpStatus: null });
   }
 });
