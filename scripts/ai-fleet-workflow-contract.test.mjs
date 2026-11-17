@@ -9,6 +9,7 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+const geminiCollaboratorRunner = readFileSync(new URL('./run-gemini-collaboration.sh', import.meta.url), 'utf8');
 const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
 assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
 const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
@@ -380,8 +381,10 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
   assert.ok(geminiCollaboratorWorkflow.includes('GEMINI_MODEL: gemini-3.8-flash'));
-  assert.ok(geminiCollaboratorWorkflow.includes('--approval-mode auto_edit'));
-  assert.doesNotMatch(geminiCollaboratorWorkflow, /run-gemini-cli|--yolo/);
+  assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'));
+  assert.ok(geminiCollaboratorRunner.includes('--approval-mode auto_edit'));
+  assert.ok(geminiCollaboratorRunner.includes('--skip-trust --model "$GEMINI_MODEL"'));
+  assert.doesNotMatch(geminiCollaboratorWorkflow + geminiCollaboratorRunner, /run-gemini-cli|--yolo/);
   const geminiCliVersion = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
   assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
