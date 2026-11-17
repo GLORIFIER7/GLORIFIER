@@ -54,13 +54,18 @@ test("standalone build entry points run package integrity and relevant prebuild 
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    sharedPrebuild + " && npm run test:service-worker-cache",
-    "frontend builds must also verify retired service-worker cache cleanup",
+    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config",
+    "frontend builds must verify retired service-worker cache cleanup and Firebase Hosting configuration",
   );
   assert.equal(
     manifest.scripts?.["test:service-worker-cache"],
     "node --test scripts/service-worker-cache.test.mjs",
     "the service-worker cache migration test must be runnable independently",
+  );
+  assert.equal(
+    manifest.scripts?.["test:firebase-hosting-config"],
+    "node --test scripts/firebase-hosting-config.test.mjs",
+    "the Firebase Hosting config test must be runnable independently",
   );
 });
 

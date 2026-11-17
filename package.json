@@ -14,7 +14,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:broker-console-truthfulness": "node --test scripts/broker-console-truthfulness.test.mjs",
-    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache",
+    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache && npm run test:firebase-hosting-config",
     "test:service-worker-cache": "node --test scripts/service-worker-cache.test.mjs",
     "build:frontend": "vite build",
     "prebuild:android": "npm run test:package-manifest-integrity && npm run test:brand-assets",
@@ -133,7 +133,8 @@
     "test:github-app-auth": "node --import tsx/esm --test src/lib/github-app-auth.test.ts",
     "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts",
     "test:specialist-council": "node --import tsx/esm --test src/lib/ai/specialist-council.test.ts",
-    "test:autopilot-worker-orchestrator": "node --import tsx/esm --test src/lib/autopilot-worker-orchestrator.test.ts src/lib/autopilot-worker-scheduler.test.ts"
+    "test:autopilot-worker-orchestrator": "node --import tsx/esm --test src/lib/autopilot-worker-orchestrator.test.ts src/lib/autopilot-worker-scheduler.test.ts",
+    "test:firebase-hosting-config": "node --test scripts/firebase-hosting-config.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
