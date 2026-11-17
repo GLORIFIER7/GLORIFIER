@@ -220,19 +220,19 @@ jobs:
           workspace.mkdir(parents=True, mode=0o700)
 
           protected = re.compile(
-              r"(^|/)(?:\\.git|\\.github|node_modules|\\.wrangler|secrets|credentials|signing|\\.ssh|\\.aws|private|certs|keys)(?:/|$)|"
-              r"(^|/)(?:package\\.json|package-lock\\.json|npm-shrinkwrap\\.json|\\.npmrc|\\.env(?:$|[./])|\\.dev\\.vars|"
-              r"wrangler\\.toml|vercel\\.json|railway\\.toml|Dockerfile)$|"
-              r"\\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              r"(^|/)(?:\.git|\.github|node_modules|\.wrangler|secrets|credentials|signing|\.ssh|\.aws|private|certs|keys)(?:/|$)|"
+              r"(^|/)(?:package\.json|package-lock\.json|npm-shrinkwrap\.json|\.npmrc|\.env(?:$|[./])|\.dev\.vars|"
+              r"wrangler\.toml|vercel\.json|railway\.toml|Dockerfile)$|"
+              r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
               re.IGNORECASE,
           )
-          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\\0")
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
           copied = 0
           excluded = 0
           for raw_path in tracked:
               if not raw_path:
                   continue
-              relative = raw_path.decode("utf-8", "surrogateescape").replace("\\\\", "/")
+              relative = raw_path.decode("utf-8", "surrogateescape")
               if protected.search(relative):
                   excluded += 1
                   continue
@@ -361,14 +361,14 @@ jobs:
 
           git = ["git", "-C", os.environ["GEMINI_WORKSPACE"], "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
           changed = subprocess.check_output(git + ["diff", "--name-only", "-z", "HEAD"])
-          paths = [path for path in changed.decode("utf-8", "surrogateescape").split("\\0") if path]
+          paths = [path for path in changed.decode("utf-8", "surrogateescape").split("\0") if path]
           protected = re.compile(
-              r"(^|/)\\.github(?:/|$)|(^|/)GEMINI\\.md$|(^|/)AGENTS\\.md$|"
-              r"(^|/)\\.env(?:$|[./])|(^|/)package\\.json$|(^|/)package-lock\\.json$|"
-              r"(^|/)npm-shrinkwrap\\.json$|(^|/)\\.npmrc$|"
-              r"(^|/)(?:secrets|credentials|signing|\\.ssh|\\.aws|private|certs|keys)(?:/|$)|"
-              r"(^|/)(?:wrangler\\.toml|vercel\\.json|railway\\.toml|Dockerfile)$|"
-              r"\\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              r"(^|/)\.github(?:/|$)|(^|/)GEMINI\.md$|(^|/)AGENTS\.md$|"
+              r"(^|/)\.env(?:$|[./])|(^|/)package\.json$|(^|/)package-lock\.json$|"
+              r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
+              r"(^|/)(?:secrets|credentials|signing|\.ssh|\.aws|private|certs|keys)(?:/|$)|"
+              r"(^|/)(?:wrangler\.toml|vercel\.json|railway\.toml|Dockerfile)$|"
+              r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
               re.IGNORECASE)
           safe_paths = [path for path in paths if not protected.search(path)]
           filtered = [path for path in paths if protected.search(path)]
@@ -376,7 +376,7 @@ jobs:
               print("::warning::Filtered protected-file changes from the Antigravity proposal: " + ", ".join(repr(path) for path in filtered))
           if not safe_paths:
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-                  out.write("has_changes=false\\n")
+                  out.write("has_changes=false\n")
               print("Antigravity produced no publishable changes; no PR will be created.")
               sys.exit(0)
 
@@ -386,13 +386,13 @@ jobs:
               sys.exit(1)
           if not patch:
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-                  out.write("has_changes=false\\n")
+                  out.write("has_changes=false\n")
               print("Antigravity produced no changes; no PR will be created.")
               sys.exit(0)
           with open(os.path.join(os.environ["RUNNER_TEMP"], "gemini.patch"), "wb") as handle:
               handle.write(patch)
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write("has_changes=true\\n")
+              out.write("has_changes=true\n")
           PY
       - name: Upload isolated patch
         if: ${{ steps.patch.outputs.has_changes == 'true' }}
