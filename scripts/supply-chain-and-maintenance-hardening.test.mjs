@@ -7,6 +7,7 @@ import test from 'node:test';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 import './octopus-deploy-task-output.test.mjs';
 import './package-metadata-validation.test.mjs';
+import './run-gemini-collaboration.test.mjs';
 
 const agaveSources = [
   readFileSync(new URL('../.github/workflows/glorifier-solana-devnet-reconcile.yml', import.meta.url), 'utf8'),
@@ -35,6 +36,10 @@ const codexWorkflow = readFileSync(
 );
 const geminiWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url),
+  'utf8',
+);
+const geminiRunner = readFileSync(
+  new URL('./run-gemini-collaboration.sh', import.meta.url),
   'utf8',
 );
 const geminiDevelopmentWorkflow = readFileSync(
@@ -80,6 +85,10 @@ test('Gemini workflows use explicit bounded CLI modes and never enable unrestric
     assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
     assert.ok(
       source.includes('gemini --model "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
+    const commandSource = name === 'collaborator' ? geminiRunner : source;
+    const commandPrefix = name === 'collaborator' ? 'gemini --skip-trust --model' : 'gemini --model';
+    assert.ok(
+      commandSource.includes(commandPrefix + ' "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
       name + ' must use the explicit bounded approval mode',
     );
     assert.ok(
@@ -87,7 +96,7 @@ test('Gemini workflows use explicit bounded CLI modes and never enable unrestric
       name + ' must install the pinned Gemini CLI version',
     );
     assert.doesNotMatch(source, /run-gemini-cli/, name + ' must not use the third-party action that forces YOLO mode');
-    assert.doesNotMatch(source, /--yolo/, name + ' must never pass the prohibited YOLO flag');
+    assert.doesNotMatch(source + commandSource, /--yolo/, name + ' must never pass the prohibited YOLO flag');
   }
 });test('all four Foundry workflow actions are pinned to the reviewed immutable commit', () => {
   for (const source of foundryWorkflows) {
@@ -322,6 +331,46 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
       collaboratorSettings.permissions.deny.includes('write_file(' + protectedPath + ')'),
       'collaborator must be unable to write protected path ' + protectedPath,
     );
+  assert.ok(modelJob.includes('bash scripts/run-gemini-collaboration.sh'));
+  assert.match(geminiRunner, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
+});
+
+test('Gemini collaborator handles confirmed HTTP 503 outages as an explicit no-patch result', () => {
+  const modelJob = jobSection(geminiWorkflow, 'gemini', 'publish');
+  const runner = readFileSync(
+    new URL('./run-gemini-collaboration.sh', import.meta.url),
+    'utf8',
+  );
+
+  assert.ok(modelJob.includes('bash scripts/run-gemini-collaboration.sh'));
+  assert.ok(modelJob.includes("steps.gemini.outputs.provider_unavailable == 'true'"));
+  assert.ok(modelJob.includes("steps.gemini.outputs.provider_unavailable != 'true'"));
+  assert.ok(geminiWorkflow.includes("has_changes: ${{ steps.patch.outputs.has_changes || 'false' }}"));
+  assert.ok(runner.includes('grep -Eiq'));
+  assert.ok(runner.includes('503'));
+  assert.ok(runner.includes('provider_unavailable=true'));
+  assert.ok(runner.includes('exit "$cli_status"'));
+  assert.ok(runner.includes('--skip-trust --model'));
+});
+
+test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
+  for (const source of [geminiWorkflow, geminiDevelopmentWorkflow]) {
+    const settings = readGeminiSystemSettings(source);
+    assert.deepEqual(settings.tools.core, [
+      'read_file',
+      'glob',
+      'grep_search',
+      'list_directory',
+      'read_many_files',
+      'write_file',
+      'replace',
+    ]);
+    assert.equal(settings.general.defaultApprovalMode, 'auto_edit');
+    assert.equal(settings.security.disableYoloMode, true);
+    assert.equal(settings.security.environmentVariableRedaction.enabled, true);
+    assert.equal(settings.security.enableConseca, true);
+    assert.doesNotMatch(JSON.stringify(settings.tools.core), /run_shell_command/);
+    assert.match(source, /GEMINI_CLI_SYSTEM_SETTINGS_PATH:\s*\/etc\/glorifier\/gemini-system-settings\.json/);
   }
   assert.ok(geminiWorkflow.includes('GEMINI_API_KEY: \${{ secrets.GEMINI_API_KEY }}'));
   assert.equal(geminiWorkflow.includes('GEMINI_CLI_SYSTEM_SETTINGS_PATH'), false);
@@ -534,7 +583,9 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
   ];
 
   for (const workflow of workflows) {
-    const inference = geminiWorkflowStep(workflow.source, workflow.step);
+    const inference = workflow.name === 'collaborator'
+      ? geminiRunner
+      : geminiWorkflowStep(workflow.source, workflow.step);
     assert.match(inference, /import secrets/,
       workflow.name + ' must generate a fresh output delimiter');
     assert.match(inference, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/,

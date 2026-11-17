@@ -28,7 +28,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      has_changes: ${{ steps.patch.outputs.has_changes }}
+      has_changes: ${{ steps.patch.outputs.has_changes || 'false' }}
+      provider_unavailable: ${{ steps.gemini.outputs.provider_unavailable || 'false' }}
     env:
       HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
     steps:
@@ -189,9 +190,15 @@ jobs:
               handle.write(response)
               handle.write(f"\n{delimiter}\n")
           PY
+          bash scripts/run-gemini-collaboration.sh
+
+      - name: Report transient Gemini API unavailability
+        if: ${{ steps.gemini.outputs.provider_unavailable == 'true' }}
+        run: echo "::warning::Gemini returned HTTP 503. No patch, provider fallback, paid inference, or pull request was produced."
+
       - name: Prepare and validate Gemini patch
         id: patch
-        if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' }}
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' && steps.gemini.outputs.provider_unavailable != 'true' }}
         shell: bash
         run: |
           set -euo pipefail

@@ -9,6 +9,7 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
+const geminiCollaboratorRunner = readFileSync(new URL('./run-gemini-collaboration.sh', import.meta.url), 'utf8');
 const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
 assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
 const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
@@ -393,6 +394,14 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('payload.get("status") != "SUCCESS"'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
   assert.ok(geminiCollaboratorWorkflow.includes('never retry on a paid tier, change models, or switch providers'));
+  assert.ok(geminiCollaboratorWorkflow.includes('GEMINI_MODEL: gemini-3.8-flash'));
+  assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'));
+  assert.ok(geminiCollaboratorRunner.includes('--approval-mode auto_edit'));
+  assert.ok(geminiCollaboratorRunner.includes('--skip-trust --model "$GEMINI_MODEL"'));
+  assert.doesNotMatch(geminiCollaboratorWorkflow + geminiCollaboratorRunner, /run-gemini-cli|--yolo/);
+  const geminiCliVersion = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
+  assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
+  assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
   assert.ok(geminiCollaboratorWorkflow.includes('node --test scripts/ai-fleet-workflow-contract.test.mjs'));
   assert.ok(geminiCollaboratorWorkflow.includes('npm run lint'));
