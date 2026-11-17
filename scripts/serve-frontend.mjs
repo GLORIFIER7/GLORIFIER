@@ -282,16 +282,16 @@ if (isMain) {
   } else {
     const server = createFrontendServer();
     server.listen(port, '0.0.0.0', () => {
-      process.stdout.write('GLORIFIER static frontend listening on port ' + port + '.\\n');
+      process.stdout.write('GLORIFIER static frontend listening on port ' + port + '.\n');
     });
     const shutdown = (signal) => {
-      process.stdout.write('Received ' + signal + '; closing static frontend server.\\n');
+      process.stdout.write('Received ' + signal + '; closing static frontend server.\n');
       const forceClose = setTimeout(() => server.closeAllConnections(), 5000);
       forceClose.unref();
       server.close((error) => {
         clearTimeout(forceClose);
         if (error) {
-          process.stderr.write('Static frontend shutdown failed: ' + error.message + '\\n');
+          process.stderr.write('Static frontend shutdown failed: ' + error.message + '\n');
           process.exitCode = 1;
         }
       });
