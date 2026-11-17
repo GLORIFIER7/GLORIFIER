@@ -206,7 +206,7 @@ jobs:
           )"
           curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
             "$DOWNLOAD_URL" --output "$ARCHIVE"
-          printf '%s  %s\n' "${EXPECTED_DIGEST#sha256:}" "$ARCHIVE" | sha256sum --check --strict
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$ARCHIVE" | sha256sum --check --strict
 
           mkdir -p "$INSTALL_DIR" "$HOME/.local/bin"
           tar -tzf "$ARCHIVE" | grep -Fxq antigravity
@@ -342,7 +342,7 @@ jobs:
               lines = [line.replace(token, "[REDACTED]") for line in lines]
           if lines:
               print("Antigravity stderr (last 40 lines; API key redacted):")
-              print("\\n".join(lines))
+              print("\n".join(lines))
           PY
             echo "::error::Antigravity headless execution failed with exit status $AGY_STATUS."
             exit "$AGY_STATUS"
