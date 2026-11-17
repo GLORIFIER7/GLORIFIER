@@ -7,6 +7,7 @@ const fixturePaths = {
   firebaseRc: { path: '../.firebaserc', json: true },
   hosting: { path: '../firebase.json', json: true },
   firestoreRules: { path: '../firestore.rules', json: false },
+  collaborationModal: { path: '../src/components/AllAiCollaborationModal.tsx', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
 };
 
@@ -67,7 +68,11 @@ test('Hosting publishes clickjacking, content-loading, and cache-control protect
   assert.equal(values['Permissions-Policy'], 'camera=(), microphone=(), geolocation=()');
   assert.match(values['Content-Security-Policy'] || '', /default-src 'self'/);
   assert.match(values['Content-Security-Policy'] || '', /object-src 'none'/);
-  assert.match(values['Content-Security-Policy'] || '', /frame-ancestors 'none'/);
+  const csp = values['Content-Security-Policy'] || '';
+  assert.match(csp, /frame-ancestors 'none'/);
+  const styleSource = csp.split(';').map((directive) => directive.trim()).find((directive) => directive.startsWith('style-src '));
+  assert.ok(styleSource, 'CSP must define style-src');
+  assert.doesNotMatch(styleSource, /unsafe-inline/);
   const indexHeaders = hosting.hosting.headers.find((entry) => entry.source === '/index.html');
   assert.deepEqual(indexHeaders?.headers, [{ key: 'Cache-Control', value: 'no-cache' }]);
 });
@@ -77,17 +82,26 @@ test('Firebase CLI deploys the repository-owned Firestore rules with owner check
   const firestoreRules = fixture('firestoreRules');
   assert.equal(hosting.firestore.rules, 'firestore.rules');
   assert.match(firestoreRules, /allow read, write: if false;/);
-  const userMatch = firestoreRules.match(/match \/users\/\{userId\}\s*\{([\s\S]*?)\n    \}/);
+  const userMatch = extractNamedMatchBlock(firestoreRules, '\\/users\\/\\{userId\\}');
   assert.ok(userMatch, 'a /users/{userId} rules block must exist');
-  assert.match(userMatch[1], /allow read: if isOwner\(userId\);/);
-  assert.match(userMatch[1], /allow create, update: if isOwner\(userId\) && isValidId\(userId\);/);
+  assert.match(userMatch, /allow read: if isOwner\(userId\);/);
+  assert.match(userMatch, /allow create, update: if isOwner\(userId\) && isValidId\(userId\);/);
 });
 
 test('Cloudflare Worker Firebase verification targets the same project and web key as the registered browser app', () => {
   const firebaseConfig = fixture('firebaseConfig');
   const wrangler = fixture('wrangler');
   assert.equal(wrangler.vars.FIREBASE_PROJECT_ID, firebaseConfig.projectId);
-  assert.equal(wrangler.vars.FIREBASE_WEB_API_KEY, firebaseConfig.apiKey);
   assert.equal(wrangler.previews.vars.FIREBASE_PROJECT_ID, firebaseConfig.projectId);
-  assert.equal(wrangler.previews.vars.FIREBASE_WEB_API_KEY, firebaseConfig.apiKey);
+  assert.equal(wrangler.vars.FIREBASE_WEB_API_KEY, undefined,
+    'the Worker Web API key must not be committed as a plain-text Wrangler variable');
+  assert.equal(wrangler.previews.vars.FIREBASE_WEB_API_KEY, undefined,
+    'preview must not duplicate the Worker Web API key as a plain-text variable');
+  assert.ok(wrangler.secrets.required.includes('FIREBASE_WEB_API_KEY'),
+    'the Worker Web API key must be configured as a Wrangler secret');
+});
+
+test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
+  assert.doesNotMatch(fixture('collaborationModal'), /style=\{\{/);
+});
 });
