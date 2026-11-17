@@ -70,6 +70,17 @@ class Orchestrator:
         self._readiness_lock = threading.Lock()
         self._readiness_cache: tuple[float, tuple[str, str]] | None = None
 
+    @property
+    def inference_enabled(self) -> bool:
+        """Expose the effective inference gate without leaking runtime internals."""
+        return self._allow_inference
+
+    def has_configured_provider(self, name: str) -> bool:
+        """Report whether a named provider is registered and explicitly configured."""
+        if not isinstance(name, str) or not name.strip():
+            return False
+        return self._providers.get(name) is not None
+
     def check_readiness(self) -> tuple[str, str]:
         """Return a short-lived cached provider check to protect the upstream credential."""
         with self._readiness_lock:
