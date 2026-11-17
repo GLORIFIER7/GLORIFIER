@@ -415,12 +415,18 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('--print-timeout 35m'));
   assert.ok(geminiCollaboratorWorkflow.includes('status = payload.get("status")'));
   assert.ok(geminiCollaboratorWorkflow.includes('if status != "SUCCESS":'));
-  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.9"'));
   assert.ok(geminiCollaboratorWorkflow.includes('agy_cli_linux_x64.tar.gz'));
   assert.ok(geminiCollaboratorWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
   assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
   assert.ok(geminiCollaboratorWorkflow.includes('get("digest")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('EXPECTED_SHA256="8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('digest != "sha256:" + expected_sha256'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
+  assert.ok(geminiCollaboratorWorkflow.includes(String.raw`\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\b`));
+  assert.ok(geminiCollaboratorWorkflow.includes('last 40 lines; API key redacted'));
+  assert.ok(geminiCollaboratorWorkflow.includes('env HOME="$VERSION_HOME"'));
   assert.ok(geminiCollaboratorWorkflow.includes('tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity'));
   assert.ok(geminiCollaboratorWorkflow.includes('never retry on a paid tier, change models, or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
@@ -724,7 +730,7 @@ test('Gemini collaborator pins the Antigravity download and verifies the publish
   const download = 'DOWNLOAD_URL="https://github.com/google-antigravity/antigravity-cli/releases/download/$CLI_VERSION/$ASSET"';
   const verify = 'sha256sum --check --strict';
   const extract = 'tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity';
-  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.9"'));
   assert.ok(geminiCollaboratorWorkflow.includes('ASSET="agy_cli_linux_x64.tar.gz"'));
   assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
   assert.ok(geminiCollaboratorWorkflow.includes(download));
