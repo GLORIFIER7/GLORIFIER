@@ -98,11 +98,13 @@ jobs:
           # This command uploads checked-out repository source to Microsoft Defender MDASH.
           # The job is main-branch-only, environment-protected, and requires explicit dispatch approval.
           if ! "$defender" scan ai-scan submit . --model-profile standard >"$submission_file" 2>&1; then
+            rm -f "$submission_file"
             echo "MDASH scan submission failed; CLI output is suppressed to avoid credential disclosure." >&2
             exit 1
           fi
 
           job_id="$(sed -nE 's/^Job submitted:[[:space:]]*([^[:space:]]+).*$/\1/p' "$submission_file" | tail -n 1)"
+          rm -f "$submission_file"
           if [[ -z "$job_id" ]]; then
             echo "Defender CLI did not return a recognizable job ID; refusing to claim a scan ran." >&2
             exit 1
