@@ -208,16 +208,34 @@ test('Autopilot does not treat the Workers Free plan label as proof without a se
 test('Autopilot scheduler uses requester-scoped internal-service access, never cross-requester access', async () => {
   let receivedAccess: { requester: string; allowAll?: boolean; source?: string } | null = null;
   const fixture = storeFixture();
-  await runCloudflareAutopilotCycle({
-    ...freeEnvironment,
-    GLORIFIER_WORKERS_PLAN_VERIFIED: 'false',
-  } as never, {
+  await runCloudflareAutopilotCycle(freeEnvironment as never, {
     createStore: (_binding, access) => {
       receivedAccess = access;
       return fixture.store as never;
     },
-    fetchNeural: async () => new Response('{}'),
+    fetchNeural: async (request) => request.method === 'GET'
+      ? Response.json({
+          eligible: true,
+          provider: 'cloudflare_workers_ai',
+          model: '@cf/google/gemma-4-26b-a4b-it',
+          workersPlan: 'free',
+          workersPlanVerified: true,
+          freeOnly: true,
+          inferenceEnabled: true,
+          externalDataEgress: false,
+          paidInferenceAuthorized: false,
+        })
+      : Response.json({
+          status: 'VERIFIED',
+          provider: 'cloudflare_workers_ai',
+          result: 'Read-only result.',
+          evidence: ['provider:cloudflare_workers_ai:response-received', 'execution:inference'],
+        }),
   });
 
-  assert.equal(receivedAccess, null, 'A Free-plan-unverified scheduler must stop before constructing a database client');
+  assert.deepEqual(receivedAccess, {
+    requester: 'glorifier-internal-service',
+    allowAll: false,
+    source: 'internal-service',
+  });
 });
