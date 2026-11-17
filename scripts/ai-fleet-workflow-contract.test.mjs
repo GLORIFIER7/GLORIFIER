@@ -9,7 +9,6 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
-const geminiCollaboratorRunner = readFileSync(new URL('./run-gemini-collaboration.sh', import.meta.url), 'utf8');
 const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
 assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
 const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
@@ -372,7 +371,7 @@ test('Gemini write-capable publisher pins every action to an immutable commit SH
   assert.ok(geminiPublish.includes('uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0'));
 });
 
-test('Gemini engineering collaborator runs on schedule only through the owner-confirmed free tier', () => {
+test('Gemini engineering collaborator uses the owner-confirmed free-tier API through Antigravity headless mode', () => {
   assert.ok(geminiCollaboratorWorkflow.includes('  schedule:'));
   assert.ok(geminiCollaboratorWorkflow.includes('- cron:'));
   assert.ok(geminiCollaboratorWorkflow.includes('run_free_tier_gemini:'));
@@ -380,14 +379,57 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('inputs.run_free_tier_gemini == true'));
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
-  assert.ok(geminiCollaboratorWorkflow.includes('GEMINI_MODEL: gemini-3.8-flash'));
-  assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'));
-  assert.ok(geminiCollaboratorRunner.includes('--approval-mode auto_edit'));
-  assert.ok(geminiCollaboratorRunner.includes('--skip-trust --model "$GEMINI_MODEL"'));
-  assert.doesNotMatch(geminiCollaboratorWorkflow + geminiCollaboratorRunner, /run-gemini-cli|--yolo/);
-  const geminiCliVersion = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
-  assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
-  assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
+  assert.ok(geminiCollaboratorWorkflow.includes('"modelProvider": "gemini"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('"agentMode": "accept-edits"'));
+  const deniedRules = [
+    'command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)',
+    'read_file(.github/)', 'read_file(.env)', 'read_file(.env.local)',
+    'read_file(.env.production)', 'read_file(.dev.vars)', 'read_file(.npmrc)',
+    'read_file(.wrangler/)', 'read_file(secrets/)', 'read_file(credentials/)',
+    'read_file(signing/)', 'read_file(.ssh/)', 'read_file(.aws/)',
+    'read_file(private/)', 'read_file(certs/)', 'read_file(keys/)',
+    'read_file(package.json)', 'read_file(package-lock.json)',
+    'read_file(npm-shrinkwrap.json)', 'read_file(wrangler.toml)',
+    'read_file(vercel.json)', 'read_file(railway.toml)', 'read_file(Dockerfile)',
+    'read_file(.git/)', 'write_file(.github/)', 'write_file(GEMINI.md)',
+    'write_file(AGENTS.md)', 'write_file(package.json)',
+    'write_file(package-lock.json)', 'write_file(npm-shrinkwrap.json)',
+    'write_file(.npmrc)', 'write_file(.env)', 'write_file(.env.local)',
+    'write_file(.env.production)', 'write_file(.dev.vars)',
+    'write_file(.wrangler/)', 'write_file(secrets/)',
+    'write_file(credentials/)', 'write_file(signing/)', 'write_file(.ssh/)',
+    'write_file(.aws/)', 'write_file(private/)', 'write_file(certs/)',
+    'write_file(keys/)', 'write_file(wrangler.toml)', 'write_file(vercel.json)',
+    'write_file(railway.toml)', 'write_file(Dockerfile)', 'write_file(.git/)',
+  ];
+  for (const denied of deniedRules) {
+    assert.ok(geminiCollaboratorWorkflow.includes('"' + denied + '"'), 'missing Antigravity deny rule: ' + denied);
+  }
+  assert.match(geminiCollaboratorWorkflow, /repository_read_rule = f"read_file\(\{repository_root\}\)"/);
+  assert.ok(geminiCollaboratorWorkflow.includes('denied.append(repository_read_rule)'));
+  assert.ok(geminiCollaboratorWorkflow.includes('AGY_MODEL: gemini-3.8-flash'));
+  assert.ok(geminiCollaboratorWorkflow.includes('AGY_EFFORT: medium'));
+  assert.ok(geminiCollaboratorWorkflow.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL" --effort "$AGY_EFFORT"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('--mode accept-edits'));
+  assert.ok(geminiCollaboratorWorkflow.includes('--output-format json'));
+  assert.ok(geminiCollaboratorWorkflow.includes('--print-timeout 35m'));
+  assert.ok(geminiCollaboratorWorkflow.includes('status = payload.get("status")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('if status != "SUCCESS":'));
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.9"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('agy_cli_linux_x64.tar.gz'));
+  assert.ok(geminiCollaboratorWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
+  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
+  assert.ok(geminiCollaboratorWorkflow.includes('get("digest")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('EXPECTED_SHA256="8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('digest != "sha256:" + expected_sha256'));
+  assert.ok(geminiCollaboratorWorkflow.includes('PUBLISHED_DIGEST" != "sha256:$EXPECTED_SHA256'));
+  assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
+  assert.ok(geminiCollaboratorWorkflow.includes(String.raw`\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\b`));
+  assert.ok(geminiCollaboratorWorkflow.includes('last 40 lines; API key redacted'));
+  assert.ok(geminiCollaboratorWorkflow.includes('env HOME="$VERSION_HOME"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity'));
+  assert.ok(geminiCollaboratorWorkflow.includes('never retry on a paid tier, change models, or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
   assert.ok(geminiCollaboratorWorkflow.includes('node --test scripts/ai-fleet-workflow-contract.test.mjs'));
   assert.ok(geminiCollaboratorWorkflow.includes('npm run lint'));
@@ -396,10 +438,13 @@ test('Gemini engineering collaborator runs on schedule only through the owner-co
   assert.ok(geminiCollaboratorWorkflow.includes('Avoid duplicate open Gemini engineering proposals'));
   assert.ok(geminiCollaboratorWorkflow.includes('pull-requests: read'));
   assert.ok(geminiCollaboratorWorkflow.includes('headRefName | startswith("ai/gemini/")'));
+  assert.equal(geminiCollaboratorWorkflow.includes('@google/gemini-cli'), false);
+  assert.equal(geminiCollaboratorWorkflow.includes('GEMINI_CLI_SYSTEM_SETTINGS_PATH'), false);
+  assert.equal(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'), false);
+  assert.equal(geminiCollaboratorWorkflow.includes('--approval-mode auto_edit'), false);
   assert.doesNotMatch(geminiCollaboratorWorkflow, /allow_paid_inference|MANUAL_PAID_INFERENCE_AUTHORIZATION|OPENAI_API_KEY|NVIDIA_API_KEY|GITHUB_REF:/);
   assert.doesNotMatch(geminiCollaboratorWorkflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
-
 test('Gemini free-tier authorization helper allows only scheduled main and explicitly opted-in owner runs', () => {
   assert.ok(authorization.includes('glorifier_gemini_free_tier_authorized'));
   assert.ok(authorization.includes('free_tier_confirmed'));
@@ -682,12 +727,28 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
 
-test('Gemini collaborator pins CLI versions using npm semver rather than a Git tag', () => {
-  const version = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
-  assert.match(version ?? '', /^\d+\.\d+\.\d+$/,
-    'the action install step uses npm for plain semantic versions and GitHub source builds for v-prefixed tags');
+test('Gemini collaborator pins Antigravity CLI and independently verifies its archive digest before extraction', () => {
+  const download = 'DOWNLOAD_URL="https://github.com/google-antigravity/antigravity-cli/releases/download/$CLI_VERSION/$ASSET"';
+  const verify = 'sha256sum --check --strict';
+  const extract = 'tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity';
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.9"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('ASSET="agy_cli_linux_x64.tar.gz"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('EXPECTED_SHA256="8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
+  assert.ok(geminiCollaboratorWorkflow.includes(download));
+  assert.ok(geminiCollaboratorWorkflow.includes('assets[0].get("digest")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('digest != "sha256:" + expected_sha256'));
+  assert.ok(geminiCollaboratorWorkflow.includes('printf \'%s  %s\\n\' "$EXPECTED_SHA256" "$ARCHIVE" | sha256sum --check --strict'));
+  assert.ok(geminiCollaboratorWorkflow.includes(extract));
+  assert.ok(geminiCollaboratorWorkflow.indexOf(verify) < geminiCollaboratorWorkflow.indexOf(extract),
+    'archive integrity must be checked before extraction');
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eq'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eq "(^|[^0-9.])${CLI_VERSION//./\\\\.}([^0-9.]|$)"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
+  assert.ok(geminiCollaboratorWorkflow.includes('\\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\\b'));
+  assert.ok(geminiCollaboratorWorkflow.includes('last 40 lines; API key redacted'));
+  assert.ok(geminiCollaboratorWorkflow.includes('env HOME="$VERSION_HOME"'));
 });
-
 test('NEURAL dependency audit covers both development and production Neon extras', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
   const exportStep = testJob.match(/uv export[^\n]+/);
@@ -698,7 +759,7 @@ test('NEURAL dependency audit covers both development and production Neon extras
   assert.match(testJob, /uvx --no-build --from pip-audit==2\.9\.0 pip-audit -r \/tmp\/requirements\.txt/);
 });
 
-test('Gemini manual PR review uses the same npm-semver CLI pin as the collaborator', () => {
+test('Gemini manual PR review retains its separately pinned Gemini CLI dependency', () => {
   const version = geminiPrReviewWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
