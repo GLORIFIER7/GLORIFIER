@@ -33,8 +33,8 @@ PY
 else
   cli_status=$?
   if grep -Eiq '"code"[[:space:]]*:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*503|status:[[:space:]]*503|"status"[[:space:]]*:[[:space:]]*"UNAVAILABLE"' "$GEMINI_ERROR"; then
-  printf 'provider_unavailable=true\\n' >> "$GITHUB_OUTPUT"
-  echo "::warning::Gemini API returned HTTP 503 (temporarily overloaded or unavailable) after the CLI exhausted its retries. No fallback provider or paid tier was used; no patch will be published."
+    printf 'provider_unavailable=true\\n' >> "$GITHUB_OUTPUT"
+    echo "::warning::Gemini API returned HTTP 503 (temporarily overloaded or unavailable) after the CLI exhausted its retries. No fallback provider or paid tier was used; no patch will be published."
     exit 0
   fi
 
