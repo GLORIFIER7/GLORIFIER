@@ -24,7 +24,6 @@ test('Vercel forwards documented runtime paths to the current Cloudflare Pages A
     ['/auth/:path*', 'https://glorifier.pages.dev/auth/:path*'],
     ['/mcp', 'https://glorifier.pages.dev/mcp'],
     ['/mcp/:path*', 'https://glorifier.pages.dev/mcp/:path*'],
-    ['/.well-known/agent-card.json', 'https://glorifier.pages.dev/.well-known/agent-card.json'],
   ];
   for (const [source, destination] of expected) {
     assert.ok(rewrites.some((item) => item.source === source && item.destination === destination),
@@ -34,6 +33,10 @@ test('Vercel forwards documented runtime paths to the current Cloudflare Pages A
     ...expected.map(([source, destination]) => ({ source, destination })),
     { source: '/(.*)', destination: '/index.html' },
   ], 'all explicit runtime rewrites must precede the final SPA fallback');
+  assert.equal(rewrites.some((item) => item.source.startsWith('/.well-known')), false,
+    'Vercel reserves .well-known routes; do not configure unsupported rewrites');
+  assert.equal(existsSync(new URL('../public/.well-known/agent-card.json', import.meta.url)), false,
+    'do not claim a Vercel Agent Card until a verified static card is provisioned');
   assert.equal(existsSync(new URL('../api/health.js', import.meta.url)), false,
     'Vercel must not discover the retired Railway-backed /api/health function');
   assert.equal(existsSync(new URL('../api/provider-health.js', import.meta.url)), false,
@@ -136,9 +139,9 @@ test('public documentation distinguishes the hosting design from live deployment
   const readme = read('README.md');
   const legacy = read('docs/architecture/cloudflare-workers-only-migration.md');
   assert.match(readme, /GEAS.*Multi-Provider Hosting Resilience|Multi-Provider Hosting Resilience/);
-  assert.match(architecture, /Automatic traffic failover: NOT ENABLED/);
-  assert.match(architecture, /Vercel project: NOT LINKED/);
-  assert.match(architecture, /Docker frontend runtime: NOT DEPLOYED/);
+  assert.match(architecture, /Automatic traffic failover: \\*\\*NOT ENABLED\\*\\*/);
+  assert.match(architecture, /Vercel project: \\*\\*NOT LINKED\\*\\*/);
+  assert.match(architecture, /Docker frontend runtime: \\*\\*NOT DEPLOYED\\*\\*/);
   assert.match(architecture, /backend.*Cloudflare/i);
   assert.match(legacy, /Superseded by GEAS MPHR/i);
 });
