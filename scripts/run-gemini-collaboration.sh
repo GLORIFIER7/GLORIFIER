@@ -8,7 +8,7 @@ set -euo pipefail
 
 GEMINI_OUTPUT="${GEMINI_OUTPUT:-$RUNNER_TEMP/gemini-output.json}"
 GEMINI_ERROR="$(mktemp "$RUNNER_TEMP/gemini-error.XXXXXX")"
-trap 'rm -f "$GEMINI_ERROR"' EXIT
+trap 'rm -f "$GEMINI_ERROR" "$GEMINI_OUTPUT"' EXIT
 
 if gemini --skip-trust --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT" 2> "$GEMINI_ERROR"; then
   python - "$GEMINI_OUTPUT" "$GITHUB_OUTPUT" <<'PY'
