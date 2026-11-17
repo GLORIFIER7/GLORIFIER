@@ -296,6 +296,7 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
+  assert.match(modelJob, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
 });
 
 test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
